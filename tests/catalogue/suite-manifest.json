@@ -3000,6 +3000,135 @@
       ]
     },
     {
+      "id": "benefits.rust-benefits-workspace.unit",
+      "lane": "unit",
+      "owner": "benefits",
+      "modules": [
+        "benefits"
+      ],
+      "files": [
+        "tests/unit/benefits/rust-benefits-workspace.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Benefits workspace reads retain records.read/module/current-context policy, package history, Company scope, worker/reviewer/personal scope, bounded row shapes, deterministic ordering and exact flags."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-benefits",
+        "targets": [
+          "benefits_workspace"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-benefits/Cargo.toml"
+      ]
+    },
+    {
+      "id": "benefits.rust-benefits-workspace-http.integration",
+      "lane": "integration",
+      "owner": "benefits",
+      "modules": [
+        "benefits"
+      ],
+      "files": [
+        "tests/integration/benefits/rust-benefits-workspace-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Benefits HTTP ingress retains exact registered targets, strict personal-view/query/body rejection, fail-closed configuration and bounded errors."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-benefits",
+        "targets": [
+          "benefits_workspace_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-benefits/Cargo.toml"
+      ]
+    },
+    {
+      "id": "benefits.rust-benefits-workspace-postgres.integration",
+      "lane": "integration",
+      "owner": "benefits",
+      "modules": [
+        "benefits"
+      ],
+      "files": [
+        "tests/integration/benefits/rust-benefits-workspace-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Benefits workspace reads retain Company isolation, worker/reviewer/personal scope, serializable transaction guards, rollback and persisted readback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-benefits",
+        "targets": [
+          "benefits_workspace_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-benefits/Cargo.toml"
+      ]
+    },
+    {
+      "id": "benefits.native-benefits-workspace-transport.unit",
+      "lane": "unit",
+      "owner": "benefits",
+      "modules": [
+        "benefits"
+      ],
+      "files": [
+        "tests/unit/benefits/native-benefits-workspace-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Benefits transport must retain fail-closed configuration, exact Host/Holding/session/context forwarding, personal scope, bounded response validation and owner error mapping."
+      },
+      "framework": "vitest",
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/feature-benefits",
+        "@erpx/server-benefits",
+        "@erpx/feature-people",
+        "@erpx/workplace"
+      ]
+    },
+    {
       "id": "commercial.beta-auth-billing.integration",
       "lane": "integration",
       "owner": "commercial",

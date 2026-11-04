@@ -1,0 +1,261 @@
+//! PostgreSQL read adapter for the native Benefits enrollment workspace.
+//!
+//! Only the Benefits owner's `benefit_plans`, `benefit_enrollment_windows`,
+//! `benefit_dependents` and `benefit_elections` tables are read here. Package
+//! facts and People worker/legal-name facts arrive through public ports
+//! supplied by composition. The caller owns the retained serializable Holding
+//! transaction; this adapter never creates, publishes, retires, verifies,
+//! submits, acknowledges, releases or deletes any Benefits or cross-owner row.
+use crate::application::workspace::{BenefitsFuture, BenefitsWorkspaceRepository};
+use crate::domain::workspace::{
+    BenefitDependentRow, BenefitElectionRow, BenefitPlanRow, BenefitWindowRow, source_invalid,
+};
+use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
+use erpx_server_shared::public::{BusinessError, CompanyId};
+use sqlx::{Connection, PgConnection, Row};
+
+type Error = PgTransactionError<BusinessError>;
+
+pub struct PgBenefitsWorkspaceRead<'a> {
+    connection: &'a mut PgConnection,
+}
+
+impl<'a> PgBenefitsWorkspaceRead<'a> {
+    pub fn new(connection: &'a mut PgConnection) -> Self {
+        Self { connection }
+    }
+
+    async fn ready(&mut self) -> Result<(), Error> {
+        if !self.connection.is_in_transaction() {
+            return Err(
+                PersistenceError::new("BENEFITS_WORKSPACE_READ_TRANSACTION_REQUIRED").into(),
+            );
+        }
+        if sqlx::query_scalar::<_, String>("SHOW transaction_isolation")
+            .fetch_one(&mut *self.connection)
+            .await?
+            != "serializable"
+        {
+            return Err(
+                PersistenceError::new("BENEFITS_WORKSPACE_READ_SERIALIZABLE_REQUIRED").into(),
+            );
+        }
+        Ok(())
+    }
+
+    pub async fn plans(
+        &mut self,
+        company: &CompanyId,
+        limit: usize,
+    ) -> Result<Vec<BenefitPlanRow>, Error> {
+        self.ready().await?;
+        let rows = sqlx::query(
+            "SELECT id,company_id,name,provider,coverage_type,currency,\
+             employee_deduction_minor,employer_cost_minor,effective_from,effective_to,\
+             status,version,created_by,reviewed_by,created_at,updated_at,\
+             required_eligibility_code FROM benefit_plans \
+             WHERE company_id=$1 ORDER BY updated_at DESC,id COLLATE \"C\" LIMIT $2",
+        )
+        .bind(company.as_str())
+        .bind(limit as i64)
+        .fetch_all(&mut *self.connection)
+        .await?;
+        rows.into_iter()
+            .map(|row| {
+                Ok(BenefitPlanRow {
+                    id: row.try_get("id")?,
+                    company_id: row.try_get("company_id")?,
+                    name: row.try_get("name")?,
+                    provider: row.try_get("provider")?,
+                    coverage_type: row.try_get("coverage_type")?,
+                    currency: row.try_get("currency")?,
+                    employee_deduction_minor: row.try_get("employee_deduction_minor")?,
+                    employer_cost_minor: row.try_get("employer_cost_minor")?,
+                    effective_from: row.try_get("effective_from")?,
+                    effective_to: row.try_get("effective_to")?,
+                    status: row.try_get("status")?,
+                    version: row.try_get("version")?,
+                    created_by: row.try_get("created_by")?,
+                    reviewed_by: row.try_get("reviewed_by")?,
+                    created_at: row.try_get("created_at")?,
+                    updated_at: row.try_get("updated_at")?,
+                    required_eligibility_code: row.try_get("required_eligibility_code")?,
+                })
+            })
+            .collect()
+    }
+
+    pub async fn windows(
+        &mut self,
+        company: &CompanyId,
+        limit: usize,
+    ) -> Result<Vec<BenefitWindowRow>, Error> {
+        self.ready().await?;
+        let rows = sqlx::query(
+            "SELECT id,company_id,name,opens_on,closes_on,effective_on,status,version,\
+             created_by,reviewed_by,created_at,updated_at FROM benefit_enrollment_windows \
+             WHERE company_id=$1 ORDER BY updated_at DESC,id COLLATE \"C\" LIMIT $2",
+        )
+        .bind(company.as_str())
+        .bind(limit as i64)
+        .fetch_all(&mut *self.connection)
+        .await?;
+        rows.into_iter()
+            .map(|row| {
+                Ok(BenefitWindowRow {
+                    id: row.try_get("id")?,
+                    company_id: row.try_get("company_id")?,
+                    name: row.try_get("name")?,
+                    opens_on: row.try_get("opens_on")?,
+                    closes_on: row.try_get("closes_on")?,
+                    effective_on: row.try_get("effective_on")?,
+                    status: row.try_get("status")?,
+                    version: row.try_get("version")?,
+                    created_by: row.try_get("created_by")?,
+                    reviewed_by: row.try_get("reviewed_by")?,
+                    created_at: row.try_get("created_at")?,
+                    updated_at: row.try_get("updated_at")?,
+                })
+            })
+            .collect()
+    }
+
+    pub async fn dependents(
+        &mut self,
+        company: &CompanyId,
+        person_id: &str,
+        limit: usize,
+    ) -> Result<Vec<BenefitDependentRow>, Error> {
+        self.ready().await?;
+        let rows = sqlx::query(
+            "SELECT id,company_id,person_id,name,relationship,birth_date,status,version,\
+             created_by,reviewed_by,created_at,updated_at FROM benefit_dependents \
+             WHERE company_id=$1 AND person_id=$2 \
+             ORDER BY updated_at DESC,id COLLATE \"C\" LIMIT $3",
+        )
+        .bind(company.as_str())
+        .bind(person_id)
+        .bind(limit as i64)
+        .fetch_all(&mut *self.connection)
+        .await?;
+        rows.into_iter()
+            .map(|row| {
+                Ok(BenefitDependentRow {
+                    id: row.try_get("id")?,
+                    company_id: row.try_get("company_id")?,
+                    person_id: row.try_get("person_id")?,
+                    name: row.try_get("name")?,
+                    relationship: row.try_get("relationship")?,
+                    birth_date: row.try_get("birth_date")?,
+                    status: row.try_get("status")?,
+                    version: row.try_get("version")?,
+                    created_by: row.try_get("created_by")?,
+                    reviewed_by: row.try_get("reviewed_by")?,
+                    created_at: row.try_get("created_at")?,
+                    updated_at: row.try_get("updated_at")?,
+                })
+            })
+            .collect()
+    }
+
+    pub async fn elections(
+        &mut self,
+        company: &CompanyId,
+        person_id: Option<&str>,
+        reviewer: bool,
+        limit: usize,
+    ) -> Result<Vec<BenefitElectionRow>, Error> {
+        self.ready().await?;
+        if !reviewer && person_id.is_none() {
+            return Ok(Vec::new());
+        }
+        let rows = sqlx::query(
+            "SELECT e.id,e.company_id,e.person_id,e.engagement_id,e.plan_id,p.name AS plan_name,\
+             ''::text AS employee_name,e.plan_version,e.window_id,e.window_version,\
+             e.coverage_type,e.currency,e.employee_deduction_minor,e.employer_cost_minor,\
+             e.effective_from,e.effective_to,e.status,e.version,e.created_at,e.updated_at \
+             FROM benefit_elections e \
+             JOIN benefit_plans p ON p.id=e.plan_id AND p.company_id=e.company_id \
+             WHERE e.company_id=$1 AND ($2::text IS NULL OR e.person_id=$2) \
+             ORDER BY e.updated_at DESC,e.id COLLATE \"C\" LIMIT $3",
+        )
+        .bind(company.as_str())
+        .bind(person_id)
+        .bind(limit as i64)
+        .fetch_all(&mut *self.connection)
+        .await?;
+        rows.into_iter()
+            .map(|row| {
+                let employee_name: String = row.try_get("employee_name")?;
+                if !employee_name.is_empty() {
+                    return Err(source_invalid().into());
+                }
+                Ok(BenefitElectionRow {
+                    id: row.try_get("id")?,
+                    company_id: row.try_get("company_id")?,
+                    person_id: row.try_get("person_id")?,
+                    engagement_id: row.try_get("engagement_id")?,
+                    plan_id: row.try_get("plan_id")?,
+                    plan_name: row.try_get("plan_name")?,
+                    employee_name,
+                    plan_version: row.try_get("plan_version")?,
+                    window_id: row.try_get("window_id")?,
+                    window_version: row.try_get("window_version")?,
+                    coverage_type: row.try_get("coverage_type")?,
+                    currency: row.try_get("currency")?,
+                    employee_deduction_minor: row.try_get("employee_deduction_minor")?,
+                    employer_cost_minor: row.try_get("employer_cost_minor")?,
+                    effective_from: row.try_get("effective_from")?,
+                    effective_to: row.try_get("effective_to")?,
+                    status: row.try_get("status")?,
+                    version: row.try_get("version")?,
+                    created_at: row.try_get("created_at")?,
+                    updated_at: row.try_get("updated_at")?,
+                })
+            })
+            .collect()
+    }
+}
+
+impl BenefitsWorkspaceRepository for PgBenefitsWorkspaceRead<'_> {
+    type Error = Error;
+
+    fn plans<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        limit: usize,
+    ) -> BenefitsFuture<'a, Vec<BenefitPlanRow>, Self::Error> {
+        Box::pin(async move { PgBenefitsWorkspaceRead::plans(self, company, limit).await })
+    }
+
+    fn windows<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        limit: usize,
+    ) -> BenefitsFuture<'a, Vec<BenefitWindowRow>, Self::Error> {
+        Box::pin(async move { PgBenefitsWorkspaceRead::windows(self, company, limit).await })
+    }
+
+    fn dependents<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        person_id: &'a str,
+        limit: usize,
+    ) -> BenefitsFuture<'a, Vec<BenefitDependentRow>, Self::Error> {
+        Box::pin(async move {
+            PgBenefitsWorkspaceRead::dependents(self, company, person_id, limit).await
+        })
+    }
+
+    fn elections<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        person_id: Option<&'a str>,
+        reviewer: bool,
+        limit: usize,
+    ) -> BenefitsFuture<'a, Vec<BenefitElectionRow>, Self::Error> {
+        Box::pin(async move {
+            PgBenefitsWorkspaceRead::elections(self, company, person_id, reviewer, limit).await
+        })
+    }
+}

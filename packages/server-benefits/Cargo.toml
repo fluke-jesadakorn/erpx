@@ -1,0 +1,37 @@
+[package]
+name = "erpx-server-benefits"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+erpx-server-shared.workspace = true
+erpx-server-runtime.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+uuid.workspace = true
+
+[[test]]
+name = "benefits_workspace"
+path = "../../tests/unit/benefits/rust-benefits-workspace.test.rs"
+
+[[test]]
+name = "benefits_workspace_http"
+path = "../../tests/integration/benefits/rust-benefits-workspace-http.test.rs"
+
+[[test]]
+name = "benefits_workspace_postgres"
+path = "../../tests/integration/benefits/rust-benefits-workspace-postgres.test.rs"
+
+[lints]
+workspace = true

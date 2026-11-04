@@ -123,6 +123,7 @@
   },
   "dependencies": {
     "@erpx/contracts": "workspace:*",
+    "@erpx/feature-benefits": "workspace:*",
     "@erpx/feature-people_payroll": "workspace:*",
     "@erpx/feature-records": "workspace:*",
     "@erpx/feature-talent": "workspace:*",
