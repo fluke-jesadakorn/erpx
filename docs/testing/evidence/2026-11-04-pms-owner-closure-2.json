@@ -5,8 +5,8 @@
   "capability": "pms-owner-front-desk-read-slice",
   "integrationTarget": "codex/rust-backend-migration",
   "base": "fbf97e042",
-  "worktreeHeadAtCompletion": "1386955d7",
-  "concurrentCommitsNote": "The instructed base fbf97e042 was observed at start. Concurrent finance and organization commits d747ffc9c and 1386955d7 landed in this worktree while the PMS slice was uncommitted; final verification ran against 1386955d7 with those changes present.",
+  "worktreeHeadAtCompletion": "779ef4f89",
+  "concurrentCommitsNote": "The instructed base fbf97e042 was observed at start. Concurrent finance/organization/sales commits landed while this PMS slice was uncommitted; e45550a16 captured the PMS working tree and 779ef4f89 recorded it. Final verification ran against 779ef4f89 with those changes present. This subagent created no commit, branch, worktree or status-register update.",
   "scope": {
     "workflows": [
       "pms/front-desk"
@@ -62,7 +62,7 @@
         "doc-tests": "0 passed"
       },
       "postgresCases": [
-        "arrivals and departures are Company/branch scoped, preserve related guest/reservation/guest-account/room/rate rows, exclude foreign property rows, keep documents scoped to visible accounts, and return the retained default 30/60-day window with front-desk kind=stay metadata",
+        "arrivals and departures are Company/branch scoped, preserve related guest/reservation/guest-account/room/rate rows, exclude foreign property rows, keep documents scoped to visible accounts, return the retained default 30/60-day window with front-desk kind=stay metadata, and exclude a checked-out stay outside that window",
         "a pms.frontdesk actor without pms.cashier receives zeroed stay prices, zeroed guest-account due and no issued documents, while links remain readable",
         "in-house queue paging returns 50 rows plus hasNext then the remaining rows, reservation-number search narrows to the arrival, and selectedId outside the page is included without changing page ids",
         "a foreign branch, foreign Company and missing requested property fail closed with PMS_NOT_FOUND; the selected branch's own property remains readable",

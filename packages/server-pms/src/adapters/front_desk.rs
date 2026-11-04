@@ -59,7 +59,8 @@ async fn page_stays(
            ($2='' AND ((s.data_json::jsonb->>'arrival'<=$4 AND s.data_json::jsonb->>'departure'>=$3) OR s.data_json::jsonb->>'state'='in_house')) \
            OR ($2='arrivals' AND s.data_json::jsonb->>'state'='reserved' AND s.data_json::jsonb->>'arrival'=$5) \
            OR ($2='departures' AND s.data_json::jsonb->>'state'='in_house' AND s.data_json::jsonb->>'departure'<=$5) \
-           OR ($2 NOT IN ('','arrivals','departures') AND s.data_json::jsonb->>'state'=$2)) \
+           OR ($2 NOT IN ('','arrivals','departures') AND s.data_json::jsonb->>'state'=$2 \
+             AND ((s.data_json::jsonb->>'arrival'<=$4 AND s.data_json::jsonb->>'departure'>=$3) OR s.data_json::jsonb->>'state'='in_house'))) \
          AND ($6='' OR position(lower($6) in lower(concat_ws(' ',g.data_json::jsonb->>'name',s.id,r.data_json::jsonb->>'number')))>0) \
          ORDER BY COALESCE(s.data_json::jsonb->>'arrival',s.updated_at::text),s.id \
          LIMIT 51 OFFSET $7",

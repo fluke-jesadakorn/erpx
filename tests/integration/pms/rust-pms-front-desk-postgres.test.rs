@@ -482,6 +482,27 @@ async fn arrivals_and_departures_preserve_owner_rows_and_company_branch_scope() 
                 .iter()
                 .any(|row| row.id == "stay-outside")
         );
+
+        let outside = pms_front_desk(
+            &actor(&["pms.read", "pms.frontdesk", "pms.cashier"]),
+            &selection("checked_out"),
+            &mut repo,
+            &mut packages,
+            1_000,
+        )
+        .await
+        .unwrap();
+        assert!(
+            outside
+                .snapshot
+                .as_ref()
+                .unwrap()
+                .list_meta
+                .as_ref()
+                .unwrap()
+                .ids
+                .is_empty()
+        );
         tx.rollback().await.unwrap();
     })
     .await;
