@@ -55,6 +55,7 @@ pub mod approval_oversight;
 pub mod handbook;
 #[cfg(feature = "existing-business")]
 pub mod learning;
+pub mod quality;
 pub mod asset_http;
 #[cfg(feature = "existing-business")]
 pub mod brand_identity;
