@@ -16,9 +16,10 @@ type Draft = { packageId: string; packageVersion: number; state: CompanyPackageG
 type Review = { comparison: PackageGrantBatchPreview; request: PackageGrantBatch; review: { token: string; expiresAt: number } };
 const utc = (value: number | null) => value === null ? "" : new Date(value).toISOString().slice(0, 16);
 
-export function CompanyPackageManager({ companies, canApply, language }: { companies: Company[]; canApply: boolean; language: "en" | "th" }) {
+export function CompanyPackageManager({ companies, canApply, language, initial }: { companies: Company[]; canApply: boolean; language: "en" | "th"; initial?: { holdingId: string; companyId: string; snapshot: Snapshot } }) {
   const th = language === "th", ready = useHydrated(),{state:provider}=useProviderContext();
-  const [selected, setSelected] = useState(""), [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  const initialKey = initial ? `${initial.holdingId}:${initial.companyId}` : "";
+  const [selected, setSelected] = useState(initialKey), [snapshot, setSnapshot] = useState<Snapshot | null>(initial?.snapshot ?? null);
   const [packageId, setPackageId] = useState(""), [draft, setDraft] = useState<Draft | null>(null), [baseline, setBaseline] = useState("");
   const [review, setReview] = useState<Review | null>(null), [confirmed, setConfirmed] = useState(false);
   const [pending, setPending] = useState(false), [error, setError] = useState(""), [receipt, setReceipt] = useState("");

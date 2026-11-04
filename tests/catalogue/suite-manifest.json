@@ -72747,6 +72747,141 @@
         "@erpx/server-runtime",
         "@erpx/server-shared"
       ]
+    },
+    {
+      "id": "commercial.rust-company-packages.unit",
+      "lane": "unit",
+      "owner": "commercial",
+      "modules": [
+        "commercial"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Company package overview and purchase admission reads must retain Company isolation, the exact catalogue revision, bounded query validation and no command witness."
+      },
+      "files": [
+        "tests/unit/commercial/rust-company-packages.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-commercial",
+        "targets": [
+          "company_packages"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-commercial/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml"
+      ],
+      "apps": [
+        "account",
+        "admin"
+      ],
+      "packages": [
+        "@erpx/contracts",
+        "@erpx/feature-admin",
+        "@erpx/feature-commercial",
+        "@erpx/server-commercial",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
+    },
+    {
+      "id": "commercial.rust-company-packages-postgres.integration",
+      "lane": "integration",
+      "owner": "commercial",
+      "modules": [
+        "commercial"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Company package overview and purchase admission must read only the selected Company over migrated PostgreSQL, require a serializable owner transaction and preserve rollback/readback."
+      },
+      "files": [
+        "tests/integration/commercial/rust-company-packages-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-commercial",
+        "targets": [
+          "company_packages_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-commercial/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/support/rust-postgres.rs"
+      ],
+      "apps": [
+        "account",
+        "admin"
+      ],
+      "packages": [
+        "@erpx/contracts",
+        "@erpx/feature-admin",
+        "@erpx/feature-commercial",
+        "@erpx/server-commercial",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
+      "id": "commercial.native-company-packages-transport.unit",
+      "lane": "unit",
+      "owner": "commercial",
+      "modules": [
+        "commercial"
+      ],
+      "files": [
+        "tests/unit/commercial/native-company-packages-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Commercial package transport must retain the exact Holding Host/session/Provider context, bounded loopback configuration, strict owner reply validation and fail-closed error mapping."
+      },
+      "framework": "vitest",
+      "apps": [
+        "admin"
+      ],
+      "packages": [
+        "@erpx/contracts",
+        "@erpx/feature-admin",
+        "@erpx/feature-commercial",
+        "@erpx/server-commercial"
+      ]
     }
   ]
 }

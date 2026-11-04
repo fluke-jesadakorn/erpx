@@ -1,1 +1,1 @@
-export { providerCommercialApi, providerCommercialOverview, providerCompanyPackageOverview } from "@erpx/server-commercial/adapters/provider-commercial";
+export { providerCommercialApi, providerCommercialOverview, providerCompanyPackageOverview, providerCompanyPackagesConfigured } from "@erpx/server-commercial/adapters/provider-commercial";

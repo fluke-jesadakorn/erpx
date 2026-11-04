@@ -7,7 +7,7 @@ use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-#[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub struct PackageDefinition {
     pub id: String,
     #[serde(deserialize_with = "deserialize_safe_i64")]
@@ -348,7 +348,7 @@ impl CommercialCatalogue {
 const MAX_SAFE: i64 = 9_007_199_254_740_991;
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-#[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub struct CompanyPackageGrant {
     pub company_id: String,
     pub package_id: String,
@@ -366,7 +366,7 @@ pub struct CompanyPackageGrant {
 }
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-#[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub struct CompanyPackageHistoryRight {
     pub company_id: String,
     pub package_id: String,
@@ -380,6 +380,7 @@ pub struct CompanyPackageHistoryRight {
 }
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "kebab-case")]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub enum CapabilityPurpose {
     NewWork,
     SettleExisting,
@@ -387,6 +388,7 @@ pub enum CapabilityPurpose {
 }
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub enum PackageEnforcementMode {
     Disabled,
     Shadow,
@@ -399,6 +401,7 @@ impl PackageEnforcementMode {
 }
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub enum PackageDecisionCode {
     Granted,
     PackageRequired,
@@ -418,6 +421,7 @@ impl PackageDecisionCode {
     }
 }
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub struct PackageDecision {
     pub allowed: bool,
     pub code: PackageDecisionCode,

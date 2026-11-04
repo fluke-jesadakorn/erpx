@@ -1,7 +1,9 @@
 use crate::{
     application::purchases::{
-        CapabilityAccess, CompanyPurchaseFacts, CompanyPurchaseReadPort, PurchaseRequest,
+        CapabilityAccess, CompanyPurchaseAdmissionPort, CompanyPurchaseFacts,
+        CompanyPurchaseReadPort, PurchaseRequest, validate_purchase_request,
     },
+    domain::company_access::{CompanyCapabilityAdmission, CompanyPurchaseAdmission},
     domain::packages::{CommercialCatalogue, CompanyPackageGrant, CompanyPackageHistoryRight},
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
@@ -68,6 +70,30 @@ impl PurchaseInspection {
         }
         Ok(&self.witness)
     }
+
+    /// Project a read-only admission response. The transaction witness is
+    /// deliberately omitted because a response cannot be revalidated later.
+    pub fn admission(
+        &self,
+        company: &CompanyId,
+        observed_at: TimestampMillis,
+    ) -> CompanyPurchaseAdmission {
+        CompanyPurchaseAdmission {
+            company_id: company.as_str().to_owned(),
+            revision: self.revision.clone(),
+            observed_at: observed_at.get(),
+            access: self
+                .access
+                .iter()
+                .map(|access| CompanyCapabilityAdmission {
+                    capability: access.capability.clone(),
+                    purpose: access.purpose,
+                    decision: access.decision,
+                    allowed_by_mode: access.allowed_by_mode,
+                })
+                .collect(),
+        }
+    }
 }
 
 impl<'c> PgCompanyPurchaseReader<'c> {
@@ -89,19 +115,7 @@ impl<'c> PgCompanyPurchaseReader<'c> {
         request: &PurchaseRequest,
         now: TimestampMillis,
     ) -> Result<PurchaseInspection, Error> {
-        if request.capabilities.is_empty()
-            || request.capabilities.len() > 256
-            || request
-                .capabilities
-                .iter()
-                .any(|c| c.is_empty() || c.len() > 128)
-        {
-            return Err(BusinessError::invalid(
-                "COMMERCIAL_CAPABILITIES_REQUIRED",
-                "Choose a bounded set of owner capabilities.",
-            )
-            .into());
-        }
+        validate_purchase_request(request)?;
         let transaction = self.transaction().await?;
         let company = self.company_id.clone();
         let facts = self.read(&company).await?;
@@ -262,6 +276,20 @@ impl CompanyPurchaseReadPort for PgCompanyPurchaseReader<'_> {
         Ok(CompanyPurchaseFacts { grants, history })
     }
 }
+
+impl CompanyPurchaseAdmissionPort for PgCompanyPurchaseReader<'_> {
+    type Error = Error;
+
+    async fn inspect_admission(
+        &mut self,
+        request: &PurchaseRequest,
+        now: TimestampMillis,
+    ) -> Result<CompanyPurchaseAdmission, Error> {
+        let inspection = self.inspect(request, now).await?;
+        Ok(inspection.admission(&self.company_id, now))
+    }
+}
+
 fn token(
     holding: &HoldingId,
     company: &CompanyId,

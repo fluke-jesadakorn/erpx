@@ -21,6 +21,7 @@
     "./adapters/seats": "./src/adapters/seats.ts",
     "./adapters/last-audit-owner-projection-sources": "./src/adapters/last-audit-owner-projection-sources.ts",
     "./adapters/provider-commercial": "./src/adapters/provider-commercial.ts",
+    "./adapters/native-company-packages": "./src/adapters/native-company-packages.ts",
     "./adapters/package-obligations": "./src/adapters/package-obligations.ts",
     "./public/usage": "./src/public/usage.ts",
     "./public/usage-projection": "./src/public/usage-projection.ts",
