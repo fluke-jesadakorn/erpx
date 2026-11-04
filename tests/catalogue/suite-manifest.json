@@ -49859,6 +49859,133 @@
       ]
     },
     {
+      "id": "talent.rust-talent-requisition.unit",
+      "lane": "unit",
+      "owner": "talent",
+      "modules": [
+        "talent"
+      ],
+      "files": [
+        "tests/unit/talent/rust-talent-requisition.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Talent requisition lifecycle retains branch scope, independent approval, CAS/idempotency, audit/outbox and rollback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-talent",
+        "targets": [
+          "talent_requisition"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-talent/Cargo.toml"
+      ]
+    },
+    {
+      "id": "talent.rust-talent-requisition-http.unit",
+      "lane": "unit",
+      "owner": "talent",
+      "modules": [
+        "talent"
+      ],
+      "files": [
+        "tests/unit/talent/rust-talent-requisition-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Talent HTTP ingress retains exact targets, origin/key/content checks and bounded errors."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-talent",
+        "targets": [
+          "talent_requisition_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-talent/Cargo.toml"
+      ]
+    },
+    {
+      "id": "talent.rust-talent-requisition-postgres.integration",
+      "lane": "integration",
+      "owner": "talent",
+      "modules": [
+        "talent"
+      ],
+      "files": [
+        "tests/integration/talent/rust-talent-requisition-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Talent requisition reads/commands retain Company/branch/department isolation, persisted readback and rollback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-talent",
+        "targets": [
+          "talent_requisition_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-talent/Cargo.toml"
+      ]
+    },
+    {
+      "id": "talent.native-talent-requisition-transport.unit",
+      "lane": "unit",
+      "owner": "talent",
+      "modules": [
+        "talent"
+      ],
+      "files": [
+        "tests/unit/talent/native-talent-requisition-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Talent transport must retain fail-closed config, bounded responses and owner error mapping."
+      },
+      "framework": "vitest",
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/feature-talent",
+        "@erpx/server-talent"
+      ]
+    },
+    {
       "id": "shared.work.product-workspace-hmr.e2e",
       "lane": "e2e",
       "owner": "shared.work",

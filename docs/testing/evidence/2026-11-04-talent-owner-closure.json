@@ -1,0 +1,164 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Talent now has a bounded native requisition lifecycle: a branch-scoped draft command, independent approve/reject, open/close/cancel transitions, and Company/branch/department-scoped workspace/detail reads with immutable event history, current IAM authority, versions/CAS, idempotency, audit/outbox, rollback and persisted readback. The owner also has an owner-local HTTP router and a strict Next transport with configured SSR/API cutover and fail-closed native configuration. Candidate, application, interview, proposal, offer, hire handoff, privacy and attachment workflows remain retained. The crate is not registered in the root Cargo workspace by this subagent because root Cargo.toml/Cargo.lock edits were forbidden; tests were executed in a disposable mirror workspace over the same sources.",
+  "capability": "talent-requisition-owner-slice",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "4e9c21e6f",
+  "scope": {
+    "workflows": [
+      "talent/requisitions"
+    ],
+    "workflowBoundary": "The qualified slice is the requisition lifecycle used by the Talent workspace requisition catalog and its draft/approve/reject/open/close/cancel commands. Candidate profiles and privacy, application submission and interview/select/withdraw, proposals, offers, hire handoffs, attachments, executive metrics, package obligations and every other Talent workflow remain retained TypeScript.",
+    "domain": "Current actor policy (selected-context expiry plus records.read, records.write and records.review), exact Company and optional branch/department scope, branch-required draft creation, bounded title/openings/target date/description/reason shapes, draft->approved/rejected/cancelled, approved->open and open->closed transitions, independent review of approve/reject, CAS expected versions, immutable event names/statuses and exact receipt/row/event projections.",
+    "application": "create_requisition authorizes write and current IAM before replay/source effects, validates and trims the exact draft input, rejects a missing selected branch, resolves idempotency by the command key and commits one create plan. change_requisition authorizes write and current IAM, validates the action and reason, resolves replay before the scoped locked record, rejects stale versions/wrong status/self-review and commits one CAS transition. requisition_workspace and requisition_detail validate every owner row, duplicate ids, history order and bounds before presentation.",
+    "adapters": "Write SQL is Talent-owned (`talent_requisitions`, `talent_requisition_events`) plus shared `command_receipts`, `audit_events` and `outbox_events`. Current assignment/principal/role authority is re-read through the existing IAM `assignments` and `iam_*` predicates already used by the retained owner. No candidate, application, proposal, offer, People, Learning, Records or Finance row is mutated. The caller's serializable Holding transaction is required; no transaction is opened, committed or retried here.",
+    "http": "Owner-local GET/POST /api/v1/holdings/{holding_slug}/talent/requisitions and GET/POST /api/v1/holdings/{holding_slug}/talent/requisitions/{requisition_id}. Exact registered Host/Holding targets and HTTPS origins, strict Idempotency-Key/Content-Type/JSON body validation, bounded bodies, unknown query rejection, private/no-store plus no-referrer/nosniff responses, and bounded BusinessError status mapping. The composition backend receives transport facts only and must supply the normal Account session, selected Company/branch/department scope, purchase admission and serializable owner unit.",
+    "transport": "ERPX_NATIVE_TALENT_CONFIG is strictly validated: loopback-only private base, reserved ports 3000/3001/3100/3101/3103/8080 plus 5432/5433/5435 and 3200-3299 excluded, exact HTTPS Holding origins, unique hosts/slugs, 250..30000 ms timeout, bounded cookie/context/workspace headers, exact create/change bodies, exact workspace/detail/receipt shapes, Company/branch/department coherence, unique ordered rows/events and a 2 MiB response bound. A configured failure never falls back to the retained reader or command.",
+    "ssr": "The Talent workspace page and the feature-recruit /talent GET/POST route use native requisition rows and requisition create/change commands when ERPX_NATIVE_TALENT_CONFIG is present. An unset configuration retains talentWorkspace/createTalentRequisition/changeTalentRecord. Once configured, a malformed or failed native read/command is surfaced through the existing page/route error policy rather than silently replaced. Candidate, application, proposal, offer, privacy and handoff sections and actions remain retained.",
+    "purchaseAndIdentity": "The Next command cutover keeps the retained talentPurchaseControls preflight for recruit.positions and distinguishes new-work (draft, approve, open) from settle-existing (reject, close, cancel). This is a preflight, not an atomic owner unit; the composition backend must repeat current IAM, selected scope, feature release and purchase admission inside its own serializable owner transaction. The workspace merge retains the existing talentWorkspace purchased read before native requisition rows replace the catalog.",
+    "crossOwnerGuards": "The requisition lifecycle creates no People, Learning or Records write effect, so no such same-transaction guard is bypassed. Candidate/application slices must add their own retention, owner-eligibility and Records projection guards in the same owner transaction.",
+    "notClaimed": "No browser journey, authenticated page render, shared composition mount, root workspace membership, catalogue acceptance qualification, candidate/application/proposal/offer/handoff/privacy effect, job, staging, private production or Cloudflare verification."
+  },
+  "changedFiles": [
+    "packages/server-talent/Cargo.toml",
+    "packages/server-talent/src/lib.rs",
+    "packages/server-talent/src/domain/mod.rs",
+    "packages/server-talent/src/domain/requisition.rs",
+    "packages/server-talent/src/application/mod.rs",
+    "packages/server-talent/src/application/requisition.rs",
+    "packages/server-talent/src/adapters/mod.rs",
+    "packages/server-talent/src/adapters/requisition.rs",
+    "packages/server-talent/src/adapters/requisition_http.rs",
+    "packages/server-talent/src/public/mod.rs",
+    "packages/server-talent/src/public/requisition.rs",
+    "packages/server-talent/src/public/requisition_http.rs",
+    "packages/feature-talent/package.json",
+    "packages/feature-talent/src/public/native-talent-requisition.ts",
+    "packages/feature-talent/src/public/native-talent-page.ts",
+    "packages/feature-talent/src/adapters/server/next-native-talent.ts",
+    "packages/feature-recruit/src/routes/api/v1/holdings/[holdingSlug]/talent/route.ts",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/talent/screen.tsx",
+    ".env.example",
+    "tests/unit/talent/rust-talent-requisition.test.rs",
+    "tests/unit/talent/rust-talent-requisition-http.test.rs",
+    "tests/integration/talent/rust-talent-requisition-postgres.test.rs",
+    "tests/unit/talent/native-talent-requisition-transport.test.ts",
+    "docs/testing/evidence/2026-11-04-talent-owner-closure.json"
+  ],
+  "verification": {
+    "cargo": {
+      "command": "ERPX_TEST_ADMIN_URL=<local test admin> cargo test -p erpx-server-talent --locked -- --test-threads=1",
+      "result": "18 passed, 0 failed, 0 ignored across 3 test targets plus the empty lib/doc targets (lib 0, talent_requisition 9, talent_requisition_http 3, talent_requisition_postgres 6, doc-tests 0)",
+      "workspaceNote": "The subagent was forbidden to edit root Cargo.toml/Cargo.lock. The exact command ran in a disposable mirror workspace under the approved temporary directory whose only manifest delta was adding packages/server-talent to [workspace] members and erpx-server-talent as a workspace dependency; package sources, tests, migrations and the locked dependency graph were the real worktree files. Root Cargo.toml and Cargo.lock in the worktree were not edited.",
+      "targets": {
+        "talent_requisition": "9 passed: exact wire-shape unknown/float/action negatives, permission/context/branch checks before effects, exact input and plan trimming, replay and idempotency mismatch, CAS/status/self-review policy across approve/reject/open/close/cancel, replay and not-found, Company/branch/department workspace filtering and duplicate denial, detail history ordering and scope, commit failure retry.",
+        "talent_requisition_http": "3 passed: exact distinct targets and HTTPS origins, actual loopback router forwarding workspace/detail/create/change, unknown query/host/Holding/id, missing/short Idempotency-Key, malformed JSON/content type/GET body, conflict mapping, private/no-store/no-referrer/nosniff headers.",
+        "talent_requisition_postgres": "6 passed: exact owner row plus one receipt/audit/outbox/event and same-key replay, Company/selected-branch/revoked-assignment/permission/expiry denials with zero effects, independent review plus CAS and every transition, Company/branch scope isolation in workspace/detail, late-outbox trigger rollback with exact retry, transaction and serializable guards."
+      }
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-talent --all-targets --locked -- -D warnings",
+      "result": "pass; no erpx-server-talent warning"
+    },
+    "rustfmt": {
+      "command": "cargo fmt -p erpx-server-talent -- --check",
+      "result": "pass"
+    },
+    "postgres": {
+      "suite": "talent_requisition_postgres (raw migrated PostgreSQL, disposable leased erpx_dev_rust_* database)",
+      "fixture": "Real migrated PostgreSQL with synthetic IAM members and branch-scoped people_manager assignments for creator, independent reviewer, revoked actor, other branch and a foreign Company. The owner writes only talent_requisitions/talent_requisition_events and shared receipt/audit/outbox rows; reads do not mutate owner rows.",
+      "cases": [
+        "draft create persists exact Company/branch/department/title/openings/date/description/status/created_by/version/created_at/updated_at and one immutable create event, receipt, audit and outbox row; same-key replay is byte-identical",
+        "missing records.write, missing selected branch, revoked assignment and expired selected context are denied before effects; foreign Company and other-branch changes/reads return not found",
+        "self approval is refused, stale CAS is refused, approve/open/close/reject/cancel retain the expected status/version/reviewer identity and ordered events",
+        "workspace rows hide other Companies, branches and selected departments and return the exact action flags; detail history is ordered and scoped",
+        "a trigger failure on the final outbox insert rolls back the requisition, event, receipt and audit; the exact retry then persists once",
+        "a caller outside a transaction and a caller inside a read-committed transaction fail closed before effects"
+      ]
+    },
+    "httpRouter": {
+      "tests": [
+        "actual loopback router forwards exact workspace/detail/create/change facts and returns owner data plus rendered context",
+        "unknown query, unknown Host/Holding, malformed/short Idempotency-Key, malformed body/content type and GET body are bounded 4xx",
+        "an owner conflict maps to 409 CONFLICT",
+        "responses carry private/no-store, no-referrer and nosniff headers",
+        "duplicate targets, non-HTTPS origins and origins with paths fail configuration"
+      ],
+      "limit": "The router test uses a recording backend; it does not prove the shared composition backend or a PostgreSQL-backed HTTP request."
+    },
+    "typescript": {
+      "unit": "vitest tests/unit/talent/native-talent-requisition-transport.test.ts: 11 passed (workspace Host/session/context forwarding, branch detail path, exact create/change bodies/key/content-type, owner error, foreign/duplicate/extra-key/changed-context/unknown-host rejection, unset selector, retained non-requisition commands and invalid action, retained recruit.positions purchase denial, malformed configured selector mapped to 503 without fallback, reserved port/insecure origin/malformed configuration, failure mapping)",
+      "typechecks": [
+        "tsc --noEmit --project packages/feature-talent/tsconfig.json: pass",
+        "tsc --noEmit --project packages/feature-recruit/tsconfig.json: pass",
+        "tsc --noEmit --project packages/workplace/tsconfig.json: pass",
+        "isolated tsc project for tests/unit/talent/native-talent-requisition-transport.test.ts: pass"
+      ],
+      "eslint": "targeted changed TypeScript files: 0 errors, 0 warnings; the repository's existing Next pages-directory warning only",
+      "runner": "Bun is not installed in this worktree; the transport test ran with a temporary Vitest config under ignored .scratch/talent that isolates the new test file. No shared catalogue config or suite manifest was edited by this subagent."
+    },
+    "structure": {
+      "layout": "node_modules/.bin/tsx scripts/testing/layout.ts: exit 0, no output",
+      "architecture": "node_modules/.bin/tsx scripts/architecture/check.ts: exit 0; the printed owner/module-private-import findings are all pre-existing files outside this slice",
+      "diffCheck": "git diff --check on the changed tracked files: pass"
+    },
+    "browser": "not run; no Next dev server, authenticated page render, public URL or browser acceptance was executed. No workflow is claimed browser-verified."
+  },
+  "sharedCompositionAndSchema": {
+    "schemaDelta": "none; no migration, table, column, index, trigger or constraint was added or changed. The slice uses the existing 0230_talent.sql schema.",
+    "dependencyDelta": "no new external dependency; the crate uses the existing shared/runtime/sqlx/serde/serde_json workspace set. No root Cargo.toml, Cargo.lock, bun.lock or other package lockfile change was authored by this subagent.",
+    "compositionDelta": "No src/composition change and no composition backend mount. The owner-local router and public ports are ready for a composition backend but are not mounted here.",
+    "publicPortsRequiredByComposition": [
+      "erpx_server_talent::public::requisition::{TalentActor, TalentRequisitionCommandRepository, TalentRequisitionReadRepository, PgTalentRequisitions, create_requisition, change_requisition, requisition_workspace, requisition_detail}",
+      "erpx_server_talent::public::requisition_http::{talent_requisition_http_router, TalentRequisitionHttpTarget, TalentRequisitionHttpBackend, TalentRequisitionHttpRequest, TalentRequisitionHttpResponse}"
+    ],
+    "backendRequired": "Implement TalentRequisitionHttpBackend in src/composition: parse the normal Account/Holding request, require records.read/records.write/records.review, require the configured Holding/Company and selected branch/department, run feature-release and recruit.positions purchase admission inside one serializable Holding transaction, build TalentActor from current authority, call create_requisition/change_requisition/requisition_workspace/requisition_detail with PgTalentRequisitions, and map PgTransactionError to BusinessError. The Next purchase preflight is not atomic and must be repeated.",
+    "privateDevelopmentApi": [
+      "Build one TalentRequisitionHttpTarget per registered Holding with exact host, slug and https origin.",
+      "router = router.merge(erpx_server_talent::public::requisition_http::talent_requisition_http_router(targets).map_err(|_| \"PRIVATE_API_TALENT_CONFIGURATION_INVALID\")?);",
+      "Mount /talent/requisitions before the generic 404 fallback."
+    ],
+    "rootWorkspace": "packages/server-talent is not registered in the root Cargo.toml [workspace] members and Cargo.lock in this worktree because this subagent was forbidden to edit those files. The integrating session must add the member and path dependency; no shared dependency beyond the existing workspace set is required.",
+    "nextEnvironment": "Set ERPX_NATIVE_TALENT_CONFIG={\"privateBaseUrl\":\"http://127.0.0.1:<owned-loopback-port>\",\"timeoutMs\":250..30000,\"holdings\":[{\"origin\":\"https://<registered-holding>\",\"holdingSlug\":\"<slug>\",\"holdingId\":\"h00N\"}]} for each affected app."
+  },
+  "legacyRemovedOrRetained": {
+    "removed": [
+      "When ERPX_NATIVE_TALENT_CONFIG is present, the Talent workspace requisition catalog uses native Talent rows instead of the requisition rows returned by talentWorkspace.",
+      "Native draft/approve/reject/open/close/cancel commands replace the retained createTalentRequisition/changeTalentRecord requisition path when configured.",
+      "No retained TypeScript Talent source file was deleted."
+    ],
+    "retained": [
+      "createTalentRequisition/changeTalentRecord and talentWorkspace remain the unset-config reader and command path and the source for tests and non-configured deployments.",
+      "Candidate creation/privacy, application submission/interview/select/withdraw/reassign, proposals, offers, hire handoffs, attachments, package obligations, executive metrics and Talent work items remain retained.",
+      "The retained Talent console continues to render requisition rows from the same id/job_title/status/version/created_by keys when native data is served; candidate/application sections remain retained.",
+      "The GET route still uses talentDetail for application detail and candidate/offer attachment and handoff reads."
+    ],
+    "cutover": "Only requisition workspace rows and requisition create/change commands switch to the native owner when configured. An unset config retains TypeScript. A configured invalid or failed native read/command throws through the retained page/route error policy and never reads the TypeScript path as a fallback."
+  },
+  "concurrentWork": {
+    "preserved": "This shared worktree also contains concurrent benefits and learning agent work, including packages/server-benefits, packages/server-learning, feature-benefits/feature-people changes, tests/catalogue/suite-manifest.json, test files and a shared .env.example Benefits block. Those files were not edited, reverted or included in this slice. The .env.example change in this slice is additive and leaves the concurrent Benefits block intact.",
+    "rootManifests": "Root Cargo.toml and Cargo.lock were unchanged by this subagent; no staging, private production or Cloudflare access was performed.",
+    "headAdvance": "The worktree base was 4e9c21e6f. HEAD advanced through concurrent agent commits while this slice was implemented; the stated verification ran against the real worktree sources at verificationHead."
+  },
+  "blockersAndNextAction": {
+    "blockers": [
+      "No root Cargo.toml/Cargo.lock registration for erpx-server-talent (forbidden here)",
+      "No composition backend implements the public ports or mounts talent_requisition_http_router",
+      "No authenticated browser or deployment verification was performed",
+      "Candidate, application, proposal, offer, hire handoff, privacy and attachment workflows remain retained TypeScript"
+    ],
+    "nextAction": "Have the integrating session register the crate and lock entry, then have the composition owner implement the Account/scope/feature/purchase backend and mount the router. Qualify the candidate/application lifecycle next with its People retention/owner-eligibility and proposal/offer guards, followed by hire handoff and privacy workflows. Browser acceptance remains deferred."
+  },
+  "verificationHead": "acd09e4a6019aed1b9b6cd5dadeafa1c00e70fbb",
+  "sharedIntegrationFiles": {
+    "files": [
+      "Cargo.toml",
+      "Cargo.lock",
+      "tests/catalogue/suite-manifest.json",
+      "docs/status/rust-backend-migration.json",
+      "docs/status/rust-delivery-bundles.json"
+    ],
+    "note": "Not changed by this subagent: root workspace membership/lock entry, catalogue test registration and owner status/bundle qualification remain integrating-session work. tests/catalogue/suite-manifest.json was concurrently modified by another owner and was not touched."
+  }
+}
