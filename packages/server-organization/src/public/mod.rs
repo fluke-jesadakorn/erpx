@@ -24,3 +24,5 @@ pub mod field_service_workspace;
 pub mod commercial_companies;
 
 pub mod pms_source_branch;
+
+pub mod organization_nodes;

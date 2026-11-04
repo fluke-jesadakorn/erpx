@@ -490,3 +490,7 @@ export async function nativeInventoryMovementsFromHeaders(
   if (!actor) return fail('NATIVE_INVENTORY_MOVEMENT_CONTEXT_CHANGED');
   return createNativeInventoryMovementsReader(raw)(await headers(), holdingSlug, actor, cursor);
 }
+
+// The stock register and receipt source share the same private-loopback
+// configuration, session forwarding and rendered-context CAS as availability.
+export * from './native-stock-register';

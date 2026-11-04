@@ -26,6 +26,7 @@ import { commerceNavigationViews } from "@erpx/feature-work_projection/lib/workp
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import {commercePage,commercePermissions} from '@erpx/server-commerce/public/commerce';
+import { nativeInventoryStockRegisterFromHeaders } from "@erpx/feature-inventory/lib/native-availability";
 
 import { canApproveCounts, canPrepareCounts, canReadCounts } from "@erpx/server-inventory/public/inventory-counts";
 import { listInventoryReorderPolicies } from "@erpx/server-inventory/public/inventory-reorder-policies";
@@ -101,6 +102,28 @@ export default async function CommercePage({
   const destination = salesCustomerLegacyDestination(base, "commerce", { ...search, view, kind: partyKind });
   if (destination) redirect(destination);
   if (view === "pricing") return <PriceListPage actor={actor} base={base} query={search} />;
+  const nativeActor =
+    actor.authority && actor.iam
+      ? {
+          userId: actor.userId,
+          holdingId: actor.holdingId,
+          holdingSlug,
+          companyId: actor.companyId,
+          branchId: actor.branchId,
+          departmentId: actor.departmentId,
+          assignmentId: actor.assignmentId,
+          revision: actor.authority.revision,
+          assignmentVersion: actor.authority.assignmentVersion,
+          branchSlug: actor.scope.kind === "holding" ? undefined : actor.scope.branchSlug ?? undefined,
+          departmentSlug: actor.scope.kind === "department" ? actor.scope.departmentSlug ?? undefined : undefined,
+        }
+      : undefined;
+  const nativeRegister =
+    view === "stock"
+      ? await nativeInventoryStockRegisterFromHeaders(nativeActor, holdingSlug).catch((error) =>
+          pageError(error, holdingSlug),
+        )
+      : undefined;
   const data = await commercePage(actor, { ...search, view, kind: partyKind }).catch((error) =>
     pageError(error, holdingSlug),
   );
@@ -169,19 +192,31 @@ export default async function CommercePage({
       : null;
   const lotRecords =
     view === "stock" && hasPermission(actor, "inventory.read")
-      ? (await (await commercePresentationQueries(actor.holdingId)).commerceEntrypointInventoryFacts().lotRecords(actor.companyId,actor.branchId??null)).results
+      ? nativeRegister
+        ? nativeRegister.lots.map((lot) => ({
+            id: lot.id,
+            version: lot.version,
+            lot_code: lot.lot_code,
+            serial_number: lot.serial_number,
+            status: lot.status,
+            sku: lot.sku,
+            name: lot.sku,
+          }))
+        : (await (await commercePresentationQueries(actor.holdingId)).commerceEntrypointInventoryFacts().lotRecords(actor.companyId,actor.branchId??null)).results
       : [];
   const selectedLot = search.lotFiles
     ? lotRecords.find((row) => String(row.id) === search.lotFiles)
     : null;
   const purchase = view === "quote" || view === "sales" || view === "purchase" ? await commercePurchaseControls(actor,{type:"kind",kind:view}) : undefined;
+  const stockRows = nativeRegister?.stock ?? data.stock;
+  const stockCurrency = nativeRegister?.currency ?? data.currency;
   return (
     <CommerceEnvironment purchase={purchase}><FeaturePage className="ui-page-content" data-source="live">
       <header className="ui-section-header">
         <div>
           <p className="eyebrow">{area}</p>
           <h1>{pageTitle}</h1>
-          <p className="muted">Company records and next actions · {data.currency}</p>
+          <p className="muted">Company records and next actions · {stockCurrency}</p>
         </div>
         {permissions.finance && (
           <UiActionLink appearance="standard" variant="secondary" href={canonicalUiHref(`${base}/finance`)}>
@@ -374,11 +409,11 @@ export default async function CommercePage({
                         <th>Quarantined</th>
                         <th>In transit</th>
                         <th>Available</th>
-                        <th>Inventory value ({data.currency})</th>
+                        <th>Inventory value ({stockCurrency})</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {data.stock.map((s) => {
+                      {stockRows.map((s) => {
                         const available = Math.max(
                           0,
                           Number(s.quantity_milli) -
@@ -408,7 +443,7 @@ export default async function CommercePage({
                     </tbody>
                   </Table>
                 </TableFrame>
-                {!data.stock.length && (
+                {!stockRows.length && (
                   <p className="muted">
                     Receive a purchase order or record and approve a physical count to establish
                     stock.
@@ -416,6 +451,74 @@ export default async function CommercePage({
                 )}
               </Card>
             </FeatureWidget>
+            {nativeRegister && (
+              <FeatureWidget appearance="standard" id="operations-inventory-stock-register" title="Physical count register and lot reconciliation">
+                <Card as="section" appearance="standard" className="ui-panel">
+                  <p className="muted">
+                    Tracked aggregate stock must equal the per-lot balances. Counts retain their
+                    current lifecycle version; an initial physical source is marked explicitly.
+                  </p>
+                  <dl>
+                    <dt>Tracked stock</dt>
+                    <dd>
+                      {nativeRegister.totals.tracked_quantity_milli / 1000} ·{" "}
+                      {minorToDecimal(nativeRegister.totals.tracked_value_minor)}{" "}
+                      {nativeRegister.currency}
+                    </dd>
+                    <dt>Lot balances</dt>
+                    <dd>
+                      {nativeRegister.totals.lot_quantity_milli / 1000} ·{" "}
+                      {minorToDecimal(nativeRegister.totals.lot_value_minor)}{" "}
+                      {nativeRegister.currency}
+                    </dd>
+                    <dt>Reconciliation</dt>
+                    <dd>
+                      <StatusBadge
+                        appearance="standard"
+                        status={nativeRegister.totals.consistent ? "matched" : "mismatch"}
+                      />
+                    </dd>
+                  </dl>
+                  {nativeRegister.counts.length > 0 && (
+                    <TableFrame appearance="standard" label="Count register" className="business-table-wrap">
+                      <Table className="business-table">
+                        <thead>
+                          <tr>
+                            <th>Count</th>
+                            <th>Warehouse</th>
+                            <th>Date</th>
+                            <th>Version</th>
+                            <th>Value</th>
+                            <th>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {nativeRegister.counts.map((count) => (
+                            <tr key={count.id}>
+                              <td>
+                                <Link href={canonicalUiHref(`${base}/stock-counts/${count.id}`)}>
+                                  {count.number}
+                                </Link>
+                                {count.initial_physical_source ? " · initial" : ""}
+                              </td>
+                              <td>{count.warehouse_name}</td>
+                              <td>{count.count_date}</td>
+                              <td>{count.version}</td>
+                              <td>
+                                {minorToDecimal(count.net_value_minor)} {nativeRegister.currency}
+                              </td>
+                              <td>
+                                <StatusBadge appearance="standard" status={count.status} />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </Table>
+                    </TableFrame>
+                  )}
+                </Card>
+              </FeatureWidget>
+            )}
             <AttachmentFeatureSurface>
               {!!lotRecords.length && (
                 <FeatureWidget appearance="standard" id="operations-sales-lot-documents" title="Lot and serial documents">

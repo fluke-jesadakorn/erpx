@@ -71074,6 +71074,288 @@
         "@erpx/feature-support",
         "@erpx/server-support"
       ]
+    },
+    {
+      "id": "finance.rust-bank-workspace-postgres.integration",
+      "lane": "integration",
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "files": [
+        "tests/integration/finance/rust-bank-workspace-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner workflow retains current Company scope, authority, version/idempotency and persisted-effect assertions."
+      },
+      "framework": "cargo",
+      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "src/composition/Cargo.toml"],
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "bank_workspace_postgres"
+        ],
+        "features": [
+          "existing-business"
+        ]
+      }
+    },
+    {
+      "id": "organization.rust-organization-nodes.unit",
+      "lane": "unit",
+      "owner": "organization",
+      "modules": [
+        "organization"
+      ],
+      "files": [
+        "tests/unit/organization/rust-organization-nodes.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner workflow retains current Company scope, authority, version/idempotency and persisted-effect assertions."
+      },
+      "framework": "cargo",
+      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "packages/server-organization/Cargo.toml"],
+      "cargo": {
+        "package": "erpx-server-organization",
+        "targets": [
+          "organization_nodes"
+        ]
+      }
+    },
+    {
+      "id": "organization.rust-organization-nodes-postgres.integration",
+      "lane": "integration",
+      "owner": "organization",
+      "modules": [
+        "organization"
+      ],
+      "files": [
+        "tests/integration/organization/rust-organization-nodes-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner workflow retains current Company scope, authority, version/idempotency and persisted-effect assertions."
+      },
+      "framework": "cargo",
+      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "packages/server-organization/Cargo.toml"],
+      "cargo": {
+        "package": "erpx-server-organization",
+        "targets": [
+          "organization_nodes_postgres"
+        ]
+      }
+    },
+    {
+      "id": "organization.rust-organization-http-postgres.integration",
+      "lane": "integration",
+      "owner": "organization",
+      "modules": [
+        "organization"
+      ],
+      "files": [
+        "tests/integration/organization/rust-organization-http-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner workflow retains current Company scope, authority, version/idempotency and persisted-effect assertions."
+      },
+      "framework": "cargo",
+      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "src/composition/Cargo.toml"],
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "organization_http_postgres"
+        ],
+        "features": [
+          "existing-business"
+        ]
+      }
+    },
+    {
+      "id": "inventory.rust-stock-register.unit",
+      "lane": "unit",
+      "owner": "inventory",
+      "modules": [
+        "inventory"
+      ],
+      "files": [
+        "tests/unit/inventory/rust-stock-register.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner workflow retains current Company scope, authority, version/idempotency and persisted-effect assertions."
+      },
+      "framework": "cargo",
+      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "packages/server-inventory/Cargo.toml"],
+      "cargo": {
+        "package": "erpx-server-inventory",
+        "targets": [
+          "stock_register"
+        ]
+      }
+    },
+    {
+      "id": "inventory.rust-stock-receipt.unit",
+      "lane": "unit",
+      "owner": "inventory",
+      "modules": [
+        "inventory"
+      ],
+      "files": [
+        "tests/unit/inventory/rust-stock-receipt.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner workflow retains current Company scope, authority, version/idempotency and persisted-effect assertions."
+      },
+      "framework": "cargo",
+      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "packages/server-inventory/Cargo.toml"],
+      "cargo": {
+        "package": "erpx-server-inventory",
+        "targets": [
+          "stock_receipt"
+        ]
+      }
+    },
+    {
+      "id": "inventory.rust-stock-register-postgres.integration",
+      "lane": "integration",
+      "owner": "inventory",
+      "modules": [
+        "inventory"
+      ],
+      "files": [
+        "tests/integration/inventory/rust-stock-register-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner workflow retains current Company scope, authority, version/idempotency and persisted-effect assertions."
+      },
+      "framework": "cargo",
+      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "packages/server-inventory/Cargo.toml"],
+      "cargo": {
+        "package": "erpx-server-inventory",
+        "targets": [
+          "stock_register_postgres"
+        ]
+      }
+    },
+    {
+      "id": "inventory.rust-stock-receipt-postgres.integration",
+      "lane": "integration",
+      "owner": "inventory",
+      "modules": [
+        "inventory"
+      ],
+      "files": [
+        "tests/integration/inventory/rust-stock-receipt-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner workflow retains current Company scope, authority, version/idempotency and persisted-effect assertions."
+      },
+      "framework": "cargo",
+      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "packages/server-inventory/Cargo.toml"],
+      "cargo": {
+        "package": "erpx-server-inventory",
+        "targets": [
+          "stock_receipt_postgres"
+        ]
+      }
+    },
+    {
+      "id": "inventory.rust-inventory-stock-http-postgres.integration",
+      "lane": "integration",
+      "owner": "inventory",
+      "modules": [
+        "inventory"
+      ],
+      "files": [
+        "tests/integration/inventory/rust-inventory-stock-http-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner workflow retains current Company scope, authority, version/idempotency and persisted-effect assertions."
+      },
+      "framework": "cargo",
+      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "src/composition/Cargo.toml"],
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "inventory_stock_http_postgres"
+        ],
+        "features": [
+          "existing-business"
+        ]
+      }
+    },
+    {
+      "id": "inventory.native-inventory-stock-transport.unit",
+      "lane": "unit",
+      "owner": "inventory",
+      "modules": [
+        "inventory"
+      ],
+      "files": [
+        "tests/unit/inventory/native-inventory-stock-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner workflow retains current Company scope, authority, version/idempotency and persisted-effect assertions."
+      },
+      "framework": "vitest"
     }
   ]
 }

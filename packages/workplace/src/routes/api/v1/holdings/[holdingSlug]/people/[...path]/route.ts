@@ -17,6 +17,8 @@ import { expenseRoute } from "@erpx/server-people_payroll/public/expense-routing
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { holdingResources } from "../../../../../../../../../../packages/server-runtime/src/public/runtime";
 import {organizationOverview,positionSchema,savePosition,organizationTemplateSchema,saveOrganizationTemplate,applyOrganizationTemplateSchema,applyOrganizationTemplate,installStaffLevels,organizationNodeChangeSchema,organizationNodeDecisionSchema,previewOrganizationNodeChange,saveOrganizationNodeChange,decideOrganizationNodeChange,cancelOrganizationNodeChange} from '@erpx/server-organization/public/organization';
+import { nativeOrganizationChange } from "@erpx/feature-organization/lib/native-organization";
+import { nativeOrganizationFailure } from "@erpx/feature-organization/adapters/server/native-organization";
 import { companyBusinessAcceptance, companyAcceptanceSubmitSchema, companyAcceptanceDecisionSchema, companyAcceptanceRevokeSchema, submitCompanyBusinessAcceptance, decideCompanyBusinessAcceptance, revokeCompanyBusinessAcceptance } from "@erpx/server-finance/public/company-business-acceptance";
 import { grantSchema,grantPersonAccess,revokePersonAccess,invitePerson,retryInvitationDelivery,revokeInvitation } from "@erpx/server-identity_access/public/account-access";
 import { directorySchema, directoryUpdateSchema, directoryStatusSchema, saveDirectoryPerson, setDirectoryStatus } from "@erpx/server-people_payroll/public/people-directory";
@@ -211,6 +213,10 @@ export async function POST(request: Request, context: Context) {
     }
     if(p[0]==="organization") {
       if(p[1]==="drafts"){const {write}=await holdingResources(actor.holdingId);return Response.json(canonicalDestinationLinks({data:await organizationDraftApi(write as PostgresDatabase,actor,p.slice(2),input,id)}));}
+      let native:Record<string,unknown>|undefined;
+      try{native=await nativeOrganizationChange(actor,holdingSlug,p,input,id,request.headers);}
+      catch(error){const failure=nativeOrganizationFailure(error);if(failure)throw new ApiError(failure.status,failure.code,failure.message);throw error;}
+      if(native)return Response.json(canonicalDestinationLinks({data:native}),{headers:{"Cache-Control":"private, no-store"}});
       const {write}=await holdingResources(actor.holdingId);
       if(p[1]==="changes"&&p[2]==="preview"&&p.length===3)return Response.json(canonicalDestinationLinks({data:await previewOrganizationNodeChange(write,actor,parsed(organizationNodeChangeSchema.safeParse(input)))}));
       if(p[1]==="position-moves" && p[2]==="preview" && p.length===3)return Response.json(canonicalDestinationLinks({data:await previewPositionMove(write as PostgresDatabase,actor,parsed(positionMoveInput.safeParse(input)))}));

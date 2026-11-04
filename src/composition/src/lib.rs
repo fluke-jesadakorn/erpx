@@ -44,6 +44,10 @@ pub mod http_scope;
 pub mod private_development_api;
 
 #[cfg(feature = "existing-business")]
+pub mod organization_nodes;
+#[cfg(any(feature = "existing-business", feature = "business-http"))]
+pub mod organization_nodes_http;
+#[cfg(feature = "existing-business")]
 pub mod brand_identity;
 #[cfg(feature = "existing-business")]
 pub mod brand_identity_http;
@@ -258,6 +262,10 @@ pub mod field_push_worker;
 
 #[cfg(feature="field-service")]
 pub mod field_reservation_alerts;
+#[cfg(feature = "existing-business")]
+pub mod inventory_stock_read;
+#[cfg(feature = "existing-business")]
+pub mod inventory_stock_http;
 pub mod inventory_availability_read;
 pub mod inventory_availability_http;
 pub mod inventory_reservation_alerts;

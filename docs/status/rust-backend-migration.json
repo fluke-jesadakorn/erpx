@@ -50,13 +50,13 @@
     {
       "id": "organization",
       "package": "erpx-server-organization",
-      "phase": "foundation",
+      "phase": "partial",
       "businessMigrationComplete": false,
       "surfaces": {
-        "domain": "foundation",
-        "application": "foundation",
-        "http": "pending",
-        "ssr": "pending",
+        "domain": "active",
+        "application": "active",
+        "http": "active",
+        "ssr": "partial",
         "jobs": "pending",
         "providers": "pending"
       }
@@ -176,15 +176,15 @@
     {
       "id": "inventory",
       "package": "erpx-server-inventory",
-      "phase": "foundation",
+      "phase": "partial",
       "businessMigrationComplete": false,
       "surfaces": {
-        "domain": "foundation",
-        "application": "foundation",
-        "http": "pending",
-        "ssr": "pending",
-        "jobs": "pending",
-        "providers": "pending"
+        "domain": "active",
+        "application": "active",
+        "http": "active",
+        "ssr": "partial",
+        "jobs": "partial",
+        "providers": "partial"
       }
     },
     {

@@ -1415,6 +1415,7 @@ async fn assemble_checked(
         );
         let mut targets = Vec::new();
         let mut brand_targets = Vec::new();
+        let mut organization_targets = Vec::new();
         let mut bank_targets = Vec::new();
         let mut bank_workspace_targets = Vec::new();
         #[cfg(feature = "finance-field-write")]
@@ -1494,6 +1495,18 @@ async fn assemble_checked(
                 service: Arc::new(crate::brand_identity::BrandIdentityService::new(
                     authorizer.clone(),
                     crate::brand_identity::BrandIdentityConfiguration::new(
+                        holding.registration.holding_id.clone(),
+                        company.clone(),
+                    ),
+                    Arc::new(SharedClock(clock.clone())),
+                )),
+            });
+            organization_targets.push(crate::organization_nodes_http::OrganizationNodesTarget {
+                host: holding.host.clone(),
+                holding_slug: holding.registration.slug.clone(),
+                service: Arc::new(crate::organization_nodes::OrganizationNodeService::new(
+                    authorizer.clone(),
+                    crate::organization_nodes::OrganizationNodesConfiguration::new(
                         holding.registration.holding_id.clone(),
                         company.clone(),
                     ),
@@ -1733,6 +1746,17 @@ async fn assemble_checked(
                     config.holdings_registry.clone(),
                     Arc::new(FinanceJournalReadScopeHeaders),
                     brand_targets,
+                )
+                .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !organization_targets.is_empty() {
+            router = router.merge(
+                crate::organization_nodes_http::organization_nodes_router(
+                    config.policy.clone(),
+                    config.holdings_registry.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    organization_targets,
                 )
                 .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
             );
@@ -2122,6 +2146,7 @@ async fn assemble_checked(
                     .map_err(|_| "PRIVATE_API_INVENTORY_AVAILABILITY_CONFIGURATION_INVALID")?,
             );
             let mut targets = Vec::new();
+            let mut stock_targets = Vec::new();
             for (holding_id, companies) in &config.inventory_availability_reads {
                 let index = config
                     .holdings
@@ -2152,6 +2177,17 @@ async fn assemble_checked(
                             clock: Arc::new(SharedClock(clock.clone())),
                         }),
                     });
+                    stock_targets.push(crate::inventory_stock_http::InventoryStockHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        service: Arc::new(crate::inventory_stock_read::InventoryStockRegisterService {
+                            authorizer: authorizer.clone(),
+                            holding: holding_id.clone(),
+                            company: company.clone(),
+                            catalogue: catalogue.clone(),
+                            clock: Arc::new(SharedClock(clock.clone())),
+                        }),
+                    });
                 }
             }
             router = router.merge(
@@ -2162,6 +2198,16 @@ async fn assemble_checked(
                 )
                 .map_err(|_| "PRIVATE_API_INVENTORY_AVAILABILITY_CONFIGURATION_INVALID")?,
             );
+            if !stock_targets.is_empty() {
+                router = router.merge(
+                    crate::inventory_stock_http::inventory_stock_http_router(
+                        config.policy.clone(),
+                        Arc::new(FieldServiceReadScopeHeaders),
+                        stock_targets,
+                    )
+                    .map_err(|_| "PRIVATE_API_INVENTORY_AVAILABILITY_CONFIGURATION_INVALID")?,
+                );
+            }
         }
         router = router.merge(crate::native_work_roles_http::native_work_roles_router(
             config.policy.clone(), config.holdings_registry.clone(), Arc::new(FieldServiceReadScopeHeaders),
@@ -2514,6 +2560,20 @@ async fn assemble_checked(
                 config.holdings.iter().find(|h| &h.registration.holding_id == holding_id).map(|h| (h.host.clone(), h.registration.slug.clone()))
             })
             .collect(),
+        inventory_stock_targets: config
+            .inventory_availability_reads
+            .keys()
+            .filter_map(|holding_id| {
+                config.holdings.iter().find(|h| &h.registration.holding_id == holding_id).map(|h| (h.host.clone(), h.registration.slug.clone()))
+            })
+            .collect(),
+        organization_targets: config
+            .finance_journal_reads
+            .keys()
+            .filter_map(|holding_id| {
+                config.holdings.iter().find(|h| &h.registration.holding_id == holding_id).map(|h| (h.host.clone(), h.registration.slug.clone()))
+            })
+            .collect(),
         account_bootstrap: config.account_bootstrap,
     });
     Ok(CheckedAssembly { router:router.layer(middleware::from_fn_with_state(state,boundary)), #[cfg(feature="files-scan-worker")] files_workers })
@@ -2566,6 +2626,8 @@ struct Boundary {
     support_sla_targets: BTreeSet<(String, String)>,
     support_evidence_targets: BTreeSet<(String, String)>,
     inventory_availability_targets: BTreeSet<(String, String)>,
+    inventory_stock_targets: BTreeSet<(String, String)>,
+    organization_targets: BTreeSet<(String, String)>,
     account_bootstrap: bool,
 }
 enum BoundaryDenial {
@@ -3355,10 +3417,34 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
+    let inventory_stock = match (request.method(), request.uri().path().split('/').collect::<Vec<_>>().as_slice()) {
+        (&axum::http::Method::GET, ["", "api", "v1", "holdings", slug, "inventory", "stock-register"]) => state
+            .inventory_stock_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (&axum::http::Method::GET, ["", "api", "v1", "holdings", slug, "inventory", "receipts", id]) if !id.is_empty() => state
+            .inventory_stock_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        _ => false,
+    };
+    let organization_nodes = match (request.method(), request.uri().path().split('/').collect::<Vec<_>>().as_slice()) {
+        (&axum::http::Method::GET, ["", "api", "v1", "holdings", slug, "people", "organization"]) => state
+            .organization_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "people", "organization", "changes"]) => state
+            .organization_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "people", "organization", "changes", "preview"]) => state
+            .organization_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "people", "organization", "changes", id, "review" | "cancel"]) if !id.is_empty() => state
+            .organization_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        _ => false,
+    };
     if !(matches!(
         request.uri().path(),
         "/api/auth/get-session" | "/api/health" | "/api/ready"
-    ) || account_mfa || service_packages || field_work_roles || field_operations || field_support || field_collaboration || field_inbox_state || support_ticket || support_incident || support_session || support_sla || support_evidence || inventory_availability || finance_workspace || finance_invoice_read || finance_opening_balances || finance_report || finance_setup || finance_sales_invoice_create || finance_sales_invoice_edit || finance_sales_defaults || finance_sales_receipts
+    ) || account_mfa || service_packages || field_work_roles || field_operations || field_support || field_collaboration || field_inbox_state || support_ticket || support_incident || support_session || support_sla || support_evidence || inventory_availability || inventory_stock || organization_nodes || finance_workspace || finance_invoice_read || finance_opening_balances || finance_report || finance_setup || finance_sales_invoice_create || finance_sales_invoice_edit || finance_sales_defaults || finance_sales_receipts
         || finance_invoice_runtime
         || finance_field_journal_flow
         || finance_invoice_post

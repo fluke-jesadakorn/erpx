@@ -97,3 +97,143 @@ describe('Profile media commands preserve live membership and file compensation'
 });
 
 it('propagates post-commit profile storage readiness errors while swallowing only physical deletion failures',async()=>{const f=mediaCommandFixture();f.ports.readyStoredRemoval=vi.fn(async()=>{throw new Error('holding resource unavailable');});await expect(f.app.remove({kind:'avatar',version:'1',commandId:'remove-key'})).rejects.toThrow('holding resource unavailable');expect(f.ports.commitRemoval).toHaveBeenCalledOnce();expect(f.ports.removeStored).not.toHaveBeenCalled();f.ports.replayRemoval=vi.fn(async()=>({version:2}));expect(await f.app.remove({kind:'avatar',version:'1',commandId:'remove-key'})).toEqual({version:2});expect(f.ports.readyStoredRemoval).toHaveBeenCalledTimes(1);});
+
+import {
+  createNativeOrganizationClient,
+  NativeOrganizationError,
+  nativeOrganizationConfiguration,
+  nativeOrganizationFailure,
+} from "../../../packages/feature-organization/src/adapters/server/native-organization";
+import { nativeOrganizationSelector } from "../../../packages/feature-organization/src/lib/native-organization";
+
+const nativeActor = {
+  userId: "user",
+  holdingId: "h001",
+  holdingSlug: "acme",
+  companyId: "company",
+  branchId: null,
+  departmentId: null,
+  assignmentId: "assignment",
+  role: "custom_organization",
+  assignmentScope: "holding",
+  scope: { kind: "holding" as const },
+  authority: { revision: 7, assignmentVersion: 3 },
+  modules: ["people"],
+  iam: { permissions: ["organization.manage"] },
+};
+const nativeConfig = {
+  privateBaseUrl: "http://127.0.0.1:3199",
+  holdings: [{ origin: "https://acme.example.test", holdingSlug: "acme", holdingId: "h001" }],
+  timeoutMs: 5000,
+};
+const nativeHeaders = { get: (name: string) => ({ host: "acme.example.test", cookie: "session=value" })[name] ?? null };
+
+function nativeTransport(payload: unknown, status = 200) {
+  return vi.fn(async () =>
+    new Response(JSON.stringify(payload), {
+      status,
+      headers: { "content-type": "application/json; charset=utf-8" },
+    }),
+  );
+}
+
+const workspacePayload = {
+  data: {
+    nodes: [
+      {
+        id: "branch",
+        kind: "branch",
+        slug: "north",
+        display_name: "North",
+        parent_id: "company",
+        company_id: "company",
+        branch_id: "branch",
+        status: "active",
+        hierarchy_revision: 1,
+      },
+    ],
+    nodeChanges: [],
+    changeQueue: { recordId: null, state: "open", query: "", page: 1, pageSize: 20, total: 0, pages: 1 },
+    authorizedChannelNodes: ["branch"],
+    channels: [{ node_id: "branch", room_id: "org-channel-branch", name: "North", kind: "branch", status: "active" }],
+    actorId: "user",
+    canManage: true,
+    canManageUnits: true,
+  },
+};
+
+describe("Native organization transport", () => {
+  it("maps only the current node-change selectors and leaves every other organization path to the retained owner", () => {
+    expect(nativeOrganizationSelector(["organization", "changes", "submit"])).toEqual({ kind: "save", id: null, submit: true });
+    expect(nativeOrganizationSelector(["organization", "changes", "change-1", "draft"])).toEqual({ kind: "save", id: "change-1", submit: false });
+    expect(nativeOrganizationSelector(["organization", "changes", "preview"])).toEqual({ kind: "preview" });
+    expect(nativeOrganizationSelector(["organization", "changes", "change-1", "review"])).toEqual({ kind: "review", id: "change-1" });
+    expect(nativeOrganizationSelector(["organization", "changes", "change-1", "cancel"])).toEqual({ kind: "cancel", id: "change-1" });
+    expect(nativeOrganizationSelector(["organization"])).toBeUndefined();
+    expect(nativeOrganizationSelector(["organization", "templates"])).toBeUndefined();
+    expect(nativeOrganizationSelector(["organization", "position-moves", "submit"])).toBeUndefined();
+  });
+
+  it("rejects reserved, non-loopback and duplicate Holding configuration before any socket", () => {
+    expect(() => nativeOrganizationConfiguration("{")).toThrow(NativeOrganizationError);
+    expect(() => createNativeOrganizationClient({ ...nativeConfig, privateBaseUrl: "http://127.0.0.1:3100" })).toThrow(NativeOrganizationError);
+    expect(() => createNativeOrganizationClient({ ...nativeConfig, privateBaseUrl: "http://192.168.1.1:3199" })).toThrow(NativeOrganizationError);
+    expect(() =>
+      createNativeOrganizationClient({
+        ...nativeConfig,
+        holdings: [...nativeConfig.holdings, ...nativeConfig.holdings],
+      }),
+    ).toThrow(NativeOrganizationError);
+  });
+
+  it("validates the exact node/tree/channel workspace and forwards the current session and CAS headers", async () => {
+    const transport = nativeTransport(workspacePayload);
+    const client = createNativeOrganizationClient(nativeConfig, transport);
+    const data = await client.workspace(nativeHeaders, nativeActor, "changeState=open");
+    expect(data.nodes[0]).toMatchObject({ id: "branch", display_name: "North", hierarchy_revision: 1 });
+    expect(data.channels).toEqual([{ node_id: "branch", room_id: "org-channel-branch", name: "North", kind: "branch", status: "active" }]);
+    expect(data.canManageUnits).toBe(true);
+    expect(transport).toHaveBeenCalledWith(
+      "GET",
+      expect.objectContaining({ pathname: "/api/v1/holdings/acme/people/organization" }),
+      expect.any(Headers),
+      undefined,
+      expect.any(AbortSignal),
+    );
+    const headers = transport.mock.calls[0]![2] as Headers;
+    expect(headers.get("cookie")).toBe("session=value");
+    expect(headers.get("x-erpx-context-assignment")).toBe("assignment");
+    expect(headers.get("x-erpx-context-revision")).toBe("7");
+  });
+
+  it("accepts a retained command receipt and maps a stale native conflict to the route error contract", async () => {
+    const command = createNativeOrganizationClient(
+      nativeConfig,
+      nativeTransport({ data: { id: "org-change-key", version: 2, state: "submitted" } }),
+    );
+    expect(await command.change(nativeHeaders, nativeActor, { path: "/changes", body: { action: "create" }, idempotencyKey: "organization-key-0001" })).toEqual({
+      id: "org-change-key",
+      version: 2,
+      state: "submitted",
+    });
+    const stale = createNativeOrganizationClient(nativeConfig, nativeTransport(null, 409));
+    await expect(
+      stale.change(nativeHeaders, nativeActor, { path: "/changes/change-1/review", body: {}, idempotencyKey: "organization-key-0002" }),
+    ).rejects.toMatchObject({ code: "NATIVE_ORGANIZATION_UNAVAILABLE", status: 409 });
+    expect(nativeOrganizationFailure(new NativeOrganizationError("NATIVE_ORGANIZATION_UNAVAILABLE", 409))).toMatchObject({ status: 409, code: "CONFLICT" });
+    expect(nativeOrganizationFailure(new NativeOrganizationError("NATIVE_ORGANIZATION_UNAVAILABLE", 401))).toMatchObject({ status: 401 });
+    expect(nativeOrganizationFailure(new NativeOrganizationError("NATIVE_ORGANIZATION_UNAVAILABLE"))).toMatchObject({ status: 503 });
+  });
+
+  it("fails closed on malformed or over-broad native workspace replies", async () => {
+    const malformed = createNativeOrganizationClient(nativeConfig, nativeTransport({ data: { nodes: [], nodeChanges: [] } }));
+    await expect(malformed.workspace(nativeHeaders, nativeActor, "")).rejects.toMatchObject({ code: "NATIVE_ORGANIZATION_RESPONSE_INVALID" });
+    const wrongHost = createNativeOrganizationClient(nativeConfig, nativeTransport(workspacePayload));
+    await expect(
+      wrongHost.workspace({ get: () => "other.example.test" }, nativeActor, ""),
+    ).rejects.toMatchObject({ code: "NATIVE_ORGANIZATION_AUTHORITY_INVALID" });
+    expect(
+      nativeOrganizationFailure(new NativeOrganizationError("NATIVE_ORGANIZATION_RESPONSE_INVALID")),
+    ).toMatchObject({ status: 502, code: "NATIVE_ORGANIZATION_RESPONSE_INVALID" });
+  });
+});
