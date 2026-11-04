@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Finance chart-of-accounts management merged; finance/feature-chart-of-accounts closes",
+  "capability": "finance-chart-of-accounts-merge",
+  "integrationTarget": "codex/rust-backend-migration",
+  "pullRequest": {
+    "number": 56,
+    "url": "https://github.com/fluke-jesadakorn/erpx/pull/56",
+    "state": "MERGED",
+    "mergedAt": "2026-11-04T01:57:36Z",
+    "base": "a169022c6d51e31b70109ad2b9c037beef2eb830",
+    "head": "145c6ff29bbcba4453d9aa96a7e4590b547d9eb2",
+    "mergeCommit": "f06c373e7e91b1e85f94fffea6792ecddd3695ca",
+    "mergeMethod": "merge commit"
+  },
+  "scope": {
+    "workflow": "finance/feature-chart-of-accounts",
+    "slice": "chart/account/period management",
+    "adapter": "packages/server-finance/src/adapters/finance_setup.rs",
+    "http": "src/composition/src/finance_journal_detail_http.rs",
+    "transport": "packages/feature-finance/src/adapters/server/native-finance-setup.ts",
+    "screens": [
+      "packages/workplace/src/routes/holdings/[holdingSlug]/finance/setup/chart/_screen.tsx",
+      "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance/setup/screen.tsx"
+    ]
+  },
+  "verification": {
+    "postgres": "finance.rust-finance-setup-postgres.integration 4/4",
+    "regressions": "finance.rust-invoice-read-postgres 3/3; finance.rust-sales-invoice-edit-postgres 4/4; finance.rust-sales-receipt-postgres 2/2; finance.rust-sales-defaults-postgres 3/3; finance.rust-sales-invoice-create-postgres 3/3; finance.rust-sales-invoice-list-postgres 3/3; finance.rust-journal-list-postgres 2/2",
+    "gates": "cargo clippy private-field-api, typecheck, structure, architecture, docs, catalogue (33 modules, 794 suites), rust-runtime-foundation 6/6, finance unit transport suites 4/4",
+    "browser": "Desktop chart/account/period/import/status 201/201/201/201/200 with persisted chart 982899 and inactive account 192899; mobile 043322; pageErrors 0."
+  },
+  "register": {
+    "ownersComplete": 1,
+    "ownersTotal": 41,
+    "workflowsVerified": 21,
+    "workflowsPartial": 0,
+    "workflowsMerged": 21,
+    "workflowsTotal": 206,
+    "workflowState": "finance/feature-chart-of-accounts verified and merged"
+  },
+  "limits": [
+    "The broader setup readiness/profile/books/tools/opening projections remain TS and belong to other workflows.",
+    "Branch/department setup falls back to the legacy read; native setup requires a Company assignment.",
+    "The Finance app still logs pre-existing hydration/work-source console errors; pageErrors stay 0."
+  ]
+}
