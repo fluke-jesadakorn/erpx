@@ -1,25 +1,26 @@
 {
   "version": 1,
   "date": "2026-11-04",
-  "status": "Native Support ticket workspace/detail read and HTTP ingress are integrated; other Support reads and the authenticated browser journey remain open",
-  "capability": "support-native-ticket-read",
+  "status": "Native Support ticket, incident, SLA, temporary-session and evidence reads are implemented, mounted and consumed by the product GET routes and presenters; the authenticated browser journey and scheduled native SLA drain remain open",
+  "capability": "support-native-read",
   "integrationTarget": "codex/rust-backend-migration",
   "scope": {
-    "read": "Company/branch/department scoped ticket workspace (200 rows), ticket detail with retained columns, incidents, history, recipients, approved SLA choices, active customer notes and order sources.",
-    "authority": "Current Account/Holding, selected assignment, Support/records read and Support purchase gates; typed POS/Assets/PMS source visibility through owner adapters.",
-    "http": "GET /api/v1/holdings/{holding_slug}/support with id/orderId selectors, exact host/slug, origin and bounded errors.",
-    "frontend": "Opt-in Next transport and workplace ticket detail read; unset retains TS."
+    "read": "Company/branch/department scoped ticket workspace/detail, incidents workspace/detail, approved SLA policy/clock workspace, temporary-session workspace/detail/context, and capability-gated evidence metadata.",
+    "authority": "Current Account/Holding, selected assignment, Support/records read and Support purchase gates (tickets, incidents, SLA, sessions); typed POS/Assets/PMS source visibility through owner adapters; capability-gated evidence remains metadata-only.",
+    "http": "GET /api/v1/holdings/{holding_slug}/support, /support/incidents, /support/sla, /support/sessions and /support/evidence with id/orderId selectors, exact host/slug, origin and bounded errors.",
+    "frontend": "Native-only Next transport for the Support ticket, incident, SLA and temporary-session routes and presenters; missing native read configuration returns 503 NATIVE_SUPPORT_READ_UNAVAILABLE and never falls back to the retained TypeScript readers."
   },
   "tests": [
-    "support.rust-support-ticket-read-postgres.integration: 3 passed (scope/authority/history/recipients/HTTP/source visibility)",
-    "support.native-support-read.unit: 5 passed",
-    "cargo test -p erpx-server-support: 46 passed",
-    "typecheck feature-support and workplace: pass"
+    "support.rust-support-ticket-read-postgres.integration: 7 passed (ticket scope/authority/history/recipients/HTTP/source visibility, incident reviewer authority, SLA policy/clock/purchase gates, session request/subject/reviewer/expiry/capability gates, evidence masking/revocation)",
+    "support.native-support-read.unit: 7 passed (workspace/detail/recipients/incidents/SLA/sessions/session/evidence transport, host/slug/envelope/error cases)",
+    "tests/unit/support/support-services.test.ts: 67 passed including native-only GET fail-closed and no retained reader call",
+    "cargo test -p erpx-server-support: 46+ passed",
+    "typecheck feature-support: pass"
   ],
   "limits": [
-    "Incident/SLA/session/evidence/ticket-portal native reads are not implemented.",
-    "Native ticket detail is wired into the detail page; list/SLA/incidents/sessions pages remain TS.",
-    "No authenticated browser journey yet.",
+    "Ticket Portal (ADR-048), Service Teams and the optional customer portal handoff remain separate Support-adjacent TS workflows.",
+    "The native SLA drain is CLI-only; the scheduled drain still runs through the retained TypeScript support job.",
+    "No authenticated browser journey has exercised the new Support read pages yet; browser evidence remains open.",
     "Hosted CI, staging and installed production were not accessed."
   ]
 }

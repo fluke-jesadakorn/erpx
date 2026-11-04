@@ -46,6 +46,30 @@ describe('native Support read transport',()=>{
     await reader.recipients(incoming,'acme','order-1');
     expect(fake.calls[1].url?.search).toBe('?orderId=order-1');
   });
+  it('reads incidents, SLA, sessions and evidence through their exact Support GET paths',async()=>{
+    const fake=transport({data:{items:[]}});
+    const reader=createNativeSupportReader(configuration,fake.handler);
+    await reader.incidents(incoming,'acme');
+    expect(fake.calls[0].url?.href).toBe('http://127.0.0.1:3105/api/v1/holdings/acme/support/incidents');
+    await reader.incident(incoming,'acme','incident-1');
+    expect(fake.calls[1].url?.search).toBe('?id=incident-1');
+    await reader.sla(incoming,'acme');
+    expect(fake.calls[2].url?.href).toBe('http://127.0.0.1:3105/api/v1/holdings/acme/support/sla');
+    await reader.sessions(incoming,'acme');
+    expect(fake.calls[3].url?.href).toBe('http://127.0.0.1:3105/api/v1/holdings/acme/support/sessions');
+    await reader.session(incoming,'acme','session-1');
+    expect(fake.calls[4].url?.search).toBe('?id=session-1');
+    await reader.evidence(incoming,'acme','ticket-1');
+    expect(fake.calls[5].url?.href).toBe('http://127.0.0.1:3105/api/v1/holdings/acme/support/evidence?id=ticket-1');
+    expect(fake.calls[5].headers?.get('x-erpx-workspace-department')).toBeNull();
+    expect(fake.calls[5].headers?.get('cookie')).toBe('__Host-erpx-product=session');
+  });
+  it('keeps owner denial codes on the remaining Support read surfaces',async()=>{
+    const denied=createNativeSupportReader(configuration,transport({error:{code:'SUPPORT_SESSION_NOT_FOUND',message:'Support session not found in this scope.'}},404).handler);
+    const error=await denied.session(incoming,'acme','session-absent').catch(value=>value);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({status:404,code:'SUPPORT_SESSION_NOT_FOUND'});
+  });
   it('hides the target unless the incoming host and Holding slug match a configured origin',async()=>{
     const fake=transport({data:{}});
     const reader=createNativeSupportReader(configuration,fake.handler);

@@ -79,7 +79,23 @@ pub fn support_read_http_router<C: Clock + Send + Sync + 'static>(
     Ok(Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/support",
-            get(read::<C>),
+            get(read_ticket::<C>),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/support/incidents",
+            get(read_incidents::<C>),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/support/sla",
+            get(read_sla::<C>),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/support/sessions",
+            get(read_sessions::<C>),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/support/evidence",
+            get(read_evidence::<C>),
         )
         .with_state(Arc::new(ReadState {
             policy,
@@ -113,11 +129,66 @@ fn selector(value: Option<String>) -> Result<Option<String>, BusinessError> {
         .transpose()
 }
 
-async fn read<C: Clock + Send + Sync + 'static>(
+#[derive(Clone, Copy)]
+enum ReadSurface {
+    Ticket,
+    Incidents,
+    Sla,
+    Sessions,
+    Evidence,
+}
+
+async fn read_ticket<C: Clock + Send + Sync + 'static>(
     State(state): State<Arc<ReadState<C>>>,
     Path(slug): Path<String>,
     Query(query): Query<SupportReadQuery>,
     headers: HeaderMap,
+) -> Response {
+    read_surface(state, slug, query, headers, ReadSurface::Ticket).await
+}
+
+async fn read_incidents<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    Query(query): Query<SupportReadQuery>,
+    headers: HeaderMap,
+) -> Response {
+    read_surface(state, slug, query, headers, ReadSurface::Incidents).await
+}
+
+async fn read_sla<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    Query(query): Query<SupportReadQuery>,
+    headers: HeaderMap,
+) -> Response {
+    read_surface(state, slug, query, headers, ReadSurface::Sla).await
+}
+
+async fn read_sessions<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    Query(query): Query<SupportReadQuery>,
+    headers: HeaderMap,
+) -> Response {
+    read_surface(state, slug, query, headers, ReadSurface::Sessions).await
+}
+
+async fn read_evidence<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    Query(query): Query<SupportReadQuery>,
+    headers: HeaderMap,
+) -> Response {
+    read_surface(state, slug, query, headers, ReadSurface::Evidence).await
+}
+
+async fn read_surface<C: Clock + Send + Sync + 'static>(
+    state: Arc<ReadState<C>>,
+    slug: String,
+    query: SupportReadQuery,
+    headers: HeaderMap,
+    surface: ReadSurface,
 ) -> Response {
     let result: Result<Json<serde_json::Value>, PgTransactionError<BusinessError>> = async {
         let id = selector(query.id)?;
@@ -142,23 +213,72 @@ async fn read<C: Clock + Send + Sync + 'static>(
         let captured = CapturedHoldingMutation::capture(&headers, branch, department);
         let company = target.service.company_id().clone();
         let workspace = move || captured.resolve_read(company);
-        let data = if let Some(id) = id {
-            target
-                .service
-                .detail(host, inbound.into_proof(), workspace, id)
-                .await?
-        } else if let Some(order_id) = order_id {
-            json!(
+        let data = match surface {
+            ReadSurface::Ticket => {
+                if let Some(id) = id {
+                    target
+                        .service
+                        .detail(host, inbound.into_proof(), workspace, id)
+                        .await?
+                } else if let Some(order_id) = order_id {
+                    json!(
+                        target
+                            .service
+                            .recipients(host, inbound.into_proof(), workspace, order_id)
+                            .await?
+                    )
+                } else {
+                    target
+                        .service
+                        .workspace(host, inbound.into_proof(), workspace)
+                        .await?
+                }
+            }
+            ReadSurface::Incidents => {
+                if let Some(id) = id {
+                    target
+                        .service
+                        .incident_detail(host, inbound.into_proof(), workspace, id)
+                        .await?
+                } else {
+                    target
+                        .service
+                        .incident_workspace(host, inbound.into_proof(), workspace)
+                        .await?
+                }
+            }
+            ReadSurface::Sla => {
                 target
                     .service
-                    .recipients(host, inbound.into_proof(), workspace, order_id)
+                    .sla_workspace(host, inbound.into_proof(), workspace)
                     .await?
-            )
-        } else {
-            target
-                .service
-                .workspace(host, inbound.into_proof(), workspace)
-                .await?
+            }
+            ReadSurface::Sessions => {
+                if let Some(id) = id {
+                    target
+                        .service
+                        .session_detail(host, inbound.into_proof(), workspace, id)
+                        .await?
+                } else {
+                    target
+                        .service
+                        .session_workspace(host, inbound.into_proof(), workspace)
+                        .await?
+                }
+            }
+            ReadSurface::Evidence => {
+                let Some(id) = id else {
+                    return Err(BusinessError::invalid(
+                        "SUPPORT_EVIDENCE_SELECTOR_REQUIRED",
+                        "Provide the current Support ticket.",
+                    )
+                    .into());
+                };
+                target
+                    .service
+                    .evidence(host, inbound.into_proof(), workspace, id)
+                    .await?
+            }
         };
         Ok::<_, PgTransactionError<BusinessError>>(Json(json!({ "data": data })))
     }

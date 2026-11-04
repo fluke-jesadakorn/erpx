@@ -2,10 +2,20 @@ import 'server-only';
 import {Agent,request} from 'node:http';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import type {supportDetail,supportRecipients,supportWorkspace} from '@erpx/server-support/public/support';
+import type {incidentDetail,incidentWorkspace} from '@erpx/server-support/public/support-incidents';
+import type {supportSlaWorkspace} from '@erpx/server-support/public/support-sla';
+import type {supportSessionDetail,supportSessionWorkspace} from '@erpx/server-support/public/support-sessions';
+import type {supportEvidence} from '@erpx/server-support/public/support-evidence';
 
 export type NativeSupportWorkspace = Awaited<ReturnType<typeof supportWorkspace>>;
 export type NativeSupportDetail = Awaited<ReturnType<typeof supportDetail>>;
 export type NativeSupportRecipients = Awaited<ReturnType<typeof supportRecipients>>;
+export type NativeSupportIncidentWorkspace = Awaited<ReturnType<typeof incidentWorkspace>>;
+export type NativeSupportIncidentDetail = Awaited<ReturnType<typeof incidentDetail>>;
+export type NativeSupportSlaWorkspace = Awaited<ReturnType<typeof supportSlaWorkspace>>;
+export type NativeSupportSessionWorkspace = Awaited<ReturnType<typeof supportSessionWorkspace>>;
+export type NativeSupportSessionDetail = Awaited<ReturnType<typeof supportSessionDetail>>;
+export type NativeSupportEvidence = Awaited<ReturnType<typeof supportEvidence>>;
 
 type Settings={privateBaseUrl:string;timeoutMs:number;holdings:{origin:string;holdingSlug:string;holdingId:string}[];production?:boolean};
 export type SupportReadTransport=(url:URL,headers:Headers,signal:AbortSignal)=>Promise<Response>;
@@ -43,13 +53,13 @@ function direct(url:URL,headers:Headers,signal:AbortSignal):Promise<Response>{
 }
 export function createNativeSupportReader(raw:string,transport:SupportReadTransport=direct){
  const settings=configuration(raw);
- const read=async(incoming:Pick<Headers,'get'>,slug:string,search:string):Promise<unknown>=>{
+ const read=async(incoming:Pick<Headers,'get'>,slug:string,path:string,search=''):Promise<unknown>=>{
   const host=incoming.get('host');
   const target=settings.holdings.find(h=>new URL(h.origin).host===host&&h.holdingSlug===slug);
   if(!target)return fail('NATIVE_SUPPORT_READ_AUTHORITY_INVALID');
   const out=new Headers({host:host!,accept:'application/json'});
   for(const name of ['cookie','x-erpx-context-company','x-erpx-context-assignment','x-erpx-context-revision','x-erpx-context-assignment-version','x-erpx-workspace-branch','x-erpx-workspace-department','origin']){const value=incoming.get(name);if(value)out.set(name,value);}
-  const url=new URL(`/api/v1/holdings/${encodeURIComponent(slug)}/support${search}`,settings.privateBaseUrl);
+  const url=new URL(`/api/v1/holdings/${encodeURIComponent(slug)}/support${path}${search}`,settings.privateBaseUrl);
   const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),Number(settings.timeoutMs));
   try{
    const response=await transport(url,out,controller.signal);
@@ -66,7 +76,13 @@ export function createNativeSupportReader(raw:string,transport:SupportReadTransp
  };
  return {
   workspace:(incoming:Pick<Headers,'get'>,slug:string)=>read(incoming,slug,'') as Promise<NativeSupportWorkspace>,
-  detail:(incoming:Pick<Headers,'get'>,slug:string,id:string)=>read(incoming,slug,`?id=${encodeURIComponent(id)}`) as Promise<NativeSupportDetail>,
-  recipients:(incoming:Pick<Headers,'get'>,slug:string,orderId:string)=>read(incoming,slug,`?orderId=${encodeURIComponent(orderId)}`) as Promise<NativeSupportRecipients>,
+  detail:(incoming:Pick<Headers,'get'>,slug:string,id:string)=>read(incoming,slug,'',`?id=${encodeURIComponent(id)}`) as Promise<NativeSupportDetail>,
+  recipients:(incoming:Pick<Headers,'get'>,slug:string,orderId:string)=>read(incoming,slug,'',`?orderId=${encodeURIComponent(orderId)}`) as Promise<NativeSupportRecipients>,
+  incidents:(incoming:Pick<Headers,'get'>,slug:string)=>read(incoming,slug,'/incidents') as Promise<NativeSupportIncidentWorkspace>,
+  incident:(incoming:Pick<Headers,'get'>,slug:string,id:string)=>read(incoming,slug,'/incidents',`?id=${encodeURIComponent(id)}`) as Promise<NativeSupportIncidentDetail>,
+  sla:(incoming:Pick<Headers,'get'>,slug:string)=>read(incoming,slug,'/sla') as Promise<NativeSupportSlaWorkspace>,
+  sessions:(incoming:Pick<Headers,'get'>,slug:string)=>read(incoming,slug,'/sessions') as Promise<NativeSupportSessionWorkspace>,
+  session:(incoming:Pick<Headers,'get'>,slug:string,id:string)=>read(incoming,slug,'/sessions',`?id=${encodeURIComponent(id)}`) as Promise<NativeSupportSessionDetail>,
+  evidence:(incoming:Pick<Headers,'get'>,slug:string,id:string)=>read(incoming,slug,'/evidence',`?id=${encodeURIComponent(id)}`) as Promise<NativeSupportEvidence>,
  };
 }

@@ -109,9 +109,9 @@
       "phase": "partial",
       "businessMigrationComplete": false,
       "surfaces": {
-        "domain": "partial",
-        "application": "partial",
-        "http": "partial",
+        "domain": "active",
+        "application": "active",
+        "http": "active",
         "ssr": "partial",
         "jobs": "partial",
         "providers": "partial"
