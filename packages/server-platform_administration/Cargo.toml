@@ -35,3 +35,7 @@ workspace = true
 [[test]]
 name = "legal_release"
 path = "../../tests/unit/platform_administration/rust-legal-release.test.rs"
+
+[[test]]
+name = "platform_administration_postgres"
+path = "../../tests/integration/platform_administration/rust-platform-administration-postgres.test.rs"

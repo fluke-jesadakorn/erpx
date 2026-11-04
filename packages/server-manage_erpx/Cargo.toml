@@ -14,3 +14,7 @@ sqlx.workspace = true
 
 [lints]
 workspace = true
+
+[[test]]
+name = "onboarding_postgres"
+path = "../../tests/integration/manage_erpx/rust-onboarding-postgres.test.rs"

@@ -18,6 +18,7 @@ import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-orig
 import { holdingResources } from "../../../../../../../../../../packages/server-runtime/src/public/runtime";
 import {organizationOverview,positionSchema,savePosition,organizationTemplateSchema,saveOrganizationTemplate,applyOrganizationTemplateSchema,applyOrganizationTemplate,installStaffLevels,organizationNodeChangeSchema,organizationNodeDecisionSchema,previewOrganizationNodeChange,saveOrganizationNodeChange,decideOrganizationNodeChange,cancelOrganizationNodeChange} from '@erpx/server-organization/public/organization';
 import { nativeOrganizationChange, nativeOrganizationFailure, nativeOrganizationOverview, nativeOrganizationWorkspace } from "@erpx/feature-organization/lib/native-organization";
+import { ownedPeoplePayrollRuns, ownedPeoplePayrollSummary } from "@erpx/feature-people_payroll/public/native-payroll-summary-owned";
 import { companyBusinessAcceptance, companyAcceptanceSubmitSchema, companyAcceptanceDecisionSchema, companyAcceptanceRevokeSchema, submitCompanyBusinessAcceptance, decideCompanyBusinessAcceptance, revokeCompanyBusinessAcceptance } from "@erpx/server-finance/public/company-business-acceptance";
 import { grantSchema,grantPersonAccess,revokePersonAccess,invitePerson,retryInvitationDelivery,revokeInvitation } from "@erpx/server-identity_access/public/account-access";
 import { directorySchema, directoryUpdateSchema, directoryStatusSchema, saveDirectoryPerson, setDirectoryStatus } from "@erpx/server-people_payroll/public/people-directory";
@@ -55,11 +56,9 @@ import {
   createEngagementSchema,
   exportPaymentBatch,
   getPayrollRun,
-  listPayrollRuns,
   listPeople,
   getPerson,
   peopleSummary,
-  payrollSummary,
   payrollRunSchema,
   payGroupSchema,
   paymentBatchSchema,
@@ -151,10 +150,10 @@ export async function GET(request: Request, context: Context) {
       if(p.length===4&&p[3]==="export"){const issued=await getPayslipExport(actor,p[2]);return new Response(issued.html,{headers:{"Content-Type":"text/html; charset=utf-8","Content-Disposition":`attachment; filename="${p[2]}.html"`,"Cache-Control":"private, no-store","ETag":issued.checksum,"Content-Security-Policy":"default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'"}});}
     }
     if(p[0]==="payroll"&&p[1]==="runs"&&p[2]&&p[3]==="payslips"&&p.length===4)return Response.json(canonicalDestinationLinks({data:await listPayslips(actor,{runId:p[2],ownOnly:false})}),{headers:{"Cache-Control":"private, no-store"}});
-    if (p[0] === "payroll" && p[1] === "summary" && p.length === 2) return Response.json(canonicalDestinationLinks({data:await payrollSummary(actor,new URL(request.url).searchParams.get("payMonth")??undefined)}),{headers:{"Cache-Control":"private, no-store"}});
+    if (p[0] === "payroll" && p[1] === "summary" && p.length === 2) { const data=await ownedPeoplePayrollSummary(actor,holdingSlug,new URL(request.url).searchParams.get("payMonth")??undefined); if(data===undefined)throw new ApiError(503,"NATIVE_PEOPLE_PAYROLL_UNAVAILABLE","The native People Payroll reader is unavailable."); return Response.json(canonicalDestinationLinks({data}),{headers:{"Cache-Control":"private, no-store"}}); }
     if (p[0] === "country-packs") return Response.json(canonicalDestinationLinks({ data: await listCountryPacks(actor) }));
     if (p[0] === "payroll" && p[1] === "thai-configuration") return Response.json(canonicalDestinationLinks({data:await thaiPayrollConfiguration(actor,new URL(request.url).searchParams.get("engagementId")??undefined)}),{headers:{"Cache-Control":"private, no-store"}});
-    if (p[0] === "payroll" && p[1] === "runs" && p.length === 2) return Response.json(canonicalDestinationLinks({ data: await listPayrollRuns(actor) }));
+    if (p[0] === "payroll" && p[1] === "runs" && p.length === 2) { const data=await ownedPeoplePayrollRuns(actor,holdingSlug); if(data===undefined)throw new ApiError(503,"NATIVE_PEOPLE_PAYROLL_UNAVAILABLE","The native People Payroll reader is unavailable."); return Response.json(canonicalDestinationLinks({data}),{headers:{"Cache-Control":"private, no-store"}}); }
     if (p[0] === "payroll" && p[1] === "posting-options" && p.length === 2) return Response.json(canonicalDestinationLinks({data:await payrollPostingOptions(actor)}),{headers:{"Cache-Control":"private, no-store"}});
     if (p[0] === "payroll" && p[1] === "cost-assignments" && p[2] && p.length === 3) return Response.json(canonicalDestinationLinks({data:await payrollCostAssignments(actor,p[2])}),{headers:{"Cache-Control":"private, no-store"}});
     if (p[0] === "payroll" && p[1] === "advances" && p.length === 2) return Response.json(canonicalDestinationLinks({ data: await payrollAdvancePage(actor) }));

@@ -50,3 +50,11 @@ path = "../../tests/integration/people_payroll/rust-invitation-person-link-postg
 [[test]]
 name = "payroll_accounting"
 path = "../../tests/unit/people_payroll/rust-payroll-accounting.test.rs"
+
+[[test]]
+name = "payroll_summary"
+path = "../../tests/unit/people_payroll/rust-payroll-summary.test.rs"
+
+[[test]]
+name = "payroll_summary_postgres"
+path = "../../tests/integration/people_payroll/rust-payroll-summary-postgres.test.rs"

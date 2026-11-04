@@ -14,7 +14,10 @@
     "./components/ai-connection-form": "./src/components/ai-connection-form.tsx",
     "./components/platform-migration-run.module.css": "./src/components/platform-migration-run.module.css",
     "./components/platform-holding-provisioning": "./src/components/platform-holding-provisioning.tsx",
-    "./components/platform-job-recovery": "./src/components/platform-job-recovery.tsx"
+    "./components/platform-job-recovery": "./src/components/platform-job-recovery.tsx",
+    "./adapters/server/native-platform-administration": "./src/adapters/server/native-platform-administration.ts",
+    "./lib/native-platform-administration": "./src/lib/native-platform-administration.ts",
+    "./adapters/server/native-manage-erpx": "./src/adapters/server/native-manage-erpx.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

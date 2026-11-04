@@ -3,3 +3,16 @@ pub use crate::application::beta_policy::BetaPolicyReadPort;
 pub use crate::domain::beta_policy::CompanyBetaPolicy;
 
 pub use crate::adapters::storage_quota::company_storage_limit;
+
+pub mod onboarding;
+pub mod onboarding_http;
+
+pub use crate::adapters::onboarding::{PgOnboardingViewRead, read_onboarding_view};
+pub use crate::adapters::onboarding_http::{
+    ManageErpxHttpBackend, ManageErpxHttpFuture, ManageErpxHttpResponse, ManageErpxHttpTarget,
+    ManageErpxOnboardingRequest, manage_erpx_router,
+};
+pub use crate::application::onboarding::{OnboardingViewReadPort, onboarding_view};
+pub use crate::domain::onboarding::{
+    CompanySlot, CompanySlotState, OnboardingActor, OnboardingView,
+};

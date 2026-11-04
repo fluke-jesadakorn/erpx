@@ -1,4 +1,6 @@
-import { platformOperationsForPresentation } from "@erpx/server-platform_administration/public/presentation-queries";
+import { nativePlatformAdminFailure, nativePlatformOperationsForPresentation } from "@erpx/feature-platform_administration/lib/native-platform-administration";
+import { ApiError } from "@erpx/server-runtime/public/http";
+import { headers } from "next/headers";
 import {PlatformOperationDetail,CollectionRecordLink} from "@erpx/feature-records/components/platform-operation-detail";
 
 import { PageContent } from "@erpx/ui/components/patterns";
@@ -51,8 +53,19 @@ export default async function ManageErpxPage({
   const content = destinations[destination];
   if (!content) notFound();
   if (destination === "home") {
-    const { platform: actor } = await requireManageErpxContext();
-    const { provisioning, operations } = await platformOperationsForPresentation(actor);
+    const { platform: actor, work } = await requireManageErpxContext();
+    const native = await nativePlatformOperationsForPresentation(work, actor, await headers()).catch((error) => {
+      const failure = nativePlatformAdminFailure(error);
+      if (failure) throw new ApiError(failure.status, failure.code, failure.message);
+      throw error;
+    });
+    if (!native)
+      throw new ApiError(
+        503,
+        "NATIVE_PLATFORM_ADMIN_UNAVAILABLE",
+        "Platform Administration native access is not configured.",
+      );
+    const { provisioning, operations } = native;
     const choices = (await workspaceChoices()).filter(
       (choice): choice is WorkspaceHoldingChoice =>
         choice.kind === "holding" && choice.holdingSlug !== "erpx",
