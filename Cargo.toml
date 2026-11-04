@@ -23,6 +23,7 @@ rsa = { version = "=0.9.10", default-features = false }
 p521 = { version = "=0.14.0", default-features = false, features = ["ecdsa"] }
 erpx-server-collaboration = { path = "packages/server-collaboration" }
 erpx-server-assets = { path = "packages/server-assets" }
+erpx-server-benefits = { path = "packages/server-benefits" }
 erpx-server-maintenance = { path = "packages/server-maintenance" }
 libvips = "=2.3.0"
 pkg-config = "=0.3.34"

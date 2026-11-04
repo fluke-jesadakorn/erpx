@@ -1424,6 +1424,7 @@ async fn assemble_checked(
         let mut handbook_targets = Vec::new();
         let mut learning_targets = Vec::new();
         let mut quality_targets = Vec::new();
+        let mut benefits_targets = Vec::new();
         let mut pms_targets = Vec::new();
         let mut maintenance_targets = Vec::new();
         let mut procurement_targets = Vec::new();
@@ -1571,6 +1572,25 @@ async fn assemble_checked(
                         Arc::new(crate::quality::QualityService::new(
                             authorizer.clone(),
                             crate::quality::QualityConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    )),
+                },
+            );
+            benefits_targets.push(
+                erpx_server_benefits::public::workspace_http::BenefitsWorkspaceHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: Arc::new(crate::benefits::BenefitsBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::benefits::BenefitsService::new(
+                            authorizer.clone(),
+                            crate::benefits::BenefitsConfiguration::new(
                                 holding.registration.holding_id.clone(),
                                 company.clone(),
                             ),
@@ -2064,6 +2084,12 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_pms::public::pms_http::pms_http_router(pms_targets)
                     .map_err(|_| "PRIVATE_API_PMS_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !benefits_targets.is_empty() {
+            router = router.merge(
+                erpx_server_benefits::public::workspace_http::benefits_workspace_http_router(benefits_targets)
+                    .map_err(|_| "PRIVATE_API_BENEFITS_CONFIGURATION_INVALID")?,
             );
         }
         if !maintenance_targets.is_empty() {
