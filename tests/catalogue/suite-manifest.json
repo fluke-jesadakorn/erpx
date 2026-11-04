@@ -43343,7 +43343,7 @@
         "Cargo.toml",
         "Cargo.lock",
         "rust-toolchain.toml",
-        "packages/server-customer-360/Cargo.toml"
+        "packages/server-customer_360/Cargo.toml"
       ]
     },
     {
@@ -43376,7 +43376,7 @@
         "Cargo.toml",
         "Cargo.lock",
         "rust-toolchain.toml",
-        "packages/server-customer-360/Cargo.toml"
+        "packages/server-customer_360/Cargo.toml"
       ]
     },
     {
@@ -43409,7 +43409,7 @@
         "Cargo.toml",
         "Cargo.lock",
         "rust-toolchain.toml",
-        "packages/server-customer-360/Cargo.toml"
+        "packages/server-customer_360/Cargo.toml"
       ]
     },
     {
@@ -43445,7 +43445,7 @@
       "lane": "unit",
       "owner": "billing",
       "modules": [
-        "billing"
+        "commercial"
       ],
       "files": [
         "tests/unit/billing/rust-billing-workspace.test.rs"
@@ -43478,7 +43478,7 @@
       "lane": "unit",
       "owner": "billing",
       "modules": [
-        "billing"
+        "commercial"
       ],
       "files": [
         "tests/unit/billing/rust-billing-commands.test.rs"
@@ -43511,7 +43511,7 @@
       "lane": "unit",
       "owner": "billing",
       "modules": [
-        "billing"
+        "commercial"
       ],
       "files": [
         "tests/unit/billing/rust-billing-http.test.rs"
@@ -43544,7 +43544,7 @@
       "lane": "integration",
       "owner": "billing",
       "modules": [
-        "billing"
+        "commercial"
       ],
       "files": [
         "tests/integration/billing/rust-billing-postgres.test.rs"
@@ -68531,7 +68531,7 @@
       "lane": "unit",
       "owner": "commerce",
       "modules": [
-        "commerce"
+        "commercial"
       ],
       "files": [
         "tests/unit/commerce/rust-commerce-order.test.rs"
@@ -68564,7 +68564,7 @@
       "lane": "unit",
       "owner": "commerce",
       "modules": [
-        "commerce"
+        "commercial"
       ],
       "files": [
         "tests/unit/commerce/rust-commerce-order-http.test.rs"
@@ -68597,7 +68597,7 @@
       "lane": "integration",
       "owner": "commerce",
       "modules": [
-        "commerce"
+        "commercial"
       ],
       "files": [
         "tests/integration/commerce/rust-commerce-order-postgres.test.rs"
@@ -68630,7 +68630,7 @@
       "lane": "unit",
       "owner": "commerce",
       "modules": [
-        "commerce"
+        "commercial"
       ],
       "files": [
         "tests/unit/commerce/native-commerce-orders-transport.test.ts"
@@ -70668,7 +70668,7 @@
       "lane": "unit",
       "owner": "workflow",
       "modules": [
-        "workflow"
+        "platform_administration"
       ],
       "files": [
         "tests/unit/workflow/rust-approval-oversight.test.rs"
@@ -70701,7 +70701,7 @@
       "lane": "unit",
       "owner": "workflow",
       "modules": [
-        "workflow"
+        "platform_administration"
       ],
       "files": [
         "tests/unit/workflow/rust-approval-oversight-http.test.rs"
@@ -70734,7 +70734,7 @@
       "lane": "integration",
       "owner": "workflow",
       "modules": [
-        "workflow"
+        "platform_administration"
       ],
       "files": [
         "tests/integration/workflow/rust-approval-oversight-postgres.test.rs"
@@ -70767,7 +70767,7 @@
       "lane": "unit",
       "owner": "workflow",
       "modules": [
-        "workflow"
+        "platform_administration"
       ],
       "files": [
         "tests/unit/workflow/native-workflow-evidence-transport.test.ts"
@@ -75387,7 +75387,7 @@
       },
       "ci": {
         "critical": true,
-        "reason": "Native PMS HTTP ingress must retain exact registered Holding targets, a single bounded room-board query, private response headers, bounded error mapping and fail-closed configuration."
+        "reason": "Native PMS HTTP ingress must retain exact registered Holding targets, bounded room-board and front-desk queries, private response headers, bounded error mapping and fail-closed configuration."
       },
       "apps": [
         "apps"
@@ -75452,9 +75452,9 @@
     {
       "id": "records.rust-record-context.unit",
       "lane": "unit",
-      "owner": "records",
+      "owner": "shared.records",
       "modules": [
-        "records"
+        "manage_erpx"
       ],
       "files": [
         "tests/unit/shared.records/rust-record-context.test.rs"
@@ -75485,9 +75485,9 @@
     {
       "id": "records.rust-record-context-http.unit",
       "lane": "unit",
-      "owner": "records",
+      "owner": "shared.records",
       "modules": [
-        "records"
+        "manage_erpx"
       ],
       "files": [
         "tests/unit/shared.records/rust-record-context-http.test.rs"
@@ -75518,9 +75518,9 @@
     {
       "id": "records.rust-record-context-postgres.integration",
       "lane": "integration",
-      "owner": "records",
+      "owner": "shared.records",
       "modules": [
-        "records"
+        "manage_erpx"
       ],
       "files": [
         "tests/integration/shared.records/rust-record-context-postgres.test.rs"
@@ -75551,9 +75551,9 @@
     {
       "id": "records.native-record-context-transport.unit",
       "lane": "unit",
-      "owner": "records",
+      "owner": "shared.records",
       "modules": [
-        "records"
+        "manage_erpx"
       ],
       "files": [
         "tests/unit/shared.records/native-record-context-transport.test.ts"
@@ -76087,6 +76087,477 @@
         "@erpx/server-files",
         "@erpx/workplace"
       ]
+    },
+    {
+      "lane": "unit",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native PMS front-desk policy must require pms.read, the pms module, a current branch selection, pms.frontdesk and the current package history entitlement, then return only bounded stays with related guest, reservation, guest-account and room facts, explicit permission-based financial redaction and stable transport field names."
+      },
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-pms",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "id": "pms.rust-pms-front-desk.unit",
+      "files": [
+        "tests/unit/pms/rust-pms-front-desk.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-pms",
+        "targets": [
+          "pms_front_desk"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-pms/Cargo.toml",
+        "packages/server-pms/src/domain/front_desk.rs",
+        "packages/server-pms/src/application/front_desk.rs"
+      ]
+    },
+    {
+      "lane": "integration",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native PMS front-desk reads over migrated PostgreSQL must retain own-table SQL, Company/branch isolation, arrivals/departures queue semantics, related guest/reservation/guest-account facts, document scoping, bounded paging/search and serializable transaction enforcement."
+      },
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-pms",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "id": "pms.rust-pms-front-desk-postgres.integration",
+      "files": [
+        "tests/integration/pms/rust-pms-front-desk-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-pms",
+        "targets": [
+          "pms_front_desk_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-pms/Cargo.toml",
+        "packages/server-pms/src/adapters/front_desk.rs",
+        "tests/support/rust-postgres.rs",
+        "migrations/postgres/holding-write/0031_pms.sql"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "H001_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
+      "id": "organization.rust-organization-setup.unit",
+      "lane": "unit",
+      "owner": "organization",
+      "modules": [
+        "organization"
+      ],
+      "files": [
+        "tests/unit/organization/rust-organization-setup.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Organization staff-level install and template save/apply validation, authority ordering, custody and handoff in the PR baseline."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-organization",
+        "targets": [
+          "organization_setup"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-organization/Cargo.toml"
+      ]
+    },
+    {
+      "id": "organization.rust-organization-setup-postgres.integration",
+      "lane": "integration",
+      "owner": "organization",
+      "modules": [
+        "organization"
+      ],
+      "files": [
+        "tests/integration/organization/rust-organization-setup-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PostgreSQL-backed native Organization staff-level install and template save/apply retain Company scope, CAS, rollback, receipt/audit/outbox and persisted readback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-organization",
+        "targets": [
+          "organization_setup_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-organization/Cargo.toml"
+      ]
+    },
+    {
+      "id": "organization.rust-organization-setup-http-postgres.integration",
+      "lane": "integration",
+      "owner": "organization",
+      "modules": [
+        "organization"
+      ],
+      "files": [
+        "tests/integration/organization/rust-organization-setup-http-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PostgreSQL-backed native Organization setup HTTP ingress retains target, origin, idempotency, authorization and exact reply shapes."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-organization",
+        "targets": [
+          "organization_setup_http_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-organization/Cargo.toml"
+      ]
+    },
+    {
+      "id": "organization.native-organization-setup.unit",
+      "lane": "unit",
+      "owner": "organization",
+      "modules": [
+        "organization"
+      ],
+      "files": [
+        "tests/unit/organization/native-organization-setup.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Organization native setup transport selects only installed levels/templates/apply paths, validates exact receipts and fails closed."
+      }
+    },
+    {
+      "id": "sales.rust-sales-price-lists.unit",
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "files": [
+        "tests/unit/sales/rust-sales-price-lists.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Sales price-list lifecycle retains authority ordering, source checks, CAS, idempotency and release handoff."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-sales",
+        "targets": [
+          "sales_price_lists"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-sales/Cargo.toml"
+      ]
+    },
+    {
+      "id": "sales.rust-sales-price-lists-http.unit",
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "files": [
+        "tests/unit/sales/rust-sales-price-lists-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Sales price-list HTTP ingress retains target, origin, idempotency and exact reply shapes."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-sales",
+        "targets": [
+          "sales_price_lists_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-sales/Cargo.toml"
+      ]
+    },
+    {
+      "id": "sales.rust-sales-price-lists-postgres.integration",
+      "lane": "integration",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "files": [
+        "tests/integration/sales/rust-sales-price-lists-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PostgreSQL-backed native Sales price-list lifecycle retains Company isolation, CAS, receipt/audit/outbox and persisted readback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-sales",
+        "targets": [
+          "sales_price_lists_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-sales/Cargo.toml"
+      ]
+    },
+    {
+      "id": "records.rust-record-registry.unit",
+      "lane": "unit",
+      "owner": "shared.records",
+      "modules": [
+        "manage_erpx"
+      ],
+      "files": [
+        "tests/unit/shared.records/rust-record-registry.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Records registry retains bounded search, Company scope, cursor ordering and denied-read behavior."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-records",
+        "targets": [
+          "record_registry"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-records/Cargo.toml"
+      ]
+    },
+    {
+      "id": "records.rust-record-registry-http.unit",
+      "lane": "unit",
+      "owner": "shared.records",
+      "modules": [
+        "manage_erpx"
+      ],
+      "files": [
+        "tests/unit/shared.records/rust-record-registry-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Records registry HTTP ingress retains target, origin, bounded query and exact reply shapes."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-records",
+        "targets": [
+          "record_registry_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-records/Cargo.toml"
+      ]
+    },
+    {
+      "id": "records.rust-record-registry-postgres.integration",
+      "lane": "integration",
+      "owner": "shared.records",
+      "modules": [
+        "manage_erpx"
+      ],
+      "files": [
+        "tests/integration/shared.records/rust-record-registry-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PostgreSQL-backed native Records registry retains Company isolation, cursor paging, source authorization and persisted readback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-records",
+        "targets": [
+          "record_registry_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-records/Cargo.toml"
+      ]
+    },
+    {
+      "id": "records.native-record-registry-transport.unit",
+      "lane": "unit",
+      "owner": "shared.records",
+      "modules": [
+        "manage_erpx"
+      ],
+      "files": [
+        "tests/unit/shared.records/native-record-registry-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Records native registry transport selects only the installed paths and fails closed."
+      }
+    },
+    {
+      "id": "records.native-record-registry-route.unit",
+      "lane": "unit",
+      "owner": "shared.records",
+      "modules": [
+        "manage_erpx"
+      ],
+      "files": [
+        "tests/unit/shared.records/native-record-registry-route.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Records native registry route retains normal auth, exact context and no legacy fallback once configured."
+      }
+    },
+    {
+      "id": "sales.native-sales-pricing-transport.unit",
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "files": [
+        "tests/unit/sales/native-sales-pricing-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Sales price-list transport selects only installed paths, validates exact context/receipts and fails closed."
+      }
     }
   ]
 }
