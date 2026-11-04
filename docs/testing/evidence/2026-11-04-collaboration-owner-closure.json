@@ -124,7 +124,7 @@
     "No authenticated browser cohort was run. No browser, staging, installed production or Cloudflare access occurred.",
     "The repository Bun runner was not available in this host shell (bun not on PATH). Vitest and TypeScript were invoked directly with local node_modules binaries; Node was v26.12.0 rather than the pinned v26.11.1. The canonical bun test:unit/test:ci wrappers therefore remain unrun.",
     "The shared Cargo.lock briefly diverged from the concurrent Assets manifest; final Rust runs used --locked after the shared lockfile became consistent again.",
-    "cargo test -p erpx-server-runtime --test rust_architecture fails on server-brand portable-layer findings outside Collaboration; runtime_foundation fails on pre-existing active owner metadata. Collaboration files were removed from the architecture finding before the final run."
+    "cargo test -p erpx-server-runtime --test rust_architecture fails on server-brand and server-support portable-layer findings outside Collaboration; runtime_foundation fails on pre-existing active owner metadata. Collaboration files were removed from the architecture finding before the final run."
   ],
   "compositionMountDelta": {
     "summary": "Main must implement HandbookHttpBackend in src/composition and merge the owner router. Do not change the owner crate API for this mount.",
