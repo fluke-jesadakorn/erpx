@@ -5,7 +5,7 @@
   "capability": "finance-receivables-aging-native",
   "base": "355bd7e89d230a613d184542b354e13a24d241f8",
   "branch": "codex/finance-receivables-aging-native",
-  "sourceCommit": "pending",
+  "sourceCommit": "b5607a5986ee7cc5c40c5652f3bcda4c765c2aae",
   "implementation": {
     "adapter": "packages/server-finance/src/adapters/finance_invoice_read.rs",
     "public": "packages/server-finance/src/public/finance_invoice_read.rs",
@@ -44,16 +44,60 @@
     "desktop": {
       "viewport": "1280x900",
       "url": "https://acme.jesadakorn.com/finance/documents/receivable?company=zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e",
-      "listRow": ["INV-AGING-BROWSER", "Browser customer", "2026-09-01", "THB 500.00", "THB 500.00", "posted"],
-      "aging": [["61-90", "THB", "1", "THB 500.00", "2026-09-01"], ["current", "THB", "4", "THB 400.00", "2026-12-03"]],
+      "listRow": [
+        "INV-AGING-BROWSER",
+        "Browser customer",
+        "2026-09-01",
+        "THB 500.00",
+        "THB 500.00",
+        "posted"
+      ],
+      "aging": [
+        [
+          "61-90",
+          "THB",
+          "1",
+          "THB 500.00",
+          "2026-09-01"
+        ],
+        [
+          "current",
+          "THB",
+          "4",
+          "THB 400.00",
+          "2026-12-03"
+        ]
+      ],
       "pageErrors": 0,
       "consoleErrors": 7
     },
     "mobile": {
       "viewport": "390x844",
       "url": "https://acme.jesadakorn.com/finance/documents/receivable?company=zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e",
-      "listRow": ["INV-AGING-BROWSER", "Browser customer", "2026-09-01", "THB 500.00", "THB 500.00", "posted"],
-      "aging": [["61-90", "THB", "1", "THB 500.00", "2026-09-01"], ["current", "THB", "4", "THB 400.00", "2026-12-03"]],
+      "listRow": [
+        "INV-AGING-BROWSER",
+        "Browser customer",
+        "2026-09-01",
+        "THB 500.00",
+        "THB 500.00",
+        "posted"
+      ],
+      "aging": [
+        [
+          "61-90",
+          "THB",
+          "1",
+          "THB 500.00",
+          "2026-09-01"
+        ],
+        [
+          "current",
+          "THB",
+          "4",
+          "THB 400.00",
+          "2026-12-03"
+        ]
+      ],
       "pageErrors": 0,
       "consoleErrors": 4
     },

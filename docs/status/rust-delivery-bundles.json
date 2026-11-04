@@ -3334,7 +3334,7 @@
       "kind": "business-flow-evidence",
       "status": "flow-complete",
       "scope": "Native Finance invoice list and historical aging: filters/cursor, dated settlement evidence, buckets, chart/Company isolation, HTTP/Next transport and desktop/mobile canonical Receivables screens.",
-      "sourceIdentity": "finance-receivables-aging-native",
+      "sourceIdentity": "b5607a5986ee7cc5c40c5652f3bcda4c765c2aae",
       "evidenceRef": "docs/testing/evidence/2026-11-04-finance-receivables-aging-native.json",
       "durableContractRefs": [
         "docs/contracts/next/rust-finance-journal-detail.md"
