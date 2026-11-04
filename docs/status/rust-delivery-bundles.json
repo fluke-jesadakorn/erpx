@@ -3268,7 +3268,7 @@
       "kind": "business-flow-evidence",
       "status": "flow-complete",
       "scope": "Native Finance sales-defaults workspace, prepare and independent approval: active account validation, draft/approved editions, supersede/version guards, receipts/audit/outbox, Company scope, HTTP/Next transport and desktop/mobile settings.",
-      "sourceIdentity": "finance-sales-defaults-native",
+      "sourceIdentity": "7b9292b4a864a3ada1a0e378bd034a26bda8e1f0",
       "evidenceRef": "docs/testing/evidence/2026-11-04-finance-sales-defaults-native.json",
       "durableContractRefs": [
         "docs/contracts/next/rust-finance-journal-detail.md"
