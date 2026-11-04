@@ -144,3 +144,104 @@ it('actual Service-owned Support ticket links its exact currently authorized vis
 it('an unavailable Service destination leaves the original case and owner explanation readable without a guessed visit link',async()=>{const c=await actualServiceTicketHandoff(null),html=await c.render();expect(c.read).toHaveBeenCalledExactlyOnceWith(actor,{kind:'field_service_order',id:c.nativeId});expect(html).toContain('Original Service intake');expect(html).toContain('managed in Field Service');expect(html).not.toContain('Open Field Service visit');});
 it.each([{orderId:null},{managed:false}])('the original missing/other-source case never asks for a guessed Service destination %#',async options=>{const c=await actualServiceTicketHandoff(readableServiceVisit,options),html=await c.render();expect(c.read).not.toHaveBeenCalled();expect(html).toContain('Original Service intake');expect(html).not.toContain('Open Field Service visit');});
 it('unexpected owner destination failures propagate instead of silently claiming that the visit is unavailable',async()=>{const failure=new Error('Original owner database unavailable'),c=await actualServiceTicketHandoff(null,{fail:failure});await expect(c.render()).rejects.toBe(failure);expect(c.read).toHaveBeenCalledExactlyOnceWith(actor,{kind:'field_service_order',id:c.nativeId});});
+
+// The five Support command routes are native-only. Missing configuration is a
+// closed 503 with no retained TypeScript writer call; GET reads keep their
+// current owner readers because native reads are a separate migration.
+describe("Support command routes require their native configuration", () => {
+    const commandHeaders = {'Origin': 'https://helpdesk.test', 'Idempotency-Key': 'command-key'};
+    const context = {params: Promise.resolve({holdingSlug: 'acme'})};
+    const post = (route: Record<string, unknown>, body: unknown = {action: 'start', id: 'ticket', expectedVersion: 1, reason: 'Current review'}, headers: Record<string, string> = commandHeaders) => (route.POST as (r: Request, c: typeof context) => Promise<Response>)(new Request('https://helpdesk.test/api/owner', {method: 'POST', headers, body: JSON.stringify(body)}), context);
+    const get = (route: Record<string, unknown>, url = 'https://helpdesk.test/api/owner') => (route.GET as (r: Request, c: typeof context) => Promise<Response>)(new Request(url), context);
+    const runtime = async () => {
+        const {ApiError, errorResponse} = await import('@erpx/server-runtime/public/http');
+        return {ApiError, errorResponse, canonicalDestinationLinks: <T>(value: T) => value, requestPublicOrigin: (request: Request) => new URL(request.url).origin, requireWorkContext: vi.fn(async () => actor)};
+    };
+    const writer = (result: unknown = {id: 'native', version: 2}) => {
+        const write = vi.fn(async () => result), factory = vi.fn(() => write);
+        return {factory, write};
+    };
+    afterEach(() => vi.unstubAllEnvs());
+
+    it("ticket POST closes without ERPX_NATIVE_SUPPORT_TICKET_CONFIG and never calls a retained writer", async () => {
+        const base = await runtime(), legacy = vi.fn(), native = writer();
+        const route = await supportRoute("packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/route.ts", {...base, supportWorkspace: legacy, supportRecipients: legacy, supportDetail: legacy, createNativeSupportTicketWriter: native.factory, createNativeSupportEvidenceWriter: vi.fn()});
+        const response = await post(route, {kind: 'general', title: 'Printer offline', issue: 'The front desk printer is offline.'});
+        expect(response.status).toBe(503);
+        expect(await response.json()).toMatchObject({error: {code: 'NATIVE_SUPPORT_UNAVAILABLE'}});
+        expect(native.factory).not.toHaveBeenCalled();
+        expect(legacy).not.toHaveBeenCalled();
+        expect(base.requireWorkContext).toHaveBeenCalledWith('acme');
+    });
+
+    it("ticket and evidence commands select their exact native writer without a TypeScript fallback", async () => {
+        vi.stubEnv('ERPX_NATIVE_SUPPORT_TICKET_CONFIG', 'ticket-config');
+        vi.stubEnv('ERPX_NATIVE_SUPPORT_EVIDENCE_CONFIG', undefined);
+        const base = await runtime(), legacy = vi.fn(), ticket = writer({id: 'ticket', version: 2}), evidence = writer({id: 'ticket', version: 3});
+        const route = await supportRoute("packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/route.ts", {...base, supportWorkspace: legacy, supportRecipients: legacy, supportDetail: legacy, createNativeSupportTicketWriter: ticket.factory, createNativeSupportEvidenceWriter: evidence.factory});
+        const refused = await post(route, {action: 'bind-evidence', id: 'ticket', expectedVersion: 1, attachmentSetIds: ['set'], reason: 'Reviewed private evidence'});
+        expect(refused.status).toBe(503);
+        expect(await refused.json()).toMatchObject({error: {code: 'NATIVE_SUPPORT_EVIDENCE_UNAVAILABLE'}});
+        expect(ticket.factory).not.toHaveBeenCalled();
+        expect(evidence.factory).not.toHaveBeenCalled();
+        expect(legacy).not.toHaveBeenCalled();
+        const body = {kind: 'general', title: 'Printer offline', issue: 'The front desk printer is offline.'}, created = await post(route, body);
+        expect(created.status).toBe(200);
+        expect(ticket.factory).toHaveBeenCalledWith('ticket-config');
+        expect(ticket.write).toHaveBeenCalledWith(expect.anything(), 'acme', JSON.stringify(body), 'command-key');
+        vi.stubEnv('ERPX_NATIVE_SUPPORT_EVIDENCE_CONFIG', 'evidence-config');
+        const bound = await post(route, {action: 'bind-evidence', id: 'ticket', expectedVersion: 1, attachmentSetIds: ['set'], reason: 'Reviewed private evidence'});
+        expect(bound.status).toBe(200);
+        expect(evidence.factory).toHaveBeenCalledWith('evidence-config');
+        expect(legacy).not.toHaveBeenCalled();
+    });
+
+    it("SLA POST closes without ERPX_NATIVE_SUPPORT_SLA_CONFIG", async () => {
+        const base = await runtime(), legacy = vi.fn(), native = writer();
+        const route = await supportRoute("packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/sla/route.ts", {...base, supportSlaWorkspace: legacy, createNativeSupportSlaWriter: native.factory});
+        const response = await post(route, {action: 'create-policy', name: 'Working time', policy: {}, reason: 'Proposed target'});
+        expect(response.status).toBe(503);
+        expect(await response.json()).toMatchObject({error: {code: 'NATIVE_SUPPORT_SLA_UNAVAILABLE'}});
+        expect(native.factory).not.toHaveBeenCalled();
+        expect(legacy).not.toHaveBeenCalled();
+        vi.stubEnv('ERPX_NATIVE_SUPPORT_SLA_CONFIG', 'sla-config');
+        const created = await post(route, {action: 'create-policy', name: 'Working time', policy: {}, reason: 'Proposed target'});
+        expect(created.status).toBe(200);
+        expect(native.factory).toHaveBeenCalledWith('sla-config');
+    });
+
+    it("incident POST closes without ERPX_NATIVE_SUPPORT_INCIDENT_CONFIG", async () => {
+        const base = await runtime(), legacy = vi.fn(), native = writer();
+        const route = await supportRoute("packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/incidents/route.ts", {...base, incidentWorkspace: legacy, incidentDetail: legacy, createNativeSupportIncidentWriter: native.factory});
+        const response = await post(route, {action: 'create', ticketId: 'ticket', ticketVersion: 1, title: 'Shared fault', impact: 'Several customers', severity: 'high', ownerId: 'agent', dueDate: '2026-09-27'});
+        expect(response.status).toBe(503);
+        expect(await response.json()).toMatchObject({error: {code: 'NATIVE_SUPPORT_INCIDENT_UNAVAILABLE'}});
+        expect(native.factory).not.toHaveBeenCalled();
+        expect(legacy).not.toHaveBeenCalled();
+        vi.stubEnv('ERPX_NATIVE_SUPPORT_INCIDENT_CONFIG', 'incident-config');
+        expect((await post(route, {action: 'create'})).status).toBe(200);
+        expect(native.factory).toHaveBeenCalledWith('incident-config');
+    });
+
+    it("session POST closes without ERPX_NATIVE_SUPPORT_SESSION_CONFIG", async () => {
+        const base = await runtime(), legacy = vi.fn(), native = writer();
+        const route = await supportRoute("packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/sessions/route.ts", {...base, supportSessionWorkspace: legacy, supportSessionDetail: legacy, createNativeSupportSessionWriter: native.factory});
+        const response = await post(route, {ticketId: 'ticket', ticketVersion: 1, requestedFor: 'agent', expiresAt: Date.now() + 60_000, reason: 'Temporary context'});
+        expect(response.status).toBe(503);
+        expect(await response.json()).toMatchObject({error: {code: 'NATIVE_SUPPORT_SESSION_UNAVAILABLE'}});
+        expect(native.factory).not.toHaveBeenCalled();
+        expect(legacy).not.toHaveBeenCalled();
+        vi.stubEnv('ERPX_NATIVE_SUPPORT_SESSION_CONFIG', 'session-config');
+        expect((await post(route, {action: 'approve', id: 'session', expectedVersion: 1, reason: 'Reviewed'})).status).toBe(200);
+        expect(native.factory).toHaveBeenCalledWith('session-config');
+    });
+
+    it("keeps GET on the current owner readers without requiring native command configuration", async () => {
+        const base = await runtime(), workspace = vi.fn(async () => ({items: []})), native = writer();
+        const route = await supportRoute("packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/route.ts", {...base, supportWorkspace: workspace, supportRecipients: vi.fn(), supportDetail: vi.fn(), createNativeSupportTicketWriter: native.factory, createNativeSupportEvidenceWriter: vi.fn()});
+        const response = await get(route);
+        expect(response.status).toBe(200);
+        expect(workspace).toHaveBeenCalledWith(actor);
+        expect(native.factory).not.toHaveBeenCalled();
+    });
+});
