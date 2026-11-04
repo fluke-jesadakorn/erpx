@@ -40,6 +40,8 @@ describe('Holding addresses',()=>{
  it('preserves record suffixes, repeated filters, Company and fragments in generated links',()=>{
   expect(holdingUiUrl('/holdings/acme/branches/bangkok/departments/accounting/finance/reports/company?tag=a&tag=b#totals')).toBe('https://acme.jesadakorn.com/bangkok/accounting/finance/reports/company?tag=a&tag=b#totals');
   expect(holdingUiUrl('/holdings/acme/finance/documents','acme-co')).toBe('https://acme.jesadakorn.com/finance?company=acme-co');
+  expect(holdingUiUrl('/holdings/acme/administration/brand/identity','acme-co')).toBe('https://acme.jesadakorn.com/holdings/acme/administration/brand/identity?company=acme-co');
+  expect(holdingUiUrl('/holdings/acme/erpx-management/iam/users')).toBe('https://acme.jesadakorn.com/holdings/acme/erpx-management/iam/users');
   expect(holdingPublicUiUrl('/book/acme/manage#token=original')).toBe('https://acme.jesadakorn.com/book/manage#token=original');
   expect(holdingFrontUiUrl('/acme/acme-co/branches/bangkok/sale?table=1','pos')).toBe('https://acme.jesadakorn.com/bangkok/pos/sale?table=1');
  });

@@ -109,6 +109,12 @@ export function holdingUiUrl(value: string, company?: string, profile: OriginPro
   const app: ProductHostKey | undefined = /^(administration|erpx-management)(?:\/|$)/.test(destination) ? 'admin' : destinationProduct(destination);
   if (!app) return null;
   const root = ownerRoots[app] ?? '', landing = product(app)?.landing;
+  if (app === 'admin') {
+    // The Admin app serves its owner workspace under the original
+    // /holdings/{holding}/administration|erpx-management path, not /admin.
+    if (!branch && !department && company) url.searchParams.set('company', company);
+    return origin + url.pathname + url.search + url.hash;
+  }
   const tail = destination === landing ? '' : root && (destination === root || destination.startsWith(root + '/')) ? destination.slice(root.length).replace(/^\//, '') : destination;
   url.pathname = [branch ?? (department ? 'departments' : ''), department, app, tail].filter(Boolean).join('/');
   if (!branch && !department && company) url.searchParams.set('company', company);
