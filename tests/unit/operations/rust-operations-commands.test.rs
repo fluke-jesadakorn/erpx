@@ -5,7 +5,9 @@
 use erpx_server_operations::public::field_exceptions::Exception;
 use erpx_server_operations::public::field_policy::QueuePolicy;
 use erpx_server_operations::public::operations_commands::*;
-use erpx_server_shared::public::record_source_contract::{SourceKind, SourceRecord, SourceReference};
+use erpx_server_shared::public::record_source_contract::{
+    SourceKind, SourceRecord, SourceReference,
+};
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use std::collections::{HashMap, HashSet};
 
@@ -24,7 +26,14 @@ impl Repo {
             calls: Vec::new(),
         }
     }
-    fn store(&mut self, key: &str, operation: &str, record_id: &str, fingerprint: &str, receipt: &CommandReceipt) {
+    fn store(
+        &mut self,
+        key: &str,
+        operation: &str,
+        record_id: &str,
+        fingerprint: &str,
+        receipt: &CommandReceipt,
+    ) {
         self.receipts.insert(
             key.into(),
             StoredReceipt {
@@ -83,7 +92,11 @@ impl OperationsCommandRepository for Repo {
     ) -> OperationsCommandFuture<'a, CommandReceipt, Self::Error> {
         Box::pin(async move {
             self.calls.push(format!("change:{}", plan.key.as_str()));
-            let receipt = CommandReceipt::new(&plan.row.id, &plan.transition.status, plan.transition.version);
+            let receipt = CommandReceipt::new(
+                &plan.row.id,
+                &plan.transition.status,
+                plan.transition.version,
+            );
             self.store(
                 plan.key.as_str(),
                 &format!("operations.exception.{}", plan.input.action),
@@ -117,7 +130,8 @@ impl OperationsCommandRepository for Repo {
     ) -> OperationsCommandFuture<'a, CommandReceipt, Self::Error> {
         Box::pin(async move {
             self.calls.push(format!("review:{}", plan.key.as_str()));
-            let receipt = CommandReceipt::new(&plan.record_id, plan.action.status(), plan.next_version);
+            let receipt =
+                CommandReceipt::new(&plan.record_id, plan.action.status(), plan.next_version);
             self.store(
                 plan.key.as_str(),
                 &format!("operations.policy.{}", plan.action.as_str()),
@@ -289,7 +303,11 @@ fn draft_input() -> DraftPolicyCommand {
     DraftPolicyCommand {
         area: "service".into(),
         name: "Service queue".into(),
-        source_kinds: vec![SourceKind::StaffTask, SourceKind::Asset, SourceKind::StaffTask],
+        source_kinds: vec![
+            SourceKind::StaffTask,
+            SourceKind::Asset,
+            SourceKind::StaffTask,
+        ],
         target_minutes: 60,
     }
 }
@@ -317,36 +335,64 @@ async fn opening_checks_current_module_scope_source_and_policy_before_commit() {
     let mut expired = actor();
     expired.expires_at = 1;
     assert_eq!(
-        open_operations_exception(&expired, &mut repo, &mut sources, &open_input(), "command-key-01", 1)
-            .await
-            .unwrap_err()
-            .code,
+        open_operations_exception(
+            &expired,
+            &mut repo,
+            &mut sources,
+            &open_input(),
+            "command-key-01",
+            1
+        )
+        .await
+        .unwrap_err()
+        .code,
         "WORK_CONTEXT_CHANGED"
     );
     let mut no_module = actor();
     no_module.modules.clear();
     assert_eq!(
-        open_operations_exception(&no_module, &mut repo, &mut sources, &open_input(), "command-key-01", 1)
-            .await
-            .unwrap_err()
-            .code,
+        open_operations_exception(
+            &no_module,
+            &mut repo,
+            &mut sources,
+            &open_input(),
+            "command-key-01",
+            1
+        )
+        .await
+        .unwrap_err()
+        .code,
         "MODULE_FORBIDDEN"
     );
     let mut foreign_source = actor();
     foreign_source.company_id = "other".into();
     assert_eq!(
-        open_operations_exception(&foreign_source, &mut repo, &mut sources, &open_input(), "command-key-01", 1)
-            .await
-            .unwrap_err()
-            .code,
+        open_operations_exception(
+            &foreign_source,
+            &mut repo,
+            &mut sources,
+            &open_input(),
+            "command-key-01",
+            1
+        )
+        .await
+        .unwrap_err()
+        .code,
         "OPERATIONS_SCOPE_REQUIRED"
     );
     let mut wrong_kind = Sources::new(source(SourceKind::Asset), &["owner"]);
     assert_eq!(
-        open_operations_exception(&actor(), &mut repo, &mut wrong_kind, &open_input(), "command-key-01", 1)
-            .await
-            .unwrap_err()
-            .code,
+        open_operations_exception(
+            &actor(),
+            &mut repo,
+            &mut wrong_kind,
+            &open_input(),
+            "command-key-01",
+            1
+        )
+        .await
+        .unwrap_err()
+        .code,
         "SOURCE_RECORD_CHANGED"
     );
     sources.recipient_error = Some(BusinessError::new(
@@ -355,10 +401,17 @@ async fn opening_checks_current_module_scope_source_and_policy_before_commit() {
         "Choose an active eligible recipient in this scope.",
     ));
     assert_eq!(
-        open_operations_exception(&actor(), &mut repo, &mut sources, &open_input(), "command-key-01", 1)
-            .await
-            .unwrap_err()
-            .code,
+        open_operations_exception(
+            &actor(),
+            &mut repo,
+            &mut sources,
+            &open_input(),
+            "command-key-01",
+            1
+        )
+        .await
+        .unwrap_err()
+        .code,
         "OPERATIONS_RECIPIENT_UNAVAILABLE"
     );
     assert!(repo.calls.is_empty());
@@ -399,19 +452,33 @@ async fn opening_uses_the_exact_published_policy_and_idempotent_receipt() {
     let mut changed = open_input();
     changed.issue = "A different command under the same key".into();
     assert_eq!(
-        open_operations_exception(&actor(), &mut repo, &mut sources, &changed, "command-key-01", 10)
-            .await
-            .unwrap_err()
-            .code,
+        open_operations_exception(
+            &actor(),
+            &mut repo,
+            &mut sources,
+            &changed,
+            "command-key-01",
+            10
+        )
+        .await
+        .unwrap_err()
+        .code,
         "IDEMPOTENCY_CONFLICT"
     );
 
     repo.receipts.get_mut("command-key-01").unwrap().result_json = None;
     assert_eq!(
-        open_operations_exception(&actor(), &mut repo, &mut sources, &open_input(), "command-key-01", 10)
-            .await
-            .unwrap_err()
-            .code,
+        open_operations_exception(
+            &actor(),
+            &mut repo,
+            &mut sources,
+            &open_input(),
+            "command-key-01",
+            10
+        )
+        .await
+        .unwrap_err()
+        .code,
         "COMMAND_INCOMPLETE"
     );
 
@@ -559,6 +626,48 @@ async fn acknowledged_change_is_replayed_without_duplicate_evidence_and_cross_co
         "OPERATIONS_EXCEPTION_NOT_FOUND"
     );
     assert!(repo.calls.is_empty());
+}
+
+#[tokio::test]
+async fn reassignment_and_cancellation_are_managed_reviewed_transitions() {
+    let mut repo = Repo::new(row("acknowledged"), policy("[\"staff_task\"]"));
+    let mut sources = Sources::new(source(SourceKind::StaffTask), &["owner"]);
+    let mut assign = change_input("assign", 1);
+    assign.owner_id = Some("new-owner".into());
+    let receipt = change_operations_exception(
+        &actor(),
+        &mut repo,
+        &mut sources,
+        &assign,
+        "command-key-01",
+        10,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        receipt,
+        CommandReceipt::new("exception-open", "acknowledged", 2)
+    );
+    assert_eq!(
+        sources.recipient_calls,
+        [("owner".into(), true), ("new-owner".into(), false)]
+    );
+
+    let mut repo = Repo::new(row("open"), policy("[\"staff_task\"]"));
+    let receipt = change_operations_exception(
+        &actor(),
+        &mut repo,
+        &mut sources,
+        &change_input("cancel", 1),
+        "command-key-02",
+        10,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        receipt,
+        CommandReceipt::new("exception-open", "cancelled", 2)
+    );
 }
 
 #[tokio::test]

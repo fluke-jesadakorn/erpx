@@ -3,9 +3,7 @@
 //! These values are validated request facts, never authority. The composition
 //! root supplies the current Account/IAM scope and canonical Records/People
 //! facts through the application ports before a command may be committed.
-use crate::domain::field_exceptions::{
-    Action, Actor, Exception, TransitionInput, text, trimmed,
-};
+use crate::domain::field_exceptions::{Action, Actor, Exception, TransitionInput, text, trimmed};
 pub use crate::domain::field_policy::supported_source_kind;
 use crate::domain::field_policy::{
     DraftPolicy, OpenException, PolicyAction, QueuePolicy, identifier, positive,
@@ -220,10 +218,7 @@ impl ChangeExceptionCommand {
             Action::Escalate => {
                 let owner = self.escalation_owner_id.as_deref().ok_or_else(invalid)?;
                 identifier(owner)?;
-                if self.owner_id.is_some()
-                    || self.resolution.is_some()
-                    || self.priority.is_some()
-                {
+                if self.owner_id.is_some() || self.resolution.is_some() || self.priority.is_some() {
                     return Err(invalid());
                 }
             }
@@ -344,11 +339,7 @@ impl ReviewPolicyCommand {
             "retire" => PolicyAction::Retire,
             _ => return Err(invalid()),
         };
-        Ok((
-            action,
-            self.expected_version,
-            trimmed(&self.reason).into(),
-        ))
+        Ok((action, self.expected_version, trimmed(&self.reason).into()))
     }
 }
 

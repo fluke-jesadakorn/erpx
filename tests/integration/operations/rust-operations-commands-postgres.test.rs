@@ -274,7 +274,9 @@ async fn generic_policy_draft_and_review_are_company_scoped_and_rollback() {
         migrate(&holding).await;
         seed(&holding).await;
         let mut tx = serializable(&holding).await;
-        let area = read_policy_area(&mut tx, &company(), "service").await.unwrap();
+        let area = read_policy_area(&mut tx, &company(), "service")
+            .await
+            .unwrap();
         let draft = DraftPolicy {
             area: "service".into(),
             name: "Revised service queue".into(),

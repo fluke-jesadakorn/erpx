@@ -6,6 +6,7 @@ import {
   NativeOperationsError,
   type NativeOperationsPageContext,
   type NativeOperationsReadInput,
+  type NativeOperationsReceipt,
 } from '@erpx/feature-operations/adapters/server/native-operations';
 import type {
   OperationsDetail,
@@ -110,6 +111,27 @@ export async function nativeOperationsDetail(
   return native.detail(await headers(), page, input);
 }
 
+export async function nativeOperationsCommand(
+  actor: WorkContext,
+  holdingSlug: string,
+  body: string,
+  key: string,
+): Promise<NativeOperationsReceipt | undefined> {
+  const native = client();
+  if (!native) return undefined;
+  if (actor.holdingSlug !== holdingSlug)
+    throw new NativeOperationsError('NATIVE_OPERATIONS_CONTEXT_CHANGED');
+  if (!body || body.length > 64 * 1024 || !key)
+    throw new NativeOperationsError('NATIVE_OPERATIONS_REQUEST_INVALID');
+  const page = pageContext(actor);
+  const input: NativeOperationsReadInput = {
+    holdingSlug,
+    ...scopeInput(page),
+    expected: expected(page),
+  };
+  return native.command(await headers(), page, input, body, key);
+}
+
 export function nativeOperationsFailure(
   error: unknown,
 ): { status: number; code: string; message: string } | undefined {
@@ -140,11 +162,23 @@ export function nativeOperationsFailure(
       code: 'NATIVE_OPERATIONS_UNAVAILABLE',
       message: 'The native Operations service is unavailable.',
     };
-  if (error.code === 'NATIVE_OPERATIONS_CONFIGURATION_INVALID')
+  if (error.code === 'NATIVE_OPERATIONS_REQUEST_INVALID')
+    return {
+      status: 422,
+      code: 'OPERATIONS_INPUT_INVALID',
+      message: 'Review the Operations command.',
+    };
+  if (
+    error.code === 'NATIVE_OPERATIONS_CONFIGURATION_INVALID' ||
+    error.code === 'NATIVE_OPERATIONS_AUTHORITY_INVALID' ||
+    error.code === 'NATIVE_OPERATIONS_COOKIE_LIMIT' ||
+    error.code === 'NATIVE_OPERATIONS_RESPONSE_INVALID' ||
+    error.code === 'NATIVE_OPERATIONS_RESPONSE_LIMIT'
+  )
     return {
       status: 503,
       code: 'NATIVE_OPERATIONS_UNAVAILABLE',
-      message: 'The native Operations reader is unavailable.',
+      message: 'The native Operations service is unavailable.',
     };
   return undefined;
 }

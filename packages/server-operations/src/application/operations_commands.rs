@@ -6,14 +6,14 @@
 //! receipt, audit/outbox and owner effects. A replay returns the retained
 //! receipt only when the key, operation, record and request fingerprint agree.
 use crate::domain::field_exceptions::{Exception, Transition, transition};
+use crate::domain::field_policy::identifier;
 use crate::domain::field_policy::{DraftPolicy, PolicyAction, QueuePolicy, review_policy};
 use crate::domain::operations_commands::{
-    ChangeExceptionCommand, CommandActor, CommandReceipt, DraftPolicyCommand, OpenExceptionCommand,
-    ReviewPolicyCommand, StoredReceipt, CommandScope, exception_record_id, exception_reference,
-    fingerprint_json, incomplete_receipt, invalid_receipt, missing_exception, missing_policy,
-    queue_policy_record_id, transition_actor, validate_policy, validate_source,
+    ChangeExceptionCommand, CommandActor, CommandReceipt, CommandScope, DraftPolicyCommand,
+    OpenExceptionCommand, ReviewPolicyCommand, StoredReceipt, exception_record_id,
+    exception_reference, fingerprint_json, incomplete_receipt, invalid_receipt, missing_exception,
+    missing_policy, queue_policy_record_id, transition_actor, validate_policy, validate_source,
 };
-use crate::domain::field_policy::identifier;
 use erpx_server_shared::public::record_source_contract::{SourceRecord, SourceReference};
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
 use std::future::Future;
@@ -249,7 +249,7 @@ where
         &record_id,
         &fingerprint,
     )? {
-        return Ok(receipt);
+        return Ok(check_receipt(receipt, &record_id, "open", 1)?);
     }
     let receipt = repository
         .open(OpenPlan {
@@ -329,23 +329,17 @@ where
         .map_err(R::Error::from)?;
     if action == crate::domain::field_exceptions::Action::Assign {
         sources
-            .recipient(
-                actor,
-                &scope,
-                plan.owner.as_str(),
-                false,
-            )
+            .recipient(actor, &scope, plan.owner.as_str(), false)
             .await
             .map_err(R::Error::from)?;
     }
     if action == crate::domain::field_exceptions::Action::Escalate {
-        let escalation_owner = plan
-            .escalation_owner
-            .as_deref()
-            .ok_or_else(|| BusinessError::invalid(
+        let escalation_owner = plan.escalation_owner.as_deref().ok_or_else(|| {
+            BusinessError::invalid(
                 "OPERATIONS_INPUT_INVALID",
                 "Choose a current escalation reviewer.",
-            ))?;
+            )
+        })?;
         sources
             .recipient(actor, &scope, escalation_owner, true)
             .await
@@ -359,7 +353,7 @@ where
         &row.id,
         &fingerprint,
     )? {
-        return Ok(receipt);
+        return check_receipt(receipt, &row.id, &plan.status, plan.version).map_err(Into::into);
     }
     let receipt = repository
         .change(ChangePlan {
@@ -402,7 +396,7 @@ where
         &record_id,
         &fingerprint,
     )? {
-        return Ok(receipt);
+        return Ok(check_receipt(receipt, &record_id, "draft", 1)?);
     }
     let receipt = repository
         .draft_policy(PolicyDraftPlan {
@@ -455,7 +449,8 @@ where
         &input.id,
         &fingerprint,
     )? {
-        return Ok(receipt);
+        return check_receipt(receipt, &input.id, action.status(), next_version)
+            .map_err(Into::into);
     }
     let receipt = repository
         .review_policy(PolicyReviewPlan {

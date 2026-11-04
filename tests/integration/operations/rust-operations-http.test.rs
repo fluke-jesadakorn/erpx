@@ -95,7 +95,10 @@ impl OperationsHttpBackend for Backend {
         self.commands.fetch_add(1, Ordering::SeqCst);
         self.seen_commands.lock().unwrap().push(format!(
             "{}:{}:{}:{:?}",
-            request.host, request.holding_slug, request.key.as_str(), request.command
+            request.host,
+            request.holding_slug,
+            request.key.as_str(),
+            request.command
         ));
         Box::pin(async move {
             if let Some(error) = self.fail.clone() {
@@ -288,16 +291,14 @@ async fn command_route_rejects_malformed_unknown_and_oversized_bodies_before_the
         r#"{"entity":"exception","id":"exception","action":"acknowledge","expectedVersion":1,"reason":"Reviewed evidence","extra":true}"#,
         r#"{"entity":"policy","area":"service","name":"Service queue","targetMinutes":60,"sourceKinds":["staff_task"],"extra":true}"#,
     ] {
-        let (status, value, _) = post(
-            address,
-            "/api/v1/holdings/acme/operations",
-            &headers,
-            body,
-        )
-        .await;
+        let (status, value, _) =
+            post(address, "/api/v1/holdings/acme/operations", &headers, body).await;
         assert_eq!(status, 422, "{body} returned {value}");
     }
-    let oversized = format!(r#"{{"entity":"policy","padding":"{}"}}"#, "x".repeat(70_000));
+    let oversized = format!(
+        r#"{{"entity":"policy","padding":"{}"}}"#,
+        "x".repeat(70_000)
+    );
     let (status, _, _) = post(
         address,
         "/api/v1/holdings/acme/operations",

@@ -51,6 +51,16 @@ const event={id:'event-open',exception_id:'exception-open',version:1,action:'ope
 const detail={...workspace,row:exception,history:[event]};
 const readInput={holdingSlug:'acme',branchSlug:'north',expected:{companyId:'company',
   assignmentId:'assignment',revision:7,assignmentVersion:3}};
+const commandKey='command-key-01';
+const openBody=JSON.stringify({entity:'exception',source:{kind:'staff_task',id:'task-open',version:1},
+  policyId:'policy-service',policyVersion:2,title:'Open task',issue:'Synthetic issue',
+  priority:'normal',ownerId:'owner'});
+const changeBody=JSON.stringify({entity:'exception',id:'exception-open',action:'acknowledge',
+  expectedVersion:1,reason:'Reviewed actual source'});
+const draftBody=JSON.stringify({entity:'policy',area:'service',name:'Service queue',
+  targetMinutes:60,sourceKinds:['staff_task']});
+const reviewBody=JSON.stringify({entity:'policy',id:'policy-service',action:'publish',
+  expectedVersion:2,reason:'Independent policy review'});
 const ok=(value:unknown)=>new Response(JSON.stringify(value),{status:200,headers:{'content-type':'application/json'}});
 const failed=(status:number,code:string)=>new Response(JSON.stringify({error:{code,message:'Synthetic failure'}}),{status,headers:{'content-type':'application/json'}});
 
@@ -109,6 +119,65 @@ describe('native Operations queue transport',()=>{
   await expect(client.workspace(incoming(),actor,readInput)).rejects.toMatchObject({
     code:'OPERATIONS_STATE_CHANGED',status:409,message:'Synthetic failure',
   });
+ });
+
+ it('forwards a command POST with the idempotency key, body and current CAS headers',async()=>{
+  const receipt={id:`operations-exception-${commandKey}`,status:'open',version:1};
+  const transport=vi.fn().mockResolvedValue(ok({data:receipt,context}));
+  const client=createNativeOperationsClient(JSON.parse(config()),transport);
+  const result=await client.command(incoming(),actor,readInput,openBody,commandKey);
+  expect(result).toEqual(receipt);
+  const [method,url,requestHeaders,body]=transport.mock.calls[0];
+  expect(method).toBe('POST');
+  expect(url.toString()).toBe('http://127.0.0.1:44993/api/v1/holdings/acme/operations');
+  expect(body).toBe(openBody);
+  expect(requestHeaders.get('content-type')).toBe('application/json');
+  expect(requestHeaders.get('idempotency-key')).toBe(commandKey);
+  expect(requestHeaders.get('cookie')).toBe('__Host-erpx-product=session');
+  expect(requestHeaders.get('x-erpx-context-company')).toBe('company');
+  expect(requestHeaders.get('x-erpx-context-revision')).toBe('7');
+ });
+
+ it('validates change and policy receipts against the exact action, id and next version',async()=>{
+  const changeReceipt={id:'exception-open',status:'acknowledged',version:2};
+  const change=vi.fn().mockResolvedValue(ok({data:changeReceipt,context}));
+  const client=createNativeOperationsClient(JSON.parse(config()),change);
+  await expect(client.command(incoming(),actor,readInput,changeBody,commandKey)).resolves.toEqual(changeReceipt);
+  const draftReceipt={id:`queue-policy-${commandKey}`,status:'draft',version:1};
+  const draft=vi.fn().mockResolvedValue(ok({data:draftReceipt,context}));
+  await expect(createNativeOperationsClient(JSON.parse(config()),draft)
+    .command(incoming(),actor,readInput,draftBody,commandKey)).resolves.toEqual(draftReceipt);
+  const reviewReceipt={id:'policy-service',status:'published',version:3};
+  const review=vi.fn().mockResolvedValue(ok({data:reviewReceipt,context}));
+  await expect(createNativeOperationsClient(JSON.parse(config()),review)
+    .command(incoming(),actor,readInput,reviewBody,commandKey)).resolves.toEqual(reviewReceipt);
+  const wrong=vi.fn().mockResolvedValue(ok({data:{...changeReceipt,status:'closed'},context}));
+  await expect(createNativeOperationsClient(JSON.parse(config()),wrong)
+    .command(incoming(),actor,readInput,changeBody,commandKey)).rejects.toMatchObject({code:'NATIVE_OPERATIONS_RESPONSE_INVALID'});
+  const cursor=vi.fn().mockResolvedValue(ok({data:{...changeReceipt,version:3},context}));
+  await expect(createNativeOperationsClient(JSON.parse(config()),cursor)
+    .command(incoming(),actor,readInput,changeBody,commandKey)).rejects.toMatchObject({code:'NATIVE_OPERATIONS_RESPONSE_INVALID'});
+ });
+
+ it('rejects invalid commands and changed context before transport',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({data:{id:'x',status:'open',version:1},context}));
+  const client=createNativeOperationsClient(JSON.parse(config()),transport);
+  await expect(client.command(incoming(),actor,readInput,'{"entity":"exception"}',commandKey))
+    .rejects.toMatchObject({code:'NATIVE_OPERATIONS_REQUEST_INVALID'});
+  await expect(client.command(incoming(),actor,readInput,openBody,'short'))
+    .rejects.toMatchObject({code:'NATIVE_OPERATIONS_REQUEST_INVALID'});
+  await expect(client.command(incoming(),{...actor,authority:undefined},readInput,openBody,commandKey))
+    .rejects.toMatchObject({code:'NATIVE_OPERATIONS_CONTEXT_CHANGED'});
+  await expect(client.command(incoming(),{...actor,iam:undefined},readInput,openBody,commandKey))
+    .rejects.toMatchObject({code:'NATIVE_OPERATIONS_CONTEXT_CHANGED'});
+  expect(transport).not.toHaveBeenCalled();
+ });
+
+ it('maps command conflicts without a TypeScript fallback',async()=>{
+  const transport=vi.fn().mockResolvedValue(failed(409,'OPERATIONS_STATE_CHANGED'));
+  const client=createNativeOperationsClient(JSON.parse(config()),transport);
+  await expect(client.command(incoming(),actor,readInput,changeBody,commandKey))
+    .rejects.toMatchObject({code:'OPERATIONS_STATE_CHANGED',status:409});
  });
 
  it('keeps the Next reader fail-closed unless the native configuration is present',()=>{

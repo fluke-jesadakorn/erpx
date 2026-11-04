@@ -323,7 +323,18 @@ pub async fn open_field_exception(
         )
         .into());
     }
-    open_exception(c, company, key, user, input, source, source_json, policy, now).await
+    open_exception(
+        c,
+        company,
+        key,
+        user,
+        input,
+        source,
+        source_json,
+        policy,
+        now,
+    )
+    .await
 }
 
 /// Create any Operations-owned exception from canonical owner source facts.
@@ -339,7 +350,18 @@ pub async fn open_operations_exception(
     policy: &crate::domain::field_policy::QueuePolicy,
     now: i64,
 ) -> Result<RetainedFieldException, Error> {
-    open_exception(c, company, key, user, input, source, source_json, policy, now).await
+    open_exception(
+        c,
+        company,
+        key,
+        user,
+        input,
+        source,
+        source_json,
+        policy,
+        now,
+    )
+    .await
 }
 
 #[allow(clippy::too_many_arguments)]

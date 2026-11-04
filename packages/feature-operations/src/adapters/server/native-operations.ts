@@ -45,12 +45,18 @@ export type NativeOperationsReadInput = Readonly<{
   }>;
 }>;
 export type NativeOperationsTransport = (
-  method: 'GET',
+  method: 'GET' | 'POST',
   url: URL,
   headers: Headers,
-  body: undefined,
+  body: string | undefined,
   signal: AbortSignal,
 ) => Promise<Response>;
+
+export type NativeOperationsReceipt = Readonly<{
+  id: string;
+  status: string;
+  version: number;
+}>;
 
 export class NativeOperationsError extends Error {
   readonly code: string;
@@ -105,6 +111,133 @@ const sources = new Set([
   'asset',
 ]);
 const policyStatuses = new Set(['draft', 'published', 'rejected', 'retired']);
+const policyChangeStatuses: Record<string, string> = {
+  publish: 'published',
+  reject: 'rejected',
+  retire: 'retired',
+};
+const exceptionChangeStatuses: Record<string, readonly string[]> = {
+  acknowledge: ['acknowledged'],
+  start: ['in_progress'],
+  resolve: ['awaiting_review'],
+  approve: ['resolved'],
+  reject: ['in_progress'],
+  close: ['closed'],
+  reopen: ['in_progress'],
+  assign: ['open', 'acknowledged', 'in_progress', 'escalated'],
+  prioritize: ['open', 'acknowledged', 'in_progress', 'escalated'],
+  escalate: ['escalated'],
+  cancel: ['cancelled'],
+};
+const commandKey = (value: unknown): value is string =>
+  typeof value === 'string' &&
+  value.length >= 8 &&
+  value.length <= 180 &&
+  /^[A-Za-z0-9:_.-]+$/.test(value);
+const nonEmptyReason = (value: unknown) =>
+  typeof value === 'string' && value.trim().length >= 3 && value.length <= 4000;
+
+type CommandExpectation = Readonly<{
+  id: string;
+  statuses: readonly string[];
+  version: number;
+}>;
+
+function commandExpectation(body: string, key: string): CommandExpectation {
+  if (new TextEncoder().encode(body).length > 64 * 1024)
+    return failure('NATIVE_OPERATIONS_REQUEST_INVALID');
+  let value: unknown;
+  try {
+    value = JSON.parse(body);
+  } catch {
+    return failure('NATIVE_OPERATIONS_REQUEST_INVALID');
+  }
+  if (!record(value)) return failure('NATIVE_OPERATIONS_REQUEST_INVALID');
+  const entity = value.entity;
+  const id = value.id;
+  const action = value.action;
+  const expected = value.expectedVersion;
+  if (entity === 'policy') {
+    if (id === undefined) {
+      if (
+        typeof value.area !== 'string' ||
+        typeof value.name !== 'string' ||
+        !integer(value.targetMinutes, 1) ||
+        !Array.isArray(value.sourceKinds) ||
+        value.sourceKinds.length < 1 ||
+        value.sourceKinds.length > 7 ||
+        !value.sourceKinds.every((kind) => typeof kind === 'string')
+      )
+        return failure('NATIVE_OPERATIONS_REQUEST_INVALID');
+      return { id: `queue-policy-${key}`, statuses: ['draft'], version: 1 };
+    }
+    if (
+      !identifier(id) ||
+      typeof action !== 'string' ||
+      !Object.hasOwn(policyChangeStatuses, action) ||
+      !integer(expected, 1) ||
+      !nonEmptyReason(value.reason)
+    )
+      return failure('NATIVE_OPERATIONS_REQUEST_INVALID');
+    return {
+      id,
+      statuses: [policyChangeStatuses[action]!],
+      version: expected + 1,
+    };
+  }
+  if (entity === 'exception') {
+    if (id === undefined) {
+      const source = value.source;
+      if (
+        !record(source) ||
+        !sources.has(String(source.kind)) ||
+        !identifier(source.id) ||
+        !integer(source.version, 1) ||
+        !identifier(value.policyId) ||
+        !integer(value.policyVersion, 1) ||
+        !identifier(value.ownerId) ||
+        typeof value.title !== 'string' ||
+        value.title.trim().length < 3 ||
+        value.title.length > 160 ||
+        typeof value.issue !== 'string' ||
+        value.issue.trim().length < 3 ||
+        value.issue.length > 4000
+      )
+        return failure('NATIVE_OPERATIONS_REQUEST_INVALID');
+      return {
+        id: `operations-exception-${key}`,
+        statuses: ['open'],
+        version: 1,
+      };
+    }
+    if (
+      !identifier(id) ||
+      typeof action !== 'string' ||
+      !Object.hasOwn(exceptionChangeStatuses, action) ||
+      !integer(expected, 1) ||
+      !nonEmptyReason(value.reason)
+    )
+      return failure('NATIVE_OPERATIONS_REQUEST_INVALID');
+    return {
+      id,
+      statuses: exceptionChangeStatuses[action]!,
+      version: expected + 1,
+    };
+  }
+  return failure('NATIVE_OPERATIONS_REQUEST_INVALID');
+}
+
+function commandReceipt(value: unknown, expected: CommandExpectation): NativeOperationsReceipt {
+  if (
+    !exact(value, ['id', 'status', 'version']) ||
+    value.id !== expected.id ||
+    typeof value.status !== 'string' ||
+    !expected.statuses.includes(value.status) ||
+    value.version !== expected.version
+  )
+    return failure('NATIVE_OPERATIONS_RESPONSE_INVALID');
+  return value as unknown as NativeOperationsReceipt;
+}
 
 const sourceView = (value: unknown) =>
   exact(value, [
@@ -406,6 +539,9 @@ function transportCall(
   holdings: Map<string, { holdingId: string; holdingSlug: string }>,
   incoming: Pick<Headers, 'get'>,
   input: NativeOperationsReadInput,
+  method: 'GET' | 'POST',
+  body: string | undefined,
+  key: string | undefined,
   signal?: AbortSignal,
 ): Promise<Response> {
   const host = incoming.get('host');
@@ -419,14 +555,14 @@ function transportCall(
       return Promise.reject(new NativeOperationsError('NATIVE_OPERATIONS_COOKIE_LIMIT'));
     headers.set('cookie', cookie);
   }
-  for (const [key, slug] of [
+  for (const [name, slug] of [
     ['x-erpx-workspace-branch', input.branchSlug],
     ['x-erpx-workspace-department', input.departmentSlug],
   ] as const) {
     if (slug !== undefined) {
       if (!text(slug, 128) || !/^[a-z0-9_-]+$/.test(slug))
         return Promise.reject(new NativeOperationsError('NATIVE_OPERATIONS_REQUEST_INVALID'));
-      headers.set(key, slug);
+      headers.set(name, slug);
     }
   }
   if (input.expected) {
@@ -442,14 +578,22 @@ function transportCall(
     headers.set('x-erpx-context-revision', String(input.expected.revision));
     headers.set('x-erpx-context-assignment-version', String(input.expected.assignmentVersion));
   }
+  if (method === 'POST') {
+    if (!commandKey(key) || body === undefined)
+      return Promise.reject(new NativeOperationsError('NATIVE_OPERATIONS_REQUEST_INVALID'));
+    headers.set('content-type', 'application/json');
+    headers.set('idempotency-key', key);
+  } else if (body !== undefined) {
+    return Promise.reject(new NativeOperationsError('NATIVE_OPERATIONS_REQUEST_INVALID'));
+  }
   const url = new URL(`/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/operations`, base);
-  if (input.id !== undefined) url.searchParams.set('id', input.id);
+  if (method === 'GET' && input.id !== undefined) url.searchParams.set('id', input.id);
   const controller = new AbortController();
   const cancel = () => controller.abort();
   signal?.addEventListener('abort', cancel, { once: true });
   if (signal?.aborted) controller.abort();
   const timer = setTimeout(cancel, 30000);
-  return transport('GET', url, headers, undefined, controller.signal).finally(() => {
+  return transport(method, url, headers, body, controller.signal).finally(() => {
     clearTimeout(timer);
     signal?.removeEventListener('abort', cancel);
   });
@@ -518,8 +662,8 @@ async function boundedJson(response: Response): Promise<unknown> {
   }
 }
 
-const directHttp: NativeOperationsTransport = (method, url, headers, _body, signal) =>
-  fetch(url, { method, headers, cache: 'no-store', redirect: 'error', signal });
+const directHttp: NativeOperationsTransport = (method, url, headers, body, signal) =>
+  fetch(url, { method, headers, body, cache: 'no-store', redirect: 'error', signal });
 
 export function createNativeOperationsClient(
   raw: NativeOperationsConfiguration,
@@ -530,16 +674,27 @@ export function createNativeOperationsClient(
     incoming: Pick<Headers, 'get'>,
     actor: NativeOperationsPageContext,
     input: NativeOperationsReadInput,
+    method: 'GET' | 'POST',
+    body: string | undefined,
+    key: string | undefined,
     signal?: AbortSignal,
   ) => {
     if (!actor.authority || !actor.iam || actor.holdingSlug !== input.holdingSlug)
       return Promise.reject(new NativeOperationsError('NATIVE_OPERATIONS_CONTEXT_CHANGED'));
-    return transportCall(transport, config.base, config.holdings, incoming, input, signal).catch(
-      (error: unknown) => {
-        if (error instanceof NativeOperationsError) throw error;
-        return failure('NATIVE_OPERATIONS_UNAVAILABLE');
-      },
-    );
+    return transportCall(
+      transport,
+      config.base,
+      config.holdings,
+      incoming,
+      input,
+      method,
+      body,
+      key,
+      signal,
+    ).catch((error: unknown) => {
+      if (error instanceof NativeOperationsError) throw error;
+      return failure('NATIVE_OPERATIONS_UNAVAILABLE');
+    });
   };
   return {
     workspace: async (
@@ -547,13 +702,40 @@ export function createNativeOperationsClient(
       actor: NativeOperationsPageContext,
       input: NativeOperationsReadInput,
       signal?: AbortSignal,
-    ) => workspace(await boundedJson(await request(incoming, actor, input, signal)), actor, input),
+    ) =>
+      workspace(
+        await boundedJson(await request(incoming, actor, input, 'GET', undefined, undefined, signal)),
+        actor,
+        input,
+      ),
     detail: async (
       incoming: Pick<Headers, 'get'>,
       actor: NativeOperationsPageContext,
       input: NativeOperationsReadInput & { id: string },
       signal?: AbortSignal,
-    ) => detail(await boundedJson(await request(incoming, actor, input, signal)), actor, input),
+    ) =>
+      detail(
+        await boundedJson(await request(incoming, actor, input, 'GET', undefined, undefined, signal)),
+        actor,
+        input,
+      ),
+    command: async (
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeOperationsPageContext,
+      input: NativeOperationsReadInput,
+      body: string,
+      key: string,
+      signal?: AbortSignal,
+    ): Promise<NativeOperationsReceipt> => {
+      if (!commandKey(key)) return failure('NATIVE_OPERATIONS_REQUEST_INVALID');
+      const expected = commandExpectation(body, key);
+      const value = await boundedJson(
+        await request(incoming, actor, input, 'POST', body, key, signal),
+      );
+      if (!exact(value, ['data', 'context'])) return failure('NATIVE_OPERATIONS_RESPONSE_INVALID');
+      context(value.context, actor, input);
+      return commandReceipt(value.data, expected);
+    },
   };
 }
 
