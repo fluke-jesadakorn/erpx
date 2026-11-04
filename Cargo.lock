@@ -1351,6 +1351,7 @@ dependencies = [
  "erpx-server-platform-administration",
  "erpx-server-pms",
  "erpx-server-pos",
+ "erpx-server-procurement",
  "erpx-server-projects",
  "erpx-server-quality",
  "erpx-server-records",
