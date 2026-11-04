@@ -1,10 +1,14 @@
 //! Unit policy for the native Learning owner: current actor scope, reviewed
 //! course catalogue, eligible assignment, learner evidence, certification and
 //! revocation. No database or HTTP effect is reachable here.
+use erpx_server_learning::public::eligibility_facts::{
+    EligibilityCertificateRow, EligibilityConsumptionRow, EligibilityQuery, EligibilityScope,
+    eligibility_facts_json,
+};
 use erpx_server_learning::public::learning::{
     AssignmentAction, AssignmentChange, AssignmentRequest, AssignmentRow, Attendance,
     CertificateRevocation, CertificateRow, CourseAction, CourseChange, CourseRequest, CourseRow,
-    LearningActor, PlacementRow, assignment_change_plan, assignment_create_plan,
+    HandoffRow, LearningActor, PlacementRow, assignment_change_plan, assignment_create_plan,
     certificate_revoke_plan, course_change_plan, course_create_plan, utc_date, valid_date,
 };
 use erpx_server_shared::public::{
@@ -123,6 +127,35 @@ fn certificate(revocation: Option<&str>) -> CertificateRow {
         issued_by: "learner".into(),
         created_at: NOW,
         revocation_id: revocation.map(str::to_owned),
+    }
+}
+
+fn eligibility_query() -> EligibilityQuery {
+    EligibilityQuery {
+        person_id: "person-learner".into(),
+        eligibility_code: "equipment_operator".into(),
+        effective_date: "2026-11-04".into(),
+    }
+}
+
+fn eligibility_row() -> EligibilityCertificateRow {
+    EligibilityCertificateRow {
+        certificate: certificate(None),
+        handoff: HandoffRow {
+            id: "learning-eligibility-key-1".into(),
+            assignment_id: "assignment-1".into(),
+            company_id: "company".into(),
+            person_id: "person-learner".into(),
+            eligibility_code: "equipment_operator".into(),
+            source_assignment_version: 3,
+            status: "open".into(),
+            created_at: NOW,
+        },
+        assignment_version: 3,
+        assignment_status: "completed".into(),
+        person_status: "active".into(),
+        person_merged_into_id: None,
+        consumptions: Vec::new(),
     }
 }
 
@@ -772,4 +805,234 @@ fn completion_rows_require_terminal_reason_and_handoff_rows_require_open_status(
         course_plan.event_id,
         "learning-course-event-course-create-1"
     );
+}
+
+#[test]
+fn eligibility_facts_require_current_source_dates_scope_and_consumption_evidence() {
+    let query = eligibility_query();
+    let consumer_scope =
+        EligibilityScope::new("company", Some("branch"), Some("department")).unwrap();
+    assert_eq!(
+        eligibility_facts_json(&consumer_scope, &query, vec![eligibility_row()]).unwrap()["eligible"],
+        true
+    );
+    assert!(EligibilityScope::new("", None, None).is_err());
+    assert!(EligibilityScope::new("company", None, Some("department")).is_err());
+    let facts = eligibility_facts_json(
+        &EligibilityScope::from_learning_actor(&learner()),
+        &query,
+        vec![eligibility_row()],
+    )
+    .unwrap();
+    assert_eq!(facts["person_id"], "person-learner");
+    assert_eq!(facts["eligibility_code"], "equipment_operator");
+    assert_eq!(facts["eligible"], true);
+    assert_eq!(facts["certificates"][0]["current"], true);
+    assert_eq!(
+        facts["certificates"][0]["handoff_source_assignment_version"],
+        3
+    );
+    assert_eq!(facts["certificates"][0]["assignment_status"], "completed");
+    assert_eq!(facts["certificates"][0]["person_status"], "active");
+
+    for effective_date in ["2026-11-03", "2028-11-05"] {
+        let outside = eligibility_facts_json(
+            &EligibilityScope::from_learning_actor(&learner()),
+            &EligibilityQuery {
+                effective_date: effective_date.into(),
+                ..query.clone()
+            },
+            vec![eligibility_row()],
+        )
+        .unwrap();
+        assert_eq!(outside["eligible"], false, "{effective_date}");
+        assert_eq!(outside["certificates"][0]["current"], false);
+    }
+
+    let mut revoked = eligibility_row();
+    revoked.certificate.revocation_id = Some("revocation-1".into());
+    assert_eq!(
+        eligibility_facts_json(
+            &EligibilityScope::from_learning_actor(&learner()),
+            &query,
+            vec![revoked]
+        )
+        .unwrap()["eligible"],
+        false
+    );
+
+    let mut stale_assignment = eligibility_row();
+    stale_assignment.assignment_version = 4;
+    stale_assignment.certificate.source_assignment_version = 3;
+    stale_assignment.handoff.source_assignment_version = 3;
+    assert_eq!(
+        eligibility_facts_json(
+            &EligibilityScope::from_learning_actor(&learner()),
+            &query,
+            vec![stale_assignment]
+        )
+        .unwrap()["eligible"],
+        false
+    );
+
+    let mut changed_completion = eligibility_row();
+    changed_completion.assignment_status = "waived".into();
+    assert_eq!(
+        eligibility_facts_json(
+            &EligibilityScope::from_learning_actor(&learner()),
+            &query,
+            vec![changed_completion]
+        )
+        .unwrap()["eligible"],
+        false
+    );
+
+    let mut merged_person = eligibility_row();
+    merged_person.person_status = "merged".into();
+    assert_eq!(
+        eligibility_facts_json(
+            &EligibilityScope::from_learning_actor(&learner()),
+            &query,
+            vec![merged_person]
+        )
+        .unwrap()["eligible"],
+        false
+    );
+
+    let branch = actor_with(
+        "branch-reviewer",
+        Some("other-branch"),
+        Some("outside"),
+        &["records.read"],
+        &["learning"],
+    );
+    assert_eq!(
+        eligibility_facts_json(
+            &EligibilityScope::from_learning_actor(&branch),
+            &query,
+            vec![eligibility_row()],
+        )
+        .unwrap_err()
+        .code,
+        "LEARNING_ELIGIBILITY_NOT_FOUND"
+    );
+
+    assert_eq!(
+        eligibility_facts_json(
+            &EligibilityScope::from_learning_actor(&learner()),
+            &query,
+            vec![]
+        )
+        .unwrap_err()
+        .code,
+        "LEARNING_ELIGIBILITY_NOT_FOUND"
+    );
+
+    let duplicate = eligibility_row();
+    assert_eq!(
+        eligibility_facts_json(
+            &EligibilityScope::from_learning_actor(&learner()),
+            &query,
+            vec![eligibility_row(), duplicate]
+        )
+        .unwrap_err()
+        .code,
+        "LEARNING_SOURCE_INVALID"
+    );
+
+    let mut foreign = eligibility_row();
+    foreign.certificate.company_id = "foreign".into();
+    assert_eq!(
+        eligibility_facts_json(
+            &EligibilityScope::from_learning_actor(&learner()),
+            &query,
+            vec![foreign]
+        )
+        .unwrap_err()
+        .code,
+        "LEARNING_SOURCE_INVALID"
+    );
+
+    let mut consumption = EligibilityConsumptionRow {
+        id: "learning-benefit-1".into(),
+        election_id: "election-1".into(),
+        source_assignment_version: 3,
+        eligibility_code: "equipment_operator".into(),
+        source_digest: "a".repeat(64),
+        purpose: "Benefits eligibility at election creation".into(),
+        actor_id: "benefits-reviewer".into(),
+        command_id: "benefit-election-1".into(),
+        created_at: NOW,
+    };
+    let mut with_consumption = eligibility_row();
+    with_consumption.consumptions = vec![consumption.clone()];
+    let facts = eligibility_facts_json(
+        &EligibilityScope::from_learning_actor(&learner()),
+        &query,
+        vec![with_consumption],
+    )
+    .unwrap();
+    assert_eq!(
+        facts["certificates"][0]["consumptions"][0]["election_id"],
+        "election-1"
+    );
+    assert_eq!(facts["certificates"][0]["current"], true);
+    consumption.source_digest = "short".into();
+    let mut invalid = eligibility_row();
+    invalid.consumptions = vec![consumption];
+    assert_eq!(
+        eligibility_facts_json(
+            &EligibilityScope::from_learning_actor(&learner()),
+            &query,
+            vec![invalid]
+        )
+        .unwrap_err()
+        .code,
+        "LEARNING_SOURCE_INVALID"
+    );
+
+    let mut too_many = eligibility_row();
+    too_many.consumptions = (0..101)
+        .map(|index| EligibilityConsumptionRow {
+            id: format!("learning-benefit-{index}"),
+            election_id: format!("election-{index}"),
+            source_assignment_version: 3,
+            eligibility_code: "equipment_operator".into(),
+            source_digest: "a".repeat(64),
+            purpose: "Benefits eligibility at election creation".into(),
+            actor_id: "benefits-reviewer".into(),
+            command_id: format!("benefit-election-{index}"),
+            created_at: NOW,
+        })
+        .collect();
+    assert_eq!(
+        eligibility_facts_json(
+            &EligibilityScope::from_learning_actor(&learner()),
+            &query,
+            vec![too_many]
+        )
+        .unwrap_err()
+        .code,
+        "LEARNING_SOURCE_INVALID"
+    );
+
+    for invalid in [
+        EligibilityQuery {
+            person_id: String::new(),
+            ..query.clone()
+        },
+        EligibilityQuery {
+            eligibility_code: " equipment_operator".into(),
+            ..query.clone()
+        },
+        EligibilityQuery {
+            effective_date: "2026-02-30".into(),
+            ..query.clone()
+        },
+    ] {
+        assert_eq!(
+            invalid.validate().unwrap_err().code,
+            "LEARNING_REQUEST_INVALID"
+        );
+    }
 }

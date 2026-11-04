@@ -11,7 +11,7 @@ import {
   learningWorkspace,
 } from "@erpx/server-learning/public/learning";
 import {nativeLearningCommandRoute} from "@erpx/feature-learn/lib/native-learning-command";
-import {nativeLearningDetailPage,nativeLearningWorkspacePage} from "@erpx/workplace/lib/native-learning";
+import {nativeLearningAvailable,nativeLearningDetailPage,nativeLearningWorkspacePage} from "@erpx/workplace/lib/native-learning";
 import { certificateRevocationSchema,revokeLearningCertificate } from "@erpx/server-learning/public/learning-eligibility";
 type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
@@ -19,14 +19,13 @@ export async function GET(r: Request, c: C) {
   try {
     const a = await requireWorkContext((await c.params).holdingSlug),
       id = new URL(r.url).searchParams.get("id");
-    const native = id
-      ? await nativeLearningDetailPage(a, id)
-      : await nativeLearningWorkspacePage(a);
-    const data =
-      native ??
-      (id
+    const data = nativeLearningAvailable()
+      ? id
+        ? await nativeLearningDetailPage(a, id)
+        : await nativeLearningWorkspacePage(a)
+      : id
         ? await learningAssignmentDetail(a, id)
-        : await learningWorkspace(a));
+        : await learningWorkspace(a);
     return Response.json(
       canonicalDestinationLinks({ data }),
       { headers },
@@ -55,9 +54,18 @@ export async function POST(r: Request, c: C) {
       );
     const a = await requireWorkContext((await c.params).holdingSlug),
       input = await r.json();
-    const native = await nativeLearningCommandRoute(a, input, key, r.headers);
+    const native = nativeLearningAvailable();
+    const result = native
+      ? await nativeLearningCommandRoute(a, input, key, r.headers)
+      : undefined;
+    if (native && !result)
+      throw new ApiError(
+        503,
+        "NATIVE_LEARNING_UNAVAILABLE",
+        "The native Learning command is unavailable.",
+      );
     const data =
-      native ??
+      result ??
       (input.entity==="certificate"?await revokeLearningCertificate(a,input.id,certificateRevocationSchema.parse({expectedAssignmentVersion:input.expectedAssignmentVersion,reason:input.reason}),key):input.entity === "course"
         ? typeof input.id === "string"
           ? await changeLearningCourse(a, input.id, input, key)

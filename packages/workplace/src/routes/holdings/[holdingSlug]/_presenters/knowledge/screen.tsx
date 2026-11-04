@@ -13,7 +13,7 @@ import {ListPagination} from "@erpx/ui/components/list-pagination";
 import {collaborationPresentationQueries} from "@erpx/server-collaboration/public/presentation-queries";
 import {companyMembers} from "@erpx/server-organization/public/member-directory";
 import {learningWorkspace} from "@erpx/server-learning/public/learning";
-import {nativeLearningWorkspacePage} from "@erpx/workplace/lib/native-learning";
+import {nativeLearningAvailable,nativeLearningWorkspacePage} from "@erpx/workplace/lib/native-learning";
 import {requireWorkContext,publicScope} from "@erpx/server-identity_access/public/authorization";
 import {pageError} from "@erpx/server-work_projection/public/page-error";
 import {workspaceBase} from "@erpx/feature-work_projection/lib/workspace";
@@ -31,8 +31,7 @@ export default async function Knowledge({params,searchParams}:{params:Promise<{h
  if(!sectionWorkspaceTopics.knowledge.some(topic=>topic.id===selected))notFound();if(!topics.some(topic=>topic.id===selected))forbidden();
  const term=typeof query.q==='string'?query.q:'',cursor=typeof query.cursor==='string'?query.cursor:undefined;
  const articles=view==='handbook'&&section!=='editors'?await presentation.handbookList(actor,term,section==='drafts',cursor).catch(error=>pageError(error,holdingSlug)):null;
- const nativeLearning=view==='learning'?await nativeLearningWorkspacePage(actor,section==='mine').catch(error=>pageError(error,holdingSlug)):undefined;
- const data=view==='learning'?nativeLearning??await learningWorkspace(actor,section==='mine').catch(error=>pageError(error,holdingSlug)):null;
+ const data=view==='learning'?nativeLearningAvailable()?await nativeLearningWorkspacePage(actor,section==='mine').catch(error=>pageError(error,holdingSlug)):await learningWorkspace(actor,section==='mine').catch(error=>pageError(error,holdingSlug)):null;
  const matching=(value:unknown)=>String(value??'').toLocaleLowerCase().includes(term.toLocaleLowerCase());
  return <SectionWorkspace title="Knowledge" selected={selected} items={workspaceTopicLinks(base,query,topics)} context={topics.find(topic=>topic.id===selected)?.title} toolbar={view==='handbook'&&access.editor&&(!access.purchase||access.purchase.newWork)?<Link href={handbookCreateHref(base,section,query)}>New article</Link>:undefined}>
  {section!=='editors'&&<ListFilters appearance="standard" action={canonicalUiHref(`${base}/knowledge`)} query={term} placeholder="Search this view" preserve={workspaceSearchContext(query,{view,section})}/>}

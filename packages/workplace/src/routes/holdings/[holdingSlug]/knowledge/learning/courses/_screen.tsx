@@ -6,7 +6,7 @@ import { RecordCatalog } from "@erpx/feature-records/components/record-catalog";
 import { LearningConsole } from "@erpx/feature-learning/components/learning-console";
 import { ListFilters } from "@erpx/ui/components/list-filters";
 import { learningWorkspace } from "@erpx/server-learning/public/learning";
-import { nativeLearningWorkspacePage } from "@erpx/workplace/lib/native-learning";
+import { nativeLearningAvailable, nativeLearningWorkspacePage } from "@erpx/workplace/lib/native-learning";
 import { requireWorkContext, publicScope } from "@erpx/server-identity_access/public/authorization";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
@@ -31,8 +31,10 @@ export default async function Knowledge({ params, searchParams }: {
         forbidden();
     const term = typeof query.q === 'string' ? query.q : '';
     
-    const native = await nativeLearningWorkspacePage(actor, false).catch(error => pageError(error, holdingSlug));
-    const data = native ?? await learningWorkspace(actor, false).catch(error => pageError(error, holdingSlug));
+    const data = await (nativeLearningAvailable()
+        ? nativeLearningWorkspacePage(actor, false)
+        : learningWorkspace(actor, false)
+    ).catch(error => pageError(error, holdingSlug));
     const matching = (value: unknown) => String(value ?? '').toLocaleLowerCase().includes(term.toLocaleLowerCase());
     return <SectionWorkspace title="Knowledge" selected={selected} items={workspaceTopicLinks(base, query, topics)} context={topics.find(topic => topic.id === selected)?.title} toolbar={undefined}>
  {<ListFilters appearance="standard" action={canonicalUiHref(`${base}/knowledge`)} query={term} placeholder="Search this view" preserve={workspaceSearchContext(query, { view, section })}/>}

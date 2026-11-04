@@ -7,7 +7,7 @@ import { requireWorkContext, publicScope } from "@erpx/server-identity_access/pu
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { learningAssignmentDetail } from "@erpx/server-learning/public/learning";
-import { nativeLearningDetailPage } from "@erpx/workplace/lib/native-learning";
+import { nativeLearningAvailable, nativeLearningDetailPage } from "@erpx/workplace/lib/native-learning";
 import { LearningConsole } from "@erpx/feature-records/components/loaders/modules--learning-console";
 import { RecordDocumentPanel } from "@erpx/feature-records/components/loaders/attachments--record-document-panel";
 import { samePerson } from "@erpx/feature-identity_access/lib/iam";
@@ -22,9 +22,10 @@ export default async function Page({
   const { holdingSlug, id } = await params,
     a = await requireWorkContext(holdingSlug),
     base = workspaceBase(publicScope(a)),
-    data = await nativeLearningDetailPage(a, id).then(native => native ?? learningAssignmentDetail(a, id)).catch((e) =>
-      pageError(e, holdingSlug),
-    ),
+    data = await (nativeLearningAvailable()
+      ? nativeLearningDetailPage(a, id)
+      : learningAssignmentDetail(a, id)
+    ).catch((e) => pageError(e, holdingSlug)),
     x = data.assignment,
     course = data.courses.find((item) => item.id === x.course_id),
     canManageDocuments = hasPermission(a, "learning.documents.manage"),

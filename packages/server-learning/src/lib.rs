@@ -2,9 +2,10 @@
 //!
 //! The qualified slice is the reviewed course catalogue, eligible-worker
 //! assignment, the assigned learner's start/completion evidence, reviewer
-//! waiver/cancellation, the completion certificate/eligibility handoff, the
-//! reviewer certificate revocation, and Company/branch/department-scoped
-//! workspace/detail reads.
+//! waiver/cancellation, the completion certificate/eligibility handoff,
+//! reviewer certificate revocation, Company/branch/department-scoped
+//! workspace/detail reads, and bounded current/historical eligibility handoff
+//! facts for the Benefits consumer.
 //!
 //! Private attachment binding, package purchase enforcement, worker startup,
 //! work projection, benefit consumption, executive evidence and every other

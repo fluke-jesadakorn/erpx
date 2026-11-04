@@ -5,6 +5,7 @@
 //! session resolution, selected Company/branch/department scope, purchase
 //! admission and the serializable owner unit remain composition
 //! responsibilities behind [`LearningHttpBackend`].
+use crate::domain::eligibility_facts::EligibilityQuery;
 use crate::domain::learning::{
     AssignmentChange, AssignmentRequest, CertificateRevocation, CourseChange, CourseRequest,
     request_invalid,
@@ -34,6 +35,9 @@ pub enum LearningHttpCommand {
     },
     Detail {
         assignment_id: String,
+    },
+    EligibilityFacts {
+        query: EligibilityQuery,
     },
     CreateCourse {
         input: CourseRequest,
@@ -145,6 +149,34 @@ fn valid_id(value: &str) -> bool {
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':'))
 }
+fn hex(value: u8) -> Option<u8> {
+    match value {
+        b'0'..=b'9' => Some(value - b'0'),
+        b'a'..=b'f' => Some(value - b'a' + 10),
+        b'A'..=b'F' => Some(value - b'A' + 10),
+        _ => None,
+    }
+}
+fn percent_decode(value: &str) -> Result<String, BusinessError> {
+    let bytes = value.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let high = bytes.get(index + 1).copied().and_then(hex);
+            let low = bytes.get(index + 2).copied().and_then(hex);
+            let (Some(high), Some(low)) = (high, low) else {
+                return Err(malformed());
+            };
+            out.push(high * 16 + low);
+            index += 3;
+        } else {
+            out.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(out).map_err(|_| malformed())
+}
 fn status(kind: FailureKind) -> StatusCode {
     match kind {
         FailureKind::InvalidInput => StatusCode::UNPROCESSABLE_ENTITY,
@@ -212,6 +244,39 @@ fn personal(request: &Request) -> Result<bool, BusinessError> {
     }
     Ok(personal.unwrap_or(false))
 }
+fn eligibility_query(
+    request: &Request,
+    person_id: &str,
+) -> Result<EligibilityQuery, BusinessError> {
+    let Some(query) = request.uri().query().filter(|value| !value.is_empty()) else {
+        return Err(malformed());
+    };
+    if query.len() > 8192 {
+        return Err(malformed());
+    }
+    let mut code = None;
+    let mut effective_date = None;
+    for pair in query.split('&') {
+        if pair.is_empty() {
+            return Err(malformed());
+        }
+        let (key, value) = pair.split_once('=').ok_or_else(malformed)?;
+        if key == "code" && code.is_none() {
+            code = Some(percent_decode(value)?);
+        } else if key == "effectiveDate" && effective_date.is_none() {
+            effective_date = Some(percent_decode(value)?);
+        } else {
+            return Err(malformed());
+        }
+    }
+    EligibilityQuery {
+        person_id: person_id.to_owned(),
+        eligibility_code: code.ok_or_else(malformed)?,
+        effective_date: effective_date.ok_or_else(malformed)?,
+    }
+    .validate()
+    .map_err(|_| malformed())
+}
 async fn ensure_empty_body(request: Request) -> Result<(), BusinessError> {
     let bytes = to_bytes(request.into_body(), 0)
         .await
@@ -273,6 +338,10 @@ pub fn learning_http_router(targets: Vec<LearningHttpTarget>) -> Result<Router, 
         .route(
             "/api/v1/holdings/{holding_slug}/learning/assignments/{assignment_id}",
             get(read_detail).post(change_assignment),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/learning/eligibility/{person_id}",
+            get(read_eligibility),
         )
         .route(
             "/api/v1/holdings/{holding_slug}/learning/courses",
@@ -342,6 +411,36 @@ async fn read_detail(
                 holding_slug: &target.holding_slug,
                 headers: &headers,
                 command: LearningHttpCommand::Detail { assignment_id },
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => bounded(reply.value()),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn read_eligibility(
+    State(state): State<Arc<LearningHttpState>>,
+    Path((slug, person_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let target = target(&state, request.headers(), &slug)?;
+        if !valid_id(&person_id) {
+            return Err(missing());
+        }
+        let query = eligibility_query(&request, &person_id)?;
+        let headers = request.headers().clone();
+        ensure_empty_body(request).await?;
+        target
+            .backend
+            .execute(LearningHttpRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                command: LearningHttpCommand::EligibilityFacts { query },
             })
             .await
     }

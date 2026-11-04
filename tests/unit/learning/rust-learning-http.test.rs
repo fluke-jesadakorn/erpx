@@ -40,6 +40,10 @@ impl LearningHttpBackend for Probe {
                 LearningHttpCommand::Detail { assignment_id } => {
                     format!("detail|{assignment_id}")
                 }
+                LearningHttpCommand::EligibilityFacts { query } => format!(
+                    "eligibility|{}|{}|{}",
+                    query.person_id, query.eligibility_code, query.effective_date
+                ),
                 LearningHttpCommand::CreateCourse {
                     input,
                     idempotency_key,
@@ -95,10 +99,24 @@ impl LearningHttpBackend for Probe {
                         "actorId": "reviewer"
                     }),
                     LearningHttpCommand::Detail { .. } => serde_json::json!({
-                        "assignment": {"id": "learning-assignment-1"},
+                        "assignment": {
+                            "id": "learning-assignment-1",
+                            "status": "completed",
+                            "attendance": "attended",
+                            "score_bps": 9500,
+                            "result_evidence": "Provider result and practical check",
+                            "completion_reason": "Course and assessment completed"
+                        },
                         "history": [],
                         "handoff": null,
                         "certificate": null
+                    }),
+                    LearningHttpCommand::EligibilityFacts { .. } => serde_json::json!({
+                        "person_id": "person-learner",
+                        "eligibility_code": "equipment_operator",
+                        "effective_date": "2026-11-04",
+                        "eligible": true,
+                        "certificates": []
                     }),
                     _ => serde_json::json!({
                         "id": "learning-assignment-1",
@@ -229,6 +247,24 @@ async fn actual_router_forwards_every_learning_command_and_bounded_read() {
     .await;
     assert_eq!(status, 200);
     assert_eq!(body["data"]["assignment"]["id"], "learning-assignment-1");
+    assert_eq!(body["data"]["assignment"]["attendance"], "attended");
+    assert_eq!(body["data"]["assignment"]["score_bps"], 9500);
+    assert_eq!(
+        body["data"]["assignment"]["result_evidence"],
+        "Provider result and practical check"
+    );
+
+    let (status, body, _) = http(
+        addr,
+        get(
+            "/api/v1/holdings/acme/learning/eligibility/person-learner?code=equipment_operator&effectiveDate=2026-11-04",
+            "acme.example.test",
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(body["data"]["person_id"], "person-learner");
+    assert_eq!(body["data"]["eligible"], true);
 
     let course = r#"{"title":"Safe equipment operation","description":"Practical operating procedure.","provider":"Internal academy","durationMinutes":90,"requiredFor":"equipment_operator"}"#;
     let (status, body, _) = http(
@@ -299,6 +335,7 @@ async fn actual_router_forwards_every_learning_command_and_bounded_read() {
         vec![
             "workspace|true",
             "detail|learning-assignment-1",
+            "eligibility|person-learner|equipment_operator|2026-11-04",
             "course-create|learning-course-command-1|Safe equipment operation",
             "course-change|learning-course-1|learning-course-command-2|publish",
             "assignment-create|learning-assignment-command-1|learning-course-1|learner",
@@ -439,6 +476,31 @@ async fn router_rejects_unknown_scope_bad_keys_bodies_and_queries() {
     )
     .await;
     assert_eq!(status, 404);
+
+    for path in [
+        "/api/v1/holdings/acme/learning/eligibility/person-learner",
+        "/api/v1/holdings/acme/learning/eligibility/person-learner?code=equipment_operator",
+        "/api/v1/holdings/acme/learning/eligibility/person-learner?effectiveDate=2026-11-04",
+        "/api/v1/holdings/acme/learning/eligibility/person-learner?code=equipment_operator&code=other&effectiveDate=2026-11-04",
+        "/api/v1/holdings/acme/learning/eligibility/person-learner?code=equipment_operator&effectiveDate=2026-11-04&extra=1",
+        "/api/v1/holdings/acme/learning/eligibility/person-learner?code=equipment_operator&effectiveDate=2026-02-30",
+        "/api/v1/holdings/acme/learning/eligibility/person-learner?code=%20equipment_operator&effectiveDate=2026-11-04",
+        "/api/v1/holdings/acme/learning/eligibility/bad%20id?code=equipment_operator&effectiveDate=2026-11-04",
+    ] {
+        let (status, _, _) = http(addr, get(path, "acme.example.test")).await;
+        assert_eq!(
+            status,
+            if path.contains("bad%20id") { 404 } else { 422 },
+            "{path}"
+        );
+    }
+
+    let (status, _, _) = http(
+        addr,
+        "GET /api/v1/holdings/acme/learning/eligibility/person-learner?code=equipment_operator&effectiveDate=2026-11-04 HTTP/1.1\r\nHost: acme.example.test\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}".to_string(),
+    )
+    .await;
+    assert_eq!(status, 422);
 
     assert_eq!(
         seen.lock().unwrap().clone(),

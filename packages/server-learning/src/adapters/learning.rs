@@ -125,7 +125,7 @@ fn map_event(row: sqlx::postgres::PgRow) -> Result<EventRow, sqlx::Error> {
     })
 }
 
-fn map_handoff(row: sqlx::postgres::PgRow) -> Result<HandoffRow, sqlx::Error> {
+pub(crate) fn map_handoff(row: sqlx::postgres::PgRow) -> Result<HandoffRow, sqlx::Error> {
     Ok(HandoffRow {
         id: row.try_get("id")?,
         assignment_id: row.try_get("assignment_id")?,
@@ -138,7 +138,7 @@ fn map_handoff(row: sqlx::postgres::PgRow) -> Result<HandoffRow, sqlx::Error> {
     })
 }
 
-fn map_certificate(row: sqlx::postgres::PgRow) -> Result<CertificateRow, sqlx::Error> {
+pub(crate) fn map_certificate(row: sqlx::postgres::PgRow) -> Result<CertificateRow, sqlx::Error> {
     Ok(CertificateRow {
         id: row.try_get("id")?,
         handoff_id: row.try_get("handoff_id")?,
@@ -168,7 +168,11 @@ impl<'c> PgLearning<'c> {
         Self { connection }
     }
 
-    async fn ready(&mut self) -> Result<(), Error> {
+    pub(crate) fn connection(&mut self) -> &mut PgConnection {
+        self.connection
+    }
+
+    pub(crate) async fn ready(&mut self) -> Result<(), Error> {
         if !self.connection.is_in_transaction() {
             return Err(PersistenceError::new("LEARNING_TRANSACTION_REQUIRED").into());
         }

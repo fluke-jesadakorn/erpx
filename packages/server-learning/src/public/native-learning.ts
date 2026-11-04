@@ -131,6 +131,52 @@ export type NativeLearningCertificate = Readonly<{
   revocation_id: string | null;
 }>;
 
+export type NativeLearningEligibilityConsumption = Readonly<{
+  id: string;
+  election_id: string;
+  source_assignment_version: number;
+  eligibility_code: string;
+  source_digest: string;
+  purpose: string;
+  actor_id: string;
+  command_id: string;
+  created_at: number;
+}>;
+
+export type NativeLearningEligibilityCertificate = Readonly<{
+  id: string;
+  handoff_id: string;
+  company_id: string;
+  branch_id: string;
+  department_id: string | null;
+  person_id: string;
+  assignment_id: string;
+  source_assignment_version: number;
+  eligibility_code: string;
+  valid_from: string;
+  expires_on: string | null;
+  completion_kind: string;
+  evidence_ref: string;
+  issued_by: string;
+  created_at: number;
+  revocation_id: string | null;
+  handoff_source_assignment_version: number;
+  assignment_version: number;
+  assignment_status: string;
+  person_status: string;
+  person_merged_into_id: string | null;
+  current: boolean;
+  consumptions: NativeLearningEligibilityConsumption[];
+}>;
+
+export type NativeLearningEligibilityFacts = Readonly<{
+  person_id: string;
+  eligibility_code: string;
+  effective_date: string;
+  eligible: boolean;
+  certificates: NativeLearningEligibilityCertificate[];
+}>;
+
 export type NativeLearningWorkspace = Readonly<{
   courses: NativeLearningCourse[];
   assignments: NativeLearningAssignment[];
@@ -205,6 +251,8 @@ const date = (value: unknown): value is string => {
   return day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
 };
 const optionalDate = (value: unknown) => value === null || date(value);
+const digest = (value: unknown): value is string =>
+  typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 const courseStatuses = new Set(['draft', 'published', 'retired', 'rejected']);
 const assignmentStatuses = new Set([
   'assigned',
@@ -375,6 +423,143 @@ const certificate = (value: unknown): value is NativeLearningCertificate =>
   identifier(value.issued_by) &&
   integer(value.created_at) &&
   optionalIdentifier(value.revocation_id);
+
+const eligibilityConsumption = (value: unknown): value is NativeLearningEligibilityConsumption =>
+  exact(value, [
+    'id',
+    'election_id',
+    'source_assignment_version',
+    'eligibility_code',
+    'source_digest',
+    'purpose',
+    'actor_id',
+    'command_id',
+    'created_at',
+  ]) &&
+  identifier(value.id) &&
+  identifier(value.election_id) &&
+  integer(value.source_assignment_version, 1) &&
+  trimmed(value.eligibility_code, 1, 120) &&
+  digest(value.source_digest) &&
+  trimmed(value.purpose, 1, 120) &&
+  identifier(value.actor_id) &&
+  identifier(value.command_id) &&
+  integer(value.created_at);
+
+const eligibilityCertificate = (
+  value: unknown,
+  actor: NativeLearningPageContext,
+  personId: string,
+  code: string,
+  effectiveDate: string,
+): value is NativeLearningEligibilityCertificate => {
+  if (
+    !exact(value, [
+      'id',
+      'handoff_id',
+      'company_id',
+      'branch_id',
+      'department_id',
+      'person_id',
+      'assignment_id',
+      'source_assignment_version',
+      'eligibility_code',
+      'valid_from',
+      'expires_on',
+      'completion_kind',
+      'evidence_ref',
+      'issued_by',
+      'created_at',
+      'revocation_id',
+      'handoff_source_assignment_version',
+      'assignment_version',
+      'assignment_status',
+      'person_status',
+      'person_merged_into_id',
+      'current',
+      'consumptions',
+    ])
+  )
+    return false;
+  const item = value as Record<string, unknown>;
+  if (
+    !identifier(item.id) ||
+    !identifier(item.handoff_id) ||
+    item.company_id !== actor.companyId ||
+    (actor.branchId !== null && item.branch_id !== actor.branchId) ||
+    (actor.departmentId !== null && item.department_id !== actor.departmentId) ||
+    !identifier(item.branch_id) ||
+    !optionalIdentifier(item.department_id) ||
+    item.person_id !== personId ||
+    !identifier(item.assignment_id) ||
+    !integer(item.source_assignment_version, 1) ||
+    item.eligibility_code !== code ||
+    !date(item.valid_from) ||
+    !optionalDate(item.expires_on) ||
+    (item.expires_on !== null && (item.expires_on as string) < (item.valid_from as string)) ||
+    (item.completion_kind !== 'completed' && item.completion_kind !== 'waived') ||
+    !trimmed(item.evidence_ref, 1, 3_000) ||
+    !identifier(item.issued_by) ||
+    !integer(item.created_at) ||
+    !optionalIdentifier(item.revocation_id) ||
+    !integer(item.handoff_source_assignment_version, 1) ||
+    !integer(item.assignment_version, 1) ||
+    typeof item.assignment_status !== 'string' ||
+    !assignmentStatuses.has(item.assignment_status) ||
+    !trimmed(item.person_status, 1, 120) ||
+    !optionalIdentifier(item.person_merged_into_id) ||
+    !boolean(item.current) ||
+    !Array.isArray(item.consumptions) ||
+    item.consumptions.length > 100 ||
+    !item.consumptions.every(eligibilityConsumption)
+  )
+    return false;
+  const consumptions = item.consumptions as NativeLearningEligibilityConsumption[];
+  if (new Set(consumptions.map((row) => row.id)).size !== consumptions.length) return false;
+  const current =
+    (item.assignment_status === 'completed' || item.assignment_status === 'waived') &&
+    item.completion_kind === item.assignment_status &&
+    item.handoff_source_assignment_version === item.assignment_version &&
+    item.source_assignment_version === item.assignment_version &&
+    item.person_status === 'active' &&
+    item.person_merged_into_id === null &&
+    item.revocation_id === null &&
+    (item.valid_from as string) <= effectiveDate &&
+    (item.expires_on === null || effectiveDate <= (item.expires_on as string));
+  return item.current === current;
+};
+
+const eligibilityFacts = (
+  value: unknown,
+  actor: NativeLearningPageContext,
+  personId: string,
+  code: string,
+  effectiveDate: string,
+): NativeLearningEligibilityFacts => {
+  if (
+    !exact(value, ['person_id', 'eligibility_code', 'effective_date', 'eligible', 'certificates']) ||
+    value.person_id !== personId ||
+    value.eligibility_code !== code ||
+    value.effective_date !== effectiveDate ||
+    !boolean(value.eligible) ||
+    !Array.isArray(value.certificates) ||
+    value.certificates.length < 1 ||
+    value.certificates.length > 100 ||
+    !value.certificates.every((item) =>
+      eligibilityCertificate(item, actor, personId, code, effectiveDate),
+    )
+  )
+    return failure('NATIVE_LEARNING_RESPONSE_INVALID');
+  const certificates = value.certificates as NativeLearningEligibilityCertificate[];
+  const ids = new Set<string>();
+  for (const item of certificates) {
+    if (ids.has(item.id)) return failure('NATIVE_LEARNING_RESPONSE_INVALID');
+    ids.add(item.id);
+  }
+  if (value.eligible !== certificates.some((item) => item.current))
+    return failure('NATIVE_LEARNING_RESPONSE_INVALID');
+  return value as unknown as NativeLearningEligibilityFacts;
+};
 
 function workspace(
   value: unknown,
@@ -970,6 +1155,35 @@ export function createNativeLearningClient(
         signal,
         (value) => detail(value, actor, id),
       ) as Promise<NativeLearningDetail>;
+    },
+    eligibilityFacts: (
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeLearningPageContext,
+      personId: string,
+      eligibilityCode: string,
+      effectiveDate: string,
+      input: NativeLearningReadInput,
+      signal?: AbortSignal,
+    ) => {
+      if (
+        !identifier(personId) ||
+        personId.includes('/') ||
+        personId.includes('\\') ||
+        !trimmed(eligibilityCode, 1, 120) ||
+        !date(effectiveDate)
+      )
+        return Promise.reject(new NativeLearningError('NATIVE_LEARNING_REQUEST_INVALID'));
+      return run(
+        incoming,
+        actor,
+        input,
+        'GET',
+        `/eligibility/${encodeURIComponent(personId)}?code=${encodeURIComponent(eligibilityCode)}&effectiveDate=${encodeURIComponent(effectiveDate)}`,
+        undefined,
+        undefined,
+        signal,
+        (value) => eligibilityFacts(value, actor, personId, eligibilityCode, effectiveDate),
+      ) as Promise<NativeLearningEligibilityFacts>;
     },
     createCourse: (
       incoming: Pick<Headers, 'get'>,

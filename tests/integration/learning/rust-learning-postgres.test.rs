@@ -5,6 +5,10 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
+use erpx_server_learning::public::eligibility_facts::{
+    EligibilityQuery, EligibilityScope, learning_eligibility_consumer_facts,
+    learning_eligibility_facts,
+};
 use erpx_server_learning::public::learning::{
     AssignmentAction, AssignmentChange, AssignmentRequest, Attendance, CertificateRevocation,
     CourseAction, CourseChange, CourseRequest, LearningActor, PgLearning, change_assignment,
@@ -303,6 +307,61 @@ async fn run_detail(
                 Box::pin(async move {
                     let mut repository = PgLearning::new(connection);
                     learning_detail(&mut repository, &actor, &id, NOW).await
+                })
+            })
+            .await,
+    )
+}
+
+async fn run_eligibility(
+    pool: &DatabasePool,
+    actor: LearningActor,
+    person_id: &str,
+    eligibility_code: &str,
+    effective_date: &str,
+) -> Result<Value, BusinessError> {
+    let query = EligibilityQuery {
+        person_id: person_id.into(),
+        eligibility_code: eligibility_code.into(),
+        effective_date: effective_date.into(),
+    };
+    business(
+        PgUnitOfWork::new(pool.clone())
+            .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let actor = actor.clone();
+                let query = query.clone();
+                Box::pin(async move {
+                    let mut repository = PgLearning::new(connection);
+                    learning_eligibility_facts(&mut repository, &actor, &query, NOW).await
+                })
+            })
+            .await,
+    )
+}
+
+async fn run_consumer_eligibility(
+    pool: &DatabasePool,
+    company_id: &str,
+    branch_id: Option<&str>,
+    department_id: Option<&str>,
+    person_id: &str,
+    eligibility_code: &str,
+    effective_date: &str,
+) -> Result<Value, BusinessError> {
+    let scope = EligibilityScope::new(company_id, branch_id, department_id).unwrap();
+    let query = EligibilityQuery {
+        person_id: person_id.into(),
+        eligibility_code: eligibility_code.into(),
+        effective_date: effective_date.into(),
+    };
+    business(
+        PgUnitOfWork::new(pool.clone())
+            .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let scope = scope.clone();
+                let query = query.clone();
+                Box::pin(async move {
+                    let mut repository = PgLearning::new(connection);
+                    learning_eligibility_consumer_facts(&mut repository, &scope, &query).await
                 })
             })
             .await,
@@ -718,6 +777,25 @@ async fn learner_progress_completion_and_certificate_are_atomic_and_replayable()
         assert_eq!(certificate.get::<String, _>("completion_kind"), "completed");
         let detail = run_detail(&pool, learner(), &id).await.unwrap();
         assert_eq!(detail["assignment"]["status"], "completed");
+        assert_eq!(detail["assignment"]["attendance"], "attended");
+        assert_eq!(detail["assignment"]["score_bps"], 9_500);
+        assert_eq!(
+            detail["assignment"]["result_evidence"],
+            "Provider result SIM-9500 and observed practical check"
+        );
+        assert_eq!(
+            detail["assignment"]["completion_reason"],
+            "Course and assessment completed"
+        );
+        let workspace = run_workspace(&pool, learner(), false).await.unwrap();
+        let assignment = workspace["assignments"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["id"] == id)
+            .unwrap();
+        assert_eq!(assignment["attendance"], "attended");
+        assert_eq!(assignment["score_bps"], 9_500);
         assert_eq!(detail["history"].as_array().unwrap().len(), 3);
         assert_eq!(detail["certificate"]["source_assignment_version"], 3);
         assert!(detail["certificate"]["revocation_id"].is_null());
@@ -1212,6 +1290,421 @@ async fn transaction_guards_and_late_effects_leave_no_partial_learning_evidence(
             .unwrap(),
             1
         );
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn eligibility_handoff_facts_are_current_scoped_and_consumption_preserving() {
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        let created = run_create_assignment(
+            &pool,
+            reviewer(),
+            "learning-assignment-0801",
+            assignment_input("course-required", "learner"),
+        )
+        .await
+        .unwrap();
+        let id = created["id"].as_str().unwrap().to_owned();
+        run_change_assignment(
+            &pool,
+            learner(),
+            &id,
+            "learning-assignment-0802",
+            action(AssignmentAction::Start, 1),
+        )
+        .await
+        .unwrap();
+        run_change_assignment(
+            &pool,
+            learner(),
+            &id,
+            "learning-assignment-0803",
+            complete(2),
+        )
+        .await
+        .unwrap();
+
+        let certificate = sqlx::query(
+            "SELECT c.id,h.id handoff_id FROM learning_certificates c \
+             JOIN learning_eligibility_handoffs h ON h.id=c.handoff_id \
+             WHERE c.assignment_id=$1",
+        )
+        .bind(&id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        let certificate_id = certificate.get::<String, _>("id");
+        let handoff_id = certificate.get::<String, _>("handoff_id");
+
+        sqlx::raw_sql(
+            "INSERT INTO benefit_plans(id,company_id,name,provider,coverage_type,currency,\
+             employee_deduction_minor,employer_cost_minor,effective_from,status,created_by,version,created_at,updated_at) \
+             VALUES('plan-learning','company','Learning plan','Provider','employee','THB',0,0,'2026-01-01','published','reviewer',2,0,0);\
+             INSERT INTO benefit_enrollment_windows(id,company_id,name,opens_on,closes_on,effective_on,status,created_by,version,created_at,updated_at) \
+             VALUES('window-learning','company','Window','2026-01-01','2026-12-31','2026-01-01','open','reviewer',2,0,0);\
+             INSERT INTO benefit_elections(id,company_id,person_id,engagement_id,plan_id,plan_version,window_id,window_version,\
+             coverage_type,dependent_ids_json,currency,employee_deduction_minor,employer_cost_minor,effective_from,status,created_by,version,created_at,updated_at) \
+             VALUES('election-learning','company','person-learner','engagement-learner','plan-learning',2,'window-learning',2,\
+             'employee','[]','THB',0,0,'2026-01-01','elected','reviewer',1,0,0)",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO learning_benefit_consumption_receipts(id,handoff_id,certificate_id,election_id,\
+             company_id,person_id,source_assignment_version,eligibility_code,source_digest,purpose,actor_id,command_id,created_at) \
+             SELECT 'learning-benefit-learning',h.id,c.id,'election-learning',c.company_id,c.person_id,\
+             c.source_assignment_version,c.eligibility_code,repeat('a',64),\
+             'Benefits eligibility at election creation','benefits-reviewer','benefit-election-learning',$1 \
+             FROM learning_certificates c JOIN learning_eligibility_handoffs h ON h.id=c.handoff_id \
+             WHERE c.assignment_id=$2",
+        )
+        .bind(NOW)
+        .bind(&id)
+        .execute(pool.raw())
+        .await
+        .unwrap();
+
+        let counts = |table: &'static str| {
+            let pool = pool.clone();
+            async move {
+                sqlx::query_scalar::<_, i64>(AssertSqlSafe(format!("SELECT count(*) FROM {table}")))
+                    .fetch_one(pool.raw())
+                    .await
+                    .unwrap()
+            }
+        };
+
+        let facts = run_eligibility(
+            &pool,
+            learner(),
+            "person-learner",
+            "equipment_operator",
+            "2026-11-04",
+        )
+        .await
+        .unwrap();
+        assert_eq!(facts["person_id"], "person-learner");
+        assert_eq!(facts["eligibility_code"], "equipment_operator");
+        assert_eq!(facts["effective_date"], "2026-11-04");
+        assert_eq!(facts["eligible"], true);
+        assert_eq!(facts["certificates"].as_array().unwrap().len(), 1);
+        let current = &facts["certificates"][0];
+        assert_eq!(current["id"], certificate_id);
+        assert_eq!(current["handoff_id"], handoff_id);
+        assert_eq!(current["company_id"], "company");
+        assert_eq!(current["person_id"], "person-learner");
+        assert_eq!(current["assignment_id"], id);
+        assert_eq!(current["source_assignment_version"], 3);
+        assert_eq!(current["handoff_source_assignment_version"], 3);
+        assert_eq!(current["assignment_version"], 3);
+        assert_eq!(current["assignment_status"], "completed");
+        assert_eq!(current["completion_kind"], "completed");
+        assert_eq!(current["person_status"], "active");
+        assert_eq!(current["current"], true);
+        assert!(current["revocation_id"].is_null());
+        assert_eq!(current["consumptions"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            current["consumptions"][0]["election_id"],
+            "election-learning"
+        );
+        assert_eq!(
+            current["consumptions"][0]["source_digest"],
+            "a".repeat(64)
+        );
+        assert_eq!(
+            current["consumptions"][0]["source_assignment_version"],
+            3
+        );
+
+        let consumer = run_consumer_eligibility(
+            &pool,
+            "company",
+            None,
+            None,
+            "person-learner",
+            "equipment_operator",
+            "2026-11-04",
+        )
+        .await
+        .unwrap();
+        assert_eq!(consumer["eligible"], true);
+        assert_eq!(
+            consumer["certificates"][0]["consumptions"][0]["election_id"],
+            "election-learning"
+        );
+        assert_eq!(
+            run_consumer_eligibility(
+                &pool,
+                "company",
+                Some("branch"),
+                Some("department"),
+                "person-learner",
+                "equipment_operator",
+                "2026-11-04",
+            )
+            .await
+            .unwrap()["eligible"],
+            true
+        );
+        assert_eq!(
+            run_consumer_eligibility(
+                &pool,
+                "company",
+                Some("other-branch"),
+                None,
+                "person-learner",
+                "equipment_operator",
+                "2026-11-04",
+            )
+            .await
+            .unwrap_err()
+            .code,
+            "LEARNING_ELIGIBILITY_NOT_FOUND"
+        );
+        assert_eq!(
+            run_consumer_eligibility(
+                &pool,
+                "foreign",
+                None,
+                None,
+                "person-learner",
+                "equipment_operator",
+                "2026-11-04",
+            )
+            .await
+            .unwrap_err()
+            .code,
+            "LEARNING_ELIGIBILITY_NOT_FOUND"
+        );
+
+        let before_date = run_eligibility(
+            &pool,
+            learner(),
+            "person-learner",
+            "equipment_operator",
+            "2026-11-03",
+        )
+        .await
+        .unwrap();
+        assert_eq!(before_date["eligible"], false);
+        assert_eq!(before_date["certificates"][0]["current"], false);
+        let after_expiry = run_eligibility(
+            &pool,
+            learner(),
+            "person-learner",
+            "equipment_operator",
+            "2028-11-05",
+        )
+        .await
+        .unwrap();
+        assert_eq!(after_expiry["eligible"], false);
+
+        assert_eq!(
+            run_eligibility(
+                &pool,
+                learner(),
+                "person-learner",
+                "other_code",
+                "2026-11-04"
+            )
+            .await
+            .unwrap_err()
+            .code,
+            "LEARNING_ELIGIBILITY_NOT_FOUND"
+        );
+        assert_eq!(
+            run_eligibility(
+                &pool,
+                learner(),
+                "person-learner",
+                "equipment_operator",
+                "2026-02-30"
+            )
+            .await
+            .unwrap_err()
+            .code,
+            "LEARNING_REQUEST_INVALID"
+        );
+        assert_eq!(
+            run_eligibility(
+                &pool,
+                actor(
+                    "foreign-reviewer",
+                    "foreign",
+                    None,
+                    None,
+                    &["records.read", "records.write", "records.review"],
+                ),
+                "person-learner",
+                "equipment_operator",
+                "2026-11-04"
+            )
+            .await
+            .unwrap_err()
+            .code,
+            "LEARNING_ELIGIBILITY_NOT_FOUND"
+        );
+        for branch in [
+            actor_branch(reviewer(), "other-branch", Some("outside")),
+            actor_branch(reviewer(), "branch", Some("other-department")),
+        ] {
+            assert_eq!(
+                run_eligibility(
+                    &pool,
+                    branch,
+                    "person-learner",
+                    "equipment_operator",
+                    "2026-11-04"
+                )
+                .await
+                .unwrap_err()
+                .code,
+                "LEARNING_ELIGIBILITY_NOT_FOUND"
+            );
+        }
+        let in_scope = actor_branch(reviewer(), "branch", Some("department"));
+        assert_eq!(
+            run_eligibility(
+                &pool,
+                in_scope,
+                "person-learner",
+                "equipment_operator",
+                "2026-11-04"
+            )
+            .await
+            .unwrap()["eligible"],
+            true
+        );
+
+        run_revoke(
+            &pool,
+            reviewer(),
+            &certificate_id,
+            "learning-certificate-0801",
+            CertificateRevocation {
+                expected_assignment_version: 3,
+                reason: "Independent owner retires this certificate".into(),
+            },
+        )
+        .await
+        .unwrap();
+        let revoked = run_eligibility(
+            &pool,
+            learner(),
+            "person-learner",
+            "equipment_operator",
+            "2026-11-04",
+        )
+        .await
+        .unwrap();
+        assert_eq!(revoked["eligible"], false);
+        assert_eq!(revoked["certificates"][0]["current"], false);
+        assert_eq!(
+            revoked["certificates"][0]["revocation_id"].as_str().unwrap(),
+            "certificate-revoke-learning-certificate-0801"
+        );
+        assert_eq!(
+            revoked["certificates"][0]["consumptions"].as_array().unwrap().len(),
+            1
+        );
+
+        sqlx::query("UPDATE hr_people SET status='inactive' WHERE id='person-learner'")
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        let before = (
+            counts("command_receipts").await,
+            counts("audit_events").await,
+            counts("outbox_events").await,
+            counts("learning_benefit_consumption_receipts").await,
+        );
+        let inactive = run_eligibility(
+            &pool,
+            learner(),
+            "person-learner",
+            "equipment_operator",
+            "2026-11-04",
+        )
+        .await
+        .unwrap();
+        assert_eq!(inactive["eligible"], false);
+        assert_eq!(inactive["certificates"][0]["person_status"], "inactive");
+        assert_eq!(inactive["certificates"][0]["current"], false);
+
+        sqlx::query("UPDATE hr_people SET status='active',merged_into_id='person-peer' WHERE id='person-learner'")
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        let merged = run_eligibility(
+            &pool,
+            learner(),
+            "person-learner",
+            "equipment_operator",
+            "2026-11-04",
+        )
+        .await
+        .unwrap();
+        assert_eq!(merged["eligible"], false);
+        assert_eq!(merged["certificates"][0]["person_status"], "active");
+        assert_eq!(
+            merged["certificates"][0]["person_merged_into_id"],
+            "person-peer"
+        );
+        assert_eq!(merged["certificates"][0]["current"], false);
+
+        let after = (
+            counts("command_receipts").await,
+            counts("audit_events").await,
+            counts("outbox_events").await,
+            counts("learning_benefit_consumption_receipts").await,
+        );
+        assert_eq!(before, after);
+
+        let mut raw = pool.raw().acquire().await.unwrap();
+        let no_transaction = {
+            let mut repository = PgLearning::new(&mut raw);
+            learning_eligibility_facts(
+                &mut repository,
+                &learner(),
+                &EligibilityQuery {
+                    person_id: "person-learner".into(),
+                    eligibility_code: "equipment_operator".into(),
+                    effective_date: "2026-11-04".into(),
+                },
+                NOW,
+            )
+            .await
+            .unwrap_err()
+        };
+        assert!(matches!(no_transaction, PgTransactionError::Persistence(_)));
+        drop(raw);
+
+        let mut raw = pool.raw().acquire().await.unwrap();
+        sqlx::query("BEGIN ISOLATION LEVEL READ COMMITTED")
+            .execute(&mut *raw)
+            .await
+            .unwrap();
+        let read_committed = {
+            let mut repository = PgLearning::new(&mut raw);
+            learning_eligibility_facts(
+                &mut repository,
+                &learner(),
+                &EligibilityQuery {
+                    person_id: "person-learner".into(),
+                    eligibility_code: "equipment_operator".into(),
+                    effective_date: "2026-11-04".into(),
+                },
+                NOW,
+            )
+            .await
+            .unwrap_err()
+        };
+        assert!(matches!(read_committed, PgTransactionError::Persistence(_)));
+        sqlx::query("ROLLBACK").execute(&mut *raw).await.unwrap();
+        drop(raw);
     })
     .await;
 }

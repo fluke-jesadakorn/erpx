@@ -1,6 +1,7 @@
 import {describe,it,expect,vi,beforeEach,afterEach} from 'vitest';
-const {controls}=vi.hoisted(()=>({controls:vi.fn()}));
+const {controls,nextHeaders}=vi.hoisted(()=>({controls:vi.fn(),nextHeaders:{current:new Headers()}}));
 vi.mock('server-only',()=>({}));
+vi.mock('next/headers',()=>({headers:async()=>nextHeaders.current}));
 vi.mock('@erpx/server-runtime/public/runtime',()=>({holdingResources:async()=>({write:{}})}));
 vi.mock('@erpx/server-learning/public/purchases',()=>({learningPurchaseControls:controls,requireLearningPurchasedRead:vi.fn()}));
 
@@ -12,6 +13,7 @@ import {
   NativeLearningError,
 } from '../../../packages/server-learning/src/public/native-learning';
 import {nativeLearningCommandRoute} from '../../../packages/feature-learn/src/lib/native-learning-command';
+import {nativeLearningDetailPage,nativeLearningProjectDetail,nativeLearningProjectWorkspace,nativeLearningWorkspacePage} from '../../../packages/workplace/src/lib/native-learning';
 import type {NativeLearningPageContext} from '../../../packages/server-learning/src/public/native-learning';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
@@ -45,7 +47,7 @@ const assignment={id:'learning-assignment-1',company_id:'company',branch_id:'bra
   due_date:'2026-11-30',status:'in_progress',attendance:null,score_bps:null,
   result_evidence:null,completion_reason:null,created_by:'reviewer',version:2,
   created_at:1_799_999_700_000,updated_at:1_799_999_900_000,course_title:'Native course',
-  required_for:'equipment_operator',learner_name:'Learner',learner_eligible:1};
+  required_for:'equipment_operator',learner_name:'Learner',learner_eligible:1 as const};
 const person={id:'learner',name:'Learner',branch_id:'branch',department_id:'department'};
 const event={id:'learning-assignment-event-1',assignment_id:'learning-assignment-1',version:1,
   action:'assign',actor_id:'reviewer',reason:'Required before operating equipment',
@@ -59,6 +61,20 @@ const certificate={id:'learning-certificate-1',handoff_id:'learning-eligibility-
   expires_on:'2028-11-04',completion_kind:'completed',
   evidence_ref:'Provider result and practical check',issued_by:'learner',
   created_at:1_799_999_900_000,revocation_id:null};
+const eligibilityCertificate={id:'learning-certificate-1',handoff_id:'learning-eligibility-1',
+  company_id:'company',branch_id:'branch',department_id:'department',person_id:'person-learner',
+  assignment_id:'learning-assignment-1',source_assignment_version:3,
+  eligibility_code:'equipment_operator',valid_from:'2026-11-04',expires_on:'2028-11-04',
+  completion_kind:'completed',evidence_ref:'Provider result and practical check',issued_by:'learner',
+  created_at:1_799_999_900_000,revocation_id:null,handoff_source_assignment_version:3,
+  assignment_version:3,assignment_status:'completed',person_status:'active',
+  person_merged_into_id:null,current:true,
+  consumptions:[{id:'learning-benefit-1',election_id:'election-1',source_assignment_version:3,
+    eligibility_code:'equipment_operator',source_digest:'a'.repeat(64),
+    purpose:'Benefits eligibility at election creation',actor_id:'benefits-reviewer',
+    command_id:'benefit-election-1',created_at:1_799_999_900_000}]};
+const eligibilityFacts={person_id:'person-learner',eligibility_code:'equipment_operator',
+  effective_date:'2026-11-04',eligible:true,certificates:[eligibilityCertificate]};
 const input={holdingSlug:'acme',expected:{companyId:'company',assignmentId:'assignment-reviewer',revision:7,assignmentVersion:3}};
 const ok=(value:unknown)=>new Response(JSON.stringify(value),{status:200,headers:{'content-type':'application/json'}});
 
@@ -99,6 +115,73 @@ describe('native Learning transport',()=>{
   expect(url.toString()).toBe('http://127.0.0.1:44993/api/v1/holdings/acme/learning/assignments/learning-assignment-1');
   expect(headers.get('x-erpx-workspace-branch')).toBe('north');
   expect(headers.get('x-erpx-workspace-department')).toBe('team');
+ });
+
+ it('reads bounded eligibility handoff facts for one person and effective date',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({data:eligibilityFacts,context}));
+  const learning=createNativeLearningClient(nativeLearningConfiguration(config()),transport);
+  const result=await learning.eligibilityFacts(incoming(),actor,'person-learner','equipment_operator','2026-11-04',input);
+  expect(result.eligible).toBe(true);
+  expect(result.certificates[0].current).toBe(true);
+  expect(result.certificates[0].consumptions[0].election_id).toBe('election-1');
+  const [method,url,headers]=transport.mock.calls[0];
+  expect(method).toBe('GET');
+  expect(url.toString()).toBe('http://127.0.0.1:44993/api/v1/holdings/acme/learning/eligibility/person-learner?code=equipment_operator&effectiveDate=2026-11-04');
+  expect(headers.get('host')).toBe('acme.example.com');
+  expect(headers.get('x-erpx-context-company')).toBe('company');
+  expect(headers.get('idempotency-key')).toBeNull();
+ });
+
+ it('rejects invalid eligibility facts responses and request dates',async()=>{
+  const learning=createNativeLearningClient(nativeLearningConfiguration(config()),vi.fn().mockResolvedValue(
+    ok({data:{...eligibilityFacts,certificates:[{...eligibilityCertificate,company_id:'foreign'}]},context}),
+  ));
+  await expect(learning.eligibilityFacts(incoming(),actor,'person-learner','equipment_operator','2026-11-04',input))
+    .rejects.toMatchObject({code:'NATIVE_LEARNING_RESPONSE_INVALID'});
+  const inconsistent=createNativeLearningClient(nativeLearningConfiguration(config()),vi.fn().mockResolvedValue(
+    ok({data:{...eligibilityFacts,eligible:false},context}),
+  ));
+  await expect(inconsistent.eligibilityFacts(incoming(),actor,'person-learner','equipment_operator','2026-11-04',input))
+    .rejects.toMatchObject({code:'NATIVE_LEARNING_RESPONSE_INVALID'});
+  const extra=createNativeLearningClient(nativeLearningConfiguration(config()),vi.fn().mockResolvedValue(
+    ok({data:{...eligibilityFacts,extra:true},context}),
+  ));
+  await expect(extra.eligibilityFacts(incoming(),actor,'person-learner','equipment_operator','2026-11-04',input))
+    .rejects.toMatchObject({code:'NATIVE_LEARNING_RESPONSE_INVALID'});
+  await expect(inconsistent.eligibilityFacts(incoming(),actor,'person-learner','equipment_operator','2026-02-30',input))
+    .rejects.toMatchObject({code:'NATIVE_LEARNING_REQUEST_INVALID'});
+  await expect(inconsistent.eligibilityFacts(incoming(),actor,'person-learner',' equipment_operator','2026-11-04',input))
+    .rejects.toMatchObject({code:'NATIVE_LEARNING_REQUEST_INVALID'});
+  const missing=createNativeLearningClient(nativeLearningConfiguration(config()),vi.fn().mockResolvedValue(
+    new Response(JSON.stringify({error:{code:'LEARNING_ELIGIBILITY_NOT_FOUND',message:'Not found.'}}),{status:404,headers:{'content-type':'application/json'}}),
+  ));
+  await expect(missing.eligibilityFacts(incoming(),actor,'person-learner','equipment_operator','2026-11-04',input))
+    .rejects.toMatchObject({code:'LEARNING_ELIGIBILITY_NOT_FOUND',status:404});
+ });
+
+ it('projects attendance, result and certificate read evidence behind purchase history',()=>{
+  const completed={...assignment,status:'completed',attendance:'attended',score_bps:9500,result_evidence:'Provider result and practical check',completion_reason:'Course and assessment completed',version:3};
+  const detail={courses:[course],assignments:[completed],people:[person],canWrite:true,canReview:true,actorId:'reviewer',assignment:completed,history:[event],handoff,certificate};
+  const hidden=nativeLearningProjectDetail(detail as never,{'learn.results':{history:false},'learn.certificates':{history:false}} as never);
+  expect(hidden.assignment.attendance).toBeNull();
+  expect(hidden.assignment.score_bps).toBeNull();
+  expect(hidden.assignment.result_evidence).toBeNull();
+  expect(hidden.assignment.completion_reason).toBeNull();
+  expect(hidden.assignments[0].attendance).toBeNull();
+  expect(hidden.history).toEqual([]);
+  expect(hidden.handoff).toBeNull();
+  expect(hidden.certificate).toBeNull();
+  const visible=nativeLearningProjectDetail(detail as never,undefined);
+  expect(visible.assignment.attendance).toBe('attended');
+  expect(visible.assignment.score_bps).toBe(9500);
+  expect(visible.assignment.result_evidence).toBe('Provider result and practical check');
+  expect(visible.history).toEqual([event]);
+  expect(visible.handoff).toEqual(handoff);
+  expect(visible.certificate).toEqual(certificate);
+  const workspace=nativeLearningProjectWorkspace({courses:[course],assignments:[assignment],people:[person],canWrite:true,canReview:true,actorId:'reviewer'},{'learn.results':{history:false},'learn.courses':{history:false},'people.learner-reference':{history:false}} as never);
+  expect(workspace.courses).toEqual([]);
+  expect(workspace.people).toEqual([]);
+  expect(workspace.assignments[0].attendance).toBeNull();
  });
 
  it('forwards exact course, assignment and certificate command bodies with keys',async()=>{
@@ -168,12 +251,24 @@ describe('native Learning transport',()=>{
   await expect(unknownHost.workspace(incoming({host:'evil.example.com'}),actor,input)).rejects.toMatchObject({code:'NATIVE_LEARNING_AUTHORITY_INVALID'});
  });
 
- it('fails closed when native Learning configuration is absent and retains attached completion',async()=>{
+ it('fails closed when native Learning configuration is absent and retains attached completion only when unconfigured',async()=>{
   delete process.env.ERPX_NATIVE_LEARNING_CONFIG;
   expect(nativeLearningAvailable()).toBe(false);
   expect(await nativeLearningCommandRoute(actor as never,{entity:'course',title:'Native course'},'learning-course-command-9',incoming())).toBeUndefined();
   process.env.ERPX_NATIVE_LEARNING_CONFIG=config();
-  expect(await nativeLearningCommandRoute(actor as never,{entity:'assignment',id:'learning-assignment-1',action:'complete',attachmentSetIds:['set-1']},'learning-assignment-command-9',incoming())).toBeUndefined();
+  await expect(nativeLearningCommandRoute(actor as never,{entity:'assignment',id:'learning-assignment-1',action:'complete',attachmentSetIds:['set-1']},'learning-assignment-command-9',incoming()))
+    .rejects.toMatchObject({status:422,code:'LEARNING_ATTACHMENTS_UNAVAILABLE'});
+ });
+
+ it('rejects a configured native page read instead of falling back when configuration is absent',async()=>{
+  delete process.env.ERPX_NATIVE_LEARNING_CONFIG;
+  await expect(nativeLearningWorkspacePage(actor as never,false))
+    .rejects.toMatchObject({status:503,code:'NATIVE_LEARNING_UNAVAILABLE'});
+  await expect(nativeLearningDetailPage(actor as never,'learning-assignment-1'))
+    .rejects.toMatchObject({status:503,code:'NATIVE_LEARNING_UNAVAILABLE'});
+  process.env.ERPX_NATIVE_LEARNING_CONFIG='{not-json';
+  await expect(nativeLearningWorkspacePage(actor as never,false))
+    .rejects.toMatchObject({status:503,code:'NATIVE_LEARNING_UNAVAILABLE'});
  });
 
  it('enforces the retained package preflight before a configured native command',async()=>{

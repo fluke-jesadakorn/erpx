@@ -444,7 +444,7 @@ pub struct ValidatedRevocation {
     pub reason: String,
 }
 
-fn valid_text(value: &str, max: usize) -> bool {
+pub(crate) fn valid_text(value: &str, max: usize) -> bool {
     value.len() <= max && !value.chars().any(char::is_control)
 }
 

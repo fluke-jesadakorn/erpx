@@ -120,9 +120,10 @@ function attachmentIds(value: unknown): string[] {
 
 /**
  * Native Learning command cutover for the retained `/learning` POST route.
- * Returns undefined only when configuration is unset or the bounded native
- * slice does not own an explicit private attachment completion. A configured
- * eligible command never falls back to the retained command when it fails.
+ * Returns undefined only when configuration is unset. Once configured, every
+ * owned course/assignment/certificate command uses the native owner and fails
+ * closed; an attached completion is explicitly unavailable rather than a
+ * silent legacy fallback.
  */
 export async function nativeLearningCommandRoute(
   actor: WorkContext,
@@ -196,7 +197,12 @@ export async function nativeLearningCommandRoute(
 
     const action = assignmentAction(input.action);
     const attachments = attachmentIds(input.attachmentSetIds);
-    if (action === 'complete' && attachments.length > 0) return undefined;
+    if (action === 'complete' && attachments.length > 0)
+      throw new ApiError(
+        422,
+        'LEARNING_ATTACHMENTS_UNAVAILABLE',
+        'Native Learning completion does not yet bind private attachments.',
+      );
     requirePurchase(controls, 'learn.assignments', 'settleExisting');
     if (action === 'complete' || action === 'waive') {
       requirePurchase(controls, 'learn.results', 'settleExisting');
