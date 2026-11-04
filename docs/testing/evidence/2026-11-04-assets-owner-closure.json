@@ -1,7 +1,7 @@
 {
   "version": 1,
   "date": "2026-11-04",
-  "status": "Native Assets HTTP router, Next transport/SSR cutover and the five owner workflows are implemented and owner-qualified; shared composition mounting, a native Finance acquisition-cost port and browser acceptance remain open",
+  "status": "Native Assets HTTP router, Next transport/SSR cutover, shared composition mount and the five owner workflows are implemented and owner-qualified; a native Finance acquisition-cost port and browser acceptance remain open",
   "capability": "assets-owner-closure",
   "integrationTarget": "codex/rust-backend-migration",
   "scope": {
@@ -38,17 +38,22 @@
     "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/assets/[id]/screen.tsx",
     "packages/workplace/src/routes/holdings/[holdingSlug]/services/assets/register/_screen.tsx",
     "tests/catalogue/suite-manifest.json",
-    ".env.example"
+    ".env.example",
+    "src/composition/src/asset_http.rs",
+    "src/composition/src/lib.rs",
+    "src/composition/src/private_development_api.rs",
+    "Cargo.lock"
   ],
   "tests": [
-    "cargo test -p erpx-server-assets --locked --offline -- --test-threads=1 (isolated HEAD+Assets-source copy): 44 passed (lib 4, asset_register_policy 9, asset_http_postgres 4, asset_register_postgres 16, maintenance_effects 2, maintenance_source 9)",
-    "cargo clippy -p erpx-server-assets --locked --all-targets --offline: erpx-server-assets is clean; only pre-existing erpx-server-organization warnings remain",
+    "cargo test -p erpx-server-assets --locked -- --test-threads=1: 44 passed (lib 4, asset_register_policy 9, asset_http_postgres 4, asset_register_postgres 16, maintenance_effects 2, maintenance_source 9)",
+    "cargo check -p erpx-service --locked: the shared composition including src/composition/src/asset_http.rs and the private API mount compiles",
+    "cargo clippy -p erpx-server-assets --locked --all-targets: erpx-server-assets is clean; only pre-existing erpx-server-organization warnings remain",
     "vitest tests/unit/assets/native-assets-transport.test.ts: 6 passed",
     "vitest tests/unit/shared.business-contracts/asset-maintenance-applications.test.ts: 40 passed",
     "tsc --noEmit: packages/feature-assets, packages/workplace, apps/assets and tests/config pass",
-    "assets.rust-asset-http-postgres.integration covers: normal Account session 401, unknown Host 404, wrong origin 403, missing/duplicate key 422, wrong content type 422, 70 KiB body 422, wrong Company 403 ASSETS_SCOPE_REQUIRED, wrong assignment 409 WORK_CONTEXT_CHANGED, Company/branch/department reads, foreign Company 404, branch-outsider command 404, stale version 409, placement/condition/retirement persistence and readback, independent review 403 and 200, posted-disposal 409, retired condition 409, create replay with one event/receipt/audit/outbox/cost row, and idempotency conflict 409",
-    "cargo test -p erpx-service --test module_assembly: 4 passed; the remaining organization dependency-contract drift predates this slice and is not Assets. The Assets contract itself no longer drifts.",
-    "cargo test -p erpx-server-runtime --test rust_architecture: remaining failures are pre-existing support/brand portable-core findings; no erpx-server-assets finding remains."
+    "assets.rust-asset-http-postgres.integration covers: normal Account session 401, unknown Host 404, wrong origin 403, missing/duplicate key 422, wrong content type 422, 70 KiB body 422, wrong Company 409 WORK_CONTEXT_CHANGED, wrong assignment 409 WORK_CONTEXT_CHANGED, Company/branch/department reads, foreign Company 404, branch-outsider command 404, stale version 409, placement/condition/retirement persistence and readback, independent review 403 and 200, posted-disposal 409, retired condition 409, create replay with one event/receipt/audit/outbox/cost row, and idempotency conflict 409",
+    "cargo test -p erpx-service --test module_assembly --locked: 4 passed; the remaining organization dependency-contract drift predates this slice and is not Assets. The Assets contract itself does not drift.",
+    "cargo test -p erpx-server-runtime --test rust_architecture --locked: remaining failures are pre-existing support/brand/collaboration portable-core findings; no erpx-server-assets finding remains."
   ],
   "legacy": {
     "retained": "The TypeScript asset read/write in packages/server-assets/src/adapters/assets.ts and public/asset-maintenance.ts remains because executive, operations and support integration suites still import createAsset/changeAsset. The Assets UI, SSR pages and REST route no longer call it.",
@@ -63,17 +68,19 @@
       "asset_targets.push(erpx_server_assets::public::asset_http::AssetHttpTarget { host: holding.host.clone(), holding_slug: holding.registration.slug.clone(), origin: format!(\"https://{}\", holding.host), backend: Arc::new(crate::asset_http::AssetHttpService::new(config.policy.clone(), authorizer.clone(), crate::asset_http::AssetHttpConfiguration::new(holding.registration.holding_id.clone(), company.clone()), Arc::new(SharedClock(clock.clone())), Arc::new(finance_acquisition_cost_provider)))});",
       "router = router.merge(erpx_server_assets::public::asset_http::asset_router(asset_targets).map_err(|_| \"PRIVATE_API_ASSETS_CONFIGURATION_INVALID\")?);"
     ],
-    "lockfile": "Cargo.lock was intentionally left untouched. The erpx-server-assets package needs the already-resolved axum, tower (dev), erpx-server-identity-access (dev) and erpx-server-workflow (dev) edges added to its lock entry; the main agent owns that lockfile delta.",
-    "nextEnvironment": "Set ERPX_NATIVE_ASSETS_CONFIG={privateBaseUrl:\"http://127.0.0.1:<owned-loopback-port>\",timeoutMs:250..30000,holdings:[{origin:\"https://<registered-holding>\",holdingSlug:\"<slug>\",holdingId:\"h00N\"}]} for each affected app."
+    "lockfile": "Cargo.lock now contains the erpx-server-assets edges for axum, tower (dev), erpx-server-identity-access (dev) and erpx-server-workflow (dev), committed with the composition mount.",
+    "nextEnvironment": "Set ERPX_NATIVE_ASSETS_CONFIG={privateBaseUrl:\"http://127.0.0.1:<owned-loopback-port>\",timeoutMs:250..30000,holdings:[{origin:\"https://<registered-holding>\",holdingSlug:\"<slug>\",holdingId:\"h00N\"}]} for each affected app.",
+    "appliedIn": "fea3ba4bf feat(assets): mount native HTTP/SSR and close the owner slice"
   },
   "limits": [
     "No browser or authenticated page/SSR render was executed. No Assets workflow is claimed browser-verified; the main agent runs the browser cohort.",
-    "Shared composition mounting is not applied. The exact backend/service and router merge delta is above.",
-    "No native Rust Finance acquisition-cost snapshot exists. The HTTP service requires an AcquisitionCostProvider; positive-cost registration must fail closed until the composition binds the real Finance Money handoff. The HTTP tests use the reference provider that writes the same money_transaction_snapshots identity on the request transaction.",
+    "Shared composition mounting is applied in fea3ba4bf; src/composition/src/asset_http.rs implements the reference backend and private_development_api.rs mounts the router. Browser rendering remains unverified.",
+    "The applied composition binds FinanceAssetCost, which accepts zero-cost registrations and fails positive cost closed with ASSET_ACQUISITION_COST_UNAVAILABLE. A native Rust Finance Money snapshot port remains required for real positive-cost registrations. HTTP tests use the reference test provider that writes the same money_transaction_snapshots identity on the request transaction.",
     "Commercial purchase admission remains a Next-side preflight plus UI control. The native owner command does not yet bind server-side purchase admission.",
     "Maintenance full lifecycle remains in the Maintenance owner; this slice verifies Asset-side references, placement and retirement guards.",
-    "Cargo.lock is unchanged in the worktree per the subagent constraint. Cargo verification used a temporary lock refresh that was reverted.",
-    "A concurrent agent's uncommitted src/composition/server-runtime http_support change currently breaks a clean Rust build in the shared worktree (`pub use tower` with tower only in dev-dependencies). Cargo verification ran on an isolated HEAD+Assets-source copy with the same source and passed; shared-tree verification must be repeated after that concurrent change lands.",
-    "Hosted CI, staging, private production and Cloudflare were not accessed."
+    "Cargo.lock is committed with the composition mount; no lockfile remains modified by this subagent.",
+    "A transient concurrent src/composition/server-runtime http_support build break was resolved by the owning agent; final in-tree cargo test, clippy and cargo check runs pass.",
+    "Hosted CI, staging, private production and Cloudflare were not accessed.",
+    "At the final environment check, 127.0.0.1:3100 was not listening; private 3101 and console-dev-erpx.jesadakorn.com health returned 200. No development browser/page render was attempted, and ERPX_NATIVE_ASSETS_CONFIG is not set in the current .env.local."
   ]
 }
