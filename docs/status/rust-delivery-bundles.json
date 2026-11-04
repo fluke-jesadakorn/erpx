@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-05T00:20:00+07:00",
+  "updatedAt": "2026-11-05T00:40:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -16,10 +16,10 @@
     "interpretation": "The 206 items are catalogue workflows, not the number of bounded flows. Each listed ID occurs once below. A partial item has supporting qualified slices, not whole-workflow verification."
   },
   "counts": {
-    "qualifiedBusinessFlows": 99,
+    "qualifiedBusinessFlows": 100,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 76,
+    "workflowsPartial": 77,
     "workflowsVerified": 28,
     "workflowsMerged": 28,
     "ownersComplete": 3,
@@ -4442,7 +4442,8 @@
         "field-service-parts-physical-reference-interop",
         "inventory-movements-read",
         "inventory-movements-browser",
-        "inventory-movements-merge"
+        "inventory-movements-merge",
+        "inventory-native-stock-issue"
       ],
       "sourceRef": "packages/server-inventory/src/public/inventory-transit.ts",
       "gap": "Verified the native Inventory movement-history projection across inventory_ledger sources with cursor pagination, Company/branch scope, current authority, CAS and inventory.stock-core purchase. Source-specific issue commands remain with their owning modules; the Field issue writer is native.",
@@ -5444,12 +5445,15 @@
       "kind": "module",
       "owner": "learning",
       "scope": "Eligibility handoff",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "learning-native-eligibility-facts",
+        "learning-native-eligibility-json"
+      ],
       "sourceRef": "packages/server-learning/src/public/learning.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native certificate/consumption eligibility facts and handoff JSON are qualified; downstream consumer wiring, composition mount and browser remain open."
     },
     {
       "id": "talent/requisitions",
