@@ -123,6 +123,10 @@ pub fn finance_journal_read_router<C: Clock + Send + Sync + 'static>(
             post(issue_sales_receipt::<C>),
         )
         .route(
+            "/api/v1/holdings/{holding_slug}/finance/reports",
+            get(finance_report::<C>),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/finance/charts/{id}/accounts",
             get(finance_chart_accounts::<C>).post(create_account::<C>),
         )
@@ -457,6 +461,48 @@ fn setup_target<'a, C>(
         .to_owned();
     let target = crate::http_scope::selected_company_target(&state.targets, &host, slug, headers)?;
     Ok((host, target))
+}
+
+async fn finance_report<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    headers: HeaderMap,
+    RawQuery(raw): RawQuery,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target = crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) { return Err(missing().into()); }
+        if unique_request_header(&headers, "origin")?.is_some_and(|value| value != inbound.expected_origin()) {
+            return Err(BusinessError::new(FailureKind::Forbidden, "ORIGIN_FORBIDDEN", "Use the application origin.").into());
+        }
+        let mut chart_id = None;
+        let mut period_id = None;
+        let mut start_date = None;
+        let mut end_date = None;
+        let mut seen = std::collections::BTreeSet::new();
+        for (key, value) in url::form_urlencoded::parse(raw.as_deref().unwrap_or("").as_bytes()) {
+            if value.len() > 2000 || value.chars().any(char::is_control) || !seen.insert(key.to_string()) {
+                return Err(BusinessError::invalid("FINANCE_REPORT_QUERY_INVALID", "Use a valid ledger, period and date range.").into());
+            }
+            match key.as_ref() {
+                "chart" if !value.is_empty() => chart_id = Some(value.into_owned()),
+                "periodId" if !value.is_empty() => period_id = Some(value.into_owned()),
+                "startDate" if !value.is_empty() => start_date = Some(value.into_owned()),
+                "endDate" if !value.is_empty() => end_date = Some(value.into_owned()),
+                _ => return Err(BusinessError::invalid("FINANCE_REPORT_QUERY_INVALID", "Use a valid ledger, period and date range.").into()),
+            }
+        }
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let company = target.service.company_id().clone();
+        let proof = inbound.into_proof();
+        let input = move || { scope?; captured.resolve_read(company) };
+        target.service.finance_report(host, proof, input, chart_id, period_id, start_date, end_date).await
+    }.await;
+    read_json_response(result)
 }
 
 async fn finance_chart_accounts<C: Clock + Send + Sync + 'static>(

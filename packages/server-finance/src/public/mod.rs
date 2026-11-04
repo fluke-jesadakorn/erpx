@@ -109,3 +109,5 @@ pub mod sales_invoice_edit;
 pub mod finance_invoice_read;
 
 pub mod finance_setup;
+
+pub mod finance_reports;

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-04T01:57:56+00:00",
+  "updatedAt": "2026-11-04T02:14:44+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -20,8 +20,8 @@
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
     "workflowsPartial": 0,
-    "workflowsVerified": 21,
-    "workflowsMerged": 21,
+    "workflowsVerified": 22,
+    "workflowsMerged": 22,
     "ownersComplete": 1,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -3372,6 +3372,17 @@
       "durableContractRefs": [
         "docs/contracts/next/rust-finance-journal-detail.md"
       ]
+    },
+    {
+      "id": "finance-reports-native",
+      "kind": "business-flow-evidence",
+      "status": "flow-complete",
+      "scope": "Native Finance trial balance and statements: historical base ledger amounts, period/date/chart filters, fiscal-close exclusion, Company isolation, HTTP/Next and desktop/mobile Reports page.",
+      "sourceIdentity": "21dfb7fc91736d5ced52989d24b57a80c9ea17cc",
+      "evidenceRef": "docs/testing/evidence/2026-11-04-finance-reports-native.json",
+      "durableContractRefs": [
+        "docs/contracts/next/rust-finance-journal-detail.md"
+      ]
     }
   ],
   "workflows": [
@@ -4008,11 +4019,14 @@
       "owner": "finance",
       "scope": "Reports",
       "partial": false,
-      "verified": false,
-      "merged": false,
-      "evidenceFlows": [],
+      "verified": true,
+      "merged": true,
+      "evidenceFlows": [
+        "finance-reports-native",
+        "finance-reports-browser"
+      ],
       "sourceRef": "packages/server-finance/src/public/ledger.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": ""
     },
     {
       "id": "finance/feature-period-close",
