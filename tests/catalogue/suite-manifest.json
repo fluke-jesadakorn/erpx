@@ -70635,6 +70635,42 @@
         "rust-toolchain.toml",
         "src/composition/Cargo.toml"
       ]
+    },
+    {
+      "id": "finance.rust-finance-setup-postgres.integration",
+      "lane": "integration",
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "files": [
+        "tests/integration/finance/rust-finance-setup-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PostgreSQL-backed native Finance setup retains chart/account/period creation, import, status guards, replay/idempotency, audit/outbox, Company scope and HTTP admission in the PR baseline."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "finance_setup_postgres"
+        ],
+        "features": [
+          "private-field-api"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml"
+      ]
     }
   ]
 }

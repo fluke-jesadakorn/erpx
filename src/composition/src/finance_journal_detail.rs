@@ -5,7 +5,7 @@ use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
     PurchaseRequest, lock_commercial_authority_sources,
 };
-use erpx_server_finance::public::{FinanceActor, finance_invoice_read::*, journal_detail::*, journal_list::*, journal_workspace::*, sales_defaults::*, sales_invoice_create::*, sales_invoice_edit::*, sales_invoice_list::*, sales_receipts::*};
+use erpx_server_finance::public::{FinanceActor, finance_invoice_read::*, finance_setup::*, journal_detail::*, journal_list::*, journal_workspace::*, sales_defaults::*, sales_invoice_create::*, sales_invoice_edit::*, sales_invoice_list::*, sales_receipts::*};
 use erpx_server_identity_access::public::{
     DeviceProof,
     effective_authority::{
@@ -151,6 +151,27 @@ pub struct FinanceInvoiceAgingResponse {
 }
 #[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FinanceChartAccountsResponse {
+    pub data: FinanceChartAccounts,
+    pub context: FinanceRenderedWorkContext,
+}
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FinanceChartResponse { pub data: ChartResult }
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FinanceAccountResponse { pub data: AccountResult }
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FinanceAccountImportResponse { pub data: AccountImportResult }
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FinanceAccountStatusResponse { pub data: AccountStatusResult }
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FinancePeriodResponse { pub data: PeriodResult }
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub struct FinanceSalesDefaultsWorkspaceResponse {
     pub data: SalesDefaultsWorkspace,
     pub context: FinanceRenderedWorkContext,
@@ -214,6 +235,14 @@ impl HoldingWorkSourcePreparation for ServiceInvoiceReadSources {
         })
     }
 }
+fn setup_company_scope() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Forbidden,
+        "COMPANY_SCOPE_REQUIRED",
+        "Use a Company Finance assignment for Finance setup.",
+    )
+}
+
 fn command_actor(
     current: &AuthorizedWorkContext,
 ) -> Result<SalesInvoiceCommandActor, BusinessError> {
@@ -280,6 +309,18 @@ fn command_actor(
             .unwrap_or_default(),
         iam_json,
     })
+}
+
+#[derive(Clone)]
+struct FinanceSetupSources;
+impl HoldingWorkSourcePreparation for FinanceSetupSources {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            lock_commercial_authority_sources(c).await?;
+            lock_finance_setup_sources(c).await?;
+            Ok(())
+        })
+    }
 }
 
 #[derive(Clone)]
@@ -787,6 +828,222 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                 .into());
         }
         Ok(())
+    }
+
+    pub async fn finance_chart_accounts<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        chart_id: String,
+    ) -> Result<FinanceChartAccountsResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != company { return Err(scope()); }
+            request.mutation = false;
+            Ok(request)
+        };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer.execute_with_sources_deferred(
+            host, proof, input,
+            WorkAuthorizationRequest { permission: "finance.read".into(), module: Some("finance".into()), destination: "finance/setup".into(), api: true },
+            FinanceSetupSources,
+            move |c, current| {
+                let configuration = configuration.clone();
+                let clock = clock.clone();
+                let chart_id = chart_id.clone();
+                Box::pin(async move {
+                    if current.holding_id() != &configuration.holding || current.selection().workspace().company_id != configuration.company { return Err(scope().into()); }
+                    current.require_permission("finance.read")?;
+                    current.require_permission("module.finance.read")?;
+                    let workspace = current.selection().workspace();
+                    if workspace.branch_id.is_some() || workspace.department_id.is_some() { return Err(setup_company_scope().into()); }
+                    Self::require_sales_purchase(c, current, &configuration, CapabilityPurpose::History, clock.now()).await?;
+                    let data = read_chart_accounts(c, configuration.company.as_str(), &chart_id).await?;
+                    Ok(FinanceChartAccountsResponse { data, context: rendered(current)? })
+                })
+            },
+        ).await
+    }
+
+    pub async fn create_chart<Input>(
+        &self, host: &str, proof: DeviceProof, input: Input, command: CommandKey, body: CreateChartInput,
+    ) -> Result<FinanceChartResponse, Error>
+    where Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || { let mut request = input()?; if request.company_id != company { return Err(scope()); } request.mutation = true; Ok(request) };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer.execute_with_sources_deferred(
+            host, proof, input,
+            WorkAuthorizationRequest { permission: "finance.write".into(), module: Some("finance".into()), destination: "finance/setup".into(), api: true },
+            FinanceSetupSources,
+            move |c, current| {
+                let configuration = configuration.clone();
+                let clock = clock.clone();
+                let command = command.clone();
+                let body = body.clone();
+                Box::pin(async move {
+                    if current.holding_id() != &configuration.holding || current.selection().workspace().company_id != configuration.company { return Err(scope().into()); }
+                    current.require_permission("finance.write")?;
+                    current.require_permission("module.finance.read")?;
+                    let workspace = current.selection().workspace();
+                    if workspace.branch_id.is_some() || workspace.department_id.is_some() { return Err(setup_company_scope().into()); }
+                    let now = clock.now();
+                    Self::require_sales_purchase(c, current, &configuration, CapabilityPurpose::NewWork, now).await?;
+                    let actor = command_actor(current)?;
+                    let data = create_chart(c, &actor, &command, &body, now.get()).await?;
+                    Ok(FinanceChartResponse { data })
+                })
+            },
+        ).await
+    }
+
+    pub async fn create_account<Input>(
+        &self, host: &str, proof: DeviceProof, input: Input, command: CommandKey, chart_id: String, mut body: CreateAccountInput,
+    ) -> Result<FinanceAccountResponse, Error>
+    where Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        body.chart_id = chart_id;
+        let company = self.configuration.company.clone();
+        let input = move || { let mut request = input()?; if request.company_id != company { return Err(scope()); } request.mutation = true; Ok(request) };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer.execute_with_sources_deferred(
+            host, proof, input,
+            WorkAuthorizationRequest { permission: "finance.write".into(), module: Some("finance".into()), destination: "finance/setup".into(), api: true },
+            FinanceSetupSources,
+            move |c, current| {
+                let configuration = configuration.clone();
+                let clock = clock.clone();
+                let command = command.clone();
+                let body = body.clone();
+                Box::pin(async move {
+                    if current.holding_id() != &configuration.holding || current.selection().workspace().company_id != configuration.company { return Err(scope().into()); }
+                    current.require_permission("finance.write")?;
+                    current.require_permission("module.finance.read")?;
+                    let workspace = current.selection().workspace();
+                    if workspace.branch_id.is_some() || workspace.department_id.is_some() { return Err(setup_company_scope().into()); }
+                    let now = clock.now();
+                    Self::require_sales_purchase(c, current, &configuration, CapabilityPurpose::NewWork, now).await?;
+                    let actor = command_actor(current)?;
+                    let data = create_account(c, &actor, &command, &body, now.get()).await?;
+                    Ok(FinanceAccountResponse { data })
+                })
+            },
+        ).await
+    }
+
+    pub async fn import_accounts<Input>(
+        &self, host: &str, proof: DeviceProof, input: Input, command: CommandKey, body: ImportAccountsInput,
+    ) -> Result<FinanceAccountImportResponse, Error>
+    where Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || { let mut request = input()?; if request.company_id != company { return Err(scope()); } request.mutation = true; Ok(request) };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer.execute_with_sources_deferred(
+            host, proof, input,
+            WorkAuthorizationRequest { permission: "finance.write".into(), module: Some("finance".into()), destination: "finance/setup".into(), api: true },
+            FinanceSetupSources,
+            move |c, current| {
+                let configuration = configuration.clone();
+                let clock = clock.clone();
+                let command = command.clone();
+                let body = body.clone();
+                Box::pin(async move {
+                    if current.holding_id() != &configuration.holding || current.selection().workspace().company_id != configuration.company { return Err(scope().into()); }
+                    current.require_permission("finance.write")?;
+                    current.require_permission("module.finance.read")?;
+                    let workspace = current.selection().workspace();
+                    if workspace.branch_id.is_some() || workspace.department_id.is_some() { return Err(setup_company_scope().into()); }
+                    let now = clock.now();
+                    Self::require_sales_purchase(c, current, &configuration, CapabilityPurpose::NewWork, now).await?;
+                    let actor = command_actor(current)?;
+                    let data = import_accounts(c, &actor, &command, &body, now.get()).await?;
+                    Ok(FinanceAccountImportResponse { data })
+                })
+            },
+        ).await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn change_account_status<Input>(
+        &self, host: &str, proof: DeviceProof, input: Input, command: CommandKey, chart_id: String, account_id: String, body: ChangeAccountStatusInput,
+    ) -> Result<FinanceAccountStatusResponse, Error>
+    where Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let purpose = if body.status == "active" { CapabilityPurpose::NewWork } else { CapabilityPurpose::History };
+        let company = self.configuration.company.clone();
+        let input = move || { let mut request = input()?; if request.company_id != company { return Err(scope()); } request.mutation = true; Ok(request) };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer.execute_with_sources_deferred(
+            host, proof, input,
+            WorkAuthorizationRequest { permission: "finance.write".into(), module: Some("finance".into()), destination: "finance/setup".into(), api: true },
+            FinanceSetupSources,
+            move |c, current| {
+                let configuration = configuration.clone();
+                let clock = clock.clone();
+                let command = command.clone();
+                let chart_id = chart_id.clone();
+                let account_id = account_id.clone();
+                let body = body.clone();
+                Box::pin(async move {
+                    if current.holding_id() != &configuration.holding || current.selection().workspace().company_id != configuration.company { return Err(scope().into()); }
+                    current.require_permission("finance.write")?;
+                    current.require_permission("module.finance.read")?;
+                    let workspace = current.selection().workspace();
+                    if workspace.branch_id.is_some() || workspace.department_id.is_some() { return Err(setup_company_scope().into()); }
+                    let now = clock.now();
+                    Self::require_sales_purchase(c, current, &configuration, purpose, now).await?;
+                    let actor = command_actor(current)?;
+                    let data = change_account_status(c, &actor, &command, &chart_id, &account_id, &body, now.get()).await?;
+                    Ok(FinanceAccountStatusResponse { data })
+                })
+            },
+        ).await
+    }
+
+    pub async fn create_period<Input>(
+        &self, host: &str, proof: DeviceProof, input: Input, command: CommandKey, body: CreatePeriodInput,
+    ) -> Result<FinancePeriodResponse, Error>
+    where Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || { let mut request = input()?; if request.company_id != company { return Err(scope()); } request.mutation = true; Ok(request) };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer.execute_with_sources_deferred(
+            host, proof, input,
+            WorkAuthorizationRequest { permission: "finance.write".into(), module: Some("finance".into()), destination: "finance/setup".into(), api: true },
+            FinanceSetupSources,
+            move |c, current| {
+                let configuration = configuration.clone();
+                let clock = clock.clone();
+                let command = command.clone();
+                let body = body.clone();
+                Box::pin(async move {
+                    if current.holding_id() != &configuration.holding || current.selection().workspace().company_id != configuration.company { return Err(scope().into()); }
+                    current.require_permission("finance.write")?;
+                    current.require_permission("module.finance.read")?;
+                    let workspace = current.selection().workspace();
+                    if workspace.branch_id.is_some() || workspace.department_id.is_some() { return Err(setup_company_scope().into()); }
+                    let now = clock.now();
+                    Self::require_sales_purchase(c, current, &configuration, CapabilityPurpose::NewWork, now).await?;
+                    let actor = command_actor(current)?;
+                    let data = create_period(c, &actor, &command, &body, now.get()).await?;
+                    Ok(FinancePeriodResponse { data })
+                })
+            },
+        ).await
     }
 
     pub async fn finance_invoices_page<Input>(
