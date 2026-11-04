@@ -131,3 +131,5 @@ export async function nativeOrganizationWorkspace(
   );
   return await native.workspace(incoming, context(actor), search.toString());
 }
+
+export {nativeOrganizationFailure} from '../adapters/server/native-organization';

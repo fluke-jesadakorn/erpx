@@ -86,59 +86,66 @@ impl OperatorTrustStore {
 
     /// Read a prepared private trust directory; symbolic links and special files are refused.
     pub fn from_directory(directory: &Path) -> Result<Self, String> {
-        if !fs::symlink_metadata(directory)
-            .map_err(|_| "TRUST_DIRECTORY_UNAVAILABLE")?
-            .is_dir()
-        {
-            return Err("TRUST_DIRECTORY_SPECIAL_FILE".to_owned());
-        }
-        let mut materials = Vec::new();
-        let mut total = 0;
-        for kind in ["roots", "intermediates", "revocation"] {
-            match fs::symlink_metadata(directory.join(kind)) {
-                Ok(metadata) if metadata.is_dir() => {}
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-                _ => return Err("TRUST_DIRECTORY_SPECIAL_FILE".to_owned()),
-            }
-            let entries = match fs::read_dir(directory.join(kind)) {
-                Ok(entries) => entries,
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-                Err(_) => return Err("TRUST_DIRECTORY_UNAVAILABLE".to_owned()),
-            };
-            for entry in entries {
-                let entry = entry.map_err(|_| "TRUST_DIRECTORY_UNAVAILABLE")?;
-                if !entry
-                    .file_type()
-                    .map_err(|_| "TRUST_DIRECTORY_UNAVAILABLE")?
-                    .is_file()
-                {
-                    return Err("TRUST_DIRECTORY_SPECIAL_FILE".to_owned());
-                }
-                let name = entry
-                    .file_name()
-                    .into_string()
-                    .map_err(|_| "INVALID_TRUST_MATERIAL_PATH")?;
-                let file =
-                    fs::File::open(entry.path()).map_err(|_| "TRUST_DIRECTORY_UNAVAILABLE")?;
-                let mut content = Vec::new();
-                file.take(4 * 1024 * 1024 + 1)
-                    .read_to_end(&mut content)
-                    .map_err(|_| "TRUST_DIRECTORY_UNAVAILABLE")?;
-                total += content.len();
-                if content.len() > 4 * 1024 * 1024 || total > 32 * 1024 * 1024 {
-                    return Err("TRUST_MATERIAL_LIMIT".to_owned());
-                }
-                materials.push(TrustMaterial {
-                    path: format!("{kind}/{name}"),
-                    content,
-                });
-                if materials.len() > 100 {
-                    return Err("TRUST_MATERIAL_LIMIT".to_owned());
-                }
-            }
-        }
-        Self::from_materials(materials)
+        Self::from_materials(read_trust_directory(directory)?)
     }
+}
+
+/// Read one prepared operator trust directory without following links or
+/// accepting special files. This is shared by the offline CLI and the
+/// supervised production entrypoint; neither selects material by request data.
+pub fn read_trust_directory(directory: &Path) -> Result<Vec<TrustMaterial>, String> {
+    if !fs::symlink_metadata(directory)
+        .map_err(|_| "TRUST_DIRECTORY_UNAVAILABLE")?
+        .is_dir()
+    {
+        return Err("TRUST_DIRECTORY_SPECIAL_FILE".to_owned());
+    }
+    let mut materials = Vec::new();
+    let mut total = 0;
+    for kind in ["roots", "intermediates", "revocation"] {
+        match fs::symlink_metadata(directory.join(kind)) {
+            Ok(metadata) if metadata.is_dir() => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            _ => return Err("TRUST_DIRECTORY_SPECIAL_FILE".to_owned()),
+        }
+        let entries = match fs::read_dir(directory.join(kind)) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(_) => return Err("TRUST_DIRECTORY_UNAVAILABLE".to_owned()),
+        };
+        for entry in entries {
+            let entry = entry.map_err(|_| "TRUST_DIRECTORY_UNAVAILABLE")?;
+            if !entry
+                .file_type()
+                .map_err(|_| "TRUST_DIRECTORY_UNAVAILABLE")?
+                .is_file()
+            {
+                return Err("TRUST_DIRECTORY_SPECIAL_FILE".to_owned());
+            }
+            let name = entry
+                .file_name()
+                .into_string()
+                .map_err(|_| "INVALID_TRUST_MATERIAL_PATH")?;
+            let file = fs::File::open(entry.path()).map_err(|_| "TRUST_DIRECTORY_UNAVAILABLE")?;
+            let mut content = Vec::new();
+            file.take(4 * 1024 * 1024 + 1)
+                .read_to_end(&mut content)
+                .map_err(|_| "TRUST_DIRECTORY_UNAVAILABLE")?;
+            total += content.len();
+            if content.len() > 4 * 1024 * 1024 || total > 32 * 1024 * 1024 {
+                return Err("TRUST_MATERIAL_LIMIT".to_owned());
+            }
+            materials.push(TrustMaterial {
+                path: format!("{kind}/{name}"),
+                content,
+            });
+            if materials.len() > 100 {
+                return Err("TRUST_MATERIAL_LIMIT".to_owned());
+            }
+        }
+    }
+    materials.sort_by(|left, right| left.path.cmp(&right.path));
+    Ok(materials)
 }
 
 pub(crate) fn material_digest(materials: &[TrustMaterial]) -> Result<String, String> {

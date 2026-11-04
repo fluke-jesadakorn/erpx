@@ -17,8 +17,7 @@ import { expenseRoute } from "@erpx/server-people_payroll/public/expense-routing
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { holdingResources } from "../../../../../../../../../../packages/server-runtime/src/public/runtime";
 import {organizationOverview,positionSchema,savePosition,organizationTemplateSchema,saveOrganizationTemplate,applyOrganizationTemplateSchema,applyOrganizationTemplate,installStaffLevels,organizationNodeChangeSchema,organizationNodeDecisionSchema,previewOrganizationNodeChange,saveOrganizationNodeChange,decideOrganizationNodeChange,cancelOrganizationNodeChange} from '@erpx/server-organization/public/organization';
-import { nativeOrganizationChange } from "@erpx/feature-organization/lib/native-organization";
-import { nativeOrganizationFailure } from "@erpx/feature-organization/adapters/server/native-organization";
+import { nativeOrganizationChange, nativeOrganizationFailure } from "@erpx/feature-organization/lib/native-organization";
 import { companyBusinessAcceptance, companyAcceptanceSubmitSchema, companyAcceptanceDecisionSchema, companyAcceptanceRevokeSchema, submitCompanyBusinessAcceptance, decideCompanyBusinessAcceptance, revokeCompanyBusinessAcceptance } from "@erpx/server-finance/public/company-business-acceptance";
 import { grantSchema,grantPersonAccess,revokePersonAccess,invitePerson,retryInvitationDelivery,revokeInvitation } from "@erpx/server-identity_access/public/account-access";
 import { directorySchema, directoryUpdateSchema, directoryStatusSchema, saveDirectoryPerson, setDirectoryStatus } from "@erpx/server-people_payroll/public/people-directory";

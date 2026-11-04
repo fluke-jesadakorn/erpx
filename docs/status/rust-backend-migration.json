@@ -254,13 +254,13 @@
         "http": "pending",
         "ssr": "pending",
         "jobs": "foundation",
-        "providers": "foundation"
+        "providers": "partial"
       },
       "capabilities": {
         "offlinePdfValidation": {
-          "implementation": "candidate",
+          "implementation": "active",
           "conformance": "in-progress",
-          "runtimeBinding": "pending"
+          "runtimeBinding": "operator-supplied"
         }
       }
     },

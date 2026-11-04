@@ -9,7 +9,9 @@ pub use crate::adapters::pdf_resource_limits::{
     PDF_CHILD_DATA_LIMIT, enforce_pdf_child_resource_limits,
 };
 #[cfg(feature = "pdf-verifier")]
-pub use crate::adapters::pdf_validation::{OperatorTrustStore, TrustMaterial, validate_signed_pdf};
+pub use crate::adapters::pdf_validation::{
+    OperatorTrustStore, TrustMaterial, read_trust_directory, validate_signed_pdf,
+};
 #[cfg(feature = "pdf-verifier")]
 pub use crate::adapters::postgres_pdf_verification::{
     PgLegalPdfVerificationBridge, PgPdfVerificationRepository,

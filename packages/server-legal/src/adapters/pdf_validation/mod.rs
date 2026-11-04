@@ -8,7 +8,7 @@ use crate::application::pdf_validation::{finish_report, finish_signature};
 use crate::domain::pdf_validation::{PdfValidationReport, SignatureValidation, ValidationState};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 pub(crate) use trust::material_digest;
-pub use trust::{OperatorTrustStore, TrustMaterial};
+pub use trust::{OperatorTrustStore, TrustMaterial, read_trust_directory};
 
 /// Verify one immutable PDF version using only approved, supplied evidence.
 /// No network client or platform certificate store is available to this adapter.

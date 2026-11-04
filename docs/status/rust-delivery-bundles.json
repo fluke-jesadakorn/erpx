@@ -19,7 +19,7 @@
     "qualifiedBusinessFlows": 30,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 0,
+    "workflowsPartial": 6,
     "workflowsVerified": 23,
     "workflowsMerged": 23,
     "ownersComplete": 1,
@@ -3581,48 +3581,48 @@
       "kind": "module",
       "owner": "organization",
       "scope": "Organization tree",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-organization/src/public/organization.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native node-tree read and HTTP ingress are qualified; the page GET still uses the retained overview (People roster/positions are separate owners) and no browser journey is recorded."
     },
     {
       "id": "organization/sharing",
       "kind": "module",
       "owner": "organization",
       "scope": "Sharing",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-organization/src/public/organization.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native business-unit/channel sharing reads and command guards are qualified; the page GET and browser journey remain open."
     },
     {
       "id": "organization/feature-node-lifecycle",
       "kind": "module",
       "owner": "organization",
       "scope": "Node lifecycle",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-organization/src/public/organization.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native node lifecycle save/preview/independent review/cancel commands are PostgreSQL/HTTP qualified with immutable events, CAS and relocation rollback; the page GET and browser journey remain open."
     },
     {
       "id": "organization/feature-business-units",
       "kind": "module",
       "owner": "organization",
       "scope": "Business units",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-organization/src/public/organization.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native business-unit visibility and channel audience rules are qualified in the node workspace/commands; the page GET and browser journey remain open."
     },
     {
       "id": "platform_administration/provisioning",
@@ -4306,24 +4306,24 @@
       "kind": "module",
       "owner": "inventory",
       "scope": "Stock register",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native stock-register read, HTTP and opt-in Next SSR are qualified with lot/count reconciliation; browser and initial physical-stock writes remain open."
     },
     {
       "id": "inventory/feature-receipts",
       "kind": "module",
       "owner": "inventory",
       "scope": "Receipts",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native receipt source/guards and HTTP source read are qualified; the Commerce fulfillment command still posts through the retained path and browser evidence remains open."
     },
     {
       "id": "inventory/feature-issues-movements",

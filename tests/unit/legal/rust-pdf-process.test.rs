@@ -192,6 +192,144 @@ async fn await_child(root: &Path) {
     }
 }
 
+fn write_corpus_trust(case: &serde_json::Value, root: &Path) -> PathBuf {
+    let trust = root.join("trust");
+    for part in ["roots", "intermediates", "revocation"] {
+        fs::create_dir_all(trust.join(part)).unwrap();
+    }
+    for material in case["trust"].as_array().unwrap() {
+        let path = trust.join(material["path"].as_str().unwrap());
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(
+            path,
+            hex::decode(material["hex"].as_str().unwrap()).unwrap(),
+        )
+        .unwrap();
+    }
+    trust
+}
+
+fn corpus_case(source: &str, name: &str) -> (serde_json::Value, String) {
+    let corpus: serde_json::Value = serde_json::from_str(source).unwrap();
+    let case = corpus["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|case| case["name"] == name)
+        .unwrap()
+        .clone();
+    (case, corpus["validationTime"].as_str().unwrap().to_owned())
+}
+
+fn run_supervisor(pdf: &Path, trust: &Path, moment: &str) -> serde_json::Value {
+    let output = Command::new(Path::new(env!("CARGO_BIN_EXE_erpx-verify-pdf")))
+        .arg(pdf)
+        .arg(trust)
+        .arg(moment)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "supervisor failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    serde_json::from_slice(&output.stdout).unwrap()
+}
+
+#[test]
+fn supervised_entrypoint_preserves_three_state_outcomes_and_offline_trust() {
+    let source = include_str!("../../../fixtures/legal/pdf-signatures/conformance.v1.json");
+    for (name, expected, signatures, required_path) in [
+        ("trusted_crl", "valid", 1, "valid"),
+        ("trusted_ocsp", "valid", 1, "valid"),
+        ("permitted_form_fill", "valid", 1, "valid"),
+        ("revoked_signer_crl", "invalid", 1, "indeterminate"),
+        ("revoked_signer_ocsp", "invalid", 1, "indeterminate"),
+        ("modified_signed_content", "invalid", 1, "indeterminate"),
+        ("forbidden_form_fill", "invalid", 1, "valid"),
+        ("missing_timestamp", "indeterminate", 1, "valid"),
+        ("stale_ocsp", "indeterminate", 1, "indeterminate"),
+        ("untrusted_root", "indeterminate", 1, "indeterminate"),
+        ("unsigned", "indeterminate", 0, "indeterminate"),
+    ] {
+        let (case, moment) = corpus_case(source, name);
+        let root = private_tempdir();
+        let pdf = root.path().join("document.pdf");
+        fs::write(&pdf, hex::decode(case["pdfHex"].as_str().unwrap()).unwrap()).unwrap();
+        let trust = write_corpus_trust(&case, root.path());
+        let report = run_supervisor(&pdf, &trust, &moment);
+        assert_eq!(report["status"], expected, "{name}: {report}");
+        assert_eq!(
+            report["signatures"].as_array().unwrap().len(),
+            signatures,
+            "{name}: {report}"
+        );
+        if signatures == 1 {
+            assert_eq!(
+                report["signatures"][0]["requiredCertificateChain"], required_path,
+                "{name}: {report}"
+            );
+        }
+        if name == "unsigned" {
+            assert_eq!(report["reasons"][0], "NO_EMBEDDED_SIGNATURES");
+        }
+        if name == "modified_signed_content" {
+            assert_eq!(report["signatures"][0]["integrity"], "invalid");
+        }
+        if name == "forbidden_form_fill" {
+            assert_eq!(report["signatures"][0]["policy"], "invalid");
+            assert!(
+                report["signatures"][0]["reasons"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|reason| reason == "DOCUMENT_MODIFICATION_POLICY_FAILURE")
+            );
+        }
+    }
+}
+
+#[test]
+fn supervised_entrypoint_fails_closed_without_bounded_operator_material() {
+    let source = include_str!("../../../fixtures/legal/pdf-signatures/conformance.v1.json");
+    let (case, moment) = corpus_case(source, "trusted_crl");
+    let root = private_tempdir();
+    let pdf = root.path().join("document.pdf");
+    fs::write(&pdf, hex::decode(case["pdfHex"].as_str().unwrap()).unwrap()).unwrap();
+
+    let missing = run_supervisor(&pdf, &root.path().join("missing-trust"), &moment);
+    assert_eq!(missing["status"], "indeterminate");
+    assert_eq!(missing["reasons"][1], "TRUST_DIRECTORY_UNAVAILABLE");
+
+    let invalid_time = run_supervisor(
+        &pdf,
+        &write_corpus_trust(&case, root.path()),
+        "not-a-validation-time",
+    );
+    assert_eq!(invalid_time["status"], "indeterminate");
+    assert_eq!(invalid_time["reasons"][1], "INVALID_VALIDATION_TIME");
+
+    #[cfg(unix)]
+    {
+        let linked = private_tempdir();
+        fs::create_dir_all(linked.path().join("roots")).unwrap();
+        std::os::unix::fs::symlink(
+            root.path().join("document.pdf"),
+            linked.path().join("roots/root.pem"),
+        )
+        .unwrap();
+        let report = run_supervisor(&pdf, linked.path(), &moment);
+        assert_eq!(report["status"], "indeterminate");
+        assert_eq!(report["reasons"][1], "TRUST_DIRECTORY_SPECIAL_FILE");
+    }
+
+    let oversized = root.path().join("oversized.pdf");
+    fs::write(&oversized, vec![0u8; PDF_BUSINESS_LIMIT + 1]).unwrap();
+    let report = run_supervisor(&oversized, &root.path().join("missing-trust"), &moment);
+    assert_eq!(report["status"], "indeterminate");
+    assert_eq!(report["reasons"][1], "PDF_SIZE_LIMIT");
+}
+
 #[tokio::test]
 async fn actual_rust_child_verifies_and_binds_approved_company_material() {
     let root = private_tempdir();

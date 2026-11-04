@@ -27,8 +27,7 @@
     "./lib/gpo-rules": "./src/lib/gpo-rules.ts",
     "./lib/organization-presentation": "./src/lib/organization-presentation.ts",
     "./lib/organization-access": "./src/lib/organization-access.ts",
-    "./lib/native-organization": "./src/lib/native-organization.ts",
-    "./adapters/server/native-organization": "./src/adapters/server/native-organization.ts"
+    "./lib/native-organization": "./src/lib/native-organization.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

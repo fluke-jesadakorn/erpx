@@ -1,7 +1,203 @@
 use erpx_server_legal::public::{
-    OperatorTrustStore, TrustMaterial, ValidationState, validate_signed_pdf,
+    OperatorTrustStore, TrustMaterial, ValidationState, read_trust_directory, validate_signed_pdf,
 };
+use std::fs;
+use tempfile::TempDir;
 use time::macros::datetime;
+
+fn private_tempdir() -> TempDir {
+    let mut builder = tempfile::Builder::new();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        builder.permissions(fs::Permissions::from_mode(0o700));
+    }
+    builder.tempdir().unwrap()
+}
+
+fn corpus_case(source: &str, name: &str) -> serde_json::Value {
+    let corpus: serde_json::Value = serde_json::from_str(source).unwrap();
+    corpus["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|case| case["name"] == name)
+        .unwrap()
+        .clone()
+}
+
+fn corpus_moment() -> time::OffsetDateTime {
+    time::OffsetDateTime::parse(
+        "2026-10-27T06:00:00Z",
+        &time::format_description::well_known::Rfc3339,
+    )
+    .unwrap()
+}
+
+#[test]
+fn missing_operator_roots_can_never_become_a_trusted_signature() {
+    let source = include_str!("../../../fixtures/legal/pdf-signatures/conformance.v1.json");
+    let case = corpus_case(source, "trusted_crl");
+    let pdf = hex::decode(case["pdfHex"].as_str().unwrap()).unwrap();
+    // Same signed bytes and revocation evidence, but no operator root.
+    let trust = OperatorTrustStore::from_materials(
+        case["trust"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|item| item["path"].as_str().unwrap().starts_with("revocation/"))
+            .map(|item| TrustMaterial {
+                path: item["path"].as_str().unwrap().to_owned(),
+                content: hex::decode(item["hex"].as_str().unwrap()).unwrap(),
+            })
+            .collect(),
+    )
+    .unwrap();
+    let report = validate_signed_pdf(&pdf, &trust, corpus_moment());
+    assert_ne!(report.status, ValidationState::Valid);
+    assert_eq!(report.signatures[0].integrity, ValidationState::Valid);
+    assert_eq!(
+        report.signatures[0].required_certificate_chain,
+        ValidationState::Indeterminate
+    );
+    assert!(
+        report.signatures[0]
+            .reasons
+            .iter()
+            .any(|reason| reason == "NO_OPERATOR_TRUST_ROOTS"),
+        "{:?}",
+        report.signatures[0]
+    );
+}
+
+#[test]
+fn operator_trust_directory_refuses_links_special_files_and_oversized_material() {
+    let root = private_tempdir();
+    let trust = root.path().join("trust");
+    for part in ["roots", "intermediates", "revocation"] {
+        fs::create_dir_all(trust.join(part)).unwrap();
+    }
+    let source = include_str!("../../../fixtures/legal/pdf-signatures/conformance.v1.json");
+    let case = corpus_case(source, "trusted_crl");
+    for material in case["trust"].as_array().unwrap() {
+        fs::write(
+            trust.join(material["path"].as_str().unwrap()),
+            hex::decode(material["hex"].as_str().unwrap()).unwrap(),
+        )
+        .unwrap();
+    }
+    let loaded = read_trust_directory(&trust).unwrap();
+    assert_eq!(loaded.len(), case["trust"].as_array().unwrap().len());
+    assert!(loaded.windows(2).all(|pair| pair[0].path < pair[1].path));
+
+    #[cfg(unix)]
+    {
+        let linked = private_tempdir();
+        for part in ["roots", "intermediates", "revocation"] {
+            fs::create_dir_all(linked.path().join(part)).unwrap();
+        }
+        std::os::unix::fs::symlink(
+            trust.join("roots/root.pem"),
+            linked.path().join("roots/root.pem"),
+        )
+        .unwrap();
+        assert_eq!(
+            read_trust_directory(linked.path()).unwrap_err(),
+            "TRUST_DIRECTORY_SPECIAL_FILE"
+        );
+
+        let linked_directory = private_tempdir();
+        for part in ["roots", "intermediates", "revocation"] {
+            fs::create_dir_all(linked_directory.path().join(part)).unwrap();
+        }
+        fs::remove_dir(linked_directory.path().join("revocation")).unwrap();
+        std::os::unix::fs::symlink(
+            trust.join("revocation"),
+            linked_directory.path().join("revocation"),
+        )
+        .unwrap();
+        assert_eq!(
+            read_trust_directory(linked_directory.path()).unwrap_err(),
+            "TRUST_DIRECTORY_SPECIAL_FILE"
+        );
+    }
+
+    fs::create_dir_all(trust.join("roots/nested.pem")).unwrap();
+    assert_eq!(
+        read_trust_directory(&trust).unwrap_err(),
+        "TRUST_DIRECTORY_SPECIAL_FILE"
+    );
+    fs::remove_dir_all(trust.join("roots/nested.pem")).unwrap();
+
+    fs::write(
+        trust.join("roots/oversized.pem"),
+        vec![0u8; 4 * 1024 * 1024 + 1],
+    )
+    .unwrap();
+    assert_eq!(
+        read_trust_directory(&trust).unwrap_err(),
+        "TRUST_MATERIAL_LIMIT"
+    );
+}
+
+#[test]
+fn trust_material_list_refuses_duplicates_and_excess_items() {
+    let source = include_str!("../../../fixtures/legal/pdf-signatures/conformance.v1.json");
+    let case = corpus_case(source, "trusted_crl");
+    let root = case["trust"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|item| item["path"].as_str().unwrap().starts_with("roots/"))
+        .unwrap();
+    let duplicate = TrustMaterial {
+        path: root["path"].as_str().unwrap().to_owned(),
+        content: hex::decode(root["hex"].as_str().unwrap()).unwrap(),
+    };
+    assert_eq!(
+        OperatorTrustStore::from_materials(vec![duplicate.clone(), duplicate])
+            .err()
+            .unwrap(),
+        "DUPLICATE_TRUST_MATERIAL"
+    );
+    let excessive = (0..101)
+        .map(|index| TrustMaterial {
+            path: format!("roots/{index}.pem"),
+            content: Vec::new(),
+        })
+        .collect();
+    assert_eq!(
+        OperatorTrustStore::from_materials(excessive).err().unwrap(),
+        "TRUST_MATERIAL_LIMIT"
+    );
+    for (path, content, expected) in [
+        (
+            "roots/root.pem",
+            b"-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----\n".to_vec(),
+            "INVALID_TRUST_CERTIFICATE",
+        ),
+        (
+            "revocation/root.crl",
+            b"not a crl".to_vec(),
+            "INVALID_TRUST_CRL",
+        ),
+        (
+            "revocation/root.ocsp",
+            b"not an ocsp response".to_vec(),
+            "INVALID_TRUST_OCSP",
+        ),
+    ] {
+        assert_eq!(
+            OperatorTrustStore::from_materials(vec![TrustMaterial {
+                path: path.to_owned(),
+                content,
+            }])
+            .err()
+            .unwrap(),
+            expected
+        );
+    }
+}
 
 #[test]
 fn malformed_pdf_never_claims_signature_validity() {
