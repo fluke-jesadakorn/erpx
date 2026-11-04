@@ -134,13 +134,13 @@
     {
       "id": "pos",
       "package": "erpx-server-pos",
-      "phase": "pending",
+      "phase": "partial",
       "businessMigrationComplete": false,
       "surfaces": {
-        "domain": "pending",
-        "application": "pending",
-        "http": "pending",
-        "ssr": "pending",
+        "domain": "active",
+        "application": "active",
+        "http": "partial",
+        "ssr": "partial",
         "jobs": "pending",
         "providers": "pending"
       }
@@ -281,13 +281,13 @@
     {
       "id": "crm",
       "package": "erpx-server-crm",
-      "phase": "pending",
+      "phase": "partial",
       "businessMigrationComplete": false,
       "surfaces": {
-        "domain": "pending",
-        "application": "pending",
-        "http": "pending",
-        "ssr": "pending",
+        "domain": "active",
+        "application": "active",
+        "http": "partial",
+        "ssr": "partial",
         "jobs": "pending",
         "providers": "pending"
       }
@@ -309,13 +309,13 @@
     {
       "id": "manufacturing",
       "package": "erpx-server-manufacturing",
-      "phase": "pending",
+      "phase": "partial",
       "businessMigrationComplete": false,
       "surfaces": {
-        "domain": "pending",
-        "application": "pending",
-        "http": "pending",
-        "ssr": "pending",
+        "domain": "active",
+        "application": "active",
+        "http": "partial",
+        "ssr": "partial",
         "jobs": "pending",
         "providers": "pending"
       }
