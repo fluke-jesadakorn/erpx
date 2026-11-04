@@ -80,7 +80,7 @@ export function createNativeServiceInvoiceReader(raw:string,transport?:NativeFin
  };
 }
 export const nativeServiceInvoiceWorkspace=cache(async(actor:NativeJournalPageContext,holdingSlug:string,id:string)=>{
- const raw=process.env.ERPX_NATIVE_FINANCE_SERVICE_INVOICE_CONFIG;if(raw===undefined)throw new NativeFinanceReadError('NATIVE_FINANCE_CONFIGURATION_REQUIRED');
+ const raw=process.env.ERPX_NATIVE_FINANCE_SERVICE_INVOICE_CONFIG;if(raw===undefined)return undefined;
  return createNativeServiceInvoiceReader(raw)(actor,await headers(),holdingSlug,id);
 });
 

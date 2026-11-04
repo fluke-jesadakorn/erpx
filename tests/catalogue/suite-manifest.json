@@ -70563,6 +70563,42 @@
         "rust-toolchain.toml",
         "src/composition/Cargo.toml"
       ]
+    },
+    {
+      "id": "finance.rust-sales-invoice-edit-postgres.integration",
+      "lane": "integration",
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "files": [
+        "tests/integration/finance/rust-sales-invoice-edit-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PostgreSQL-backed native standalone sales-invoice edit/void retains expected-version guards, line revision, Money snapshot, command receipt/idempotency, audit/outbox, whole-document and non-owned paths, and HTTP admission in the PR baseline."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "sales_invoice_edit_postgres"
+        ],
+        "features": [
+          "private-field-api"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml"
+      ]
     }
   ]
 }

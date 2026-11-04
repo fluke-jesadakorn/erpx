@@ -123,6 +123,14 @@ pub fn finance_journal_read_router<C: Clock + Send + Sync + 'static>(
             post(issue_sales_receipt::<C>),
         )
         .route(
+            "/api/v1/holdings/{holding_slug}/finance/invoices/{id}",
+            post(edit_sales_invoice::<C>),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/invoices/{id}/void",
+            post(void_sales_invoice::<C>),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/finance/journals/{id}",
             get(detail::<C>),
         )
@@ -236,6 +244,148 @@ async fn workspace<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     read(state, slug, id, headers, true).await
 }
+fn not_owned() -> Response {
+    business_error(BusinessError::new(
+        FailureKind::NotFound,
+        "NATIVE_INVOICE_NOT_OWNED",
+        "This invoice belongs to another Finance workflow.",
+    ))
+}
+
+async fn edit_sales_invoice<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(request.headers(), "host")?
+            .ok_or_else(missing)?
+            .to_owned();
+        let target = crate::http_scope::selected_company_target(&state.targets, &host, &slug, request.headers())?;
+        let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(request.headers(), "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let key = unique_request_header(request.headers(), "idempotency-key")?
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                BusinessError::invalid("IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required.")
+            })?;
+        let command = CommandKey::new(key.to_owned())?;
+        let scope = state.scopes.slugs(request.headers());
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(request.headers(), branch, department);
+        let body = to_bytes(request.into_body(), 128 * 1024)
+            .await
+            .map_err(|_| BusinessError::invalid("BODY_TOO_LARGE", "Use a smaller request."))?;
+        let input: erpx_server_finance::public::sales_invoice_edit::SalesInvoiceEditInput =
+            serde_json::from_slice(&body).map_err(|_| {
+                BusinessError::invalid("INVALID_SALES_INVOICE", "Use a valid sales invoice request.")
+            })?;
+        let proof = inbound.into_proof();
+        target
+            .service
+            .edit_sales_invoice(
+                &host,
+                proof,
+                move || {
+                    scope?;
+                    captured.resolve()
+                },
+                command,
+                id,
+                input,
+            )
+            .await
+    }
+    .await;
+    let mut response = match result {
+        Ok(Some(reply)) => (StatusCode::OK, Json(reply)).into_response(),
+        Ok(None) => not_owned(),
+        Err(PgTransactionError::Business(error)) => business_error(error),
+        Err(_) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
+    };
+    no_store(&mut response);
+    response
+}
+
+async fn void_sales_invoice<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(request.headers(), "host")?
+            .ok_or_else(missing)?
+            .to_owned();
+        let target = crate::http_scope::selected_company_target(&state.targets, &host, &slug, request.headers())?;
+        let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(request.headers(), "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let key = unique_request_header(request.headers(), "idempotency-key")?
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                BusinessError::invalid("IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required.")
+            })?;
+        let command = CommandKey::new(key.to_owned())?;
+        let scope = state.scopes.slugs(request.headers());
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(request.headers(), branch, department);
+        let body = to_bytes(request.into_body(), 128 * 1024)
+            .await
+            .map_err(|_| BusinessError::invalid("BODY_TOO_LARGE", "Use a smaller request."))?;
+        let input: erpx_server_finance::public::sales_invoice_edit::SalesInvoiceVoidInput =
+            serde_json::from_slice(&body).map_err(|_| {
+                BusinessError::invalid("INVALID_SALES_INVOICE", "Use a valid sales invoice request.")
+            })?;
+        let proof = inbound.into_proof();
+        target
+            .service
+            .void_sales_invoice(
+                &host,
+                proof,
+                move || {
+                    scope?;
+                    captured.resolve()
+                },
+                command,
+                id,
+                input,
+            )
+            .await
+    }
+    .await;
+    let mut response = match result {
+        Ok(Some(reply)) => (StatusCode::OK, Json(reply)).into_response(),
+        Ok(None) => not_owned(),
+        Err(PgTransactionError::Business(error)) => business_error(error),
+        Err(_) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
+    };
+    no_store(&mut response);
+    response
+}
+
 async fn sales_receipt<C: Clock + Send + Sync + 'static>(
     State(state): State<Arc<ReadState<C>>>,
     Path((slug, id)): Path<(String, String)>,

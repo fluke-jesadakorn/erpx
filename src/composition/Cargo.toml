@@ -413,3 +413,8 @@ required-features = ["private-field-api"]
 name = "sales_receipt_postgres"
 path = "../../tests/integration/finance/rust-sales-receipt-postgres.test.rs"
 required-features = ["private-field-api"]
+
+[[test]]
+name = "sales_invoice_edit_postgres"
+path = "../../tests/integration/finance/rust-sales-invoice-edit-postgres.test.rs"
+required-features = ["private-field-api"]
