@@ -5,7 +5,7 @@
   "capability": "finance-sales-receipt-native",
   "base": "8e660db6e277f8aeb6530eafa83f8f88bec29148",
   "branch": "codex/finance-sales-receipt-native",
-  "sourceCommit": "pending",
+  "sourceCommit": "70626ddbe10078dbe681174d186ab2729887b898",
   "implementation": {
     "adapter": "packages/server-finance/src/adapters/sales_receipts.rs",
     "public": "packages/server-finance/src/public/sales_receipts.rs",
@@ -44,25 +44,63 @@
     "desktop": {
       "viewport": "1280x900",
       "payment": "browser-receipt-payment-6 (RCPT-BROWSER-6)",
-      "issue": {"postStatus": 201, "id": "customer-receipt-browser-receipt-payment-6"},
-      "receipt": {"status": 200, "documentNumber": "RC-2026-000013", "customer": "Browser customer", "invoice": "INV-2026-000005", "amount": "THB 10.00", "state": "issued"},
-      "export": {"status": 200, "contentType": "text/html; charset=utf-8", "sha256": "f6c107123ae6482377535a40d08dcb72544c5c4cb72498327ebbddfa7197d12d"},
+      "issue": {
+        "postStatus": 201,
+        "id": "customer-receipt-browser-receipt-payment-6"
+      },
+      "receipt": {
+        "status": 200,
+        "documentNumber": "RC-2026-000013",
+        "customer": "Browser customer",
+        "invoice": "INV-2026-000005",
+        "amount": "THB 10.00",
+        "state": "issued"
+      },
+      "export": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "sha256": "f6c107123ae6482377535a40d08dcb72544c5c4cb72498327ebbddfa7197d12d"
+      },
       "pageErrors": 0,
       "consoleErrors": 11
     },
     "mobile": {
       "viewport": "390x844",
       "payment": "browser-receipt-payment-7 (RCPT-BROWSER-7)",
-      "issue": {"postStatus": 201, "id": "customer-receipt-browser-receipt-payment-7"},
-      "receipt": {"status": 200, "documentNumber": "RC-2026-000014", "customer": "Browser customer", "invoice": "INV-2026-000005", "amount": "THB 10.00", "state": "issued"},
-      "export": {"status": 200, "contentType": "text/html; charset=utf-8", "sha256": "8b6ae05776ad04c8b10c92639ad2188356e66c8217b3d4b0230f29d77889eb17"},
+      "issue": {
+        "postStatus": 201,
+        "id": "customer-receipt-browser-receipt-payment-7"
+      },
+      "receipt": {
+        "status": 200,
+        "documentNumber": "RC-2026-000014",
+        "customer": "Browser customer",
+        "invoice": "INV-2026-000005",
+        "amount": "THB 10.00",
+        "state": "issued"
+      },
+      "export": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "sha256": "8b6ae05776ad04c8b10c92639ad2188356e66c8217b3d4b0230f29d77889eb17"
+      },
       "pageErrors": 0,
       "consoleErrors": 13
     },
     "persisted": {
       "receipts": [
-        {"id": "customer-receipt-browser-receipt-payment-6", "documentNumber": "RC-2026-000013", "shaPrefix": "f6c107123ae64823", "shaMatchesExportHtml": true},
-        {"id": "customer-receipt-browser-receipt-payment-7", "documentNumber": "RC-2026-000014", "shaPrefix": "8b6ae05776ad04c8", "shaMatchesExportHtml": true}
+        {
+          "id": "customer-receipt-browser-receipt-payment-6",
+          "documentNumber": "RC-2026-000013",
+          "shaPrefix": "f6c107123ae64823",
+          "shaMatchesExportHtml": true
+        },
+        {
+          "id": "customer-receipt-browser-receipt-payment-7",
+          "documentNumber": "RC-2026-000014",
+          "shaPrefix": "8b6ae05776ad04c8",
+          "shaMatchesExportHtml": true
+        }
       ],
       "commands": "one finance.customer-receipt.issue command_receipt, audit_event and outbox_event per payment",
       "issuedBy": "zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e-owner"

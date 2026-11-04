@@ -3290,7 +3290,7 @@
       "kind": "business-flow-evidence",
       "status": "flow-complete",
       "scope": "Native standalone customer-receipt detail/export/issue: settled posted payment, immutable snapshot/HTML/SHA, Company/branch scope, replay, Field exclusion, HTTP/Next transport and desktop/mobile issue/read/export.",
-      "sourceIdentity": "finance-sales-receipt-native",
+      "sourceIdentity": "70626ddbe10078dbe681174d186ab2729887b898",
       "evidenceRef": "docs/testing/evidence/2026-11-04-finance-sales-receipt-native.json",
       "durableContractRefs": [
         "docs/contracts/next/rust-finance-journal-detail.md"
