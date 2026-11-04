@@ -120,15 +120,15 @@
     {
       "id": "finance",
       "package": "erpx-server-finance",
-      "phase": "foundation",
+      "phase": "partial",
       "businessMigrationComplete": false,
       "surfaces": {
-        "domain": "foundation",
-        "application": "foundation",
-        "http": "pending",
-        "ssr": "pending",
-        "jobs": "pending",
-        "providers": "pending"
+        "domain": "partial",
+        "application": "partial",
+        "http": "partial",
+        "ssr": "partial",
+        "jobs": "partial",
+        "providers": "partial"
       }
     },
     {
