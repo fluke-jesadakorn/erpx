@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-05T00:00:00+07:00",
+  "updatedAt": "2026-11-05T00:20:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -16,7 +16,7 @@
     "interpretation": "The 206 items are catalogue workflows, not the number of bounded flows. Each listed ID occurs once below. A partial item has supporting qualified slices, not whole-workflow verification."
   },
   "counts": {
-    "qualifiedBusinessFlows": 96,
+    "qualifiedBusinessFlows": 99,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
     "workflowsPartial": 76,
@@ -4210,10 +4210,11 @@
       "merged": false,
       "evidenceFlows": [
         "sales-native-documents",
-        "sales-native-documents-http"
+        "sales-native-documents-http",
+        "sales-native-price-lists"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Native quotation/sales-order document list and HTTP/SSR are qualified; create/edit/transition/fulfillment/cancellation/revenue handoff and composition mount remain open."
+      "gap": "Native price-list draft/update/activate/cancel and sales document list are qualified; quote/order draft create/update requires a Commerce public port, and approval/cancellation retain Finance/Inventory guards."
     },
     {
       "id": "sales/orders",
@@ -4404,10 +4405,12 @@
       "merged": false,
       "evidenceFlows": [
         "inventory-stock-readback",
-        "inventory-stock-http"
+        "inventory-stock-http",
+        "inventory-register-ssr",
+        "inventory-source-fence"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Native stock-register reads and persisted readback are PostgreSQL/HTTP-qualified; the stock page remains opt-in and the authenticated browser journey is open."
+      "gap": "Native stock register/availability SSR and four-source reservation fences are qualified; Commerce receipt integration, default-on rollout and browser remain open."
     },
     {
       "id": "inventory/feature-receipts",
@@ -4419,7 +4422,9 @@
       "merged": false,
       "evidenceFlows": [
         "inventory-receipt-plan-guards",
-        "inventory-receipt-http"
+        "inventory-receipt-http",
+        "inventory-receipt-source-fence",
+        "inventory-receipt-http-branch"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
       "gap": "The Inventory receipt seam now rejects tampered/changed plans and persists stock/lot/quarantine evidence; the retained Commerce fulfillment writer does not call it yet, so the end-to-end receipt command remains open."
@@ -5874,10 +5879,11 @@
       "merged": false,
       "evidenceFlows": [
         "pms-native-room-board",
-        "pms-native-http"
+        "pms-native-http",
+        "pms-native-front-desk"
       ],
       "sourceRef": "packages/server-pms/src/public/pms.ts",
-      "gap": "Native property/room board read and HTTP/SSR cutover are qualified for Rooms/Housekeeping; PMS commands, other sections and composition mount remain open."
+      "gap": "Native Front Desk arrivals/departures/stay queue and room board are qualified; PMS commands, other sections and composition mount remain open."
     },
     {
       "id": "pms/rooms",
