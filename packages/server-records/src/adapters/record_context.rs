@@ -18,7 +18,7 @@ use sqlx::{Connection, PgConnection, Row};
 
 type Error = PgTransactionError<BusinessError>;
 
-const AUTHORITY: &str = "SELECT EXISTS(SELECT 1 FROM assignments a \
+pub(crate) const AUTHORITY: &str = "SELECT EXISTS(SELECT 1 FROM assignments a \
  JOIN iam_members m ON m.company_id=a.company_id AND m.user_id=a.user_id \
  WHERE a.id=$1 AND a.user_id=$2 AND a.company_id=$3 AND a.revoked_at IS NULL \
  AND iam_assignment_active(a.id,$4) AND iam_principal_active(a.user_id,a.company_id,$4) \
@@ -37,7 +37,7 @@ const SCOPED_SELECT: &str = "SELECT module_id,id,section_id,title,description,st
    OR ($5::text IS NULL AND $4::text IS NOT NULL AND branch_id=$4::text) \
    OR ($5::text IS NULL AND $4::text IS NULL))";
 
-fn map_record(row: &sqlx::postgres::PgRow) -> Result<RecordRow, sqlx::Error> {
+pub(crate) fn map_record(row: &sqlx::postgres::PgRow) -> Result<RecordRow, sqlx::Error> {
     Ok(RecordRow {
         module_id: row.try_get("module_id")?,
         id: row.try_get("id")?,

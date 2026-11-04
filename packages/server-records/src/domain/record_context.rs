@@ -359,7 +359,7 @@ fn history_wire(row: &HistoryRow) -> Value {
     })
 }
 
-fn valid_module(value: &str) -> bool {
+pub(crate) fn valid_module(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= MAX_MODULE_ID
         && value.bytes().all(|byte| {
@@ -367,14 +367,14 @@ fn valid_module(value: &str) -> bool {
         })
 }
 
-fn valid_id(value: &str) -> bool {
+pub(crate) fn valid_id(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= MAX_RECORD_ID
         && !value.contains('\0')
         && !value.bytes().any(|byte| byte.is_ascii_control())
 }
 
-fn valid_text(value: &str, maximum: usize) -> bool {
+pub(crate) fn valid_text(value: &str, maximum: usize) -> bool {
     !value.is_empty() && value.len() <= maximum && !value.contains('\0')
 }
 
