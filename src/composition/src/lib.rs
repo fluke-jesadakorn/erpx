@@ -47,6 +47,7 @@ pub mod private_development_api;
 pub mod organization_nodes;
 #[cfg(any(feature = "existing-business", feature = "business-http"))]
 pub mod organization_nodes_http;
+pub mod asset_http;
 #[cfg(feature = "existing-business")]
 pub mod brand_identity;
 #[cfg(feature = "existing-business")]

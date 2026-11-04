@@ -9,7 +9,8 @@ import {StatusBadge} from "@erpx/ui/components/primitives";
 import {AssetConsole,MaintenanceConsole} from "@erpx/feature-assets/components/asset-maintenance-console";
 import {MaintenancePreventiveConsole} from "@erpx/feature-maintenance/components/maintenance-preventive-console";
 import {requireWorkContext,publicScope} from "@erpx/server-identity_access/public/authorization";
-import {assetWorkspace} from "@erpx/server-assets/public/asset-maintenance";
+import {ownedAssetWorkspace} from "@erpx/feature-assets/adapters/server/native-assets-owned";
+import {ApiError} from "@erpx/server-runtime/public/http";
 import {maintenanceWorkspace} from "@erpx/server-maintenance/public/asset-maintenance";
 import {preventivePlans} from "@erpx/server-maintenance/public/maintenance-preventive";
 import {pageError} from "@erpx/server-work_projection/public/page-error";
@@ -23,7 +24,7 @@ export default async function Assets({params,searchParams}:{params:Promise<{hold
  const canRead=hasPermission(actor,'records.read'),topics=assetTopicsFor(actor.modules,canRead);
  const view=typeof query.view==='string'?query.view:topics[0]?.id;
  if(!view||!topics.some(topic=>topic.id===view)){if(view&&!sectionWorkspaceTopics.assets.some(topic=>topic.id===view))notFound();forbidden();}
- const assetData=view==='register'?await assetWorkspace(actor).catch(error=>pageError(error,holdingSlug)):null;
+ const assetData=view==='register'?await ownedAssetWorkspace(actor,holdingSlug).then(data=>{if(!data)throw new ApiError(503,'NATIVE_ASSETS_UNAVAILABLE','The native Assets reader is unavailable.');return data;}).catch(error=>pageError(error,holdingSlug)):null;
  const workData=view!=='register'?await maintenanceWorkspace(actor).catch(error=>pageError(error,holdingSlug)):null;
  const plans=view==='plans'?await preventivePlans(actor).catch(error=>pageError(error,holdingSlug)):[];
  const term=typeof query.q==='string'?query.q.toLocaleLowerCase():'',unit=typeof query.unit==='string'?query.unit:null,category=typeof query.category==='string'?query.category:null,status=typeof query.status==='string'?query.status:null;

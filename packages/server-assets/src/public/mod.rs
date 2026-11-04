@@ -1,4 +1,5 @@
 pub mod asset_register;
+pub mod asset_http;
 pub mod maintenance;
 
 pub mod field_service_reference;

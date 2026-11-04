@@ -6,8 +6,9 @@
 //! that same unit. It never opens a transaction or mints a Workflow receipt.
 use crate::{
     application::asset::{
-        Asset, AssetChangeResult, AssetEvent, AssetFuture, AssetRepository, AssetWorkspaceData,
-        FinanceAsset, FinanceCandidate, MaintenanceReference, NodeOption, PersonOption,
+        AcquisitionCostPort, Asset, AssetChangeResult, AssetEvent, AssetFuture, AssetRepository,
+        AssetWorkspaceData, FinanceAsset, FinanceCandidate, MaintenanceReference, NodeOption,
+        PersonOption,
     },
     domain::asset::{
         AssetChange, AssetTransition, MAX_SAFE_INTEGER, NewAsset, require_expected_version,
@@ -17,9 +18,34 @@ use crate::{
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, RecordId, UserId};
 use sqlx::{Connection, PgConnection, Row};
+use std::sync::Arc;
 
 type Error = PgTransactionError<BusinessError>;
 type Transaction = (String, i32, String, String);
+
+/// Caller-owned Finance handoff for the native HTTP unit. It must write the
+/// acquisition-cost snapshot on the supplied serializable Holding transaction;
+/// the owner never mints a Money row itself.
+pub trait AcquisitionCostProvider: Send + Sync {
+    fn prepare<'a>(
+        &'a self,
+        connection: &'a mut PgConnection,
+        id: &'a str,
+        asset: &'a NewAsset,
+    ) -> AssetFuture<'a, (), BusinessError>;
+}
+
+const WORKSPACE_LIMIT: i64 = 2_000;
+const OPTION_LIMIT: i64 = 1_000;
+const HISTORY_LIMIT: i64 = 500;
+
+fn read_limit() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "ASSET_READ_LIMIT",
+        "This Asset read exceeds the bounded workspace size. Narrow the current scope.",
+    )
+}
 
 fn conflict(code: &'static str, message: &'static str) -> BusinessError {
     BusinessError::new(FailureKind::Conflict, code, message)
@@ -115,13 +141,26 @@ impl AssetChangeReceipt {
 pub struct PgAssetRegister<'c> {
     connection: &'c mut PgConnection,
     actor: crate::application::asset::AssetActor,
+    cost: Option<Arc<dyn AcquisitionCostProvider>>,
 }
 impl<'c> PgAssetRegister<'c> {
     pub fn new(
         connection: &'c mut PgConnection,
         actor: crate::application::asset::AssetActor,
     ) -> Self {
-        Self { connection, actor }
+        Self {
+            connection,
+            actor,
+            cost: None,
+        }
+    }
+
+    /// Bind the Finance acquisition-cost handoff written on this same
+    /// serializable transaction. Without it, a positive-cost registration
+    /// fails closed instead of leaving a physical Asset without Money evidence.
+    pub fn with_cost_provider(mut self, provider: Arc<dyn AcquisitionCostProvider>) -> Self {
+        self.cost = Some(provider);
+        self
     }
 
     fn scope_args(&self) -> (String, Option<String>, Option<String>) {
@@ -144,13 +183,17 @@ impl<'c> PgAssetRegister<'c> {
             "SELECT a.*,(SELECT legal_name FROM hr_people WHERE company_id=a.company_id AND user_id=a.custodian_id AND merged_into_id IS NULL LIMIT 1) custodian_name \
              FROM operational_assets a \
              WHERE a.company_id=$1 AND ($2::text IS NULL OR a.branch_id=$2) AND ($3::text IS NULL OR a.department_id=$3) \
-             ORDER BY a.updated_at DESC,a.id",
+             ORDER BY a.updated_at DESC,a.id LIMIT $4",
         )
         .bind(&company)
         .bind(&branch)
         .bind(&department)
+        .bind(WORKSPACE_LIMIT + 1)
         .fetch_all(&mut *self.connection)
         .await?;
+        if i64::try_from(rows.len()).unwrap_or(i64::MAX) > WORKSPACE_LIMIT {
+            return Err(read_limit().into());
+        }
         rows.into_iter().map(|row| self.map_asset(&row)).collect()
     }
 
@@ -564,57 +607,71 @@ impl AssetRepository for PgAssetRegister<'_> {
             let people = sqlx::query(
                 "SELECT DISTINCT p.user_id id,p.legal_name name FROM hr_people p \
                  JOIN hr_engagements e ON e.person_id=p.id WHERE p.company_id=$1 AND p.user_id IS NOT NULL \
-                 AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active' ORDER BY p.legal_name",
+                 AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active' ORDER BY p.legal_name LIMIT $2",
             )
             .bind(self.actor.company_id.as_str())
+            .bind(OPTION_LIMIT + 1)
             .fetch_all(&mut *self.connection)
-            .await?
-            .into_iter()
-            .map(|row| {
-                Ok(PersonOption {
-                    id: row.try_get("id")?,
-                    name: row.try_get("name")?,
-                })
-            })
-            .collect::<Result<Vec<_>, sqlx::Error>>()?;
-            let nodes = sqlx::query(
-                "SELECT id,kind,display_name,branch_id FROM organization_nodes WHERE company_id=$1 AND status='active' AND kind IN ('branch','headquarters','department') ORDER BY kind,display_name",
-            )
-            .bind(self.actor.company_id.as_str())
-            .fetch_all(&mut *self.connection)
-            .await?
-            .into_iter()
-            .map(|row| {
-                Ok(NodeOption {
-                    id: row.try_get("id")?,
-                    kind: row.try_get("kind")?,
-                    display_name: row.try_get("display_name")?,
-                    branch_id: row.try_get("branch_id")?,
-                })
-            })
-            .collect::<Result<Vec<_>, sqlx::Error>>()?;
-            let finance_assets = if include_finance {
-                sqlx::query(
-                    "SELECT f.id,f.asset_number,f.name,f.currency,f.cost_minor,f.version,f.status \
-                     FROM finance_assets f WHERE f.company_id=$1 AND f.status IN ('in_service','retired') \
-                     AND NOT EXISTS(SELECT 1 FROM operational_assets a WHERE a.finance_asset_id=f.id) ORDER BY f.asset_number",
-                )
-                .bind(self.actor.company_id.as_str())
-                .fetch_all(&mut *self.connection)
-                .await?
+            .await?;
+            if i64::try_from(people.len()).unwrap_or(i64::MAX) > OPTION_LIMIT {
+                return Err(read_limit().into());
+            }
+            let people = people
                 .into_iter()
                 .map(|row| {
-                    Ok(FinanceCandidate {
+                    Ok(PersonOption {
                         id: row.try_get("id")?,
-                        asset_number: row.try_get("asset_number")?,
                         name: row.try_get("name")?,
-                        currency: row.try_get("currency")?,
-                        cost_minor: row.try_get("cost_minor")?,
-                        version: row.try_get("version")?,
-                        status: row.try_get("status")?,
                     })
                 })
-                .collect::<Result<Vec<_>, sqlx::Error>>()?
+                .collect::<Result<Vec<_>, sqlx::Error>>()?;
+            let nodes = sqlx::query(
+                "SELECT id,kind,display_name,branch_id FROM organization_nodes WHERE company_id=$1 AND status='active' AND kind IN ('branch','headquarters','department') ORDER BY kind,display_name LIMIT $2",
+            )
+            .bind(self.actor.company_id.as_str())
+            .bind(OPTION_LIMIT + 1)
+            .fetch_all(&mut *self.connection)
+            .await?;
+            if i64::try_from(nodes.len()).unwrap_or(i64::MAX) > OPTION_LIMIT {
+                return Err(read_limit().into());
+            }
+            let nodes = nodes
+                .into_iter()
+                .map(|row| {
+                    Ok(NodeOption {
+                        id: row.try_get("id")?,
+                        kind: row.try_get("kind")?,
+                        display_name: row.try_get("display_name")?,
+                        branch_id: row.try_get("branch_id")?,
+                    })
+                })
+                .collect::<Result<Vec<_>, sqlx::Error>>()?;
+            let finance_assets = if include_finance {
+                let rows = sqlx::query(
+                    "SELECT f.id,f.asset_number,f.name,f.currency,f.cost_minor,f.version,f.status \
+                     FROM finance_assets f WHERE f.company_id=$1 AND f.status IN ('in_service','retired') \
+                     AND NOT EXISTS(SELECT 1 FROM operational_assets a WHERE a.finance_asset_id=f.id) ORDER BY f.asset_number LIMIT $2",
+                )
+                .bind(self.actor.company_id.as_str())
+                .bind(OPTION_LIMIT + 1)
+                .fetch_all(&mut *self.connection)
+                .await?;
+                if i64::try_from(rows.len()).unwrap_or(i64::MAX) > OPTION_LIMIT {
+                    return Err(read_limit().into());
+                }
+                rows.into_iter()
+                    .map(|row| {
+                        Ok(FinanceCandidate {
+                            id: row.try_get("id")?,
+                            asset_number: row.try_get("asset_number")?,
+                            name: row.try_get("name")?,
+                            currency: row.try_get("currency")?,
+                            cost_minor: row.try_get("cost_minor")?,
+                            version: row.try_get("version")?,
+                            status: row.try_get("status")?,
+                        })
+                    })
+                    .collect::<Result<Vec<_>, sqlx::Error>>()?
             } else {
                 Vec::new()
             };
@@ -647,32 +704,37 @@ impl AssetRepository for PgAssetRegister<'_> {
 
     fn history<'a>(&'a mut self, id: &'a str) -> AssetFuture<'a, Vec<AssetEvent>, Error> {
         Box::pin(async move {
-            Ok(sqlx::query(
+            let rows = sqlx::query(
                 "SELECT e.id,e.asset_id,e.version,e.action,e.actor_id,e.reason,e.condition,e.lifecycle_status,e.placement,e.custodian_id,e.created_at \
                  FROM operational_asset_events e JOIN operational_assets a ON a.id=e.asset_id AND a.company_id=$2 \
-                 WHERE e.asset_id=$1 ORDER BY e.version",
+                 WHERE e.asset_id=$1 ORDER BY e.version LIMIT $3",
             )
             .bind(id)
             .bind(self.actor.company_id.as_str())
+            .bind(HISTORY_LIMIT + 1)
             .fetch_all(&mut *self.connection)
-            .await?
-            .into_iter()
-            .map(|row| {
-                Ok(AssetEvent {
-                    id: row.try_get("id")?,
-                    asset_id: row.try_get("asset_id")?,
-                    version: row.try_get("version")?,
-                    action: row.try_get("action")?,
-                    actor_id: row.try_get("actor_id")?,
-                    reason: row.try_get("reason")?,
-                    condition: row.try_get("condition")?,
-                    lifecycle_status: row.try_get("lifecycle_status")?,
-                    placement: row.try_get("placement")?,
-                    custodian_id: row.try_get("custodian_id")?,
-                    created_at: row.try_get("created_at")?,
+            .await?;
+            if i64::try_from(rows.len()).unwrap_or(i64::MAX) > HISTORY_LIMIT {
+                return Err(read_limit().into());
+            }
+            Ok(rows
+                .into_iter()
+                .map(|row| {
+                    Ok(AssetEvent {
+                        id: row.try_get("id")?,
+                        asset_id: row.try_get("asset_id")?,
+                        version: row.try_get("version")?,
+                        action: row.try_get("action")?,
+                        actor_id: row.try_get("actor_id")?,
+                        reason: row.try_get("reason")?,
+                        condition: row.try_get("condition")?,
+                        lifecycle_status: row.try_get("lifecycle_status")?,
+                        placement: row.try_get("placement")?,
+                        custodian_id: row.try_get("custodian_id")?,
+                        created_at: row.try_get("created_at")?,
+                    })
                 })
-            })
-            .collect::<Result<Vec<_>, sqlx::Error>>()?)
+                .collect::<Result<Vec<_>, sqlx::Error>>()?)
         })
     }
 
@@ -681,27 +743,32 @@ impl AssetRepository for PgAssetRegister<'_> {
         id: &'a str,
     ) -> AssetFuture<'a, Vec<MaintenanceReference>, Error> {
         Box::pin(async move {
-            Ok(sqlx::query(
+            let rows = sqlx::query(
                 "SELECT id,title,status,priority,owner_id,scheduled_at,version FROM maintenance_work_orders \
-                 WHERE asset_id=$1 AND company_id=$2 ORDER BY updated_at DESC,id",
+                 WHERE asset_id=$1 AND company_id=$2 ORDER BY updated_at DESC,id LIMIT $3",
             )
             .bind(id)
             .bind(self.actor.company_id.as_str())
+            .bind(HISTORY_LIMIT + 1)
             .fetch_all(&mut *self.connection)
-            .await?
-            .into_iter()
-            .map(|row| {
-                Ok(MaintenanceReference {
-                    id: row.try_get("id")?,
-                    title: row.try_get("title")?,
-                    status: row.try_get("status")?,
-                    priority: row.try_get("priority")?,
-                    owner_id: row.try_get("owner_id")?,
-                    scheduled_at: row.try_get("scheduled_at")?,
-                    version: row.try_get("version")?,
+            .await?;
+            if i64::try_from(rows.len()).unwrap_or(i64::MAX) > HISTORY_LIMIT {
+                return Err(read_limit().into());
+            }
+            Ok(rows
+                .into_iter()
+                .map(|row| {
+                    Ok(MaintenanceReference {
+                        id: row.try_get("id")?,
+                        title: row.try_get("title")?,
+                        status: row.try_get("status")?,
+                        priority: row.try_get("priority")?,
+                        owner_id: row.try_get("owner_id")?,
+                        scheduled_at: row.try_get("scheduled_at")?,
+                        version: row.try_get("version")?,
+                    })
                 })
-            })
-            .collect::<Result<Vec<_>, sqlx::Error>>()?)
+                .collect::<Result<Vec<_>, sqlx::Error>>()?)
         })
     }
 
@@ -934,6 +1001,34 @@ impl AssetRepository for PgAssetRegister<'_> {
             scale
                 .map(|scale| u32::try_from(scale).map_err(|_| invalid_source().into()))
                 .transpose()
+        })
+    }
+}
+
+impl AcquisitionCostPort for PgAssetRegister<'_> {
+    type Error = Error;
+
+    fn prepare<'a>(
+        &'a mut self,
+        id: &'a str,
+        asset: &'a NewAsset,
+    ) -> AssetFuture<'a, (), Self::Error> {
+        Box::pin(async move {
+            if let Some(provider) = self.cost.as_ref() {
+                return provider
+                    .prepare(&mut *self.connection, id, asset)
+                    .await
+                    .map_err(Into::into);
+            }
+            if asset.cost_minor == 0 {
+                return Ok(());
+            }
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "ASSET_ACQUISITION_COST_UNAVAILABLE",
+                "Finance acquisition-cost posting is unavailable for this registration.",
+            )
+            .into())
         })
     }
 }

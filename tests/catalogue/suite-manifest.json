@@ -71507,6 +71507,63 @@
       ]
     },
     {
+      "id": "assets.native-assets-transport.unit",
+      "lane": "unit",
+      "owner": "assets",
+      "modules": [
+        "assets"
+      ],
+      "files": [
+        "tests/unit/assets/native-assets-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "framework": "vitest",
+      "apps": [
+        "assets"
+      ],
+      "packages": [
+        "@erpx/feature-assets"
+      ]
+    },
+    {
+      "id": "assets.rust-asset-http-postgres.integration",
+      "lane": "integration",
+      "owner": "assets",
+      "modules": [
+        "assets"
+      ],
+      "files": [
+        "tests/integration/assets/rust-asset-http-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Assets HTTP ingress retains normal-session auth, origin, Company/branch/department scope, idempotency, version/review/disposal guards and persisted readback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-assets",
+        "targets": [
+          "asset_http_postgres"
+        ],
+        "manifest": "packages/server-assets/Cargo.toml"
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-assets/Cargo.toml"
+      ]
+    },
+    {
       "id": "collaboration.rust-handbook.unit",
       "lane": "unit",
       "owner": "collaboration",

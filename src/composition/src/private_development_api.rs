@@ -1419,6 +1419,7 @@ async fn assemble_checked(
         let mut targets = Vec::new();
         let mut brand_targets = Vec::new();
         let mut organization_targets = Vec::new();
+        let mut asset_targets = Vec::new();
         let mut bank_targets = Vec::new();
         let mut bank_workspace_targets = Vec::new();
         #[cfg(feature = "finance-field-write")]
@@ -1514,6 +1515,21 @@ async fn assemble_checked(
                         company.clone(),
                     ),
                     Arc::new(SharedClock(clock.clone())),
+                )),
+            });
+            asset_targets.push(erpx_server_assets::public::asset_http::AssetHttpTarget {
+                host: holding.host.clone(),
+                holding_slug: holding.registration.slug.clone(),
+                origin: format!("https://{}", holding.host),
+                backend: Arc::new(crate::asset_http::AssetHttpService::new(
+                    config.policy.clone(),
+                    authorizer.clone(),
+                    crate::asset_http::AssetHttpConfiguration::new(
+                        holding.registration.holding_id.clone(),
+                        company.clone(),
+                    ),
+                    Arc::new(SharedClock(clock.clone())),
+                    Arc::new(crate::asset_http::FinanceAssetCost),
                 )),
             });
             let configuration = if config
@@ -1762,6 +1778,12 @@ async fn assemble_checked(
                     organization_targets,
                 )
                 .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !asset_targets.is_empty() {
+            router = router.merge(
+                erpx_server_assets::public::asset_http::asset_router(asset_targets)
+                    .map_err(|_| "PRIVATE_API_ASSETS_CONFIGURATION_INVALID")?,
             );
         }
     }

@@ -14,7 +14,7 @@ use erpx_server_shared::public::{
     BusinessError, CompanyId, DecimalAmount, FailureKind, RecordId, UserId,
 };
 use serde::Serialize;
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::future::Future;
 use std::pin::Pin;
 
@@ -242,7 +242,11 @@ pub struct AssetChangeResult {
 }
 impl AssetChangeResult {
     pub fn value(&self) -> Value {
-        json!({ "id": self.id, "version": self.version, "status": self.status })
+        let mut value = serde_json::Map::new();
+        value.insert("id".into(), Value::String(self.id.clone()));
+        value.insert("version".into(), Value::Number(self.version.into()));
+        value.insert("status".into(), Value::String(self.status.clone()));
+        Value::Object(value)
     }
 }
 
@@ -493,6 +497,53 @@ pub async fn create_asset<
     cost.prepare(&id, &asset).await?;
     let scoped = asset.scoped(actor.branch_id.as_ref(), actor.department_id.as_ref());
     let (result, receipt) = repository.register(&id, key, &scoped, at).await?;
+    Ok(AssetChangeOutcome {
+        result,
+        receipt: Some(receipt),
+    })
+}
+
+/// Registration for an owner unit that also carries the Finance acquisition
+/// handoff. One mutable borrow keeps the cost snapshot and the register row in
+/// the same serializable transaction. Replay is checked before any cost or
+/// owner effect.
+pub async fn create_asset_in_unit<R, L>(
+    actor: &AssetActor,
+    unit: &mut R,
+    ledger: &mut L,
+    raw: &Value,
+    key: &str,
+    at: i64,
+) -> Result<AssetChangeOutcome<<R as AssetRepository>::Receipt>, <R as AssetRepository>::Error>
+where
+    R: AssetRepository + AcquisitionCostPort<Error = <R as AssetRepository>::Error>,
+    L: AssetCommandLedger<Error = <R as AssetRepository>::Error>,
+{
+    actor.require("records.write")?;
+    actor.require_module()?;
+    let cost_minor = registration_cost(unit, raw).await?;
+    let asset = NewAsset::parse(raw, cost_minor)?;
+    let id = format!("asset-{key}");
+    if let Some(prior) = ledger.replay(key, "asset.create", &id, raw).await? {
+        return Ok(AssetChangeOutcome {
+            result: AssetChangeResult {
+                id,
+                version: prior.get("version").and_then(Value::as_i64).unwrap_or(1),
+                status: prior
+                    .get("status")
+                    .and_then(Value::as_str)
+                    .unwrap_or("registered")
+                    .to_owned(),
+            },
+            receipt: None,
+        });
+    }
+    if asset.finance_asset_id.is_some() {
+        actor.require("finance.write")?;
+    }
+    AcquisitionCostPort::prepare(unit, &id, &asset).await?;
+    let scoped = asset.scoped(actor.branch_id.as_ref(), actor.department_id.as_ref());
+    let (result, receipt) = unit.register(&id, key, &scoped, at).await?;
     Ok(AssetChangeOutcome {
         result,
         receipt: Some(receipt),
