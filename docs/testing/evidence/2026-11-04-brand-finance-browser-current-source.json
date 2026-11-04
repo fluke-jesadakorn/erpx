@@ -1,7 +1,7 @@
 {
   "version": 1,
   "date": "2026-11-04",
-  "status": "Diagnostic current-source browser qualification passed for native Brand draft save/readback (desktop+mobile), native controlled-receipt release and bank confirmation (settled payment, allocation, paid invoice, balanced posted journal, matched bank row), and generic bank statement import/readback. This is not yet a frozen-release final-gate receipt; Brand category locks/publish and automated bank match groups remain unverified.",
+  "status": "Diagnostic current-source browser qualification passed for native Brand draft save/readback (desktop+mobile) through the canonical /holdings/acme/administration/brand/identity path, native controlled-receipt release and bank confirmation (settled payment, allocation, paid invoice, balanced posted journal, matched bank row), and generic bank statement import/readback with a matching client receipt (201, no false warning). This is not a frozen-release final-gate receipt; Brand category locks/publish and the automated bank match UI remain unverified.",
   "capability": "brand-finance-browser-current-source",
   "integrationTarget": "codex/rust-backend-migration",
   "source": {
@@ -56,9 +56,63 @@
   ],
   "limits": [
     "Brand category lock/unlock and independent publish/rollback were not exercised in this browser run.",
-    "Controlled payment release and exact bank confirmation/allocate are now observed; the automated multi-candidate bank match UI remains unverified.",
-    "The cohort is a disposable current-source copy with explicit source-equivalent patches, not a frozen release artifact; final release/CI gates remain open.",
+    "Controlled payment release and exact bank confirmation/allocate are observed; the automated multi-candidate bank match UI remains unverified.",
+    "The cohort is a disposable current-source copy, not a frozen release artifact; final release/CI gates remain open.",
     "Screenshots and raw traces are private scratch artifacts; no cookie/token values are reproduced here.",
     "Staging, private production and installed production were not accessed."
-  ]
+  ],
+  "v3CurrentSource": {
+    "capturedAt": "2026-11-04T15:20:00+07:00",
+    "sourceCommit": "3e72d9a69cf92db3ee7461bc4ed5efbdd6ba328d",
+    "worktreeHeadAtFinalize": "5876a6661cda8c099dab3c706de5a7bd118d4edf",
+    "cohort": "disposable /case/build-current copy from the current source; private Rust API loopback 44994, apps account/admin/finance, TLS gateway 3454 and CONNECT proxy 44996",
+    "brandCanonical": {
+      "route": "/holdings/acme/administration/brand/identity",
+      "desktopDocuments": [
+        307,
+        303,
+        303,
+        303,
+        200,
+        200,
+        200
+      ],
+      "desktopFirstStatus": 200,
+      "desktopSecondStatus": 200,
+      "desktopSaveStatus": 200,
+      "desktopReloadStatus": 200,
+      "mobileStatus": 200,
+      "mobileReloadStatus": 200,
+      "draftId": "brand-draft-45ca502d-a3c9-44e1-8e21-502a711bcc20",
+      "draftStatus": "draft",
+      "draftVersion": 1,
+      "tagline": "Canonical Brand 1793780226753",
+      "persisted": "brand_identity_drafts status draft version 1, identity.tagline Canonical Brand 1793780226753; brand_identity_events record draft action draft version 1 by ...-owner",
+      "desktopConsole": 0,
+      "desktopPageErrors": 0,
+      "desktopHttpErrors": 0,
+      "mobileConsole": 0,
+      "mobilePageErrors": 0,
+      "mobileHttpErrors": 0
+    },
+    "bankGenericImport": {
+      "uiPostStatus": 201,
+      "statementId": "statement-99adebc5-a442-4e05-9db5-9474d13419f5",
+      "statementNumber": "STMT-NATIVE-1793780392593",
+      "transactionId": "bankrow-99adebc5-a442-4e05-9db5-9474d13419f5-0",
+      "externalId": "BANK-NATIVE-1793780392593",
+      "amountMinor": 10000,
+      "currency": "THB",
+      "matchStatus": "unmatched",
+      "version": 1,
+      "falseReceiptWarning": false,
+      "desktopStatus": 200,
+      "desktopReloadStatus": 200,
+      "mobileStatus": 200,
+      "mobileReloadStatus": 200,
+      "console": 0,
+      "pageErrors": 0,
+      "httpErrors": 0
+    }
+  }
 }
