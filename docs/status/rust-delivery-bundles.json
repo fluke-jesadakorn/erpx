@@ -19,7 +19,7 @@
     "qualifiedBusinessFlows": 30,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 11,
+    "workflowsPartial": 13,
     "workflowsVerified": 24,
     "workflowsMerged": 24,
     "ownersComplete": 1,
@@ -4004,12 +4004,12 @@
       "kind": "module",
       "owner": "finance",
       "scope": "Payments",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-finance/src/public/finance.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native controlled payment create/approve/release/confirm and bank confirmation are browser-qualified with settled payment, allocation, paid invoice and balanced journal; allocate/reverse, supplier/refund breadth, automated bank match groups and frozen-release gates remain open."
     },
     {
       "id": "finance/feature-receivables-aging",
@@ -4032,12 +4032,12 @@
       "kind": "module",
       "owner": "finance",
       "scope": "Bank reconciliation",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-finance/src/public/finance.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native generic bank import, workspace read and exact bank confirmation/matched-row readback are browser-qualified; automated match groups, manual POST reconcile UI and frozen-release gates remain open."
     },
     {
       "id": "finance/feature-reports",
