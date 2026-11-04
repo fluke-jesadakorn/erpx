@@ -17,11 +17,13 @@ fn changed() -> Error {
     .into()
 }
 async fn unit(c: &mut PgConnection) -> Result<Unit, Error> {
-    if !c.is_in_transaction()
-        || sqlx::query_scalar::<_, String>("SHOW transaction_isolation")
-            .fetch_one(&mut *c)
-            .await?
-            != "serializable"
+    if !c.is_in_transaction() {
+        return Err(PersistenceError::new("OPERATIONS_TRANSACTION_REQUIRED").into());
+    }
+    if sqlx::query_scalar::<_, String>("SHOW transaction_isolation")
+        .fetch_one(&mut *c)
+        .await?
+        != "serializable"
     {
         return Err(PersistenceError::new("OPERATIONS_SERIALIZABLE_REQUIRED").into());
     }
@@ -54,6 +56,7 @@ async fn image(
         .into()),
     }
 }
+#[derive(Debug)]
 pub struct CurrentFieldException {
     data: Exception,
     image: String,
@@ -136,10 +139,16 @@ async fn read_exception(
         unit,
     }))
 }
+#[derive(Debug)]
 pub struct RetainedFieldException {
     row: CurrentFieldException,
     event_id: String,
     event: String,
+}
+impl RetainedFieldException {
+    pub fn data(&self) -> &Exception {
+        self.row.data()
+    }
 }
 async fn event_image(c: &mut PgConnection, id: &str) -> Result<String, Error> {
     let raw:Option<String>=sqlx::query_scalar("WITH e AS MATERIALIZED (SELECT * FROM operations_exception_events WHERE id=$1),p AS (SELECT to_jsonb(e)::text value FROM e) SELECT CASE WHEN octet_length(value)<=2097152 THEN value END FROM p").bind(id).fetch_optional(c).await?.flatten();
@@ -185,7 +194,7 @@ pub async fn apply_field_exception_transition(
         _ => {}
     }
     sqlx::query("INSERT INTO operations_exception_events(id,exception_id,version,action,actor_id,reason,status,details_json,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)").bind(&event_id).bind(&row.id).bind(plan.version).bind(input.action.as_str()).bind(&actor.user).bind(trimmed(&input.reason)).bind(&plan.status).bind(details.to_string()).bind(now).execute(&mut *c).await?;
-    let updated = read_field_exception(
+    let updated = read_operations_exception(
         c,
         &current.company,
         &row.id,
@@ -245,6 +254,7 @@ async fn history_image(c: &mut PgConnection, id: &str) -> Result<String, Error> 
         .into()
     })
 }
+#[derive(Debug)]
 pub struct CurrentFieldExceptionView {
     record: CurrentFieldException,
     history: String,
@@ -445,6 +455,7 @@ async fn workspace_image(
         .into()
     })
 }
+#[derive(Debug)]
 pub struct CurrentFieldOperationsWorkspace {
     company: CompanyId,
     branch: Option<String>,

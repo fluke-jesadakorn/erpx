@@ -15,11 +15,13 @@ fn changed() -> Error {
     .into()
 }
 async fn unit(c: &mut PgConnection) -> Result<Unit, Error> {
-    if !c.is_in_transaction()
-        || sqlx::query_scalar::<_, String>("SHOW transaction_isolation")
-            .fetch_one(&mut *c)
-            .await?
-            != "serializable"
+    if !c.is_in_transaction() {
+        return Err(PersistenceError::new("OPERATIONS_TRANSACTION_REQUIRED").into());
+    }
+    if sqlx::query_scalar::<_, String>("SHOW transaction_isolation")
+        .fetch_one(&mut *c)
+        .await?
+        != "serializable"
     {
         return Err(PersistenceError::new("OPERATIONS_SERIALIZABLE_REQUIRED").into());
     }
@@ -36,6 +38,7 @@ async fn image(c: &mut PgConnection, company: &CompanyId, area: &str) -> Result<
         .into()
     })
 }
+#[derive(Debug)]
 pub struct CurrentPolicyArea {
     company: CompanyId,
     area: String,

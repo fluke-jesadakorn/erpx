@@ -31,3 +31,11 @@ path = "../../tests/integration/operations/rust-operations-queue-read-postgres.t
 [[test]]
 name = "operations_http"
 path = "../../tests/integration/operations/rust-operations-http.test.rs"
+
+[[test]]
+name = "operations_commands"
+path = "../../tests/unit/operations/rust-operations-commands.test.rs"
+
+[[test]]
+name = "operations_commands_postgres"
+path = "../../tests/integration/operations/rust-operations-commands-postgres.test.rs"

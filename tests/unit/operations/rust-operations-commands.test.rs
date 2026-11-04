@@ -457,12 +457,14 @@ async fn change_requires_owner_or_independent_review_and_rejects_stale_versions(
     );
     let mut no_review = actor();
     no_review.permissions = vec!["records.read".into(), "records.write".into()];
+    let mut assign = change_input("assign", 1);
+    assign.owner_id = Some("other".into());
     assert_eq!(
         change_operations_exception(
             &no_review,
             &mut repo,
             &mut sources,
-            &change_input("assign", 1),
+            &assign,
             "command-key-01",
             10,
         )
