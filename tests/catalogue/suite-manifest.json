@@ -70599,6 +70599,42 @@
         "rust-toolchain.toml",
         "src/composition/Cargo.toml"
       ]
+    },
+    {
+      "id": "finance.rust-invoice-read-postgres.integration",
+      "lane": "integration",
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "files": [
+        "tests/integration/finance/rust-invoice-read-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PostgreSQL-backed native invoice list and historical aging retain filters, cursor pagination, dated settlement evidence, buckets, chart/Company isolation and HTTP admission in the PR baseline."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "invoice_read_postgres"
+        ],
+        "features": [
+          "private-field-api"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml"
+      ]
     }
   ]
 }

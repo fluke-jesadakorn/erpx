@@ -5,7 +5,7 @@ use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
     PurchaseRequest, lock_commercial_authority_sources,
 };
-use erpx_server_finance::public::{FinanceActor, journal_detail::*, journal_list::*, journal_workspace::*, sales_defaults::*, sales_invoice_create::*, sales_invoice_edit::*, sales_invoice_list::*, sales_receipts::*};
+use erpx_server_finance::public::{FinanceActor, finance_invoice_read::*, journal_detail::*, journal_list::*, journal_workspace::*, sales_defaults::*, sales_invoice_create::*, sales_invoice_edit::*, sales_invoice_list::*, sales_receipts::*};
 use erpx_server_identity_access::public::{
     DeviceProof,
     effective_authority::{
@@ -139,6 +139,18 @@ pub struct FinanceSalesInvoiceVoidResponse {
 }
 #[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FinanceInvoicePageResponse {
+    pub data: InvoicePage,
+    pub context: FinanceRenderedWorkContext,
+}
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FinanceInvoiceAgingResponse {
+    pub data: Vec<serde_json::Value>,
+    pub context: FinanceRenderedWorkContext,
+}
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub struct FinanceSalesDefaultsWorkspaceResponse {
     pub data: SalesDefaultsWorkspace,
     pub context: FinanceRenderedWorkContext,
@@ -268,6 +280,18 @@ fn command_actor(
             .unwrap_or_default(),
         iam_json,
     })
+}
+
+#[derive(Clone)]
+struct FinanceInvoiceReadSources;
+impl HoldingWorkSourcePreparation for FinanceInvoiceReadSources {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            lock_commercial_authority_sources(c).await?;
+            lock_finance_invoice_read_sources(c).await?;
+            Ok(())
+        })
+    }
 }
 
 #[derive(Clone)]
@@ -763,6 +787,164 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                 .into());
         }
         Ok(())
+    }
+
+    pub async fn finance_invoices_page<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        query: InvoicePageQuery,
+    ) -> Result<FinanceInvoicePageResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != company {
+                return Err(scope());
+            }
+            request.mutation = false;
+            Ok(request)
+        };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "finance.read".into(),
+                    module: Some("finance".into()),
+                    destination: "finance/invoices".into(),
+                    api: true,
+                },
+                FinanceInvoiceReadSources,
+                move |c, current| {
+                    let configuration = configuration.clone();
+                    let clock = clock.clone();
+                    let query = query.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &configuration.holding
+                            || current.selection().workspace().company_id != configuration.company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("finance.read")?;
+                        current.require_permission("module.finance.read")?;
+                        let workspace = current.selection().workspace();
+                        if workspace.branch_id.is_some() || workspace.department_id.is_some() {
+                            return Err(BusinessError::new(
+                                FailureKind::Forbidden,
+                                "COMPANY_SCOPE_REQUIRED",
+                                "Use a Company Finance assignment for the Company invoice view.",
+                            )
+                            .into());
+                        }
+                        Self::require_sales_purchase(
+                            c,
+                            current,
+                            &configuration,
+                            CapabilityPurpose::History,
+                            clock.now(),
+                        )
+                        .await?;
+                        let data = read_invoice_page(c, configuration.company.as_str(), &query).await?;
+                        Ok(FinanceInvoicePageResponse {
+                            data,
+                            context: rendered(current)?,
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn finance_invoice_aging<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        kind: String,
+        as_of: String,
+        chart_id: Option<String>,
+    ) -> Result<FinanceInvoiceAgingResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != company {
+                return Err(scope());
+            }
+            request.mutation = false;
+            Ok(request)
+        };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "finance.read".into(),
+                    module: Some("finance".into()),
+                    destination: "finance/invoices".into(),
+                    api: true,
+                },
+                FinanceInvoiceReadSources,
+                move |c, current| {
+                    let configuration = configuration.clone();
+                    let clock = clock.clone();
+                    let kind = kind.clone();
+                    let as_of = as_of.clone();
+                    let chart_id = chart_id.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &configuration.holding
+                            || current.selection().workspace().company_id != configuration.company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("finance.read")?;
+                        current.require_permission("module.finance.read")?;
+                        let workspace = current.selection().workspace();
+                        if workspace.branch_id.is_some() || workspace.department_id.is_some() {
+                            return Err(BusinessError::new(
+                                FailureKind::Forbidden,
+                                "COMPANY_SCOPE_REQUIRED",
+                                "Use a Company Finance assignment for the Company invoice view.",
+                            )
+                            .into());
+                        }
+                        Self::require_sales_purchase(
+                            c,
+                            current,
+                            &configuration,
+                            CapabilityPurpose::History,
+                            clock.now(),
+                        )
+                        .await?;
+                        let data = read_invoice_aging(
+                            c,
+                            configuration.company.as_str(),
+                            &kind,
+                            &as_of,
+                            chart_id.as_deref(),
+                        )
+                        .await?;
+                        Ok(FinanceInvoiceAgingResponse {
+                            data,
+                            context: rendered(current)?,
+                        })
+                    })
+                },
+            )
+            .await
     }
 
     pub async fn edit_sales_invoice<Input>(

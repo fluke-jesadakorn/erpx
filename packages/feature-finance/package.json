@@ -363,7 +363,8 @@
     "./public/service-no-charge": "./src/public/service-no-charge.ts",
     "./lib/native-journal-list": "./src/lib/native-journal-list.ts",
     "./lib/native-sales-invoice-list": "./src/lib/native-sales-invoice-list.ts",
-    "./lib/native-sales-defaults": "./src/lib/native-sales-defaults.ts"
+    "./lib/native-sales-defaults": "./src/lib/native-sales-defaults.ts",
+    "./lib/native-invoice-read": "./src/lib/native-invoice-read.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
