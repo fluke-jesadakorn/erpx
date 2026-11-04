@@ -57,6 +57,8 @@ pub mod handbook;
 pub mod learning;
 #[cfg(feature = "existing-business")]
 pub mod maintenance;
+#[cfg(feature = "existing-business")]
+pub mod projects;
 pub mod quality;
 pub mod operations;
 pub mod asset_http;

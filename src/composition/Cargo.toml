@@ -12,9 +12,9 @@ verification-roots = ["../../fixtures/field_service/service-count-generic-action
 
 [features]
 default = ["existing-business"]
-field-service = ["dep:base64", "dep:time", "dep:erpx-server-work-projection", "dep:erpx-server-pos", "dep:erpx-server-operations", "dep:erpx-server-manage-erpx", "dep:erpx-server-platform-administration", "dep:erpx-server-pms", "dep:erpx-server-records", "dep:erpx-server-learning", "dep:erpx-server-organization", "dep:erpx-server-quality", "dep:erpx-server-field-service", "dep:erpx-server-support", "dep:erpx-server-assets", "dep:erpx-server-collaboration", "dep:erpx-server-commerce", "dep:erpx-server-inventory", "dep:erpx-server-people-payroll", "dep:erpx-server-workflow", "dep:erpx-server-identity-access", "dep:erpx-server-files", "dep:erpx-server-finance", "dep:erpx-server-commercial"]
+field-service = ["dep:base64", "dep:time", "dep:erpx-server-work-projection", "dep:erpx-server-pos", "dep:erpx-server-operations", "dep:erpx-server-manage-erpx", "dep:erpx-server-platform-administration", "dep:erpx-server-pms", "dep:erpx-server-records", "dep:erpx-server-learning", "dep:erpx-server-organization", "dep:erpx-server-quality", "dep:erpx-server-projects", "dep:erpx-server-field-service", "dep:erpx-server-support", "dep:erpx-server-assets", "dep:erpx-server-collaboration", "dep:erpx-server-commerce", "dep:erpx-server-inventory", "dep:erpx-server-people-payroll", "dep:erpx-server-workflow", "dep:erpx-server-identity-access", "dep:erpx-server-files", "dep:erpx-server-finance", "dep:erpx-server-commercial"]
 field-service-http = ["field-service"]
-existing-business = ["field-service", "dep:erpx-server-brand", "finance-field-write", "dep:erpx-server-organization", "dep:erpx-server-quality", "dep:erpx-server-field-service", "dep:erpx-server-support", "dep:erpx-server-assets", "dep:erpx-server-collaboration", "dep:erpx-server-commerce", "dep:erpx-server-inventory", "dep:erpx-server-maintenance", "dep:erpx-server-learning", "dep:erpx-server-people-payroll", "dep:erpx-server-workflow", "dep:erpx-server-identity-access", "dep:erpx-server-legal", "dep:erpx-server-files", "dep:erpx-server-finance", "dep:erpx-server-commercial", "dep:erpx-server-platform-administration", "dep:erpx-server-pms"]
+existing-business = ["field-service", "dep:erpx-server-brand", "finance-field-write", "dep:erpx-server-organization", "dep:erpx-server-quality", "dep:erpx-server-projects", "dep:erpx-server-field-service", "dep:erpx-server-support", "dep:erpx-server-assets", "dep:erpx-server-collaboration", "dep:erpx-server-commerce", "dep:erpx-server-inventory", "dep:erpx-server-maintenance", "dep:erpx-server-learning", "dep:erpx-server-people-payroll", "dep:erpx-server-workflow", "dep:erpx-server-identity-access", "dep:erpx-server-legal", "dep:erpx-server-files", "dep:erpx-server-finance", "dep:erpx-server-commercial", "dep:erpx-server-platform-administration", "dep:erpx-server-pms"]
 module-example = []
 field-push-worker = ["field-service", "erpx-server-collaboration/push-provider"]
 files-scan-worker = ["field-service", "erpx-server-files/preview-provider"]
@@ -43,6 +43,7 @@ erpx-server-operations = { workspace = true, optional = true }
 erpx-server-manage-erpx = { workspace = true, optional = true }
 erpx-server-organization = { workspace = true, optional = true }
 erpx-server-quality = { workspace = true, optional = true }
+erpx-server-projects = { workspace = true, optional = true }
 erpx-server-field-service = { workspace = true, optional = true }
 erpx-server-support = { workspace = true, optional = true }
 erpx-server-assets = { workspace = true, optional = true }
