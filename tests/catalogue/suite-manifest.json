@@ -75489,6 +75489,51 @@
       ]
     },
     {
+      "lane": "unit",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native PMS stay-room command domain/application facts cover command validation, actor context, entitlement, stay record validation, request hashing, and plan transitions without adapter, persisted receipt, or HTTP coverage."
+      },
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-pms",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "id": "pms.rust-pms-stay-room.unit",
+      "files": [
+        "tests/unit/pms/rust-pms-stay-room.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-pms",
+        "targets": [
+          "pms_stay_room"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-pms/Cargo.toml",
+        "packages/server-pms/src/domain/stay_room.rs",
+        "packages/server-pms/src/application/stay_room.rs",
+        "packages/server-pms/src/domain/room_board.rs",
+        "packages/server-pms/src/application/room_board.rs"
+      ]
+    },
+    {
       "lane": "integration",
       "owner": "pms",
       "modules": [
