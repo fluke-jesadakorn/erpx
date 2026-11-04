@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-04T16:35:00+07:00",
+  "updatedAt": "2026-11-04T17:05:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -16,7 +16,7 @@
     "interpretation": "The 206 items are catalogue workflows, not the number of bounded flows. Each listed ID occurs once below. A partial item has supporting qualified slices, not whole-workflow verification."
   },
   "counts": {
-    "qualifiedBusinessFlows": 44,
+    "qualifiedBusinessFlows": 52,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
     "workflowsPartial": 13,
@@ -4409,60 +4409,75 @@
       "kind": "module",
       "owner": "maintenance",
       "scope": "Work orders",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "maintenance-native-read",
+        "maintenance-native-http"
+      ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native maintenance/plan reads, HTTP transport and SSR presenters are implemented; create remains TypeScript and the shared composition mount is open."
     },
     {
       "id": "maintenance/downtime",
       "kind": "module",
       "owner": "maintenance",
       "scope": "Downtime",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "maintenance-native-read",
+        "maintenance-native-http"
+      ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native work detail/history reads are implemented; downtime writes remain TypeScript."
     },
     {
       "id": "maintenance/feature-blocked-work",
       "kind": "module",
       "owner": "maintenance",
       "scope": "Blocked work",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "maintenance-native-read",
+        "maintenance-native-http"
+      ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native read/SSR slice is implemented; block/resume writes remain on the retained TypeScript transition composition."
     },
     {
       "id": "maintenance/feature-completion",
       "kind": "module",
       "owner": "maintenance",
       "scope": "Completion",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "maintenance-native-read",
+        "maintenance-native-http"
+      ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native read/SSR slice is implemented; completion writes remain on the retained TypeScript transition composition."
     },
     {
       "id": "maintenance/feature-maintenance-history",
       "kind": "module",
       "owner": "maintenance",
       "scope": "Maintenance history",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "maintenance-native-read",
+        "maintenance-native-http"
+      ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native work/plan detail history reads are implemented; browser acceptance and composition mounting remain open."
     },
     {
       "id": "operations/feature-exception-queue",
@@ -4601,108 +4616,144 @@
       "kind": "module",
       "owner": "quality",
       "scope": "Inspections",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "quality-native-read",
+        "quality-native-cancel",
+        "quality-http"
+      ],
       "sourceRef": "packages/server-quality/src/public/quality.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native Quality reads/cancellation and HTTP transport are implemented; inspection writes remain on the retained Quality owner."
     },
     {
       "id": "quality/results",
       "kind": "module",
       "owner": "quality",
       "scope": "Results",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "quality-native-read",
+        "quality-native-cancel",
+        "quality-http"
+      ],
       "sourceRef": "packages/server-quality/src/public/quality.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native Quality read/detail projection is implemented; specification and measurement writes remain retained."
     },
     {
       "id": "quality/release-gates",
       "kind": "module",
       "owner": "quality",
       "scope": "Release gates",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "quality-native-read",
+        "quality-native-cancel",
+        "quality-http"
+      ],
       "sourceRef": "packages/server-quality/src/public/quality.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native decision/read overlay is implemented; release/scrap writers still compose Inventory/Finance and remain retained."
     },
     {
       "id": "quality/feature-cancellation",
       "kind": "module",
       "owner": "quality",
       "scope": "Cancellation",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "quality-native-read",
+        "quality-native-cancel",
+        "quality-http"
+      ],
       "sourceRef": "packages/server-quality/src/public/quality.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native cancellation with CAS, independence and persisted event/readback is PostgreSQL-qualified; composition mount and browser remain open."
     },
     {
       "id": "legal/contracts",
       "kind": "module",
       "owner": "legal",
       "scope": "Contracts",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "legal-native-records",
+        "legal-native-holds",
+        "legal-native-archive"
+      ],
       "sourceRef": "packages/server-legal/src/public/legal/service.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native Legal record register/detail and authored document version reads are implemented; contract approval/signing/executed copies remain retained."
     },
     {
       "id": "legal/feature-documents",
       "kind": "module",
       "owner": "legal",
       "scope": "Documents",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "legal-native-records",
+        "legal-native-holds",
+        "legal-native-archive"
+      ],
       "sourceRef": "packages/server-legal/src/public/legal/service.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native document register/detail/version command slice is implemented; upload/OCR/verify/export/share writers remain retained."
     },
     {
       "id": "legal/feature-legal-holds",
       "kind": "module",
       "owner": "legal",
       "scope": "Legal holds",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "legal-native-records",
+        "legal-native-holds",
+        "legal-native-archive"
+      ],
       "sourceRef": "packages/server-legal/src/public/legal/service.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native hold create/request-release/release is PostgreSQL-qualified; Collaboration notifier/IAM ports and composition mount remain open."
     },
     {
       "id": "legal/feature-document-access",
       "kind": "module",
       "owner": "legal",
       "scope": "Document access",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "legal-native-records",
+        "legal-native-holds",
+        "legal-native-archive"
+      ],
       "sourceRef": "packages/server-legal/src/public/legal/service.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native access history is recorded in the owner transaction; share/invitation and access mutation remain retained."
     },
     {
       "id": "legal/feature-archive",
       "kind": "module",
       "owner": "legal",
       "scope": "Archive",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "legal-native-records",
+        "legal-native-holds",
+        "legal-native-archive"
+      ],
       "sourceRef": "packages/server-legal/src/public/legal/service.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native archive transition is implemented with CAS/receipt/audit/outbox; composition and browser acceptance remain open."
     },
     {
       "id": "people_payroll/employees",
