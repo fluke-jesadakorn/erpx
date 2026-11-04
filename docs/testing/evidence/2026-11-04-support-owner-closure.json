@@ -73,7 +73,13 @@
       "testTypecheck": "tsc --noEmit --project tests/config/tsconfig.json: blocked by concurrent uncommitted Assets test type changes outside Support (tests/unit/shared.business-contracts/asset-maintenance-applications.test.ts)"
     },
     "clippy": "cargo clippy -p erpx-server-support --all-targets --offline -- -D warnings: pass",
-    "browser": "not run; deferred to the main-agent current-source browser cohort as authorized"
+    "browser": "not run; deferred to the main-agent current-source browser cohort as authorized",
+    "runtimeDrain": {
+      "command": "/target/debug/erpx-server support-sla-drain --once --development-config /case/.runtime/agent-brand-finance/private.json",
+      "result": "two consecutive runs returned {\"drained\":0} and exit 0 on the disposable case databases; configuration, migration inventory, pool opening, per-target transaction, owner sweep and commit path all executed",
+      "idempotency": "the repeated run inserted no duplicate alerts or manager notices",
+      "limit": "the case tenant had no newly breached ticket at that instant, so the insertion path itself is covered by the PostgreSQL SLA test rather than this CLI run"
+    }
   },
   "registerRecommendation": {
     "owner": "support",
