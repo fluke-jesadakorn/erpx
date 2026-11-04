@@ -47,7 +47,7 @@
   ],
   "verification": {
     "cargo": {
-      "command": "cargo test -p erpx-server-crm --locked -- --test-threads=1",
+      "command": "cargo test -p erpx-server-crm --locked",
       "result": "15 passed, 0 failed, 0 ignored across 3 test targets plus the empty lib/doc targets (lib 0, crm_pipeline 9, crm_pipeline_http 2, crm_pipeline_postgres 4, doc-tests 0)",
       "workspaceNote": "The crate was not a root workspace member when this slice started, which this subagent is prohibited from editing. The exact --locked command was first run with a transient local member entry and transient Cargo.lock package entry; those edits were removed. The concurrent workspace/composition owner has since registered packages/server-crm in the current working tree, and the exact --locked command passes there. No root Cargo.toml or Cargo.lock content is authored by this subagent.",
       "targets": {
