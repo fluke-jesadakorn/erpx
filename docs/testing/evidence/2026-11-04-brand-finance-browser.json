@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Authenticated current-source browser evidence collected for native Brand draft save/readback and Finance controlled payment/bank settlement; canonical Admin redirect and bank manual-match gaps remain",
+  "capability": "brand-finance-browser",
+  "integrationTarget": "codex/rust-backend-migration",
+  "sourceCommit": "971e34ba0",
+  "runtime": {
+    "auth": "normal Account sign-in, SSO and Company/role selection; no cookie injection",
+    "privateApi": "current-source erpx-server private-api on loopback, current Next account/admin/finance apps",
+    "tenant": "leased h001 zero-service-parts fixture",
+    "projects": ["desktop", "mobile"]
+  },
+  "journeys": {
+    "brandDraftDesktop": {"result": "pass", "route": "/holdings/acme/administration/brand/identity", "post": 200, "draft": "brand-draft-c1ed7b87-199d-402b-9c76-132d641e46eb", "readback": "draft retained after reload"},
+    "brandDraftMobile": {"result": "pass", "viewport": "390x844", "post": 200, "draft": "brand-draft-8bcdffb4-9fbb-47b7-a608-dca781860a10", "readback": "draft retained after reload"},
+    "controlledPayment": {"result": "pass", "payment": "pay-ed72c6aa", "states": ["approved", "released", "settled"], "journal": "journal-60417188", "invoice": "field-invoice-ee073098", "invoiceStatus": "paid"},
+    "bankImport": {"result": "persisted", "statement": "STMT-NATIVE-1793779466399", "row": "BANK-NATIVE-1793779466399", "uiWarning": "false receipt mismatch before client null fix"},
+    "bankReadback": {"result": "pass", "desktop": true, "mobile": true, "row": "bankrow-exact-import-1793779177950-0", "status": "matched"}
+  },
+  "nativeChecks": [
+    "private API 11/11",
+    "bank HTTP 1/1",
+    "bank workspace PostgreSQL 4/4 (concurrent slice)",
+    "finance bank command transport 3/3",
+    "finance-bank-command 41/41"
+  ],
+  "limits": [
+    "Bank workspace manual POST reconcile was not exercised; the match used the normal payment confirm flow because a released generic payment has no posted journal yet.",
+    "Brand category locks and published identity were not browser-exercised; only the draft workspace is qualified.",
+    "Canonical Admin Brand route redirect loop was present at evidence time; proxy fix follows in this batch and needs a browser recheck.",
+    "Screenshots and logs are private ignored artifacts under .scratch/dev/agents/browser-brand-finance/evidence-v2 and logs; not published.",
+    "Hosted CI, staging and installed production were not accessed."
+  ]
+}
