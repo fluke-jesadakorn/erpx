@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 87,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 69,
-    "workflowsVerified": 27,
-    "workflowsMerged": 27,
+    "workflowsPartial": 68,
+    "workflowsVerified": 28,
+    "workflowsMerged": 28,
     "ownersComplete": 2,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -4077,17 +4077,18 @@
       "kind": "module",
       "owner": "finance",
       "scope": "Bank reconciliation",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "finance-bank-generic-import-browser",
         "finance-bank-import-http",
+        "finance-bank-manual-match-browser",
         "finance-bank-readback-browser",
         "finance-bank-workspace-read"
       ],
       "sourceRef": "packages/server-finance/src/public/finance.ts",
-      "gap": "Native bank workspace/import and controlled payment settlement are qualified; generic import persists and reads back desktop/mobile. Manual workspace reconcile of an independently posted payment is untested because generic import rows are not linked by settlementPaymentId, and automated mapping/groups remain open."
+      "gap": "Verified native bank workspace, generic import and manual match confirmation on normal-auth desktop/mobile, including matched readback and stale/already-matched refusals. Automated mapping/groups remain in the legacy path."
     },
     {
       "id": "finance/feature-reports",
