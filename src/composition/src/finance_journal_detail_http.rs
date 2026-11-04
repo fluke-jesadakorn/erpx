@@ -123,6 +123,14 @@ pub fn finance_journal_read_router<C: Clock + Send + Sync + 'static>(
             post(issue_sales_receipt::<C>),
         )
         .route(
+            "/api/v1/holdings/{holding_slug}/finance/invoices",
+            get(finance_invoices_page::<C>),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/invoices/aging",
+            get(finance_invoice_aging::<C>),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/finance/invoices/{id}",
             post(edit_sales_invoice::<C>),
         )
@@ -244,6 +252,164 @@ async fn workspace<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     read(state, slug, id, headers, true).await
 }
+async fn finance_invoices_page<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    headers: HeaderMap,
+    RawQuery(raw): RawQuery,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target = crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let mut q = String::new();
+        let mut kind = String::new();
+        let mut status = String::new();
+        let mut queue = String::new();
+        let mut chart_id = None;
+        let mut cursor = None;
+        let mut seen = std::collections::BTreeSet::new();
+        for (key, value) in url::form_urlencoded::parse(raw.as_deref().unwrap_or("").as_bytes()) {
+            if value.len() > 2000 || value.chars().any(char::is_control) || !seen.insert(key.to_string()) {
+                return Err(BusinessError::invalid(
+                    "FINANCE_INVOICE_QUERY_INVALID",
+                    "Use the invoice list filters.",
+                )
+                .into());
+            }
+            match key.as_ref() {
+                "q" => q = value.into_owned(),
+                "kind" if !value.is_empty() => kind = value.into_owned(),
+                "status" if !value.is_empty() => status = value.into_owned(),
+                "queue" if !value.is_empty() => queue = value.into_owned(),
+                "chartId" if !value.is_empty() => chart_id = Some(value.into_owned()),
+                "cursor" if !value.is_empty() => cursor = Some(value.into_owned()),
+                _ => {
+                    return Err(BusinessError::invalid(
+                        "FINANCE_INVOICE_QUERY_INVALID",
+                        "Use the invoice list filters.",
+                    )
+                    .into())
+                }
+            }
+        }
+        let query = erpx_server_finance::public::finance_invoice_read::InvoicePageQuery {
+            q,
+            kind,
+            status,
+            queue,
+            chart_id,
+            cursor,
+        };
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let company = target.service.company_id().clone();
+        let proof = inbound.into_proof();
+        let input = move || {
+            scope?;
+            captured.resolve_read(company)
+        };
+        target
+            .service
+            .finance_invoices_page(host, proof, input, query)
+            .await
+    }
+    .await;
+    read_json_response(result)
+}
+
+async fn finance_invoice_aging<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    headers: HeaderMap,
+    RawQuery(raw): RawQuery,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target = crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let mut kind = String::new();
+        let mut as_of = String::new();
+        let mut chart_id = None;
+        let mut seen = std::collections::BTreeSet::new();
+        for (key, value) in url::form_urlencoded::parse(raw.as_deref().unwrap_or("").as_bytes()) {
+            if value.len() > 2000 || value.chars().any(char::is_control) || !seen.insert(key.to_string()) {
+                return Err(BusinessError::invalid(
+                    "FINANCE_INVOICE_AGING_QUERY_INVALID",
+                    "Use a valid aging kind, cutoff date and ledger.",
+                )
+                .into());
+            }
+            match key.as_ref() {
+                "kind" if !value.is_empty() => kind = value.into_owned(),
+                "asOf" if !value.is_empty() => as_of = value.into_owned(),
+                "chartId" if !value.is_empty() => chart_id = Some(value.into_owned()),
+                _ => {
+                    return Err(BusinessError::invalid(
+                        "FINANCE_INVOICE_AGING_QUERY_INVALID",
+                        "Use a valid aging kind, cutoff date and ledger.",
+                    )
+                    .into())
+                }
+            }
+        }
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let company = target.service.company_id().clone();
+        let proof = inbound.into_proof();
+        let input = move || {
+            scope?;
+            captured.resolve_read(company)
+        };
+        target
+            .service
+            .finance_invoice_aging(host, proof, input, kind, as_of, chart_id)
+            .await
+    }
+    .await;
+    read_json_response(result)
+}
+
+fn read_json_response<T: serde::Serialize>(
+    result: Result<T, PgTransactionError<BusinessError>>,
+) -> Response {
+    let mut response = match result {
+        Ok(reply) => Json(reply).into_response(),
+        Err(PgTransactionError::Business(error)) => business_error(error),
+        Err(_) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
+    };
+    no_store(&mut response);
+    response
+}
+
 fn not_owned() -> Response {
     business_error(BusinessError::new(
         FailureKind::NotFound,

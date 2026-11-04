@@ -14,6 +14,7 @@ import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import {aging,invoiceWorkspace,invoicesPage} from '@erpx/server-finance/public/finance';
+import {nativeInvoicesPage,nativeInvoiceAging} from '@erpx/feature-finance/lib/native-invoice-read';
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { Card } from "@erpx/ui/components/foundation";
@@ -65,12 +66,44 @@ export default async function InvoicesPage({ params, searchParams, }: {
         chartId?: string;
     }>;
 }) {
-    const actor = await requireWorkContext((await params).holdingSlug), base = workspaceBase(publicScope(actor)), search = await searchParams, asOf = search.asOf || new Date().toISOString().slice(0, 10);
+    const holdingSlug = (await params).holdingSlug,
+      actor = await requireWorkContext(holdingSlug),
+      base = workspaceBase(publicScope(actor)),
+      search = await searchParams,
+      asOf = search.asOf || new Date().toISOString().slice(0, 10);
+    const nativeActor = actor.authority && actor.iam
+      ? {
+          userId: actor.userId,
+          holdingId: actor.holdingId,
+          holdingSlug,
+          companyId: actor.companyId,
+          branchId: actor.branchId,
+          departmentId: actor.departmentId,
+          assignmentId: actor.assignmentId,
+          role: actor.role,
+          assignmentScope: actor.assignmentScope,
+          scope:
+            actor.scope.kind === "holding"
+              ? { kind: "holding" as const }
+              : actor.scope.kind === "branch"
+                ? { kind: "branch" as const, branchSlug: actor.scope.branchSlug ?? "" }
+                : {
+                    kind: "department" as const,
+                    branchSlug: actor.scope.branchSlug ?? undefined,
+                    departmentSlug: actor.scope.departmentSlug ?? "",
+                  },
+          authority: { revision: actor.authority.revision, assignmentVersion: actor.authority.assignmentVersion },
+          modules: actor.modules,
+          iam: { permissions: actor.iam.permissions },
+        }
+      : undefined;
     const [page, charts, data, receivableAging, payableAging, tools] = await Promise.all([
-        invoicesPage(actor, search),
+        nativeInvoicesPage(nativeActor, holdingSlug, search)
+          .then((native) => (native as unknown as Awaited<ReturnType<typeof invoicesPage>> | undefined) ?? invoicesPage(actor, search)),
         listCharts(actor),
         search.new === "1" && hasPermission(actor, "finance.write") ? invoiceWorkspace(actor) : null,
-        aging(actor, "receivable", asOf, search.chartId),
+        nativeInvoiceAging(nativeActor, holdingSlug, "receivable", asOf, search.chartId)
+          .then((native) => (native as unknown as Awaited<ReturnType<typeof aging>> | undefined) ?? aging(actor, "receivable", asOf, search.chartId)),
         [],
         financeCompanyTools(actor),
     ]).catch((error) => pageError(error, actor.holdingSlug));

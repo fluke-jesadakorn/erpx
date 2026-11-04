@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Finance invoice list and historical aging verified on desktop and mobile; finance/feature-receivables-aging closes",
+  "capability": "finance-receivables-aging-native",
+  "base": "355bd7e89d230a613d184542b354e13a24d241f8",
+  "branch": "codex/finance-receivables-aging-native",
+  "sourceCommit": "pending",
+  "implementation": {
+    "adapter": "packages/server-finance/src/adapters/finance_invoice_read.rs",
+    "public": "packages/server-finance/src/public/finance_invoice_read.rs",
+    "composition": "src/composition/src/finance_journal_detail.rs (finance_invoices_page/finance_invoice_aging)",
+    "http": "src/composition/src/finance_journal_detail_http.rs",
+    "boundary": "src/composition/src/private_development_api.rs (finance_invoice_read)",
+    "transport": "packages/feature-finance/src/adapters/server/native-invoice-read.ts",
+    "screens": [
+      "packages/workplace/src/routes/holdings/[holdingSlug]/finance/documents/receivable/_screen.tsx",
+      "packages/workplace/src/routes/holdings/[holdingSlug]/finance/documents/payable/_screen.tsx",
+      "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance/invoices/screen.tsx"
+    ]
+  },
+  "behavior": {
+    "list": "Company invoice list with chart, kind, status, open queue and search filters plus the Work Projection cursor (30 rows, descending)",
+    "aging": "historical_invoice_balances CTE over dated accounting evidence; outstanding is total minus dated settlements/credits/refunds/revaluations, never mutable workflow status",
+    "buckets": "current / 1-30 / 31-60 / 61-90 / 90+ computed from the cutoff date and due date",
+    "scope": "Company scope only; chart filter and Company isolation are enforced in the owner query; branch/department screens fall back to the legacy read",
+    "authority": "current Account/Holding authority, rendered-context CAS, finance.read, module.finance.read and the finance.accounting or finance.sales-posting History purchase",
+    "atomicity": "serializable read; the multi-table historical projection takes no writer table locks"
+  },
+  "checks": {
+    "postgres": "finance.rust-invoice-read-postgres.integration 3/3",
+    "cases": [
+      "list chart/kind/status/open/search filters and 31-row cursor pagination",
+      "cursor bound to its query scope; foreign cursor 422",
+      "another Company sees no rows",
+      "aging current 10,000, 31-60 20,000 and 90+ 25,000 after a dated 5,000 settlement",
+      "draft and other-chart rows excluded; payable aging 15,000 in 31-60",
+      "invalid aging date 422; HTTP list 200 and aging 200 with a real cookie/CAS"
+    ],
+    "regressions": "finance.rust-sales-invoice-edit-postgres 4/4; finance.rust-sales-receipt-postgres 2/2; finance.rust-sales-defaults-postgres 3/3; finance.rust-sales-invoice-create-postgres 3/3; finance.rust-sales-invoice-list-postgres 3/3; finance.rust-journal-list-postgres 2/2",
+    "gates": "cargo clippy private-field-api, typecheck, structure, architecture, docs, catalogue (33 modules, 793 suites), rust-runtime-foundation 6/6, finance unit transport suites 4/4"
+  },
+  "browser": {
+    "desktop": {
+      "viewport": "1280x900",
+      "url": "https://acme.jesadakorn.com/finance/documents/receivable?company=zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e",
+      "listRow": ["INV-AGING-BROWSER", "Browser customer", "2026-09-01", "THB 500.00", "THB 500.00", "posted"],
+      "aging": [["61-90", "THB", "1", "THB 500.00", "2026-09-01"], ["current", "THB", "4", "THB 400.00", "2026-12-03"]],
+      "pageErrors": 0,
+      "consoleErrors": 7
+    },
+    "mobile": {
+      "viewport": "390x844",
+      "url": "https://acme.jesadakorn.com/finance/documents/receivable?company=zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e",
+      "listRow": ["INV-AGING-BROWSER", "Browser customer", "2026-09-01", "THB 500.00", "THB 500.00", "posted"],
+      "aging": [["61-90", "THB", "1", "THB 500.00", "2026-09-01"], ["current", "THB", "4", "THB 400.00", "2026-12-03"]],
+      "pageErrors": 0,
+      "consoleErrors": 4
+    },
+    "nativeProof": "Stopping the private native API made the same page render 'Temporarily unavailable' with no rows; restarting it restored INV-AGING-BROWSER and the 61-90 aging row."
+  },
+  "limits": [
+    "The workflow is read-only; no command receipt or outbox is written by the list/aging read.",
+    "The legacy /finance/documents/invoices URL is not a registered product destination and returns 403; the canonical receivable/payable screens are the journey.",
+    "Branch/department screens fall back to the legacy read; the native Company read requires a Company Finance assignment.",
+    "The Finance app still logs pre-existing hydration/work-source console errors; pageErrors stay 0."
+  ]
+}
