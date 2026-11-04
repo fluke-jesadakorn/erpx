@@ -151,6 +151,109 @@ async fn issue_reads_current_sales_source_and_persists_lots_and_reservations() {
 }
 
 #[tokio::test]
+async fn issue_delivers_untracked_stock_without_lot_evidence() {
+    fixture::with_database(2, |pool| async move {
+        facts::setup(&pool, "none").await;
+        PgUnitOfWork::new(pool.clone())
+            .run::<_, BusinessError, _>(TransactionOptions::default(), |c| {
+                Box::pin(async move {
+                    lock_stock_issue_sources(c).await?;
+                    let source = read_stock_issue_source(c, "company", None, None, "order-1").await?;
+                    let plan = prepare_stock_issue(&source, &input(2_000, vec![]))?;
+                    assert_eq!(plan.total_value_minor, 1_000);
+                    assert!(plan.lines[0].allocations.is_empty());
+                    facts::align_fulfillment(c, 2_000, 1_000).await;
+                    let applied = apply_stock_issue(
+                        c,
+                        &plan,
+                        "delivery-key",
+                        "command-key",
+                        "issuer",
+                        100,
+                    )
+                    .await?;
+                    assert!(!applied.replayed);
+                    assert_eq!(applied.lines[0].reservations_consumed_milli, 2_000);
+                    assert!(applied.lines[0].allocations.is_empty());
+                    let evidence: (i64, i64, i64, i64) = sqlx::query_as(
+                        "SELECT \
+                         (SELECT quantity_milli FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='product'),\
+                         (SELECT value_minor FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='product'),\
+                         (SELECT count(*) FROM inventory_lot_moves),\
+                         (SELECT count(*) FROM inventory_fulfillment_lot_allocations)",
+                    )
+                    .fetch_one(&mut *c)
+                    .await?;
+                    assert_eq!(evidence, (2_000, 1_000, 0, 0));
+                    Ok(())
+                })
+            })
+            .await
+            .unwrap();
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn issue_delivers_whole_serials_and_depletes_them() {
+    fixture::with_database(2, |pool| async move {
+        facts::setup(&pool, "serial").await;
+        PgUnitOfWork::new(pool.clone())
+            .run::<_, BusinessError, _>(TransactionOptions::default(), |c| {
+                Box::pin(async move {
+                    lock_stock_issue_sources(c).await?;
+                    let source =
+                        read_stock_issue_source(c, "company", None, None, "order-1").await?;
+                    let plan = prepare_stock_issue(
+                        &source,
+                        &input(
+                            2_000,
+                            vec![allocation("serial-a", 1_000), allocation("serial-b", 1_000)],
+                        ),
+                    )?;
+                    facts::align_fulfillment(c, 2_000, 1_000).await;
+                    let applied =
+                        apply_stock_issue(c, &plan, "delivery-key", "command-key", "issuer", 100)
+                            .await?;
+                    assert_eq!(applied.lines[0].allocations.len(), 2);
+                    assert_eq!(
+                        applied.lines[0].allocations[0].serial_number.as_deref(),
+                        Some("SN-A")
+                    );
+                    let lots: Vec<(String, i64, i64, String)> = sqlx::query_as(
+                        "SELECT l.serial_number,b.quantity_milli,b.value_minor,l.status \
+                         FROM inventory_lots l JOIN inventory_lot_balances b ON b.lot_id=l.id \
+                         WHERE l.company_id='company' AND l.product_id='product' \
+                         ORDER BY l.serial_number",
+                    )
+                    .fetch_all(&mut *c)
+                    .await?;
+                    assert_eq!(
+                        lots,
+                        vec![
+                            ("SN-A".into(), 0, 0, "depleted".into()),
+                            ("SN-B".into(), 0, 0, "depleted".into()),
+                            ("SN-C".into(), 1_000, 500, "active".into()),
+                            ("SN-D".into(), 1_000, 500, "active".into()),
+                        ]
+                    );
+                    let stock: (i64, i64) = sqlx::query_as(
+                        "SELECT quantity_milli,value_minor FROM commerce_stock \
+                         WHERE warehouse_id='warehouse' AND product_id='product'",
+                    )
+                    .fetch_one(&mut *c)
+                    .await?;
+                    assert_eq!(stock, (2_000, 1_000));
+                    Ok(())
+                })
+            })
+            .await
+            .unwrap();
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn issue_consumes_only_its_own_active_sales_reservation() {
     fixture::with_database(2, |pool| async move {
         facts::setup(&pool, "none").await;
@@ -326,6 +429,58 @@ async fn issue_rejects_over_fulfillment_and_a_changed_order_version() {
             })
             .await;
         denied(result, "STOCK_ISSUE_SOURCE_CHANGED");
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn issue_rejects_a_tampered_value_at_the_write_boundary() {
+    fixture::with_database(2, |pool| async move {
+        facts::setup(&pool, "lot").await;
+        let result = PgUnitOfWork::new(pool.clone())
+            .run::<_, BusinessError, _>(TransactionOptions::default(), |c| {
+                Box::pin(async move {
+                    lock_stock_issue_sources(c).await?;
+                    let source =
+                        read_stock_issue_source(c, "company", None, None, "order-1").await?;
+                    let mut plan = prepare_stock_issue(
+                        &source,
+                        &input(
+                            2_000,
+                            vec![allocation("lot-a", 1_000), allocation("lot-b", 1_000)],
+                        ),
+                    )?;
+                    plan.lines[0].allocations[0].value_minor = 400;
+                    plan.lines[0].stock_value_minor = 900;
+                    plan.total_value_minor = 900;
+                    assert!(validate_stock_issue_plan(&plan).is_ok());
+                    facts::align_fulfillment(c, 2_000, 900).await;
+                    apply_stock_issue(c, &plan, "delivery-key", "command-key", "issuer", 100).await
+                })
+            })
+            .await;
+        denied(result, "STOCK_ISSUE_VALUE_INVALID");
+    })
+    .await;
+
+    fixture::with_database(2, |pool| async move {
+        facts::setup(&pool, "none").await;
+        let result = PgUnitOfWork::new(pool.clone())
+            .run::<_, BusinessError, _>(TransactionOptions::default(), |c| {
+                Box::pin(async move {
+                    lock_stock_issue_sources(c).await?;
+                    let source =
+                        read_stock_issue_source(c, "company", None, None, "order-1").await?;
+                    let mut plan = prepare_stock_issue(&source, &input(2_000, vec![]))?;
+                    plan.lines[0].stock_value_minor = 900;
+                    plan.total_value_minor = 900;
+                    assert!(validate_stock_issue_plan(&plan).is_ok());
+                    facts::align_fulfillment(c, 2_000, 900).await;
+                    apply_stock_issue(c, &plan, "delivery-key", "command-key", "issuer", 100).await
+                })
+            })
+            .await;
+        denied(result, "STOCK_ISSUE_VALUE_INVALID");
     })
     .await;
 }

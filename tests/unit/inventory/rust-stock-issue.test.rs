@@ -391,7 +391,7 @@ fn rejects_a_tampered_plan_before_the_write_boundary() {
             "lot",
             vec![line(
                 "lot",
-                Some(stock(2_000, 1_000, 0, 0)),
+                Some(stock(2_000, 1_000, 2_000, 0)),
                 vec![lot("a", "lot", 1_000, 333), lot("b", "lot", 1_000, 667)],
                 vec![reservation("reservation-1", 2_000, true)],
             )],

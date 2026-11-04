@@ -572,13 +572,17 @@ async fn apply_lot_allocations(
         let expected_value_minor = if allocation.quantity_milli == lot.quantity_milli {
             lot.value_minor
         } else {
-            scaled_inventory_value(lot.value_minor, allocation.quantity_milli, lot.quantity_milli)
-                .map_err(|_| {
-                    conflict(
-                        "STOCK_ISSUE_VALUE_INVALID",
-                        "The delivery value is outside the supported range.",
-                    )
-                })?
+            scaled_inventory_value(
+                lot.value_minor,
+                allocation.quantity_milli,
+                lot.quantity_milli,
+            )
+            .map_err(|_| {
+                conflict(
+                    "STOCK_ISSUE_VALUE_INVALID",
+                    "The delivery value is outside the supported range.",
+                )
+            })?
         };
         if expected_value_minor != allocation.value_minor {
             return Err(conflict(
