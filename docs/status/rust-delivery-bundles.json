@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-04T22:10:00+07:00",
+  "updatedAt": "2026-11-04T22:30:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -16,10 +16,10 @@
     "interpretation": "The 206 items are catalogue workflows, not the number of bounded flows. Each listed ID occurs once below. A partial item has supporting qualified slices, not whole-workflow verification."
   },
   "counts": {
-    "qualifiedBusinessFlows": 92,
+    "qualifiedBusinessFlows": 93,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 72,
+    "workflowsPartial": 73,
     "workflowsVerified": 28,
     "workflowsMerged": 28,
     "ownersComplete": 3,
@@ -3527,12 +3527,15 @@
       "kind": "module",
       "owner": "identity_access",
       "scope": "Assignments",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "identity-access-native-assignments",
+        "identity-access-native-assignments-http"
+      ],
       "sourceRef": "packages/server-identity_access/src/public/account-access.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native assignment rows and revoke are PostgreSQL/HTTP-qualified; grant/proposal, role publication, access reviews, MFA, directory, invitations and composition mount remain open."
     },
     {
       "id": "identity_access/access-reviews",
