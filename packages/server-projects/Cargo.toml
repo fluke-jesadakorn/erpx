@@ -35,3 +35,15 @@ path = "../../tests/integration/projects/rust-project-wbs-postgres.test.rs"
 
 [lints]
 workspace = true
+
+[[test]]
+name = "project_graph"
+path = "../../tests/unit/projects/rust-project-graph.test.rs"
+
+[[test]]
+name = "project_commands"
+path = "../../tests/unit/projects/rust-project-commands.test.rs"
+
+[[test]]
+name = "project_graph_http"
+path = "../../tests/unit/projects/rust-project-graph-http.test.rs"
