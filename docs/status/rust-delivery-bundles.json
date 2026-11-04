@@ -3378,7 +3378,7 @@
       "kind": "business-flow-evidence",
       "status": "flow-complete",
       "scope": "Native Finance trial balance and statements: historical base ledger amounts, period/date/chart filters, fiscal-close exclusion, Company isolation, HTTP/Next and desktop/mobile Reports page.",
-      "sourceIdentity": "finance-reports-native",
+      "sourceIdentity": "21dfb7fc91736d5ced52989d24b57a80c9ea17cc",
       "evidenceRef": "docs/testing/evidence/2026-11-04-finance-reports-native.json",
       "durableContractRefs": [
         "docs/contracts/next/rust-finance-journal-detail.md"

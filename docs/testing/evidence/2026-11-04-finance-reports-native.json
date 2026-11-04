@@ -5,7 +5,7 @@
   "capability": "finance-reports-native",
   "base": "a757fbc0d85a2b87d84693ebd67c3c6e6b017646",
   "branch": "codex/finance-reports-native",
-  "sourceCommit": "pending",
+  "sourceCommit": "21dfb7fc91736d5ced52989d24b57a80c9ea17cc",
   "implementation": {
     "adapter": "packages/server-finance/src/adapters/finance_reports.rs",
     "public": "packages/server-finance/src/public/finance_reports.rs",
@@ -40,18 +40,48 @@
       "viewport": "1280x900",
       "url": "https://acme.jesadakorn.com/finance/reports/company?chart=chart-1793702143770&company=zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e",
       "trialRows": [
-        ["1999 · Browser report cash", "asset", "123456", "0", "123456"],
-        ["4999 · Browser report revenue", "revenue", "0", "123456", "-123456"]
+        [
+          "1999 · Browser report cash",
+          "asset",
+          "123456",
+          "0",
+          "123456"
+        ],
+        [
+          "4999 · Browser report revenue",
+          "revenue",
+          "0",
+          "123456",
+          "-123456"
+        ]
       ],
-      "cards": ["ASSETS THB 2434.56", "LIABILITIES THB 0.00", "EQUITY THB 2434.56", "REVENUE THB 2434.56", "EXPENSES THB 0.00"],
+      "cards": [
+        "ASSETS THB 2434.56",
+        "LIABILITIES THB 0.00",
+        "EQUITY THB 2434.56",
+        "REVENUE THB 2434.56",
+        "EXPENSES THB 0.00"
+      ],
       "pageErrors": 0,
       "consoleErrors": 7
     },
     "mobile": {
       "viewport": "390x844",
       "trialRows": [
-        ["1999 · Browser report cash", "asset", "123456", "0", "123456"],
-        ["4999 · Browser report revenue", "revenue", "0", "123456", "-123456"]
+        [
+          "1999 · Browser report cash",
+          "asset",
+          "123456",
+          "0",
+          "123456"
+        ],
+        [
+          "4999 · Browser report revenue",
+          "revenue",
+          "0",
+          "123456",
+          "-123456"
+        ]
       ],
       "pageErrors": 0,
       "consoleErrors": 4
