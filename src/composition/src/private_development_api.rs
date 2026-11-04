@@ -1420,6 +1420,7 @@ async fn assemble_checked(
         let mut brand_targets = Vec::new();
         let mut organization_targets = Vec::new();
         let mut organization_setup_targets = Vec::new();
+        let mut approval_targets = Vec::new();
         let mut asset_targets = Vec::new();
         let mut bank_targets = Vec::new();
         let mut generic_payment_targets = Vec::new();
@@ -1531,6 +1532,25 @@ async fn assemble_checked(
                     Arc::new(SharedClock(clock.clone())),
                 )),
             });
+            approval_targets.push(
+                erpx_server_workflow::public::approval_oversight_http::ApprovalOversightHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: Arc::new(crate::approval_oversight::ApprovalOversightBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::approval_oversight::ApprovalOversightService::new(
+                            authorizer.clone(),
+                            crate::approval_oversight::ApprovalOversightConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    )),
+                },
+            );
             organization_setup_targets.push(
                 erpx_server_organization::public::organization_setup_http::OrganizationSetupHttpTarget {
                     host: holding.host.clone(),
@@ -1830,6 +1850,14 @@ async fn assemble_checked(
                     organization_setup_targets,
                 )
                 .map_err(|_| "PRIVATE_API_ORGANIZATION_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !approval_targets.is_empty() {
+            router = router.merge(
+                erpx_server_workflow::public::approval_oversight_http::approval_oversight_http_router(
+                    approval_targets,
+                )
+                .map_err(|_| "PRIVATE_API_WORKFLOW_CONFIGURATION_INVALID")?,
             );
         }
         if !asset_targets.is_empty() {
@@ -3578,6 +3606,16 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };
+    let workflow_approvals = match (request.method(), request.uri().path().split('/').collect::<Vec<_>>().as_slice()) {
+        (&axum::http::Method::GET, ["", "api", "v1", "holdings", slug, "workflow", "approvals"]) => state
+            .organization_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (&axum::http::Method::GET, ["", "api", "v1", "holdings", slug, "workflow", "approvals", kind, record_id, "evidence"])
+            if !kind.is_empty() && !record_id.is_empty() => state
+                .organization_targets
+                .contains(&(host.to_owned(), (*slug).to_owned())),
+        _ => false,
+    };
     let organization_setup = match (request.method(), request.uri().path().split('/').collect::<Vec<_>>().as_slice()) {
         (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "people", "organization", "levels"]) => state
             .organization_targets
@@ -3611,7 +3649,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
     if !(matches!(
         request.uri().path(),
         "/api/auth/get-session" | "/api/health" | "/api/ready"
-    ) || account_mfa || service_packages || field_work_roles || field_operations || field_support || field_collaboration || field_inbox_state || support_ticket || support_incident || support_session || support_sla || support_evidence || inventory_availability || inventory_stock || organization_nodes || organization_setup || brand || bank || generic_payment || finance_supplier_bill || finance_period_close || finance_workspace || finance_invoice_read || finance_opening_balances || finance_report || finance_setup || finance_sales_invoice_create || finance_sales_invoice_edit || finance_sales_defaults || finance_sales_receipts
+    ) || account_mfa || service_packages || field_work_roles || field_operations || field_support || field_collaboration || field_inbox_state || support_ticket || support_incident || support_session || support_sla || support_evidence || inventory_availability || inventory_stock || organization_nodes || organization_setup || workflow_approvals || brand || bank || generic_payment || finance_supplier_bill || finance_period_close || finance_workspace || finance_invoice_read || finance_opening_balances || finance_report || finance_setup || finance_sales_invoice_create || finance_sales_invoice_edit || finance_sales_defaults || finance_sales_receipts
         || finance_invoice_runtime
         || finance_field_journal_flow
         || finance_invoice_post
@@ -3644,6 +3682,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             || support_sla
             || support_evidence
             || organization_setup
+            || workflow_approvals
             || brand
             || bank
             || generic_payment
