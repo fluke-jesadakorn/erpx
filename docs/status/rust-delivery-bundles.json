@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-05T00:55:00+07:00",
+  "updatedAt": "2026-11-05T01:50:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -5765,10 +5765,11 @@
       "merged": false,
       "evidenceFlows": [
         "collaboration-handbook-http",
-        "collaboration-social-postgres"
+        "collaboration-social-postgres",
+        "collaboration-handbook-ssr"
       ],
       "sourceRef": "packages/server-collaboration/src/public/social.ts",
-      "gap": "Native Social/threads, mentions, comments/moderation, following/reactions and topics/feed are PostgreSQL-qualified; the handbook HTTP router is owner-local and the Next handbook route is fail-closed native-only. Composition mounting, SSR presentation, attachments/teams/channels and authenticated browser acceptance remain open."
+      "gap": "Native handbook HTTP and strict SSR transport are qualified; composition mount, authenticated handbook journey, Social/Messaging HTTP ingress, teams/channels, attachments and inbox presentation remain open."
     },
     {
       "id": "collaboration/mentions",
@@ -5780,10 +5781,11 @@
       "merged": false,
       "evidenceFlows": [
         "collaboration-handbook-http",
-        "collaboration-social-postgres"
+        "collaboration-social-postgres",
+        "collaboration-handbook-ssr"
       ],
       "sourceRef": "packages/server-collaboration/src/public/social.ts",
-      "gap": "Native Social/threads, mentions, comments/moderation, following/reactions and topics/feed are PostgreSQL-qualified; the handbook HTTP router is owner-local and the Next handbook route is fail-closed native-only. Composition mounting, SSR presentation, attachments/teams/channels and authenticated browser acceptance remain open."
+      "gap": "Native handbook HTTP and strict SSR transport are qualified; composition mount, authenticated handbook journey, Social/Messaging HTTP ingress, teams/channels, attachments and inbox presentation remain open."
     },
     {
       "id": "collaboration/feature-comments-moderation",
@@ -5795,10 +5797,11 @@
       "merged": false,
       "evidenceFlows": [
         "collaboration-handbook-http",
-        "collaboration-social-postgres"
+        "collaboration-social-postgres",
+        "collaboration-handbook-ssr"
       ],
       "sourceRef": "packages/server-collaboration/src/public/social.ts",
-      "gap": "Native Social/threads, mentions, comments/moderation, following/reactions and topics/feed are PostgreSQL-qualified; the handbook HTTP router is owner-local and the Next handbook route is fail-closed native-only. Composition mounting, SSR presentation, attachments/teams/channels and authenticated browser acceptance remain open."
+      "gap": "Native handbook HTTP and strict SSR transport are qualified; composition mount, authenticated handbook journey, Social/Messaging HTTP ingress, teams/channels, attachments and inbox presentation remain open."
     },
     {
       "id": "collaboration/feature-following-reactions",
@@ -5810,10 +5813,11 @@
       "merged": false,
       "evidenceFlows": [
         "collaboration-handbook-http",
-        "collaboration-social-postgres"
+        "collaboration-social-postgres",
+        "collaboration-handbook-ssr"
       ],
       "sourceRef": "packages/server-collaboration/src/public/social.ts",
-      "gap": "Native Social/threads, mentions, comments/moderation, following/reactions and topics/feed are PostgreSQL-qualified; the handbook HTTP router is owner-local and the Next handbook route is fail-closed native-only. Composition mounting, SSR presentation, attachments/teams/channels and authenticated browser acceptance remain open."
+      "gap": "Native handbook HTTP and strict SSR transport are qualified; composition mount, authenticated handbook journey, Social/Messaging HTTP ingress, teams/channels, attachments and inbox presentation remain open."
     },
     {
       "id": "collaboration/feature-topics-feed",
@@ -5825,10 +5829,11 @@
       "merged": false,
       "evidenceFlows": [
         "collaboration-handbook-http",
-        "collaboration-social-postgres"
+        "collaboration-social-postgres",
+        "collaboration-handbook-ssr"
       ],
       "sourceRef": "packages/server-collaboration/src/public/social.ts",
-      "gap": "Native Social/threads, mentions, comments/moderation, following/reactions and topics/feed are PostgreSQL-qualified; the handbook HTTP router is owner-local and the Next handbook route is fail-closed native-only. Composition mounting, SSR presentation, attachments/teams/channels and authenticated browser acceptance remain open."
+      "gap": "Native handbook HTTP and strict SSR transport are qualified; composition mount, authenticated handbook journey, Social/Messaging HTTP ingress, teams/channels, attachments and inbox presentation remain open."
     },
     {
       "id": "collaboration/feature-attachments",
@@ -5838,9 +5843,11 @@
       "partial": false,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "collaboration-handbook-ssr"
+      ],
       "sourceRef": "packages/server-collaboration/src/public/messaging-files.ts",
-      "gap": "Attachments, teams/channels, announcements and inbox notifications remain on the retained TypeScript owner."
+      "gap": "Native handbook HTTP and strict SSR transport are qualified; composition mount, authenticated handbook journey, Social/Messaging HTTP ingress, teams/channels, attachments and inbox presentation remain open."
     },
     {
       "id": "collaboration/feature-action-cards",
@@ -5850,9 +5857,11 @@
       "partial": false,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "collaboration-handbook-ssr"
+      ],
       "sourceRef": "packages/server-collaboration/src/public/collaboration-work.ts",
-      "gap": "The existing Field-linked action-card/record-relation native slice is retained; general/legacy sources and HTTP routes remain open."
+      "gap": "Native handbook HTTP and strict SSR transport are qualified; composition mount, authenticated handbook journey, Social/Messaging HTTP ingress, teams/channels, attachments and inbox presentation remain open."
     },
     {
       "id": "collaboration/feature-record-relations",
@@ -5862,9 +5871,11 @@
       "partial": false,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "collaboration-handbook-ssr"
+      ],
       "sourceRef": "packages/server-collaboration/src/public/collaboration-work.ts",
-      "gap": "The existing Field-linked action-card/record-relation native slice is retained; general/legacy sources and HTTP routes remain open."
+      "gap": "Native handbook HTTP and strict SSR transport are qualified; composition mount, authenticated handbook journey, Social/Messaging HTTP ingress, teams/channels, attachments and inbox presentation remain open."
     },
     {
       "id": "pms/dashboard",
