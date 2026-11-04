@@ -9,7 +9,8 @@ import { StatusBadge } from "@erpx/ui/components/primitives";
 import { MaintenanceConsole } from "@erpx/feature-assets/components/asset-maintenance-console";
 import { MaintenancePreventiveConsole } from "@erpx/feature-maintenance/components/maintenance-preventive-console";
 import { requireWorkContext, publicScope } from "@erpx/server-identity_access/public/authorization";
-import { maintenanceWorkspace } from "@erpx/server-maintenance/public/asset-maintenance";
+import { ownedMaintenanceWorkspace } from "@erpx/feature-assets/adapters/server/native-maintenance-owned";
+import { ApiError } from "@erpx/server-runtime/public/http";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
@@ -31,7 +32,7 @@ export default async function Assets({ params, searchParams }: {
         forbidden();
     }
     
-    const workData = await maintenanceWorkspace(actor).catch(error => pageError(error, holdingSlug));
+    const workData = await ownedMaintenanceWorkspace(actor, holdingSlug).then(data => { if (!data) throw new ApiError(503, 'NATIVE_MAINTENANCE_UNAVAILABLE', 'The native Maintenance reader is unavailable.'); return data; }).catch(error => pageError(error, holdingSlug));
     
     const term = typeof query.q === 'string' ? query.q.toLocaleLowerCase() : '', unit = typeof query.unit === 'string' ? query.unit : null, category = typeof query.category === 'string' ? query.category : null, status = typeof query.status === 'string' ? query.status : null;
     const scopeNodes = (workData?.nodes ?? []).filter(node => (!actor.branchId || node.id === actor.branchId || node.branch_id === actor.branchId) && (!actor.departmentId || node.id === actor.departmentId));

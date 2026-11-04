@@ -1,3 +1,6 @@
+pub(crate) mod http;
+pub(crate) mod read;
+
 pub(crate) mod work_source;
 
 pub(crate) mod finance_lineage;

@@ -4,6 +4,9 @@ pub use crate::domain::work::{
     maintenance_state, require_maintenance_transition,
 };
 
+pub mod http;
+pub mod read;
+
 pub mod work_source;
 
 pub mod work_wire;

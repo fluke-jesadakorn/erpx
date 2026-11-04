@@ -1,2 +1,27 @@
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
-import {requireWorkContext} from "@erpx/server-identity_access/public/authorization";import {requestPublicOrigin} from "@erpx/server-manage_erpx/public/public-origin";import {ApiError,errorResponse} from "@erpx/server-runtime/public/http";import {changeMaintenanceWork,createMaintenanceWork,maintenanceDetail,maintenanceWorkspace} from "@erpx/server-maintenance/public/asset-maintenance";type C={params:Promise<{holdingSlug:string}>};const headers={'Cache-Control':'private, no-store'};export async function GET(r:Request,c:C){try{const a=await requireWorkContext((await c.params).holdingSlug),id=new URL(r.url).searchParams.get('id');return Response.json(canonicalDestinationLinks({data:id?await maintenanceDetail(a,id):await maintenanceWorkspace(a)}),{headers});}catch(e){return errorResponse(e);}}export async function POST(r:Request,c:C){try{if(r.headers.get('origin')&&r.headers.get('origin')!==requestPublicOrigin(r))throw new ApiError(403,'ORIGIN_FORBIDDEN','Use the application origin.');const key=r.headers.get('Idempotency-Key');if(!key)throw new ApiError(422,'COMMAND_KEY_REQUIRED','Idempotency-Key is required.');const a=await requireWorkContext((await c.params).holdingSlug),input=await r.json();return Response.json(canonicalDestinationLinks({data:typeof input.id==='string'?await changeMaintenanceWork(a,input.id,input,key):await createMaintenanceWork(a,input,key)}),{headers});}catch(e){return errorResponse(e);}}
+import {requireWorkContext} from "@erpx/server-identity_access/public/authorization";
+import {requestPublicOrigin} from "@erpx/server-manage_erpx/public/public-origin";
+import {ApiError,errorResponse} from "@erpx/server-runtime/public/http";
+import {ownedMaintenanceCommand,ownedMaintenanceDetail,ownedMaintenanceWorkspace} from "@erpx/feature-assets/adapters/server/native-maintenance-owned";
+type C={params:Promise<{holdingSlug:string}>};
+const headers={'Cache-Control':'private, no-store'};
+function unavailable():never{throw new ApiError(503,'NATIVE_MAINTENANCE_UNAVAILABLE','The native Maintenance service is unavailable.');}
+export async function GET(request:Request,context:C){
+ try{
+  const actor=await requireWorkContext((await context.params).holdingSlug),id=new URL(request.url).searchParams.get('id');
+  const data=id?await ownedMaintenanceDetail(actor,actor.holdingSlug,id):await ownedMaintenanceWorkspace(actor,actor.holdingSlug);
+  if(data===undefined)unavailable();
+  return Response.json(canonicalDestinationLinks({data}),{headers});
+ }catch(error){return errorResponse(error);}
+}
+export async function POST(request:Request,context:C){
+ try{
+  if(request.headers.get('origin')&&request.headers.get('origin')!==requestPublicOrigin(request))throw new ApiError(403,'ORIGIN_FORBIDDEN','Use the application origin.');
+  const key=request.headers.get('Idempotency-Key');if(!key)throw new ApiError(422,'COMMAND_KEY_REQUIRED','Idempotency-Key is required.');
+  const actor=await requireWorkContext((await context.params).holdingSlug),input=await request.json();
+  if(!input||typeof input!=='object'||Array.isArray(input))throw new ApiError(422,'MAINTENANCE_INPUT_INVALID','Use a Maintenance work command object.');
+  const data=await ownedMaintenanceCommand(actor,actor.holdingSlug,input,key);
+  if(data===undefined)unavailable();
+  return Response.json(canonicalDestinationLinks({data}),{headers});
+ }catch(error){return errorResponse(error);}
+}

@@ -11,6 +11,7 @@ import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { qualityWorkspace } from "@erpx/server-quality/public/quality";
 import { qualityAlerts } from "@erpx/server-quality/public/quality-alerts";
 import { QualityConsole } from "@erpx/feature-quality/components/quality-console";
+import { nativeQualityAvailable, nativeQualityWorkspace } from "@erpx/feature-quality/adapters/server/native-quality-page";
 import { RecordDocumentDrawer } from "@erpx/feature-files/components/record-document-drawer";
 import { AttachmentFeatureSurface } from "@erpx/feature-files/components/attachment-feature-context";
 import { PageContent, Card, TableFrame } from "@erpx/ui/components/foundation";
@@ -23,6 +24,16 @@ export default async function Page({ params }: { params: Promise<{ holdingSlug: 
   try {
     data = await qualityWorkspace(actor);
     alerts = await qualityAlerts(actor);
+    if (nativeQualityAvailable()) {
+      const native = await nativeQualityWorkspace(actor.holdingSlug);
+      if (!native)
+        throw new ApiError(
+          503,
+          "NATIVE_QUALITY_UNAVAILABLE",
+          "The native Quality service is unavailable.",
+        );
+      data = { ...data, canHold: native.canHold, canManageSpecs: native.canManageSpecs };
+    }
   } catch (error) {
     if (error instanceof ApiError && error.status === 403)
       return accessPage("permission", actor.holdingSlug);

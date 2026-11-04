@@ -12,6 +12,7 @@ import { requireWorkContext, publicScope } from "@erpx/server-identity_access/pu
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { qualityAlerts } from "@erpx/server-quality/public/quality-alerts";
 import { qualityDetail } from "@erpx/server-quality/public/quality";
+import { nativeQualityAvailable, nativeQualityDetail } from "@erpx/feature-quality/adapters/server/native-quality-page";
 import { accessPage } from "@erpx/server-work_projection/public/page-error";
 import styles from "@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/quality/[id]/quality-detail.module.css";
 
@@ -43,6 +44,29 @@ export default async function Page({
   try {
     data = await qualityDetail(actor, id);
     alerts = (await qualityAlerts(actor)).filter((alert) => alert.hold_id === id);
+    if (nativeQualityAvailable()) {
+      const native = await nativeQualityDetail(holdingSlug, id);
+      if (!native)
+        throw new ApiError(
+          503,
+          "NATIVE_QUALITY_UNAVAILABLE",
+          "The native Quality service is unavailable.",
+        );
+      data = {
+        ...data,
+        canInspect: native.hold.decision.canInspect,
+        canRelease: native.hold.decision.canRelease,
+        canCancel: native.hold.decision.canCancel,
+        canReviewCancellation: native.hold.decision.canReviewCancellation,
+        canDisposition: native.hold.decision.canDisposition,
+        hold: {
+          ...data.hold,
+          version: native.hold.version,
+          status: native.hold.status,
+          last_result: native.hold.lastResult,
+        },
+      };
+    }
   } catch (error) {
     if (error instanceof ApiError && error.status === 403) {
       return accessPage("permission", actor.holdingSlug);

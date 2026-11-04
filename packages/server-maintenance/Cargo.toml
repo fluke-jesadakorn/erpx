@@ -42,5 +42,9 @@ path = "../../tests/unit/maintenance/rust-work-commands.test.rs"
 name = "schedule_commands"
 path = "../../tests/unit/maintenance/rust-schedule-commands.test.rs"
 
+[[test]]
+name = "maintenance_read_postgres"
+path = "../../tests/integration/maintenance/rust-maintenance-read-postgres.test.rs"
+
 [lints]
 workspace = true

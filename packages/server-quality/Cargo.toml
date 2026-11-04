@@ -25,3 +25,15 @@ workspace = true
 [[test]]
 name = "consumption_postgres"
 path = "../../tests/integration/quality/rust-consumption-holds-postgres.test.rs"
+
+[[test]]
+name = "quality_decisions"
+path = "../../tests/unit/quality/rust-quality-decisions.test.rs"
+
+[[test]]
+name = "quality_read_cancel_postgres"
+path = "../../tests/integration/quality/rust-quality-read-cancel-postgres.test.rs"
+
+[[test]]
+name = "quality_http"
+path = "../../tests/integration/quality/rust-quality-http.test.rs"

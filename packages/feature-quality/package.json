@@ -13,7 +13,11 @@
     "./components/quality-purchase-context": "./src/components/quality-purchase-context.tsx",
     "./lib/quality-purchase-controls": "./src/lib/quality-purchase-controls.ts",
     "./lib/quality-command-attempt": "./src/lib/quality-command-attempt.ts",
-    "./lib/quality-command-fetch": "./src/lib/quality-command-fetch.ts"
+    "./lib/quality-command-fetch": "./src/lib/quality-command-fetch.ts",
+    "./adapters/server/native-quality": "./src/adapters/server/native-quality.ts",
+    "./adapters/server/native-quality-page": "./src/adapters/server/native-quality-page.ts",
+    "./lib/native-quality": "./src/lib/native-quality.ts",
+    "./adapters/server/native-quality-owned": "./src/adapters/server/native-quality-owned.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
