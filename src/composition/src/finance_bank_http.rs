@@ -71,7 +71,7 @@ pub fn finance_bank_router<C: Clock + Send + Sync + 'static>(
     }
     Ok(Router::new()
         .route(
-            "/api/v1/holdings/{holding_slug}/finance/bank/statements/import",
+            "/api/v1/holdings/{holding_slug}/finance/bank/statements/generic-import",
             post(import_statement::<C>),
         )
         .route(

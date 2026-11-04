@@ -2499,6 +2499,27 @@ async fn assemble_checked(
         finance_create_targets,
         finance_edit_targets,
         finance_reversal_targets,
+        brand_targets: config
+            .finance_journal_reads
+            .keys()
+            .filter_map(|holding_id| {
+                config.holdings.iter().find(|h| &h.registration.holding_id == holding_id).map(|h| (h.host.clone(), h.registration.slug.clone()))
+            })
+            .collect(),
+        bank_targets: config
+            .finance_journal_reads
+            .keys()
+            .filter_map(|holding_id| {
+                config.holdings.iter().find(|h| &h.registration.holding_id == holding_id).map(|h| (h.host.clone(), h.registration.slug.clone()))
+            })
+            .collect(),
+        bank_workspace_targets: config
+            .finance_journal_reads
+            .keys()
+            .filter_map(|holding_id| {
+                config.holdings.iter().find(|h| &h.registration.holding_id == holding_id).map(|h| (h.host.clone(), h.registration.slug.clone()))
+            })
+            .collect(),
         service_read_targets,
         service_workspace_targets,
         service_parts_posting_targets,
@@ -2600,6 +2621,9 @@ struct Boundary {
     finance_create_targets: BTreeSet<(String, String)>,
     finance_edit_targets: BTreeSet<(String, String)>,
     finance_reversal_targets: BTreeSet<(String, String)>,
+    brand_targets: BTreeSet<(String, String)>,
+    bank_targets: BTreeSet<(String, String)>,
+    bank_workspace_targets: BTreeSet<(String, String)>,
     service_read_targets: BTreeSet<(String, String)>,
     service_workspace_targets: BTreeSet<(String, String)>,
     service_parts_posting_targets: BTreeSet<(String, String)>,
@@ -3410,6 +3434,24 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
+    let brand = match (request.method(), request.uri().path().split('/').collect::<Vec<_>>().as_slice()) {
+        (&axum::http::Method::GET | &axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "brand"]) => state
+            .brand_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        _ => false,
+    };
+    let bank = match (request.method(), request.uri().path().split('/').collect::<Vec<_>>().as_slice()) {
+        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "finance", "bank", "statements", "generic-import"]) => state
+            .bank_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "finance", "bank", "transactions", id, "reconcile"]) if !id.is_empty() => state
+            .bank_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (&axum::http::Method::GET, ["", "api", "v1", "holdings", slug, "finance", "bank"]) => state
+            .bank_workspace_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        _ => false,
+    };
     let inventory_availability = request.method() == axum::http::Method::GET
         && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
             ["", "api", "v1", "holdings", slug, "inventory", "availability" | "movements"] => state
@@ -3444,7 +3486,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
     if !(matches!(
         request.uri().path(),
         "/api/auth/get-session" | "/api/health" | "/api/ready"
-    ) || account_mfa || service_packages || field_work_roles || field_operations || field_support || field_collaboration || field_inbox_state || support_ticket || support_incident || support_session || support_sla || support_evidence || inventory_availability || inventory_stock || organization_nodes || finance_workspace || finance_invoice_read || finance_opening_balances || finance_report || finance_setup || finance_sales_invoice_create || finance_sales_invoice_edit || finance_sales_defaults || finance_sales_receipts
+    ) || account_mfa || service_packages || field_work_roles || field_operations || field_support || field_collaboration || field_inbox_state || support_ticket || support_incident || support_session || support_sla || support_evidence || inventory_availability || inventory_stock || organization_nodes || brand || bank || finance_workspace || finance_invoice_read || finance_opening_balances || finance_report || finance_setup || finance_sales_invoice_create || finance_sales_invoice_edit || finance_sales_defaults || finance_sales_receipts
         || finance_invoice_runtime
         || finance_field_journal_flow
         || finance_invoice_post
@@ -3476,6 +3518,8 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             || support_session
             || support_sla
             || support_evidence
+            || brand
+            || bank
             || finance_field_journal_flow
         || finance_invoice_post
             || finance_receipt_review

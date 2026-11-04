@@ -37,6 +37,10 @@ export function createNativeFinanceBankCommand(
   ): Promise<Response | undefined> => {
     const selected = kind(parts);
     if (!selected) return undefined;
+    // Exact Field receipt imports retain their existing owner route; this
+    // transport only handles generic multi-row Finance statements.
+    if (selected.kind === 'import' && object(input) && typeof input.settlementPaymentId === 'string')
+      return undefined;
     const host = request.headers.get('host');
     const target = settings.holdings.find(
       (holding) => holding.holdingSlug === holdingSlug && new URL(holding.origin).host === host,
@@ -78,7 +82,7 @@ export function createNativeFinanceBankCommand(
     const base = `/api/v1/holdings/${segment(holdingSlug)}/finance`;
     const path =
       selected.kind === 'import'
-        ? `${base}/bank/statements/import`
+        ? `${base}/bank/statements/generic-import`
         : `${base}/bank/transactions/${segment(selected.id!)}/reconcile`;
     try {
       const response = await transport(new URL(path, settings.privateBaseUrl), headers, body, controller.signal, 'POST');

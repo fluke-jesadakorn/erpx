@@ -91,7 +91,7 @@ async fn bank_http_imports_and_reconciles_under_normal_finance_session() {
         let import = r#"{"bankAccount":"bank","statementNumber":"ST-HTTP","statementDate":"2026-01-31","opening":"0.00","closing":"15.00","closingFxRate":"1.0","sourceHash":"http-source","rows":[{"externalId":"HTTP-1","transactionDate":"2026-01-05","description":"Settlement","amount":"15.00","currency":"THB"}]}"#;
         let request = Request::builder()
             .method("POST")
-            .uri("/api/v1/holdings/acme/finance/bank/statements/import")
+            .uri("/api/v1/holdings/acme/finance/bank/statements/generic-import")
             .header("host", "acme.example.test")
             .header("cookie", &cookie)
             .header("origin", "https://acme.example.test")
