@@ -379,13 +379,13 @@
     {
       "id": "learning",
       "package": "erpx-server-learning",
-      "phase": "pending",
+      "phase": "partial",
       "businessMigrationComplete": false,
       "surfaces": {
-        "domain": "pending",
-        "application": "pending",
-        "http": "pending",
-        "ssr": "pending",
+        "domain": "active",
+        "application": "active",
+        "http": "partial",
+        "ssr": "partial",
         "jobs": "pending",
         "providers": "pending"
       }
