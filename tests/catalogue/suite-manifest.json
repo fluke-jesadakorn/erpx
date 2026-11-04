@@ -73358,6 +73358,42 @@
       ]
     },
     {
+      "id": "finance.rust-supplier-bill-postgres.integration",
+      "lane": "integration",
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "files": [
+        "tests/integration/finance/rust-supplier-bill-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PostgreSQL-backed native standalone supplier-bill create/edit/post, AP journal, Money snapshots, immutable line revisions, replay, stale-version and Company isolation guards, and payable readback in the PR baseline."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "supplier_bill_postgres"
+        ],
+        "features": [
+          "private-field-api"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml"
+      ]
+    },
+    {
       "id": "finance.rust-finance-setup-postgres.integration",
       "lane": "integration",
       "owner": "finance",

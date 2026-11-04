@@ -3504,6 +3504,17 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };
+    let finance_supplier_bill = match (request.method(), request.uri().path().split('/').collect::<Vec<_>>().as_slice()) {
+        (&axum::http::Method::GET, ["", "api", "v1", "holdings", slug, "finance", "payables", id]) if !id.is_empty() =>
+            state.finance_targets.contains(&(host.to_owned(), (*slug).to_owned())),
+        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "finance", "payables"]) =>
+            state.finance_targets.contains(&(host.to_owned(), (*slug).to_owned())),
+        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "finance", "payables", id]) if !id.is_empty() =>
+            state.finance_targets.contains(&(host.to_owned(), (*slug).to_owned())),
+        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "finance", "payables", id, "post"]) if !id.is_empty() =>
+            state.finance_targets.contains(&(host.to_owned(), (*slug).to_owned())),
+        _ => false,
+    };
     let bank = match (request.method(), request.uri().path().split('/').collect::<Vec<_>>().as_slice()) {
         (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "finance", "bank", "statements", "generic-import"]) => state
             .bank_targets
@@ -3550,7 +3561,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
     if !(matches!(
         request.uri().path(),
         "/api/auth/get-session" | "/api/health" | "/api/ready"
-    ) || account_mfa || service_packages || field_work_roles || field_operations || field_support || field_collaboration || field_inbox_state || support_ticket || support_incident || support_session || support_sla || support_evidence || inventory_availability || inventory_stock || organization_nodes || brand || bank || generic_payment || finance_workspace || finance_invoice_read || finance_opening_balances || finance_report || finance_setup || finance_sales_invoice_create || finance_sales_invoice_edit || finance_sales_defaults || finance_sales_receipts
+    ) || account_mfa || service_packages || field_work_roles || field_operations || field_support || field_collaboration || field_inbox_state || support_ticket || support_incident || support_session || support_sla || support_evidence || inventory_availability || inventory_stock || organization_nodes || brand || bank || generic_payment || finance_supplier_bill || finance_workspace || finance_invoice_read || finance_opening_balances || finance_report || finance_setup || finance_sales_invoice_create || finance_sales_invoice_edit || finance_sales_defaults || finance_sales_receipts
         || finance_invoice_runtime
         || finance_field_journal_flow
         || finance_invoice_post
@@ -3585,6 +3596,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             || brand
             || bank
             || generic_payment
+            || finance_supplier_bill
             || finance_field_journal_flow
         || finance_invoice_post
             || finance_receipt_review

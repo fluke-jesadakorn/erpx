@@ -100,6 +100,8 @@ pub mod sales_invoice_list;
 
 pub mod sales_invoice_create;
 
+pub mod supplier_bill;
+
 pub mod sales_defaults;
 
 pub mod sales_receipts;
