@@ -43107,7 +43107,8 @@
         "manage_erpx"
       ],
       "files": [
-        "tests/unit/billing/billing-owner-services.test.ts"
+        "tests/unit/billing/billing-owner-services.test.ts",
+        "tests/unit/billing/native-billing-transport.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -43150,6 +43151,265 @@
         "@erpx/server-talent",
         "@erpx/server-work_projection",
         "@erpx/server-workflow"
+      ]
+    },
+    {
+      "id": "customer_360.rust-customer-timeline.unit",
+      "lane": "unit",
+      "owner": "customer_360",
+      "modules": [
+        "customer_360"
+      ],
+      "files": [
+        "tests/unit/customer_360/rust-customer-timeline.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Customer360 timeline retains Company scope, Support entitlement, bounded events and persisted readback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-customer-360",
+        "targets": [
+          "customer_timeline"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-customer-360/Cargo.toml"
+      ]
+    },
+    {
+      "id": "customer_360.rust-customer-timeline-http.integration",
+      "lane": "integration",
+      "owner": "customer_360",
+      "modules": [
+        "customer_360"
+      ],
+      "files": [
+        "tests/integration/customer_360/rust-customer-timeline-http.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Customer360 HTTP ingress retains exact targets, fail-closed config and bounded errors."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-customer-360",
+        "targets": [
+          "customer_timeline_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-customer-360/Cargo.toml"
+      ]
+    },
+    {
+      "id": "customer_360.rust-customer-timeline-postgres.integration",
+      "lane": "integration",
+      "owner": "customer_360",
+      "modules": [
+        "customer_360"
+      ],
+      "files": [
+        "tests/integration/customer_360/rust-customer-timeline-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Customer360 timeline reads retain Company isolation, serializable transaction guards and persisted readback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-customer-360",
+        "targets": [
+          "customer_timeline_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-customer-360/Cargo.toml"
+      ]
+    },
+    {
+      "id": "customer_360.native-customer-timeline-transport.unit",
+      "lane": "unit",
+      "owner": "customer_360",
+      "modules": [
+        "customer_360"
+      ],
+      "files": [
+        "tests/unit/customer_360/native-customer-timeline-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Customer360 transport must retain fail-closed config, bounded responses and owner error mapping."
+      },
+      "framework": "vitest",
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/feature-sales",
+        "@erpx/server-customer-360"
+      ]
+    },
+    {
+      "id": "billing.rust-billing-workspace.unit",
+      "lane": "unit",
+      "owner": "billing",
+      "modules": [
+        "billing"
+      ],
+      "files": [
+        "tests/unit/billing/rust-billing-workspace.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Billing workspace retains Platform scope, bounded invoices/costs/jobs and persisted readback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-billing",
+        "targets": [
+          "billing_workspace"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-billing/Cargo.toml"
+      ]
+    },
+    {
+      "id": "billing.rust-billing-commands.unit",
+      "lane": "unit",
+      "owner": "billing",
+      "modules": [
+        "billing"
+      ],
+      "files": [
+        "tests/unit/billing/rust-billing-commands.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Billing cost review commands retain Platform authority, Holding lock, CAS, idempotency, audit and rollback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-billing",
+        "targets": [
+          "billing_commands"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-billing/Cargo.toml"
+      ]
+    },
+    {
+      "id": "billing.rust-billing-http.unit",
+      "lane": "unit",
+      "owner": "billing",
+      "modules": [
+        "billing"
+      ],
+      "files": [
+        "tests/unit/billing/rust-billing-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Billing HTTP ingress retains exact targets, origin/key/content checks and bounded errors."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-billing",
+        "targets": [
+          "billing_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-billing/Cargo.toml"
+      ]
+    },
+    {
+      "id": "billing.rust-billing-postgres.integration",
+      "lane": "integration",
+      "owner": "billing",
+      "modules": [
+        "billing"
+      ],
+      "files": [
+        "tests/integration/billing/rust-billing-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Billing commands/reads retain Platform/Holding isolation, persisted readback, CAS and rollback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-billing",
+        "targets": [
+          "billing_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-billing/Cargo.toml"
       ]
     },
     {

@@ -54,7 +54,10 @@
     "./domain/target": "./src/domain/target.ts",
     "./domain/billing": "./src/domain/billing.ts",
     "./domain/forecast": "./src/domain/forecast.ts",
-    "./domain/beta-billing": "./src/domain/beta-billing.ts"
+    "./domain/beta-billing": "./src/domain/beta-billing.ts",
+    "./adapters/native-billing": "./src/adapters/native-billing.ts",
+    "./public/native-billing": "./src/public/native-billing.ts",
+    "./public/native-billing-page": "./src/public/native-billing-page.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

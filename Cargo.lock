@@ -718,6 +718,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "erpx-server-billing"
+version = "0.1.0"
+dependencies = [
+ "erpx-server-runtime",
+ "erpx-server-shared",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "erpx-server-brand"
 version = "0.1.0"
 dependencies = [
@@ -786,6 +799,19 @@ dependencies = [
 
 [[package]]
 name = "erpx-server-crm"
+version = "0.1.0"
+dependencies = [
+ "erpx-server-runtime",
+ "erpx-server-shared",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-server-customer-360"
 version = "0.1.0"
 dependencies = [
  "erpx-server-runtime",
