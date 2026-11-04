@@ -29,6 +29,9 @@ pub(crate) mod processing_maintenance;
 #[cfg(feature = "trust-materials")]
 pub(crate) mod trust_material_inspector;
 
+pub(crate) mod legal_http;
+pub(crate) mod postgres_legal_records;
+
 pub(crate) mod postgres_processing_queue;
 
 pub(crate) mod postgres_processing_status;

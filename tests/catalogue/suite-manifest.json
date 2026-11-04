@@ -57860,6 +57860,39 @@
       }
     },
     {
+      "id": "legal.rust-legal-records-postgres.integration",
+      "lane": "integration",
+      "owner": "legal",
+      "modules": [
+        "legal"
+      ],
+      "files": [
+        "tests/integration/legal/rust-legal-records-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Legal record reads/commands retain Company/classification scope, versions/CAS, idempotency, hold independence, access history and archive effects with persisted readback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-legal",
+        "targets": [
+          "legal_records_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-legal/Cargo.toml"
+      ]
+    },
+    {
       "lane": "integration",
       "owner": "identity_access",
       "modules": [
@@ -70848,14 +70881,38 @@
       "id": "finance.rust-generic-payment-http-postgres.integration",
       "lane": "integration",
       "owner": "finance",
-      "modules": ["finance"],
-      "files": ["tests/integration/finance/rust-generic-payment-http-postgres.test.rs"],
+      "modules": [
+        "finance"
+      ],
+      "files": [
+        "tests/integration/finance/rust-generic-payment-http-postgres.test.rs"
+      ],
       "fixture": "postgres",
-      "requires": {"jobs": false, "scanner": false},
-      "ci": {"critical": true, "reason": "Native generic payment create ingress retains normal Account session, Company, finance.banking purchase, idempotency, audit/outbox and draft persistence without Field receipt configuration."},
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native generic payment create ingress retains normal Account session, Company, finance.banking purchase, idempotency, audit/outbox and draft persistence without Field receipt configuration."
+      },
       "framework": "cargo",
-      "cargo": {"package": "erpx-service", "targets": ["generic_payment_http_postgres"], "features": ["existing-business"]},
-      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "src/composition/Cargo.toml", "tests/support/finance/review-composition.rs"]
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "generic_payment_http_postgres"
+        ],
+        "features": [
+          "existing-business"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml",
+        "tests/support/finance/review-composition.rs"
+      ]
     },
     {
       "id": "finance.rust-generic-payment-postgres.integration",

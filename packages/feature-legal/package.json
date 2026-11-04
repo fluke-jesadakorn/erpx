@@ -31,6 +31,8 @@
     "./lib/portal-command-client": "./src/lib/portal-command-client.ts",
     "./lib/legal/features-domain": "./src/lib/legal/features-domain.ts",
     "./lib/legal/features": "./src/lib/legal/features.ts",
+    "./adapters/server/native-legal": "./src/adapters/server/native-legal.ts",
+    "./lib/native-legal": "./src/lib/native-legal.ts",
     "./lib/workspace-snapshot": "./src/lib/workspace-snapshot.ts",
     "./routes/holdings/[holdingSlug]/@record/services/legal/corporate/[id]/[recordSection]/page": "./src/routes/holdings/[holdingSlug]/@record/services/legal/corporate/[id]/[recordSection]/page.tsx",
     "./routes/holdings/[holdingSlug]/@record/services/legal/corporate/[id]/page": "./src/routes/holdings/[holdingSlug]/@record/services/legal/corporate/[id]/page.tsx",

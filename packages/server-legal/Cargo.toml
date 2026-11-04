@@ -135,6 +135,10 @@ name = "record_policy_postgres"
 path = "../../tests/integration/legal/rust-record-policy-postgres.test.rs"
 
 [[test]]
+name = "legal_records_postgres"
+path = "../../tests/integration/legal/rust-legal-records-postgres.test.rs"
+
+[[test]]
 name = "document_processing"
 path = "../../tests/unit/legal/rust-document-processing.test.rs"
 
