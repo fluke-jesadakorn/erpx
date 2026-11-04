@@ -1,6 +1,6 @@
 # Native Field Service parts component
 
-This contract describes the guarded native reserve-part and issue-part component under the accepted [Rust migration](../../adr/ADR-052-rust-backend-and-domain-aligned-frontend.md). It is an unmounted development-only library entry, not a completed Field Service owner or an installed runtime. The [production plan](../../production-plan.md) and [owner register](../../status/rust-backend-migration.json) retain the delivery gates; all 41 business-owner completion flags remain false.
+This contract describes the guarded native reserve-part and issue-part component under the accepted [Rust migration](../../adr/ADR-052-rust-backend-and-domain-aligned-frontend.md). The component began as an unmounted development-only library entry; the [owner closure](#owner-closure-2026-11-04) below records its later integration into the six merged Field Service workflows. The [production plan](../../production-plan.md) and [owner register](../../status/rust-backend-migration.json) retain the delivery gates; all 41 business-owner completion flags remain false until the owner register itself is updated.
 
 ## Entry and authority
 
@@ -43,4 +43,23 @@ node scripts/testing/fixtures/generate-field-service-parts-numeric-oracle.mjs --
 node scripts/testing/fixtures/generate-field-service-lot-identity-oracle.mjs --check
 ```
 
-These commands and their registered inputs are in the [suite catalogue](../../../tests/catalogue/suite-manifest.json); oracle checks compare retained fixtures and do not establish database authority. Complete owner workflows, HTTP/SSR and frontend integration, native start workflow, jobs, providers, authenticated browser journeys and runtime activation remain open. PR1 requires the full native migration and unchanged acceptance gates before the separate PR2 container preparation; this component does not advance those gates by itself.
+These commands and their registered inputs are in the [suite catalogue](../../../tests/catalogue/suite-manifest.json); oracle checks compare retained fixtures and do not establish database authority.
+
+## Owner closure (2026-11-04)
+
+The six original Field Service catalogue workflows and their required native dependencies were verified and merged through PR #17 (merge commit `2e0090832d85eb3c171672dd28729f8445d42802`). The [delivery register](../../status/rust-delivery-bundles.json) records `18/18` checklist items complete and `partial: false`, `verified: true`, `merged: true` for `field_service/service-orders`, `feature-agreements`, `feature-dispatch`, `feature-visits`, `feature-exceptions` and `feature-billing-release`.
+
+The product path is native-only:
+
+- `apps/service/.../field-service/route.ts` re-exports the shared handler; its POST dispatches every bundle command through `nativeReservePost` and throws `503 NATIVE_SERVICE_UNAVAILABLE` when the native capability is not configured. There is no legacy command fallback.
+- `apps/service/.../field-service/{parts-setup,initial-physical-stock,customer-preparation,operations,collaboration}/...` re-export native-only handlers. The workspace/detail SSR presenters call the native workspace/detail readers. `packages/feature-service` and `packages/workplace` have no `@erpx/server-field_service` product import.
+- Native HTTP routing covers workspace, detail, work, operations, collaboration, support source read, executive reads/evidence, parts setup/prerequisites/stock, customer preparation, initial physical Count and every workflow command/readback listed above.
+- Native jobs cover the Field dependency/outbox projector, Files scan/cleanup, push delivery and initial Count projection. The private production supervisor restarts stopped workers; the Field Files scan worker accepted durable production databases in `files.rust-field-files-private-api.provider`.
+- Retained `packages/server-field_service` TypeScript modules are read-only transport, projection, source-policy or partition adapters for named other-owner consumers; they are not a Field command writer. The shared modules that carry Field policy or owner SQL now state their consumer and removal condition. No schema, data, migration, audit or receipt history is removed.
+
+Two external boundaries remain explicit:
+
+- Finance production composition stays fail-closed (`FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE`) for Finance HTTP posting/receipts; the Field billing release itself creates its draft invoice through the Finance owner Rust interface and does not depend on those unmounted Finance routes.
+- Support/Collaboration/Operations/Records/Runtime/Workflow/Work/Identity/Finance/Customer consumers still use the retained read-only Field bridges listed above. Their removal condition belongs to those owners' migrations, not to deleting Field history.
+
+Evidence: `docs/testing/evidence/2026-11-03-field-catalogue-scopes.json`, `field-writer-ownership.json`, `field-integrated-exact-candidate.json`, `field-production-runtime.json`, `field-production-transport-and-header.json`, `field-cold-hydration.json`, `field-modularity-withdrawal.json`, `field-records-source-guards.json` and `field-bundle-merge.json`.

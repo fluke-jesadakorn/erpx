@@ -1,4 +1,8 @@
 import 'server-only';
+// Projection bridge only: the Rust report owns Field SQL, source eligibility,
+// cursor/filter policy and access audit. Retained shared consumer: the
+// Runtime/Apps executive canvas metric projection. Removal condition: retire
+// that generic metric engine or give it native report sources directly.
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import type {Breakdown,Filters,MetricId} from '@erpx/server-runtime/public/rules/canvas-domain';

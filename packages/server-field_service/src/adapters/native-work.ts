@@ -1,3 +1,8 @@
+// Request-scoped native Field work transport. Retained shared consumers: the
+// retained composite Work aggregator and Workflow Flow source selector. It
+// forwards the real rendered context and fails closed; it never evaluates
+// Field queue/authority policy locally. Removal condition: those aggregators
+// read the native Field work projection directly.
 import {contributorExactOrigin as exactOrigin,holdingHostForHost as exactHolding} from '@erpx/contracts/holding-hosts';
 const contributorOriginProfile=()=>process.env.NODE_ENV==='development'&&process.env.NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE==='container-localhost';
 const contributorExactOrigin=(host:string|null|undefined)=>exactOrigin(host,contributorOriginProfile()?'contributor':'public');

@@ -1,4 +1,8 @@
 import 'server-only';
+// Bounded native transport for the Field visit-completion evidence. Retained
+// shared consumer: the Runtime/Apps executive evidence reader. Removal
+// condition: move that reader to the native report contract directly; this
+// adapter must not grow Field SQL, policy or retry authority in the interim.
 import {headers} from 'next/headers';
 import {nativeHoldingConfiguration} from '@erpx/native-sdk/holding-target';
 import {nativeFieldEvidenceRequest} from '@erpx/native-sdk/field-service-parts';

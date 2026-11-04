@@ -17,7 +17,10 @@ function fail(code:string,status=503):never{throw new ApiError(status,code,'The 
 type Source=MetricSourceRow&{label:string};
 export type NativeFieldReport={available?:boolean;raw:RawMetricRow[];sources:Source[];evidence:FieldVisitEvidenceRow[]};
 /** Bounded private transport and DTO mapping only. No Field SQL, source policy,
- * aggregate calculation, authorization snapshot or legacy fallback lives here. */
+ * aggregate calculation, authorization snapshot or legacy fallback lives here.
+ * Retained shared consumer: Runtime executive metrics/evidence through
+ * `readExecutiveMetricProjection` and the evidence adapter. Removal
+ * condition: those generic consumers move to the native report contract. */
 export function createNativeFieldReportReader(raw:string,send:typeof nativeFieldExecutiveRequest=nativeFieldExecutiveRequest){
  let config:ReturnType<typeof nativeHoldingConfiguration>;try{config=nativeHoldingConfiguration(raw,originProfile());}catch{return fail('NATIVE_FIELD_REPORT_CONFIGURATION_INVALID');}
  return async(incoming:Pick<Headers,'get'>,actor:WorkContext,query:NativeFieldExecutiveQuery):Promise<NativeFieldReport>=>{

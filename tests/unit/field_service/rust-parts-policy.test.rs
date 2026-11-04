@@ -452,3 +452,97 @@ fn a_discharged_spare_does_not_force_unrelated_base_work_to_close() {
     assert!(agreement_settlement_fact(ServiceSettlementPackage::PartsAssets,AgreementSettlementFacts{id:"unrelated",version:1,state:"active",asset:false,source_valid:true,terminal_event:false}).is_none());
     assert!(visit_settlement_fact(ServiceSettlementPackage::PartsAssets,VisitSettlementFacts{id:"unrelated",version:1,state:"scheduled",source_valid:true,asset:false,agreement_asset:false,reservation:false,consumption:false,outstanding_reservation:false,terminal_event:false,billing_lineage:false}).is_none());
 }
+
+#[test]
+fn every_visit_action_has_one_retained_operation_status_and_legal_state_set() {
+    use erpx_server_field_service::public::visit::VisitAction;
+    let matrix = [
+        (VisitAction::Schedule, "field.order.schedule", "scheduled", ["open", "scheduled"].as_slice()),
+        (VisitAction::Dispatch, "field.order.dispatch", "dispatched", ["scheduled"].as_slice()),
+        (VisitAction::Start, "field.order.start", "in_visit", ["dispatched"].as_slice()),
+        (VisitAction::Complete, "field.order.complete", "completed", ["in_visit"].as_slice()),
+        (VisitAction::Exception, "field.order.exception", "exception", ["dispatched", "in_visit"].as_slice()),
+        (VisitAction::Resume, "field.order.resume", "in_visit", ["exception"].as_slice()),
+        (VisitAction::Cancel, "field.order.cancel", "cancelled", ["open", "scheduled", "dispatched", "exception"].as_slice()),
+        (VisitAction::ReleaseBilling, "field.order.release-billing", "billed", ["completed"].as_slice()),
+    ];
+    let all_states = ["open", "scheduled", "dispatched", "in_visit", "exception", "completed", "cancelled", "billed"];
+    for (action, operation, status, allowed) in matrix {
+        assert_eq!(action.operation(), operation);
+        assert_eq!(action.status(), status);
+        for state in all_states {
+            assert_eq!(
+                action.allows_state(state),
+                allowed.contains(&state),
+                "{operation} from {state}"
+            );
+        }
+    }
+}
+
+#[test]
+fn billing_release_requires_the_selected_eligible_reviewer_path() {
+    use erpx_server_field_service::public::visit::{VisitAction, VisitAuthorityFacts, require_visit_authority};
+    let mut facts = VisitAuthorityFacts {
+        technician_user_id: "tech",
+        actor_user_id: "tech",
+        technician_eligible: true,
+        reviewer_eligible: false,
+        selected_can_review: false,
+        state: "completed",
+    };
+    let error = require_visit_authority(&facts, VisitAction::ReleaseBilling).unwrap_err();
+    assert_eq!(error.code, "INDEPENDENT_BILLING_RELEASE_REQUIRED");
+    facts.actor_user_id = "reviewer";
+    facts.reviewer_eligible = true;
+    facts.selected_can_review = true;
+    assert!(require_visit_authority(&facts, VisitAction::ReleaseBilling).is_ok());
+    facts.reviewer_eligible = false;
+    assert_eq!(
+        require_visit_authority(&facts, VisitAction::ReleaseBilling).unwrap_err().code,
+        "FIELD_SERVICE_OWNER_REQUIRED"
+    );
+    facts.reviewer_eligible = true;
+    facts.selected_can_review = false;
+    assert_eq!(
+        require_visit_authority(&facts, VisitAction::ReleaseBilling).unwrap_err().code,
+        "FIELD_SERVICE_OWNER_REQUIRED"
+    );
+}
+
+#[test]
+fn field_outbox_projection_covers_every_retained_field_operation() {
+    use erpx_server_field_service::public::field_outbox::{ELIGIBLE, QUARANTINE};
+    use erpx_server_field_service::public::visit::VisitAction;
+    for action in [
+        VisitAction::Schedule,
+        VisitAction::Dispatch,
+        VisitAction::Start,
+        VisitAction::Complete,
+        VisitAction::Exception,
+        VisitAction::Resume,
+        VisitAction::Cancel,
+        VisitAction::ReleaseBilling,
+    ] {
+        let operation = action.operation();
+        assert!(ELIGIBLE.contains(&format!("'{operation}'")), "{operation}");
+    }
+    for operation in [
+        "field.order.request",
+        "field.order.create",
+        "field.order.reserve-part",
+        "field.order.issue-part",
+        "field.agreement.create",
+        "field.agreement.activate",
+        "field.agreement.reject",
+        "field.agreement.retire",
+    ] {
+        assert!(ELIGIBLE.contains(&format!("'{operation}'")), "{operation}");
+    }
+    assert!(ELIGIBLE.contains("e.aggregate_type='field_order'"));
+    assert!(ELIGIBLE.contains("e.aggregate_type='field_agreement'"));
+    for family in ["field.order.%", "field.agreement.%"] {
+        assert!(QUARANTINE.contains(&format!("'{family}'")), "{family}");
+    }
+    assert!(QUARANTINE.starts_with('(') && QUARANTINE.trim_end().ends_with(')'));
+}

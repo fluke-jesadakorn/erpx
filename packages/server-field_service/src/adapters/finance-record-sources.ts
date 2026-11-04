@@ -2,7 +2,13 @@ import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 
 /** Only the immutable original release, event, command receipt and captured
- * amount establish an invoice handoff. Caller source labels grant nothing. */
+ * amount establish an invoice handoff. Caller source labels grant nothing.
+ *
+ * Retained shared consumers: Finance document, attachment, package-obligation
+ * and service-payment purchase adapters still execute these read-only source
+ * and lock statements inside their own transactions. Removal condition: move
+ * that Finance source lineage to Finance owner interfaces/native composition.
+ * Never delete the stored release/event/receipt history behind it. */
 const invoice=`SELECT service.company_id,invoice.id,billing.id money_source_id
  FROM field_service_billing_releases billing
  JOIN field_service_orders service ON service.id=billing.order_id AND service.agreement_id=billing.agreement_id AND service.version>=billing.source_order_version
