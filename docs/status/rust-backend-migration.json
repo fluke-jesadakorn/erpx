@@ -13,7 +13,7 @@
       "surfaces": {
         "domain": "active",
         "application": "active",
-        "http": "partial",
+        "http": "active",
         "ssr": "partial",
         "jobs": "not-applicable",
         "providers": "not-applicable"

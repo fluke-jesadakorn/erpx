@@ -1,14 +1,17 @@
 {
   "version": 1,
   "date": "2026-11-04",
-  "status": "Native Brand identity owner foundation and opt-in transport are integrated; HTTP mount is not browser-qualified and the three workflows remain unverified",
+  "status": "Native Brand HTTP ingress is wire-qualified under a normal Account session; the authenticated Next browser journey remains open",
   "capability": "brand-native-port",
   "integrationTarget": "codex/rust-backend-migration",
-  "commits": ["d60b81d4c", "pending-integration"],
+  "commits": [
+    "d60b81d4c",
+    "pending-integration"
+  ],
   "scope": {
     "domain": "Strict identity parsing, canonical storage order, category locks, independent publication, rollback and cancellation rules.",
     "application": "save/publish/rollback/category-lock/cancel plus workspace and published reads with command receipts, audit and outbox.",
-    "http": "Registered-Holding GET/POST /api/v1/holdings/{holding_slug}/brand; mounted only for configured private Finance read targets.",
+    "http": "Registered-Holding GET/POST /api/v1/holdings/{holding_slug}/brand; mounted for configured private Finance read targets; wire-qualified.",
     "frontend": "Opt-in native Next transport for the Brand console, settings presenter, identity/history pages and API route; unset configuration retains the TypeScript path, invalid/failed native never falls back."
   },
   "tests": [
@@ -17,7 +20,8 @@
     "brand.rust-brand-identity-postgres.integration: 4 passed (draft/replay, CAS, independent publish, locks/media, rollback/cancel, Company isolation, concurrent publication)",
     "feature-brand/feature-admin/workplace typechecks: pass",
     "eslint changed Brand files: 0 errors",
-    "architecture:check and structure:check: pass"
+    "architecture:check and structure:check: pass",
+    "brand.rust-brand-identity-http-postgres.integration: 2 passed (normal session GET workspace, POST draft save with audit/outbox, missing key, foreign origin, unknown host)"
   ],
   "limits": [
     "No authenticated browser journey has exercised the native Brand route; http/ssr remain partial.",

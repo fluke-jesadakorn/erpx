@@ -70849,6 +70849,43 @@
         "packages/server-brand/Cargo.toml",
         "tests/support/rust-postgres.rs"
       ]
+    },
+    {
+      "id": "brand.rust-brand-identity-http-postgres.integration",
+      "lane": "integration",
+      "owner": "brand",
+      "modules": [
+        "brand"
+      ],
+      "files": [
+        "tests/integration/brand/rust-brand-identity-http-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Brand HTTP ingress retains normal Account session, exact origin, idempotency, Company scope, workspace read, draft save and retained audit/outbox effects."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "brand_identity_http_postgres"
+        ],
+        "features": [
+          "existing-business"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml",
+        "tests/support/finance/review-composition.rs"
+      ]
     }
   ]
 }
