@@ -90,11 +90,12 @@
     "condition": "Apply the shared-composition production worker delta below and pass the current-source browser cohort before updating the register. Until that composition wiring exists, keep jobs/businessMigrationComplete partial/false."
   },
   "sharedCompositionDelta": {
+    "applied": [
+      "src/composition/src/support_sla_command.rs now re-exports erpx_server_support::public::sla_drain::drain_support_sla and no longer duplicates the sweep SQL (main-agent commit b744a475b).",
+      "src/composition/src/private_development_api.rs now spawns run_support_sla_worker_file when support_sla_writes is non-empty; the worker uses SlaDrainSchedule::start(now, DEFAULT_INTERVAL_MS), run_sla_drain_tick, per-target serializable transactions, bounded failure backoff and shutdown select (main-agent commit cf2ddd633)."
+    ],
     "required": [
-      "src/composition/src/support_sla_command.rs: replace the local drain_support_sla SQL with erpx_server_support::public::sla_drain::drain_support_sla (identical SQL, now owner-owned); remove the duplicate constant and function.",
-      "src/composition/src/private_development_api.rs::run_production_workers_file: add a Support worker when support_sla_writes is non-empty. Open the configured Holding pools, create SlaDrainSchedule::start(now, DEFAULT_INTERVAL_MS), call run_sla_drain_tick per cycle over each (holding, company) target in one serializable transaction, log and continue on error, and sleep schedule.next_delay_ms(now) with shutdown select.",
-      "scripts/local/jobs.ts / packages/server-runtime/src/adapters/runtime/jobs.ts: after the production supervisor exists, replace the TypeScript supportWork drain with the native worker bootstrap; keep the TS drain until that cutover so development keeps draining.",
-      "docs/status/rust-delivery-bundles.json: correct the six Support sourceRef values from TS public facades to packages/server-support/src/public/{ticket,sla,incident,session,support_evidence}.rs."
+      "scripts/local/jobs.ts / packages/server-runtime/src/adapters/runtime/jobs.ts: after the production supervisor exists, replace the TypeScript supportWork drain with the native worker bootstrap; keep the TS drain until that cutover so development keeps draining."
     ],
     "whyNotAppliedHere": "This implementation subagent is prohibited from editing src/composition/**, root Cargo files, package lockfiles and docs/status/**."
   },
