@@ -75218,6 +75218,132 @@
         "packages/feature-pms/src/adapters/server/native-pms.ts",
         "packages/workplace/src/lib/native-pms.ts"
       ]
+    },
+    {
+      "id": "records.rust-record-context.unit",
+      "lane": "unit",
+      "owner": "records",
+      "modules": [
+        "records"
+      ],
+      "files": [
+        "tests/unit/shared.records/rust-record-context.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native record context retains scoped registry/links/timeline reads, denied sources and bounded limits."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-records",
+        "targets": [
+          "record_context"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-records/Cargo.toml"
+      ]
+    },
+    {
+      "id": "records.rust-record-context-http.unit",
+      "lane": "unit",
+      "owner": "records",
+      "modules": [
+        "records"
+      ],
+      "files": [
+        "tests/unit/shared.records/rust-record-context-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native record-context HTTP ingress retains exact targets, fail-closed config and bounded errors."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-records",
+        "targets": [
+          "record_context_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-records/Cargo.toml"
+      ]
+    },
+    {
+      "id": "records.rust-record-context-postgres.integration",
+      "lane": "integration",
+      "owner": "records",
+      "modules": [
+        "records"
+      ],
+      "files": [
+        "tests/integration/shared.records/rust-record-context-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native record-context reads retain Company isolation, serializable transaction guards and persisted readback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-records",
+        "targets": [
+          "record_context_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-records/Cargo.toml"
+      ]
+    },
+    {
+      "id": "records.native-record-context-transport.unit",
+      "lane": "unit",
+      "owner": "records",
+      "modules": [
+        "records"
+      ],
+      "files": [
+        "tests/unit/shared.records/native-record-context-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native record-context transport must retain fail-closed config, bounded responses and owner error mapping."
+      },
+      "framework": "vitest",
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-records"
+      ]
     }
   ]
 }

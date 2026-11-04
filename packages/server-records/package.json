@@ -78,6 +78,7 @@
     "./public/source-record-contract": "./src/public/source-record-contract.ts",
     "./public/employee-requests-contract": "./src/public/employee-requests-contract.ts",
     "./public/identity-access-verified-context-projections": "./src/public/identity-access-verified-context-projections.ts",
+    "./public/native-record-context": "./src/public/native-record-context.ts",
     "./public/record-details": "./src/public/record-details.ts",
     "./public/source-record-policy": "./src/public/source-record-policy.ts",
     "./public/request-override-read": "./src/public/request-override-read.ts",

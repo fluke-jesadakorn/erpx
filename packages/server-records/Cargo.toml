@@ -11,10 +11,14 @@ autotests = false
 path = "src/lib.rs"
 
 [dependencies]
+erpx-server-runtime.workspace = true
 erpx-server-shared.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
+uuid.workspace = true
 
 [lints]
 workspace = true
@@ -22,3 +26,15 @@ workspace = true
 [[test]]
 name = "business_evidence"
 path = "../../tests/unit/shared.records/rust-business-evidence.test.rs"
+
+[[test]]
+name = "record_context"
+path = "../../tests/unit/shared.records/rust-record-context.test.rs"
+
+[[test]]
+name = "record_context_http"
+path = "../../tests/unit/shared.records/rust-record-context-http.test.rs"
+
+[[test]]
+name = "record_context_postgres"
+path = "../../tests/integration/shared.records/rust-record-context-postgres.test.rs"
