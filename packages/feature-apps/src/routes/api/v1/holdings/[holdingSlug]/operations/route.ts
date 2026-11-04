@@ -5,7 +5,7 @@ import {ApiError,errorResponse,boundedCommandBody} from "@erpx/server-runtime/pu
 import {draftQueuePolicy,reviewQueuePolicy,openOperationsException,changeOperationsException,nativeFieldException,nativeFieldPolicy} from "@erpx/server-operations/public/operations-exceptions";
 import {nativeFieldOperations,nativeFieldOperationsDetail,nativeActorContext,NativePartsSetupError} from '@erpx/feature-field_service/public/native-parts-setup';
 import {validFieldOperationsWorkspace,validFieldOperationsDetailRead} from '@erpx/feature-operations/lib/operations-work-model';
-import {nativeOperationsAvailable,nativeOperationsDetail,nativeOperationsFailure,nativeOperationsWorkspace} from '@erpx/workplace/lib/native-operations';
+import {nativeOperationsAvailable,nativeOperationsCommand,nativeOperationsDetail,nativeOperationsFailure,nativeOperationsWorkspace} from '@erpx/workplace/lib/native-operations';
 type Context={params:Promise<{holdingSlug:string}>};
 const headers={"Cache-Control":"private, no-store"};
 function failure(error:unknown){const response=errorResponse(error instanceof NativePartsSetupError?new ApiError(error.status,error.code,error.message):error);response.headers.set('Cache-Control','private, no-store');return response;}
@@ -45,6 +45,17 @@ export async function POST(r:Request,c:Context){
    // legacy application is called for a native-owned record or policy.
    const data=await nativeFieldOperations(r.headers,holdingSlug,nativeActorContext(a),'POST',body,key);
    return Response.json(canonicalDestinationLinks({data}),{headers});
+  }
+  if(nativeOperationsAvailable()){
+   try{
+    const data=await nativeOperationsCommand(a,holdingSlug,body,key);
+    if(!data)unavailable();
+    return Response.json(canonicalDestinationLinks({data}),{headers});
+   }catch(error){
+    const mapped=nativeOperationsFailure(error);
+    if(mapped)throw new ApiError(mapped.status,mapped.code,mapped.message);
+    throw error;
+   }
   }
   const data=value.entity==="policy"?typeof value.id==="string"?await reviewQueuePolicy(a,value.id,value,key):await draftQueuePolicy(a,value,key):typeof value.id==="string"?await changeOperationsException(a,value.id,value,key):await openOperationsException(a,value,key);
   return Response.json(canonicalDestinationLinks({data}),{headers});
