@@ -1,0 +1,37 @@
+[package]
+name = "erpx-server-procurement"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+erpx-server-shared.workspace = true
+erpx-server-runtime.workspace = true
+sqlx.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+uuid.workspace = true
+
+[[test]]
+name = "supplier_promise_history"
+path = "../../tests/unit/procurement/rust-supplier-promise-history.test.rs"
+
+[[test]]
+name = "supplier_promise_history_http"
+path = "../../tests/unit/procurement/rust-supplier-promise-history-http.test.rs"
+
+[[test]]
+name = "supplier_promise_history_postgres"
+path = "../../tests/integration/procurement/rust-supplier-promise-history-postgres.test.rs"
+
+[lints]
+workspace = true

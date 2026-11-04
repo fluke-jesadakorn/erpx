@@ -80,7 +80,8 @@
     "./domain/supplier-payments": "./src/domain/supplier-payments.ts",
     "./domain/rfqs": "./src/domain/rfqs.ts",
     "./domain/supplier-promises": "./src/domain/supplier-promises.ts",
-    "./domain/request-progress": "./src/domain/request-progress.ts"
+    "./domain/request-progress": "./src/domain/request-progress.ts",
+    "./public/purchases": "./src/public/purchases.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

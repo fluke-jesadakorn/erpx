@@ -31,6 +31,7 @@ import {salesEditorOptions,type SalesEditorOptions} from "@erpx/server-commerce/
 
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { supplierPromiseDetail } from "@erpx/server-procurement/public/supplier-promises";
+import { ownedSupplierPromiseHistory } from "@erpx/feature-procurement/public/native-supplier-promise-history-owned";
 import { SupplierBillCapture } from "@erpx/feature-records/components/loaders/modules--supplier-bill-console";
 import { supplierBillWorkspace, supplierInvoicePolicy } from "@erpx/server-procurement/public/supplier-bill-matching";
 import { SupplierPromiseConsole } from "@erpx/feature-records/components/loaders/modules--supplier-promise-console";
@@ -109,6 +110,12 @@ export default async function OrderPage({
     (receipt) => !receipt.invoice_id && !activeReceiptIds.has(String(receipt.id)),
   );
   const supplier = order.kind === "purchase" ? await supplierPromiseDetail(actor, id) : null;
+  const nativeSupplierPromise =
+    order.kind === "purchase"
+      ? await ownedSupplierPromiseHistory(actor, holdingSlug, id).catch((error) =>
+          pageError(error, holdingSlug),
+        )
+      : undefined;
   const landedPurchase=order.kind==="purchase"&&hasPermission(actor,"finance.read")?await landedCostPurchaseControls(actor):undefined;
   const landedCosts =
     order.kind === "purchase" && hasPermission(actor, "finance.read") && landedPurchase?.history!==false
@@ -327,7 +334,12 @@ export default async function OrderPage({
           </Card>
         </FeatureWidget>
         {supplier && (
-          <SupplierPromiseConsole key={String(order.id)} base={base} data={supplier} />
+          <SupplierPromiseConsole
+            key={String(order.id)}
+            base={base}
+            data={supplier}
+            native={nativeSupplierPromise}
+          />
         )}
         {options && (
           <FeatureWidget appearance="standard" id="commerce-orders-detail-order-details" title="Order details">

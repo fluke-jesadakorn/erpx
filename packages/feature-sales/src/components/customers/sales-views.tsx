@@ -26,6 +26,7 @@ import { customerFollowupWorkspace } from "@erpx/server-sales/public/customer-fo
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { pricingWorkspace } from "@erpx/server-sales/public/sales-pricing";
 import { salesToday } from "@erpx/server-sales/public/sales-customers";
+import { nativeSalesDocuments } from "@erpx/feature-sales/public/native-sales-documents-page";
 import { HubEmpty, HubPagination, HubSegments } from "@erpx/feature-sales/components/customers/hub-shell";
 import { HubCreate, HubCursor, HubFilters, HubTable, hubPage } from "@erpx/feature-sales/components/customers/hub-list";
 import styles from "@erpx/feature-sales/components/customers/hub.module.css";
@@ -54,10 +55,12 @@ export async function SalesPipelineView({ actor, base, query }: { actor: WorkCon
 }
 export async function SalesDocumentsView({ actor, base, query }: { actor: WorkContext; base: string; query: HubQuery }) {
   const kind = queryValue(query, "type", "quote") === "sales" ? "sales" : "quote", status = queryValue(query, "status");
-  const page = await commerceSalesDocuments(actor, {view:kind,q:queryValue(query,"q"),cursor:queryValue(query,"cursor")||undefined,status});
+  const purchase = await commercePurchaseControls(actor, {type:"kind",kind});
+  // Only an unset native selector returns undefined; configured failures throw.
+  const page = (await nativeSalesDocuments(actor, kind, {q:queryValue(query,"q"),cursor:queryValue(query,"cursor")||undefined,status}, purchase?.history)) ?? await commerceSalesDocuments(actor, {view:kind,q:queryValue(query,"q"),cursor:queryValue(query,"cursor")||undefined,status});
   const editing = queryValue(query, "edit"), detail = editing ? await getOrder(actor, editing) : null;
   if (detail && detail.order.kind !== kind) throw new ApiError(404, "ORDER_NOT_FOUND", "Sales document is not available in this view.");
-  const purchase = await commercePurchaseControls(actor, {type:"kind",kind}), readiness=await salesPostingDocumentReadiness(actor,kind),selected=query.new==="1"||!!editing;
+  const readiness=await salesPostingDocumentReadiness(actor,kind),selected=query.new==="1"||!!editing;
   const options:SalesEditorOptions=selected&&readiness.ready&&hasPermission(actor,"commerce.sales")&&purchase?.newWork!==false?await salesEditorOptions(actor,kind):{products:[],parties:[],warehouses:[],nodes:[],priceLists:[],priceListItems:[],currency:""};
   const editorPurchase=readiness.ready?purchase:purchase?{...purchase,newWork:false}:{newWork:false,settleExisting:false,history:true,revision:"sales-posting-required",convertNewWork:false,stockNewWork:false,stockSettleExisting:false,financeSettleExisting:false,receivingSettleExisting:false};
   const editorOrder=detail?Object.fromEntries(["id","version","party_id","price_list_id","warehouse_id","discount_reason","order_date","due_date","note"].map(field=>[field,detail.order[field]??null])):undefined,editorLines=detail?.lines.map(line=>Object.fromEntries(["product_id","quantity_milli","price_minor","tax_bps"].map(field=>[field,line[field]??null])));

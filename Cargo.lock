@@ -1061,6 +1061,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "erpx-server-procurement"
+version = "0.1.0"
+dependencies = [
+ "erpx-server-runtime",
+ "erpx-server-shared",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "erpx-server-projects"
 version = "0.1.0"
 dependencies = [
@@ -1112,6 +1125,19 @@ dependencies = [
  "tokio",
  "tower",
  "url",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-server-sales"
+version = "0.1.0"
+dependencies = [
+ "erpx-server-runtime",
+ "erpx-server-shared",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
  "uuid",
 ]
 

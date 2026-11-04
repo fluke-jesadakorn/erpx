@@ -49820,6 +49820,260 @@
       ]
     },
     {
+      "id": "procurement.rust-supplier-promise-history.unit",
+      "lane": "unit",
+      "owner": "procurement",
+      "modules": [
+        "procurement"
+      ],
+      "files": [
+        "tests/unit/procurement/rust-supplier-promise-history.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Procurement supplier-promise history retains Company/order scope, bounded rows and owner readback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-procurement",
+        "targets": [
+          "supplier_promise_history"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-procurement/Cargo.toml"
+      ]
+    },
+    {
+      "id": "procurement.rust-supplier-promise-history-http.unit",
+      "lane": "unit",
+      "owner": "procurement",
+      "modules": [
+        "procurement"
+      ],
+      "files": [
+        "tests/unit/procurement/rust-supplier-promise-history-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Procurement HTTP ingress retains exact targets, fail-closed configuration and bounded errors."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-procurement",
+        "targets": [
+          "supplier_promise_history_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-procurement/Cargo.toml"
+      ]
+    },
+    {
+      "id": "procurement.rust-supplier-promise-history-postgres.integration",
+      "lane": "integration",
+      "owner": "procurement",
+      "modules": [
+        "procurement"
+      ],
+      "files": [
+        "tests/integration/procurement/rust-supplier-promise-history-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Procurement supplier-promise reads retain Company scope, persisted readback and serializable transaction guards."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-procurement",
+        "targets": [
+          "supplier_promise_history_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-procurement/Cargo.toml"
+      ]
+    },
+    {
+      "id": "procurement.native-supplier-promise-history-transport.unit",
+      "lane": "unit",
+      "owner": "procurement",
+      "modules": [
+        "procurement"
+      ],
+      "files": [
+        "tests/unit/procurement/native-supplier-promise-history-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Procurement transport must retain fail-closed config, bounded responses and owner error mapping."
+      },
+      "framework": "vitest",
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/feature-procurement",
+        "@erpx/server-procurement"
+      ]
+    },
+    {
+      "id": "sales.rust-sales-documents.unit",
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "files": [
+        "tests/unit/sales/rust-sales-documents.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Sales document list retains Company scope, bounded rows and owner readback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-sales",
+        "targets": [
+          "sales_documents"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-sales/Cargo.toml"
+      ]
+    },
+    {
+      "id": "sales.rust-sales-documents-http.unit",
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "files": [
+        "tests/unit/sales/rust-sales-documents-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Sales HTTP ingress retains exact targets, fail-closed config and bounded errors."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-sales",
+        "targets": [
+          "sales_documents_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-sales/Cargo.toml"
+      ]
+    },
+    {
+      "id": "sales.rust-sales-documents-postgres.integration",
+      "lane": "integration",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "files": [
+        "tests/integration/sales/rust-sales-documents-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Sales document reads retain Company scope, persisted readback and transaction guards."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-sales",
+        "targets": [
+          "sales_documents_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-sales/Cargo.toml"
+      ]
+    },
+    {
+      "id": "sales.native-sales-documents-transport.unit",
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "files": [
+        "tests/unit/sales/native-sales-documents-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Sales transport must retain fail-closed config, bounded responses and owner error mapping."
+      },
+      "framework": "vitest",
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/feature-sales",
+        "@erpx/server-sales"
+      ]
+    },
+    {
       "id": "assets.workspace-smoke.e2e",
       "lane": "e2e",
       "owner": "assets",
