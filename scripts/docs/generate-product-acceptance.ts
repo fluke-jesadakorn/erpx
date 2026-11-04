@@ -352,7 +352,7 @@ const modules = moduleRegistry.map(module => {
     packageMappingPurpose: "traceability only; does not authorize a grant or dependency management UI",
     landing: products.find(product => product.id === placement)?.landing ?? null,
     productOrigin: developmentProductOrigin(placement === "provider" ? "admin" : placement === "shared" ? "apps" : placement),
-    jobs: [...new Set(jobs)].sort(), jobDispatcher: "src/workers/jobs.ts", workflows,
+    jobs: [...new Set(jobs)].sort(), jobDispatcher: "packages/server-runtime/src/adapters/runtime/jobs.ts", workflows,
     regressionSuites: suites.filter(suite => suite.modules.includes(module.id)).map(suite => suite.id) };
 });
 for (const row of modules) {

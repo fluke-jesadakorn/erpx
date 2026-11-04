@@ -2,8 +2,8 @@
   "version": 3,
   "environment": "development",
   "deliveryPlan": "docs/production-plan.md",
-  "sourceFingerprint": "18abf8068425f4a03f74c28d3b2e8c9b223a8d9bff26db3ef0d91b0bb5e3d0db",
-  "verificationFingerprint": "10980cec4247e6dbce86008a1674ae9684ea10672e67c88a497d1cf74b622802",
+  "sourceFingerprint": "0b2763ac88248ba03e56d1eb5665cd2b87fd2db899745cde50331d6efc077a51",
+  "verificationFingerprint": "7b0bf405e21cbbf0ff766d65cb312d215dee2ea67d56beab90eda6d86880a4cf",
   "baseline": {
     "source": ".scratch/dev/product-migration-baseline-2026-10-14/",
     "privateAuthority": "read-only per-database snapshots; no secrets or personal authority rows in this register",
@@ -41,7 +41,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "brand/feature-draft-workspace",
@@ -352,7 +352,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "commercial/invoices",
@@ -805,7 +805,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "identity_access/assignments",
@@ -1370,7 +1370,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "organization/organization-tree",
@@ -1780,7 +1780,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "platform_administration/provisioning",
@@ -2392,7 +2392,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "customer_360/sales-summary",
@@ -2754,7 +2754,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "customer_authority/duplicate-review",
@@ -3116,7 +3116,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "support/tickets",
@@ -3600,7 +3600,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "finance/journals",
@@ -4366,7 +4366,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "pos/refunds",
@@ -4796,7 +4796,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "sales/quotes",
@@ -5231,7 +5231,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "assets/asset-register",
@@ -5630,7 +5630,8 @@
         "shared.attachments.specialized-attachment-media.unit",
         "assets.workspace-smoke.e2e",
         "shared.ui.application-hmr.e2e",
-        "shared.testing.documentation-references.unit"
+        "shared.testing.documentation-references.unit",
+        "maintenance.workspace-editor-smoke.e2e"
       ]
     },
     {
@@ -5657,7 +5658,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "inventory/availability",
@@ -6148,7 +6149,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "maintenance/work-orders",
@@ -6556,7 +6557,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "operations/feature-exception-queue",
@@ -7037,7 +7038,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "procurement/requisitions",
@@ -7449,7 +7450,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "quality/inspections",
@@ -7825,7 +7826,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "legal/contracts",
@@ -8278,7 +8279,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "people_payroll/employees",
@@ -8767,7 +8768,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "crm/accounts",
@@ -9182,7 +9183,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "marketing/feature-forms-profiles",
@@ -9627,7 +9628,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "manufacturing/orders",
@@ -10098,7 +10099,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "planning/scenarios",
@@ -10491,7 +10492,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "projects/dependencies",
@@ -10968,7 +10969,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "ecommerce/channels",
@@ -11404,7 +11405,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "benefits/dependents",
@@ -11794,7 +11795,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "learning/course-catalog",
@@ -12208,7 +12209,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "talent/requisitions",
@@ -12677,7 +12678,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "field_service/service-orders",
@@ -13153,7 +13154,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "agent/agent-catalog",
@@ -13649,7 +13650,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "collaboration/threads",
@@ -14211,7 +14212,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "pms/dashboard",
@@ -14948,7 +14949,7 @@
         "packages/server-workflow/src/public/people-lifecycle-worker-effects.ts",
         "packages/server-workflow/src/public/project-worker-startup-evidence.ts"
       ],
-      "jobDispatcher": "src/workers/jobs.ts",
+      "jobDispatcher": "packages/server-runtime/src/adapters/runtime/jobs.ts",
       "workflows": [
         {
           "id": "manage_erpx/overview",

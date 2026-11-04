@@ -11,8 +11,6 @@
   "include": [
     "scripts/**/*.ts",
     "scripts/**/*.mts",
-    "src/workers/**/*.ts",
-    "src/server/runtime/env.ts",
     "next.config.ts"
   ],
   "exclude": [

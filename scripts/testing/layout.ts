@@ -39,7 +39,7 @@ export function checkRepositoryLayout(root = repositoryRoot): void {
       const file = `${directory}/${entry.name}`;
       if (file === "src/server/modules") continue;
       if (entry.isDirectory()) checkServer(file);
-      else if (/\.tsx?$/.test(file) && file !== "src/server/runtime/env.ts")
+      else if (/\.tsx?$/.test(file))
         throw new Error(`LEGACY_SERVER_LOCATION:${file}`);
     }
   }

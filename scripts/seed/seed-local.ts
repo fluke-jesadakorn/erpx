@@ -5,7 +5,7 @@ import { getLocalProxy } from "../local/fixtures";
 import type { RuntimeEnv } from "@erpx/server-runtime/adapters/runtime/env";
 import { hashPassword } from "better-auth/crypto";
 import { moduleRegistry } from "@erpx/catalogue/module-registry";
-import { project, type EventMessage, type JobEnv } from "../../src/workers/jobs";
+import { project, type EventMessage, type JobEnv } from "@erpx/server-workflow/public/job-projector";
 import { calculatePayrollAmounts } from "@erpx/feature-people_payroll/lib/payroll-math";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
