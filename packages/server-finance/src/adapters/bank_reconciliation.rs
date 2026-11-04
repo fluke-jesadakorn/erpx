@@ -196,9 +196,9 @@ async fn save_receipt(
     result: &Value,
     now: i64,
 ) -> Result<(), Error> {
-    sqlx::query(
+    let inserted = sqlx::query(
         "INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json)\
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (command_id) DO NOTHING",
     )
     .bind(key)
     .bind(operation)
@@ -209,7 +209,12 @@ async fn save_receipt(
     .bind(now)
     .bind(json!({"companyId":actor.company_id.as_str()}).to_string())
     .execute(&mut *c)
-    .await?;
+    .await?
+    .rows_affected()
+        == 1;
+    if !inserted {
+        return Ok(());
+    }
     sqlx::query(
         "INSERT INTO audit_events(id,command_id,actor_id,assignment_id,action,record_type,record_id,record_version,purpose,created_at)\
          VALUES($1,$2,$3,$4,$5,$6,$7,$8,'execute',$9)",
@@ -426,12 +431,35 @@ pub async fn reconcile_bank_transaction(
     input: &BankReconcileInput,
     clock: &impl Clock,
 ) -> Result<Value, Error> {
+    reconcile_bank_transaction_inner(c, actor, key, transaction_id, input, clock, true).await
+}
+/// Ledger-owned variant: the enclosing `PgCommandLedger` already owns the
+/// receipt, so this path must not query or write another one.
+pub async fn apply_bank_reconciliation(
+    c: &mut PgConnection,
+    actor: &FinanceActor,
+    key: &str,
+    transaction_id: &str,
+    input: &BankReconcileInput,
+    clock: &impl Clock,
+) -> Result<Value, Error> {
+    reconcile_bank_transaction_inner(c, actor, key, transaction_id, input, clock, false).await
+}
+async fn reconcile_bank_transaction_inner(
+    c: &mut PgConnection,
+    actor: &FinanceActor,
+    key: &str,
+    transaction_id: &str,
+    input: &BankReconcileInput,
+    clock: &impl Clock,
+    record_effects: bool,
+) -> Result<Value, Error> {
     serializable(c).await?;
     if input.matched_type != "payment" || input.proof.trim().is_empty() || input.expected_version < 1 {
         return Err(invalid("MATCH_INPUT_INVALID", "Select a posted payment and provide review evidence."));
     }
     let hash = digest(input)?;
-    if let Some(replay) = receipt(c, key, &hash).await? {
+    if record_effects && let Some(replay) = receipt(c, key, &hash).await? {
         return Ok(replay);
     }
     let valid: bool = sqlx::query_scalar(
@@ -483,17 +511,19 @@ pub async fn reconcile_bank_transaction(
     if updated.rows_affected() != 1 {
         return Err(conflict("BANK_EVIDENCE_CHANGED", "The bank row changed. Refresh before reconciling."));
     }
-    save_receipt(
-        c,
-        actor,
-        key,
-        "finance.bank.reconcile",
-        transaction_id,
-        &hash,
-        &result,
-        at,
-    )
-    .await?;
+    if record_effects {
+        save_receipt(
+            c,
+            actor,
+            key,
+            "finance.bank.reconcile",
+            transaction_id,
+            &hash,
+            &result,
+            at,
+        )
+        .await?;
+    }
     Ok(result)
 }
 pub async fn read_bank_workspace(

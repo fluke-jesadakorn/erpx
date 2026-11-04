@@ -1413,6 +1413,7 @@ async fn assemble_checked(
         );
         let mut targets = Vec::new();
         let mut brand_targets = Vec::new();
+        let mut bank_targets = Vec::new();
         #[cfg(feature = "finance-field-write")]
         let mut invoice_post_targets = Vec::new();
         #[cfg(feature = "finance-field-write")]
@@ -1457,6 +1458,13 @@ async fn assemble_checked(
                 catalogue.clone(),
             )
             .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
+            bank_targets.push(crate::finance_bank_http::FinanceBankTarget {
+                host: holding.host.clone(),
+                holding_slug: holding.registration.slug.clone(),
+                authorizer: authorizer.clone(),
+                configuration: configuration.clone(),
+                clock: Arc::new(SharedClock(clock.clone())),
+            });
             brand_targets.push(crate::brand_identity_http::BrandIdentityTarget {
                 host: holding.host.clone(),
                 holding_slug: holding.registration.slug.clone(),
@@ -1674,6 +1682,16 @@ async fn assemble_checked(
             )
             .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
         );
+        if !bank_targets.is_empty() {
+            router = router.merge(
+                crate::finance_bank_http::finance_bank_router(
+                    config.policy.clone(),
+                    config.holdings_registry.clone(),
+                    bank_targets,
+                )
+                .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
+            );
+        }
         if !brand_targets.is_empty() {
             router = router.merge(
                 crate::brand_identity_http::brand_identity_router(

@@ -48,6 +48,8 @@ pub mod brand_identity;
 #[cfg(feature = "existing-business")]
 pub mod brand_identity_http;
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
+pub mod finance_bank_http;
+#[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
 pub mod finance_generic_payment;
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
 pub mod finance_journal_detail;

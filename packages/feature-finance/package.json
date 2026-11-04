@@ -366,7 +366,8 @@
     "./lib/native-sales-defaults": "./src/lib/native-sales-defaults.ts",
     "./lib/native-invoice-read": "./src/lib/native-invoice-read.ts",
     "./lib/native-finance-setup": "./src/lib/native-finance-setup.ts",
-    "./lib/native-finance-report": "./src/lib/native-finance-report.ts"
+    "./lib/native-finance-report": "./src/lib/native-finance-report.ts",
+    "./lib/native-finance-bank": "./src/lib/native-finance-bank.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

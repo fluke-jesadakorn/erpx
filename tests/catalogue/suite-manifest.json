@@ -61097,7 +61097,8 @@
       "files": [
         "tests/unit/finance/native-journal-detail.test.ts",
         "tests/unit/finance/native-journal-post-action.test.ts",
-        "tests/unit/finance/native-service-invoice.test.ts"
+        "tests/unit/finance/native-service-invoice.test.ts",
+        "tests/unit/finance/native-finance-bank.test.ts"
       ],
       "verificationInputs": [
         "packages/contracts/src/finance-journal-read.generated.ts",
@@ -70911,6 +70912,43 @@
         "package": "erpx-service",
         "targets": [
           "bank_reconciliation_postgres"
+        ],
+        "features": [
+          "existing-business"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml",
+        "tests/support/finance/review-composition.rs"
+      ]
+    },
+    {
+      "id": "finance.rust-bank-reconciliation-http-postgres.integration",
+      "lane": "integration",
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "files": [
+        "tests/integration/finance/rust-bank-reconciliation-http-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Finance bank HTTP ingress retains normal Account session, Company, purchase, idempotency, import and reconciliation effects."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "bank_reconciliation_http_postgres"
         ],
         "features": [
           "existing-business"
