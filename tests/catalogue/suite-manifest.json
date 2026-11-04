@@ -70886,6 +70886,43 @@
         "src/composition/Cargo.toml",
         "tests/support/finance/review-composition.rs"
       ]
+    },
+    {
+      "id": "finance.rust-bank-reconciliation-postgres.integration",
+      "lane": "integration",
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "files": [
+        "tests/integration/finance/rust-bank-reconciliation-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Finance bank statement import and manual payment reconciliation retain statement balance, duplicate, currency, Company, version, released-payment, journal, idempotency, audit and outbox guards."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "bank_reconciliation_postgres"
+        ],
+        "features": [
+          "existing-business"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml",
+        "tests/support/finance/review-composition.rs"
+      ]
     }
   ]
 }

@@ -115,3 +115,5 @@ pub mod finance_reports;
 pub mod finance_opening;
 
 pub mod generic_payment;
+
+pub mod bank_reconciliation;

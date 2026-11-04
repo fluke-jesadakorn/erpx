@@ -80,3 +80,5 @@ pub mod field_journal_evidence;
 pub(crate) mod service_package_settlement;
 
 pub(crate) mod generic_payment;
+
+pub(crate) mod bank_reconciliation;

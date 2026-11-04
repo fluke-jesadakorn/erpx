@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Finance bank import and manual payment reconciliation are PostgreSQL-qualified; HTTP/Next transport and the authenticated browser journey remain open",
+  "capability": "finance-bank-reconciliation",
+  "integrationTarget": "codex/rust-backend-migration",
+  "scope": {
+    "import": "Multi-row statement import with active primary bank account, currency scale, opening/closing balance, unique external reference, row currency/date, duplicate statement, FX closing rate, command receipt, audit and outbox.",
+    "reconcile": "Manual exact released/settled payment match to an unmatched/proposed row with Company, bank account, currency, posted journal, amount, version, already-matched and replay guards.",
+    "read": "Bounded Company statements, transactions and unmatched posted payments."
+  },
+  "tests": [
+    "finance.rust-bank-reconciliation-postgres.integration: 2 passed (import/replay/reconcile; unbalanced, duplicate and foreign-Company refusal)"
+  ],
+  "limits": [
+    "No HTTP router/Next transport or authenticated browser journey yet; finance/feature-bank-reconciliation is not claimed verified.",
+    "Automated mapping/multi-candidate groups and attachment workpapers remain in the legacy path.",
+    "Hosted CI, staging and installed production were not accessed."
+  ]
+}
