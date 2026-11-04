@@ -115,6 +115,7 @@ pub mod finance_reports;
 pub mod finance_opening;
 
 pub mod generic_payment;
+pub mod payment_correction;
 
 pub mod bank_reconciliation;
 pub mod bank_workspace;

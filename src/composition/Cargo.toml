@@ -152,6 +152,11 @@ path = "../../tests/integration/finance/rust-generic-payment-postgres.test.rs"
 required-features = ["existing-business"]
 
 [[test]]
+name = "payment_correction_postgres"
+path = "../../tests/integration/finance/rust-payment-correction-postgres.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
 name = "support_ticket_read_postgres"
 path = "../../tests/integration/support/rust-support-ticket-read-postgres.test.rs"
 required-features = ["existing-business"]
