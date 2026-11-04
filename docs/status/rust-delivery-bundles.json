@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-04T16:40:00+07:00",
+  "updatedAt": "2026-11-04T16:30:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -16,7 +16,7 @@
     "interpretation": "The 206 items are catalogue workflows, not the number of bounded flows. Each listed ID occurs once below. A partial item has supporting qualified slices, not whole-workflow verification."
   },
   "counts": {
-    "qualifiedBusinessFlows": 36,
+    "qualifiedBusinessFlows": 43,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
     "workflowsPartial": 13,
@@ -4361,9 +4361,12 @@
       "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "inventory-stock-readback",
+        "inventory-stock-http"
+      ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Native stock-register read, HTTP and opt-in Next SSR are qualified with lot/count reconciliation; browser and initial physical-stock writes remain open."
+      "gap": "Native stock-register reads and persisted readback are PostgreSQL/HTTP-qualified; the stock page remains opt-in and the authenticated browser journey is open."
     },
     {
       "id": "inventory/feature-receipts",
@@ -4373,9 +4376,12 @@
       "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "inventory-receipt-plan-guards",
+        "inventory-receipt-http"
+      ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Native receipt source/guards and HTTP source read are qualified; the Commerce fulfillment command still posts through the retained path and browser evidence remains open."
+      "gap": "The Inventory receipt seam now rejects tampered/changed plans and persists stock/lot/quarantine evidence; the retained Commerce fulfillment writer does not call it yet, so the end-to-end receipt command remains open."
     },
     {
       "id": "inventory/feature-issues-movements",
@@ -5567,60 +5573,75 @@
       "kind": "module",
       "owner": "collaboration",
       "scope": "Threads",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "collaboration-handbook-http",
+        "collaboration-social-postgres"
+      ],
       "sourceRef": "packages/server-collaboration/src/public/social.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native Social/threads, mentions, comments/moderation, following/reactions and topics/feed are PostgreSQL-qualified; the handbook HTTP router is owner-local and the Next handbook route is fail-closed native-only. Composition mounting, SSR presentation, attachments/teams/channels and authenticated browser acceptance remain open."
     },
     {
       "id": "collaboration/mentions",
       "kind": "module",
       "owner": "collaboration",
       "scope": "Mentions",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "collaboration-handbook-http",
+        "collaboration-social-postgres"
+      ],
       "sourceRef": "packages/server-collaboration/src/public/social.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native Social/threads, mentions, comments/moderation, following/reactions and topics/feed are PostgreSQL-qualified; the handbook HTTP router is owner-local and the Next handbook route is fail-closed native-only. Composition mounting, SSR presentation, attachments/teams/channels and authenticated browser acceptance remain open."
     },
     {
       "id": "collaboration/feature-comments-moderation",
       "kind": "module",
       "owner": "collaboration",
       "scope": "Comments & moderation",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "collaboration-handbook-http",
+        "collaboration-social-postgres"
+      ],
       "sourceRef": "packages/server-collaboration/src/public/social.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native Social/threads, mentions, comments/moderation, following/reactions and topics/feed are PostgreSQL-qualified; the handbook HTTP router is owner-local and the Next handbook route is fail-closed native-only. Composition mounting, SSR presentation, attachments/teams/channels and authenticated browser acceptance remain open."
     },
     {
       "id": "collaboration/feature-following-reactions",
       "kind": "module",
       "owner": "collaboration",
       "scope": "Following & reactions",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "collaboration-handbook-http",
+        "collaboration-social-postgres"
+      ],
       "sourceRef": "packages/server-collaboration/src/public/social.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native Social/threads, mentions, comments/moderation, following/reactions and topics/feed are PostgreSQL-qualified; the handbook HTTP router is owner-local and the Next handbook route is fail-closed native-only. Composition mounting, SSR presentation, attachments/teams/channels and authenticated browser acceptance remain open."
     },
     {
       "id": "collaboration/feature-topics-feed",
       "kind": "module",
       "owner": "collaboration",
       "scope": "Topics & feed",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "collaboration-handbook-http",
+        "collaboration-social-postgres"
+      ],
       "sourceRef": "packages/server-collaboration/src/public/social.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native Social/threads, mentions, comments/moderation, following/reactions and topics/feed are PostgreSQL-qualified; the handbook HTTP router is owner-local and the Next handbook route is fail-closed native-only. Composition mounting, SSR presentation, attachments/teams/channels and authenticated browser acceptance remain open."
     },
     {
       "id": "collaboration/feature-attachments",
@@ -5632,7 +5653,7 @@
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-collaboration/src/public/messaging-files.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Attachments, teams/channels, announcements and inbox notifications remain on the retained TypeScript owner."
     },
     {
       "id": "collaboration/feature-action-cards",
@@ -5644,7 +5665,7 @@
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-collaboration/src/public/collaboration-work.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "The existing Field-linked action-card/record-relation native slice is retained; general/legacy sources and HTTP routes remain open."
     },
     {
       "id": "collaboration/feature-record-relations",
@@ -5656,7 +5677,7 @@
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-collaboration/src/public/collaboration-work.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "The existing Field-linked action-card/record-relation native slice is retained; general/legacy sources and HTTP routes remain open."
     },
     {
       "id": "pms/dashboard",
