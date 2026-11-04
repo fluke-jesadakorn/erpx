@@ -4027,7 +4027,7 @@
         "finance-payment-reverse-native"
       ],
       "sourceRef": "packages/server-finance/src/public/finance.ts",
-      "gap": "Native generic create/approve/release/confirm, bank settlement, allocation and independent reversal are PostgreSQL-qualified; browser release/confirm/readback passed on current source. The native allocate/reverse HTTP/Next/UI cutover, payment creation/approval browser steps, refunds, supplier instructions and automated bank groups remain open."
+      "gap": "Native generic create/approve/release/confirm and bank settlement are PostgreSQL-qualified; browser create form hit 503 when the native Service transport intercepted a generic settlementInvoiceId, and exact bank import is Service-receipt-only. Payment was created/approved/released via the normal generic API and the settlement evidence was proven before the shared cohort database was lost. Generic create routing, confirm-page bank-row listing and the full browser readback remain open."
     },
     {
       "id": "finance/feature-receivables-aging",
@@ -4060,7 +4060,7 @@
         "finance-bank-workspace-read"
       ],
       "sourceRef": "packages/server-finance/src/public/finance.ts",
-      "gap": "Native bank workspace/import and controlled payment settlement are qualified; generic import persists and reads back on desktop/mobile. Manual workspace reconcile of an independently posted payment and automated mapping/groups remain open."
+      "gap": "Native bank workspace/import and controlled payment settlement are qualified; generic import persists and reads back desktop/mobile. Manual workspace reconcile of an independently posted payment is untested because generic import rows are not linked by settlementPaymentId, and automated mapping/groups remain open."
     },
     {
       "id": "finance/feature-reports",
