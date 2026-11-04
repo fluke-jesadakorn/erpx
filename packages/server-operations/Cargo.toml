@@ -19,3 +19,15 @@ workspace = true
 [[test]]
 name = "field_exceptions"
 path = "../../tests/unit/operations/rust-field-exceptions.test.rs"
+
+[[test]]
+name = "operations_queue_read"
+path = "../../tests/unit/operations/rust-operations-queue-read.test.rs"
+
+[[test]]
+name = "operations_queue_read_postgres"
+path = "../../tests/integration/operations/rust-operations-queue-read-postgres.test.rs"
+
+[[test]]
+name = "operations_http"
+path = "../../tests/integration/operations/rust-operations-http.test.rs"

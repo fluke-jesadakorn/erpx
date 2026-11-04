@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./lib/native-operations": "./src/lib/native-operations.ts",
     "./entries/booking": "./src/entries/booking.tsx",
     "./entries/public": "./src/entries/public.tsx",
     "./entries/account": "./src/entries/account.tsx",

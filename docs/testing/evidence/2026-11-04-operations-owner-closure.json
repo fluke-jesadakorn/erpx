@@ -1,0 +1,163 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Operations now has native queue/summary/queue-policy reads, an owner-local HTTP router and a fail-closed Next transport/SSR cutover for non-Field exceptions. Shared composition mounting, Records/People read-port implementations, the retained TypeScript policy/exception commands and the remaining legacy notification consumer keep the six Operations workflows partial.",
+  "capability": "operations-owner-read-slice",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "7125323db809c01c9a7aa56c179870616bb3547a",
+  "scope": {
+    "workflows": [
+      "operations/feature-exception-queue",
+      "operations/feature-escalations",
+      "operations/feature-approval-decisions",
+      "operations/feature-resolution",
+      "operations/feature-queue-policies",
+      "operations/feature-operations-summary"
+    ],
+    "domain": "packages/server-operations/src/domain/queue_read.rs owns the typed non-Field queue row, source view, policy row, event row, people option, workspace/detail projections and current summary. It reuses the existing Operations exception row and summarizer without changing the Field transition policy.",
+    "application": "packages/server-operations/src/application/queue_read.rs enforces records.read, the operations module, selected-context expiry, Company/branch/department scope arguments, a bounded visible-source filter, current People options and bounded history. It returns a scoped not-found for a hidden or foreign exception and fails closed on a mismatched or foreign source projection.",
+    "adapters": "packages/server-operations/src/adapters/queue_read.rs reads only Operations-owned relations (operations_exceptions, operations_exception_events and operations_queue_policies) inside a caller-owned serializable transaction. It excludes Field exceptions and Field-only policies, keeps the exact Company/branch/department predicate and bounds exceptions, policies and history. No cross-owner SQL is invented; Records source visibility and People labels are public application ports supplied by composition.",
+    "http": "packages/server-operations/src/adapters/operations_http.rs exposes GET /api/v1/holdings/{holding_slug}/operations and GET /api/v1/holdings/{holding_slug}/operations?id=. It validates exact registered Host/Holding targets, one bounded record id, rejects request bodies, returns private/no-store and no-referrer responses, and maps BusinessError to bounded statuses. Session resolution, selected Company scope, source visibility, People labels and the serializable unit stay behind OperationsHttpBackend.",
+    "transport": "packages/feature-operations/src/adapters/server/native-operations.ts validates ERPX_NATIVE_OPERATIONS_CONFIG (loopback only, no reserved ports 3000/3001/3100/3101/3103/8080 or owned app ports, exact unique HTTPS Holding origins, unique Hosts/slugs/ids, 250..30000 ms), forwards the actual session cookie, Host, branch/department selectors and rendered-context CAS headers, and strictly validates every workspace/detail/event/source/policy/person/summary field plus the returned context identity and bounded response.",
+    "ssr": "packages/workplace/src/lib/native-operations.ts maps the retained WorkContext into the native page context. The Operations list and detail presenters require ERPX_NATIVE_OPERATIONS_CONFIG, read only through the native transport and return 503 NATIVE_OPERATIONS_UNAVAILABLE when it is absent, invalid or failing. There is no silent TypeScript owner-read fallback. The GET Operations route is also native and 503s without configuration. Field rendering remains on its existing native Field transport, but the Operations page/route still requires the Operations configuration before it can reach that path.",
+    "notClaimed": "No command cutover, shared composition mount, real Account/Records/People port implementation, browser journey, authenticated page render, staging or private production verification. No whole-workflow completion flag is changed."
+  },
+  "changedFiles": [
+    "packages/server-operations/Cargo.toml",
+    "packages/server-operations/src/domain/mod.rs",
+    "packages/server-operations/src/domain/queue_read.rs",
+    "packages/server-operations/src/domain/field_exceptions.rs",
+    "packages/server-operations/src/application/mod.rs",
+    "packages/server-operations/src/application/queue_read.rs",
+    "packages/server-operations/src/adapters/mod.rs",
+    "packages/server-operations/src/adapters/queue_read.rs",
+    "packages/server-operations/src/adapters/operations_http.rs",
+    "packages/server-operations/src/public/mod.rs",
+    "packages/server-operations/src/public/queue_read.rs",
+    "packages/server-operations/src/public/operations_http.rs",
+    "packages/feature-operations/package.json",
+    "packages/feature-operations/src/lib/operations-work-model.ts",
+    "packages/feature-operations/src/adapters/server/native-operations.ts",
+    "packages/workplace/package.json",
+    "packages/workplace/src/lib/native-operations.ts",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/operations/screen.tsx",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/operations/[id]/screen.tsx",
+    "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/operations/route.ts",
+    "tests/unit/operations/rust-operations-queue-read.test.rs",
+    "tests/integration/operations/rust-operations-queue-read-postgres.test.rs",
+    "tests/integration/operations/rust-operations-http.test.rs",
+    "tests/support/operations/rust-operations-database.rs",
+    "tests/unit/operations/native-operations-transport.test.ts",
+    "tests/catalogue/suite-manifest.json"
+  ],
+  "verification": {
+    "rust": {
+      "command": "ERPX_TEST_ADMIN_URL=\"$(grep -m1 '^ERPX_TEST_ADMIN_URL=' .env.local | cut -d= -f2-)\" cargo test -p erpx-server-operations --locked",
+      "result": "22 passed, 0 failed, 0 ignored",
+      "targets": {
+        "field_exceptions": "10 passed (existing Field transition and policy checks)",
+        "operations_http": "3 passed",
+        "operations_queue_read": "6 passed",
+        "operations_queue_read_postgres": "3 passed",
+        "lib": "0 passed",
+        "doc-tests": "0 passed"
+      },
+      "postgresCases": [
+        "workspace/detail reads are Company/branch scoped, exclude Field exceptions and Field-only policies, preserve policy rows, current source labels, people, summary and four-event history readback",
+        "a hidden source is excluded from the workspace and its detail is a scoped not-found; a foreign Company sees only its own policy and exception",
+        "a missing transaction is rejected and a read-committed transaction is rejected with OPERATIONS_SERIALIZABLE_REQUIRED"
+      ],
+      "httpCases": [
+        "actual ephemeral loopback Router serves workspace and detail, preserves Host/Holding/query forwarding and private/no-referrer/nosniff headers",
+        "unknown targets, duplicate ids, malformed percent encodings and empty ids fail before the backend; backend conflict maps to 409",
+        "invalid or duplicate Holding targets and non-HTTPS origins are rejected"
+      ],
+      "unitCases": [
+        "reads require records.read, the operations module and a current selected context",
+        "workspace uses the actor Company/branch/department, filters hidden sources, sorts/deduplicates current people and computes the current summary",
+        "detail preserves history and returns a scoped not-found for a hidden row",
+        "mismatched id, foreign Company or invalid source version fails closed with OPERATIONS_SOURCE_INVALID",
+        "serialized workspace keys match the Next transport contract"
+      ]
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-operations --all-targets --locked",
+      "result": "pass; no erpx-server-operations warning"
+    },
+    "rustfmt": {
+      "command": "rustfmt --edition 2024 --check on all new Operations Rust and test files",
+      "result": "pass"
+    },
+    "typescript": {
+      "unit": "ERPX_SELECTED_TEST_FILES='[\"tests/unit/operations/native-operations-transport.test.ts\"]' ./node_modules/.bin/vitest run --config tests/config/vitest.unit.config.mts: 7 passed",
+      "transportCases": [
+        "workspace forwards the configured Holding, session cookie, branch selector and current CAS headers",
+        "detail preserves the exact owner event history and id query",
+        "missing authority and a changed response context fail closed before transport",
+        "foreign source labels, unknown contexts and malformed workspaces are rejected",
+        "bounded owner 409 errors map without a TypeScript fallback",
+        "fail-closed availability toggles only with ERPX_NATIVE_OPERATIONS_CONFIG",
+        "reserved loopback ports, non-loopback bases, non-HTTPS or duplicate Holding origins and undersized timeouts are rejected"
+      ],
+      "typechecks": [
+        "tsc --noEmit -p packages/feature-operations/tsconfig.json: pass",
+        "tsc --noEmit -p packages/feature-apps/tsconfig.json: pass",
+        "tsc --noEmit -p packages/feature-service/tsconfig.json: pass",
+        "tsc --noEmit -p packages/feature-records/tsconfig.json: pass",
+        "tsc --noEmit -p apps/launcher/tsconfig.json: pass",
+        "tsc --noEmit -p packages/workplace/tsconfig.json: pass",
+        "tsc --noEmit -p tests/config/tsconfig.json: pass"
+      ],
+      "eslint": "targeted changed Operations TypeScript files: pass (only the repository's existing Next pages-directory warning)"
+    },
+    "catalogue": {
+      "manifest": "tests/catalogue/suite-manifest.json parses with 848 suites and contains operations.native-operations-transport.unit, operations.rust-operations-queue-read.unit, operations.rust-operations-queue-read-postgres.integration and operations.rust-operations-http.integration",
+      "validation": "validateCatalogue reports TEST_INVENTORY_MISMATCH only for four concurrent untracked projects test files (rust-project-wbs-postgres, native-project-wbs-transport, rust-project-wbs-http, rust-project-wbs); no Operations file is missing or duplicated",
+      "runner": "bun is not installed in this worktree, so bun run test:catalogue --check could not run; no full catalogue pass is claimed"
+    },
+    "browser": "not run; no browser, authenticated SSR render, Next dev server, public URL, staging, private production or Cloudflare verification was performed. No workflow is claimed browser-verified."
+  },
+  "sharedCompositionDelta": {
+    "ownerPublicApi": [
+      "erpx_server_operations::public::queue_read::{OperationsReadActor, OperationsReadRepository, OperationsSourceVisibility, OperationsPeopleDirectory, operations_workspace, operations_detail, PgOperationsRead, read_operations_workspace, read_operations_history, lock_operations_read_sources, OperationsWorkspace, OperationsDetail, SourceView, QueuePolicyRow, OperationsEventRow, PersonOption, QueueException, summarize_queue}",
+      "erpx_server_operations::public::operations_http::{operations_router, OperationsHttpTarget, OperationsHttpBackend, OperationsHttpReadKind, OperationsHttpReadRequest, OperationsHttpResponse}"
+    ],
+    "backendRequired": "Implement OperationsHttpBackend in src/composition: resolve the normal Account/Holding session, require records.read and the operations module, validate the selected Company/branch/department and rendered-context CAS, open one serializable transaction, call lock_operations_read_sources and the owner application with PgOperationsRead, and implement OperationsSourceVisibility from Records public source visibility plus OperationsPeopleDirectory from the public Identity/People recipient reference. Return the exact rendered context alongside data. No cross-owner SQL may be added to the Operations adapter.",
+    "privateDevelopmentApi": [
+      "Build one OperationsHttpTarget per registered Holding with exact host, slug and HTTPS origin.",
+      "router = router.merge(erpx_server_operations::public::operations_http::operations_router(targets).map_err(|_| \"PRIVATE_API_OPERATIONS_CONFIGURATION_INVALID\")?);",
+      "Mount GET /api/v1/holdings/{slug}/operations before the generic 404 fallback. Do not route Field exceptions through this router; they remain on the existing Field operations endpoint."
+    ],
+    "nextEnvironment": "Set ERPX_NATIVE_OPERATIONS_CONFIG={\"privateBaseUrl\":\"http://127.0.0.1:<owned-loopback-port>\",\"timeoutMs\":250..30000,\"holdings\":[{\"origin\":\"https://<registered-holding>\",\"holdingSlug\":\"<slug>\",\"holdingId\":\"h00N\"}]} for each affected app. Unset configuration intentionally returns 503 NATIVE_OPERATIONS_UNAVAILABLE.",
+    "whyNotAppliedHere": "This subagent is prohibited from editing src/composition/**, root Cargo files, package lockfiles and other owners' implementation.",
+    "schemaDelta": "none; no migration, table, index, trigger, grant or destructive data change was added"
+  },
+  "legacyInventory": {
+    "removedReadConsumers": [
+      "The Operations list presenter no longer imports or calls operationsWorkspace from the TypeScript owner service; it reads the native workspace and 503s without native configuration.",
+      "The Operations detail presenter no longer imports operationsExceptionDetail or the nativeFieldException lookup for non-Field routing; it reads native Operations detail and only falls through to the existing native Field detail when the native Operations read returns a scoped 404 and the Field module is present.",
+      "The Operations API GET no longer calls operationsWorkspace or operationsExceptionDetail; it serves the native reader and 503s without configuration."
+    ],
+    "retainedWithConsumers": [
+      "packages/server-operations/src/public/operations-exceptions.ts still exports operationsWorkspace and operationsExceptionDetail for retained TypeScript consumers, including server-collaboration staff notifications. Those consumers were not edited by this owner slice.",
+      "The POST Operations route and server-operations policy/exception writers remain TypeScript. Queue policy draft/review, exception open/acknowledge/start/resolve/approve/reject/close/reopen/assign/prioritize/escalate/cancel, idempotency, CAS, IAM/People/Records guards, audit/outbox and Field same-transaction behavior are unchanged.",
+      "The existing native Field operations read/commands and the field-service/operations endpoint remain the Field path. The new Operations router intentionally excludes Field rows.",
+      "The OperationsConsole keeps its retained POST client and command receipt handling; only the surrounding page/API reads moved to the native transport."
+    ]
+  },
+  "limits": [
+    "No shared composition backend is mounted, so no production/private route serves the owner router. The HTTP test backend is a recording fake.",
+    "The Records source-visibility and People recipient ports are application contracts only; no production implementation exists in this slice. Composition must bind them before enabling ERPX_NATIVE_OPERATIONS_CONFIG.",
+    "Only non-Field sources are read. Field exceptions continue on the existing native Field transport.",
+    "No command cutover is included. The six Operations workflows remain partial because the TypeScript policy/exception writers and the collaboration notification read consumer remain.",
+    "No browser, authenticated SSR render, Next dev server, public URL, staging, private production or Cloudflare verification was run.",
+    "The root Cargo.toml, Cargo.lock, lockfiles, src/composition/**, docs/status/** and other owners' implementation were not edited. Cargo.lock is unchanged.",
+    "The shared tree contains concurrent uncommitted commercial/projects work; four concurrent untracked project test files block full catalogue validation with TEST_INVENTORY_MISMATCH. Those files were not modified and no Operations file is involved."
+  ],
+  "blockers": [
+    "Implement and mount the composition backend and the Records/People read ports.",
+    "Decide whether native queue-policy and exception commands are added before retiring the retained TypeScript writers.",
+    "Retire or migrate the server-collaboration notification consumer that still calls operationsExceptionDetail."
+  ],
+  "nextAction": "Bind PgOperationsRead plus the Records visibility and People recipient public ports in src/composition, mount the Operations router for each registered Holding, then run the native queue read against real Account/Records data before cutover. Keep ERPX_NATIVE_OPERATIONS_CONFIG unset until that backend exists; the fail-closed 503 is intentional."
+}

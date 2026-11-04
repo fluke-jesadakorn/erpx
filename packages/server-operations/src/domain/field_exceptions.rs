@@ -287,7 +287,7 @@ pub fn transition(
     })
 }
 
-#[derive(serde::Serialize)]
+#[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExceptionSummary {
     pub active: usize,

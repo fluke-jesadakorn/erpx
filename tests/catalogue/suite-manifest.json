@@ -69431,6 +69431,173 @@
       ]
     },
     {
+      "id": "operations.native-operations-transport.unit",
+      "lane": "unit",
+      "owner": "operations",
+      "modules": [
+        "operations"
+      ],
+      "files": [
+        "tests/unit/operations/native-operations-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Operations queue transport must retain fail-closed configuration, exact Host/Holding/session/context forwarding, bounded responses and owner error mapping without a TypeScript read fallback."
+      },
+      "framework": "vitest",
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/feature-operations",
+        "@erpx/server-operations"
+      ]
+    },
+    {
+      "id": "operations.rust-operations-queue-read.unit",
+      "lane": "unit",
+      "owner": "operations",
+      "modules": [
+        "operations"
+      ],
+      "files": [
+        "tests/unit/operations/rust-operations-queue-read.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Operations queue reads must retain records.read plus module admission, selected-context expiry, Company/branch/department scope, source visibility filtering, bounded people and current summary semantics."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-operations",
+        "targets": [
+          "operations_queue_read"
+        ],
+        "features": []
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-operations/Cargo.toml",
+        "packages/server-operations/src/domain/queue_read.rs",
+        "packages/server-operations/src/application/queue_read.rs"
+      ],
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-operations",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
+    },
+    {
+      "id": "operations.rust-operations-queue-read-postgres.integration",
+      "lane": "integration",
+      "owner": "operations",
+      "modules": [
+        "operations"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Operations queue reads over migrated PostgreSQL must retain own-table SQL, Company/branch/department isolation, non-Field filtering, visible source projections, history readback and serializable transaction enforcement."
+      },
+      "files": [
+        "tests/integration/operations/rust-operations-queue-read-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-operations",
+        "targets": [
+          "operations_queue_read_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-operations/Cargo.toml",
+        "tests/support/operations/rust-operations-database.rs",
+        "migrations/postgres/holding-write/0963_operations_exceptions.sql"
+      ],
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-operations",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
+      "id": "operations.rust-operations-http.integration",
+      "lane": "integration",
+      "owner": "operations",
+      "modules": [
+        "operations"
+      ],
+      "files": [
+        "tests/integration/operations/rust-operations-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Operations HTTP ingress retains exact registered Holding targets, one record identifier, private response headers, bounded error mapping and fail-closed configuration."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-operations",
+        "targets": [
+          "operations_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-operations/Cargo.toml",
+        "packages/server-operations/src/adapters/operations_http.rs"
+      ],
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-operations",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
+    },
+    {
       "id": "shared.work.rust-work-role-initialization.unit",
       "lane": "unit",
       "owner": "shared.work",
