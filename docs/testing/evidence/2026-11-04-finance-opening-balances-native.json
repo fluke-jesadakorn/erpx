@@ -5,7 +5,7 @@
   "capability": "finance-opening-balances-native",
   "base": "1effc5b68ce9e24b37087e2864b4e4ae5a497c8d",
   "branch": "codex/rust-backend-migration",
-  "sourceCommit": "pending",
+  "sourceCommit": "ec58a41551ccc9bff33ceb13e1e4651f43a53f30",
   "implementation": {
     "adapter": "packages/server-finance/src/adapters/finance_opening.rs",
     "public": "packages/server-finance/src/public/finance_opening.rs",
@@ -46,10 +46,32 @@
       "viewport": "1280x900",
       "chart": "chart-1793702143770 (Field cohort chart, THB)",
       "period": "period-1793702162843 (Field cohort period)",
-      "preview": {"status": 200, "tokenLength": 64, "debit": "500.00", "credit": "500.00", "subledgerCount": 1},
-      "import": {"status": 201, "journalId": "journal-38d120fc-53a0-456a-bd6e-54ff6db2356e", "debit": "500.00", "subledgerCount": 1},
+      "preview": {
+        "status": 200,
+        "tokenLength": 64,
+        "debit": "500.00",
+        "credit": "500.00",
+        "subledgerCount": 1
+      },
+      "import": {
+        "status": 201,
+        "journalId": "journal-38d120fc-53a0-456a-bd6e-54ff6db2356e",
+        "debit": "500.00",
+        "subledgerCount": 1
+      },
       "journal": "OPENING IMPORT J-38d120fc-53a0-456a-bd6e-54ff6db2356e · Verified opening trial balance and subledger schedules · 2026-11-04 · THB · draft",
-      "lines": [["1100 · Candidate receivable", "500.00", "0.00"], ["1999 · Browser report cash", "0.00", "500.00"]],
+      "lines": [
+        [
+          "1100 · Candidate receivable",
+          "500.00",
+          "0.00"
+        ],
+        [
+          "1999 · Browser report cash",
+          "0.00",
+          "500.00"
+        ]
+      ],
       "invoice": "OPEN-BROWSER-DESKTOP-1793765054 · receivable · opening_import · draft · 500.00",
       "pageErrors": 0
     },
@@ -57,10 +79,32 @@
       "viewport": "390x844",
       "chart": "chart-1ad84522-6649-4213-9e0c-c01cbcad2e4f (Browser setup ledger 982899, THB)",
       "period": "period-d19b7b97-2391-46ec-a7cd-d51a65bd2d62",
-      "preview": {"status": 200, "tokenLength": 64, "debit": "500.00", "credit": "500.00", "subledgerCount": 1},
-      "import": {"status": 201, "journalId": "journal-51a6e5dd-4ec3-4380-ab6c-2f96b2f752dc", "debit": "500.00", "subledgerCount": 1},
+      "preview": {
+        "status": 200,
+        "tokenLength": 64,
+        "debit": "500.00",
+        "credit": "500.00",
+        "subledgerCount": 1
+      },
+      "import": {
+        "status": 201,
+        "journalId": "journal-51a6e5dd-4ec3-4380-ab6c-2f96b2f752dc",
+        "debit": "500.00",
+        "subledgerCount": 1
+      },
       "journal": "OPENING IMPORT J-51a6e5dd-4ec3-4380-ab6c-2f96b2f752dc · Verified opening trial balance and subledger schedules · 2049-04-15 · THB · draft",
-      "lines": [["1199 · Mobile opening receivable", "500.00", "0.00"], ["182899 · Browser imported", "0.00", "500.00"]],
+      "lines": [
+        [
+          "1199 · Mobile opening receivable",
+          "500.00",
+          "0.00"
+        ],
+        [
+          "182899 · Browser imported",
+          "0.00",
+          "500.00"
+        ]
+      ],
       "invoice": "OPEN-BROWSER-MOBILE-1793765133 · receivable · opening_import · draft · 500.00",
       "pageErrors": 0
     },

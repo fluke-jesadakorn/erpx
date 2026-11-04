@@ -3400,7 +3400,7 @@
       "kind": "business-flow-evidence",
       "status": "flow-complete",
       "scope": "Native Finance opening-balance preview/import: balanced/control/schedule validation, preview token, opening journal + subledger invoices, receipt/audit/outbox, replay/idempotency, HTTP/Next and desktop/mobile import.",
-      "sourceIdentity": "finance-opening-balances-native",
+      "sourceIdentity": "ec58a41551ccc9bff33ceb13e1e4651f43a53f30",
       "evidenceRef": "docs/testing/evidence/2026-11-04-finance-opening-balances-native.json",
       "durableContractRefs": [
         "docs/contracts/next/rust-finance-journal-detail.md"
