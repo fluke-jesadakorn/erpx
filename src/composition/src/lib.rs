@@ -51,6 +51,8 @@ pub mod organization_nodes_http;
 pub mod organization_setup;
 #[cfg(feature = "existing-business")]
 pub mod approval_oversight;
+#[cfg(feature = "existing-business")]
+pub mod handbook;
 pub mod asset_http;
 #[cfg(feature = "existing-business")]
 pub mod brand_identity;

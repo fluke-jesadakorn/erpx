@@ -3,6 +3,6 @@ pub const CONTRACT_VERSION: &str = "collaboration.handbook.http.v1";
 
 pub use crate::adapters::handbook_http::{
     HandbookDetailData, HandbookEditorsData, HandbookHttpBackend, HandbookHttpCommandRequest,
-    HandbookHttpReadReply, HandbookHttpReadRequest, HandbookHttpTarget, HandbookListData,
-    HandbookReadKind, handbook_router,
+    HandbookHttpFuture, HandbookHttpReadReply, HandbookHttpReadRequest, HandbookHttpTarget,
+    HandbookListData, HandbookReadKind, handbook_router,
 };

@@ -95,6 +95,7 @@ impl From<HandbookEditorOptions> for HandbookEditorsData {
     }
 }
 
+#[derive(Clone)]
 pub enum HandbookReadKind {
     List {
         query: String,
