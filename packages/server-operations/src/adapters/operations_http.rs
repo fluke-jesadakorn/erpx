@@ -5,14 +5,18 @@
 //! resolution, selected Company/branch/department scope, Records source
 //! visibility, People labels and the serializable owner unit remain
 //! composition responsibilities behind [`OperationsHttpBackend`].
+use crate::domain::operations_commands::{
+    ChangeExceptionCommand, DraftPolicyCommand, OpenExceptionCommand, ReviewPolicyCommand,
+};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
     StatusCode, body::to_bytes, header, routing::get, serde_json,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind, RecordId};
+use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind, RecordId};
 use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
 
 const QUERY_LIMIT: usize = 2 * 1024;
+const BODY_LIMIT: usize = 64 * 1024;
 
 pub type OperationsHttpFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
@@ -28,6 +32,22 @@ pub struct OperationsHttpReadRequest<'a> {
     pub holding_slug: &'a str,
     pub headers: &'a HeaderMap,
     pub kind: OperationsHttpReadKind,
+}
+
+#[derive(Clone, Debug)]
+pub enum OperationsHttpCommand {
+    OpenException(OpenExceptionCommand),
+    ChangeException(ChangeExceptionCommand),
+    DraftPolicy(DraftPolicyCommand),
+    ReviewPolicy(ReviewPolicyCommand),
+}
+
+pub struct OperationsHttpCommandRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub key: CommandKey,
+    pub command: OperationsHttpCommand,
 }
 
 #[derive(Clone, Debug)]
@@ -48,6 +68,10 @@ pub trait OperationsHttpBackend: Send + Sync {
     fn read<'a>(
         &'a self,
         request: OperationsHttpReadRequest<'a>,
+    ) -> OperationsHttpFuture<'a, OperationsHttpResponse>;
+    fn command<'a>(
+        &'a self,
+        request: OperationsHttpCommandRequest<'a>,
     ) -> OperationsHttpFuture<'a, OperationsHttpResponse>;
 }
 
@@ -202,11 +226,165 @@ pub fn operations_router(targets: Vec<OperationsHttpTarget>) -> Result<Router, B
     Ok(Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/operations",
-            get(read_operations),
+            get(read_operations).post(command_operations),
         )
         .with_state(Arc::new(OperationsHttpState {
             targets: configured,
         })))
+}
+
+fn command_error(code: &'static str, message: &'static str) -> BusinessError {
+    BusinessError::invalid(code, message)
+}
+fn command_origin(target: &OperationsHttpTarget, headers: &HeaderMap) -> Result<(), BusinessError> {
+    if unique_header(headers, header::ORIGIN)? != Some(target.origin.as_str()) {
+        return Err(BusinessError::new(
+            FailureKind::Forbidden,
+            "ORIGIN_FORBIDDEN",
+            "Use the application origin.",
+        ));
+    }
+    Ok(())
+}
+fn command_key(headers: &HeaderMap) -> Result<CommandKey, BusinessError> {
+    let key = unique_header(headers, HeaderName::from_static("idempotency-key"))?
+        .ok_or_else(|| command_error("COMMAND_KEY_REQUIRED", "Idempotency-Key is required."))?;
+    CommandKey::new(key)
+}
+fn command_content_type(headers: &HeaderMap) -> Result<(), BusinessError> {
+    if !unique_header(headers, header::CONTENT_TYPE)?.is_some_and(|value| {
+        value
+            .split(';')
+            .next()
+            .is_some_and(|value| value.trim().eq_ignore_ascii_case("application/json"))
+    }) {
+        return Err(command_error(
+            "OPERATIONS_REQUEST_INVALID",
+            "Use a JSON Operations command body.",
+        ));
+    }
+    Ok(())
+}
+async fn command_body(request: Request) -> Result<serde_json::Value, BusinessError> {
+    let bytes = to_bytes(request.into_body(), BODY_LIMIT)
+        .await
+        .map_err(|_| command_error("BODY_TOO_LARGE", "Use a smaller Operations request."))?;
+    if bytes.is_empty() {
+        return Err(command_error(
+            "OPERATIONS_REQUEST_INVALID",
+            "Use a JSON Operations command body.",
+        ));
+    }
+    let value: serde_json::Value = serde_json::from_slice(&bytes).map_err(|_| {
+        command_error(
+            "OPERATIONS_REQUEST_INVALID",
+            "Use a valid JSON Operations command body.",
+        )
+    })?;
+    if !value.is_object() {
+        return Err(command_error(
+            "OPERATIONS_REQUEST_INVALID",
+            "Use a JSON Operations command object.",
+        ));
+    }
+    Ok(value)
+}
+fn decode_command(mut value: serde_json::Value) -> Result<OperationsHttpCommand, BusinessError> {
+    let object = value.as_object_mut().ok_or_else(|| {
+        command_error(
+            "OPERATIONS_REQUEST_INVALID",
+            "Use a JSON Operations command object.",
+        )
+    })?;
+    let entity = object
+        .remove("entity")
+        .and_then(|value| value.as_str().map(str::to_owned))
+        .ok_or_else(|| {
+            command_error(
+                "OPERATIONS_ENTITY_REQUIRED",
+                "Choose a policy or exception command.",
+            )
+        })?;
+    let id = object
+        .get("id")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned);
+    let value = serde_json::Value::Object(object.clone());
+    match (entity.as_str(), id) {
+        ("exception", None) => serde_json::from_value::<OpenExceptionCommand>(value)
+            .map(OperationsHttpCommand::OpenException)
+            .map_err(|_| {
+                command_error(
+                    "OPERATIONS_INPUT_INVALID",
+                    "Review the exception opening request.",
+                )
+            }),
+        ("exception", Some(_)) => serde_json::from_value::<ChangeExceptionCommand>(value)
+            .map(OperationsHttpCommand::ChangeException)
+            .map_err(|_| {
+                command_error(
+                    "OPERATIONS_INPUT_INVALID",
+                    "Review the exception decision request.",
+                )
+            }),
+        ("policy", None) => serde_json::from_value::<DraftPolicyCommand>(value)
+            .map(OperationsHttpCommand::DraftPolicy)
+            .map_err(|_| {
+                command_error(
+                    "OPERATIONS_INPUT_INVALID",
+                    "Review the queue policy draft request.",
+                )
+            }),
+        ("policy", Some(_)) => serde_json::from_value::<ReviewPolicyCommand>(value)
+            .map(OperationsHttpCommand::ReviewPolicy)
+            .map_err(|_| {
+                command_error(
+                    "OPERATIONS_INPUT_INVALID",
+                    "Review the queue policy decision request.",
+                )
+            }),
+        _ => Err(command_error(
+            "OPERATIONS_ENTITY_REQUIRED",
+            "Choose a policy or exception command.",
+        )),
+    }
+}
+
+async fn command_operations(
+    State(state): State<Arc<OperationsHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let target = target(&state, request.headers(), &slug)?;
+        if request.uri().query().is_some_and(|query| !query.is_empty()) {
+            return Err(command_error(
+                "OPERATIONS_REQUEST_INVALID",
+                "Use one Operations command path.",
+            ));
+        }
+        command_origin(target, request.headers())?;
+        let key = command_key(request.headers())?;
+        command_content_type(request.headers())?;
+        let headers = request.headers().clone();
+        let body = command_body(request).await?;
+        let command = decode_command(body)?;
+        target
+            .backend
+            .command(OperationsHttpCommandRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                key,
+                command,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => bounded(reply.value()),
+        Err(error) => error_response(error),
+    }
 }
 
 async fn read_operations(

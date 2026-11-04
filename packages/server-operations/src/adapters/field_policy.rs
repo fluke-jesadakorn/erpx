@@ -113,9 +113,37 @@ pub async fn draft_policy(
     user: &str,
     now: i64,
 ) -> Result<CurrentPolicyArea, Error> {
+    draft_policy_inner(c, before, input, id, user, now, true).await
+}
+
+/// Draft any Operations-owned queue policy from the canonical owner area.
+pub async fn draft_operations_policy(
+    c: &mut PgConnection,
+    before: &CurrentPolicyArea,
+    input: &DraftPolicy,
+    id: &str,
+    user: &str,
+    now: i64,
+) -> Result<CurrentPolicyArea, Error> {
+    draft_policy_inner(c, before, input, id, user, now, false).await
+}
+
+async fn draft_policy_inner(
+    c: &mut PgConnection,
+    before: &CurrentPolicyArea,
+    input: &DraftPolicy,
+    id: &str,
+    user: &str,
+    now: i64,
+    field: bool,
+) -> Result<CurrentPolicyArea, Error> {
     before.require_current(c).await?;
-    input.validate()?;
-    field_only(&before.rows)?;
+    if field {
+        input.validate()?;
+        field_only(&before.rows)?;
+    } else {
+        input.validate_native()?;
+    }
     if crate::domain::field_exceptions::trimmed(&input.area) != before.area {
         return Err(changed());
     }
@@ -127,7 +155,11 @@ pub async fn draft_policy(
         .unwrap_or(0)
         .checked_add(1)
         .ok_or_else(changed)?;
-    let intended = input.draft(id, before.company.as_str(), user, revision, now)?;
+    let intended = if field {
+        input.draft(id, before.company.as_str(), user, revision, now)?
+    } else {
+        input.draft_native(id, before.company.as_str(), user, revision, now)?
+    };
     sqlx::query("INSERT INTO operations_queue_policies(id,company_id,area,name,revision,source_kinds_json,target_minutes,status,created_by,version,created_at,updated_at)VALUES($1,$2,$3,$4,$5,$6,$7,'draft',$8,1,$9,$9)").bind(id).bind(before.company.as_str()).bind(&intended.area).bind(&intended.name).bind(revision).bind(&intended.source_kinds_json).bind(intended.target_minutes).bind(user).bind(now).execute(&mut *c).await?;
     let after = read_policy_area(c, &before.company, &before.area).await?;
     let mut expected: Vec<Value> = serde_json::from_str(&before.image).map_err(|_| changed())?;
@@ -151,8 +183,66 @@ pub async fn review_policy_area(
     user: &str,
     now: i64,
 ) -> Result<CurrentPolicyArea, Error> {
+    review_policy_area_inner(
+        c,
+        before,
+        id,
+        action,
+        expected_version,
+        same_creator,
+        reason,
+        user,
+        now,
+        true,
+    )
+    .await
+}
+
+/// Review any Operations-owned queue policy from the canonical owner area.
+#[allow(clippy::too_many_arguments)]
+pub async fn review_operations_policy_area(
+    c: &mut PgConnection,
+    before: &CurrentPolicyArea,
+    id: &str,
+    action: PolicyAction,
+    expected_version: i64,
+    same_creator: bool,
+    reason: &str,
+    user: &str,
+    now: i64,
+) -> Result<CurrentPolicyArea, Error> {
+    review_policy_area_inner(
+        c,
+        before,
+        id,
+        action,
+        expected_version,
+        same_creator,
+        reason,
+        user,
+        now,
+        false,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn review_policy_area_inner(
+    c: &mut PgConnection,
+    before: &CurrentPolicyArea,
+    id: &str,
+    action: PolicyAction,
+    expected_version: i64,
+    same_creator: bool,
+    reason: &str,
+    user: &str,
+    now: i64,
+    field: bool,
+) -> Result<CurrentPolicyArea, Error> {
     before.require_current(c).await?;
-    field_only(&before.rows)?;
+    if field {
+        field_only(&before.rows)?;
+    }
     let row = before.policy(id).ok_or_else(changed)?;
     let version = review_policy(row, action, expected_version, same_creator, reason)?;
     let mut expected: Vec<Value> = serde_json::from_str(&before.image).map_err(|_| changed())?;

@@ -1,7 +1,8 @@
 //! Native Operations HTTP transport facts over a real loopback listener.
 use erpx_server_operations::public::operations_http::{
-    OperationsHttpBackend, OperationsHttpFuture, OperationsHttpReadKind, OperationsHttpReadRequest,
-    OperationsHttpResponse, OperationsHttpTarget, operations_router,
+    OperationsHttpBackend, OperationsHttpCommandRequest, OperationsHttpFuture,
+    OperationsHttpReadKind, OperationsHttpReadRequest, OperationsHttpResponse,
+    OperationsHttpTarget, operations_router,
 };
 use erpx_server_runtime::public::http_support::{
     Router, serde_json::Value, serde_json::json, serve,
@@ -18,14 +19,18 @@ use tokio::{
 
 struct Backend {
     reads: AtomicUsize,
+    commands: AtomicUsize,
     seen: std::sync::Mutex<Vec<String>>,
+    seen_commands: std::sync::Mutex<Vec<String>>,
     fail: Option<BusinessError>,
 }
 impl Backend {
     fn new() -> Self {
         Self {
             reads: AtomicUsize::new(0),
+            commands: AtomicUsize::new(0),
             seen: std::sync::Mutex::new(Vec::new()),
+            seen_commands: std::sync::Mutex::new(Vec::new()),
             fail: None,
         }
     }
@@ -83,6 +88,25 @@ impl OperationsHttpBackend for Backend {
             })
         })
     }
+    fn command<'a>(
+        &'a self,
+        request: OperationsHttpCommandRequest<'a>,
+    ) -> OperationsHttpFuture<'a, OperationsHttpResponse> {
+        self.commands.fetch_add(1, Ordering::SeqCst);
+        self.seen_commands.lock().unwrap().push(format!(
+            "{}:{}:{}:{:?}",
+            request.host, request.holding_slug, request.key.as_str(), request.command
+        ));
+        Box::pin(async move {
+            if let Some(error) = self.fail.clone() {
+                return Err(error);
+            }
+            Ok(OperationsHttpResponse {
+                data: json!({"id": "operations-exception-command-key-01", "status": "open", "version": 1}),
+                context: json!({"userId": "user"}),
+            })
+        })
+    }
 }
 
 fn router(backend: Arc<Backend>) -> Router {
@@ -122,6 +146,192 @@ async fn call(address: std::net::SocketAddr, path: &str) -> (u16, Value, String)
         serde_json::from_str(body).unwrap_or(Value::Null),
         head.to_owned(),
     )
+}
+
+async fn post(
+    address: std::net::SocketAddr,
+    path: &str,
+    headers: &[(&str, &str)],
+    body: &str,
+) -> (u16, Value, String) {
+    let mut request = format!(
+        "POST {path} HTTP/1.1\r\nHost: acme.example.test\r\nConnection: close\r\nContent-Length: {}\r\n",
+        body.len()
+    );
+    for (name, value) in headers {
+        request.push_str(&format!("{name}: {value}\r\n"));
+    }
+    request.push_str("\r\n");
+    request.push_str(body);
+    let mut stream = TcpStream::connect(address).await.unwrap();
+    stream.write_all(request.as_bytes()).await.unwrap();
+    let mut bytes = Vec::new();
+    stream.read_to_end(&mut bytes).await.unwrap();
+    let response = String::from_utf8_lossy(&bytes);
+    let (head, body) = response.split_once("\r\n\r\n").unwrap_or((&response, ""));
+    let status = head
+        .lines()
+        .next()
+        .and_then(|line| line.split_whitespace().nth(1))
+        .and_then(|value| value.parse::<u16>().ok())
+        .unwrap();
+    (
+        status,
+        serde_json::from_str(body).unwrap_or(Value::Null),
+        head.to_owned(),
+    )
+}
+
+const OPEN_COMMAND: &str = r#"{"entity":"exception","source":{"kind":"staff_task","id":"task-open","version":1},"policyId":"policy-service","policyVersion":2,"title":"Open task","issue":"Synthetic issue","priority":"normal","ownerId":"owner"}"#;
+
+#[tokio::test]
+async fn command_route_requires_origin_key_json_and_forwards_the_typed_command() {
+    let backend = Arc::new(Backend::new());
+    let (address, task) = start(backend.clone()).await;
+    let headers = [
+        ("origin", "https://acme.example.test"),
+        ("idempotency-key", "command-key-01"),
+        ("content-type", "application/json"),
+    ];
+    let (status, value, head) = post(
+        address,
+        "/api/v1/holdings/acme/operations",
+        &headers,
+        OPEN_COMMAND,
+    )
+    .await;
+    assert_eq!(status, 200, "{value}");
+    assert_eq!(value["data"]["version"], 1);
+    assert!(head.contains("cache-control: private, no-store"));
+    assert_eq!(backend.commands.load(Ordering::SeqCst), 1);
+    let seen = backend.seen_commands.lock().unwrap().clone();
+    assert_eq!(seen.len(), 1);
+    assert!(seen[0].starts_with("acme.example.test:acme:command-key-01:OpenException("));
+
+    task.abort();
+    let backend = Arc::new(Backend::new());
+    let (address, task) = start(backend.clone()).await;
+    for (path, headers, expected) in [
+        (
+            "/api/v1/holdings/acme/operations",
+            vec![
+                ("idempotency-key", "command-key-01"),
+                ("content-type", "application/json"),
+            ],
+            403,
+        ),
+        (
+            "/api/v1/holdings/acme/operations",
+            vec![
+                ("origin", "https://other.example.test"),
+                ("idempotency-key", "command-key-01"),
+                ("content-type", "application/json"),
+            ],
+            403,
+        ),
+        (
+            "/api/v1/holdings/acme/operations",
+            vec![
+                ("origin", "https://acme.example.test"),
+                ("content-type", "application/json"),
+            ],
+            422,
+        ),
+        (
+            "/api/v1/holdings/acme/operations",
+            vec![
+                ("origin", "https://acme.example.test"),
+                ("idempotency-key", "command-key-01"),
+                ("content-type", "text/plain"),
+            ],
+            422,
+        ),
+        (
+            "/api/v1/holdings/acme/operations?id=exception-open",
+            vec![
+                ("origin", "https://acme.example.test"),
+                ("idempotency-key", "command-key-01"),
+                ("content-type", "application/json"),
+            ],
+            422,
+        ),
+        (
+            "/api/v1/holdings/other/operations",
+            vec![
+                ("origin", "https://acme.example.test"),
+                ("idempotency-key", "command-key-01"),
+                ("content-type", "application/json"),
+            ],
+            404,
+        ),
+    ] {
+        let (status, value, _) = post(address, path, &headers, OPEN_COMMAND).await;
+        assert_eq!(status, expected, "{path} returned {value}");
+    }
+    assert_eq!(backend.commands.load(Ordering::SeqCst), 0);
+    task.abort();
+}
+
+#[tokio::test]
+async fn command_route_rejects_malformed_unknown_and_oversized_bodies_before_the_backend() {
+    let backend = Arc::new(Backend::new());
+    let (address, task) = start(backend.clone()).await;
+    let headers = [
+        ("origin", "https://acme.example.test"),
+        ("idempotency-key", "command-key-01"),
+        ("content-type", "application/json"),
+    ];
+    for body in [
+        "not-json",
+        "[]",
+        r#"{"entity":"unknown"}"#,
+        r#"{"entity":"exception","id":"exception","action":"acknowledge","expectedVersion":1,"reason":"Reviewed evidence","extra":true}"#,
+        r#"{"entity":"policy","area":"service","name":"Service queue","targetMinutes":60,"sourceKinds":["staff_task"],"extra":true}"#,
+    ] {
+        let (status, value, _) = post(
+            address,
+            "/api/v1/holdings/acme/operations",
+            &headers,
+            body,
+        )
+        .await;
+        assert_eq!(status, 422, "{body} returned {value}");
+    }
+    let oversized = format!(r#"{{"entity":"policy","padding":"{}"}}"#, "x".repeat(70_000));
+    let (status, _, _) = post(
+        address,
+        "/api/v1/holdings/acme/operations",
+        &headers,
+        &oversized,
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(backend.commands.load(Ordering::SeqCst), 0);
+    task.abort();
+}
+
+#[tokio::test]
+async fn command_backend_conflicts_map_without_fallback() {
+    let backend = Arc::new(Backend::failing(BusinessError::new(
+        FailureKind::Conflict,
+        "OPERATIONS_STATE_CHANGED",
+        "Review the current exception state.",
+    )));
+    let (address, task) = start(backend).await;
+    let (status, value, _) = post(
+        address,
+        "/api/v1/holdings/acme/operations",
+        &[
+            ("origin", "https://acme.example.test"),
+            ("idempotency-key", "command-key-01"),
+            ("content-type", "application/json"),
+        ],
+        OPEN_COMMAND,
+    )
+    .await;
+    assert_eq!(status, 409);
+    assert_eq!(value["error"]["code"], "OPERATIONS_STATE_CHANGED");
+    task.abort();
 }
 
 #[tokio::test]

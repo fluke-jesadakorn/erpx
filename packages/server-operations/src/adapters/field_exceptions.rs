@@ -40,8 +40,9 @@ async fn image(
     id: &str,
     branch: Option<&str>,
     department: Option<&str>,
+    kind: Option<&str>,
 ) -> Result<Option<String>, Error> {
-    let raw:Option<Option<String>>=sqlx::query_scalar("WITH s AS MATERIALIZED (SELECT * FROM operations_exceptions WHERE id=$1 AND company_id=$2 AND source_kind='field_service_order' AND ($3::text IS NULL OR branch_id=$3) AND ($4::text IS NULL OR department_id=$4) FOR UPDATE),p AS (SELECT to_jsonb(s)::text value FROM s) SELECT CASE WHEN octet_length(value)<=2097152 THEN value END FROM p").bind(id).bind(company.as_str()).bind(branch).bind(department).fetch_optional(c).await?;
+    let raw:Option<Option<String>>=sqlx::query_scalar("WITH s AS MATERIALIZED (SELECT * FROM operations_exceptions WHERE id=$1 AND company_id=$2 AND ($5::text IS NULL OR source_kind=$5) AND ($3::text IS NULL OR branch_id=$3) AND ($4::text IS NULL OR department_id=$4) FOR UPDATE),p AS (SELECT to_jsonb(s)::text value FROM s) SELECT CASE WHEN octet_length(value)<=2097152 THEN value END FROM p").bind(id).bind(company.as_str()).bind(branch).bind(department).bind(kind).fetch_optional(c).await?;
     match raw {
         Some(Some(v)) => Ok(Some(v)),
         None => Ok(None),
@@ -59,6 +60,7 @@ pub struct CurrentFieldException {
     company: CompanyId,
     branch: Option<String>,
     department: Option<String>,
+    kind: Option<String>,
     unit: Unit,
 }
 impl CurrentFieldException {
@@ -73,6 +75,7 @@ impl CurrentFieldException {
                 &self.data.id,
                 self.branch.as_deref(),
                 self.department.as_deref(),
+                self.kind.as_deref(),
             )
             .await?
             .as_deref()
@@ -83,6 +86,15 @@ impl CurrentFieldException {
         Ok(())
     }
 }
+pub async fn read_operations_exception(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    id: &str,
+    branch: Option<&str>,
+    department: Option<&str>,
+) -> Result<Option<CurrentFieldException>, Error> {
+    read_exception(c, company, id, branch, department, None).await
+}
 pub async fn read_field_exception(
     c: &mut PgConnection,
     company: &CompanyId,
@@ -90,17 +102,37 @@ pub async fn read_field_exception(
     branch: Option<&str>,
     department: Option<&str>,
 ) -> Result<Option<CurrentFieldException>, Error> {
+    read_exception(
+        c,
+        company,
+        id,
+        branch,
+        department,
+        Some("field_service_order"),
+    )
+    .await
+}
+async fn read_exception(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    id: &str,
+    branch: Option<&str>,
+    department: Option<&str>,
+    kind: Option<&str>,
+) -> Result<Option<CurrentFieldException>, Error> {
     let unit = unit(c).await?;
-    let Some(raw) = image(c, company, id, branch, department).await? else {
+    let Some(raw) = image(c, company, id, branch, department, kind).await? else {
         return Ok(None);
     };
-    let data = serde_json::from_str(&raw).map_err(|_| changed())?;
+    let data: Exception = serde_json::from_str(&raw).map_err(|_| changed())?;
+    let kind = Some(data.source_kind.clone());
     Ok(Some(CurrentFieldException {
         data,
         image: raw,
         company: company.clone(),
         branch: branch.map(Into::into),
         department: department.map(Into::into),
+        kind,
         unit,
     }))
 }
@@ -187,6 +219,21 @@ pub async fn apply_field_exception_transition(
     })
 }
 
+/// Generic owner transition entry for non-Field Operations sources. The SQL
+/// guard, version/status CAS and event evidence are identical to the Field path.
+#[allow(clippy::too_many_arguments)]
+pub async fn apply_operations_exception_transition(
+    c: &mut PgConnection,
+    current: &CurrentFieldException,
+    actor: &Actor,
+    input: &TransitionInput,
+    plan: &Transition,
+    key: &CommandKey,
+    now: i64,
+) -> Result<RetainedFieldException, Error> {
+    apply_field_exception_transition(c, current, actor, input, plan, key, now).await
+}
+
 async fn history_image(c: &mut PgConnection, id: &str) -> Result<String, Error> {
     let history:Option<String>=sqlx::query_scalar("WITH events AS(SELECT coalesce(jsonb_agg(to_jsonb(e) ORDER BY version,id),'[]'::jsonb)::text value FROM operations_exception_events e WHERE exception_id=$1) SELECT CASE WHEN octet_length(value)<=1048576 THEN value END FROM events").bind(id).fetch_one(c).await?;
     history.ok_or_else(|| {
@@ -256,11 +303,58 @@ pub async fn open_field_exception(
     policy: &crate::domain::field_policy::QueuePolicy,
     now: i64,
 ) -> Result<RetainedFieldException, Error> {
-    unit(c).await?;
-    input.validate()?;
     if source.kind
         != erpx_server_shared::public::record_source_contract::SourceKind::FieldServiceOrder
-        || source.company_id != company.as_str()
+    {
+        return Err(BusinessError::new(
+            FailureKind::Conflict,
+            "SOURCE_RECORD_CHANGED",
+            "The source record changed. Reload its owning workspace.",
+        )
+        .into());
+    }
+    open_exception(c, company, key, user, input, source, source_json, policy, now).await
+}
+
+/// Create any Operations-owned exception from canonical owner source facts.
+#[allow(clippy::too_many_arguments)]
+pub async fn open_operations_exception(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    key: &CommandKey,
+    user: &str,
+    input: &crate::domain::field_policy::OpenException,
+    source: &erpx_server_shared::public::record_source_contract::SourceRecord,
+    source_json: &serde_json::Value,
+    policy: &crate::domain::field_policy::QueuePolicy,
+    now: i64,
+) -> Result<RetainedFieldException, Error> {
+    open_exception(c, company, key, user, input, source, source_json, policy, now).await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn open_exception(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    key: &CommandKey,
+    user: &str,
+    input: &crate::domain::field_policy::OpenException,
+    source: &erpx_server_shared::public::record_source_contract::SourceRecord,
+    source_json: &serde_json::Value,
+    policy: &crate::domain::field_policy::QueuePolicy,
+    now: i64,
+) -> Result<RetainedFieldException, Error> {
+    unit(c).await?;
+    input.validate()?;
+    if !crate::domain::field_policy::supported_source_kind(source.kind) {
+        return Err(BusinessError::new(
+            FailureKind::Unavailable,
+            "OPERATIONS_NATIVE_SOURCE_UNSUPPORTED",
+            "This source requires its native owner capability.",
+        )
+        .into());
+    }
+    if source.company_id != company.as_str()
         || policy.company_id != company.as_str()
         || source.id != input.source_id
         || source.version != input.source_version
@@ -272,7 +366,7 @@ pub async fn open_field_exception(
         )
         .into());
     }
-    let due = input.due_at(policy, now)?;
+    let due = input.due_at_for(policy, now, source.kind)?;
     let id = format!("operations-exception-{}", key.as_str());
     crate::domain::field_policy::identifier(&id)?;
     let snapshot = serde_json::json!({"id":policy.id,"area":policy.area,"revision":policy.revision,"version":policy.version,"targetMinutes":policy.target_minutes,"sourceKinds":serde_json::from_str::<serde_json::Value>(&policy.source_kinds_json).map_err(|_|changed())?});
@@ -282,7 +376,7 @@ pub async fn open_field_exception(
         branch_id: source.branch_id.clone(),
         department_id: source.department_id.clone(),
         area: policy.area.clone(),
-        source_kind: "field_service_order".into(),
+        source_kind: source.kind.as_str().into(),
         source_id: source.id.clone(),
         source_version: source.version,
         source_reference_json: source_json.to_string(),
@@ -303,13 +397,13 @@ pub async fn open_field_exception(
         updated_at: now,
         due_at: due,
     };
-    sqlx::query("INSERT INTO operations_exceptions(id,company_id,branch_id,department_id,area,source_kind,source_id,source_version,source_reference_json,policy_id,policy_snapshot_json,title,issue,priority,owner_id,status,due_at,version,created_by,created_at,updated_at)VALUES($1,$2,$3,$4,$5,'field_service_order',$6,$7,$8,$9,$10,$11,$12,$13,$14,'open',$15,1,$16,$17,$17)").bind(&id).bind(company.as_str()).bind(&intended.branch_id).bind(&intended.department_id).bind(&intended.area).bind(&source.id).bind(source.version).bind(&intended.source_reference_json).bind(&policy.id).bind(&intended.policy_snapshot_json).bind(&intended.title).bind(&intended.issue).bind(&intended.priority).bind(&input.owner_id).bind(due).bind(user).bind(now).execute(&mut *c).await?;
+    sqlx::query("INSERT INTO operations_exceptions(id,company_id,branch_id,department_id,area,source_kind,source_id,source_version,source_reference_json,policy_id,policy_snapshot_json,title,issue,priority,owner_id,status,due_at,version,created_by,created_at,updated_at)VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'open',$16,1,$17,$18,$18)").bind(&id).bind(company.as_str()).bind(&intended.branch_id).bind(&intended.department_id).bind(&intended.area).bind(&intended.source_kind).bind(&source.id).bind(source.version).bind(&intended.source_reference_json).bind(&policy.id).bind(&intended.policy_snapshot_json).bind(&intended.title).bind(&intended.issue).bind(&intended.priority).bind(&input.owner_id).bind(due).bind(user).bind(now).execute(&mut *c).await?;
     let event_id = format!("operations-event-{}", key.as_str());
     let details =
         serde_json::json!({"source":source_json,"policy":snapshot,"ownerId":input.owner_id})
             .to_string();
     sqlx::query("INSERT INTO operations_exception_events(id,exception_id,version,action,actor_id,reason,status,details_json,created_at)VALUES($1,$2,1,'open',$3,$4,'open',$5,$6)").bind(&event_id).bind(&id).bind(user).bind(&intended.issue).bind(&details).bind(now).execute(&mut *c).await?;
-    let row = read_field_exception(
+    let row = read_operations_exception(
         c,
         company,
         &id,

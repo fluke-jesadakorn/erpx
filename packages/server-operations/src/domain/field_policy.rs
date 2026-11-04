@@ -1,6 +1,7 @@
 //! Queue policy and opening decisions. Infrastructure and current authority are
 //! supplied by the caller's retained owner ports, never inferred from a DTO.
 use super::field_exceptions::{text, trimmed};
+use erpx_server_shared::public::record_source_contract::SourceKind;
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use serde::{Deserialize, Serialize};
 fn invalid() -> BusinessError {
@@ -20,6 +21,18 @@ pub fn identifier(v: &str) -> Result<(), BusinessError> {
         return Err(invalid());
     }
     Ok(())
+}
+pub fn supported_source_kind(kind: SourceKind) -> bool {
+    matches!(
+        kind,
+        SourceKind::CommerceOrder
+            | SourceKind::SupportTicket
+            | SourceKind::FieldServiceOrder
+            | SourceKind::StaffTask
+            | SourceKind::PosSale
+            | SourceKind::PmsRecord
+            | SourceKind::Asset
+    )
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct QueuePolicy {
@@ -46,6 +59,17 @@ pub struct DraftPolicy {
 }
 impl DraftPolicy {
     pub fn validate(&self) -> Result<(), BusinessError> {
+        self.validate_native()?;
+        if self.source_kinds.iter().any(|v| v != "field_service_order") {
+            return Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "OPERATIONS_NATIVE_SOURCE_UNSUPPORTED",
+                "This policy requires its other native owner capabilities.",
+            ));
+        }
+        Ok(())
+    }
+    pub fn validate_native(&self) -> Result<(), BusinessError> {
         let area = trimmed(&self.area);
         let bytes = area.as_bytes();
         if bytes.len() < 2
@@ -64,7 +88,11 @@ impl DraftPolicy {
         {
             return Err(invalid());
         }
-        if self.source_kinds.iter().any(|v| v != "field_service_order") {
+        if self
+            .source_kinds
+            .iter()
+            .any(|v| !SourceKind::parse(v).is_ok_and(supported_source_kind))
+        {
             return Err(BusinessError::new(
                 FailureKind::Unavailable,
                 "OPERATIONS_NATIVE_SOURCE_UNSUPPORTED",
@@ -82,15 +110,29 @@ impl DraftPolicy {
         now: i64,
     ) -> Result<QueuePolicy, BusinessError> {
         self.validate()?;
+        self.draft_native(id, company, user, revision, now)
+    }
+    pub fn draft_native(
+        &self,
+        id: &str,
+        company: &str,
+        user: &str,
+        revision: i64,
+        now: i64,
+    ) -> Result<QueuePolicy, BusinessError> {
+        self.validate_native()?;
         identifier(id)?;
         positive(revision)?;
+        let mut kinds = self.source_kinds.clone();
+        kinds.sort();
+        kinds.dedup();
         Ok(QueuePolicy {
             id: id.into(),
             company_id: company.into(),
             area: trimmed(&self.area).into(),
             name: trimmed(&self.name).into(),
             revision,
-            source_kinds_json: "[\"field_service_order\"]".into(),
+            source_kinds_json: serde_json::to_string(&kinds).map_err(|_| invalid())?,
             target_minutes: self.target_minutes,
             status: "draft".into(),
             created_by: user.into(),
@@ -177,13 +219,21 @@ impl OpenException {
         Ok(())
     }
     pub fn due_at(&self, policy: &QueuePolicy, now: i64) -> Result<i64, BusinessError> {
+        self.due_at_for(policy, now, SourceKind::FieldServiceOrder)
+    }
+    pub fn due_at_for(
+        &self,
+        policy: &QueuePolicy,
+        now: i64,
+        source_kind: SourceKind,
+    ) -> Result<i64, BusinessError> {
         self.validate()?;
         let kinds: Vec<String> =
             serde_json::from_str(&policy.source_kinds_json).map_err(|_| invalid())?;
         if policy.id != self.policy_id
             || policy.version != self.policy_version
             || policy.status != "published"
-            || !kinds.iter().any(|v| v == "field_service_order")
+            || !kinds.iter().any(|v| v == source_kind.as_str())
         {
             return Err(BusinessError::new(
                 FailureKind::Conflict,
