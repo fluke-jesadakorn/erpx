@@ -14,6 +14,7 @@ export {nativeSalesInvoiceEdit,nativeSalesInvoiceVoid} from '../adapters/server/
 export {nativeInvoicesPage,nativeInvoiceAging} from '../adapters/server/native-invoice-read';
 export {nativeChartAccounts,nativeFinanceSetupCommand} from '../adapters/server/native-finance-setup';
 export {nativeFinanceReport} from '../adapters/server/native-finance-report';
+export {nativeOpeningBalance} from '../adapters/server/native-opening-balance';
 
 export {nativeServicePaymentWorkspace,nativeServicePaymentReadback} from '../adapters/server/native-service-payment';
 export {isNativeServicePaymentRequest,nativeServicePaymentCommand,nativeServiceInvoiceFlowCommand} from '../adapters/server/native-service-payment-command';

@@ -1,3 +1,4 @@
+pub(crate) mod finance_opening;
 pub(crate) mod finance_reports;
 pub(crate) mod finance_setup;
 pub(crate) mod finance_invoice_read;

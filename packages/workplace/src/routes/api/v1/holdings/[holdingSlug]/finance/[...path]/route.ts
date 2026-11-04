@@ -1,7 +1,7 @@
 import {nativeFieldJournalWorkspaceReadback,nativeFieldJournalLegacyUnavailable} from '@erpx/feature-finance/public/server';
 import {nativeServicePaymentReadback,nativeServiceInvoiceReadback} from '@erpx/feature-finance/public/server';
 import {isNativeServicePaymentRequest,nativeServicePaymentCommand} from '@erpx/feature-finance/public/server';
-import { nativeServiceNoCharge,nativeServiceInvoicePost, nativeJournalEdit, nativeJournalEditReadback, nativeJournalCreate, nativeJournalCreateReadback, nativeJournalPost, nativeJournalPostReadback, nativeJournalReverse, nativeJournalReverseReadback, nativeSalesInvoiceEdit, nativeSalesInvoiceVoid, nativeFinanceSetupCommand } from "@erpx/feature-finance/public/server";
+import { nativeServiceNoCharge,nativeServiceInvoicePost, nativeJournalEdit, nativeJournalEditReadback, nativeJournalCreate, nativeJournalCreateReadback, nativeJournalPost, nativeJournalPostReadback, nativeJournalReverse, nativeJournalReverseReadback, nativeSalesInvoiceEdit, nativeSalesInvoiceVoid, nativeFinanceSetupCommand, nativeOpeningBalance } from "@erpx/feature-finance/public/server";
 import {expensePostingPrerequisites,createExpensePostingChart,createExpensePostingAccount,createExpensePostingPeriod,confirmExpensePostingRate,expensePostingPrerequisiteConfirmation,expensePostingChartSchema,expensePostingAccountSchema,expensePostingPeriodSchema,expensePostingRateSchema,expensePostingPrerequisiteConfirmationSchema} from '@erpx/server-finance/public/expense-posting-prerequisites';
 import {expensePostingSetup,initializeExpensePostingSetup,expensePostingSetupSchema} from '@erpx/server-commerce/public/expense-posting-setup';
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
@@ -240,6 +240,14 @@ export async function POST(request: Request, context: FinanceRouteContext) {
       if(response)return response;
     }
     const actor = requirePermission(await requireWorkContext(holdingSlug),"finance.read");
+    if(parts[0]==="opening-balances"&&parts[1]==="preview"){
+      const native=await nativeOpeningBalance(request.clone(),holdingSlug,"preview");
+      if(native)return native;
+    }
+    if(parts[0]==="opening-balances"&&parts[1]==="import"){
+      const native=await nativeOpeningBalance(request.clone(),holdingSlug,"import");
+      if(native)return native;
+    }
     const rawPayment=isNativeServicePaymentRequest(parts)?request.clone():null;
     const input = await body(request).catch(error=>{void rawPayment?.body?.cancel().catch(()=>undefined);throw error;});
     if(rawPayment){try{const native=await nativeServicePaymentCommand(rawPayment,actor,holdingSlug,parts,input);if(native)return native;}finally{void rawPayment.body?.cancel().catch(()=>undefined);}}

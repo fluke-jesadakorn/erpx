@@ -56,7 +56,7 @@ export function createNativeFieldJournalFlowReader(raw:string,transport?:NativeF
 }
 export async function nativeFieldJournalFlowWorkspace(actor:NativeJournalPageContext,holdingSlug:string,id:string){
  const raw=process.env.ERPX_NATIVE_FINANCE_SERVICE_INVOICE_CONFIG;
- if(raw===undefined)throw new NativeFinanceReadError('NATIVE_FINANCE_CONFIGURATION_REQUIRED');
+ if(raw===undefined)return undefined;
  return createNativeFieldJournalFlowReader(raw)(actor,await headers(),holdingSlug,id);
 }
 function denial(error:unknown):Response{

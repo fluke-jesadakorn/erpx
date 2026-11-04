@@ -1,11 +1,12 @@
 //! Development read assembly. Rendered context is output data from the SAME
 //! retained authorization unit, never a deserialized actor or a command grant.
+use crate::finance_journal_actor::finance_actor;
 use crate::finance_journal_environment::FinanceJournalEnvironment;
 use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
     PurchaseRequest, lock_commercial_authority_sources,
 };
-use erpx_server_finance::public::{FinanceActor, finance_invoice_read::*, finance_reports::*, finance_setup::*, journal_detail::*, journal_list::*, journal_workspace::*, sales_defaults::*, sales_invoice_create::*, sales_invoice_edit::*, sales_invoice_list::*, sales_receipts::*};
+use erpx_server_finance::public::{FinanceActor, finance_invoice_read::*, finance_opening::*, finance_reports::*, finance_setup::*, journal_detail::*, journal_list::*, journal_workspace::*, sales_defaults::*, sales_invoice_create::*, sales_invoice_edit::*, sales_invoice_list::*, sales_receipts::*};
 use erpx_server_identity_access::public::{
     DeviceProof,
     effective_authority::{
@@ -178,6 +179,16 @@ pub struct FinanceFinancialReportResponse {
 }
 #[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FinanceOpeningPreviewResponse {
+    pub data: OpeningPreview,
+}
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FinanceOpeningImportResponse {
+    pub data: OpeningImportResult,
+}
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub struct FinanceSalesDefaultsWorkspaceResponse {
     pub data: SalesDefaultsWorkspace,
     pub context: FinanceRenderedWorkContext,
@@ -315,6 +326,18 @@ fn command_actor(
             .unwrap_or_default(),
         iam_json,
     })
+}
+
+#[derive(Clone)]
+struct OpeningSources;
+impl HoldingWorkSourcePreparation for OpeningSources {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            lock_commercial_authority_sources(c).await?;
+            lock_finance_opening_sources(c).await?;
+            Ok(())
+        })
+    }
 }
 
 #[derive(Clone)]
@@ -846,6 +869,154 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                 .into());
         }
         Ok(())
+    }
+
+    pub async fn opening_balance_preview<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        body: OpeningInput,
+    ) -> Result<FinanceOpeningPreviewResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != company {
+                return Err(scope());
+            }
+            request.mutation = false;
+            Ok(request)
+        };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "finance.write".into(),
+                    module: Some("finance".into()),
+                    destination: "finance/setup".into(),
+                    api: true,
+                },
+                OpeningSources,
+                move |c, current| {
+                    let configuration = configuration.clone();
+                    let clock = clock.clone();
+                    let body = body.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &configuration.holding
+                            || current.selection().workspace().company_id != configuration.company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("finance.read")?;
+                        current.require_permission("finance.write")?;
+                        current.require_permission("module.finance.read")?;
+                        let workspace = current.selection().workspace();
+                        if workspace.branch_id.is_some() || workspace.department_id.is_some() {
+                            return Err(setup_company_scope().into());
+                        }
+                        Self::require_sales_purchase(
+                            c,
+                            current,
+                            &configuration,
+                            CapabilityPurpose::History,
+                            clock.now(),
+                        )
+                        .await?;
+                        let data =
+                            read_opening_preview(c, configuration.company.as_str(), &body).await?;
+                        Ok(FinanceOpeningPreviewResponse { data })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn import_opening_balance<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: CommandKey,
+        body: OpeningImportInput,
+    ) -> Result<FinanceOpeningImportResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != company {
+                return Err(scope());
+            }
+            request.mutation = true;
+            Ok(request)
+        };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "finance.write".into(),
+                    module: Some("finance".into()),
+                    destination: "finance/setup".into(),
+                    api: true,
+                },
+                OpeningSources,
+                move |c, current| {
+                    let configuration = configuration.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    let body = body.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &configuration.holding
+                            || current.selection().workspace().company_id != configuration.company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("finance.read")?;
+                        current.require_permission("finance.write")?;
+                        current.require_permission("module.finance.read")?;
+                        let workspace = current.selection().workspace();
+                        if workspace.branch_id.is_some() || workspace.department_id.is_some() {
+                            return Err(setup_company_scope().into());
+                        }
+                        let now = clock.now();
+                        Self::require_sales_purchase(
+                            c,
+                            current,
+                            &configuration,
+                            CapabilityPurpose::NewWork,
+                            now,
+                        )
+                        .await?;
+                        let actor = command_actor(current)?;
+                        let finance = finance_actor(current);
+                        let data = import_opening_balance(
+                            c,
+                            &actor,
+                            &finance,
+                            clock.as_ref(),
+                            &command,
+                            &body.definition(),
+                            &body.preview_token,
+                            now.get(),
+                        )
+                        .await?;
+                        Ok(FinanceOpeningImportResponse { data })
+                    })
+                },
+            )
+            .await
     }
 
     #[allow(clippy::too_many_arguments)]

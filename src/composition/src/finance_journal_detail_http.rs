@@ -127,6 +127,14 @@ pub fn finance_journal_read_router<C: Clock + Send + Sync + 'static>(
             get(finance_report::<C>),
         )
         .route(
+            "/api/v1/holdings/{holding_slug}/finance/opening-balances/preview",
+            post(opening_balance_preview::<C>),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/opening-balances/import",
+            post(import_opening_balance::<C>),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/finance/charts/{id}/accounts",
             get(finance_chart_accounts::<C>).post(create_account::<C>),
         )
@@ -461,6 +469,61 @@ fn setup_target<'a, C>(
         .to_owned();
     let target = crate::http_scope::selected_company_target(&state.targets, &host, slug, headers)?;
     Ok((host, target))
+}
+
+async fn opening_balance_preview<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async {
+        let (host, target) = setup_target(&state, request.headers(), &slug)?;
+        let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(request.headers(), "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(FailureKind::Forbidden, "ORIGIN_FORBIDDEN", "Use the application origin.").into());
+        }
+        let scope = state.scopes.slugs(request.headers());
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(request.headers(), branch, department);
+        let body: erpx_server_finance::public::finance_opening::OpeningInput = setup_body(request).await?;
+        let company = target.service.company_id().clone();
+        let proof = inbound.into_proof();
+        let input = move || { scope?; captured.resolve_read(company) };
+        target.service.opening_balance_preview(&host, proof, input, body).await
+    }.await;
+    write_json_response(result, StatusCode::OK)
+}
+
+async fn import_opening_balance<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async {
+        let (host, target) = setup_target(&state, request.headers(), &slug)?;
+        let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(request.headers(), "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(FailureKind::Forbidden, "ORIGIN_FORBIDDEN", "Use the application origin.").into());
+        }
+        let command = setup_key(request.headers())?;
+        let scope = state.scopes.slugs(request.headers());
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(request.headers(), branch, department);
+        let body: erpx_server_finance::public::finance_opening::OpeningImportInput = setup_body(request).await?;
+        let proof = inbound.into_proof();
+        target.service.import_opening_balance(&host, proof, move || { scope?; captured.resolve() }, command, body).await
+    }.await;
+    write_json_response(result, StatusCode::CREATED)
 }
 
 async fn finance_report<C: Clock + Send + Sync + 'static>(

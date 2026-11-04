@@ -3157,6 +3157,14 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
+    let finance_opening_balances = request.method() == axum::http::Method::POST
+        && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
+            ["", "api", "v1", "holdings", slug, "finance", "opening-balances", "preview"]
+            | ["", "api", "v1", "holdings", slug, "finance", "opening-balances", "import"] => state
+                .finance_targets
+                .contains(&(host.to_owned(), (*slug).to_owned())),
+            _ => false,
+        };
     let finance_report = request.method() == axum::http::Method::GET
         && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
             ["", "api", "v1", "holdings", slug, "finance", "reports"] => state
@@ -3253,7 +3261,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
     if !(matches!(
         request.uri().path(),
         "/api/auth/get-session" | "/api/health" | "/api/ready"
-    ) || account_mfa || service_packages || field_work_roles || field_operations || field_support || field_collaboration || field_inbox_state || support_ticket || support_incident || support_session || support_sla || support_evidence || inventory_availability || finance_workspace || finance_invoice_read || finance_report || finance_setup || finance_sales_invoice_create || finance_sales_invoice_edit || finance_sales_defaults || finance_sales_receipts
+    ) || account_mfa || service_packages || field_work_roles || field_operations || field_support || field_collaboration || field_inbox_state || support_ticket || support_incident || support_session || support_sla || support_evidence || inventory_availability || finance_workspace || finance_invoice_read || finance_opening_balances || finance_report || finance_setup || finance_sales_invoice_create || finance_sales_invoice_edit || finance_sales_defaults || finance_sales_receipts
         || finance_invoice_runtime
         || finance_field_journal_flow
         || finance_invoice_post
@@ -3292,6 +3300,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             || finance_create
             || finance_edit
             || finance_reverse
+            || finance_opening_balances
             || finance_setup
             || finance_sales_invoice_create
             || finance_sales_invoice_edit

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-04T03:01:07+00:00",
+  "updatedAt": "2026-11-04T04:10:12+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -20,8 +20,8 @@
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
     "workflowsPartial": 0,
-    "workflowsVerified": 22,
-    "workflowsMerged": 22,
+    "workflowsVerified": 23,
+    "workflowsMerged": 23,
     "ownersComplete": 1,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -3394,6 +3394,17 @@
       "durableContractRefs": [
         "docs/contracts/next/rust-finance-journal-detail.md"
       ]
+    },
+    {
+      "id": "finance-opening-balances-native",
+      "kind": "business-flow-evidence",
+      "status": "flow-complete",
+      "scope": "Native Finance opening-balance preview/import: balanced/control/schedule validation, preview token, opening journal + subledger invoices, receipt/audit/outbox, replay/idempotency, HTTP/Next and desktop/mobile import.",
+      "sourceIdentity": "finance-opening-balances-native",
+      "evidenceRef": "docs/testing/evidence/2026-11-04-finance-opening-balances-native.json",
+      "durableContractRefs": [
+        "docs/contracts/next/rust-finance-journal-detail.md"
+      ]
     }
   ],
   "workflows": [
@@ -4058,11 +4069,14 @@
       "owner": "finance",
       "scope": "Opening balances",
       "partial": false,
-      "verified": false,
-      "merged": false,
-      "evidenceFlows": [],
+      "verified": true,
+      "merged": true,
+      "evidenceFlows": [
+        "finance-opening-balances-native",
+        "finance-opening-balances-browser"
+      ],
       "sourceRef": "packages/server-finance/src/public/finance.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": ""
     },
     {
       "id": "pos/refunds",

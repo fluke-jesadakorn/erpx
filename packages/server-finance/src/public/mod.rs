@@ -111,3 +111,5 @@ pub mod finance_invoice_read;
 pub mod finance_setup;
 
 pub mod finance_reports;
+
+pub mod finance_opening;
