@@ -824,6 +824,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "erpx-server-customer-authority"
+version = "0.1.0"
+dependencies = [
+ "erpx-server-runtime",
+ "erpx-server-shared",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "erpx-server-ecommerce"
 version = "0.1.0"
 dependencies = [

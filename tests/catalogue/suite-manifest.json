@@ -52381,6 +52381,133 @@
       ]
     },
     {
+      "id": "customer_authority.rust-customer-access.unit",
+      "lane": "unit",
+      "owner": "customer_authority",
+      "modules": [
+        "customer_authority"
+      ],
+      "files": [
+        "tests/unit/customer_authority/rust-customer-access.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native customer access grants retain source binding, independent review, revoke, Company/branch/department scope and persisted history."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-customer-authority",
+        "targets": [
+          "customer_access"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-customer_authority/Cargo.toml"
+      ]
+    },
+    {
+      "id": "customer_authority.rust-customer-access-http.unit",
+      "lane": "unit",
+      "owner": "customer_authority",
+      "modules": [
+        "customer_authority"
+      ],
+      "files": [
+        "tests/unit/customer_authority/rust-customer-access-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native customer access HTTP ingress retains exact targets, origin/key/content checks and bounded errors."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-customer-authority",
+        "targets": [
+          "customer_access_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-customer_authority/Cargo.toml"
+      ]
+    },
+    {
+      "id": "customer_authority.rust-customer-access-postgres.integration",
+      "lane": "integration",
+      "owner": "customer_authority",
+      "modules": [
+        "customer_authority"
+      ],
+      "files": [
+        "tests/integration/customer_authority/rust-customer-access-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native customer access commands/reads retain Company isolation, CAS, invitation cancellation, audit and rollback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-customer-authority",
+        "targets": [
+          "customer_access_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-customer_authority/Cargo.toml"
+      ]
+    },
+    {
+      "id": "customer_authority.native-customer-access-transport.unit",
+      "lane": "unit",
+      "owner": "customer_authority",
+      "modules": [
+        "customer_authority"
+      ],
+      "files": [
+        "tests/unit/customer_authority/native-customer-access-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native customer access transport must retain fail-closed config, bounded responses and owner error mapping."
+      },
+      "framework": "vitest",
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/feature-sales",
+        "@erpx/server-customer-authority"
+      ]
+    },
+    {
       "id": "legal.legal-portal-workspace-smoke.e2e",
       "lane": "e2e",
       "owner": "legal",

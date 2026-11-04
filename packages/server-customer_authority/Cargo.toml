@@ -1,0 +1,37 @@
+[package]
+name = "erpx-server-customer-authority"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+erpx-server-shared.workspace = true
+erpx-server-runtime.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+uuid.workspace = true
+
+[[test]]
+name = "customer_access"
+path = "../../tests/unit/customer_authority/rust-customer-access.test.rs"
+
+[[test]]
+name = "customer_access_http"
+path = "../../tests/unit/customer_authority/rust-customer-access-http.test.rs"
+
+[[test]]
+name = "customer_access_postgres"
+path = "../../tests/integration/customer_authority/rust-customer-access-postgres.test.rs"
+
+[lints]
+workspace = true
