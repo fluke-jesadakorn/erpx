@@ -65,9 +65,17 @@ name = "stock_receipt"
 path = "../../tests/unit/inventory/rust-stock-receipt.test.rs"
 
 [[test]]
+name = "stock_issue"
+path = "../../tests/unit/inventory/rust-stock-issue.test.rs"
+
+[[test]]
 name = "stock_register_postgres"
 path = "../../tests/integration/inventory/rust-stock-register-postgres.test.rs"
 
 [[test]]
 name = "stock_receipt_postgres"
 path = "../../tests/integration/inventory/rust-stock-receipt-postgres.test.rs"
+
+[[test]]
+name = "stock_issue_postgres"
+path = "../../tests/integration/inventory/rust-stock-issue-postgres.test.rs"

@@ -1,6 +1,7 @@
 pub(crate) mod movement;
 pub(crate) mod stock_register;
 pub(crate) mod stock_receipt;
+pub(crate) mod stock_issue;
 pub(crate) mod availability;
 pub(crate) mod consumption;
 pub(crate) mod valuation;

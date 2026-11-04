@@ -33,3 +33,4 @@ pub mod movement_read;
 
 pub mod stock_register;
 pub mod stock_receipt;
+pub mod stock_issue;

@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Learning eligibility handoff facts are qualified for bounded certificate/consumption reads; composition/consumer wiring and browser acceptance remain open",
+  "capability": "learning-eligibility-facts",
+  "integrationTarget": "codex/rust-backend-migration",
+  "scope": {
+    "domain": "Bounded certificate and consumption facts, exact eligibility code/scope, JSON handoff projection and row limits.",
+    "application": "Current Learning actor/scope read that never writes or consumes a certificate; caller keeps the serializable Holding transaction.",
+    "adapters": "Learning-owned reads only; no cross-owner SQL and no write effects.",
+    "frontend": "No new UI in this slice."
+  },
+  "tests": [
+    "erpx-server-learning locked suite: learning 11 passed, learning_http 3 passed, learning_postgres 7 passed",
+    "cargo test -p erpx-server-learning --locked: pass",
+    "Coverage includes bounded eligibility facts, current actor/scope, certificate/consumption projections and handoff JSON"
+  ],
+  "limits": [
+    "No composition mount or downstream Benefits/consumer wiring in this slice.",
+    "No browser/authenticated page verification.",
+    "Hosted CI, staging and installed production were not accessed."
+  ]
+}

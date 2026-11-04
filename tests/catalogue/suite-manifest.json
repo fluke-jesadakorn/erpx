@@ -74298,6 +74298,72 @@
       "framework": "vitest"
     },
     {
+      "id": "inventory.rust-stock-issue.unit",
+      "lane": "unit",
+      "owner": "inventory",
+      "modules": [
+        "inventory"
+      ],
+      "files": [
+        "tests/unit/inventory/rust-stock-issue.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native stock issue retains proportional lot values, own-reservation exclusion, quarantine and tampered-plan guards."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-inventory",
+        "targets": [
+          "stock_issue"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-inventory/Cargo.toml"
+      ]
+    },
+    {
+      "id": "inventory.rust-stock-issue-postgres.integration",
+      "lane": "integration",
+      "owner": "inventory",
+      "modules": [
+        "inventory"
+      ],
+      "files": [
+        "tests/integration/inventory/rust-stock-issue-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native stock issue retains serializable source guards, persisted lot/reservation effects, Company/branch isolation and rollback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-inventory",
+        "targets": [
+          "stock_issue_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-inventory/Cargo.toml"
+      ]
+    },
+    {
       "id": "assets.rust-asset-register-policy.unit",
       "lane": "unit",
       "owner": "assets",
