@@ -8,6 +8,7 @@
     "./lib/native-pms": "./src/lib/native-pms.ts",
     "./lib/native-agent-evidence": "./src/lib/native-agent-evidence.ts",
     "./lib/native-learning": "./src/lib/native-learning.ts",
+    "./lib/native-admin-organization": "./src/lib/native-admin-organization.ts",
     "./entries/booking": "./src/entries/booking.tsx",
     "./entries/public": "./src/entries/public.tsx",
     "./entries/account": "./src/entries/account.tsx",
