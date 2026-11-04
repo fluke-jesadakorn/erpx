@@ -5,7 +5,7 @@ use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
     PurchaseRequest, lock_commercial_authority_sources,
 };
-use erpx_server_finance::public::{FinanceActor, journal_detail::*, journal_list::*, journal_workspace::*, sales_invoice_create::*, sales_invoice_list::*};
+use erpx_server_finance::public::{FinanceActor, journal_detail::*, journal_list::*, journal_workspace::*, sales_defaults::*, sales_invoice_create::*, sales_invoice_list::*};
 use erpx_server_identity_access::public::{
     DeviceProof,
     effective_authority::{
@@ -127,6 +127,17 @@ pub struct FinanceSalesInvoiceListReadResponse {
 pub struct FinanceSalesInvoiceCreateResponse {
     pub data: SalesInvoiceCreateResult,
 }
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FinanceSalesDefaultsWorkspaceResponse {
+    pub data: SalesDefaultsWorkspace,
+    pub context: FinanceRenderedWorkContext,
+}
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FinanceSalesDefaultsResultResponse {
+    pub data: SalesDefaultsResult,
+}
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub struct FinanceServiceInvoiceWorkspaceResponse {
@@ -231,6 +242,18 @@ fn command_actor(
             .unwrap_or_default(),
         iam_json,
     })
+}
+
+#[derive(Clone)]
+struct SalesDefaultsSources;
+impl HoldingWorkSourcePreparation for SalesDefaultsSources {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            lock_commercial_authority_sources(c).await?;
+            lock_sales_defaults_sources(c).await?;
+            Ok(())
+        })
+    }
 }
 
 #[derive(Clone)]
@@ -642,6 +665,56 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
             .await
     }
 
+    async fn require_sales_purchase(
+        c: &mut PgConnection,
+        current: &AuthorizedWorkContext,
+        configuration: &FinanceJournalReadConfiguration,
+        purpose: CapabilityPurpose,
+        now: TimestampMillis,
+    ) -> Result<(), Error> {
+        let mut allowed = false;
+        let mut denied = None;
+        for capability in ["finance.accounting", "finance.sales-posting"] {
+            let mut reader = PgCompanyPurchaseReader::new(
+                current.holding_id().clone(),
+                configuration.company.clone(),
+                c,
+                &configuration.purchases,
+            );
+            let inspection = reader
+                .inspect(
+                    &PurchaseRequest {
+                        capabilities: vec![capability.into()],
+                        purpose,
+                        mode: PackageEnforcementMode::Enforced,
+                    },
+                    now,
+                )
+                .await?;
+            match inspection.require_allowed() {
+                Ok(_) => {
+                    allowed = true;
+                    break;
+                }
+                Err(error) => {
+                    denied.get_or_insert(error);
+                }
+            }
+        }
+        if !allowed {
+            return Err(denied
+                .unwrap_or_else(|| {
+                    BusinessError::new(
+                        FailureKind::Forbidden,
+                        "PACKAGE_REQUIRED",
+                        "The Company purchase does not permit this capability purpose.",
+                    )
+                })
+                .into());
+        }
+        Ok(())
+    }
+
     pub async fn create_sales_invoice<Input>(
         &self,
         host: &str,
@@ -699,49 +772,240 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                             .into());
                         }
                         let now = clock.now();
-                        let mut allowed = false;
-                        let mut denied = None;
-                        for capability in ["finance.accounting", "finance.sales-posting"] {
-                            let mut reader = PgCompanyPurchaseReader::new(
-                                current.holding_id().clone(),
-                                configuration.company.clone(),
-                                c,
-                                &configuration.purchases,
-                            );
-                            let inspection = reader
-                                .inspect(
-                                    &PurchaseRequest {
-                                        capabilities: vec![capability.into()],
-                                        purpose: CapabilityPurpose::NewWork,
-                                        mode: PackageEnforcementMode::Enforced,
-                                    },
-                                    now,
-                                )
-                                .await?;
-                            match inspection.require_allowed() {
-                                Ok(_) => {
-                                    allowed = true;
-                                    break;
-                                }
-                                Err(error) => {
-                                    denied.get_or_insert(error);
-                                }
-                            }
-                        }
-                        if !allowed {
-                            return Err(denied
-                                .unwrap_or_else(|| {
-                                    BusinessError::new(
-                                        FailureKind::Forbidden,
-                                        "PACKAGE_REQUIRED",
-                                        "The Company purchase does not permit this capability purpose.",
-                                    )
-                                })
-                                .into());
-                        }
+                        Self::require_sales_purchase(
+                            c,
+                            current,
+                            &configuration,
+                            CapabilityPurpose::NewWork,
+                            now,
+                        )
+                        .await?;
                         let actor = command_actor(current)?;
                         let data = create_sales_invoice(c, &actor, &command, &body, now.get()).await?;
                         Ok(FinanceSalesInvoiceCreateResponse { data })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn sales_defaults_workspace<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+    ) -> Result<FinanceSalesDefaultsWorkspaceResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != company {
+                return Err(scope());
+            }
+            request.mutation = false;
+            Ok(request)
+        };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "finance.read".into(),
+                    module: Some("finance".into()),
+                    destination: "finance/sales/settings".into(),
+                    api: true,
+                },
+                SalesDefaultsSources,
+                move |c, current| {
+                    let configuration = configuration.clone();
+                    let clock = clock.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &configuration.holding
+                            || current.selection().workspace().company_id != configuration.company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("finance.read")?;
+                        current.require_permission("module.finance.read")?;
+                        let workspace = current.selection().workspace();
+                        if workspace.branch_id.is_some() || workspace.department_id.is_some() {
+                            return Err(BusinessError::new(
+                                FailureKind::Forbidden,
+                                "COMPANY_SCOPE_REQUIRED",
+                                "Use a Company Finance assignment for sales configuration.",
+                            )
+                            .into());
+                        }
+                        Self::require_sales_purchase(
+                            c,
+                            current,
+                            &configuration,
+                            CapabilityPurpose::History,
+                            clock.now(),
+                        )
+                        .await?;
+                        let data = read_sales_defaults(c, configuration.company.as_str()).await?;
+                        Ok(FinanceSalesDefaultsWorkspaceResponse {
+                            data,
+                            context: rendered(current)?,
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn prepare_sales_defaults<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: CommandKey,
+        body: SalesDefaultsPrepareInput,
+    ) -> Result<FinanceSalesDefaultsResultResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != company {
+                return Err(scope());
+            }
+            request.mutation = true;
+            Ok(request)
+        };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "finance.write".into(),
+                    module: Some("finance".into()),
+                    destination: "finance/sales/settings".into(),
+                    api: true,
+                },
+                SalesDefaultsSources,
+                move |c, current| {
+                    let configuration = configuration.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    let body = body.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &configuration.holding
+                            || current.selection().workspace().company_id != configuration.company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("finance.write")?;
+                        current.require_permission("module.finance.read")?;
+                        let workspace = current.selection().workspace();
+                        if workspace.branch_id.is_some() || workspace.department_id.is_some() {
+                            return Err(BusinessError::new(
+                                FailureKind::Forbidden,
+                                "COMPANY_SCOPE_REQUIRED",
+                                "Use a Company Finance assignment for sales configuration.",
+                            )
+                            .into());
+                        }
+                        let now = clock.now();
+                        Self::require_sales_purchase(
+                            c,
+                            current,
+                            &configuration,
+                            CapabilityPurpose::NewWork,
+                            now,
+                        )
+                        .await?;
+                        let actor = command_actor(current)?;
+                        let data = prepare_sales_defaults(c, &actor, &command, &body, now.get()).await?;
+                        Ok(FinanceSalesDefaultsResultResponse { data })
+                    })
+                },
+            )
+            .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn decide_sales_defaults<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: CommandKey,
+        id: String,
+        body: SalesDefaultsDecisionInput,
+    ) -> Result<FinanceSalesDefaultsResultResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != company {
+                return Err(scope());
+            }
+            request.mutation = true;
+            Ok(request)
+        };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "finance.approve".into(),
+                    module: Some("finance".into()),
+                    destination: "finance/sales/settings".into(),
+                    api: true,
+                },
+                SalesDefaultsSources,
+                move |c, current| {
+                    let configuration = configuration.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    let id = id.clone();
+                    let body = body.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &configuration.holding
+                            || current.selection().workspace().company_id != configuration.company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("finance.approve")?;
+                        current.require_permission("module.finance.read")?;
+                        let workspace = current.selection().workspace();
+                        if workspace.branch_id.is_some() || workspace.department_id.is_some() {
+                            return Err(BusinessError::new(
+                                FailureKind::Forbidden,
+                                "COMPANY_SCOPE_REQUIRED",
+                                "Use a Company Finance assignment for sales configuration.",
+                            )
+                            .into());
+                        }
+                        let now = clock.now();
+                        Self::require_sales_purchase(
+                            c,
+                            current,
+                            &configuration,
+                            CapabilityPurpose::NewWork,
+                            now,
+                        )
+                        .await?;
+                        let actor = command_actor(current)?;
+                        let data =
+                            decide_sales_defaults(c, &actor, &command, &id, &body, now.get()).await?;
+                        Ok(FinanceSalesDefaultsResultResponse { data })
                     })
                 },
             )

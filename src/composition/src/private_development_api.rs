@@ -3157,6 +3157,23 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
+    let finance_sales_defaults = match request.method() {
+        &axum::http::Method::GET | &axum::http::Method::POST => {
+            match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
+                ["", "api", "v1", "holdings", slug, "finance", "sales", "defaults"] => state
+                    .finance_targets
+                    .contains(&(host.to_owned(), (*slug).to_owned())),
+                ["", "api", "v1", "holdings", slug, "finance", "sales", "defaults", _, "decide"] => {
+                    request.method() == axum::http::Method::POST
+                        && state
+                            .finance_targets
+                            .contains(&(host.to_owned(), (*slug).to_owned()))
+                }
+                _ => false,
+            }
+        }
+        _ => false,
+    };
     let finance_sales_invoice_create = request.method() == axum::http::Method::POST
         && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
             ["", "api", "v1", "holdings", slug, "finance", "sales", "invoices"] => state
@@ -3174,7 +3191,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
     if !(matches!(
         request.uri().path(),
         "/api/auth/get-session" | "/api/health" | "/api/ready"
-    ) || account_mfa || service_packages || field_work_roles || field_operations || field_support || field_collaboration || field_inbox_state || support_ticket || support_incident || support_session || support_sla || support_evidence || inventory_availability || finance_workspace || finance_sales_invoice_create
+    ) || account_mfa || service_packages || field_work_roles || field_operations || field_support || field_collaboration || field_inbox_state || support_ticket || support_incident || support_session || support_sla || support_evidence || inventory_availability || finance_workspace || finance_sales_invoice_create || finance_sales_defaults
         || finance_invoice_runtime
         || finance_field_journal_flow
         || finance_invoice_post
@@ -3214,6 +3231,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             || finance_edit
             || finance_reverse
             || finance_sales_invoice_create
+            || finance_sales_defaults
             || service_reserve
             || service_parts_posting
             || service_parts_prerequisite

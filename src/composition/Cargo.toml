@@ -403,3 +403,8 @@ required-features = ["private-field-api"]
 name = "sales_invoice_create_postgres"
 path = "../../tests/integration/finance/rust-sales-invoice-create-postgres.test.rs"
 required-features = ["private-field-api"]
+
+[[test]]
+name = "sales_defaults_postgres"
+path = "../../tests/integration/finance/rust-sales-defaults-postgres.test.rs"
+required-features = ["private-field-api"]

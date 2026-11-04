@@ -171,7 +171,7 @@ fn optional(value: Option<&str>) -> String {
         .unwrap_or_else(|| "null".into())
 }
 
-fn fingerprint(actor: &SalesInvoiceCommandActor, operation: &str, record: &str, input: &str) -> String {
+pub(crate) fn fingerprint(actor: &SalesInvoiceCommandActor, operation: &str, record: &str, input: &str) -> String {
     let authority = format!(
         "{{\"sessionId\":{},\"revision\":{},\"assignmentVersion\":{}}}",
         string(&actor.session_id),
@@ -193,7 +193,7 @@ fn fingerprint(actor: &SalesInvoiceCommandActor, operation: &str, record: &str, 
     ))
 }
 
-fn authority_json(actor: &SalesInvoiceCommandActor) -> String {
+pub(crate) fn authority_json(actor: &SalesInvoiceCommandActor) -> String {
     let iam: Value = serde_json::from_str(&actor.iam_json).unwrap_or(Value::Null);
     json!({
         "role": actor.role,
@@ -472,7 +472,7 @@ async fn fx(
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn receipt(
+pub(crate) async fn receipt(
     c: &mut PgConnection,
     actor: &SalesInvoiceCommandActor,
     authority: &str,
@@ -481,6 +481,7 @@ async fn receipt(
     request_hash: &str,
     record: &str,
     result: &Value,
+    version: i64,
     now: i64,
 ) -> Result<(), Error> {
     sqlx::query(
@@ -500,7 +501,7 @@ async fn receipt(
     let record_type = operation.split('.').take(2).collect::<Vec<_>>().join("_");
     sqlx::query(
         "INSERT INTO audit_events(id,command_id,actor_id,assignment_id,action,record_type,record_id,record_version,purpose,created_at,authority_json) \
-         VALUES(gen_random_uuid()::text,$1,$2,$3,$4,$5,$6,1,$4,$7,$8)",
+         VALUES(gen_random_uuid()::text,$1,$2,$3,$4,$5,$6,$9,$4,$7,$8)",
     )
     .bind(command)
     .bind(&actor.user_id)
@@ -510,6 +511,7 @@ async fn receipt(
     .bind(record)
     .bind(now)
     .bind(authority)
+    .bind(version)
     .execute(&mut *c)
     .await?;
     let payload = json!({
@@ -519,11 +521,11 @@ async fn receipt(
         "companyId": actor.company_id,
         "branchId": actor.branch_id,
         "departmentId": actor.department_id,
-        "version": 1,
+        "version": version,
     });
     sqlx::query(
         "INSERT INTO outbox_events(id,command_id,event_type,aggregate_type,aggregate_id,aggregate_version,payload_json,created_at) \
-         VALUES(gen_random_uuid()::text,$1,$2,$3,$4,1,$5,$6)",
+         VALUES(gen_random_uuid()::text,$1,$2,$3,$4,$7,$5,$6)",
     )
     .bind(command)
     .bind(operation)
@@ -531,6 +533,7 @@ async fn receipt(
     .bind(record)
     .bind(payload.to_string())
     .bind(now)
+    .bind(version)
     .execute(&mut *c)
     .await?;
     Ok(())
@@ -804,6 +807,7 @@ pub async fn create_sales_invoice(
         &inner_hash,
         &invoice_id,
         &inner,
+        1,
         now,
     )
     .await?;
@@ -831,6 +835,7 @@ pub async fn create_sales_invoice(
         &request_hash,
         &invoice_id,
         &outer,
+        1,
         now,
     )
     .await?;

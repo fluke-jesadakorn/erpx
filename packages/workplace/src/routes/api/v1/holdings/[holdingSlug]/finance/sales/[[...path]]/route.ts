@@ -1,4 +1,4 @@
-import {nativeServiceCustomerReceiptReadback,nativeSalesInvoiceCreate} from '@erpx/feature-finance/public/server';
+import {nativeServiceCustomerReceiptReadback,nativeSalesInvoiceCreate,nativeSalesDefaultsPrepare,nativeSalesDefaultsDecide} from '@erpx/feature-finance/public/server';
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { z } from "zod";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -33,6 +33,14 @@ export async function POST(request: Request, context: Context) {
     const actor = requirePermission(await requireWorkContext(holdingSlug), "finance.read");
     if (path[0] === "invoices" && path.length === 1) {
       const native = await nativeSalesInvoiceCreate(request.clone(), holdingSlug);
+      if (native) return native;
+    }
+    if (path[0] === "defaults" && path.length === 1) {
+      const native = await nativeSalesDefaultsPrepare(request.clone(), holdingSlug);
+      if (native) return native;
+    }
+    if (path[0] === "defaults" && path.length === 3 && path[2] === "decide") {
+      const native = await nativeSalesDefaultsDecide(request.clone(), holdingSlug, path[1]);
       if (native) return native;
     }
     const key = request.headers.get("Idempotency-Key"); if (!key || key.length > 200) throw new ApiError(422, "COMMAND_KEY_REQUIRED", "A valid Idempotency-Key is required.");
