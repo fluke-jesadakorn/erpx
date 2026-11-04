@@ -17,17 +17,20 @@ import { directoryOperationsApi } from "@erpx/server-identity_access/public/dire
 import { positionGpoOverview, previewPositionGpo, publishPositionGpo, previewUnmapPositionGpo, unmapPositionGpo, retryPositionGpo, retryPositionGpoConfig } from "@erpx/server-identity_access/public/position-gpo";
 import { gpoRulesOverview, previewGpoRule, publishGpoRule, previewRemoveGpoRule, removeGpoRule, retryGpoRuleConfig, markPositionGpoNotRequired } from "@erpx/server-identity_access/public/gpo-rules";
 import { organizationAccessData } from "@erpx/server-organization/public/organization-access";
+import { readAdminOrganization } from "@erpx/workplace/lib/native-admin-organization";
 import {bindProvisioningEvidence} from "@erpx/server-platform_administration/public/system-evidence";
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
 export const dynamic = "force-dynamic";
-export async function GET(_request: Request, context: Context) {
+export async function GET(request: Request, context: Context) {
   try {
     const { holdingSlug,path=[] } = await context.params,
       actor = await requireWorkContext(holdingSlug),
       { write } = await holdingResources(actor.holdingId);
+    const organization = () =>
+      readAdminOrganization(organizationAccessData(write, actor), actor, holdingSlug, {}, request.headers);
     return Response.json(
       canonicalDestinationLinks({
-        data: path[0] === "organization" ? await organizationAccessData(write, actor)
+        data: path[0] === "organization" ? await organization()
           : path[0] === "gpo-rules" ? await gpoRulesOverview(write as PostgresDatabase, actor)
           : path[0]==="position-gpo" ? await positionGpoOverview(write as PostgresDatabase,actor) : await technologyData(
           write as PostgresDatabase,

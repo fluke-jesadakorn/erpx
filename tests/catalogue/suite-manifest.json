@@ -24081,6 +24081,37 @@
       }
     },
     {
+      "id": "admin.native-admin-organization.unit",
+      "lane": "unit",
+      "owner": "admin",
+      "modules": [
+        "organization",
+        "identity_access"
+      ],
+      "files": [
+        "tests/unit/admin/native-admin-organization.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "The Admin Company-organization read must keep its Company/actor scope, retained People/manage ceilings, and configured owner-failure fallback boundary."
+      },
+      "apps": [
+        "admin"
+      ],
+      "packages": [
+        "@erpx/feature-identity_access",
+        "@erpx/feature-organization",
+        "@erpx/server-identity_access",
+        "@erpx/server-runtime",
+        "@erpx/workplace"
+      ]
+    },
+    {
       "id": "organization.chart.unit",
       "lane": "unit",
       "owner": "organization",
