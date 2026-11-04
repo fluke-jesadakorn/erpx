@@ -250,6 +250,208 @@ fn optional(value: &Option<String>, max: usize) -> Result<Option<String>, Busine
     }
 }
 
+fn plan_id(value: &str, max: usize) -> bool {
+    !value.is_empty() && value.len() <= max
+}
+
+/// Revalidate a receipt plan at the write boundary. `prepare_stock_receipt`
+/// already performs source-dependent admission, but the plan is plain data and
+/// may cross a module boundary before the Commerce command applies it. The
+/// write adapter must not trust caller-supplied quantities, values, identities
+/// or allocation indexes.
+pub fn validate_stock_receipt_plan(plan: &StockReceiptPlan) -> Result<(), BusinessError> {
+    if !plan_id(&plan.company_id, 200)
+        || !plan_id(&plan.order_id, 200)
+        || !plan_id(&plan.warehouse_id, 200)
+        || !plan_id(&plan.branch_id, 200)
+        || !plan_id(&plan.date, 40)
+        || !(1..=MAX_SAFE).contains(&plan.order_version)
+        || !(0..=MAX_SAFE).contains(&plan.total_value_minor)
+    {
+        return Err(invalid(
+            "STOCK_RECEIPT_PLAN_INVALID",
+            "Use a current bounded receipt plan.",
+        ));
+    }
+    if plan.lines.is_empty() || plan.lines.len() > MAX_LINES {
+        return Err(invalid(
+            "STOCK_RECEIPT_LINES_REQUIRED",
+            "Select at least one current purchase line.",
+        ));
+    }
+    let mut line_ids = std::collections::BTreeSet::new();
+    let mut total_value_minor = 0_i64;
+    for line in &plan.lines {
+        if !plan_id(&line.line_id, 200)
+            || !plan_id(&line.product_id, 200)
+            || !matches!(line.tracking_mode.as_str(), "none" | "lot" | "serial")
+            || !(1..=MAX_SAFE).contains(&line.quantity_milli)
+            || !(0..=MAX_SAFE).contains(&line.stock_value_minor)
+            || !(0..=MAX_SAFE).contains(&line.expected_fulfilled_milli)
+            || line
+                .expected_stock_version
+                .is_some_and(|version| !(1..=MAX_SAFE).contains(&version))
+        {
+            return Err(invalid(
+                "STOCK_RECEIPT_PLAN_INVALID",
+                "Use a current bounded receipt plan.",
+            ));
+        }
+        if !line_ids.insert(line.line_id.as_str()) {
+            return Err(invalid(
+                "DUPLICATE_LINE",
+                "Each purchase line may be received once per command.",
+            ));
+        }
+        if line.tracking_mode == "none" {
+            if !line.allocations.is_empty() {
+                return Err(invalid(
+                    "LOT_ALLOCATION_UNEXPECTED",
+                    "This product does not use lot or serial tracking.",
+                ));
+            }
+        } else {
+            if line.allocations.is_empty() || line.allocations.len() > MAX_ALLOCATIONS {
+                return Err(invalid(
+                    "LOT_ALLOCATION_REQUIRED",
+                    "Allocate the full received quantity to lots or serial numbers.",
+                ));
+            }
+            let mut allocated_quantity = 0_i64;
+            let mut allocated_value = 0_i64;
+            let mut identities = std::collections::BTreeSet::new();
+            for (index, allocation) in line.allocations.iter().enumerate() {
+                if allocation.allocation_index != index
+                    || !(1..=MAX_SAFE).contains(&allocation.quantity_milli)
+                    || !(0..=MAX_SAFE).contains(&allocation.value_minor)
+                    || allocation
+                        .expected_balance_version
+                        .is_some_and(|version| !(1..=MAX_SAFE).contains(&version))
+                    || allocation.existing_lot_id.as_ref().is_some_and(|id| {
+                        !plan_id(id, 200) || allocation.expected_balance_version.is_none()
+                    })
+                    || (allocation.existing_lot_id.is_none()
+                        && allocation.expected_balance_version.is_some())
+                {
+                    return Err(invalid(
+                        "STOCK_RECEIPT_PLAN_INVALID",
+                        "Use current lot or serial allocation evidence.",
+                    ));
+                }
+                let (identity, quarantined) = match line.tracking_mode.as_str() {
+                    "lot" => {
+                        if allocation.serial_number.is_some() {
+                            return Err(invalid(
+                                "LOT_ALLOCATION_DUPLICATE",
+                                "Use a lot code, not a serial number, for this product.",
+                            ));
+                        }
+                        (
+                            required(&allocation.lot_code, 200)?,
+                            allocation.disposition == ReceiptDisposition::Quarantine,
+                        )
+                    }
+                    "serial" => {
+                        if allocation.lot_code.is_some() || allocation.quantity_milli != 1_000 {
+                            return Err(invalid(
+                                "SERIAL_QUANTITY_INVALID",
+                                "Each serial allocation must be exactly one unit.",
+                            ));
+                        }
+                        (
+                            required(&allocation.serial_number, 200)?,
+                            allocation.disposition == ReceiptDisposition::Quarantine,
+                        )
+                    }
+                    _ => {
+                        return Err(invalid(
+                            "LOT_ALLOCATION_UNEXPECTED",
+                            "This product does not use lot or serial tracking.",
+                        ));
+                    }
+                };
+                if !identities.insert(identity) {
+                    return Err(invalid(
+                        "LOT_ALLOCATION_DUPLICATE",
+                        "Use each lot or serial once per received line.",
+                    ));
+                }
+                let reason = allocation
+                    .quarantine_reason
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|reason| (3..=2_000).contains(&reason.len()));
+                if quarantined {
+                    let due = allocation
+                        .quarantine_due_date
+                        .as_deref()
+                        .filter(|due| !due.is_empty() && due.len() <= 40);
+                    if reason.is_none() || due.is_none_or(|due| due < plan.date.as_str()) {
+                        return Err(invalid(
+                            "QUARANTINE_EVIDENCE_REQUIRED",
+                            "Quarantined receipt allocations require a reason and review due date.",
+                        ));
+                    }
+                } else if allocation.quarantine_reason.is_some() {
+                    return Err(invalid(
+                        "QUARANTINE_EVIDENCE_REQUIRED",
+                        "Available receipt allocations cannot carry quarantine evidence.",
+                    ));
+                }
+                optional(&allocation.quarantine_due_date, 40)?;
+                optional(&allocation.manufactured_date, 40)?;
+                optional(&allocation.expiry_date, 40)?;
+                allocated_quantity = allocated_quantity
+                    .checked_add(allocation.quantity_milli)
+                    .filter(|value| *value <= MAX_SAFE)
+                    .ok_or_else(|| {
+                        invalid(
+                            "STOCK_RECEIPT_QUANTITY_INVALID",
+                            "The received quantity is outside the supported range.",
+                        )
+                    })?;
+                allocated_value = allocated_value
+                    .checked_add(allocation.value_minor)
+                    .filter(|value| *value <= MAX_SAFE)
+                    .ok_or_else(|| {
+                        invalid(
+                            "STOCK_RECEIPT_VALUE_INVALID",
+                            "The receipt value is outside the supported range.",
+                        )
+                    })?;
+            }
+            if allocated_quantity != line.quantity_milli {
+                return Err(invalid(
+                    "LOT_ALLOCATION_REQUIRED",
+                    "Allocate the full received quantity to lots or serial numbers.",
+                ));
+            }
+            if allocated_value != line.stock_value_minor {
+                return Err(invalid(
+                    "STOCK_RECEIPT_VALUE_INVALID",
+                    "The lot values must equal the received stock value.",
+                ));
+            }
+        }
+        total_value_minor = total_value_minor
+            .checked_add(line.stock_value_minor)
+            .filter(|value| *value <= MAX_SAFE)
+            .ok_or_else(|| {
+                invalid(
+                    "STOCK_RECEIPT_VALUE_INVALID",
+                    "The receipt value is outside the supported range.",
+                )
+            })?;
+    }
+    if total_value_minor != plan.total_value_minor {
+        return Err(invalid(
+            "STOCK_RECEIPT_VALUE_INVALID",
+            "The receipt total must equal the received line values.",
+        ));
+    }
+    Ok(())
+}
+
 fn split_value(total: i64, quantities: &[i64]) -> Result<Vec<i64>, BusinessError> {
     let sum = quantities
         .iter()
@@ -539,7 +741,7 @@ pub fn prepare_stock_receipt(
             allocations,
         });
     }
-    Ok(StockReceiptPlan {
+    let plan = StockReceiptPlan {
         company_id: source.company_id.clone(),
         order_id: source.order.id.clone(),
         order_version: source.order.version,
@@ -548,7 +750,9 @@ pub fn prepare_stock_receipt(
         date: input.date.clone(),
         total_value_minor,
         lines,
-    })
+    };
+    validate_stock_receipt_plan(&plan)?;
+    Ok(plan)
 }
 
 pub fn quality_request(

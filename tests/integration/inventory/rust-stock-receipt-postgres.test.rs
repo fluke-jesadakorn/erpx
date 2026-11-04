@@ -8,6 +8,7 @@ mod facts;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 use erpx_server_inventory::public::stock_receipt::*;
+use erpx_server_inventory::public::stock_register::read_stock_register;
 use erpx_server_runtime::public::postgres::{
     PgTransactionError, PgUnitOfWork, PgWorkFuture, TransactionOptions,
 };
@@ -126,6 +127,7 @@ async fn receipt_reads_current_purchase_source_and_persists_lots_and_quality() {
                             ],
                         ),
                     )?;
+                    facts::align_fulfillment(c, 2_000, 5_000).await;
                     let mut quality = TestQuality;
                     let applied = apply_stock_receipt(
                         c,
@@ -184,6 +186,25 @@ async fn receipt_reads_current_purchase_source_and_persists_lots_and_quality() {
                     .fetch_one(&mut *c)
                     .await?;
                     assert_eq!(evidence, (2, 2, 1, 1, 1));
+                    let register = read_stock_register(c, "company", None).await?;
+                    assert_eq!(register.currency, "THB");
+                    let row = register
+                        .stock
+                        .iter()
+                        .find(|row| {
+                            row.warehouse_id == "warehouse" && row.product_id == "product"
+                        })
+                        .unwrap();
+                    assert_eq!(row.quantity_milli, 2_000);
+                    assert_eq!(row.value_minor, 5_000);
+                    assert_eq!(row.quarantined_milli, 1_000);
+                    assert_eq!(row.available_milli, 1_000);
+                    assert_eq!(register.lots.len(), 2);
+                    assert_eq!(register.totals.tracked_quantity_milli, 2_000);
+                    assert_eq!(register.totals.tracked_value_minor, 5_000);
+                    assert_eq!(register.totals.lot_quantity_milli, 2_000);
+                    assert_eq!(register.totals.lot_value_minor, 5_000);
+                    assert!(register.totals.consistent);
                     Ok(())
                 })
             })
@@ -218,6 +239,7 @@ async fn receipt_refuses_stale_stock_and_a_quarantined_available_allocation() {
                             )],
                         ),
                     )?;
+                    facts::align_fulfillment(c, 1_000, 1_000).await;
                     sqlx::query("UPDATE commerce_stock SET version=version+1 WHERE warehouse_id='warehouse' AND product_id='product'")
                         .execute(&mut *c)
                         .await?;
@@ -280,6 +302,7 @@ async fn receipt_rechecks_a_quality_hold_created_after_preparation() {
                     .fetch_one(&mut *c)
                     .await?;
                     plan.lines[0].expected_stock_version = Some(version);
+                    facts::align_fulfillment(c, 1_000, 1_000).await;
                     let mut quality = TestQuality;
                     let refused = apply_stock_receipt(
                         c,
@@ -332,6 +355,7 @@ async fn receipt_persists_serials_and_rejects_a_duplicate_serial() {
                             ],
                         ),
                     )?;
+                    facts::align_fulfillment(c, 2_000, 5_000).await;
                     let mut quality = TestQuality;
                     let applied = apply_stock_receipt(
                         c,
@@ -396,6 +420,7 @@ async fn receipt_persists_untracked_stock_without_lot_evidence() {
                         read_stock_receipt_source(c, "company", None, None, "order-1").await?;
                     let plan =
                         prepare_stock_receipt(&source, &input(2_000, 5_000, vec![]))?;
+                    facts::align_fulfillment(c, 2_000, 5_000).await;
                     let mut quality = TestQuality;
                     let applied = apply_stock_receipt(
                         c,
@@ -450,6 +475,7 @@ async fn receipt_rolls_back_with_the_enclosing_commerce_unit() {
                             )],
                         ),
                     )?;
+                    facts::align_fulfillment(c, 1_000, 2_500).await;
                     let mut quality = TestQuality;
                     apply_stock_receipt(
                         c,
@@ -487,6 +513,341 @@ async fn receipt_rolls_back_with_the_enclosing_commerce_unit() {
         .await
         .unwrap();
         assert_eq!(evidence, (0, 0, 0, 0, 0, 0));
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn receipt_source_excludes_service_lines_and_rejects_tampered_scope() {
+    fixture::with_database(2, |pool| async move {
+        facts::setup(&pool, "lot", false).await;
+        PgUnitOfWork::new(pool.clone())
+            .run::<_, BusinessError, _>(TransactionOptions::default(), |c| {
+                Box::pin(async move {
+                    lock_stock_receipt_sources(c).await?;
+                    let source =
+                        read_stock_receipt_source(c, "company", Some("branch"), None, "order-1")
+                            .await?;
+                    assert!(source.can_receive());
+                    assert_eq!(source.lines.len(), 1);
+                    assert_eq!(source.lines[0].id, "line-1");
+                    assert!(source.lines.iter().all(|line| line.id != "line-service"));
+
+                    let plan = prepare_stock_receipt(
+                        &source,
+                        &input(
+                            1_000,
+                            2_500,
+                            vec![allocation(
+                                Some("L-A"),
+                                None,
+                                1_000,
+                                ReceiptDisposition::Available,
+                            )],
+                        ),
+                    )?;
+                    facts::align_fulfillment(c, 1_000, 2_500).await;
+                    let mut quality = TestQuality;
+
+                    let mut branch = plan.clone();
+                    branch.branch_id = "branch-two".into();
+                    denied(
+                        apply_stock_receipt(
+                            c,
+                            &branch,
+                            "delivery-key",
+                            "command-key",
+                            "receiver",
+                            100,
+                            &mut quality,
+                        )
+                        .await,
+                        "STOCK_RECEIPT_SCOPE_CHANGED",
+                    );
+
+                    let mut warehouse = plan.clone();
+                    warehouse.warehouse_id = "warehouse-two".into();
+                    denied(
+                        apply_stock_receipt(
+                            c,
+                            &warehouse,
+                            "delivery-key",
+                            "command-key",
+                            "receiver",
+                            100,
+                            &mut quality,
+                        )
+                        .await,
+                        "STOCK_RECEIPT_SCOPE_CHANGED",
+                    );
+
+                    let mut company = plan;
+                    company.company_id = "other-company".into();
+                    denied(
+                        apply_stock_receipt(
+                            c,
+                            &company,
+                            "delivery-key",
+                            "command-key",
+                            "receiver",
+                            100,
+                            &mut quality,
+                        )
+                        .await,
+                        "ORDER_NOT_FOUND",
+                    );
+
+                    let evidence: (i64, i64, i64) = sqlx::query_as(
+                        "SELECT (SELECT count(*) FROM commerce_stock),\
+                         (SELECT count(*) FROM commerce_stock_moves),\
+                         (SELECT count(*) FROM inventory_lot_moves)",
+                    )
+                    .fetch_one(&mut *c)
+                    .await?;
+                    assert_eq!(evidence, (0, 0, 0));
+                    Ok(())
+                })
+            })
+            .await
+            .unwrap();
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn receipt_rejects_over_receipt_against_the_current_order_line() {
+    fixture::with_database(2, |pool| async move {
+        facts::setup(&pool, "lot", false).await;
+        PgUnitOfWork::new(pool.clone())
+            .run::<_, BusinessError, _>(TransactionOptions::default(), |c| {
+                Box::pin(async move {
+                    lock_stock_receipt_sources(c).await?;
+                    let source =
+                        read_stock_receipt_source(c, "company", None, None, "order-1").await?;
+                    let plan = prepare_stock_receipt(
+                        &source,
+                        &input(
+                            1_000,
+                            2_500,
+                            vec![allocation(
+                                Some("L-A"),
+                                None,
+                                1_000,
+                                ReceiptDisposition::Available,
+                            )],
+                        ),
+                    )?;
+                    facts::align_fulfillment(c, 1_000, 2_500).await;
+                    let mut quality = TestQuality;
+                    apply_stock_receipt(
+                        c,
+                        &plan,
+                        "delivery-key",
+                        "command-key",
+                        "receiver",
+                        100,
+                        &mut quality,
+                    )
+                    .await?;
+
+                    sqlx::query(
+                        "UPDATE commerce_order_lines SET fulfilled_milli=4000 WHERE id='line-1'",
+                    )
+                    .execute(&mut *c)
+                    .await?;
+                    let source =
+                        read_stock_receipt_source(c, "company", None, None, "order-1").await?;
+                    let mut over = prepare_stock_receipt(
+                        &source,
+                        &input(
+                            1_000,
+                            2_500,
+                            vec![allocation(
+                                Some("L-A"),
+                                None,
+                                1_000,
+                                ReceiptDisposition::Available,
+                            )],
+                        ),
+                    )?;
+                    over.lines[0].quantity_milli = 2_000;
+                    over.lines[0].stock_value_minor = 5_000;
+                    over.lines[0].allocations[0].quantity_milli = 2_000;
+                    over.lines[0].allocations[0].value_minor = 5_000;
+                    over.total_value_minor = 5_000;
+                    sqlx::raw_sql(
+                        "INSERT INTO commerce_fulfillments(id,order_id,number,fulfillment_date,created_by,created_at,version)VALUES\
+                         ('delivery-over','order-1','GR-OVER','2026-11-04','maker',0,1);\
+                         INSERT INTO commerce_fulfillment_lines(id,fulfillment_id,order_line_id,quantity_milli,value_minor,subtotal_minor,tax_minor)VALUES\
+                         ('delivery-over-0','delivery-over','line-1',2000,5000,5000,0);",
+                    )
+                    .execute(&mut *c)
+                    .await?;
+                    denied(
+                        apply_stock_receipt(
+                            c,
+                            &over,
+                            "delivery-over",
+                            "command-key-over",
+                            "receiver",
+                            100,
+                            &mut quality,
+                        )
+                        .await,
+                        "OVER_FULFILLMENT",
+                    );
+                    let evidence: (i64, i64, i64, i64) = sqlx::query_as(
+                        "SELECT (SELECT quantity_milli FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='product'),\
+                         (SELECT fulfilled_milli FROM commerce_order_lines WHERE id='line-1'),\
+                         (SELECT count(*) FROM commerce_stock_moves),\
+                         (SELECT count(*) FROM commerce_stock_moves WHERE id='delivery-over-0')",
+                    )
+                    .fetch_one(&mut *c)
+                    .await?;
+                    assert_eq!(evidence, (1_000, 4_000, 1, 0));
+                    Ok(())
+                })
+            })
+            .await
+            .unwrap();
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn receipt_rejects_a_changed_replay_without_duplicating_evidence() {
+    fixture::with_database(2, |pool| async move {
+        facts::setup(&pool, "lot", false).await;
+        PgUnitOfWork::new(pool.clone())
+            .run::<_, BusinessError, _>(TransactionOptions::default(), |c| {
+                Box::pin(async move {
+                    lock_stock_receipt_sources(c).await?;
+                    let source =
+                        read_stock_receipt_source(c, "company", None, None, "order-1").await?;
+                    let plan = prepare_stock_receipt(
+                        &source,
+                        &input(
+                            1_000,
+                            2_500,
+                            vec![allocation(
+                                Some("L-A"),
+                                None,
+                                1_000,
+                                ReceiptDisposition::Available,
+                            )],
+                        ),
+                    )?;
+                    facts::align_fulfillment(c, 1_000, 2_500).await;
+                    let mut quality = TestQuality;
+                    let applied = apply_stock_receipt(
+                        c,
+                        &plan,
+                        "delivery-key",
+                        "command-key",
+                        "receiver",
+                        100,
+                        &mut quality,
+                    )
+                    .await?;
+                    assert!(!applied.replayed);
+
+                    let mut changed = plan.clone();
+                    changed.lines[0].stock_value_minor = 3_000;
+                    changed.lines[0].allocations[0].value_minor = 3_000;
+                    changed.total_value_minor = 3_000;
+                    denied(
+                        apply_stock_receipt(
+                            c,
+                            &changed,
+                            "delivery-key",
+                            "command-key",
+                            "receiver",
+                            100,
+                            &mut quality,
+                        )
+                        .await,
+                        "STOCK_RECEIPT_REPLAY_MISMATCH",
+                    );
+                    let evidence: (i64, i64, i64, i64) = sqlx::query_as(
+                        "SELECT (SELECT quantity_milli FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='product'),\
+                         (SELECT value_minor FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='product'),\
+                         (SELECT count(*) FROM commerce_stock_moves),\
+                         (SELECT count(*) FROM inventory_fulfillment_lot_allocations)",
+                    )
+                    .fetch_one(&mut *c)
+                    .await?;
+                    assert_eq!(evidence, (1_000, 2_500, 1, 1));
+                    Ok(())
+                })
+            })
+            .await
+            .unwrap();
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn receipt_refuses_an_inactive_existing_lot_and_rolls_back_stock() {
+    fixture::with_database(2, |pool| async move {
+        facts::setup(&pool, "lot", true).await;
+        sqlx::query("UPDATE inventory_lots SET status='scrapped' WHERE id='lot-existing'")
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        let result: Result<(), Error> = PgUnitOfWork::new(pool.clone())
+            .run::<_, BusinessError, _>(TransactionOptions::default(), |c| {
+                Box::pin(async move {
+                    lock_stock_receipt_sources(c).await?;
+                    let source =
+                        read_stock_receipt_source(c, "company", None, None, "order-1").await?;
+                    let plan = prepare_stock_receipt(
+                        &source,
+                        &input(
+                            1_000,
+                            2_500,
+                            vec![allocation(
+                                Some("L-A"),
+                                None,
+                                1_000,
+                                ReceiptDisposition::Available,
+                            )],
+                        ),
+                    )?;
+                    facts::align_fulfillment(c, 1_000, 2_500).await;
+                    let mut quality = TestQuality;
+                    denied(
+                        apply_stock_receipt(
+                            c,
+                            &plan,
+                            "delivery-key",
+                            "command-key",
+                            "receiver",
+                            100,
+                            &mut quality,
+                        )
+                        .await,
+                        "LOT_UNAVAILABLE",
+                    );
+                    Err(BusinessError::new(
+                        erpx_server_shared::public::FailureKind::Conflict,
+                        "FIXTURE_ABORT",
+                        "Roll back after verifying the inactive lot refusal.",
+                    )
+                    .into())
+                })
+            })
+            .await;
+        assert!(matches!(result, Err(PgTransactionError::Business(_))));
+        let evidence: (i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT quantity_milli FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='product'),\
+             (SELECT count(*) FROM commerce_stock_moves),\
+             (SELECT count(*) FROM inventory_lot_moves),\
+             (SELECT (CASE WHEN status='scrapped' THEN 1 ELSE 0 END)::bigint FROM inventory_lots WHERE id='lot-existing')",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(evidence, (1_000, 0, 0, 1));
     })
     .await;
 }

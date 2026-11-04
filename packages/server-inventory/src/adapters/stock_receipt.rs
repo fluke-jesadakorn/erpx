@@ -6,7 +6,7 @@ use crate::domain::stock_receipt::{
     MAX_LINES, MAX_LOTS_PER_LINE, MAX_SAFE, ReceiptDisposition, StockReceiptAppliedAllocation,
     StockReceiptAppliedLine, StockReceiptAppliedReceipt, StockReceiptLine, StockReceiptLot,
     StockReceiptPlan, StockReceiptQualityRequest, StockReceiptSource, StockReceiptStock,
-    quality_request,
+    quality_request, validate_stock_receipt_plan,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{BusinessError, FailureKind};
@@ -119,7 +119,7 @@ type LineSqlRow = (
 const LINES: &str = "SELECT l.id,l.product_id,p.sku,l.description,p.unit,p.tracking_mode,\
     l.quantity_milli,l.fulfilled_milli,l.price_minor,l.tax_bps,l.ordinal \
     FROM commerce_order_lines l JOIN commerce_products p ON p.id=l.product_id \
-    WHERE l.order_id=$1 ORDER BY l.ordinal,l.id LIMIT 201";
+    WHERE l.order_id=$1 AND l.item_type='stock' ORDER BY l.ordinal,l.id LIMIT 201";
 
 const STOCK: &str = "SELECT s.quantity_milli,s.value_minor,s.version,\
     COALESCE((SELECT SUM(r.quantity_milli)::bigint FROM inventory_active_reservations r \
@@ -325,12 +325,18 @@ fn fulfillment_line_id(fulfillment: &str, line: usize) -> String {
     format!("{fulfillment}-{line}")
 }
 
-async fn existing_stock_move(c: &mut PgConnection, id: &str) -> Result<bool, Error> {
-    Ok(sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS(SELECT 1 FROM commerce_stock_moves WHERE id=$1)",
+async fn existing_stock_move(
+    c: &mut PgConnection,
+    id: &str,
+    fulfillment_id: &str,
+) -> Result<Option<(i64, i64)>, Error> {
+    Ok(sqlx::query_as(
+        "SELECT quantity_milli,value_minor FROM commerce_stock_moves \
+         WHERE id=$1 AND fulfillment_id=$2",
     )
     .bind(id)
-    .fetch_one(&mut *c)
+    .bind(fulfillment_id)
+    .fetch_optional(&mut *c)
     .await?)
 }
 
@@ -474,6 +480,12 @@ async fn insert_or_activate_lot(
         if allocation.expected_balance_version != existing.balance_version {
             return Err(changed());
         }
+        if !matches!(existing.status.as_str(), "active" | "depleted") {
+            return Err(conflict(
+                "LOT_UNAVAILABLE",
+                "This lot is no longer active. Receive a new lot or complete the retained disposition.",
+            ));
+        }
         if existing.status == "depleted" {
             sqlx::query(
                 "UPDATE inventory_lots SET status='active' WHERE id=$1 AND status='depleted'",
@@ -585,12 +597,8 @@ pub async fn apply_stock_receipt<Q: StockReceiptQualityPort>(
     quality: &mut Q,
 ) -> Result<StockReceiptAppliedReceipt, Error> {
     serializable(c).await?;
-    if plan.lines.is_empty()
-        || fulfillment_id.is_empty()
-        || command_key.is_empty()
-        || actor.is_empty()
-        || now < 0
-    {
+    validate_stock_receipt_plan(plan)?;
+    if fulfillment_id.is_empty() || command_key.is_empty() || actor.is_empty() || now < 0 {
         return Err(BusinessError::new(
             FailureKind::InvalidInput,
             "STOCK_RECEIPT_COMMAND_INVALID",
@@ -598,13 +606,16 @@ pub async fn apply_stock_receipt<Q: StockReceiptQualityPort>(
         )
         .into());
     }
-    let order: Option<(i64, String)> =
-        sqlx::query_as("SELECT version,state FROM commerce_orders WHERE id=$1 AND company_id=$2")
-            .bind(&plan.order_id)
-            .bind(&plan.company_id)
-            .fetch_optional(&mut *c)
-            .await?;
-    let Some((order_version, order_state)) = order else {
+    let order: Option<(i64, String, String, String, String)> = sqlx::query_as(
+        "SELECT version,state,warehouse_id,branch_id,order_date FROM commerce_orders \
+         WHERE id=$1 AND company_id=$2",
+    )
+    .bind(&plan.order_id)
+    .bind(&plan.company_id)
+    .fetch_optional(&mut *c)
+    .await?;
+    let Some((order_version, order_state, order_warehouse, order_branch, order_date)) = order
+    else {
         return Err(BusinessError::new(
             FailureKind::NotFound,
             "ORDER_NOT_FOUND",
@@ -612,6 +623,20 @@ pub async fn apply_stock_receipt<Q: StockReceiptQualityPort>(
         )
         .into());
     };
+    if order_warehouse != plan.warehouse_id || order_branch != plan.branch_id {
+        return Err(conflict(
+            "STOCK_RECEIPT_SCOPE_CHANGED",
+            "The receipt warehouse or branch changed. Reload its current sources.",
+        ));
+    }
+    if plan.date < order_date {
+        return Err(BusinessError::new(
+            FailureKind::InvalidInput,
+            "INVALID_COMPLETION_DATE",
+            "The receipt date cannot precede the order date.",
+        )
+        .into());
+    }
     let fulfillment: Option<String> = sqlx::query_scalar(
         "SELECT order_id FROM commerce_fulfillments WHERE id=$1 AND fulfillment_date=$2",
     )
@@ -627,22 +652,72 @@ pub async fn apply_stock_receipt<Q: StockReceiptQualityPort>(
     }
     let mut existing_moves = 0_usize;
     for (index, line) in plan.lines.iter().enumerate() {
-        if existing_stock_move(c, &stock_move_id(fulfillment_id, index)).await? {
+        let move_values =
+            existing_stock_move(c, &stock_move_id(fulfillment_id, index), fulfillment_id).await?;
+        if let Some((quantity_milli, value_minor)) = move_values {
+            if quantity_milli != line.quantity_milli || value_minor != line.stock_value_minor {
+                return Err(conflict(
+                    "STOCK_RECEIPT_REPLAY_MISMATCH",
+                    "This fulfillment was already received with different quantities or values.",
+                ));
+            }
             existing_moves += 1;
         }
-        let fulfillment_line: Option<String> = sqlx::query_scalar(
-            "SELECT id FROM commerce_fulfillment_lines WHERE id=$1 AND fulfillment_id=$2 \
-             AND order_line_id=$3",
+        let fulfillment_line: Option<(String, i64)> = sqlx::query_as(
+            "SELECT id,quantity_milli FROM commerce_fulfillment_lines \
+             WHERE id=$1 AND fulfillment_id=$2 AND order_line_id=$3",
         )
         .bind(fulfillment_line_id(fulfillment_id, index))
         .bind(fulfillment_id)
         .bind(&line.line_id)
         .fetch_optional(&mut *c)
         .await?;
-        if fulfillment_line.is_none() {
+        let Some((_, fulfillment_quantity)) = fulfillment_line else {
             return Err(conflict(
                 "STOCK_RECEIPT_FULFILLMENT_REQUIRED",
                 "The matching Commerce fulfillment line must exist in this transaction.",
+            ));
+        };
+        if fulfillment_quantity != line.quantity_milli {
+            return Err(conflict(
+                "STOCK_RECEIPT_FULFILLMENT_REQUIRED",
+                "The Commerce fulfillment line quantity does not match the receipt plan.",
+            ));
+        }
+        let existing_allocations: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM inventory_fulfillment_lot_allocations \
+             WHERE fulfillment_line_id=$1",
+        )
+        .bind(fulfillment_line_id(fulfillment_id, index))
+        .fetch_one(&mut *c)
+        .await?;
+        if existing_allocations > 0 && move_values.is_none() {
+            return Err(conflict(
+                "STOCK_RECEIPT_REPLAY_INCOMPLETE",
+                "A partial earlier receipt cannot be replayed.",
+            ));
+        }
+        if move_values.is_some() && existing_allocations as usize != line.allocations.len() {
+            return Err(conflict(
+                "STOCK_RECEIPT_REPLAY_MISMATCH",
+                "This fulfillment was already received with different lot allocations.",
+            ));
+        }
+        let current_line: Option<(String, String, i64, i64)> = sqlx::query_as(
+            "SELECT product_id,item_type,quantity_milli,fulfilled_milli \
+             FROM commerce_order_lines WHERE id=$1 AND order_id=$2",
+        )
+        .bind(&line.line_id)
+        .bind(&plan.order_id)
+        .fetch_optional(&mut *c)
+        .await?;
+        let Some((product_id, item_type, _, _)) = current_line else {
+            return Err(changed());
+        };
+        if product_id != line.product_id || item_type != "stock" {
+            return Err(conflict(
+                "STOCK_RECEIPT_SOURCE_CHANGED",
+                "The selected purchase line is no longer a current stock line.",
             ));
         }
     }
@@ -662,15 +737,33 @@ pub async fn apply_stock_receipt<Q: StockReceiptQualityPort>(
     }
     let mut applied = Vec::with_capacity(plan.lines.len());
     for (index, line) in plan.lines.iter().enumerate() {
-        let current_fulfilled: Option<i64> = sqlx::query_scalar(
-            "SELECT fulfilled_milli FROM commerce_order_lines WHERE id=$1 AND order_id=$2",
+        let current: Option<(String, String, i64, i64)> = sqlx::query_as(
+            "SELECT product_id,item_type,quantity_milli,fulfilled_milli \
+             FROM commerce_order_lines WHERE id=$1 AND order_id=$2",
         )
         .bind(&line.line_id)
         .bind(&plan.order_id)
         .fetch_optional(&mut *c)
         .await?;
-        if current_fulfilled != Some(line.expected_fulfilled_milli) {
+        let Some((product_id, item_type, ordered_milli, current_fulfilled)) = current else {
             return Err(changed());
+        };
+        if product_id != line.product_id
+            || item_type != "stock"
+            || current_fulfilled != line.expected_fulfilled_milli
+        {
+            return Err(changed());
+        }
+        if current_fulfilled
+            .checked_add(line.quantity_milli)
+            .is_none_or(|next| next > ordered_milli || next > MAX_SAFE)
+        {
+            return Err(BusinessError::new(
+                FailureKind::InvalidInput,
+                "OVER_FULFILLMENT",
+                "Quantity exceeds the remaining purchase quantity.",
+            )
+            .into());
         }
         let stock_version = apply_stock(c, plan, line).await?;
         let mut allocations = Vec::with_capacity(line.allocations.len());
@@ -816,6 +909,26 @@ async fn replay(
 ) -> Result<StockReceiptAppliedReceipt, Error> {
     let mut applied = Vec::with_capacity(plan.lines.len());
     for (index, line) in plan.lines.iter().enumerate() {
+        let move_values: Option<(i64, i64)> = sqlx::query_as(
+            "SELECT quantity_milli,value_minor FROM commerce_stock_moves \
+             WHERE id=$1 AND fulfillment_id=$2",
+        )
+        .bind(stock_move_id(fulfillment_id, index))
+        .bind(fulfillment_id)
+        .fetch_optional(&mut *c)
+        .await?;
+        let Some((move_quantity, move_value)) = move_values else {
+            return Err(conflict(
+                "STOCK_RECEIPT_REPLAY_INCOMPLETE",
+                "A partial earlier receipt cannot be replayed.",
+            ));
+        };
+        if move_quantity != line.quantity_milli || move_value != line.stock_value_minor {
+            return Err(conflict(
+                "STOCK_RECEIPT_REPLAY_MISMATCH",
+                "This fulfillment was already received with different quantities or values.",
+            ));
+        }
         let stock_version: i64 = sqlx::query_scalar(
             "SELECT version FROM commerce_stock WHERE warehouse_id=$1 AND product_id=$2",
         )
@@ -827,32 +940,56 @@ async fn replay(
         let mut allocations = Vec::with_capacity(line.allocations.len());
         for allocation in &line.allocations {
             let allocation_id = allocation_id(fulfillment_id, index, allocation.allocation_index);
-            let row: Option<(String, Option<String>, i64)> = sqlx::query_as(
-                "SELECT lot_id,quality_hold_id,value_minor \
+            let row: Option<(String, Option<String>, i64, i64)> = sqlx::query_as(
+                "SELECT lot_id,quality_hold_id,value_minor,quantity_milli \
                  FROM inventory_fulfillment_lot_allocations WHERE id=$1",
             )
             .bind(&allocation_id)
             .fetch_optional(&mut *c)
             .await?;
-            let Some((lot_id, quality_hold_id, value_minor)) = row else {
+            let Some((persisted_lot_id, quality_hold_id, value_minor, quantity_milli)) = row else {
                 return Err(conflict(
                     "STOCK_RECEIPT_REPLAY_INCOMPLETE",
                     "A partial earlier receipt cannot be replayed.",
                 ));
             };
+            let identity = allocation
+                .serial_number
+                .as_deref()
+                .or(allocation.lot_code.as_deref())
+                .unwrap_or_default();
+            let expected_lot_id = allocation.existing_lot_id.clone().unwrap_or_else(|| {
+                lot_id(
+                    &plan.company_id,
+                    &line.product_id,
+                    &line.tracking_mode,
+                    identity,
+                )
+            });
+            let quarantine = allocation.disposition == ReceiptDisposition::Quarantine;
+            if quantity_milli != allocation.quantity_milli
+                || value_minor != allocation.value_minor
+                || persisted_lot_id != expected_lot_id
+                || quality_hold_id.is_some() != quarantine
+            {
+                return Err(conflict(
+                    "STOCK_RECEIPT_REPLAY_MISMATCH",
+                    "This fulfillment was already received with different lot allocations.",
+                ));
+            }
             let balance_version: Option<i64> = sqlx::query_scalar(
                 "SELECT version FROM inventory_lot_balances WHERE lot_id=$1 AND warehouse_id=$2",
             )
-            .bind(&lot_id)
+            .bind(&persisted_lot_id)
             .bind(&plan.warehouse_id)
             .fetch_optional(&mut *c)
             .await?;
             allocations.push(StockReceiptAppliedAllocation {
                 id: allocation_id,
-                lot_id,
+                lot_id: persisted_lot_id,
                 lot_code: allocation.lot_code.clone(),
                 serial_number: allocation.serial_number.clone(),
-                quantity_milli: allocation.quantity_milli,
+                quantity_milli,
                 value_minor,
                 disposition: match allocation.disposition {
                     ReceiptDisposition::Available => "available",
@@ -868,8 +1005,8 @@ async fn replay(
             fulfillment_line_id: fulfillment_line_id(fulfillment_id, index),
             stock_move_id: stock_move_id(fulfillment_id, index),
             stock_version,
-            quantity_milli: line.quantity_milli,
-            value_minor: line.stock_value_minor,
+            quantity_milli: move_quantity,
+            value_minor: move_value,
             allocations,
         });
     }

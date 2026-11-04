@@ -495,6 +495,7 @@ function receiptLot(value: unknown): NativeReceiptLot {
     !integer(value.valueMinor) ||
     !integer(value.version, 1) ||
     !integer(value.qualityHoldMilli) ||
+    value.qualityHoldMilli > value.quantityMilli ||
     !nullableText(value.qualityStatus, 40)
   ) {
     return fail('NATIVE_INVENTORY_RECEIPT_RESPONSE_INVALID');
@@ -520,10 +521,12 @@ function receiptLine(value: unknown): NativeReceiptLine {
     typeof value.sku !== 'string' ||
     typeof value.description !== 'string' ||
     typeof value.unit !== 'string' ||
-    typeof value.trackingMode !== 'string' ||
+    !['none', 'lot', 'serial'].includes(value.trackingMode as string) ||
     !integer(value.quantityMilli) ||
     !integer(value.fulfilledMilli) ||
     !integer(value.remainingMilli) ||
+    value.fulfilledMilli > value.quantityMilli ||
+    value.remainingMilli !== value.quantityMilli - value.fulfilledMilli ||
     !integer(value.priceMinor) ||
     !integer(value.taxBps) ||
     !integer(value.ordinal) ||
@@ -534,13 +537,26 @@ function receiptLine(value: unknown): NativeReceiptLine {
   ) {
     return fail('NATIVE_INVENTORY_RECEIPT_RESPONSE_INVALID');
   }
+  const tracking = value.trackingMode as 'none' | 'lot' | 'serial';
+  const lots = value.lots.map(receiptLot);
+  if (
+    lots.some((lot) =>
+      tracking === 'lot'
+        ? !lot.lot_code || !!lot.serial_number
+        : tracking === 'serial'
+          ? !lot.serial_number || !!lot.lot_code
+          : true,
+    )
+  ) {
+    return fail('NATIVE_INVENTORY_RECEIPT_RESPONSE_INVALID');
+  }
   return {
     id: value.id,
     product_id: value.productId,
     sku: value.sku,
     description: value.description,
     unit: value.unit,
-    tracking_mode: value.trackingMode,
+    tracking_mode: tracking,
     quantity_milli: value.quantityMilli,
     fulfilled_milli: value.fulfilledMilli,
     remaining_milli: value.remainingMilli,
@@ -548,7 +564,7 @@ function receiptLine(value: unknown): NativeReceiptLine {
     tax_bps: value.taxBps,
     ordinal: value.ordinal,
     stock: value.stock === null ? null : receiptStock(value.stock),
-    lots: value.lots.map(receiptLot),
+    lots,
     lots_truncated: value.lotsTruncated,
   };
 }
@@ -558,6 +574,7 @@ function validateReceipt(value: unknown, actor: NativeAvailabilityContext): Nati
     !object(value) ||
     !contextMatches(value.context, actor) ||
     !object(value.data) ||
+    value.data.companyId !== actor.companyId ||
     !object(value.data.order) ||
     !Array.isArray(value.data.lines) ||
     value.data.lines.length > 200
@@ -582,13 +599,15 @@ function validateReceipt(value: unknown, actor: NativeAvailabilityContext): Nati
     return fail('NATIVE_INVENTORY_RECEIPT_RESPONSE_INVALID');
   }
   const lines = value.data.lines.map(receiptLine);
+  if (new Set(lines.map((line) => line.id)).size !== lines.length) {
+    return fail('NATIVE_INVENTORY_RECEIPT_RESPONSE_INVALID');
+  }
   const canReceive =
     order.kind === 'purchase' &&
     ['confirmed', 'partially_fulfilled'].includes(order.state) &&
     lines.some((line) => line.remaining_milli > 0);
   return {
-    company_id:
-      typeof value.data.companyId === 'string' ? value.data.companyId : actor.companyId,
+    company_id: actor.companyId,
     order: {
       id: order.id,
       number: order.number,

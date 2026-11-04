@@ -11,5 +11,5 @@ pub use crate::domain::stock_receipt::{
     StockReceiptAppliedReceipt, StockReceiptInput, StockReceiptLine, StockReceiptLineInput,
     StockReceiptLinePlan, StockReceiptLot, StockReceiptOrder, StockReceiptPlan,
     StockReceiptQualityRequest, StockReceiptSource, StockReceiptStock, prepare_stock_receipt,
-    quality_request,
+    quality_request, validate_stock_receipt_plan,
 };

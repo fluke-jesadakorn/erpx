@@ -218,6 +218,66 @@ fn rejects_stale_order_version_and_over_receipt() {
 }
 
 #[test]
+fn rejects_a_tampered_plan_before_the_write_boundary() {
+    let plan = prepare_stock_receipt(
+        &source("lot", vec![]),
+        &input(
+            3_000,
+            1_000,
+            vec![
+                allocation(Some("L-A"), None, 1_000, ReceiptDisposition::Available),
+                allocation(Some("L-B"), None, 1_000, ReceiptDisposition::Quarantine),
+                allocation(Some("L-C"), None, 1_000, ReceiptDisposition::Available),
+            ],
+        ),
+    )
+    .unwrap();
+    validate_stock_receipt_plan(&plan).unwrap();
+
+    let mut total = plan.clone();
+    total.total_value_minor += 1;
+    assert_eq!(
+        validate_stock_receipt_plan(&total).unwrap_err().code,
+        "STOCK_RECEIPT_VALUE_INVALID"
+    );
+
+    let mut quantity = plan.clone();
+    quantity.lines[0].allocations[0].quantity_milli -= 1;
+    assert_eq!(
+        validate_stock_receipt_plan(&quantity).unwrap_err().code,
+        "LOT_ALLOCATION_REQUIRED"
+    );
+
+    let mut index = plan.clone();
+    index.lines[0].allocations[1].allocation_index = 0;
+    assert_eq!(
+        validate_stock_receipt_plan(&index).unwrap_err().code,
+        "STOCK_RECEIPT_PLAN_INVALID"
+    );
+
+    let mut duplicate = plan.clone();
+    duplicate.lines.push(plan.lines[0].clone());
+    assert_eq!(
+        validate_stock_receipt_plan(&duplicate).unwrap_err().code,
+        "DUPLICATE_LINE"
+    );
+
+    let mut evidence = plan.clone();
+    evidence.lines[0].allocations[1].quarantine_reason = None;
+    assert_eq!(
+        validate_stock_receipt_plan(&evidence).unwrap_err().code,
+        "QUARANTINE_EVIDENCE_REQUIRED"
+    );
+
+    let mut untracked = plan;
+    untracked.lines[0].tracking_mode = "none".into();
+    assert_eq!(
+        validate_stock_receipt_plan(&untracked).unwrap_err().code,
+        "LOT_ALLOCATION_UNEXPECTED"
+    );
+}
+
+#[test]
 fn refuses_available_receipt_into_a_quarantined_lot_but_allows_quarantine() {
     let held = StockReceiptLot {
         id: "lot-1".into(),

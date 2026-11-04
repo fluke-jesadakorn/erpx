@@ -107,4 +107,46 @@ describe('native Inventory receipt transport',()=>{
   expect(transport).not.toHaveBeenCalled();
   await expect(read(headers(),'acme',actor,'order-1')).rejects.toMatchObject({code:'NATIVE_INVENTORY_RECEIPT_UNAVAILABLE',status:503});
  });
+
+ it('forwards branch scope and rejects a foreign Company or inconsistent remaining quantity',async()=>{
+  const branchActor={...actor,branchId:'branch',branchSlug:'branch'};
+  const branchContext={...context,branchId:'branch',branchSlug:'branch'};
+  const transport=vi.fn().mockImplementation(async()=>new Response(JSON.stringify({
+    context:branchContext,
+    data:{companyId:'company',order:{...order,branchId:'branch'},lines:[receiptLine]},
+  }),{status:200,headers:{'content-type':'application/json'}}));
+  const read=createNativeInventoryReceiptReader(config(),transport);
+  const result=await read(headers(),'acme',branchActor,'order-1');
+  expect(result.can_receive).toBe(true);
+  const [,out]=transport.mock.calls[0];
+  expect(out.get('x-erpx-workspace-branch')).toBe('branch');
+
+  const foreign=vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    context,
+    data:{companyId:'other-company',order,lines:[receiptLine]},
+  }),{status:200,headers:{'content-type':'application/json'}}));
+  await expect(createNativeInventoryReceiptReader(config(),foreign)(headers(),'acme',actor,'order-1'))
+    .rejects.toMatchObject({code:'NATIVE_INVENTORY_RECEIPT_RESPONSE_INVALID'});
+
+  const over=vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    context,
+    data:{companyId:'company',order,lines:[{...receiptLine,remainingMilli:5000}]},
+  }),{status:200,headers:{'content-type':'application/json'}}));
+  await expect(createNativeInventoryReceiptReader(config(),over)(headers(),'acme',actor,'order-1'))
+    .rejects.toMatchObject({code:'NATIVE_INVENTORY_RECEIPT_RESPONSE_INVALID'});
+
+  const duplicate=vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    context,
+    data:{companyId:'company',order,lines:[receiptLine,receiptLine]},
+  }),{status:200,headers:{'content-type':'application/json'}}));
+  await expect(createNativeInventoryReceiptReader(config(),duplicate)(headers(),'acme',actor,'order-1'))
+    .rejects.toMatchObject({code:'NATIVE_INVENTORY_RECEIPT_RESPONSE_INVALID'});
+
+  const fulfilled=vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    context,
+    data:{companyId:'company',order:{...order,state:'fulfilled'},lines:[receiptLine]},
+  }),{status:200,headers:{'content-type':'application/json'}}));
+  const closed=await createNativeInventoryReceiptReader(config(),fulfilled)(headers(),'acme',actor,'order-1');
+  expect(closed.can_receive).toBe(false);
+ });
 });

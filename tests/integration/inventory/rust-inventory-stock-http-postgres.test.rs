@@ -163,6 +163,34 @@ async fn stock_register_and_receipt_source_http_accept_a_real_session() {
         assert_eq!(value["data"]["counts"][0]["id"], "http-count");
         assert_eq!(value["data"]["totals"]["consistent"], true);
 
+        let branch = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/v1/holdings/acme/inventory/stock-register")
+                    .header("host", "acme.example.test")
+                    .header(
+                        "cookie",
+                        format!("__Host-erpx-product={}", p.maker_token.expose()),
+                    )
+                    .header("origin", "https://acme.example.test")
+                    .header("x-erpx-context-company", "company")
+                    .header("x-erpx-context-assignment", "inventory-fixture-a")
+                    .header("x-erpx-context-revision", "7")
+                    .header("x-erpx-context-assignment-version", "3")
+                    .header("x-erpx-workspace-branch", "branch")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(branch.status(), 200);
+        let body = to_bytes(branch.into_body(), 256 * 1024).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(value["data"]["stock"][0]["warehouseId"], "http-wh");
+        assert_eq!(value["data"]["lots"][0]["warehouseId"], "http-wh");
+
         let receipt = router
             .clone()
             .oneshot(request(
@@ -176,6 +204,56 @@ async fn stock_register_and_receipt_source_http_accept_a_real_session() {
         assert_eq!(value["data"]["order"]["number"], "HTTP-PO");
         assert_eq!(value["data"]["lines"][0]["remainingMilli"], 2_000);
         assert_eq!(value["data"]["lines"][0]["lots"][0]["lotCode"], "HTTP-LOT");
+
+        let foreign_company = Request::builder()
+            .method("GET")
+            .uri("/api/v1/holdings/acme/inventory/receipts/http-order")
+            .header("host", "acme.example.test")
+            .header(
+                "cookie",
+                format!("__Host-erpx-product={}", p.maker_token.expose()),
+            )
+            .header("origin", "https://acme.example.test")
+            .header("x-erpx-context-company", "other-company")
+            .header("x-erpx-context-assignment", "inventory-fixture-a")
+            .header("x-erpx-context-revision", "7")
+            .header("x-erpx-context-assignment-version", "3")
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            router
+                .clone()
+                .oneshot(foreign_company)
+                .await
+                .unwrap()
+                .status(),
+            409
+        );
+
+        let missing_order = Request::builder()
+            .method("GET")
+            .uri("/api/v1/holdings/acme/inventory/receipts/missing-order")
+            .header("host", "acme.example.test")
+            .header(
+                "cookie",
+                format!("__Host-erpx-product={}", p.maker_token.expose()),
+            )
+            .header("origin", "https://acme.example.test")
+            .header("x-erpx-context-company", "company")
+            .header("x-erpx-context-assignment", "inventory-fixture-a")
+            .header("x-erpx-context-revision", "7")
+            .header("x-erpx-context-assignment-version", "3")
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            router
+                .clone()
+                .oneshot(missing_order)
+                .await
+                .unwrap()
+                .status(),
+            404
+        );
 
         let wrong_origin = Request::builder()
             .method("GET")
