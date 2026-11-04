@@ -5,7 +5,7 @@ use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
     PurchaseRequest, lock_commercial_authority_sources,
 };
-use erpx_server_finance::public::{FinanceActor, journal_detail::*, journal_list::*, journal_workspace::*, sales_defaults::*, sales_invoice_create::*, sales_invoice_list::*};
+use erpx_server_finance::public::{FinanceActor, journal_detail::*, journal_list::*, journal_workspace::*, sales_defaults::*, sales_invoice_create::*, sales_invoice_list::*, sales_receipts::*};
 use erpx_server_identity_access::public::{
     DeviceProof,
     effective_authority::{
@@ -138,6 +138,22 @@ pub struct FinanceSalesDefaultsWorkspaceResponse {
 pub struct FinanceSalesDefaultsResultResponse {
     pub data: SalesDefaultsResult,
 }
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FinanceSalesReceiptReadResponse {
+    pub data: SalesReceiptRead,
+    pub context: FinanceRenderedWorkContext,
+}
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FinanceSalesReceiptExportResponse {
+    pub data: SalesReceiptExport,
+}
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FinanceSalesReceiptIssueResponse {
+    pub data: SalesReceiptIssueResult,
+}
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub struct FinanceServiceInvoiceWorkspaceResponse {
@@ -242,6 +258,18 @@ fn command_actor(
             .unwrap_or_default(),
         iam_json,
     })
+}
+
+#[derive(Clone)]
+struct SalesReceiptSources;
+impl HoldingWorkSourcePreparation for SalesReceiptSources {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            lock_commercial_authority_sources(c).await?;
+            lock_sales_receipt_sources(c).await?;
+            Ok(())
+        })
+    }
 }
 
 #[derive(Clone)]
@@ -1006,6 +1034,227 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                         let data =
                             decide_sales_defaults(c, &actor, &command, &id, &body, now.get()).await?;
                         Ok(FinanceSalesDefaultsResultResponse { data })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn sales_receipt<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        id: String,
+    ) -> Result<Option<FinanceSalesReceiptReadResponse>, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != company {
+                return Err(scope());
+            }
+            request.mutation = false;
+            Ok(request)
+        };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "finance.read".into(),
+                    module: Some("finance".into()),
+                    destination: "finance/sales/receipts".into(),
+                    api: true,
+                },
+                SalesReceiptSources,
+                move |c, current| {
+                    let configuration = configuration.clone();
+                    let clock = clock.clone();
+                    let id = id.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &configuration.holding
+                            || current.selection().workspace().company_id != configuration.company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("finance.read")?;
+                        current.require_permission("module.finance.read")?;
+                        let now = clock.now();
+                        Self::require_sales_purchase(
+                            c,
+                            current,
+                            &configuration,
+                            CapabilityPurpose::History,
+                            now,
+                        )
+                        .await?;
+                        let workspace = current.selection().workspace();
+                        let data = read_customer_receipt(
+                            c,
+                            configuration.company.as_str(),
+                            workspace.branch_id.as_ref().map(|value| value.as_str()),
+                            workspace.department_id.as_ref().map(|value| value.as_str()),
+                            &id,
+                        )
+                        .await?;
+                        let context = rendered(current)?;
+                        Ok(data.map(|data| FinanceSalesReceiptReadResponse { data, context }))
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn export_sales_receipt<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        id: String,
+    ) -> Result<Option<FinanceSalesReceiptExportResponse>, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != company {
+                return Err(scope());
+            }
+            request.mutation = false;
+            Ok(request)
+        };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "finance.read".into(),
+                    module: Some("finance".into()),
+                    destination: "finance/sales/receipts".into(),
+                    api: true,
+                },
+                SalesReceiptSources,
+                move |c, current| {
+                    let configuration = configuration.clone();
+                    let clock = clock.clone();
+                    let id = id.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &configuration.holding
+                            || current.selection().workspace().company_id != configuration.company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("finance.read")?;
+                        current.require_permission("module.finance.read")?;
+                        Self::require_sales_purchase(
+                            c,
+                            current,
+                            &configuration,
+                            CapabilityPurpose::History,
+                            clock.now(),
+                        )
+                        .await?;
+                        let workspace = current.selection().workspace();
+                        let data = export_customer_receipt(
+                            c,
+                            configuration.company.as_str(),
+                            workspace.branch_id.as_ref().map(|value| value.as_str()),
+                            workspace.department_id.as_ref().map(|value| value.as_str()),
+                            &id,
+                        )
+                        .await?;
+                        Ok(data.map(|data| FinanceSalesReceiptExportResponse { data }))
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn issue_sales_receipt<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: CommandKey,
+        payment_id: String,
+    ) -> Result<FinanceSalesReceiptIssueResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != company {
+                return Err(scope());
+            }
+            request.mutation = true;
+            Ok(request)
+        };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "finance.write".into(),
+                    module: Some("finance".into()),
+                    destination: "finance/sales/receipts".into(),
+                    api: true,
+                },
+                SalesReceiptSources,
+                move |c, current| {
+                    let configuration = configuration.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    let payment_id = payment_id.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &configuration.holding
+                            || current.selection().workspace().company_id != configuration.company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("finance.write")?;
+                        current.require_permission("module.finance.read")?;
+                        let workspace = current.selection().workspace();
+                        if workspace.branch_id.is_some() || workspace.department_id.is_some() {
+                            return Err(BusinessError::new(
+                                FailureKind::Forbidden,
+                                "COMPANY_SCOPE_REQUIRED",
+                                "Use a Company Finance assignment to issue a customer receipt.",
+                            )
+                            .into());
+                        }
+                        let now = clock.now();
+                        Self::require_sales_purchase(
+                            c,
+                            current,
+                            &configuration,
+                            CapabilityPurpose::History,
+                            now,
+                        )
+                        .await?;
+                        let actor = command_actor(current)?;
+                        let data = issue_customer_receipt(
+                            c,
+                            &actor,
+                            &command,
+                            &payment_id,
+                            now.get(),
+                        )
+                        .await?;
+                        Ok(FinanceSalesReceiptIssueResponse { data })
                     })
                 },
             )

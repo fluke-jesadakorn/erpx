@@ -408,3 +408,8 @@ required-features = ["private-field-api"]
 name = "sales_defaults_postgres"
 path = "../../tests/integration/finance/rust-sales-defaults-postgres.test.rs"
 required-features = ["private-field-api"]
+
+[[test]]
+name = "sales_receipt_postgres"
+path = "../../tests/integration/finance/rust-sales-receipt-postgres.test.rs"
+required-features = ["private-field-api"]

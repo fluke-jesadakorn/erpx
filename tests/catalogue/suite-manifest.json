@@ -70527,6 +70527,42 @@
         "rust-toolchain.toml",
         "src/composition/Cargo.toml"
       ]
+    },
+    {
+      "id": "finance.rust-sales-receipt-postgres.integration",
+      "lane": "integration",
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "files": [
+        "tests/integration/finance/rust-sales-receipt-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PostgreSQL-backed native customer-receipt issue/read/export retains settled-payment and posted-journal guards, immutable snapshot/HTML/SHA, Company/branch scope, replay and HTTP admission in the PR baseline."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "sales_receipt_postgres"
+        ],
+        "features": [
+          "private-field-api"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml"
+      ]
     }
   ]
 }
