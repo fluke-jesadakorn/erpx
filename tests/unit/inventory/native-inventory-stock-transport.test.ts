@@ -4,6 +4,7 @@ import {
   createNativeInventoryReceiptReader,
   createNativeInventoryStockRegisterReader,
 } from '../../../packages/feature-inventory/src/adapters/server/native-stock-register';
+import {selectNativeStockRegisterView} from '../../../packages/feature-inventory/src/lib/native-availability';
 import type {NativeAvailabilityContext} from '../../../packages/feature-inventory/src/adapters/server/native-availability';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
@@ -81,6 +82,38 @@ describe('native Inventory stock-register transport',()=>{
  it('admits loopback 3101 only with the explicit production opt-in',()=>{
   expect(()=>createNativeInventoryStockRegisterReader(config({privateBaseUrl:'http://127.0.0.1:3101'}),vi.fn())).toThrow();
   expect(()=>createNativeInventoryStockRegisterReader(config({privateBaseUrl:'http://127.0.0.1:3101',production:true}),vi.fn())).not.toThrow();
+ });
+});
+
+describe('native Inventory stock-register view cutover',()=>{
+ const nativeRow={warehouse_id:'w',product_id:'p',sku:'SKU',name:'Product',unit:'pcs',tracking_mode:'lot',
+   warehouse_name:'Warehouse',quantity_milli:1000,reserved_milli:0,quarantined_milli:0,in_transit_milli:0,
+   available_milli:1000,value_minor:1000,version:1};
+ const registerView={stock:[nativeRow],lots:[],counts:[],totals:{tracked_quantity_milli:0,tracked_value_minor:0,
+   lot_quantity_milli:0,lot_value_minor:0,consistent:true},currency:'THB'};
+ const availabilityView={rows:[{...nativeRow,warehouse_id:'legacy-availability'}],currency:'USD'};
+
+ it('prefers the configured register over availability',()=>{
+  const view=selectNativeStockRegisterView(registerView,availabilityView);
+  expect(view?.native).toBe(true);
+  expect(view?.currency).toBe('THB');
+  expect(view?.rows[0].warehouse_id).toBe('w');
+ });
+
+ it('keeps a configured empty register empty instead of leaking legacy rows',()=>{
+  const empty={...registerView,stock:[]};
+  const view=selectNativeStockRegisterView(empty,availabilityView);
+  expect(view?.native).toBe(true);
+  expect(view?.currency).toBe('THB');
+  expect(view?.rows).toEqual([]);
+ });
+
+ it('uses availability when no register is configured and leaves the retained rows undecided when native is absent',()=>{
+  const available=selectNativeStockRegisterView(undefined,availabilityView);
+  expect(available?.native).toBe(true);
+  expect(available?.currency).toBe('USD');
+  expect(available?.rows[0].warehouse_id).toBe('legacy-availability');
+  expect(selectNativeStockRegisterView(undefined,undefined)).toBeUndefined();
  });
 });
 

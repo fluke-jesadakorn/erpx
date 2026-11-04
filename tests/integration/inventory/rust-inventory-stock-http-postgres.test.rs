@@ -84,16 +84,22 @@ async fn inventory_setup(
         .unwrap();
     tx.commit().await.unwrap();
     sqlx::raw_sql(
-        "INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status)VALUES('branch','branch','branch','Branch','company','company','branch','active') ON CONFLICT DO NOTHING;\
+        "INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status)VALUES\
+           ('branch','branch','branch','Branch','company','company','branch','active'),\
+           ('branch-two','branch','branch-two','Second branch','company','company','branch-two','active') ON CONFLICT DO NOTHING;\
          INSERT INTO commerce_warehouses(id,company_id,branch_id,code,name,status,version)VALUES('http-wh','company','branch','HTTP-WH','HTTP warehouse','active',1) ON CONFLICT DO NOTHING;\
-         INSERT INTO commerce_products(id,company_id,sku,name,unit,price_minor,tax_bps,status,version,tracking_mode,item_type)VALUES('http-product','company','HTTP-P','HTTP product','pcs',2500,0,'active',1,'lot','stock') ON CONFLICT DO NOTHING;\
+         INSERT INTO commerce_products(id,company_id,sku,name,unit,price_minor,tax_bps,status,version,tracking_mode,item_type)VALUES\
+           ('http-product','company','HTTP-P','HTTP product','pcs',2500,0,'active',1,'lot','stock'),\
+           ('http-service-product','company','HTTP-S','HTTP service','pcs',1000,0,'active',1,'none','service') ON CONFLICT DO NOTHING;\
          INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor,version)VALUES('http-wh','http-product',2000,2000,1) ON CONFLICT DO NOTHING;\
          INSERT INTO inventory_lots(id,company_id,product_id,tracking_mode,lot_code,created_by,created_at)VALUES('http-lot','company','http-product','lot','HTTP-LOT','fixture-a',0) ON CONFLICT DO NOTHING;\
          INSERT INTO inventory_lot_balances(lot_id,warehouse_id,quantity_milli,value_minor)VALUES('http-lot','http-wh',2000,2000) ON CONFLICT DO NOTHING;\
          INSERT INTO inventory_counts(id,company_id,branch_id,warehouse_id,number,count_date,reason,status,version,net_value_minor,created_by,prepared_by,created_at,updated_at)VALUES('http-count','company','branch','http-wh','HTTP-CNT','2026-11-04','HTTP count','draft',1,0,'fixture-a','fixture-a',0,0) ON CONFLICT DO NOTHING;\
          INSERT INTO finance_parties(id,company_id,kind,code,name,currency,created_at,updated_at)VALUES('http-supplier','company','supplier','HTTP-SUP','HTTP Supplier','THB',0,0) ON CONFLICT DO NOTHING;\
          INSERT INTO commerce_orders(id,company_id,branch_id,kind,number,party_id,warehouse_id,currency,order_date,due_date,subtotal_minor,tax_minor,state,version,created_by,created_at,updated_at)VALUES('http-order','company','branch','purchase','HTTP-PO','http-supplier','http-wh','THB','2026-11-01','2026-11-10',2500,0,'confirmed',3,'fixture-a',0,0) ON CONFLICT DO NOTHING;\
-         INSERT INTO commerce_order_lines(id,order_id,product_id,description,quantity_milli,fulfilled_milli,price_minor,tax_bps,subtotal_minor,tax_minor,ordinal,item_type)VALUES('http-line','http-order','http-product','HTTP product',2000,0,2500,0,2500,0,1,'stock') ON CONFLICT DO NOTHING;",
+         INSERT INTO commerce_order_lines(id,order_id,product_id,description,quantity_milli,fulfilled_milli,price_minor,tax_bps,subtotal_minor,tax_minor,ordinal,item_type)VALUES\
+           ('http-line','http-order','http-product','HTTP product',2000,0,2500,0,2500,0,1,'stock'),\
+           ('http-line-service','http-order','http-service-product','HTTP service',1000,0,1000,0,1000,0,2,'service') ON CONFLICT DO NOTHING;",
     )
     .execute(pool.raw())
     .await
@@ -191,6 +197,35 @@ async fn stock_register_and_receipt_source_http_accept_a_real_session() {
         assert_eq!(value["data"]["stock"][0]["warehouseId"], "http-wh");
         assert_eq!(value["data"]["lots"][0]["warehouseId"], "http-wh");
 
+        let empty_branch = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/v1/holdings/acme/inventory/stock-register")
+                    .header("host", "acme.example.test")
+                    .header(
+                        "cookie",
+                        format!("__Host-erpx-product={}", p.maker_token.expose()),
+                    )
+                    .header("origin", "https://acme.example.test")
+                    .header("x-erpx-context-company", "company")
+                    .header("x-erpx-context-assignment", "inventory-fixture-a")
+                    .header("x-erpx-context-revision", "7")
+                    .header("x-erpx-context-assignment-version", "3")
+                    .header("x-erpx-workspace-branch", "branch-two")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(empty_branch.status(), 200);
+        let body = to_bytes(empty_branch.into_body(), 256 * 1024).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(value["data"]["stock"].as_array().unwrap().is_empty());
+        assert!(value["data"]["lots"].as_array().unwrap().is_empty());
+        assert!(value["data"]["counts"].as_array().unwrap().is_empty());
+
         let receipt = router
             .clone()
             .oneshot(request(
@@ -202,8 +237,58 @@ async fn stock_register_and_receipt_source_http_accept_a_real_session() {
         let body = to_bytes(receipt.into_body(), 256 * 1024).await.unwrap();
         let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(value["data"]["order"]["number"], "HTTP-PO");
+        assert_eq!(value["data"]["lines"].as_array().unwrap().len(), 1);
+        assert_eq!(value["data"]["lines"][0]["id"], "http-line");
         assert_eq!(value["data"]["lines"][0]["remainingMilli"], 2_000);
         assert_eq!(value["data"]["lines"][0]["lots"][0]["lotCode"], "HTTP-LOT");
+
+        let branch_receipt = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/v1/holdings/acme/inventory/receipts/http-order")
+                    .header("host", "acme.example.test")
+                    .header(
+                        "cookie",
+                        format!("__Host-erpx-product={}", p.maker_token.expose()),
+                    )
+                    .header("origin", "https://acme.example.test")
+                    .header("x-erpx-context-company", "company")
+                    .header("x-erpx-context-assignment", "inventory-fixture-a")
+                    .header("x-erpx-context-revision", "7")
+                    .header("x-erpx-context-assignment-version", "3")
+                    .header("x-erpx-workspace-branch", "branch")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(branch_receipt.status(), 200);
+
+        let foreign_branch_receipt = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/v1/holdings/acme/inventory/receipts/http-order")
+                    .header("host", "acme.example.test")
+                    .header(
+                        "cookie",
+                        format!("__Host-erpx-product={}", p.maker_token.expose()),
+                    )
+                    .header("origin", "https://acme.example.test")
+                    .header("x-erpx-context-company", "company")
+                    .header("x-erpx-context-assignment", "inventory-fixture-a")
+                    .header("x-erpx-context-revision", "7")
+                    .header("x-erpx-context-assignment-version", "3")
+                    .header("x-erpx-workspace-branch", "branch-two")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(foreign_branch_receipt.status(), 404);
 
         let foreign_company = Request::builder()
             .method("GET")
@@ -267,7 +352,32 @@ async fn stock_register_and_receipt_source_http_accept_a_real_session() {
             .header("x-erpx-context-company", "company")
             .body(Body::empty())
             .unwrap();
-        assert_eq!(router.oneshot(wrong_origin).await.unwrap().status(), 403);
+        assert_eq!(
+            router.clone().oneshot(wrong_origin).await.unwrap().status(),
+            403
+        );
+
+        let wrong_receipt_origin = Request::builder()
+            .method("GET")
+            .uri("/api/v1/holdings/acme/inventory/receipts/http-order")
+            .header("host", "acme.example.test")
+            .header(
+                "cookie",
+                format!("__Host-erpx-product={}", p.maker_token.expose()),
+            )
+            .header("origin", "https://evil.example.test")
+            .header("x-erpx-context-company", "company")
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            router
+                .clone()
+                .oneshot(wrong_receipt_origin)
+                .await
+                .unwrap()
+                .status(),
+            403
+        );
     })
     .await;
 }

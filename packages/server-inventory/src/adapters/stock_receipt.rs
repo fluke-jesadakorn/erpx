@@ -67,10 +67,16 @@ async fn serializable(c: &mut PgConnection) -> Result<(), Error> {
 pub async fn lock_stock_receipt_sources(c: &mut PgConnection) -> Result<(), Error> {
     serializable(c).await?;
     sqlx::query(
+        // The receipt source's stock row derives reserved quantity from
+        // inventory_active_reservations, which unions POS, Sales, Field Service
+        // and Manufacturing reservations. Fence all four before the first read
+        // so the displayed availability cannot change under the receipt unit.
         "LOCK TABLE commerce_orders,commerce_order_lines,commerce_fulfillments,\
          commerce_fulfillment_lines,commerce_stock,commerce_stock_moves,inventory_lots,\
          inventory_lot_balances,inventory_lot_moves,inventory_fulfillment_lot_allocations,\
-         inventory_quality_holds IN SHARE ROW EXCLUSIVE MODE",
+         inventory_quality_holds,pos_reservations,inventory_order_reservations,\
+         field_service_part_reservations,manufacturing_material_reservations \
+         IN SHARE ROW EXCLUSIVE MODE",
     )
     .execute(&mut *c)
     .await?;

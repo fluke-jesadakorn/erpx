@@ -22,7 +22,7 @@ import { redirect } from "next/navigation";
 import { salesCustomerLegacyDestination } from "@erpx/server-sales/public/rules/navigation";
 
 import { InventoryReorderConsole } from "@erpx/feature-inventory/components/inventory-reorder-console";
-import { nativeInventoryAvailabilityFromHeaders, nativeInventoryMovementsFromHeaders, nativeInventoryStockRegisterFromHeaders } from "@erpx/feature-inventory/lib/native-availability";
+import { nativeInventoryAvailabilityFromHeaders, nativeInventoryMovementsFromHeaders, nativeInventoryStockRegisterFromHeaders, selectNativeStockRegisterView } from "@erpx/feature-inventory/lib/native-availability";
 
 import { frontWorkspaceHref } from "@erpx/server-work_projection/public/front-app";
 import { RecordDocumentPanel } from "@erpx/feature-files/components/record-document-panel";
@@ -94,9 +94,9 @@ export default async function CommercePage({ params, searchParams, }: {
       data = await commercePage(actor, { ...search, view, kind: partyKind });
     } catch (error) {
       // Stock availability is an Inventory read and must not depend on Commerce
-      // posting setup. When the native availability source is configured, the
+      // posting setup. When either native Inventory source is configured, the
       // stock view renders from it even if order posting is not configured.
-      if (nativeStock && error instanceof ApiError && error.code === "COMMERCE_SETUP_REQUIRED") {
+      if ((nativeStock || nativeRegister) && error instanceof ApiError && error.code === "COMMERCE_SETUP_REQUIRED") {
         data = {
           orders: [],
           products: [],
@@ -105,7 +105,7 @@ export default async function CommercePage({ params, searchParams, }: {
           stock: [],
           moves: [],
           nodes: [],
-          currency: nativeStock.currency,
+          currency: nativeRegister ? nativeRegister.currency : nativeStock!.currency,
           page: undefined,
           movementPage: null,
           options: null,
@@ -115,8 +115,9 @@ export default async function CommercePage({ params, searchParams, }: {
         return pageError(error, holdingSlug);
       }
     }
-    const stockRows = nativeRegister?.stock ?? nativeStock?.rows ?? data.stock;
-    const stockCurrency = nativeRegister?.currency ?? nativeStock?.currency ?? data.currency;
+    const stockView = selectNativeStockRegisterView(nativeRegister, nativeStock);
+    const stockRows = stockView?.rows ?? data.stock;
+    const stockCurrency = stockView?.currency ?? data.currency;
     const movementRows = nativeMovements?.rows ?? data.moves;
     const movementPage = nativeMovements
       ? nativeMovements.nextCursor

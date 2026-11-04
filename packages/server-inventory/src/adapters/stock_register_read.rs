@@ -40,8 +40,13 @@ async fn serializable(c: &mut PgConnection) -> Result<(), Error> {
 pub async fn lock_stock_register_sources(c: &mut PgConnection) -> Result<(), Error> {
     serializable(c).await?;
     sqlx::query(
+        // inventory_active_reservations unions all four reservation sources, so
+        // the fence must include Field Service and Manufacturing as well as POS
+        // and Sales. Missing either would let a concurrent reservation commit
+        // between the register's stock and count reads.
         "LOCK TABLE commerce_stock,commerce_products,commerce_warehouses,pos_reservations,\
-         inventory_order_reservations,inventory_transit,inventory_transit_lines,\
+         inventory_order_reservations,field_service_part_reservations,\
+         manufacturing_material_reservations,inventory_transit,inventory_transit_lines,\
          inventory_quality_holds,inventory_lot_balances,inventory_lots,inventory_counts,\
          inventory_initial_physical_stock_sources,finance_charts,company_money_settings \
          IN SHARE MODE",

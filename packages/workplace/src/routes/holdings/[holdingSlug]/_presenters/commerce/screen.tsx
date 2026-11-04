@@ -26,11 +26,12 @@ import { commerceNavigationViews } from "@erpx/feature-work_projection/lib/workp
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import {commercePage,commercePermissions} from '@erpx/server-commerce/public/commerce';
-import { nativeInventoryStockRegisterFromHeaders } from "@erpx/feature-inventory/lib/native-availability";
+import { nativeInventoryStockRegisterFromHeaders, selectNativeStockRegisterView } from "@erpx/feature-inventory/lib/native-availability";
 
 import { canApproveCounts, canPrepareCounts, canReadCounts } from "@erpx/server-inventory/public/inventory-counts";
 import { listInventoryReorderPolicies } from "@erpx/server-inventory/public/inventory-reorder-policies";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
+import { ApiError } from "@erpx/server-runtime/public/http";
 
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { redirect } from "next/navigation";
@@ -124,9 +125,30 @@ export default async function CommercePage({
           pageError(error, holdingSlug),
         )
       : undefined;
-  const data = await commercePage(actor, { ...search, view, kind: partyKind }).catch((error) =>
-    pageError(error, holdingSlug),
-  );
+  let data: Awaited<ReturnType<typeof commercePage>>;
+  try {
+    data = await commercePage(actor, { ...search, view, kind: partyKind });
+  } catch (error) {
+    // The stock view is an Inventory register read. When the native register is
+    // configured, Commerce posting setup is not a prerequisite for that view.
+    if (view !== "stock" || !nativeRegister || !(error instanceof ApiError && error.code === "COMMERCE_SETUP_REQUIRED")) {
+      return pageError(error, holdingSlug);
+    }
+    data = {
+      orders: [],
+      products: [],
+      parties: [],
+      warehouses: [],
+      stock: [],
+      moves: [],
+      nodes: [],
+      currency: nativeRegister.currency,
+      page: undefined,
+      movementPage: null,
+      options: null,
+      inTransit: [],
+    } as unknown as typeof data;
+  }
   const requestData = search.request
     ? await (await commercePresentationQueries(actor.holdingId)).employeeRequestDetail(actor, search.request).catch((error) => pageError(error, holdingSlug))
     : null;
@@ -208,8 +230,9 @@ export default async function CommercePage({
     ? lotRecords.find((row) => String(row.id) === search.lotFiles)
     : null;
   const purchase = view === "quote" || view === "sales" || view === "purchase" ? await commercePurchaseControls(actor,{type:"kind",kind:view}) : undefined;
-  const stockRows = nativeRegister?.stock ?? data.stock;
-  const stockCurrency = nativeRegister?.currency ?? data.currency;
+  const stockView = selectNativeStockRegisterView(nativeRegister, undefined);
+  const stockRows = stockView?.rows ?? data.stock;
+  const stockCurrency = stockView?.currency ?? data.currency;
   return (
     <CommerceEnvironment purchase={purchase}><FeaturePage className="ui-page-content" data-source="live">
       <header className="ui-section-header">

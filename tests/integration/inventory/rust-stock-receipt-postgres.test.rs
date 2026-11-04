@@ -5,6 +5,8 @@
 #![allow(dead_code)]
 #[path = "../../support/inventory/stock-receipt-facts.rs"]
 mod facts;
+#[path = "../../support/inventory/reservation-source-fence.rs"]
+mod fence;
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 use erpx_server_inventory::public::stock_receipt::*;
@@ -848,6 +850,69 @@ async fn receipt_refuses_an_inactive_existing_lot_and_rolls_back_stock() {
         .await
         .unwrap();
         assert_eq!(evidence, (1_000, 0, 0, 1));
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn receipt_source_includes_field_and_manufacturing_reservations() {
+    fixture::with_database(2, |pool| async move {
+        facts::setup(&pool, "none", true).await;
+        sqlx::raw_sql(
+            "INSERT INTO support_tickets(id,company_id,branch_id,order_id,customer_id,title,issue,owner_id,due_date,status,version,created_by,created_at,updated_at)\
+             VALUES('field-ticket','company','branch','order-1','supplier','Field request','Issue','maker','2026-11-10','open',1,'maker',0,0);\
+             INSERT INTO field_service_agreements(id,company_id,branch_id,customer_id,title,start_date,end_date,currency,visit_rate_minor,status,created_by,version,created_at,updated_at)\
+             VALUES('field-agreement','company','branch','supplier','Field agreement','2026-01-01','2027-01-01','THB',0,'draft','maker',1,0,0);\
+             INSERT INTO field_service_orders(id,company_id,branch_id,ticket_id,ticket_version,agreement_id,agreement_version,issue,site,technician_id,status,version,created_by,created_at,updated_at)\
+             VALUES('field-order','company','branch','field-ticket',1,'field-agreement',1,'Issue','Site','maker','open',1,'maker',0,0);\
+             INSERT INTO field_service_part_reservations(id,order_id,warehouse_id,product_id,quantity_milli,consumed_milli,released_milli,expires_at,created_by,reason,created_at)\
+             VALUES('field-reservation','field-order','warehouse','product',250,0,0,9007199254740991,'maker','Field reserve',0);\
+             INSERT INTO manufacturing_specifications(id,company_id,name,mode,output_product_id,batch_quantity_milli,expected_yield_bps,status,created_by,version,created_at,updated_at)\
+             VALUES('mfg-spec','company','Specification','bom','product',1000,10000,'approved','maker',1,0,0);\
+             INSERT INTO planning_scenarios(id,company_id,branch_id,warehouse_id,specification_id,specification_version,demand_quantity_milli,due_date,capacity_minutes,shortages_json,status,created_by,version,created_at,updated_at)\
+             VALUES('mfg-scenario','company','branch','warehouse','mfg-spec',1,1000,'2026-11-30',0,'[]','calculated','maker',1,0,0);\
+             INSERT INTO planning_recommendations(id,scenario_id,scenario_version,recommended_quantity_milli,required_minutes,feasible_date,status,created_by,version,created_at,updated_at)\
+             VALUES('mfg-recommendation','mfg-scenario',1,1000,0,'2026-11-30','proposed','maker',1,0,0);\
+             INSERT INTO manufacturing_orders(id,company_id,branch_id,warehouse_id,recommendation_id,specification_id,specification_version,planned_quantity_milli,status,created_by,version,created_at,updated_at)\
+             VALUES('mfg-order','company','branch','warehouse','mfg-recommendation','mfg-spec',1,1000,'reserved','maker',1,0,0);\
+             INSERT INTO manufacturing_material_reservations(id,order_id,warehouse_id,product_id,quantity_milli,consumed_milli,released_milli,expires_at,created_by,created_at)\
+             VALUES('mfg-reservation','mfg-order','warehouse','product',250,0,0,9007199254740991,'maker',0);",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        PgUnitOfWork::new(pool.clone())
+            .run::<_, BusinessError, _>(TransactionOptions::default(), |c| {
+                Box::pin(async move {
+                    lock_stock_receipt_sources(c).await?;
+                    let source =
+                        read_stock_receipt_source(c, "company", Some("branch"), None, "order-1")
+                            .await?;
+                    let stock = source.lines[0].stock.as_ref().unwrap();
+                    assert_eq!(stock.quantity_milli, 1_000);
+                    assert_eq!(stock.reserved_milli, 500);
+                    assert_eq!(stock.quarantined_milli, 0);
+                    Ok(())
+                })
+            })
+            .await
+            .unwrap();
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn receipt_source_fences_every_reservation_source_behind_the_view() {
+    fixture::with_database(2, |pool| async move {
+        facts::setup(&pool, "lot", false).await;
+        let mut reader = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+            .execute(&mut *reader)
+            .await
+            .unwrap();
+        lock_stock_receipt_sources(&mut reader).await.unwrap();
+        fence::assert_reservation_source_writes_wait(&pool).await;
+        reader.rollback().await.unwrap();
     })
     .await;
 }
