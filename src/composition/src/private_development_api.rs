@@ -1424,6 +1424,8 @@ async fn assemble_checked(
         let mut handbook_targets = Vec::new();
         let mut learning_targets = Vec::new();
         let mut quality_targets = Vec::new();
+        let mut records_context_targets = Vec::new();
+        let mut records_registry_targets = Vec::new();
         let mut legal_targets = Vec::new();
         let mut benefits_targets = Vec::new();
         let mut pms_targets = Vec::new();
@@ -1637,6 +1639,34 @@ async fn assemble_checked(
                             Arc::new(SharedClock(clock.clone())),
                         )),
                     )),
+                },
+            );
+            let records_backend = Arc::new(crate::records::RecordsBackend::new(
+                config.policy.clone(),
+                Arc::new(FinanceJournalReadScopeHeaders),
+                Arc::new(crate::records::RecordsService::new(
+                    authorizer.clone(),
+                    crate::records::RecordsConfiguration::new(
+                        holding.registration.holding_id.clone(),
+                        company.clone(),
+                    ),
+                    Arc::new(SharedClock(clock.clone())),
+                )),
+            ));
+            records_context_targets.push(
+                erpx_server_records::public::record_context_http::RecordsContextHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: records_backend.clone(),
+                },
+            );
+            records_registry_targets.push(
+                erpx_server_records::public::record_registry_http::RecordsRegistryHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: records_backend.clone(),
                 },
             );
             files_targets.push(
@@ -2142,6 +2172,22 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_maintenance::public::http::maintenance_router(maintenance_targets)
                     .map_err(|_| "PRIVATE_API_MAINTENANCE_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !records_context_targets.is_empty() {
+            router = router.merge(
+                erpx_server_records::public::record_context_http::records_context_http_router(
+                    records_context_targets,
+                )
+                .map_err(|_| "PRIVATE_API_RECORDS_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !records_registry_targets.is_empty() {
+            router = router.merge(
+                erpx_server_records::public::record_registry_http::records_registry_http_router(
+                    records_registry_targets,
+                )
+                .map_err(|_| "PRIVATE_API_RECORDS_CONFIGURATION_INVALID")?,
             );
         }
         if !files_targets.is_empty() {

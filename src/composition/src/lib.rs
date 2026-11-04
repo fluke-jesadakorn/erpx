@@ -61,6 +61,7 @@ pub mod benefits;
 #[cfg(feature = "existing-business")]
 pub mod projects;
 pub mod quality;
+pub mod records;
 pub mod files;
 #[cfg(feature = "existing-business")]
 pub mod legal;
