@@ -93,7 +93,7 @@
       "jobs": "active",
       "providers": "active"
     },
-    "condition": "Apply the shared-composition production worker delta below and pass the current-source browser cohort before updating the register. Until that composition wiring exists, keep jobs/businessMigrationComplete partial/false."
+    "condition": "Production worker composition and its one-shot runtime check are applied; keep businessMigrationComplete false until the current-source browser cohort passes."
   },
   "sharedCompositionDelta": {
     "applied": [

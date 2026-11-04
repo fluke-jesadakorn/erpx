@@ -113,7 +113,7 @@
         "application": "active",
         "http": "active",
         "ssr": "active",
-        "jobs": "partial",
+        "jobs": "active",
         "providers": "active"
       }
     },
