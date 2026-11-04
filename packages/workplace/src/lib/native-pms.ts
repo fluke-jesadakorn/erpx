@@ -6,6 +6,8 @@ import {
   nativePmsConfiguration,
   NativePmsError,
   type NativePmsBoardSection,
+  type NativePmsFrontDeskInput,
+  type NativePmsFrontDeskStatus,
   type NativePmsPageContext,
   type NativePmsReadInput,
 } from '@erpx/feature-pms/adapters/server/native-pms';
@@ -86,12 +88,14 @@ export type NativePmsBoardSearch = Readonly<{
   to?: string;
 }>;
 
-function pageNumber(value: string | undefined): number | undefined {
+function pageNumber(
+  value: string | undefined,
+  code = 'NATIVE_PMS_REQUEST_INVALID',
+): number | undefined {
   if (value === undefined || value === '') return undefined;
-  if (!/^\d{1,5}$/.test(value)) throw new NativePmsError('NATIVE_PMS_REQUEST_INVALID');
+  if (!/^\d{1,5}$/.test(value)) throw new NativePmsError(code);
   const page = Number(value);
-  if (!Number.isSafeInteger(page) || page > 10_000)
-    throw new NativePmsError('NATIVE_PMS_REQUEST_INVALID');
+  if (!Number.isSafeInteger(page) || page > 10_000) throw new NativePmsError(code);
   return page;
 }
 
@@ -146,6 +150,91 @@ export async function nativePmsRoomBoardFromSearch(
     selectedId: value('selectedId'),
     record: value('record'),
     detailId: value('detailId'),
+    from: value('from'),
+    to: value('to'),
+  });
+}
+
+export type NativePmsFrontDeskSearch = Readonly<{
+  property?: string;
+  status?: string;
+  queue?: string;
+  q?: string;
+  page?: string;
+  selectedId?: string;
+  record?: string;
+  detailId?: string;
+  guestAccount?: string;
+  from?: string;
+  to?: string;
+}>;
+
+function frontDeskStatus(value: string | undefined): NativePmsFrontDeskStatus | undefined {
+  if (value === undefined || value === '') return undefined;
+  if (
+    ![
+      'arrivals',
+      'departures',
+      'reserved',
+      'in_house',
+      'checked_out',
+      'cancelled',
+      'no_show',
+      'completed',
+    ].includes(value)
+  )
+    throw new NativePmsError('NATIVE_PMS_FRONT_DESK_REQUEST_INVALID');
+  return value as NativePmsFrontDeskStatus;
+}
+
+export async function nativePmsFrontDesk(
+  actor: WorkContext,
+  holdingSlug: string,
+  search: NativePmsFrontDeskSearch = {},
+): Promise<PmsWorkspace | undefined> {
+  const native = client();
+  if (!native) return undefined;
+  if (actor.holdingSlug !== holdingSlug)
+    throw new NativePmsError('NATIVE_PMS_CONTEXT_CHANGED');
+  const page = pageContext(actor);
+  const pageIndex = pageNumber(search.page, 'NATIVE_PMS_FRONT_DESK_REQUEST_INVALID');
+  const status = frontDeskStatus(search.status ?? search.queue);
+  const input: NativePmsFrontDeskInput = {
+    holdingSlug,
+    ...(search.property ? { property: search.property } : {}),
+    ...(status !== undefined ? { status } : {}),
+    ...(search.q ? { q: search.q } : {}),
+    ...(pageIndex !== undefined ? { page: pageIndex } : {}),
+    ...(search.selectedId ?? search.record ?? search.detailId ?? search.guestAccount
+      ? {
+          selectedId:
+            search.selectedId ?? search.record ?? search.detailId ?? search.guestAccount,
+        }
+      : {}),
+    ...(search.from ? { from: search.from } : {}),
+    ...(search.to ? { to: search.to } : {}),
+    ...scopeInput(page),
+    expected: expected(page),
+  };
+  return native.frontDesk(await headers(), page, input);
+}
+
+export async function nativePmsFrontDeskFromSearch(
+  actor: WorkContext,
+  holdingSlug: string,
+  search: Readonly<Record<string, string | string[] | undefined>>,
+): Promise<PmsWorkspace | undefined> {
+  const value = (key: string) => (typeof search[key] === 'string' ? search[key] : undefined);
+  return nativePmsFrontDesk(actor, holdingSlug, {
+    property: value('property'),
+    status: value('status'),
+    queue: value('queue'),
+    q: value('q'),
+    page: value('page'),
+    selectedId: value('selectedId'),
+    record: value('record'),
+    detailId: value('detailId'),
+    guestAccount: value('guestAccount'),
     from: value('from'),
     to: value('to'),
   });

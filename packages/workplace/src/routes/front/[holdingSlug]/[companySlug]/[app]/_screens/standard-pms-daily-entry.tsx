@@ -17,7 +17,7 @@ import { pmsListSelection } from "@erpx/server-pms/public/rules/pms-read-selecti
 import { pmsWorkspace } from "../../../../../../../../../packages/server-pms/src/public/pms";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
-import { nativePmsAvailable, nativePmsFailure, nativePmsRoomBoardFromSearch } from "../../../../../../lib/native-pms";
+import { nativePmsAvailable, nativePmsFailure, nativePmsFrontDeskFromSearch, nativePmsRoomBoardFromSearch } from "../../../../../../lib/native-pms";
 import { pmsCrossLinks } from "@erpx/server-pms/public/rules/pms-cross-links";
 import { companyFeatureCatalogue } from "@erpx/server-pms/public/hospitality-rollout";
 import type { Metadata } from "next";
@@ -206,6 +206,13 @@ export default async function StandardPmsDailyEntry({ params, searchParams, }: {
                 data = await nativePmsRoomBoardFromSearch(actor, holdingSlug, section, query);
                 if (!data)
                     throw new ApiError(503, "NATIVE_PMS_UNAVAILABLE", "The native Hotel board is unavailable.");
+            }
+            else if (section === "front-desk") {
+                if (!nativePmsAvailable())
+                    throw new ApiError(503, "NATIVE_PMS_UNAVAILABLE", "The native Hotel front desk is unavailable.");
+                data = await nativePmsFrontDeskFromSearch(actor, holdingSlug, query);
+                if (!data)
+                    throw new ApiError(503, "NATIVE_PMS_UNAVAILABLE", "The native Hotel front desk is unavailable.");
             }
             else {
                 data = await pmsWorkspace(actor, typeof query.property === "string" ? query.property : undefined, section === "night-audit", true, section === "dashboard" ? { view: "dashboard" } : pmsListSelection(section, Object.fromEntries(Object.entries(query).filter((item): item is [

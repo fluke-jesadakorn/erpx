@@ -13,7 +13,7 @@ use sqlx::{AssertSqlSafe, Connection, PgConnection, Row, postgres::PgRow};
 
 type Error = PgTransactionError<BusinessError>;
 
-async fn serializable(c: &mut PgConnection) -> Result<(), Error> {
+pub(crate) async fn serializable(c: &mut PgConnection) -> Result<(), Error> {
     if !c.is_in_transaction() {
         return Err(PersistenceError::new("PMS_BOARD_TRANSACTION_REQUIRED").into());
     }
@@ -51,7 +51,7 @@ fn property_row(row: &PgRow) -> Result<PmsPropertyRow, Error> {
     })
 }
 
-fn record_row(row: &PgRow) -> Result<PmsRecord, Error> {
+pub(crate) fn record_row(row: &PgRow) -> Result<PmsRecord, Error> {
     let raw: String = row.try_get("data_json")?;
     let data: Value = serde_json::from_str(&raw).map_err(|_| Error::from(error()))?;
     Ok(PmsRecord {
@@ -79,7 +79,10 @@ pub async fn read_room_properties(
     rows.iter().map(property_row).collect()
 }
 
-async fn property(c: &mut PgConnection, property_id: &str) -> Result<PmsPropertyRow, Error> {
+pub(crate) async fn property(
+    c: &mut PgConnection,
+    property_id: &str,
+) -> Result<PmsPropertyRow, Error> {
     let row = sqlx::query(
         "SELECT id,company_id,branch_id,name,business_date,state,config_json,version FROM pms_properties WHERE id=$1",
     )

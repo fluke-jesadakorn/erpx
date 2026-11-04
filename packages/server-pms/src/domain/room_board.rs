@@ -44,7 +44,7 @@ impl PmsBoardActor {
     pub fn has(&self, permission: &str) -> bool {
         self.permissions.iter().any(|value| value == permission)
     }
-    pub fn require_board(&self, now: i64) -> Result<(), BusinessError> {
+    fn require_workspace(&self, now: i64) -> Result<(), BusinessError> {
         if !self.has("pms.read") {
             return Err(BusinessError::new(
                 FailureKind::Forbidden,
@@ -73,6 +73,10 @@ impl PmsBoardActor {
                 "Your selected work context changed. Review the current workspace and role.",
             ));
         }
+        Ok(())
+    }
+    pub fn require_board(&self, now: i64) -> Result<(), BusinessError> {
+        self.require_workspace(now)?;
         if !self.can_room_board() {
             return Err(BusinessError::new(
                 FailureKind::Forbidden,
@@ -82,8 +86,22 @@ impl PmsBoardActor {
         }
         Ok(())
     }
+    pub fn require_front_desk(&self, now: i64) -> Result<(), BusinessError> {
+        self.require_workspace(now)?;
+        if !self.can_front_desk() {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "PMS_FRONTDESK_REQUIRED",
+                "Your selected role cannot open the front desk.",
+            ));
+        }
+        Ok(())
+    }
     pub fn can_room_board(&self) -> bool {
         self.has("pms.housekeeping") || self.has("pms.inspect") || self.has("pms.maintenance")
+    }
+    pub fn can_front_desk(&self) -> bool {
+        self.has("pms.frontdesk")
     }
     pub fn require_section(&self, section: PmsBoardSection) -> Result<(), BusinessError> {
         let allowed = match section {
@@ -544,7 +562,7 @@ pub fn validate_board_data(
     Ok(data)
 }
 
-fn validate_record(record: &PmsRecord) -> Result<(), BusinessError> {
+pub(crate) fn validate_record(record: &PmsRecord) -> Result<(), BusinessError> {
     if record.id.is_empty()
         || record.id.len() > 200
         || record.kind.is_empty()
@@ -732,7 +750,7 @@ pub fn staff(mut rows: Vec<PmsStaff>) -> Result<Vec<PmsStaff>, BusinessError> {
     Ok(rows)
 }
 
-fn parse_date(value: &str) -> Option<i64> {
+pub(crate) fn parse_date(value: &str) -> Option<i64> {
     let bytes = value.as_bytes();
     if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-' {
         return None;

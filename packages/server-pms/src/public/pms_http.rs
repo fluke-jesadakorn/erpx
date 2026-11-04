@@ -1,5 +1,5 @@
-//! Native PMS room-board HTTP ingress and owner-local router.
+//! Native PMS room-board and front-desk HTTP ingress and owner-local router.
 pub use crate::adapters::pms_http::{
-    PmsHttpBackend, PmsHttpFuture, PmsHttpReadRequest, PmsHttpResponse, PmsHttpTarget,
-    pms_http_router,
+    PmsHttpBackend, PmsHttpFrontDeskRequest, PmsHttpFuture, PmsHttpReadRequest, PmsHttpResponse,
+    PmsHttpTarget, pms_http_router,
 };

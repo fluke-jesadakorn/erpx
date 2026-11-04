@@ -44,3 +44,11 @@ path = "../../tests/integration/pms/rust-pms-room-board-postgres.test.rs"
 [[test]]
 name = "pms_http"
 path = "../../tests/integration/pms/rust-pms-http.test.rs"
+
+[[test]]
+name = "pms_front_desk"
+path = "../../tests/unit/pms/rust-pms-front-desk.test.rs"
+
+[[test]]
+name = "pms_front_desk_postgres"
+path = "../../tests/integration/pms/rust-pms-front-desk-postgres.test.rs"

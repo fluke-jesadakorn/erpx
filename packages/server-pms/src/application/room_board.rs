@@ -200,7 +200,7 @@ impl PmsBoardData {
     }
 }
 
-fn empty_workspace(
+pub(crate) fn empty_workspace(
     actor: &PmsBoardActor,
     properties: Vec<PmsPropertyRow>,
     staff_rows: Vec<PmsStaff>,

@@ -1,0 +1,159 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "PMS now has a native Front Desk queue read (arrivals, departures and bounded stay states), an owner-local HTTP route, and a fail-closed Next transport/SSR/API cutover for the Front Desk section. Shared composition mounting, the Account/Holding backend, the People staff port and the Commercial package entitlement binding remain composition work, so no PMS workflow is claimed complete or browser-verified.",
+  "capability": "pms-owner-front-desk-read-slice",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "fbf97e042",
+  "worktreeHeadAtCompletion": "1386955d7",
+  "concurrentCommitsNote": "The instructed base fbf97e042 was observed at start. Concurrent finance and organization commits d747ffc9c and 1386955d7 landed in this worktree while the PMS slice was uncommitted; final verification ran against 1386955d7 with those changes present.",
+  "scope": {
+    "workflows": [
+      "pms/front-desk"
+    ],
+    "domain": "packages/server-pms/src/domain/front_desk.rs owns the bounded front-desk queue selection, queue/state allow-list, PMS-owned read envelope, related-record/document bounds and transport metadata contract. PmsBoardActor now separates workspace checks from room-board checks and adds require_front_desk: pms.read, the pms module, a branch/company selection without department, a current work-context expiry and pms.frontdesk. Front Desk reuses the retained PmsBoardEntitlement pms.front-desk package-history guard and PmsBoardVisibility filtering.",
+    "application": "packages/server-pms/src/application/front_desk.rs enforces the actor and package entitlement, validates Company/branch property scope, rejects a foreign or missing requested property with a scoped PMS_NOT_FOUND, reuses the retained readiness/booking/config-redaction facts, applies guest/pricing/financial visibility, filters list ids and selectedId to visible records, limits documents to visible guest accounts and leaves unrelated workspace collections empty. It returns an explicit frontReady flag for the retained front daily workspace.",
+    "adapters": "packages/server-pms/src/adapters/front_desk.rs reads only pms_properties, pms_records and pms_documents inside a caller-owned serializable transaction. It keeps the exact Company/branch property predicate, pages 50 stays with the retained arrivals/departures/default-window semantics, searches guest name/reservation number/stay id, reads related reservations, guests, guest accounts, room types and rooms up to bounded limits, reads rates only with pricing visibility and documents only with financial visibility. No cross-owner SQL is invented; package entitlement remains a public application port.",
+    "http": "packages/server-pms/src/adapters/pms_http.rs adds GET /api/v1/holdings/{holding_slug}/pms/front-desk to the existing owner router. It validates exact registered Host/Holding targets, one bounded status/property/q/page/selectedId/from/to query, duplicates/unknown names/malformed percent encodings/oversized or invalid selections/request bodies, returns private/no-store and no-referrer/nosniff responses, and maps BusinessError to bounded statuses. PmsHttpBackend::front_desk defaults to a fail-closed 503 PMS_FRONT_DESK_UNAVAILABLE so an existing room-board-only backend cannot silently serve the queue.",
+    "transport": "packages/feature-pms/src/adapters/server/native-pms.ts validates the same ERPX_NATIVE_PMS_CONFIG (loopback only, no reserved ports 3000/3001/3100/3101/3103/8080 or owned app ports, exact unique HTTPS Holding origins, unique Hosts/slugs/ids, 250..30000 ms), forwards the actual session cookie, Host, branch/department selectors and rendered-context CAS headers, validates the complete bounded workspace plus front-desk list metadata, and rejects a changed status, wrong kind/section, foreign Company property, missing list metadata or unrequested permission.",
+    "ssr": "packages/workplace/src/lib/native-pms.ts maps the retained WorkContext into the native front-desk page context. The standard Front daily Front Desk section and the PMS console Front Desk presenter read only through the native transport and return 503 NATIVE_PMS_UNAVAILABLE when ERPX_NATIVE_PMS_CONFIG is absent, malformed or failing. The existing GET /api/v1/holdings/{slug}/pms route serves view=list&section=front-desk natively and 503s without configuration. All other PMS sections remain on the retained pmsWorkspace read; POST commands are unchanged.",
+    "notClaimed": "No command cutover, shared composition mount, real Account/People/Commercial port implementation, browser journey, authenticated page render, staging or private production verification. No whole-workflow completion flag is changed."
+  },
+  "changedFiles": [
+    "packages/feature-pms/src/adapters/server/native-pms.ts",
+    "packages/server-pms/Cargo.toml",
+    "packages/server-pms/src/adapters/front_desk.rs",
+    "packages/server-pms/src/adapters/mod.rs",
+    "packages/server-pms/src/adapters/pms_http.rs",
+    "packages/server-pms/src/adapters/room_board.rs",
+    "packages/server-pms/src/application/front_desk.rs",
+    "packages/server-pms/src/application/mod.rs",
+    "packages/server-pms/src/application/room_board.rs",
+    "packages/server-pms/src/domain/front_desk.rs",
+    "packages/server-pms/src/domain/mod.rs",
+    "packages/server-pms/src/domain/room_board.rs",
+    "packages/server-pms/src/public/front_desk.rs",
+    "packages/server-pms/src/public/mod.rs",
+    "packages/server-pms/src/public/pms_http.rs",
+    "packages/workplace/src/lib/native-pms.ts",
+    "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/pms/route.ts",
+    "packages/workplace/src/routes/front/[holdingSlug]/[companySlug]/[app]/_screens/standard-pms-daily-entry.tsx",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/pms/[[...section]]/screen.tsx",
+    "tests/catalogue/suite-manifest.json",
+    "tests/integration/pms/rust-pms-front-desk-postgres.test.rs",
+    "tests/integration/pms/rust-pms-http.test.rs",
+    "tests/unit/pms/native-pms-transport.test.ts",
+    "tests/unit/pms/rust-pms-front-desk.test.rs",
+    "docs/testing/evidence/2026-11-04-pms-owner-closure-2.json"
+  ],
+  "verification": {
+    "rust": {
+      "command": "ERPX_TEST_ADMIN_URL=\"$(grep -m1 '^ERPX_TEST_ADMIN_URL=' .env.local | cut -d= -f2-)\" cargo test -p erpx-server-pms --locked",
+      "result": "44 passed, 0 failed, 0 ignored",
+      "targets": {
+        "initial_count_modules_postgres": "6 passed (existing foundation checks)",
+        "pms_front_desk": "8 passed",
+        "pms_front_desk_postgres": "6 passed",
+        "pms_http": "7 passed (4 existing room-board/configuration + 3 front-desk)",
+        "pms_room_board": "10 passed (existing)",
+        "pms_room_board_postgres": "4 passed (existing)",
+        "scheduled_legal_postgres": "3 passed (existing foundation checks)",
+        "lib": "0 passed",
+        "doc-tests": "0 passed"
+      },
+      "postgresCases": [
+        "arrivals and departures are Company/branch scoped, preserve related guest/reservation/guest-account/room/rate rows, exclude foreign property rows, keep documents scoped to visible accounts, and return the retained default 30/60-day window with front-desk kind=stay metadata",
+        "a pms.frontdesk actor without pms.cashier receives zeroed stay prices, zeroed guest-account due and no issued documents, while links remain readable",
+        "in-house queue paging returns 50 rows plus hasNext then the remaining rows, reservation-number search narrows to the arrival, and selectedId outside the page is included without changing page ids",
+        "a foreign branch, foreign Company and missing requested property fail closed with PMS_NOT_FOUND; the selected branch's own property remains readable",
+        "a reservations-only actor is rejected with PMS_FRONTDESK_REQUIRED and an enforced package without pms.front-desk history is rejected with PACKAGE_REQUIRED before the owner read",
+        "a missing transaction is rejected with PMS_BOARD_TRANSACTION_REQUIRED and a read-committed transaction with PMS_BOARD_SERIALIZABLE_REQUIRED"
+      ],
+      "httpCases": [
+        "the actual ephemeral loopback Router serves GET /api/v1/holdings/acme/pms/front-desk with status/property/q/page/selectedId/from/to forwarding and private/no-referrer/nosniff headers",
+        "unknown Holding targets, duplicate/unknown/malformed/oversized/incomplete/reversed queries and empty ids return 404/422 before the backend",
+        "a backend that implements only the room-board read receives no front-desk call and the route returns 503 PMS_FRONT_DESK_UNAVAILABLE"
+      ],
+      "unitCases": [
+        "front desk requires pms.read, the pms module, a branch/company selection, a current context and pms.frontdesk; reservations-only and cashier-only actors are rejected",
+        "selection bounds the queue/state allow-list, query bytes, page, property/selected ids and the 93-day date range",
+        "a frontdesk actor without cashier keeps guest/reservation/account links, redacts stay prices and account due, and receives no documents; metadata is section=front-desk kind=stay without a room summary",
+        "a cashier retains stay prices/account due and only receives documents for visible accounts",
+        "foreign Company/branch/missing property, hidden ids, malformed documents and package denial fail closed; empty scope returns an explicit snapshot:null workspace"
+      ]
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-pms --all-targets --locked",
+      "result": "pass; no erpx-server-pms warning (warnings shown are from concurrent server-organization work)"
+    },
+    "rustfmt": {
+      "command": "rustfmt --edition 2024 --check on all changed PMS Rust and test files",
+      "result": "pass"
+    },
+    "typescript": {
+      "unit": "ERPX_SELECTED_TEST_FILES='[\"tests/unit/pms/native-pms-transport.test.ts\"]' ./node_modules/.bin/vitest run --config tests/config/vitest.unit.config.mts: 9 passed",
+      "transportCases": [
+        "front desk forwards the configured Holding, session cookie, selected branch and current CAS headers, with the bounded status/property/q/page/selectedId query, and returns the validated workspace",
+        "foreign Company properties, room-board metadata, unrequested permissions, missing front-desk list metadata and a changed queue fail closed",
+        "an unrecognized front-desk queue fails before transport and maps to bounded 422 PMS_FRONT_DESK_REQUEST_INVALID"
+      ],
+      "typechecks": [
+        "tsc --noEmit -p packages/feature-pms/tsconfig.json: pass",
+        "tsc --noEmit -p packages/workplace/tsconfig.json: pass",
+        "tsc --noEmit -p apps/pms/tsconfig.json: pass",
+        "tsc --noEmit -p apps/launcher/tsconfig.json: pass",
+        "tsc --noEmit -p apps/compat/tsconfig.json: pass",
+        "tsc --noEmit -p tests/config/tsconfig.json: blocked by pre-existing concurrent tests/unit/sales/native-sales-pricing-transport.test.ts syntax errors (TS1128); the PMS test itself runs clean under vitest"
+      ],
+      "eslint": "targeted changed PMS TypeScript files: pass (only the repository's existing Next pages-directory warning)"
+    },
+    "catalogue": {
+      "manifest": "tests/catalogue/suite-manifest.json contains pms.rust-pms-front-desk.unit, pms.rust-pms-front-desk-postgres.integration, and the existing pms.rust-pms-http.integration now covers the front-desk route",
+      "validation": "targeted PMS entry validation (modules/files/verification inputs/cargo targets/placement/discovery/unique ownership) passed for all 3 entries. Full validateCatalogue is blocked by the pre-existing HEAD defect UNKNOWN_SUITE_MODULE:billing.rust-billing-workspace.unit (billing absent from modules); concurrent organization/sales/records manifest entries were preserved."
+    },
+    "browser": "not run; no browser, authenticated SSR render, Next dev server, public URL, staging, private production or Cloudflare verification was performed. No workflow is claimed browser-verified."
+  },
+  "sharedCompositionDelta": {
+    "ownerPublicApi": [
+      "erpx_server_pms::public::front_desk::{PmsFrontDeskSelection, PmsFrontDeskData, PmsFrontDeskRepository, pms_front_desk, PgPmsFrontDeskRead, lock_front_desk_sources, read_front_desk, validate_front_desk_data, FRONT_DESK_STATUSES, FRONT_DESK_SECTION, FRONT_DESK_KIND}",
+      "erpx_server_pms::public::pms_http::{PmsHttpFrontDeskRequest, PmsHttpBackend::front_desk, pms_http_router}",
+      "erpx_server_pms::public::room_board::{PmsBoardActor::require_front_desk, PmsBoardActor::can_front_desk}"
+    ],
+    "backendRequired": "Implement PmsHttpBackend::front_desk in src/composition: resolve the normal Account/Holding session, require pms.read and the pms module, validate the selected Company/branch and rendered-context CAS, enforce the current Commercial pms.front-desk package history entitlement through the public Commercial boundary, open one serializable transaction, call lock_front_desk_sources and pms_front_desk with PgPmsFrontDeskRead, and return the exact rendered context alongside data. The default trait implementation intentionally returns 503 until this exists. No cross-owner SQL may be added to the PMS adapter.",
+    "privateDevelopmentApi": [
+      "Build one PmsHttpTarget per registered Holding with exact host, slug and HTTPS origin.",
+      "router = router.merge(erpx_server_pms::public::pms_http::pms_http_router(targets).map_err(|_| \"PRIVATE_API_PMS_CONFIGURATION_INVALID\")?);",
+      "The existing owner router now serves GET /api/v1/holdings/{slug}/pms/rooms and GET /api/v1/holdings/{slug}/pms/front-desk. The retained GET /api/v1/holdings/{slug}/pms route uses the front-desk path only for view=list and section=front-desk."
+    ],
+    "nextEnvironment": "Set ERPX_NATIVE_PMS_CONFIG={\"privateBaseUrl\":\"http://127.0.0.1:<owned-loopback-port>\",\"timeoutMs\":250..30000,\"holdings\":[{\"origin\":\"https://<registered-holding>\",\"holdingSlug\":\"<slug>\",\"holdingId\":\"h00N\"}]} for each affected app. Unset configuration intentionally returns 503 NATIVE_PMS_UNAVAILABLE for Rooms/Housekeeping and Front Desk; all other PMS sections keep their retained TypeScript read.",
+    "whyNotAppliedHere": "This subagent is prohibited from editing src/composition/**, root Cargo files, package lockfiles and other owners' implementation.",
+    "schemaDelta": "none; no migration, table, index, trigger, grant or destructive data change was added"
+  },
+  "legacyInventory": {
+    "removedReadConsumers": [
+      "The standard Front daily Front Desk section no longer calls pmsWorkspace; it reads the native front-desk queue and fails closed with 503 NATIVE_PMS_UNAVAILABLE without ERPX_NATIVE_PMS_CONFIG.",
+      "The PMS console Front Desk presenter uses the native front-desk queue and fails closed without configuration. The standard rooms/housekeeping native cutover is unchanged.",
+      "The GET /api/v1/holdings/{slug}/pms route serves view=list&section=front-desk through the native transport and 503s without configuration; its POST command route and all other GET sections are unchanged."
+    ],
+    "retainedWithConsumers": [
+      "packages/server-pms/src/public/pms.ts still exports pmsWorkspace for dashboard, reservations, guest-accounts, cashier, inventory, guests, reports, night-audit and setup sections.",
+      "The retained front screen packages/workplace/src/routes/front/[holdingSlug]/[companySlug]/[app]/_screens/pms-front-desk.tsx still imports pmsWorkspace but is not routed by the standard daily entry; it was not edited to avoid changing an unused legacy path.",
+      "All PMS command writers, idempotency, CAS, audit/outbox, Finance/Inventory/People same-transaction guards and rollback behavior remain TypeScript and unchanged.",
+      "Commercial package enforcement remains a public composition boundary; the native owner read models it as PmsBoardEntitlement and does not query Commercial tables."
+    ]
+  },
+  "limits": [
+    "No shared composition backend is mounted, so no production/private route serves the owner front-desk router. The HTTP test backend is a recording fake.",
+    "The Commercial package entitlement port is an application contract only; no production implementation exists in this slice. Composition must bind it before enabling ERPX_NATIVE_PMS_CONFIG.",
+    "Only the front-desk read is native. Reservations, guest accounts, cashier, folios, night audit, setup and all commands remain on the retained TypeScript path.",
+    "No browser, authenticated SSR render, Next dev server, public URL, staging, private production or Cloudflare verification was run.",
+    "The root Cargo.toml, Cargo.lock, package lockfiles, src/composition/**, packages/contracts/**, docs/status/** and other owners' implementation were not edited by this slice. Concurrent procurement/sales/learning/organization/records/composition work was preserved.",
+    "Bun is not installed in this worktree, so bun run test:catalogue --check and bun run structure:check could not run; equivalent targeted catalogue/layout checks were executed with tsx. Full catalogue validation is additionally blocked by the pre-existing billing module omission at HEAD."
+  ],
+  "blockers": [
+    "Implement and mount PmsHttpBackend::front_desk, including the Account/Holding session, CAS, serializable unit and Commercial pms.front-desk package entitlement check.",
+    "Decide whether native front-desk commands (check-in, check-out, move/assign, no-show) are added before retiring the retained TypeScript command writers.",
+    "Run an authenticated browser journey for the native Front Desk section after composition is mounted and ERPX_NATIVE_PMS_CONFIG is set."
+  ],
+  "nextAction": "Bind PgPmsFrontDeskRead and the Commercial pms.front-desk entitlement in src/composition, mount the existing owner router for each registered Holding, then exercise the native front desk against real Account data before cutover. Keep ERPX_NATIVE_PMS_CONFIG unset until that backend exists; the fail-closed 503 is intentional."
+}

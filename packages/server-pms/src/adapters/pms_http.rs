@@ -1,9 +1,11 @@
-//! Native PMS room-board HTTP ingress.
+//! Native PMS room-board and front-desk HTTP ingress.
 //!
-//! Transport facts only: registered Host/Holding target, one bounded room board
+//! Transport facts only: registered Host/Holding target, one bounded read
 //! selection and business-error mapping. Normal Account session resolution,
-//! selected Company/branch scope, the serializable unit and the People staff
-//! port remain composition responsibilities behind [`PmsHttpBackend`].
+//! selected Company/branch scope, the serializable unit, the People staff port
+//! and the Commercial package entitlement remain composition responsibilities
+//! behind [`PmsHttpBackend`].
+use crate::domain::front_desk::PmsFrontDeskSelection;
 use crate::domain::room_board::{PmsBoardSection, PmsBoardSelection};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
@@ -23,6 +25,13 @@ pub struct PmsHttpReadRequest<'a> {
     pub selection: PmsBoardSelection,
 }
 
+pub struct PmsHttpFrontDeskRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub selection: PmsFrontDeskSelection,
+}
+
 #[derive(Clone, Debug)]
 pub struct PmsHttpResponse {
     /// Owner read data. The backend adds the validated current context.
@@ -39,6 +48,21 @@ impl PmsHttpResponse {
 /// never mints a session, actor, Company, permission or staff label.
 pub trait PmsHttpBackend: Send + Sync {
     fn read<'a>(&'a self, request: PmsHttpReadRequest<'a>) -> PmsHttpFuture<'a, PmsHttpResponse>;
+    /// Front-desk reads are added without forcing an existing room-board
+    /// backend to serve a queue it does not implement. Composition must opt in
+    /// explicitly; the default fails closed.
+    fn front_desk<'a>(
+        &'a self,
+        _request: PmsHttpFrontDeskRequest<'a>,
+    ) -> PmsHttpFuture<'a, PmsHttpResponse> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "PMS_FRONT_DESK_UNAVAILABLE",
+                "The native hotel front desk is unavailable.",
+            ))
+        })
+    }
 }
 
 pub struct PmsHttpTarget {
@@ -215,6 +239,55 @@ fn selection(request: &Request) -> Result<PmsBoardSelection, BusinessError> {
     Ok(parsed)
 }
 
+fn front_desk_malformed() -> BusinessError {
+    BusinessError::invalid(
+        "PMS_FRONT_DESK_REQUEST_INVALID",
+        "Use one bounded front-desk selection.",
+    )
+}
+
+fn front_desk_selection(request: &Request) -> Result<PmsFrontDeskSelection, BusinessError> {
+    let Some(query) = request.uri().query() else {
+        return Ok(PmsFrontDeskSelection::default());
+    };
+    if query.len() > QUERY_LIMIT {
+        return Err(front_desk_malformed());
+    }
+    let mut parsed = PmsFrontDeskSelection::default();
+    let mut seen = std::collections::BTreeSet::new();
+    for pair in query.split('&') {
+        if pair.is_empty() {
+            continue;
+        }
+        let (name, value) = pair.split_once('=').unwrap_or((pair, ""));
+        let name = percent_decode(name)?;
+        let value = percent_decode(value)?;
+        if !seen.insert(name.clone()) {
+            return Err(front_desk_malformed());
+        }
+        match name.as_str() {
+            "property" => parsed.property_id = Some(id(&value, "PMS_FRONT_DESK_REQUEST_INVALID")?),
+            "status" => parsed.status = value,
+            "q" => parsed.q = value,
+            "page" => {
+                parsed.page = value.parse::<u32>().map_err(|_| front_desk_malformed())?;
+            }
+            "selectedId" => {
+                parsed.selected_id = Some(id(&value, "PMS_FRONT_DESK_REQUEST_INVALID")?)
+            }
+            "from" => {
+                parsed.from = if value.is_empty() { None } else { Some(value) };
+            }
+            "to" => {
+                parsed.to = if value.is_empty() { None } else { Some(value) };
+            }
+            _ => return Err(front_desk_malformed()),
+        }
+    }
+    parsed.validate()?;
+    Ok(parsed)
+}
+
 pub fn pms_http_router(targets: Vec<PmsHttpTarget>) -> Result<Router, BusinessError> {
     let mut configured = BTreeMap::new();
     for target in targets {
@@ -233,6 +306,10 @@ pub fn pms_http_router(targets: Vec<PmsHttpTarget>) -> Result<Router, BusinessEr
     }
     Ok(Router::new()
         .route("/api/v1/holdings/{holding_slug}/pms/rooms", get(read_rooms))
+        .route(
+            "/api/v1/holdings/{holding_slug}/pms/front-desk",
+            get(read_front_desk),
+        )
         .with_state(Arc::new(PmsHttpState {
             targets: configured,
         })))
@@ -253,6 +330,35 @@ async fn read_rooms(
         target
             .backend
             .read(PmsHttpReadRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                selection,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => bounded(reply.value()),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn read_front_desk(
+    State(state): State<Arc<PmsHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let target = target(&state, request.headers(), &slug)?;
+        let selection = front_desk_selection(&request)?;
+        let headers = request.headers().clone();
+        let _ = to_bytes(request.into_body(), 0)
+            .await
+            .map_err(|_| front_desk_malformed())?;
+        target
+            .backend
+            .front_desk(PmsHttpFrontDeskRequest {
                 host: &target.host,
                 holding_slug: &target.holding_slug,
                 headers: &headers,

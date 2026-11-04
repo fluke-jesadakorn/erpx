@@ -33,5 +33,17 @@ path = "../../tests/unit/sales/rust-sales-documents-http.test.rs"
 name = "sales_documents_postgres"
 path = "../../tests/integration/sales/rust-sales-documents-postgres.test.rs"
 
+[[test]]
+name = "sales_price_lists"
+path = "../../tests/unit/sales/rust-sales-price-lists.test.rs"
+
+[[test]]
+name = "sales_price_lists_http"
+path = "../../tests/unit/sales/rust-sales-price-lists-http.test.rs"
+
+[[test]]
+name = "sales_price_lists_postgres"
+path = "../../tests/integration/sales/rust-sales-price-lists-postgres.test.rs"
+
 [lints]
 workspace = true

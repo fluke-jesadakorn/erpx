@@ -11,6 +11,7 @@
     "./components/customers/sales-views": "./src/components/customers/sales-views.tsx",
     "./public/native-sales-documents": "./src/public/native-sales-documents.ts",
     "./public/native-sales-documents-page": "./src/public/native-sales-documents-page.ts",
+    "./public/native-sales-pricing": "./src/public/native-sales-pricing.ts",
     "./adapters/server/next-native-sales-documents": "./src/adapters/server/next-native-sales-documents.ts",
     "./public/native-ecommerce-catalog": "./src/public/native-ecommerce-catalog.ts",
     "./public/native-ecommerce-catalog-page": "./src/public/native-ecommerce-catalog-page.ts",

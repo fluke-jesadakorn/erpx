@@ -31,6 +31,17 @@ type Context = Row & { modules: string[]; permissions: string[] };
 
 export type NativePmsBoardSection = 'rooms' | 'housekeeping';
 
+export type NativePmsFrontDeskStatus =
+  | ''
+  | 'arrivals'
+  | 'departures'
+  | 'reserved'
+  | 'in_house'
+  | 'checked_out'
+  | 'cancelled'
+  | 'no_show'
+  | 'completed';
+
 export type NativePmsReadInput = Readonly<{
   holdingSlug: string;
   section: NativePmsBoardSection;
@@ -40,6 +51,25 @@ export type NativePmsReadInput = Readonly<{
   building?: string;
   floor?: string;
   typeId?: string;
+  page?: number;
+  selectedId?: string;
+  from?: string;
+  to?: string;
+  branchSlug?: string;
+  departmentSlug?: string;
+  expected?: Readonly<{
+    companyId: string;
+    assignmentId: string;
+    revision: number;
+    assignmentVersion: number;
+  }>;
+}>;
+
+export type NativePmsFrontDeskInput = Readonly<{
+  holdingSlug: string;
+  property?: string;
+  status?: NativePmsFrontDeskStatus;
+  q?: string;
   page?: number;
   selectedId?: string;
   from?: string;
@@ -157,7 +187,16 @@ const roomSummary = (value: unknown) =>
     integer(value[key]),
   );
 
-const listMeta = (value: unknown) => {
+type WorkspaceExpectation = Readonly<{
+  section: string;
+  kind: 'room' | 'stay';
+  property?: string;
+  status: string;
+  roomSummary: boolean;
+  requireListMeta: boolean;
+}>;
+
+const listMeta = (value: unknown, expectation: WorkspaceExpectation) => {
   if (
     !record(value) ||
     ![
@@ -196,7 +235,8 @@ const listMeta = (value: unknown) => {
     return undefined;
   if (
     !text(value.section, 40) ||
-    value.kind !== 'room' ||
+    value.section !== expectation.section ||
+    value.kind !== expectation.kind ||
     !Array.isArray(value.ids) ||
     value.ids.length > 50 ||
     !value.ids.every((id) => identifier(id)) ||
@@ -210,7 +250,7 @@ const listMeta = (value: unknown) => {
     !text(value.floor, 40) ||
     !text(value.typeId, 200) ||
     typeof value.hasNext !== 'boolean' ||
-    !(value.roomSummary === undefined || roomSummary(value.roomSummary)) ||
+    (expectation.roomSummary ? !roomSummary(value.roomSummary) : value.roomSummary !== undefined) ||
     !(value.selectedId === undefined || identifier(value.selectedId))
   )
     return undefined;
@@ -223,7 +263,7 @@ const bookingReadiness = (value: unknown) =>
     (key) => typeof value[key] === 'boolean',
   );
 
-const snapshot = (value: unknown) => {
+const snapshot = (value: unknown, expectation: WorkspaceExpectation) => {
   if (
     !record(value) ||
     !['property', 'records'].every((key) => Object.hasOwn(value, key)) ||
@@ -232,7 +272,8 @@ const snapshot = (value: unknown) => {
     !Array.isArray(value.records) ||
     value.records.length > 4_000 ||
     !value.records.every((row) => record(row) && boardRecord(row)) ||
-    !(value.listMeta === undefined || listMeta(value.listMeta))
+    (expectation.requireListMeta && !Object.hasOwn(value, 'listMeta')) ||
+    !(value.listMeta === undefined || listMeta(value.listMeta, expectation))
   )
     return undefined;
   const ids = new Set<string>();
@@ -248,7 +289,11 @@ const snapshot = (value: unknown) => {
   return value;
 };
 
-function workspace(value: unknown, actor: NativePmsPageContext, input: NativePmsReadInput): PmsWorkspace {
+function workspace(
+  value: unknown,
+  actor: NativePmsPageContext,
+  expectation: WorkspaceExpectation,
+): PmsWorkspace {
   if (
     !record(value) ||
     ![
@@ -351,7 +396,7 @@ function workspace(value: unknown, actor: NativePmsPageContext, input: NativePms
     !(value.controlBalances === null || record(value.controlBalances)) ||
     !(value.dayControls === null || record(value.dayControls)) ||
     !(value.frontReady === undefined || typeof value.frontReady === 'boolean') ||
-    !(value.snapshot === null || snapshot(value.snapshot))
+    !(value.snapshot === null || snapshot(value.snapshot, expectation))
   )
     return failure('NATIVE_PMS_RESPONSE_INVALID');
   if (value.snapshot) {
@@ -359,23 +404,28 @@ function workspace(value: unknown, actor: NativePmsPageContext, input: NativePms
     const selected = snap.property as Row;
     if (
       selected.companyId !== actor.companyId ||
-      (input.property !== undefined && selected.id !== input.property) ||
+      (expectation.property !== undefined && selected.id !== expectation.property) ||
       !value.properties.some((row) => (row as Row).id === selected.id)
     )
       return failure('NATIVE_PMS_RESPONSE_INVALID');
     const meta = snap.listMeta as Row | undefined;
     if (
       meta &&
-      (meta.section !== input.section ||
+      (meta.section !== expectation.section ||
+        meta.kind !== expectation.kind ||
         !value.permissions.includes('pms.read') ||
-        (meta.status !== '' && meta.status !== (input.status ?? '')))
+        (meta.status !== '' && meta.status !== expectation.status))
     )
       return failure('NATIVE_PMS_RESPONSE_INVALID');
   }
   return value as unknown as PmsWorkspace;
 }
 
-function context(value: unknown, actor: NativePmsPageContext, input: NativePmsReadInput): Context {
+function context(
+  value: unknown,
+  actor: NativePmsPageContext,
+  input: Pick<NativePmsReadInput, 'branchSlug' | 'departmentSlug'>,
+): Context {
   if (
     !exact(value, [
       'userId',
@@ -470,23 +520,45 @@ function configuration(raw: NativePmsConfiguration) {
   return { base, holdings, timeout: raw.timeoutMs };
 }
 
-function transportCall(
-  transport: NativePmsTransport,
-  base: URL,
+type NativePmsAuthorityInput = Readonly<{
+  holdingSlug: string;
+  branchSlug?: string;
+  departmentSlug?: string;
+  expected?: Readonly<{
+    companyId: string;
+    assignmentId: string;
+    revision: number;
+    assignmentVersion: number;
+  }>;
+}>;
+
+const frontDeskStatuses = new Set<string>([
+  '',
+  'arrivals',
+  'departures',
+  'reserved',
+  'in_house',
+  'checked_out',
+  'cancelled',
+  'no_show',
+  'completed',
+]);
+
+function authority(
   holdings: Map<string, { holdingId: string; holdingSlug: string }>,
   incoming: Pick<Headers, 'get'>,
-  input: NativePmsReadInput,
-  signal?: AbortSignal,
-): Promise<Response> {
+  input: NativePmsAuthorityInput,
+  invalidCode = 'NATIVE_PMS_REQUEST_INVALID',
+) {
   const host = incoming.get('host');
   const holding = host ? holdings.get(host) : undefined;
   if (!holding || holding.holdingSlug !== input.holdingSlug)
-    return Promise.reject(new NativePmsError('NATIVE_PMS_AUTHORITY_INVALID'));
+    throw new NativePmsError('NATIVE_PMS_AUTHORITY_INVALID');
   const headers = new Headers({ host: host!, accept: 'application/json', 'cache-control': 'no-cache' });
   const cookie = incoming.get('cookie');
   if (cookie) {
     if (new TextEncoder().encode(cookie).length > 8192)
-      return Promise.reject(new NativePmsError('NATIVE_PMS_COOKIE_LIMIT'));
+      throw new NativePmsError('NATIVE_PMS_COOKIE_LIMIT');
     headers.set('cookie', cookie);
   }
   for (const [key, slug] of [
@@ -495,7 +567,7 @@ function transportCall(
   ] as const) {
     if (slug !== undefined) {
       if (!text(slug, 128) || !/^[a-z0-9_-]+$/.test(slug))
-        return Promise.reject(new NativePmsError('NATIVE_PMS_REQUEST_INVALID'));
+        throw new NativePmsError(invalidCode);
       headers.set(key, slug);
     }
   }
@@ -506,12 +578,49 @@ function transportCall(
       !integer(input.expected.revision) ||
       !integer(input.expected.assignmentVersion, 1)
     )
-      return Promise.reject(new NativePmsError('NATIVE_PMS_REQUEST_INVALID'));
+      throw new NativePmsError(invalidCode);
     headers.set('x-erpx-context-company', input.expected.companyId);
     headers.set('x-erpx-context-assignment', input.expected.assignmentId);
     headers.set('x-erpx-context-revision', String(input.expected.revision));
     headers.set('x-erpx-context-assignment-version', String(input.expected.assignmentVersion));
   }
+  return headers;
+}
+
+function dispatch(
+  transport: NativePmsTransport,
+  url: URL,
+  headers: Headers,
+  signal?: AbortSignal,
+): Promise<Response> {
+  const controller = new AbortController();
+  const cancel = () => controller.abort();
+  signal?.addEventListener('abort', cancel, { once: true });
+  if (signal?.aborted) controller.abort();
+  const timer = setTimeout(cancel, 30000);
+  return transport('GET', url, headers, undefined, controller.signal).finally(() => {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', cancel);
+  });
+}
+
+function transportCall(
+  transport: NativePmsTransport,
+  base: URL,
+  holdings: Map<string, { holdingId: string; holdingSlug: string }>,
+  incoming: Pick<Headers, 'get'>,
+  input: NativePmsReadInput,
+  signal?: AbortSignal,
+): Promise<Response> {
+  const headers = authority(holdings, incoming, input);
+  if (!['rooms', 'housekeeping'].includes(input.section))
+    throw new NativePmsError('NATIVE_PMS_REQUEST_INVALID');
+  if (input.page !== undefined && !integer(input.page))
+    throw new NativePmsError('NATIVE_PMS_REQUEST_INVALID');
+  if (input.property !== undefined && !identifier(input.property))
+    throw new NativePmsError('NATIVE_PMS_REQUEST_INVALID');
+  if (input.selectedId !== undefined && !identifier(input.selectedId))
+    throw new NativePmsError('NATIVE_PMS_REQUEST_INVALID');
   const url = new URL(`/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/pms/rooms`, base);
   const query: Array<[string, string | undefined]> = [
     ['section', input.section],
@@ -526,24 +635,49 @@ function transportCall(
     ['from', input.from],
     ['to', input.to],
   ];
-  for (const [key, value] of query) if (value !== undefined && value !== '') url.searchParams.set(key, value);
-  if (!['rooms', 'housekeeping'].includes(input.section))
-    return Promise.reject(new NativePmsError('NATIVE_PMS_REQUEST_INVALID'));
+  for (const [key, value] of query)
+    if (value !== undefined && value !== '') url.searchParams.set(key, value);
+  return dispatch(transport, url, headers, signal);
+}
+
+function frontDeskTransportCall(
+  transport: NativePmsTransport,
+  base: URL,
+  holdings: Map<string, { holdingId: string; holdingSlug: string }>,
+  incoming: Pick<Headers, 'get'>,
+  input: NativePmsFrontDeskInput,
+  signal?: AbortSignal,
+): Promise<Response> {
+  const headers = authority(
+    holdings,
+    incoming,
+    input,
+    'NATIVE_PMS_FRONT_DESK_REQUEST_INVALID',
+  );
+  if (input.status !== undefined && !frontDeskStatuses.has(input.status))
+    throw new NativePmsError('NATIVE_PMS_FRONT_DESK_REQUEST_INVALID');
   if (input.page !== undefined && !integer(input.page))
-    return Promise.reject(new NativePmsError('NATIVE_PMS_REQUEST_INVALID'));
+    throw new NativePmsError('NATIVE_PMS_FRONT_DESK_REQUEST_INVALID');
   if (input.property !== undefined && !identifier(input.property))
-    return Promise.reject(new NativePmsError('NATIVE_PMS_REQUEST_INVALID'));
+    throw new NativePmsError('NATIVE_PMS_FRONT_DESK_REQUEST_INVALID');
   if (input.selectedId !== undefined && !identifier(input.selectedId))
-    return Promise.reject(new NativePmsError('NATIVE_PMS_REQUEST_INVALID'));
-  const controller = new AbortController();
-  const cancel = () => controller.abort();
-  signal?.addEventListener('abort', cancel, { once: true });
-  if (signal?.aborted) controller.abort();
-  const timer = setTimeout(cancel, 30000);
-  return transport('GET', url, headers, undefined, controller.signal).finally(() => {
-    clearTimeout(timer);
-    signal?.removeEventListener('abort', cancel);
-  });
+    throw new NativePmsError('NATIVE_PMS_FRONT_DESK_REQUEST_INVALID');
+  const url = new URL(
+    `/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/pms/front-desk`,
+    base,
+  );
+  const query: Array<[string, string | undefined]> = [
+    ['property', input.property],
+    ['status', input.status],
+    ['q', input.q],
+    ['page', input.page === undefined ? undefined : String(input.page)],
+    ['selectedId', input.selectedId],
+    ['from', input.from],
+    ['to', input.to],
+  ];
+  for (const [key, value] of query)
+    if (value !== undefined && value !== '') url.searchParams.set(key, value);
+  return dispatch(transport, url, headers, signal);
 }
 
 async function boundedBytes(response: Response, limit: number): Promise<Uint8Array> {
@@ -638,7 +772,47 @@ export function createNativePmsClient(
         const value = await boundedJson(response);
         if (!exact(value, ['data', 'context'])) return failure('NATIVE_PMS_RESPONSE_INVALID');
         context(value.context, actor, input);
-        return workspace(value.data, actor, input);
+        return workspace(value.data, actor, {
+          section: input.section,
+          kind: 'room',
+          ...(input.property !== undefined ? { property: input.property } : {}),
+          status: input.status ?? '',
+          roomSummary: true,
+          requireListMeta: false,
+        });
+      } catch (error) {
+        if (error instanceof NativePmsError) throw error;
+        return failure('NATIVE_PMS_UNAVAILABLE');
+      }
+    },
+    frontDesk: async (
+      incoming: Pick<Headers, 'get'>,
+      actor: NativePmsPageContext,
+      input: NativePmsFrontDeskInput,
+      signal?: AbortSignal,
+    ) => {
+      if (!actor.authority || !actor.iam || actor.holdingSlug !== input.holdingSlug)
+        return Promise.reject(new NativePmsError('NATIVE_PMS_CONTEXT_CHANGED'));
+      try {
+        const response = await frontDeskTransportCall(
+          transport,
+          config.base,
+          config.holdings,
+          incoming,
+          input,
+          signal,
+        );
+        const value = await boundedJson(response);
+        if (!exact(value, ['data', 'context'])) return failure('NATIVE_PMS_RESPONSE_INVALID');
+        context(value.context, actor, input);
+        return workspace(value.data, actor, {
+          section: 'front-desk',
+          kind: 'stay',
+          ...(input.property !== undefined ? { property: input.property } : {}),
+          status: input.status ?? '',
+          roomSummary: false,
+          requireListMeta: true,
+        });
       } catch (error) {
         if (error instanceof NativePmsError) throw error;
         return failure('NATIVE_PMS_UNAVAILABLE');
@@ -694,6 +868,12 @@ export function nativePmsFailure(
       status: 503,
       code: 'NATIVE_PMS_UNAVAILABLE',
       message: 'The native Hotel board is unavailable.',
+    };
+  if (error.code === 'NATIVE_PMS_FRONT_DESK_REQUEST_INVALID')
+    return {
+      status: 422,
+      code: 'PMS_FRONT_DESK_REQUEST_INVALID',
+      message: 'Use one bounded front-desk selection.',
     };
   if (error.code === 'NATIVE_PMS_REQUEST_INVALID')
     return {
