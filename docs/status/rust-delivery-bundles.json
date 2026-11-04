@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 80,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 63,
-    "workflowsVerified": 26,
-    "workflowsMerged": 26,
+    "workflowsPartial": 62,
+    "workflowsVerified": 27,
+    "workflowsMerged": 27,
     "ownersComplete": 2,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -4034,19 +4034,21 @@
       "kind": "module",
       "owner": "finance",
       "scope": "Payments",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "finance-bank-settlement-browser",
         "finance-controlled-payment-browser",
+        "finance-generic-payment-browser",
+        "finance-generic-payment-http",
         "finance-generic-payment-postgres",
+        "finance-generic-settlement-browser",
         "finance-payment-allocate-native",
-        "finance-payment-reverse-native",
-        "finance-generic-payment-http"
+        "finance-payment-reverse-native"
       ],
       "sourceRef": "packages/server-finance/src/public/finance.ts",
-      "gap": "Native generic create/approve/release/confirm, dedicated generic create ingress, bank settlement, allocation and independent reversal are PostgreSQL/HTTP-qualified. The browser confirm-page bank-row listing and full readback remain open because the shared disposable cohort database was lost; refunds, supplier instructions and automated bank groups remain open."
+      "gap": "Verified native generic supplier payment create, independent approve, treasury release, generic bank import, confirmation, balanced journal, paid invoice and matched bank row on normal-auth desktop/mobile. Refund/supplier-instruction exception paths remain with their own owners."
     },
     {
       "id": "finance/feature-receivables-aging",
