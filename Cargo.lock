@@ -714,6 +714,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "erpx-server-brand"
+version = "0.1.0"
+dependencies = [
+ "erpx-server-runtime",
+ "erpx-server-shared",
+ "erpx-server-workflow",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "erpx-server-collaboration"
 version = "0.1.0"
 dependencies = [
@@ -1140,6 +1154,7 @@ dependencies = [
  "base64 0.23.1",
  "bytes",
  "erpx-server-assets",
+ "erpx-server-brand",
  "erpx-server-collaboration",
  "erpx-server-commerce",
  "erpx-server-commercial",

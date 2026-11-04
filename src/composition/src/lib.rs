@@ -43,6 +43,10 @@ pub mod http_scope;
 #[cfg(feature = "private-field-api")]
 pub mod private_development_api;
 
+#[cfg(feature = "existing-business")]
+pub mod brand_identity;
+#[cfg(feature = "existing-business")]
+pub mod brand_identity_http;
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
 pub mod finance_generic_payment;
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]

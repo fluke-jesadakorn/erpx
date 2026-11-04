@@ -70780,6 +70780,75 @@
         "src/composition/Cargo.toml",
         "tests/support/finance/review-composition.rs"
       ]
+    },
+    {
+      "id": "brand.rust-brand-identity-policy.unit",
+      "lane": "unit",
+      "owner": "brand",
+      "modules": [
+        "brand"
+      ],
+      "files": [
+        "tests/unit/brand/rust-brand-identity-policy.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Brand identity policy retains strict inner values, trimming, bounded reasons and independent publication."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-brand",
+        "targets": [
+          "brand_identity_policy"
+        ],
+        "features": []
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-brand/Cargo.toml"
+      ]
+    },
+    {
+      "id": "brand.rust-brand-identity-postgres.integration",
+      "lane": "integration",
+      "owner": "brand",
+      "modules": [
+        "brand"
+      ],
+      "files": [
+        "tests/integration/brand/rust-brand-identity-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Brand draft CAS, category locks, independent publication, media guards, rollback, cancellation, Company isolation and replay over leased PostgreSQL."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-brand",
+        "targets": [
+          "brand_identity_postgres"
+        ],
+        "features": []
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-brand/Cargo.toml",
+        "tests/support/rust-postgres.rs"
+      ]
     }
   ]
 }
