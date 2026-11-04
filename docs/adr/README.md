@@ -7,7 +7,6 @@ Reviewed 2026-10-03. Decisions retain their identifiers and original rationale; 
 | Decision | Current disposition |
 | --- | --- |
 | [ADR-001: Holding isolation](ADR-001-holding-isolation.md) | Holding isolation retained; routing superseded by ADR-023; customer-hosted activation remains a separate architectural target |
-| [ADR-002: CQRS and replaceable read models](ADR-002-cqrs.md) | Superseded by ADR-020 |
 | [ADR-003: No long-term dual writes](ADR-003-no-long-term-dual-writes.md) | Retained decision; apply current owner contract |
 | [ADR-004: Universal expiring RBAC](ADR-004-expiring-rbac.md) | Retained decision; apply current owner contract |
 | [ADR-005: Audited global reads](ADR-005-global-read-auditing.md) | Retained decision; apply current owner contract |
@@ -15,13 +14,10 @@ Reviewed 2026-10-03. Decisions retain their identifiers and original rationale; 
 | [ADR-007: Stripe authority for commercial state](ADR-007-stripe-authority.md) | Stripe authority retained; offering narrowed to Sandbox by ADR-028/037 |
 | [ADR-008: Operations context boundaries](ADR-008-operations-boundaries.md) | Retained decision; apply current owner contract |
 | [ADR-009: Marketing and CRM boundaries](ADR-009-marketing-crm-boundaries.md) | Retained decision; apply current owner contract |
-| [ADR-010: Shared Dioxus target strategy](ADR-010-dioxus-target-strategy.md) | Deprecated Rust/Dioxus |
 | [ADR-011: Customer-hosted data plane and outbound agent](ADR-011-customer-data-plane-agent.md) | Architectural target; no current customer-agent runtime acceptance; directory boundary amended by ADR-025 |
 | [ADR-012: Governed Three-Layer Corporate Identity](ADR-012-three-layer-corporate-identity.md) | Retained decision; apply current owner contract |
 | [ADR-013: Holding-plus-branch database isolation and scoped directory authority](ADR-013-holding-branch-database-and-directory-authority.md) | Holding isolation retained; Rust physical branch-pair procedures archived; directory assumptions amended by ADR-025 |
-| [ADR-014: CQRS bounded-context modular monolith](ADR-014-cqrs-bounded-context-modular-monolith.md) | Deprecated Rust monolith; ADR-020 |
 | [ADR-015: Retire n8n as an ERPX runtime dependency](ADR-015-retire-n8n-and-unify-local-runtime.md) | Retained decision; apply current owner contract |
-| [ADR-016: Dioxus Native/Blitz atomic cutover](ADR-016-dioxus-native-atomic-cutover.md) | Deprecated Rust/Dioxus |
 | [ADR-017: Universal record collaboration and human-approved AI](ADR-017-universal-record-collaboration-and-human-approved-ai.md) | Retained decision; apply current owner contract |
 | [ADR-018: Modular AI and separately reviewed hosted commercial offerings](ADR-018-open-source-modular-ai-and-hosted-stepper-pricing.md) | Product boundaries retained; prices superseded by ADR-028/037 |
 | [ADR-019: Typed record mentions and human-reviewed field proposals](ADR-019-universal-record-mentions-and-per-module-field-ai.md) | Retained decision; apply current owner contract |

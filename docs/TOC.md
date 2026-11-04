@@ -78,7 +78,7 @@ Normal development entry uses [Acme](https://acme.jesadakorn.com/), [Northstar](
 
 ## Verification and acceptance
 
-- [Product migration coverage](status/product-migration-acceptance.json), [v2 receipt index](status/product-migration-receipts-v2.json), [dated v1 history](status/product-migration-receipts.json)
+- [Product migration coverage](status/product-migration-acceptance.json), [v2 receipt index](status/product-migration-receipts-v2.json)
 - [Verification commands and evidence rules](testing/README.md), [E2E specification](testing/e2e-specification.md), [isolated browser fixtures](testing/isolated-browser-simulation.md), [working demo](testing/working-demo-company.md), [generated route inventory](testing/uat-route-inventory.md)
 - [Engineering scenarios](../tests/catalogue/engineering-scenarios.json), [gate scenarios](../tests/catalogue/engineering-gate-scenarios.json), [Legal engineering UAT](../tests/catalogue/legal-uat-engineering-cases.json), [attachment owner cases](../tests/catalogue/engineering-attachment-owner-cases.json)
 - [Independent engineering/provider/release inventory](status/capability-delivery-matrix.md), [Company release criteria](contracts/next/business-readiness.md), [explicit gate reviews](status/capability-gate-reviews.json), [generated acceptance manifest](status/business-acceptance-manifest.json)
