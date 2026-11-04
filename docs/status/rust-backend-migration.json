@@ -106,15 +106,15 @@
     {
       "id": "support",
       "package": "erpx-server-support",
-      "phase": "pending",
+      "phase": "partial",
       "businessMigrationComplete": false,
       "surfaces": {
-        "domain": "pending",
-        "application": "pending",
-        "http": "pending",
+        "domain": "partial",
+        "application": "partial",
+        "http": "partial",
         "ssr": "pending",
-        "jobs": "pending",
-        "providers": "pending"
+        "jobs": "partial",
+        "providers": "partial"
       }
     },
     {
@@ -407,15 +407,15 @@
     {
       "id": "field_service",
       "package": "erpx-server-field-service",
-      "phase": "partial",
-      "businessMigrationComplete": false,
+      "phase": "active",
+      "businessMigrationComplete": true,
       "surfaces": {
-        "domain": "partial",
-        "application": "partial",
-        "http": "partial",
-        "ssr": "partial",
-        "jobs": "partial",
-        "providers": "partial"
+        "domain": "active",
+        "application": "active",
+        "http": "active",
+        "ssr": "active",
+        "jobs": "active",
+        "providers": "active"
       }
     },
     {
