@@ -239,3 +239,29 @@ describe('native Field financial Work transport',()=>{
   for(const status of [401,403,404,409,503])await expect(createNativeFieldFinancialWorkReader(JSON.stringify(config),async()=>json({error:{code:'DENIED'}},status))(incoming,workActor)).rejects.toMatchObject({status});
  });
 });
+
+describe('native generic controlled payment transport',()=>{
+ const paymentConfig=config;
+ const payment={id:'payment-key',company_id:'company',kind:'receipt',status:'released',version:3,amount_minor:10000,outstanding_minor:10000,currency:'THB',created_by:'creator',settlement_invoice_id:'field-invoice-key'};
+ const paymentData={payment,allocations:[],reversal:null,periods:[],invoices:[],bankTransactions:[],fxAccounts:[],sourcePurchase:{capability:'finance.service-invoice',settleExisting:true,history:true,revision:'actual-purchase'}};
+ const purchaseControls=Object.fromEntries(['finance.accounting','finance.banking','finance.close','finance.advanced','finance.receivables','finance.tax','finance.service-invoice'].map(cap=>[cap,{newWork:false,settleExisting:cap==='finance.banking',history:cap==='finance.banking',revision:'current-purchase'}]));
+ const request=(body:unknown)=>new Request('https://acme.example.test/api/payment',{method:'POST',headers:{host:'acme.example.test',origin:'https://acme.example.test',cookie:'opaque','idempotency-key':'generic-key','x-erpx-context-company':'company','x-erpx-context-assignment':'grant','x-erpx-context-revision':'7','x-erpx-context-assignment-version':'3'},body:JSON.stringify(body)});
+ it('observes the invoice payment runtime rather than the invoice posting runtime',async()=>{
+  const calls:string[]=[];
+  const transport=vi.fn(async(url:URL,_headers:Headers,_body:Uint8Array,_signal:AbortSignal,method:'GET'|'POST'='POST')=>{
+   calls.push(`${method} ${url.pathname}`);
+   if(method==='GET')return json({data:{id:'bill-open',runtime:'rust'}});
+   return json({data:{id:'pay-generic',status:'draft',version:1,settlementInvoiceId:'bill-open'}},201);
+  });
+  const input={kind:'payment',partyId:'supplier',paymentNumber:'PAY-1',paymentDate:'2026-01-10',currency:'THB',amount:'10.00',bankAccount:'bank',settlementInvoiceId:'bill-open'};
+  const response=await createNativeServicePaymentCommands(JSON.stringify(config),transport)(request(input),actor,'acme',['payments'],input);
+  expect(response?.status).toBe(201);
+  expect(calls).toEqual(['GET /api/v1/holdings/acme/finance/invoices/bill-open/payment-runtime','POST /api/v1/holdings/acme/finance/payments']);
+ });
+ it('accepts a generic payable workspace with banking purchase controls',async()=>{
+  const generic={...payment,kind:'payment',settlement_invoice_id:'bill-open'};
+  const genericData={...paymentData,payment:generic,sourcePurchase:{capability:'finance.banking',settleExisting:true,history:true,revision:'actual-purchase'}};
+  const read=createNativeServicePaymentReader(JSON.stringify(paymentConfig),async(url)=>json(url.pathname.endsWith('/runtime')?{data:{id:'payment-key',runtime:'rust'}}:{data:genericData,context,filesMode:'disabled',sourceOnly:false,purchaseControls}));
+  expect((await read(actor,incoming,'acme','payment-key'))?.payment.kind).toBe('payment');
+ });
+});

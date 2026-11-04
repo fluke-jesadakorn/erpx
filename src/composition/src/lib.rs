@@ -44,6 +44,8 @@ pub mod http_scope;
 pub mod private_development_api;
 
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
+pub mod finance_generic_payment;
+#[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
 pub mod finance_journal_detail;
 
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]

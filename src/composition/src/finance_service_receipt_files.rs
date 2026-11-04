@@ -384,6 +384,12 @@ pub async fn read_finance_service_receipt_workspace<C: Clock + Send + Sync>(
     clock: &C,
     id: &str,
 ) -> Result<(serde_json::Value,bool,std::collections::BTreeMap<String,crate::finance_presentation::FinancePurchaseAccess>), Error> {
+    if !crate::finance_generic_payment::payment_is_field(c, config.company.as_str(), id).await? {
+        return crate::finance_generic_payment::read_finance_generic_payment_workspace(
+            c, current, config, clock, id,
+        )
+        .await;
+    }
     let authority = FinancePaymentIntakeAuthority::for_read(current, config, clock);
     authority.authorize(c, current, id, false).await?;
     let proofs = authority.proofs.lock().await;
@@ -538,8 +544,16 @@ pub async fn finance_service_receipt_runtime<C: Clock + Send + Sync>(
         } else {
             false
         };
+        let supported = crate::finance_generic_payment::generic_payment_supported(
+            c,
+            config.company.as_str(),
+            id,
+            &facts.creator,
+            &facts.kind,
+        )
+        .await?;
         verify_raw_record_origin(c, &origin).await?;
-        native || facts.field_allocation_marker
+        native || facts.field_allocation_marker || supported
     } else if facts.field_allocation_marker {
         true
     } else if facts.kind == "payment" {

@@ -50,7 +50,7 @@ export function createNativeServicePaymentCommands(raw:string,transport:typeof n
   try {
    let native=false;
    for(const id of selected.ids){
-    const path=(selected.kind==='create'||selected.kind==='flow')?`${base}/invoices/${segment(id)}/post-runtime`:`${base}/payments/${segment(id)}/runtime`;
+    const path=selected.kind==='create'?`${base}/invoices/${segment(id)}/payment-runtime`:selected.kind==='flow'?`${base}/invoices/${segment(id)}/post-runtime`:`${base}/payments/${segment(id)}/runtime`;
     const reply=await exchange(path,'GET');if(reply.status!==200)return error(reply);
     const d=reply.value.data;if(!object(d)||Object.keys(d).sort().join(',')!=='id,runtime'||d.id!==id.toWellFormed()||!['rust','legacy'].includes(String(d.runtime)))return closed(502,'NATIVE_FINANCE_RESPONSE_INVALID');
     native ||= d.runtime==='rust';

@@ -87,6 +87,10 @@ pub fn finance_service_receipt_router<C: Clock + Send + Sync + 'static>(
             post(receipt_bank::<C>),
         )
         .route(
+            "/api/v1/holdings/{holding_slug}/finance/invoices/{id}/payment-runtime",
+            get(payment_runtime::<C>),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/finance/payments",
             post(receipt_create::<C>),
         )
@@ -103,6 +107,103 @@ pub fn finance_service_receipt_router<C: Clock + Send + Sync + 'static>(
 fn missing() -> BusinessError {
     BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.")
 }
+/// Persisted invoice capability observation for the generic payment create
+/// entry. It grants no posting or payment authority; the create command still
+/// proves current IAM, purchase and owner facts.
+async fn payment_runtime<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<PostState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    headers: axum::http::HeaderMap,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?.to_owned();
+        let target = crate::http_scope::selected_company_target(&state.targets, &host, &slug, &headers)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?.is_some_and(|v| v != inbound.expected_origin()) {
+            return Err(BusinessError::new(FailureKind::Forbidden, "ORIGIN_FORBIDDEN", "Use the application origin.").into());
+        }
+        if id.is_empty() || id.len() > BODY_LIMIT || id.chars().any(char::is_control) {
+            return Err(missing().into());
+        }
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let configuration = target.configuration.clone();
+        let company = configuration.company.clone();
+        target.authorizer
+            .execute_with_sources_deferred(
+                &host,
+                inbound.into_proof(),
+                move || {
+                    scope?;
+                    captured.resolve_read(company)
+                },
+                erpx_server_identity_access::public::effective_authority::WorkAuthorizationRequest {
+                    permission: "finance.read".into(),
+                    module: Some("finance".into()),
+                    destination: "finance/payments".into(),
+                    api: true,
+                },
+                crate::finance_service_receipt_files::FinancePaymentIntakeSources,
+                move |c, current| {
+                    let configuration = configuration.clone();
+                    let id = id.clone();
+                    Box::pin(async move {
+                        current.require_permission("module.finance.read")?;
+                        if current.holding_id() != &configuration.holding
+                            || current.selection().workspace().company_id != configuration.company
+                        {
+                            return Err(missing().into());
+                        }
+                        let native: bool = sqlx::query_scalar(
+                            "SELECT EXISTS(SELECT 1 FROM finance_invoices i WHERE i.id=$1 AND i.company_id=$2 \
+                             AND i.kind IN ('payable','receivable') AND i.status IN ('posted','partially_paid') \
+                             AND i.source_type IS DISTINCT FROM 'expense_claim')",
+                        )
+                        .bind(&id)
+                        .bind(configuration.company.as_str())
+                        .fetch_one(&mut *c)
+                        .await?;
+                        Ok(serde_json::json!({"data":{"id":id,"runtime":if native{"rust"}else{"legacy"}}}))
+                    })
+                },
+            )
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => (
+            StatusCode::OK,
+            [
+                (axum::http::header::CACHE_CONTROL, "private, no-store"),
+                (axum::http::header::REFERRER_POLICY, "no-referrer"),
+                (axum::http::header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+            ],
+            axum::Json(reply),
+        )
+            .into_response(),
+        Err(PgTransactionError::Business(e)) => {
+            let status = match e.kind {
+                FailureKind::InvalidInput => StatusCode::UNPROCESSABLE_ENTITY,
+                FailureKind::Unauthenticated => StatusCode::UNAUTHORIZED,
+                FailureKind::Forbidden => StatusCode::FORBIDDEN,
+                FailureKind::NotFound => StatusCode::NOT_FOUND,
+                FailureKind::Conflict => StatusCode::CONFLICT,
+                FailureKind::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
+            };
+            (status, axum::Json(serde_json::json!({"error":{"code":e.code,"message":e.message}}))).into_response()
+        }
+        Err(PgTransactionError::Persistence(_)) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            axum::Json(serde_json::json!({"error":{"code":"FINANCE_PAYMENT_RUNTIME_UNAVAILABLE","message":"The payment runtime could not be observed."}})),
+        )
+            .into_response(),
+    }
+}
+
 async fn receipt_workspace<C: Clock + Send + Sync + 'static>(
     State(state): State<Arc<PostState<C>>>,
     Path((slug, id)): Path<(String, String)>,
