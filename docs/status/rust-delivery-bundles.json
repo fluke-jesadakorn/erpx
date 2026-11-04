@@ -20,9 +20,9 @@
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
     "workflowsPartial": 13,
-    "workflowsVerified": 24,
-    "workflowsMerged": 24,
-    "ownersComplete": 1,
+    "workflowsVerified": 26,
+    "workflowsMerged": 26,
+    "ownersComplete": 2,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
   },
@@ -3433,11 +3433,15 @@
       "owner": "brand",
       "scope": "Category locks",
       "partial": false,
-      "verified": false,
-      "merged": false,
-      "evidenceFlows": [],
+      "verified": true,
+      "merged": true,
+      "evidenceFlows": [
+        "brand-category-lock-browser-desktop",
+        "brand-category-lock-browser-mobile",
+        "brand-http-wire"
+      ],
       "sourceRef": "packages/server-brand/src/public/identity.rs",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Verified owner lock/unlock, published snapshot/version guard, locked-save refusal and non-owner denial on canonical desktop/mobile routes."
     },
     {
       "id": "brand/feature-published-identity",
@@ -3445,11 +3449,16 @@
       "owner": "brand",
       "scope": "Published identity",
       "partial": false,
-      "verified": false,
-      "merged": false,
-      "evidenceFlows": [],
+      "verified": true,
+      "merged": true,
+      "evidenceFlows": [
+        "brand-http-wire",
+        "brand-publish-browser-desktop",
+        "brand-publish-browser-mobile",
+        "brand-rollback-browser"
+      ],
       "sourceRef": "packages/server-brand/src/public/identity.rs",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Verified native independent publication, retained history, rollback and stale/self-approval negatives on canonical desktop/mobile routes; active identity readback passed. Storefront preview remains a chooser-page presentation gap, not a writer gap."
     },
     {
       "id": "commercial/invoices",

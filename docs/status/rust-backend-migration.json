@@ -8,8 +8,8 @@
     {
       "id": "brand",
       "package": "erpx-server-brand",
-      "phase": "partial",
-      "businessMigrationComplete": false,
+      "phase": "active",
+      "businessMigrationComplete": true,
       "surfaces": {
         "domain": "active",
         "application": "active",
