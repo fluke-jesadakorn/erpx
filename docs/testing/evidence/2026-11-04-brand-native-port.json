@@ -26,7 +26,8 @@
     "feature-brand/feature-admin/workplace typechecks: pass after the fallback removal",
     "tests/unit/brand/brand-application.test.ts: 14 passed",
     "brand_route_is_reachable_through_the_private_api_boundary: 1 passed (real Account session, private API boundary, GET 200)",
-    "diagnostic current-source browser: Brand draft save POST 200 + reload Draft version 1 on desktop and mobile, 0 page/console/http errors (2026-11-04-brand-finance-browser-current-source.json)"
+    "diagnostic current-source browser: Brand draft save POST 200 + reload Draft version 1 on desktop and mobile, 0 page/console/http errors (2026-11-04-brand-finance-browser-current-source.json)",
+    "diagnostic current-source browser persisted brand_identity_drafts draft v1 with the submitted tagline on desktop and mobile"
   ],
   "limits": [
     "No authenticated browser journey has exercised the native Brand route; http/ssr remain partial.",

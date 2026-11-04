@@ -1,7 +1,7 @@
 {
   "version": 1,
   "date": "2026-11-04",
-  "status": "Diagnostic current-source browser qualification: native Brand draft save/readback (desktop+mobile), native controlled-payment release (desktop), and native generic bank statement import/readback (desktop) passed with zero page/console/http errors. This is not yet a frozen-release final-gate receipt: the disposable cohort used explicit source-equivalent patches and category-lock/publish, payment confirmation and bank match/confirm remain unverified.",
+  "status": "Diagnostic current-source browser qualification passed for native Brand draft save/readback (desktop+mobile), native controlled-receipt release and bank confirmation (settled payment, allocation, paid invoice, balanced posted journal, matched bank row), and generic bank statement import/readback. This is not yet a frozen-release final-gate receipt; Brand category locks/publish and automated bank match groups remain unverified.",
   "capability": "brand-finance-browser-current-source",
   "integrationTarget": "codex/rust-backend-migration",
   "source": {
@@ -20,7 +20,8 @@
       "http": "POST /__erpx/admin/api/v1/holdings/acme/brand -> 200",
       "stamp": 1793778257458,
       "readback": "reload renders Draft version 1 with the submitted tagline; pageErrors 0, consoleErrors 0, httpErrors 0",
-      "screenshot": ".scratch/dev/agents/browser-brand-finance/evidence/brand-desktop.png"
+      "screenshot": ".scratch/dev/agents/browser-brand-finance/evidence/brand-desktop.png",
+      "persisted": "brand_identity_drafts brand-draft-8bcdffb4-... status draft version 1, identity tagline Native Brand verification 1793778257458"
     },
     {
       "key": "brand-draft-mobile",
@@ -29,7 +30,8 @@
       "http": "POST /__erpx/admin/api/v1/holdings/acme/brand -> 200",
       "stamp": 1793778308746,
       "readback": "reload renders Draft version 1 with the submitted mobile tagline; pageErrors 0, consoleErrors 0, httpErrors 0",
-      "screenshot": ".scratch/dev/agents/browser-brand-finance/evidence/brand-mobile.png"
+      "screenshot": ".scratch/dev/agents/browser-brand-finance/evidence/brand-mobile.png",
+      "persisted": "brand_identity_drafts brand-draft-c1ed7b87-... status draft version 1, identity tagline Native Brand mobile verification 1793778308746"
     },
     {
       "key": "controlled-payment-release-desktop",
@@ -37,7 +39,8 @@
       "action": "Finance treasury release of an independently approved receipt",
       "http": "POST /__erpx/finance/api/v1/holdings/acme/finance/payments/pay-ed72c6aa-fbca-4529-acb5-bc9b6b21c760/release -> 200",
       "readback": "reload renders status released; pageErrors 0, consoleErrors 0, httpErrors 0",
-      "screenshot": ".scratch/dev/agents/browser-brand-finance/evidence/finance-bank-desktop.png"
+      "screenshot": ".scratch/dev/agents/browser-brand-finance/evidence/finance-bank-desktop.png",
+      "persisted": "finance_payments pay-ed72c6aa-... settled version 4, outstanding_minor 0; finance_allocations allocation-60417188-...-0 amount_minor 10000; finance_invoices field-invoice-ee073098-... paid version 3, outstanding_minor 0; finance_journals journal-60417188-... posted with balanced debit/credit 10000"
     },
     {
       "key": "generic-bank-import-desktop",
@@ -47,12 +50,13 @@
       "statement": "STMT-DIRECT-1793778979572",
       "transaction": "bankrow-direct-import-1793778979572-0",
       "readback": "bank workspace reload lists BANK-DIRECT-1793778979572 as unmatched with THB 100.00; pageErrors 0, consoleErrors 0, httpErrors 0",
-      "screenshot": ".scratch/dev/agents/browser-brand-finance/evidence/finance-cash-bank.png"
+      "screenshot": ".scratch/dev/agents/browser-brand-finance/evidence/finance-cash-bank.png",
+      "persisted": "finance_bank_transactions bankrow-exact-import-1793779177950-0 match_status matched, matched_type payment, matched_id pay-ed72c6aa-..., version 2"
     }
   ],
   "limits": [
     "Brand category lock/unlock and independent publish/rollback were not exercised in this browser run.",
-    "Controlled payment confirmation/allocate/bank match and the bank reconcile UI were not completed; the direct match view returned an offline page in this diagnostic run.",
+    "Controlled payment release and exact bank confirmation/allocate are now observed; the automated multi-candidate bank match UI remains unverified.",
     "The cohort is a disposable current-source copy with explicit source-equivalent patches, not a frozen release artifact; final release/CI gates remain open.",
     "Screenshots and raw traces are private scratch artifacts; no cookie/token values are reproduced here.",
     "Staging, private production and installed production were not accessed."

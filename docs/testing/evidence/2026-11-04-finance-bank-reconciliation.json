@@ -1,7 +1,7 @@
 {
   "version": 1,
   "date": "2026-11-04",
-  "status": "Native Finance bank import, manual reconciliation and workspace read are PostgreSQL/HTTP qualified with private API boundary admission; diagnostic browser bank import/readback and controlled-payment release passed. Bank match/confirm browser, automated match groups and default-writer cutover remain open.",
+  "status": "Native Finance bank import, manual reconciliation, controlled-receipt release/confirmation and workspace read are PostgreSQL/HTTP qualified with private API boundary admission; diagnostic current-source browser import, exact bank confirmation, payment settlement, allocation, paid invoice, balanced journal and matched-bank readback passed. Automated match groups, frozen-release gates and full default-writer cutover remain open.",
   "capability": "finance-bank-reconciliation",
   "integrationTarget": "codex/rust-backend-migration",
   "scope": {
@@ -18,7 +18,8 @@
     "cargo test -p erpx-server-finance: all registered unit/integration targets pass, including the journal-source aggregate/provenance limit regressions",
     "native-finance-bank transport: 3 passed",
     "native-finance-bank-read transport: 4 passed",
-    "diagnostic current-source browser: generic bank import 201 + unmatched readback, controlled payment release 200 + released readback, 0 page/console/http errors (2026-11-04-brand-finance-browser-current-source.json)"
+    "diagnostic current-source browser: generic bank import 201 + unmatched readback, controlled payment release 200 + released readback, 0 page/console/http errors (2026-11-04-brand-finance-browser-current-source.json)",
+    "diagnostic current-source browser: release -> exact bound bank import 201 -> confirm settled v4 -> allocation 10000 -> invoice paid/outstanding 0 -> posted balanced journal 10000/10000 -> bank row matched v2; desktop/mobile readback 0 page/console/http errors (2026-11-04-brand-finance-browser-current-source.json)"
   ],
   "limits": [
     "No authenticated browser journey yet; finance/feature-bank-reconciliation is not claimed verified.",

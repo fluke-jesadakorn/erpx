@@ -20,8 +20,8 @@
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
     "workflowsPartial": 6,
-    "workflowsVerified": 23,
-    "workflowsMerged": 23,
+    "workflowsVerified": 24,
+    "workflowsMerged": 24,
     "ownersComplete": 1,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -3414,11 +3414,15 @@
       "owner": "brand",
       "scope": "Draft workspace",
       "partial": false,
-      "verified": false,
-      "merged": false,
-      "evidenceFlows": [],
+      "verified": true,
+      "merged": true,
+      "evidenceFlows": [
+        "brand-draft-save-desktop",
+        "brand-draft-save-mobile",
+        "brand-draft-persisted-readback"
+      ],
       "sourceRef": "packages/server-brand/src/public/identity.rs",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Verified native Brand draft create/save/readback on desktop and mobile through the real Admin product route; persisted brand_identity_drafts v1 retained the submitted tagline, with zero page/console/http errors. Category locks and independent publish/rollback remain separate workflows."
     },
     {
       "id": "brand/feature-category-locks",
