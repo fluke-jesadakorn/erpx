@@ -517,7 +517,7 @@ pub(crate) async fn receipt(
     let payload = json!({
         "authority": serde_json::from_str::<Value>(authority).unwrap_or(Value::Null),
         "id": record,
-        "state": result.get("status").cloned().unwrap_or(Value::Null),
+        "state": result.get("status").or_else(|| result.get("state")).cloned().unwrap_or(Value::Null),
         "companyId": actor.company_id,
         "branchId": actor.branch_id,
         "departmentId": actor.department_id,

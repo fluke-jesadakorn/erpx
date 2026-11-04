@@ -73425,6 +73425,42 @@
       ]
     },
     {
+      "id": "finance.rust-period-close-postgres.integration",
+      "lane": "integration",
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "files": [
+        "tests/integration/finance/rust-period-close-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PostgreSQL-backed native period close readiness, control-account reconciliation, immutable close checks, independent-person begin/approve/cancel/reopen, stale-evidence and Company isolation guards, and replay in the PR baseline."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "period_close_postgres"
+        ],
+        "features": [
+          "private-field-api"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml"
+      ]
+    },
+    {
       "id": "finance.rust-finance-setup-postgres.integration",
       "lane": "integration",
       "owner": "finance",

@@ -3,7 +3,7 @@ import {nativeServicePaymentReadback,nativeServiceInvoiceReadback} from '@erpx/f
 import {nativeFinanceBankCommand} from '@erpx/feature-finance/lib/native-finance-bank';
 import {nativeFinanceBankHttpGet} from '@erpx/feature-finance/lib/native-finance-bank-read';
 import {isNativeServicePaymentRequest,nativeServicePaymentCommand} from '@erpx/feature-finance/public/server';
-import { nativeServiceNoCharge,nativeServiceInvoicePost, nativeJournalEdit, nativeJournalEditReadback, nativeJournalCreate, nativeJournalCreateReadback, nativeJournalPost, nativeJournalPostReadback, nativeJournalReverse, nativeJournalReverseReadback, nativeSalesInvoiceEdit, nativeSalesInvoiceVoid, nativeSupplierBillCreate, nativeSupplierBillEdit, nativeSupplierBillPost, nativeSupplierBillDetail, nativeFinanceSetupCommand, nativeOpeningBalance } from "@erpx/feature-finance/public/server";
+import { nativeServiceNoCharge,nativeServiceInvoicePost, nativeJournalEdit, nativeJournalEditReadback, nativeJournalCreate, nativeJournalCreateReadback, nativeJournalPost, nativeJournalPostReadback, nativeJournalReverse, nativeJournalReverseReadback, nativeSalesInvoiceEdit, nativeSalesInvoiceVoid, nativeSupplierBillCreate, nativeSupplierBillEdit, nativeSupplierBillPost, nativeSupplierBillDetail, nativePeriodClose, nativePeriodCloseWorkspace, nativeFinanceSetupCommand, nativeOpeningBalance } from "@erpx/feature-finance/public/server";
 import {expensePostingPrerequisites,createExpensePostingChart,createExpensePostingAccount,createExpensePostingPeriod,confirmExpensePostingRate,expensePostingPrerequisiteConfirmation,expensePostingChartSchema,expensePostingAccountSchema,expensePostingPeriodSchema,expensePostingRateSchema,expensePostingPrerequisiteConfirmationSchema} from '@erpx/server-finance/public/expense-posting-prerequisites';
 import {expensePostingSetup,initializeExpensePostingSetup,expensePostingSetupSchema} from '@erpx/server-commerce/public/expense-posting-setup';
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
@@ -195,6 +195,10 @@ export async function GET(request: Request, context: FinanceRouteContext) {
       if(native)return native;
       return Response.json(canonicalDestinationLinks({data:await getInvoice(actor,parts[1])}));
     }
+    if(parts[0]==="periods"&&parts.length===3&&parts[2]==="workspace"){
+      const native=await nativePeriodCloseWorkspace(request,actor,holdingSlug,parts[1]);
+      if(native)return native;
+    }
     if (parts[0] === "payments") {
       if(parts[1]){const native=await nativeServicePaymentReadback(request,actor,holdingSlug,parts[1]);if(native)return native;return Response.json(canonicalDestinationLinks({data:await getPayment(actor,parts[1])}));}
       return Response.json(canonicalDestinationLinks({data:await listPayments(actor)}));
@@ -260,6 +264,10 @@ export async function POST(request: Request, context: FinanceRouteContext) {
     }
     if(parts.length===3&&parts[0]==="payables"&&parts[2]==="post"){
       const response=await nativeSupplierBillPost(request.clone(),holdingSlug,parts[1]);
+      if(response)return response;
+    }
+    if(parts.length===3&&parts[0]==="periods"&&["begin-close","cancel-close","close","reopen"].includes(parts[2])){
+      const response=await nativePeriodClose(request.clone(),holdingSlug,parts[1],parts[2] as "begin-close"|"cancel-close"|"close"|"reopen");
       if(response)return response;
     }
     const actor = requirePermission(await requireWorkContext(holdingSlug),"finance.read");

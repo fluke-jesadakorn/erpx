@@ -6,7 +6,7 @@ use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
     PurchaseRequest, lock_commercial_authority_sources,
 };
-use erpx_server_finance::public::{FinanceActor, finance_invoice_read::*, finance_opening::*, finance_reports::*, finance_setup::*, journal_detail::*, journal_list::*, journal_workspace::*, sales_defaults::*, sales_invoice_create::*, sales_invoice_edit::*, sales_invoice_list::*, sales_receipts::*, supplier_bill::*};
+use erpx_server_finance::public::{FinanceActor, finance_invoice_read::*, finance_opening::*, finance_reports::*, finance_setup::*, journal_detail::*, journal_list::*, journal_workspace::*, period_close::*, sales_defaults::*, sales_invoice_create::*, sales_invoice_edit::*, sales_invoice_list::*, sales_receipts::*, supplier_bill::*};
 use erpx_server_finance::public::{
     JournalAuthority as FinanceJournalAuthority,
     JournalDraft as FinanceJournalDraft,
@@ -162,6 +162,17 @@ pub struct FinanceSupplierBillPostResponse {
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub struct FinanceSupplierBillDetailResponse {
     pub data: SupplierBillDetail,
+    pub context: FinanceRenderedWorkContext,
+}
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FinancePeriodCloseResponse {
+    pub data: PeriodCloseResult,
+}
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FinancePeriodCloseWorkspaceResponse {
+    pub data: PeriodCloseWorkspace,
     pub context: FinanceRenderedWorkContext,
 }
 #[derive(Clone, Debug, Serialize)]
@@ -487,6 +498,22 @@ impl HoldingWorkSourcePreparation for SupplierBillReadSources {
         Box::pin(async move {
             lock_commercial_authority_sources(c).await?;
             lock_supplier_bill_read_sources(c).await?;
+            Ok(())
+        })
+    }
+}
+
+#[derive(Clone)]
+struct PeriodCloseSources;
+impl HoldingWorkSourcePreparation for PeriodCloseSources {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            lock_commercial_authority_sources(c).await?;
+            sqlx::query(
+                "LOCK TABLE finance_periods,finance_accounts,finance_charts,finance_journals,finance_journal_lines,finance_invoices,finance_bank_transactions,finance_bank_statements,finance_close_checks,finance_close_reconciliations IN SHARE ROW EXCLUSIVE MODE",
+            )
+            .execute(&mut *c)
+            .await?;
             Ok(())
         })
     }
@@ -970,6 +997,27 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
         purpose: CapabilityPurpose,
         now: TimestampMillis,
     ) -> Result<(), Error> {
+        Self::require_purchase(c, current, configuration, "finance.accounting", purpose, now).await
+    }
+
+    async fn require_close_purchase(
+        c: &mut PgConnection,
+        current: &AuthorizedWorkContext,
+        configuration: &FinanceJournalReadConfiguration,
+        purpose: CapabilityPurpose,
+        now: TimestampMillis,
+    ) -> Result<(), Error> {
+        Self::require_purchase(c, current, configuration, "finance.close", purpose, now).await
+    }
+
+    async fn require_purchase(
+        c: &mut PgConnection,
+        current: &AuthorizedWorkContext,
+        configuration: &FinanceJournalReadConfiguration,
+        capability: &str,
+        purpose: CapabilityPurpose,
+        now: TimestampMillis,
+    ) -> Result<(), Error> {
         PgCompanyPurchaseReader::new(
             current.holding_id().clone(),
             configuration.company.clone(),
@@ -978,7 +1026,7 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
         )
         .inspect(
             &PurchaseRequest {
-                capabilities: vec!["finance.accounting".into()],
+                capabilities: vec![capability.into()],
                 purpose,
                 mode: PackageEnforcementMode::Enforced,
             },
@@ -2152,6 +2200,409 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                             data,
                             context: rendered(current)?,
                         })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn period_close_workspace<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        id: String,
+    ) -> Result<FinancePeriodCloseWorkspaceResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != company {
+                return Err(scope());
+            }
+            request.mutation = false;
+            Ok(request)
+        };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "finance.read".into(),
+                    module: Some("finance".into()),
+                    destination: "finance/close".into(),
+                    api: true,
+                },
+                PeriodCloseSources,
+                move |c, current| {
+                    let configuration = configuration.clone();
+                    let clock = clock.clone();
+                    let id = id.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &configuration.holding
+                            || current.selection().workspace().company_id != configuration.company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("finance.read")?;
+                        current.require_permission("module.finance.read")?;
+                        let workspace = current.selection().workspace();
+                        if workspace.branch_id.is_some() || workspace.department_id.is_some() {
+                            return Err(BusinessError::new(
+                                FailureKind::Forbidden,
+                                "COMPANY_SCOPE_REQUIRED",
+                                "Use a Company Finance assignment for period close.",
+                            )
+                            .into());
+                        }
+                        Self::require_close_purchase(
+                            c,
+                            current,
+                            &configuration,
+                            CapabilityPurpose::History,
+                            clock.now(),
+                        )
+                        .await?;
+                        let data = read_period_close(c, &command_actor(current)?, &id).await?;
+                        Ok(FinancePeriodCloseWorkspaceResponse {
+                            data,
+                            context: rendered(current)?,
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn begin_period_close<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: CommandKey,
+        id: String,
+    ) -> Result<FinancePeriodCloseResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != company {
+                return Err(scope());
+            }
+            request.mutation = true;
+            Ok(request)
+        };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "finance.write".into(),
+                    module: Some("finance".into()),
+                    destination: "finance/close".into(),
+                    api: true,
+                },
+                PeriodCloseSources,
+                move |c, current| {
+                    let configuration = configuration.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    let id = id.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &configuration.holding
+                            || current.selection().workspace().company_id != configuration.company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("finance.write")?;
+                        current.require_permission("module.finance.read")?;
+                        let workspace = current.selection().workspace();
+                        if workspace.branch_id.is_some() || workspace.department_id.is_some() {
+                            return Err(BusinessError::new(
+                                FailureKind::Forbidden,
+                                "COMPANY_SCOPE_REQUIRED",
+                                "Use a Company Finance assignment for period close.",
+                            )
+                            .into());
+                        }
+                        let now = clock.now();
+                        Self::require_close_purchase(
+                            c,
+                            current,
+                            &configuration,
+                            CapabilityPurpose::SettleExisting,
+                            now,
+                        )
+                        .await?;
+                        let data =
+                            begin_period_close(c, &command_actor(current)?, &command, &id, now.get())
+                                .await?;
+                        Ok(FinancePeriodCloseResponse { data })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn cancel_period_close<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: CommandKey,
+        id: String,
+        body: PeriodCloseCancelInput,
+    ) -> Result<FinancePeriodCloseResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != company {
+                return Err(scope());
+            }
+            request.mutation = true;
+            Ok(request)
+        };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "finance.write".into(),
+                    module: Some("finance".into()),
+                    destination: "finance/close".into(),
+                    api: true,
+                },
+                PeriodCloseSources,
+                move |c, current| {
+                    let configuration = configuration.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    let id = id.clone();
+                    let body = body.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &configuration.holding
+                            || current.selection().workspace().company_id != configuration.company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("finance.write")?;
+                        current.require_permission("module.finance.read")?;
+                        let workspace = current.selection().workspace();
+                        if workspace.branch_id.is_some() || workspace.department_id.is_some() {
+                            return Err(BusinessError::new(
+                                FailureKind::Forbidden,
+                                "COMPANY_SCOPE_REQUIRED",
+                                "Use a Company Finance assignment for period close.",
+                            )
+                            .into());
+                        }
+                        let now = clock.now();
+                        Self::require_close_purchase(
+                            c,
+                            current,
+                            &configuration,
+                            CapabilityPurpose::SettleExisting,
+                            now,
+                        )
+                        .await?;
+                        let can_approve = current.has_permission("finance.approve");
+                        let data = cancel_period_close(
+                            c,
+                            &command_actor(current)?,
+                            &command,
+                            &id,
+                            &body,
+                            can_approve,
+                            now.get(),
+                        )
+                        .await?;
+                        Ok(FinancePeriodCloseResponse { data })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn close_period<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: CommandKey,
+        id: String,
+        body: PeriodCloseProofInput,
+    ) -> Result<FinancePeriodCloseResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != company {
+                return Err(scope());
+            }
+            request.mutation = true;
+            Ok(request)
+        };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "finance.write".into(),
+                    module: Some("finance".into()),
+                    destination: "finance/close".into(),
+                    api: true,
+                },
+                PeriodCloseSources,
+                move |c, current| {
+                    let configuration = configuration.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    let id = id.clone();
+                    let body = body.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &configuration.holding
+                            || current.selection().workspace().company_id != configuration.company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("finance.write")?;
+                        current.require_permission("finance.approve")?;
+                        current.require_permission("module.finance.read")?;
+                        let workspace = current.selection().workspace();
+                        if workspace.branch_id.is_some() || workspace.department_id.is_some() {
+                            return Err(BusinessError::new(
+                                FailureKind::Forbidden,
+                                "COMPANY_SCOPE_REQUIRED",
+                                "Use a Company Finance assignment for period close.",
+                            )
+                            .into());
+                        }
+                        let now = clock.now();
+                        Self::require_close_purchase(
+                            c,
+                            current,
+                            &configuration,
+                            CapabilityPurpose::SettleExisting,
+                            now,
+                        )
+                        .await?;
+                        let data = close_period(
+                            c,
+                            &command_actor(current)?,
+                            &command,
+                            &id,
+                            &body,
+                            true,
+                            now.get(),
+                        )
+                        .await?;
+                        Ok(FinancePeriodCloseResponse { data })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn reopen_period<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: CommandKey,
+        id: String,
+        body: PeriodCloseProofInput,
+    ) -> Result<FinancePeriodCloseResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != company {
+                return Err(scope());
+            }
+            request.mutation = true;
+            Ok(request)
+        };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "finance.write".into(),
+                    module: Some("finance".into()),
+                    destination: "finance/close".into(),
+                    api: true,
+                },
+                PeriodCloseSources,
+                move |c, current| {
+                    let configuration = configuration.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    let id = id.clone();
+                    let body = body.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &configuration.holding
+                            || current.selection().workspace().company_id != configuration.company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("finance.write")?;
+                        current.require_permission("finance.approve")?;
+                        current.require_permission("module.finance.read")?;
+                        let workspace = current.selection().workspace();
+                        if workspace.branch_id.is_some() || workspace.department_id.is_some() {
+                            return Err(BusinessError::new(
+                                FailureKind::Forbidden,
+                                "COMPANY_SCOPE_REQUIRED",
+                                "Use a Company Finance assignment for period close.",
+                            )
+                            .into());
+                        }
+                        let now = clock.now();
+                        Self::require_close_purchase(
+                            c,
+                            current,
+                            &configuration,
+                            CapabilityPurpose::SettleExisting,
+                            now,
+                        )
+                        .await?;
+                        let data = reopen_period(
+                            c,
+                            &command_actor(current)?,
+                            &command,
+                            &id,
+                            &body,
+                            true,
+                            now.get(),
+                        )
+                        .await?;
+                        Ok(FinancePeriodCloseResponse { data })
                     })
                 },
             )

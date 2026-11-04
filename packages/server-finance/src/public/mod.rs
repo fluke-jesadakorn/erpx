@@ -121,3 +121,5 @@ pub mod payment_correction;
 
 pub mod bank_reconciliation;
 pub mod bank_workspace;
+
+pub mod period_close;

@@ -494,3 +494,8 @@ required-features = ["private-field-api"]
 name = "supplier_bill_postgres"
 path = "../../tests/integration/finance/rust-supplier-bill-postgres.test.rs"
 required-features = ["private-field-api"]
+
+[[test]]
+name = "period_close_postgres"
+path = "../../tests/integration/finance/rust-period-close-postgres.test.rs"
+required-features = ["private-field-api"]

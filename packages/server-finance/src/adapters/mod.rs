@@ -85,3 +85,5 @@ pub(crate) mod payment_correction;
 
 pub(crate) mod bank_reconciliation;
 pub(crate) mod bank_workspace;
+
+pub mod period_close;
