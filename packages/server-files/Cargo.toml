@@ -110,3 +110,15 @@ path = "../../tests/unit/files/rust-field-visit-intake-policy.test.rs"
 [[test]]
 name = "field_visit_upload_policy"
 path = "../../tests/unit/files/rust-field-visit-upload-policy.test.rs"
+
+[[test]]
+name = "attachment_read_policy"
+path = "../../tests/unit/files/rust-attachment-read-policy.test.rs"
+
+[[test]]
+name = "attachment_read_http"
+path = "../../tests/unit/files/rust-attachment-read-http.test.rs"
+
+[[test]]
+name = "attachment_read_postgres"
+path = "../../tests/integration/files/rust-attachment-read-postgres.test.rs"

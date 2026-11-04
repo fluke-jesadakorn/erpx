@@ -6,6 +6,8 @@ pub mod preview_engine;
 #[cfg(feature = "preview-provider")]
 pub mod preview_process;
 
+pub mod attachment_read_postgres;
+pub mod attachment_http;
 pub mod postgres_attachment_scan;
 
 pub mod postgres_attachment_scan_receipt;

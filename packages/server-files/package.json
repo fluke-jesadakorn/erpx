@@ -181,6 +181,7 @@
     "./public/employee-evidence-read": "./src/public/employee-evidence-read.ts",
     "./public/private-attachment-reads": "./src/public/private-attachment-reads.ts",
     "./public/attachment-denied-read-audits": "./src/public/attachment-denied-read-audits.ts",
+    "./public/native-attachments": "./src/public/native-attachments.ts",
     "./public/commercial-usage-facts": "./src/public/commercial-usage-facts.ts",
     "./index": "./src/index.ts",
     "./application/document-derivatives": "./src/application/document-derivatives.ts",
