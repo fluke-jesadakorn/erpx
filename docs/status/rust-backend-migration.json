@@ -322,14 +322,14 @@
     },
     {
       "id": "planning",
-      "package": "erpx-server-planning",
-      "phase": "pending",
+      "package": "erpx-server-manufacturing",
+      "phase": "partial",
       "businessMigrationComplete": false,
       "surfaces": {
-        "domain": "pending",
-        "application": "pending",
-        "http": "pending",
-        "ssr": "pending",
+        "domain": "active",
+        "application": "active",
+        "http": "partial",
+        "ssr": "partial",
         "jobs": "pending",
         "providers": "pending"
       }
