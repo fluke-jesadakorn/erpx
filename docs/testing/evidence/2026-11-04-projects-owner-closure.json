@@ -1,0 +1,146 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Projects now has a bounded native project-detail and WBS milestone/dependency read, an owner-local HTTP router, a strict Next transport, and a configured SSR cutover. The Projects owner remains partial: shared composition mounting, the root workspace-member registration, purchase-atomic owner reads, project graph/task/actuals/handoff reads, commands and browser acceptance remain open.",
+  "capability": "projects-owner-wbs-closure",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "7125323db809c01c9a7aa56c179870616bb3547a",
+  "scope": {
+    "workflows": [
+      "projects/feature-projects-wbs",
+      "projects/dependencies"
+    ],
+    "workflowBoundary": "The qualified slice reads the current project row and its bounded milestone hierarchy, parent links and predecessor dependencies. Task assignment, project graph tasks, approved time, posted costs, attachments, handoffs, project commands and the other four Projects workflows are not claimed.",
+    "domain": "Project read actor policy (records.read, Projects module, selected-context expiry), Company and exact project identity, bounded project/milestone row shapes, parent existence and cycle detection, dependency existence and cycle detection, depth and dependency-count limits, completion/timestamp consistency and computed overdue state.",
+    "application": "One project_wbs use case requires the current actor before any repository call, rejects non-member/hidden projects with PROJECT_NOT_FOUND, validates every owner row against the actor Company and requested project, and computes overdue state from the caller's current timestamp.",
+    "adapters": "Own SQL over staff_projects, staff_project_members, staff_project_milestones and staff_project_milestone_dependencies only. The caller's serializable Holding transaction is required. Project visibility and IAM same-person aliases use the existing iam_same_person projection. No task, People, Finance, purchase, IAM mutation or workflow SQL is invented; no owner write is performed.",
+    "http": "Owner-local GET /api/v1/holdings/{holding_slug}/projects/{project_id}/wbs. Exact Host/Holding targets, exact HTTPS origin validation, duplicate/unknown query rejection, bounded project identifier validation, private/no-store and no-referrer responses, and bounded BusinessError status mapping. The composition backend receives transport facts only and must supply the normal Account session, current Company scope, purchase admission and serializable owner read.",
+    "transport": "ERPX_NATIVE_PROJECTS_CONFIG is strictly validated: loopback-only private base, reserved ports 3000/3001/3100/3101/3103/8080 plus 5432/5433/5435 and 3200-3299 excluded, exact HTTPS Holding origins, unique hosts/slugs, 250..30000 ms timeout, bounded cookie/context/workspace headers, exact project/milestone/context shapes, unique milestone IDs, parent/dependency references and a 2 MiB response bound. A configured failure never falls back to the retained reader.",
+    "ssr": "The Projects detail presenter uses the native project and milestone rows when the native configuration is present. An unset ERPX_NATIVE_PROJECTS_CONFIG retains the legacy project/milestone reader so existing development and tests remain usable; once configured, an invalid or failed native read is surfaced rather than silently replaced.",
+    "purchaseAndIdentity": "The Next owned wrapper keeps the retained requireProjectPurchasedRead preflight ahead of the native read. This is a preflight, not an atomic owner unit; the composition backend must repeat current authority and purchase admission on its own serializable owner transaction.",
+    "notClaimed": "No browser journey, authenticated page render, shared composition mount, root workspace membership, catalogue registration, command/idempotency receipt, audit/outbox effect, project graph/task/Finance/People/Inventory guard, handoff, attachment, job, production or staging acceptance."
+  },
+  "changedFiles": [
+    "packages/server-projects/Cargo.toml",
+    "packages/server-projects/src/lib.rs",
+    "packages/server-projects/src/domain/mod.rs",
+    "packages/server-projects/src/domain/project_wbs.rs",
+    "packages/server-projects/src/application/mod.rs",
+    "packages/server-projects/src/application/project_wbs.rs",
+    "packages/server-projects/src/adapters/mod.rs",
+    "packages/server-projects/src/adapters/project_wbs_read.rs",
+    "packages/server-projects/src/adapters/project_wbs_http.rs",
+    "packages/server-projects/src/public/mod.rs",
+    "packages/server-projects/src/public/project_wbs.rs",
+    "packages/server-projects/src/public/project_wbs_http.rs",
+    "packages/feature-projects/package.json",
+    "packages/feature-projects/src/public/native-project-wbs.ts",
+    "packages/feature-projects/src/public/native-project-wbs-page.ts",
+    "packages/feature-projects/src/public/native-project-wbs-owned.ts",
+    "packages/feature-projects/src/adapters/server/next-native-project-wbs.ts",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/projects/[id]/screen.tsx",
+    "tests/unit/projects/rust-project-wbs.test.rs",
+    "tests/unit/projects/rust-project-wbs-http.test.rs",
+    "tests/integration/projects/rust-project-wbs-postgres.test.rs",
+    "tests/unit/projects/native-project-wbs-transport.test.ts"
+  ],
+  "verification": {
+    "cargo": {
+      "command": "cargo test -p erpx-server-projects --locked",
+      "result": "16 passed, 0 failed, 0 ignored across 4 targets (lib 0, project_wbs 10, project_wbs_http 3, project_wbs_postgres 3, doc-tests 0)",
+      "workspaceNote": "The crate is not yet listed in the root workspace members, which this subagent is prohibited from editing. The exact command was run with a transient local member entry and transient Cargo.lock update; both root files were restored byte-for-byte and are absent from the final diff. A fresh checkout must have the shared integration change add packages/server-projects to [workspace] members before the command is reproducible.",
+      "targets": {
+        "project_wbs": "10 passed: policy permission/module/expiry, Company/membership/source scope, parent/cycle/depth, dependency reference/cycle, distinct IDs with duplicate dependency titles, duplicate/oversized sources, completion-pair/blocked facts, completed-not-overdue and exact serialization keys",
+        "project_wbs_http": "3 passed: exact distinct targets, actual loopback request/query/error mapping, private/no-referrer/nosniff headers",
+        "project_wbs_postgres": "3 passed: owner/member/alias visibility, foreign-Company isolation, dependency/blocked facts, transaction/serializable guards, rollback and persisted readback"
+      }
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-projects --all-targets --locked -- -D warnings",
+      "result": "pass; no erpx-server-projects warning"
+    },
+    "rustfmt": {
+      "command": "rustfmt --edition 2024 --check on every changed Rust file",
+      "result": "pass"
+    },
+    "postgres": {
+      "suite": "project_wbs_postgres (raw migrated PostgreSQL, disposable leased erpx_dev_rust_* database)",
+      "cases": [
+        "owner reads project-owned WBS with dependency titles and completed-predecessor blocking; alias-user resolves to the same owner through iam_same_person",
+        "member reads only the member project; hidden and foreign projects return PROJECT_NOT_FOUND; foreign Company reads only its own project",
+        "a reader outside a transaction or inside a non-serializable transaction fails closed",
+        "a milestone inserted inside the owner transaction is visible to the read and disappears after abort; committed readback does not create or delete rows",
+        "missing permission, missing Projects module and expired selected context fail before repository source reads"
+      ],
+      "fixture": "Real migrated PostgreSQL with synthetic Company/project/member/milestone/dependency rows; no owner write in the qualified read path."
+    },
+    "httpRouter": {
+      "tests": [
+        "actual loopback router forwards the exact project identifier and returns owner data and rendered context",
+        "oversized project identifier and unknown query are 422 PROJECTS_REQUEST_INVALID; unknown Host/Holding is 404; backend conflict is 409 PROJECT_WBS_CHANGED",
+        "responses carry private/no-store, no-referrer and nosniff headers",
+        "duplicate targets and non-HTTPS origins fail configuration"
+      ],
+      "limit": "The router test uses a recording backend; it does not prove the shared composition backend or a PostgreSQL-backed HTTP request."
+    },
+    "typescript": {
+      "unit": "vitest tests/unit/projects/native-project-wbs-transport.test.ts: 8 passed",
+      "retained": "vitest tests/unit/projects/project-services.test.ts: 129 passed; the unset native configuration retains the legacy project/milestone reader",
+      "typechecks": [
+        "tsc --noEmit -p packages/feature-projects/tsconfig.json: pass",
+        "tsc --noEmit -p packages/workplace/tsconfig.json: pass",
+        "targeted tests/config typecheck for tests/unit/projects/native-project-wbs-transport.test.ts: pass"
+      ],
+      "limits": "The repository-wide tests/config typecheck still reports four pre-existing errors in tests/unit/commercial/provider-commercial-transport.test.ts; no Projects or transport file is in that failure set."
+    },
+    "structure": {
+      "layout": "node_modules/.bin/tsx scripts/testing/layout.ts: exit 0, no output",
+      "diffCheck": "git diff --check on the Projects-owned changed files: pass",
+      "runnerLimit": "Bun 1.4.3 is not installed in this worktree, so the Bun catalogue runner was not executed. The transport test was run with an equivalent temporary Vitest config, then the config was removed."
+    },
+    "browser": "not run; no Next dev server, authenticated page render, public URL or browser acceptance was executed. No workflow is claimed browser-verified."
+  },
+  "preExistingFailures": {
+    "tests_config_typecheck": "tsc --noEmit -p tests/config/tsconfig.json reports four TS2554 errors in tests/unit/commercial/provider-commercial-transport.test.ts, outside this owner.",
+    "shared_worktree": "Commercial and Operations subagents added uncommitted files and modified tests/catalogue/suite-manifest.json while this slice ran. Those files were not edited, reverted or included in this slice."
+  },
+  "sharedCompositionDelta": {
+    "ownerPublicApi": [
+      "erpx_server_projects::public::project_wbs::{ProjectReadActor, ProjectRow, MilestoneRow, ProjectWbs, ProjectWbsReadRepository, PgProjectWbsRead, project_wbs}",
+      "erpx_server_projects::public::project_wbs_http::{projects_router, ProjectWbsHttpTarget, ProjectWbsHttpBackend, ProjectWbsHttpRequest, ProjectWbsHttpResponse}"
+    ],
+    "backendRequired": "Implement ProjectWbsHttpBackend in src/composition: parse the normal Account/Holding request, call the retained HoldingWorkAuthorizer with records.read and the Projects module, require the configured Holding/Company, run one serializable transaction, supply the 15-field rendered context, build ProjectReadActor from the current authority, call project_wbs, and map PgTransactionError to BusinessError. Preserve current Commercial project purchase admission in the same or an explicitly ordered owner unit.",
+    "privateDevelopmentApi": [
+      "Build one ProjectWbsHttpTarget per registered Holding with exact host, slug and https origin.",
+      "router = router.merge(erpx_server_projects::public::project_wbs_http::projects_router(targets).map_err(|_| \"PRIVATE_API_PROJECTS_CONFIGURATION_INVALID\")?);",
+      "Mount /projects/{project_id}/wbs before the generic 404 fallback."
+    ],
+    "rootWorkspace": "Add \"packages/server-projects\" to the root Cargo.toml [workspace] members and the corresponding workspace dependency entry, then update Cargo.lock in the integration change. This subagent did not make that shared edit.",
+    "nextEnvironment": "Set ERPX_NATIVE_PROJECTS_CONFIG={\"privateBaseUrl\":\"http://127.0.0.1:<owned-loopback-port>\",\"timeoutMs\":250..30000,\"holdings\":[{\"origin\":\"https://<registered-holding>\",\"holdingSlug\":\"<slug>\",\"holdingId\":\"h00N\"}]} for each affected app.",
+    "schema": "No PostgreSQL schema or migration change is required. The new crate adds no dependency beyond the existing shared/runtime/sqlx/serde workspace set.",
+    "whyNotAppliedHere": "This subagent is prohibited from editing src/composition/**, root Cargo.toml/Cargo.lock, package lockfiles, docs/status/** and other owners' implementation."
+  },
+  "legacyInventory": {
+    "removed": [
+      "When ERPX_NATIVE_PROJECTS_CONFIG is present, the Projects detail presenter no longer reads the project row or structure milestones through queries.getProject/listProjectMilestones; native project and milestone rows replace them.",
+      "No retained TypeScript Projects source file was deleted. Project graph, tasks, actuals, handoffs and all commands remain on their existing owner paths."
+    ],
+    "retainedWithConsumers": [
+      "packages/server-projects/src/application/staff-projects.ts, adapters/staff-projects.ts and public/staff-projects.ts retain getProject/listProjects/saveProject for the Projects collection, other consumers and existing tests.",
+      "packages/server-projects/src/application/milestones.ts, adapters/milestones.ts and public/project-milestones.ts retain listProjectMilestones and milestone commands for the API route and command path.",
+      "The unset-config fallback keeps queries.getProject/listProjectMilestones available so development and the existing 129-case Projects unit suite remain usable.",
+      "The project structure GET/POST route, project graph, handoffs, tasks, actuals, attachments, purchases, audit/outbox and every command path remain retained and unchanged."
+    ]
+  },
+  "limits": [
+    "No shared composition backend is mounted, so no private/production route serves the owner router yet. The HTTP test backend is a recording fake.",
+    "The new crate is not a root workspace member in the final tree; a fresh cargo test -p erpx-server-projects --locked requires the shared integration edit.",
+    "The Next purchase/Identity preflight and the native read are separate transactions. A composition mount must keep the authoritative purchase and current IAM check inside the owner read transaction.",
+    "Milestone owner_name is returned as null to avoid cross-owner People SQL; the retained UI falls back to owner_user_id. A People owner port can supply names later.",
+    "Task assignment, project graph tasks, approved time, posted costs, attachments and handoffs are not part of this read; the other four Projects workflows remain pending.",
+    "No command, CAS write, idempotency receipt, audit/outbox event or same-transaction Finance/People/Inventory guard was added; those concerns do not apply to the qualified read and remain required before any Projects write cutover.",
+    "No browser, authenticated page, Next dev server or public URL verification was run. No business-owner completion flag is changed by this subagent.",
+    "tests/catalogue/suite-manifest.json was not edited because another subagent was modifying it concurrently and this subagent must not create shared registers. The new transport and cargo tests are present and were run directly.",
+    "Hosted CI, staging, private production and Cloudflare were not accessed."
+  ]
+}

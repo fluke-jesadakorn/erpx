@@ -22,6 +22,7 @@
     "./lib/worker-startup-command": "./src/lib/worker-startup-command.ts",
     "./lib/project-record-command": "./src/lib/project-record-command.ts",
     "./lib/purchase-controls": "./src/lib/purchase-controls.ts",
+    "./public/native-project-wbs-owned": "./src/public/native-project-wbs-owned.ts",
     "./lib/project-editor-command": "./src/lib/project-editor-command.ts",
     "./lib/worker-display": "./src/lib/worker-display.ts",
     "./lib/project-command": "./src/lib/project-command.ts",

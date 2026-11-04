@@ -50076,6 +50076,133 @@
       ]
     },
     {
+      "id": "projects.rust-project-wbs.unit",
+      "lane": "unit",
+      "owner": "projects",
+      "modules": [
+        "projects"
+      ],
+      "files": [
+        "tests/unit/projects/rust-project-wbs.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Projects WBS detail/dependency reads retain Company scope, current authority, bounded graph/readback and policy closures."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-projects",
+        "targets": [
+          "project_wbs"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-projects/Cargo.toml"
+      ]
+    },
+    {
+      "id": "projects.rust-project-wbs-http.unit",
+      "lane": "unit",
+      "owner": "projects",
+      "modules": [
+        "projects"
+      ],
+      "files": [
+        "tests/unit/projects/rust-project-wbs-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Projects HTTP ingress retains exact targets, fail-closed configuration and bounded error mapping."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-projects",
+        "targets": [
+          "project_wbs_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-projects/Cargo.toml"
+      ]
+    },
+    {
+      "id": "projects.rust-project-wbs-postgres.integration",
+      "lane": "integration",
+      "owner": "projects",
+      "modules": [
+        "projects"
+      ],
+      "files": [
+        "tests/integration/projects/rust-project-wbs-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Projects WBS read retains Company isolation, current authority, selected-context closure, dependency readback and rollback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-projects",
+        "targets": [
+          "project_wbs_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-projects/Cargo.toml"
+      ]
+    },
+    {
+      "id": "projects.native-project-wbs-transport.unit",
+      "lane": "unit",
+      "owner": "projects",
+      "modules": [
+        "projects"
+      ],
+      "files": [
+        "tests/unit/projects/native-project-wbs-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Projects transport must retain fail-closed configuration, exact Holding/context forwarding, bounded responses and owner error mapping."
+      },
+      "framework": "vitest",
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/feature-projects",
+        "@erpx/server-projects"
+      ]
+    },
+    {
       "id": "support.workspace-smoke.e2e",
       "lane": "e2e",
       "owner": "support",
