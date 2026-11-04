@@ -1,5 +1,5 @@
 import {ApiError} from '@erpx/server-runtime/public/http';
-import {nativeServiceCustomerReceipt,nativeJournalPageFailure} from '@erpx/feature-finance/public/server';
+import {nativeServiceCustomerReceipt,nativeJournalPageFailure,nativeSalesReceipt} from '@erpx/feature-finance/public/server';
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
 import Link from "@erpx/workplace/components/workspace-link";
 import { FeaturePage } from "@erpx/feature-shared/components/features/feature-page";
@@ -15,9 +15,18 @@ export const dynamic = "force-dynamic";
 export default async function ReceiptPage({params}:{params:Promise<{holdingSlug:string;id:string}>}) {
   const {holdingSlug,id}=await params,actor=await requireWorkContext(holdingSlug),base=workspaceBase(publicScope(actor));
   let native;
-  try{native=await nativeServiceCustomerReceipt(actor,holdingSlug,id);}catch(error){
-    const mapped=nativeJournalPageFailure(error);
-    return pageError(mapped?new ApiError(mapped.status,mapped.code,mapped.message.replaceAll('Journal','Receipt').replaceAll('journal','receipt')):error,holdingSlug);
+  const fieldConfigured=process.env.ERPX_NATIVE_FINANCE_SERVICE_PAYMENT_CONFIG!==undefined;
+  try{
+    if(fieldConfigured)native=await nativeServiceCustomerReceipt(actor,holdingSlug,id);
+    if(!native){
+      const generic=await nativeSalesReceipt(actor,holdingSlug,id);
+      if(generic)native={data:generic} as unknown as typeof native;
+    }
+  }catch(error){
+    if(fieldConfigured){
+      const mapped=nativeJournalPageFailure(error);
+      return pageError(mapped?new ApiError(mapped.status,mapped.code,mapped.message.replaceAll('Journal','Receipt').replaceAll('journal','receipt')):error,holdingSlug);
+    }
   }
   const {snapshot,status,sha256}=native?.data??await customerReceiptDetail(actor,id).catch(error=>pageError(error,holdingSlug));
   return <FeaturePage className="ui-page-content" data-print-document><article className={styles.receipt}><div className={styles.noPrint}><Link href={canonicalUiHref(`${base}/finance/sales?tab=receipts`)}>Back to receipts</Link> · <PrintReceipt /> · <a target="_blank" rel="noreferrer" href={`${base.replace(canonicalUiHref("/holdings/"),"/api/v1/holdings/")}/finance/sales/receipts/${id}/export`}>Open retained issued copy</a></div>

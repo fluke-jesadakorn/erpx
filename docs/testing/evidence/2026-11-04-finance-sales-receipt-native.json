@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Finance standalone customer-receipt detail, export and issue verified on desktop and mobile; the sales-invoice workspace remains partial for standalone edit/void",
+  "capability": "finance-sales-receipt-native",
+  "base": "8e660db6e277f8aeb6530eafa83f8f88bec29148",
+  "branch": "codex/finance-sales-receipt-native",
+  "sourceCommit": "pending",
+  "implementation": {
+    "adapter": "packages/server-finance/src/adapters/sales_receipts.rs",
+    "public": "packages/server-finance/src/public/sales_receipts.rs",
+    "composition": "src/composition/src/finance_journal_detail.rs (sales_receipt/export_sales_receipt/issue_sales_receipt)",
+    "http": "src/composition/src/finance_journal_detail_http.rs",
+    "boundary": "src/composition/src/private_development_api.rs (finance_sales_receipts)",
+    "transport": "packages/feature-finance/src/adapters/server/native-sales-receipt.ts",
+    "nextRoute": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/sales/[[...path]]/route.ts",
+    "page": "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance/sales/receipts/[id]/screen.tsx"
+  },
+  "behavior": {
+    "issue": "a settled receipt payment with a posted journal and no Field ownership receives erpx_sales_document_number(company,'RC',paymentDate), an immutable snapshot_json, export_html and its SHA-256, all inside the caller's serializable transaction",
+    "snapshot": "finance.customer-receipt.v1 with company/customer, date, currency, amount, payment id/version, bank reference, journal id and the ordered invoice allocations",
+    "read": "returns the retained receipt, snapshot, status and SHA; the status is cancelled when the source payment is cancelled/reversed/voided and the issued copy is never rewritten",
+    "export": "returns the retained export_html with x-document-sha256 and a strict CSP; the browser SHA equals the stored export_sha256",
+    "scope": "Company scope by default; branch/department receipts are visible only through the original Commerce fulfillment invoice lineage",
+    "fieldExclusion": "Field-owned payments return NATIVE_FINANCE_RECEIPT_REQUIRED and remain on the existing native Field receipt interface; a deferred DB trigger also enforces the native Field owner unit",
+    "authority": "current Account/Holding authority, rendered-context CAS, finance.read/finance.write, module.finance.read and finance.accounting or finance.sales-posting purchase",
+    "atomicity": "serializable transaction with finance_customer_receipts/payments/journals/allocations/invoices/parties/periods/number-sequence share-row-exclusive locks"
+  },
+  "checks": {
+    "postgres": "finance.rust-sales-receipt-postgres.integration 2/2",
+    "cases": [
+      "issue 201 for a settled posted payment, immutable RC-2026-000001 snapshot and export",
+      "read returns the snapshot document number, customer, amount, bank reference, journal and allocation",
+      "export HTML contains the document number, customer, invoice and received total; SHA equals the read SHA",
+      "exact replay returns the retained receipt without a second copy or receipt row",
+      "Company isolation and branch scope return no receipt without the original fulfillment lineage",
+      "a released (unsettled) payment is 409 POSTED_RECEIPT_REQUIRED",
+      "HTTP issue 201, read 200 and export 200 text/html with x-document-sha256 using a real cookie/CAS/key"
+    ],
+    "regressions": "finance.rust-sales-defaults-postgres 3/3; finance.rust-sales-invoice-create-postgres 3/3; finance.rust-sales-invoice-list-postgres 3/3; finance.rust-journal-list-postgres 2/2",
+    "gates": "cargo clippy private-field-api, typecheck, structure, architecture, docs, catalogue (33 modules, 791 suites), rust-runtime-foundation 6/6, finance unit transport suites 4/4"
+  },
+  "browser": {
+    "desktop": {
+      "viewport": "1280x900",
+      "payment": "browser-receipt-payment-6 (RCPT-BROWSER-6)",
+      "issue": {"postStatus": 201, "id": "customer-receipt-browser-receipt-payment-6"},
+      "receipt": {"status": 200, "documentNumber": "RC-2026-000013", "customer": "Browser customer", "invoice": "INV-2026-000005", "amount": "THB 10.00", "state": "issued"},
+      "export": {"status": 200, "contentType": "text/html; charset=utf-8", "sha256": "f6c107123ae6482377535a40d08dcb72544c5c4cb72498327ebbddfa7197d12d"},
+      "pageErrors": 0,
+      "consoleErrors": 11
+    },
+    "mobile": {
+      "viewport": "390x844",
+      "payment": "browser-receipt-payment-7 (RCPT-BROWSER-7)",
+      "issue": {"postStatus": 201, "id": "customer-receipt-browser-receipt-payment-7"},
+      "receipt": {"status": 200, "documentNumber": "RC-2026-000014", "customer": "Browser customer", "invoice": "INV-2026-000005", "amount": "THB 10.00", "state": "issued"},
+      "export": {"status": 200, "contentType": "text/html; charset=utf-8", "sha256": "8b6ae05776ad04c8b10c92639ad2188356e66c8217b3d4b0230f29d77889eb17"},
+      "pageErrors": 0,
+      "consoleErrors": 13
+    },
+    "persisted": {
+      "receipts": [
+        {"id": "customer-receipt-browser-receipt-payment-6", "documentNumber": "RC-2026-000013", "shaPrefix": "f6c107123ae64823", "shaMatchesExportHtml": true},
+        {"id": "customer-receipt-browser-receipt-payment-7", "documentNumber": "RC-2026-000014", "shaPrefix": "8b6ae05776ad04c8", "shaMatchesExportHtml": true}
+      ],
+      "commands": "one finance.customer-receipt.issue command_receipt, audit_event and outbox_event per payment",
+      "issuedBy": "zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e-owner"
+    },
+    "nativeProof": "With ERPX_NATIVE_FINANCE_SALES_RECEIPT_CONFIG present, the page read and export are served by the native API; the Sales route skips the Field readback only when the Field config is absent, and Field-owned receipts still return NATIVE_FINANCE_RECEIPT_REQUIRED."
+  },
+  "limits": [
+    "The generic sales-invoice workspace remains partial: standalone invoice edit/void is still TS.",
+    "A Field-owned receipt cannot be seeded into the isolated PostgreSQL fixture because the deferred native_service_payment_write_required trigger correctly demands the native Field owner unit; the generic guard is covered by code and the DB trigger, and Field receipts remain on their existing native interface.",
+    "The browser console still logs pre-existing hydration/work-source errors; pageErrors stay 0.",
+    "The export is exercised by a normal authenticated browser navigation; the retained copy is the stored export_html, not a re-render."
+  ]
+}

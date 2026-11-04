@@ -111,6 +111,18 @@ pub fn finance_journal_read_router<C: Clock + Send + Sync + 'static>(
             post(decide_sales_defaults::<C>),
         )
         .route(
+            "/api/v1/holdings/{holding_slug}/finance/sales/receipts/{id}",
+            get(sales_receipt::<C>),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/sales/receipts/{id}/export",
+            get(export_sales_receipt::<C>),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/sales/receipts/{id}/issue",
+            post(issue_sales_receipt::<C>),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/finance/journals/{id}",
             get(detail::<C>),
         )
@@ -224,6 +236,207 @@ async fn workspace<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     read(state, slug, id, headers, true).await
 }
+async fn sales_receipt<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target = crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let company = target.service.company_id().clone();
+        let proof = inbound.into_proof();
+        let input = move || {
+            scope?;
+            captured.resolve_read(company)
+        };
+        target
+            .service
+            .sales_receipt(host, proof, input, id)
+            .await
+    }
+    .await;
+    match result {
+        Ok(Some(reply)) => {
+            let mut response = Json(reply).into_response();
+            no_store(&mut response);
+            response
+        }
+        Ok(None) => {
+            let mut response = business_error(BusinessError::new(
+                FailureKind::NotFound,
+                "RECEIPT_NOT_FOUND",
+                "Receipt not found in this workspace.",
+            ));
+            no_store(&mut response);
+            response
+        }
+        Err(PgTransactionError::Business(error)) => {
+            let mut response = business_error(error);
+            no_store(&mut response);
+            response
+        }
+        Err(_) => {
+            let mut response = StatusCode::SERVICE_UNAVAILABLE.into_response();
+            no_store(&mut response);
+            response
+        }
+    }
+}
+
+async fn export_sales_receipt<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target = crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let company = target.service.company_id().clone();
+        let proof = inbound.into_proof();
+        let input = move || {
+            scope?;
+            captured.resolve_read(company)
+        };
+        target
+            .service
+            .export_sales_receipt(host, proof, input, id)
+            .await
+    }
+    .await;
+    match result {
+        Ok(Some(reply)) => {
+            let mut response = Response::new(reply.data.content.into());
+            response.headers_mut().insert(
+                header::CONTENT_TYPE,
+                HeaderValue::from_static("text/html; charset=utf-8"),
+            );
+            response.headers_mut().insert(
+                header::CONTENT_SECURITY_POLICY,
+                HeaderValue::from_static("default-src 'none'; style-src 'unsafe-inline'"),
+            );
+            if let Ok(value) = HeaderValue::from_str(&reply.data.sha256) {
+                response
+                    .headers_mut()
+                    .insert("x-document-sha256", value);
+            }
+            no_store(&mut response);
+            response
+        }
+        Ok(None) => {
+            let mut response = business_error(BusinessError::new(
+                FailureKind::NotFound,
+                "RECEIPT_NOT_FOUND",
+                "Receipt not found in this workspace.",
+            ));
+            no_store(&mut response);
+            response
+        }
+        Err(PgTransactionError::Business(error)) => {
+            let mut response = business_error(error);
+            no_store(&mut response);
+            response
+        }
+        Err(_) => {
+            let mut response = StatusCode::SERVICE_UNAVAILABLE.into_response();
+            no_store(&mut response);
+            response
+        }
+    }
+}
+
+async fn issue_sales_receipt<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(&headers, "host")?
+            .ok_or_else(missing)?
+            .to_owned();
+        let target = crate::http_scope::selected_company_target(&state.targets, &host, &slug, &headers)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let key = unique_request_header(&headers, "idempotency-key")?
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                BusinessError::invalid("IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required.")
+            })?;
+        let command = CommandKey::new(key.to_owned())?;
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let proof = inbound.into_proof();
+        target
+            .service
+            .issue_sales_receipt(
+                &host,
+                proof,
+                move || {
+                    scope?;
+                    captured.resolve()
+                },
+                command,
+                id,
+            )
+            .await
+    }
+    .await;
+    let mut response = match result {
+        Ok(reply) => (StatusCode::CREATED, Json(reply)).into_response(),
+        Err(PgTransactionError::Business(error)) => business_error(error),
+        Err(_) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
+    };
+    no_store(&mut response);
+    response
+}
+
 async fn sales_defaults_workspace<C: Clock + Send + Sync + 'static>(
     State(state): State<Arc<ReadState<C>>>,
     Path(slug): Path<String>,
