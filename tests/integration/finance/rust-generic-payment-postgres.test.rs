@@ -466,3 +466,101 @@ async fn generic_payment_confirmation_persists_journal_allocation_and_bank_match
     })
     .await;
 }
+
+#[tokio::test]
+async fn generic_supplier_payment_bank_import_then_confirm() {
+    account::with_system(|system| async move {
+        let p = setup(system).await;
+        let pool = &p.system.holdings[0];
+        seed(pool).await;
+        let clock = p.system.scenario.clock.clone();
+        let id = "pay-bank-import";
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        prepare_generic_payment(
+            &mut tx,
+            &actor("fixture-a"),
+            id,
+            &payment("payment", "bill-open", "supplier"),
+            clock.as_ref(),
+        )
+        .await
+        .unwrap()
+        .persist(&mut tx)
+        .await
+        .unwrap();
+        let reviewer = actor("fixture-b");
+        read_service_receipt_review(&mut tx, &reviewer, id)
+            .await
+            .unwrap()
+            .apply(&mut tx, &reviewer, true, 1, false, false, clock.now().get())
+            .await
+            .unwrap();
+        let releaser = actor("fixture-c");
+        read_service_receipt_review(&mut tx, &releaser, id)
+            .await
+            .unwrap()
+            .apply(&mut tx, &releaser, false, 2, false, false, clock.now().get())
+            .await
+            .unwrap();
+        let bank = prepare_service_receipt_bank(
+            &mut tx,
+            &releaser,
+            "bank-generic",
+            &ServiceReceiptBankInput {
+                settlement_payment_id: id.into(),
+                bank_account: "bank".into(),
+                statement_number: "ST-GENERIC".into(),
+                statement_date: "2026-01-10".into(),
+                opening: "0.00".into(),
+                closing: "10.00".into(),
+                closing_fx_rate: None,
+                source_hash: "caller-source-hash".into(),
+                rows: vec![ServiceReceiptBankRow {
+                    external_id: "EXT-GENERIC".into(),
+                    transaction_date: "2026-01-10".into(),
+                    description: Some("Supplier settlement".into()),
+                    amount: "10.00".into(),
+                    currency: "THB".into(),
+                }],
+            },
+            clock.as_ref(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(bank.statement_id(), "statement-bank-generic");
+        bank.persist(&mut tx).await.unwrap();
+        let confirm = prepare_service_receipt_confirm(
+            &mut tx,
+            &releaser,
+            id,
+            "bill-open",
+            "bank-confirm-key",
+            &ServiceReceiptConfirmInput {
+                expected_version: 3,
+                period_id: "period".into(),
+                bank_transaction_id: "bankrow-bank-generic-0".into(),
+                bank_version: 1,
+                bank_reference: "REF-GENERIC".into(),
+                proof: "Reviewed the imported bank result".into(),
+                fx_rate: None,
+                fx_gain_account_id: None,
+                fx_loss_account_id: None,
+                allocations: vec![ServiceReceiptAllocationInput {
+                    invoice_id: "bill-open".into(),
+                    amount: "10.00".into(),
+                }],
+                attachment_set_ids: Vec::new(),
+            },
+            clock.as_ref(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(confirm.primary_draft().lines[0].account_id, "ap");
+        tx.rollback().await.unwrap();
+    })
+    .await;
+}

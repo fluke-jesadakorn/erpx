@@ -1,7 +1,7 @@
 {
   "version": 1,
   "date": "2026-11-04",
-  "status": "Native generic controlled-payment sources and transport are ready; full confirm persistence, generic bank import and the browser journey remain open",
+  "status": "Native generic controlled-payment create/review/confirm/import are integrated with transport; the authenticated browser journey remains open.",
   "capability": "finance-generic-controlled-payment",
   "integrationTarget": "codex/rust-backend-migration",
   "commits": [
@@ -15,7 +15,7 @@
     "transport": "Create observes POST /finance/invoices/{id}/payment-runtime; generic payment workspaces use the finance.banking purchase guard and accept payment/banking shapes."
   },
   "tests": [
-    "finance.rust-generic-payment-postgres.integration: 4 passed (create/approve/release both kinds, confirmation journal directions, persisted journal/allocation/invoice/bank settlement for both kinds, wrong-kind and expense-claim refusal)",
+    "finance.rust-generic-payment-postgres.integration: 5 passed (create/approve/release, confirmation directions, persisted journal/allocation/invoice/bank settlement, generic bank import then confirm, wrong-kind and expense-claim refusal)",
     "vitest native-service-invoice transport: 34 passed",
     "finance.rust-service-invoice-posting.unit: 10 passed (Field receipt decisions unchanged)"
   ],
