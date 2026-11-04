@@ -10,7 +10,7 @@ import {HandbookEditors} from "@erpx/workplace/components/handbook-controls";
 import {LearningConsole} from "@erpx/feature-learning/components/learning-console";
 import {ListFilters} from "@erpx/ui/components/list-filters";
 import {ListPagination} from "@erpx/ui/components/list-pagination";
-import {collaborationPresentationQueries} from "@erpx/server-collaboration/public/presentation-queries";
+import { handbookReads } from "@erpx/feature-collaboration/lib/native-handbook-page";
 import {companyMembers} from "@erpx/server-organization/public/member-directory";
 import {learningWorkspace} from "@erpx/server-learning/public/learning";
 import {nativeLearningAvailable,nativeLearningWorkspacePage} from "@erpx/workplace/lib/native-learning";
@@ -23,7 +23,7 @@ import {sectionWorkspaceTopics,knowledgeTopicsFor,workspaceTopicLinks,workspaceS
 import type {RouteSearch} from "@erpx/feature-shared/lib/route-context";
 export const dynamic='force-dynamic';
 export default async function Knowledge({params,searchParams}:{params:Promise<{holdingSlug:string}>;searchParams:Promise<RouteSearch>}){
- const {holdingSlug}=await params,actor=await requireWorkContext(holdingSlug),base=workspaceBase(publicScope(actor)),query=await searchParams,presentation=await collaborationPresentationQueries(actor.holdingId);
+ const {holdingSlug}=await params,actor=await requireWorkContext(holdingSlug),base=workspaceBase(publicScope(actor)),query=await searchParams,presentation=await handbookReads(actor,holdingSlug);
  const access=await presentation.handbookAccess(actor).catch(error=>pageError(error,holdingSlug));
  const learning=hasModuleAccess(actor.modules,'learning')&&hasPermission(actor,'records.read');
  const topics=knowledgeTopicsFor(access,learning);

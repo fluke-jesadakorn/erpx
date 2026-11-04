@@ -1,10 +1,22 @@
 import {readFileSync} from 'node:fs';
-import {describe,expect,it} from 'vitest';
+import {afterEach,describe,expect,it,vi} from 'vitest';
 import {ApiError} from '@erpx/server-runtime/public/http';
+import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {
   createNativeHandbookClient,
   type HandbookTransport,
 } from '../../../packages/feature-collaboration/src/adapters/server/native-handbook';
+import {
+  createNativeHandbookReads,
+  handbookReads,
+  nativeHandbookAvailable,
+  nativeHandbookReads,
+} from '../../../packages/feature-collaboration/src/adapters/server/native-handbook-page';
+
+const headerState=vi.hoisted(()=>{const holder={current:new Headers()};return {holder,headers:vi.fn(async()=>holder.current)};});
+vi.mock('next/headers',()=>({headers:headerState.headers}));
+const retained=vi.hoisted(()=>({collaborationPresentationQueries:vi.fn()}));
+vi.mock('@erpx/server-collaboration/public/presentation-queries',()=>retained);
 
 const configuration=JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:3105',
@@ -103,5 +115,112 @@ describe('native collaboration handbook transport',()=>{
     }
     expect(()=>createNativeHandbookClient('{}')).toThrow();
     expect(()=>createNativeHandbookClient(JSON.stringify({privateBaseUrl:'http://127.0.0.1:3105',timeoutMs:1000,holdings:[{origin:'https://acme.example.test',holdingSlug:'acme',holdingId:'h001'},{origin:'https://acme.example.test',holdingSlug:'other',holdingId:'h002'}]}))).toThrow();
+  });
+});
+
+const pageActor={userId:'user',holdingId:'h001',holdingSlug:'acme',companyId:'company'} as WorkContext;
+const pageAccess={owner:false,editor:true};
+const pageRow={id:'article-1',page_key:'Policy',version:2,archived:0,revision:1,title:'Policy',category:'policy',excerpt:'Body',published_at:10};
+const pageRevision={revision:1,title:'Policy',category:'policy',body:'Body',created_by:'user',created_at:10,published_by:'user',published_at:10};
+function pageTransport(body:unknown,status=200){
+  const calls:{url?:URL;method?:string;headers?:Headers;body?:string}[]=[];
+  const handler:HandbookTransport=async(url,init)=>{
+    calls.push({url,method:init.method,headers:init.headers,body:init.body});
+    return new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json'}});
+  };
+  return {calls,client:createNativeHandbookClient(configuration,handler)};
+}
+function nativePage(body:unknown,status=200){
+  const fake=pageTransport(status===200?{data:body}:body,status);
+  return {...fake,reads:createNativeHandbookReads(fake.client,incoming,'acme','acme')};
+}
+afterEach(()=>{
+  delete process.env.ERPX_NATIVE_HANDBOOK_CONFIG;
+  headerState.headers.mockClear();
+  retained.collaborationPresentationQueries.mockReset();
+});
+describe('native collaboration handbook page reads',()=>{
+  it('resolves access through the bounded native list read',async()=>{
+    const fake=nativePage({access:pageAccess,articles:[],previousCursor:null,nextCursor:null,hasMore:false});
+    await expect(fake.reads.handbookAccess(pageActor)).resolves.toEqual(pageAccess);
+    expect(fake.calls).toHaveLength(1);
+    expect(fake.calls[0].url?.href).toBe('http://127.0.0.1:3105/api/v1/holdings/acme/handbook?limit=1');
+    expect(fake.calls[0].headers?.get('cookie')).toBe('__Host-erpx-product=session');
+  });
+  it('forwards the exact list selectors and validates every row',async()=>{
+    const fake=nativePage({access:pageAccess,articles:[pageRow],previousCursor:null,nextCursor:'1:article-1',hasMore:true});
+    await expect(fake.reads.handbookList(pageActor,'policy',true,'1:article-0')).resolves.toEqual({access:pageAccess,articles:[pageRow],previousCursor:null,nextCursor:'1:article-1',hasMore:true});
+    expect(fake.calls[0].url?.href).toBe('http://127.0.0.1:3105/api/v1/holdings/acme/handbook?q=policy&edit=1&cursor=1%3Aarticle-0');
+  });
+  it('keeps the article revision selector and history shape',async()=>{
+    const fake=nativePage({access:pageAccess,article:{id:'article-1',version:2,draft_revision:3,published_revision:1,archived:0},revision:pageRevision,history:[pageRevision]});
+    const result=await fake.reads.handbookArticle(pageActor,'article-1',true,2);
+    expect(result.article).toMatchObject({id:'article-1',version:2});
+    expect(result.history).toHaveLength(1);
+    expect(fake.calls[0].url?.href).toBe('http://127.0.0.1:3105/api/v1/holdings/acme/handbook/article-1?edit=1&revision=2');
+  });
+  it('accepts only the exact editor settings shape',async()=>{
+    const fake=nativePage({version:4,editors:[{user_id:'editor',granted_at:10}]});
+    await expect(fake.reads.handbookEditorOptions(pageActor)).resolves.toEqual({version:4,editors:[{user_id:'editor',granted_at:10}]});
+    expect(fake.calls[0].url?.href).toBe('http://127.0.0.1:3105/api/v1/holdings/acme/handbook/editors');
+  });
+  it('rejects a malformed row instead of returning partial owner data',async()=>{
+    const fake=nativePage({access:pageAccess,articles:[{...pageRow,version:'2'}],previousCursor:null,nextCursor:null,hasMore:false});
+    await expect(fake.reads.handbookList(pageActor)).rejects.toMatchObject({status:503,code:'NATIVE_HANDBOOK_RESPONSE_INVALID'});
+  });
+  it('rejects malformed access and purchase facts',async()=>{
+    const fake=nativePage({access:{owner:false,editor:'yes'},articles:[],previousCursor:null,nextCursor:null,hasMore:false});
+    await expect(fake.reads.handbookAccess(pageActor)).rejects.toMatchObject({status:503,code:'NATIVE_HANDBOOK_RESPONSE_INVALID'});
+    const purchase=nativePage({access:{owner:false,editor:true,purchase:{newWork:true,settleExisting:false,history:true}},articles:[],previousCursor:null,nextCursor:null,hasMore:false});
+    await expect(purchase.reads.handbookAccess(pageActor)).rejects.toMatchObject({status:503,code:'NATIVE_HANDBOOK_RESPONSE_INVALID'});
+  });
+  it('fails before transport when the Holding context disagrees',async()=>{
+    const fake=pageTransport({data:{}});
+    const reads=createNativeHandbookReads(fake.client,incoming,'acme','northstar');
+    await expect(reads.handbookList(pageActor)).rejects.toMatchObject({status:409,code:'NATIVE_HANDBOOK_CONTEXT_CHANGED'});
+    await expect(reads.handbookList({...pageActor,holdingSlug:'northstar'})).rejects.toMatchObject({status:409,code:'NATIVE_HANDBOOK_CONTEXT_CHANGED'});
+    expect(fake.calls).toHaveLength(0);
+  });
+  it('preserves owner denial and hides a foreign host',async()=>{
+    const denied=nativePage({error:{code:'HANDBOOK_EDITOR_REQUIRED',message:'denied'}},403);
+    await expect(denied.reads.handbookList(pageActor,'',true)).rejects.toMatchObject({status:403,code:'HANDBOOK_EDITOR_REQUIRED'});
+    const foreign=createNativeHandbookReads(pageTransport({data:{}}).client,new Headers({host:'northstar.example.test'}),'acme','acme');
+    await expect(foreign.handbookList(pageActor)).rejects.toMatchObject({status:503,code:'NATIVE_HANDBOOK_AUTHORITY_INVALID'});
+  });
+  it('routes every Handbook SSR reader through the strict selector',()=>{
+    for(const path of [
+      'packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/handbook/[id]/screen.tsx',
+      'packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/knowledge/screen.tsx',
+      'packages/workplace/src/routes/holdings/[holdingSlug]/knowledge/handbook/drafts/_screen.tsx',
+      'packages/workplace/src/routes/holdings/[holdingSlug]/knowledge/handbook/editors/_screen.tsx',
+      'packages/workplace/src/routes/holdings/[holdingSlug]/knowledge/handbook/published/_screen.tsx',
+    ]){
+      const source=readFileSync(new URL(`../../../${path}`,import.meta.url),'utf8');
+      expect(source).toContain('@erpx/feature-collaboration/lib/native-handbook-page');
+      expect(source).toMatch(/handbookReads\(\s*actor\s*,\s*holdingSlug\s*\)/);
+      expect(source).not.toContain('collaborationPresentationQueries');
+    }
+  });
+});
+describe('handbook read selection',()=>{
+  it('keeps the retained reader only when the native configuration is unset',async()=>{
+    expect(nativeHandbookAvailable()).toBe(false);
+    const reader={handbookList:vi.fn()};
+    retained.collaborationPresentationQueries.mockResolvedValue(reader);
+    await expect(handbookReads(pageActor,'acme')).resolves.toBe(reader);
+    expect(retained.collaborationPresentationQueries).toHaveBeenCalledWith('h001');
+    expect(headerState.headers).not.toHaveBeenCalled();
+  });
+  it('never falls back to retained TypeScript after a configured native failure',async()=>{
+    process.env.ERPX_NATIVE_HANDBOOK_CONFIG='{';
+    expect(nativeHandbookAvailable()).toBe(true);
+    await expect(handbookReads(pageActor,'acme')).rejects.toBeInstanceOf(ApiError);
+    expect(retained.collaborationPresentationQueries).not.toHaveBeenCalled();
+  });
+  it('rejects a mismatched actor before selecting a transport',async()=>{
+    process.env.ERPX_NATIVE_HANDBOOK_CONFIG=configuration;
+    await expect(nativeHandbookReads({...pageActor,holdingSlug:'northstar'},'acme')).rejects.toMatchObject({status:409,code:'NATIVE_HANDBOOK_CONTEXT_CHANGED'});
+    expect(headerState.headers).not.toHaveBeenCalled();
+    expect(retained.collaborationPresentationQueries).not.toHaveBeenCalled();
   });
 });
