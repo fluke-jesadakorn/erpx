@@ -5,6 +5,7 @@ import { requireWorkContext, publicScope } from "@erpx/server-identity_access/pu
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { ecommerceWorkspace } from "@erpx/server-ecommerce/public/ecommerce";
+import { nativeEcommerceCatalog } from "@erpx/feature-sales/public/native-ecommerce-catalog-page";
 import { EcommerceConsole } from "@erpx/feature-ecommerce/components/ecommerce-console";
 import { RecordDocumentDrawer } from "@erpx/feature-files/components/record-document-drawer";
 import { MediaPublicationPanel } from "@erpx/feature-files/components/media-publication-panel";
@@ -23,6 +24,12 @@ export default async function Page({
   const data = await ecommerceWorkspace(actor).catch((error) =>
     pageError(error, holdingSlug),
   );
+  const native = await nativeEcommerceCatalog(actor).catch((error) =>
+    pageError(error, holdingSlug),
+  );
+  const workspace = native
+    ? { ...data, channels: native.channels, listings: native.listings }
+    : data;
   return (
     <PageContent as="div" className="ui-page-content">
       <Link href={canonicalUiHref(`${base}/commerce`)}>Sales and stock</Link>
@@ -32,8 +39,8 @@ export default async function Page({
         Sales order, reserve stock, and trace fulfillment and returns to their
         owner records.
       </p>
-      <EcommerceConsole base={base} data={data} />
-      {data.listings.map((listing) => (
+      <EcommerceConsole base={base} data={workspace} />
+      {workspace.listings.map((listing) => (
         <AttachmentFeatureSurface key={`files-${String(listing.id)}`}>
           <Card as="section" appearance="standard" className="ui-panel">
             <div className="ui-section-header">
@@ -101,6 +108,6 @@ export default async function Page({
           </Link>
         ))}
       </Card>
-    <RecordCatalog base={base} kind="ecommerce_channel" title="Channels" rows={data.channels} label="name"/><RecordCatalog base={base} kind="ecommerce_cart" title="Carts" rows={data.carts} label="id"/></PageContent>
+    <RecordCatalog base={base} kind="ecommerce_channel" title="Channels" rows={workspace.channels} label="name"/><RecordCatalog base={base} kind="ecommerce_cart" title="Carts" rows={data.carts} label="id"/></PageContent>
   );
 }

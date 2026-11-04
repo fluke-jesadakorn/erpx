@@ -12788,6 +12788,133 @@
       }
     },
     {
+      "id": "ecommerce.rust-ecommerce-commands.unit",
+      "lane": "unit",
+      "owner": "ecommerce",
+      "modules": [
+        "ecommerce"
+      ],
+      "files": [
+        "tests/unit/ecommerce/rust-ecommerce-commands.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Ecommerce channel/list review commands retain Company scope, CAS, independence, replay/audit/outbox and rollback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-ecommerce",
+        "targets": [
+          "ecommerce_commands"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-ecommerce/Cargo.toml"
+      ]
+    },
+    {
+      "id": "ecommerce.rust-ecommerce-http.unit",
+      "lane": "unit",
+      "owner": "ecommerce",
+      "modules": [
+        "ecommerce"
+      ],
+      "files": [
+        "tests/unit/ecommerce/rust-ecommerce-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Ecommerce HTTP ingress retains exact targets, fail-closed config and bounded errors."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-ecommerce",
+        "targets": [
+          "ecommerce_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-ecommerce/Cargo.toml"
+      ]
+    },
+    {
+      "id": "ecommerce.rust-ecommerce-postgres.integration",
+      "lane": "integration",
+      "owner": "ecommerce",
+      "modules": [
+        "ecommerce"
+      ],
+      "files": [
+        "tests/integration/ecommerce/rust-ecommerce-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Ecommerce catalog/commands retain Company isolation, persisted readback, CAS and transaction guards."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-ecommerce",
+        "targets": [
+          "ecommerce_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-ecommerce/Cargo.toml"
+      ]
+    },
+    {
+      "id": "ecommerce.native-ecommerce-catalog-transport.unit",
+      "lane": "unit",
+      "owner": "ecommerce",
+      "modules": [
+        "ecommerce"
+      ],
+      "files": [
+        "tests/unit/ecommerce/native-ecommerce-catalog-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Ecommerce transport must retain fail-closed config, bounded responses and owner error mapping."
+      },
+      "framework": "vitest",
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/feature-sales",
+        "@erpx/server-ecommerce"
+      ]
+    },
+    {
       "id": "people_payroll.employee-services.integration",
       "lane": "integration",
       "owner": "people_payroll",
