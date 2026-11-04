@@ -1428,6 +1428,7 @@ async fn assemble_checked(
         let mut benefits_targets = Vec::new();
         let mut pms_targets = Vec::new();
         let mut maintenance_targets = Vec::new();
+        let mut files_targets = Vec::new();
         let mut procurement_targets = Vec::new();
         let mut projects_targets = Vec::new();
         let mut operations_targets = Vec::new();
@@ -1630,6 +1631,25 @@ async fn assemble_checked(
                         Arc::new(crate::maintenance::MaintenanceService::new(
                             authorizer.clone(),
                             crate::maintenance::MaintenanceConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    )),
+                },
+            );
+            files_targets.push(
+                erpx_server_files::public::attachment_http::AttachmentReadHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: Arc::new(crate::files::FilesBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::files::FilesService::new(
+                            authorizer.clone(),
+                            crate::files::FilesConfiguration::new(
                                 holding.registration.holding_id.clone(),
                                 company.clone(),
                             ),
@@ -2122,6 +2142,12 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_maintenance::public::http::maintenance_router(maintenance_targets)
                     .map_err(|_| "PRIVATE_API_MAINTENANCE_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !files_targets.is_empty() {
+            router = router.merge(
+                erpx_server_files::public::attachment_http::attachment_read_router(files_targets)
+                    .map_err(|_| "PRIVATE_API_FILES_CONFIGURATION_INVALID")?,
             );
         }
         if !procurement_targets.is_empty() {
