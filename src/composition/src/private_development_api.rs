@@ -36,7 +36,9 @@ use crate::{
     support_sla_command::{SupportSlaCommand, drain_support_sla},
     support_sla_http::{SupportSlaHttpTarget, support_sla_http_router},
     support_ticket_command::SupportTicketCommand,
+    support_read_http::{SupportReadHttpTarget, support_read_http_router},
     support_ticket_http::{SupportTicketHttpTarget, support_ticket_http_router},
+    support_ticket_read::SupportTicketReadService,
 };
 use crate::{
     finance_journal_detail::{FinanceJournalDetailService, FinanceJournalReadConfiguration},
@@ -2151,6 +2153,7 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_SUPPORT_TICKET_CONFIGURATION_INVALID")?,
         );
         let mut targets = Vec::new();
+        let mut read_targets = Vec::new();
         for (holding_id, company) in &config.support_ticket_writes {
             let index = config
                 .holdings
@@ -2169,6 +2172,17 @@ async fn assemble_checked(
                 )
                 .map_err(|_| "PRIVATE_API_SUPPORT_TICKET_CONFIGURATION_INVALID")?,
             );
+            read_targets.push(SupportReadHttpTarget {
+                host: holding.host.clone(),
+                holding_slug: holding.registration.slug.clone(),
+                service: Arc::new(SupportTicketReadService {
+                    authorizer: authorizer.clone(),
+                    holding: holding_id.clone(),
+                    company: company.clone(),
+                    catalogue: catalogue.clone(),
+                    clock: Arc::new(SharedClock(clock.clone())),
+                }),
+            });
             targets.push(SupportTicketHttpTarget {
                 host: holding.host.clone(),
                 holding_slug: holding.registration.slug.clone(),
@@ -2186,6 +2200,15 @@ async fn assemble_checked(
                 config.policy.clone(),
                 Arc::new(FieldServiceReadScopeHeaders),
                 targets,
+            )
+            .map_err(|_| "PRIVATE_API_SUPPORT_TICKET_CONFIGURATION_INVALID")?,
+        );
+        router = router.merge(
+            support_read_http_router(
+                config.policy.clone(),
+                config.holdings_registry.clone(),
+                Arc::new(FieldServiceReadScopeHeaders),
+                read_targets,
             )
             .map_err(|_| "PRIVATE_API_SUPPORT_TICKET_CONFIGURATION_INVALID")?,
         );

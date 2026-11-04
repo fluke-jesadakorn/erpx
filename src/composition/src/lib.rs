@@ -309,6 +309,10 @@ pub mod support_session_http;
 #[cfg(feature = "existing-business")]
 pub mod support_incident_http;
 #[cfg(feature = "existing-business")]
+pub mod support_read_http;
+#[cfg(feature = "existing-business")]
 pub mod support_ticket_command;
+#[cfg(feature = "existing-business")]
+pub mod support_ticket_read;
 #[cfg(feature = "existing-business")]
 pub mod support_ticket_http;

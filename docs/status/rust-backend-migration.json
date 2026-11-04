@@ -112,7 +112,7 @@
         "domain": "partial",
         "application": "partial",
         "http": "partial",
-        "ssr": "pending",
+        "ssr": "partial",
         "jobs": "partial",
         "providers": "partial"
       }

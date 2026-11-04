@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Support ticket workspace/detail read and HTTP ingress are integrated; other Support reads and the authenticated browser journey remain open",
+  "capability": "support-native-ticket-read",
+  "integrationTarget": "codex/rust-backend-migration",
+  "scope": {
+    "read": "Company/branch/department scoped ticket workspace (200 rows), ticket detail with retained columns, incidents, history, recipients, approved SLA choices, active customer notes and order sources.",
+    "authority": "Current Account/Holding, selected assignment, Support/records read and Support purchase gates; typed POS/Assets/PMS source visibility through owner adapters.",
+    "http": "GET /api/v1/holdings/{holding_slug}/support with id/orderId selectors, exact host/slug, origin and bounded errors.",
+    "frontend": "Opt-in Next transport and workplace ticket detail read; unset retains TS."
+  },
+  "tests": [
+    "support.rust-support-ticket-read-postgres.integration: 3 passed (scope/authority/history/recipients/HTTP/source visibility)",
+    "support.native-support-read.unit: 5 passed",
+    "cargo test -p erpx-server-support: 46 passed",
+    "typecheck feature-support and workplace: pass"
+  ],
+  "limits": [
+    "Incident/SLA/session/evidence/ticket-portal native reads are not implemented.",
+    "Native ticket detail is wired into the detail page; list/SLA/incidents/sessions pages remain TS.",
+    "No authenticated browser journey yet.",
+    "Hosted CI, staging and installed production were not accessed."
+  ]
+}
