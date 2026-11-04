@@ -162,13 +162,13 @@
     {
       "id": "assets",
       "package": "erpx-server-assets",
-      "phase": "partial",
+      "phase": "active",
       "businessMigrationComplete": false,
       "surfaces": {
         "domain": "active",
         "application": "active",
-        "http": "pending",
-        "ssr": "pending",
+        "http": "active",
+        "ssr": "active",
         "jobs": "pending",
         "providers": "pending"
       }
