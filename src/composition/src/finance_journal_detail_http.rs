@@ -1,12 +1,18 @@
 //! Unmounted detail HTTP; one retained read returns owner data + render context.
-use crate::{finance_journal_detail::FinanceJournalDetailService, http_scope::BusinessScopeSlugs};
+use crate::{
+    finance_journal_detail::{
+        FinanceJournalDetailService, FinanceSalesDefaultsResultResponse,
+        FinanceSalesDefaultsWorkspaceResponse,
+    },
+    http_scope::BusinessScopeSlugs,
+};
 use axum::{
     Json, Router,
     body::to_bytes,
     extract::{Path, State, RawQuery, Request},
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
-    routing::get,
+    routing::{get, post},
 };
 use erpx_server_identity_access::public::{
     AccountPolicy, RequestAudience,
@@ -95,6 +101,14 @@ pub fn finance_journal_read_router<C: Clock + Send + Sync + 'static>(
         .route(
             "/api/v1/holdings/{holding_slug}/finance/sales/invoices",
             get(sales_invoice_list::<C>).post(create_sales_invoice::<C>),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/sales/defaults",
+            get(sales_defaults_workspace::<C>).post(prepare_sales_defaults::<C>),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/sales/defaults/{id}/decide",
+            post(decide_sales_defaults::<C>),
         )
         .route(
             "/api/v1/holdings/{holding_slug}/finance/journals/{id}",
@@ -210,6 +224,220 @@ async fn workspace<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     read(state, slug, id, headers, true).await
 }
+async fn sales_defaults_workspace<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target = crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let company = target.service.company_id().clone();
+        let proof = inbound.into_proof();
+        let input = move || {
+            scope?;
+            captured.resolve_read(company)
+        };
+        target
+            .service
+            .sales_defaults_workspace(host, proof, input)
+            .await
+    }
+    .await;
+    read_response(result)
+}
+
+async fn prepare_sales_defaults<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(request.headers(), "host")?
+            .ok_or_else(missing)?
+            .to_owned();
+        let target = crate::http_scope::selected_company_target(&state.targets, &host, &slug, request.headers())?;
+        let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(request.headers(), "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let key = unique_request_header(request.headers(), "idempotency-key")?
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                BusinessError::invalid("IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required.")
+            })?;
+        let command = CommandKey::new(key.to_owned())?;
+        let scope = state.scopes.slugs(request.headers());
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(request.headers(), branch, department);
+        let body = to_bytes(request.into_body(), 128 * 1024)
+            .await
+            .map_err(|_| BusinessError::invalid("BODY_TOO_LARGE", "Use a smaller request."))?;
+        let input: erpx_server_finance::public::sales_defaults::SalesDefaultsPrepareInput =
+            serde_json::from_slice(&body).map_err(|_| {
+                BusinessError::invalid("SALES_DEFAULTS_INVALID", "Use valid sales defaults.")
+            })?;
+        let proof = inbound.into_proof();
+        target
+            .service
+            .prepare_sales_defaults(
+                &host,
+                proof,
+                move || {
+                    scope?;
+                    captured.resolve()
+                },
+                command,
+                input,
+            )
+            .await
+    }
+    .await;
+    write_response(result, StatusCode::CREATED)
+}
+
+async fn decide_sales_defaults<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(request.headers(), "host")?
+            .ok_or_else(missing)?
+            .to_owned();
+        let target = crate::http_scope::selected_company_target(&state.targets, &host, &slug, request.headers())?;
+        let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(request.headers(), "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let key = unique_request_header(request.headers(), "idempotency-key")?
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                BusinessError::invalid("IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required.")
+            })?;
+        let command = CommandKey::new(key.to_owned())?;
+        let scope = state.scopes.slugs(request.headers());
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(request.headers(), branch, department);
+        let body = to_bytes(request.into_body(), 128 * 1024)
+            .await
+            .map_err(|_| BusinessError::invalid("BODY_TOO_LARGE", "Use a smaller request."))?;
+        let input: erpx_server_finance::public::sales_defaults::SalesDefaultsDecisionInput =
+            serde_json::from_slice(&body).map_err(|_| {
+                BusinessError::invalid("SALES_DEFAULTS_DECISION_INVALID", "Review the sales defaults.")
+            })?;
+        let proof = inbound.into_proof();
+        target
+            .service
+            .decide_sales_defaults(
+                &host,
+                proof,
+                move || {
+                    scope?;
+                    captured.resolve()
+                },
+                command,
+                id,
+                input,
+            )
+            .await
+    }
+    .await;
+    write_response(result, StatusCode::OK)
+}
+
+fn read_response(
+    result: Result<FinanceSalesDefaultsWorkspaceResponse, PgTransactionError<BusinessError>>,
+) -> Response {
+    let mut response = match result {
+        Ok(reply) => Json(reply).into_response(),
+        Err(PgTransactionError::Business(error)) => business_error(error),
+        Err(_) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
+    };
+    no_store(&mut response);
+    response
+}
+
+fn write_response(
+    result: Result<FinanceSalesDefaultsResultResponse, PgTransactionError<BusinessError>>,
+    status: StatusCode,
+) -> Response {
+    let mut response = match result {
+        Ok(reply) => (status, Json(reply)).into_response(),
+        Err(PgTransactionError::Business(error)) => business_error(error),
+        Err(_) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
+    };
+    no_store(&mut response);
+    response
+}
+
+fn business_error(error: BusinessError) -> Response {
+    let status = match error.kind {
+        FailureKind::InvalidInput => StatusCode::UNPROCESSABLE_ENTITY,
+        FailureKind::Unauthenticated => StatusCode::UNAUTHORIZED,
+        FailureKind::Forbidden => StatusCode::FORBIDDEN,
+        FailureKind::NotFound => StatusCode::NOT_FOUND,
+        FailureKind::Conflict => StatusCode::CONFLICT,
+        FailureKind::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
+    };
+    let body = Json(serde_json::json!({
+        "error": {"code": error.code, "message": error.message}
+    }))
+    .into_response();
+    let mut response = Response::new(body.into_body());
+    *response.status_mut() = status;
+    response
+}
+
+fn no_store(response: &mut Response) {
+    for (name, value) in [
+        (header::CACHE_CONTROL, "private, no-store"),
+        (header::REFERRER_POLICY, "no-referrer"),
+        (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+    ] {
+        response
+            .headers_mut()
+            .insert(name, HeaderValue::from_static(value));
+    }
+}
+
 async fn create_sales_invoice<C: Clock + Send + Sync + 'static>(
     State(state): State<Arc<ReadState<C>>>,
     Path(slug): Path<String>,

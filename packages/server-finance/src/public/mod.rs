@@ -99,3 +99,5 @@ pub mod journal_list;
 pub mod sales_invoice_list;
 
 pub mod sales_invoice_create;
+
+pub mod sales_defaults;
