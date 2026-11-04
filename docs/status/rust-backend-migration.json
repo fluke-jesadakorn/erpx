@@ -106,15 +106,15 @@
     {
       "id": "support",
       "package": "erpx-server-support",
-      "phase": "partial",
+      "phase": "active",
       "businessMigrationComplete": false,
       "surfaces": {
         "domain": "active",
         "application": "active",
         "http": "active",
-        "ssr": "partial",
+        "ssr": "active",
         "jobs": "partial",
-        "providers": "partial"
+        "providers": "active"
       }
     },
     {

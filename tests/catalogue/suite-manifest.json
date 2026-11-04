@@ -70784,6 +70784,42 @@
       ]
     },
     {
+      "id": "finance.rust-payment-correction-postgres.integration",
+      "lane": "integration",
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "files": [
+        "tests/integration/finance/rust-payment-correction-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Finance payment allocation and independent reversal retain Company/party/currency/kind, settled-posted-journal, version, open-period, allocation and independent-approver guards with persisted invoice/journal/bank effects."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "payment_correction_postgres"
+        ],
+        "features": [
+          "existing-business"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml"
+      ]
+    },
+    {
       "id": "brand.rust-brand-identity-policy.unit",
       "lane": "unit",
       "owner": "brand",
@@ -71095,7 +71131,12 @@
         "reason": "Native owner workflow retains current Company scope, authority, version/idempotency and persisted-effect assertions."
       },
       "framework": "cargo",
-      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "src/composition/Cargo.toml"],
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml"
+      ],
       "cargo": {
         "package": "erpx-service",
         "targets": [
@@ -71126,7 +71167,12 @@
         "reason": "Native owner workflow retains current Company scope, authority, version/idempotency and persisted-effect assertions."
       },
       "framework": "cargo",
-      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "packages/server-organization/Cargo.toml"],
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-organization/Cargo.toml"
+      ],
       "cargo": {
         "package": "erpx-server-organization",
         "targets": [
@@ -71154,7 +71200,12 @@
         "reason": "Native owner workflow retains current Company scope, authority, version/idempotency and persisted-effect assertions."
       },
       "framework": "cargo",
-      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "packages/server-organization/Cargo.toml"],
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-organization/Cargo.toml"
+      ],
       "cargo": {
         "package": "erpx-server-organization",
         "targets": [
@@ -71182,7 +71233,12 @@
         "reason": "Native owner workflow retains current Company scope, authority, version/idempotency and persisted-effect assertions."
       },
       "framework": "cargo",
-      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "src/composition/Cargo.toml"],
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml"
+      ],
       "cargo": {
         "package": "erpx-service",
         "targets": [
@@ -71213,7 +71269,12 @@
         "reason": "Native owner workflow retains current Company scope, authority, version/idempotency and persisted-effect assertions."
       },
       "framework": "cargo",
-      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "packages/server-inventory/Cargo.toml"],
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-inventory/Cargo.toml"
+      ],
       "cargo": {
         "package": "erpx-server-inventory",
         "targets": [
@@ -71241,7 +71302,12 @@
         "reason": "Native owner workflow retains current Company scope, authority, version/idempotency and persisted-effect assertions."
       },
       "framework": "cargo",
-      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "packages/server-inventory/Cargo.toml"],
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-inventory/Cargo.toml"
+      ],
       "cargo": {
         "package": "erpx-server-inventory",
         "targets": [
@@ -71269,7 +71335,12 @@
         "reason": "Native owner workflow retains current Company scope, authority, version/idempotency and persisted-effect assertions."
       },
       "framework": "cargo",
-      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "packages/server-inventory/Cargo.toml"],
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-inventory/Cargo.toml"
+      ],
       "cargo": {
         "package": "erpx-server-inventory",
         "targets": [
@@ -71297,7 +71368,12 @@
         "reason": "Native owner workflow retains current Company scope, authority, version/idempotency and persisted-effect assertions."
       },
       "framework": "cargo",
-      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "packages/server-inventory/Cargo.toml"],
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-inventory/Cargo.toml"
+      ],
       "cargo": {
         "package": "erpx-server-inventory",
         "targets": [
@@ -71325,7 +71401,12 @@
         "reason": "Native owner workflow retains current Company scope, authority, version/idempotency and persisted-effect assertions."
       },
       "framework": "cargo",
-      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "src/composition/Cargo.toml"],
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml"
+      ],
       "cargo": {
         "package": "erpx-service",
         "targets": [
