@@ -1,7 +1,7 @@
 {
   "version": 1,
   "date": "2026-11-04",
-  "status": "Customer Authority now has a bounded native customer-access grant: a source-bound request command, an independently reviewed approve/reject command, a revoke command, and Company/branch/department-scoped workspace/detail reads with immutable event and read-audit history. The owner also has an owner-local HTTP router, a strict Next transport, configured workspace/detail/command cutover, purchase preflight, and fail-closed native configuration. The owner remains pending overall: shared composition mounting, root workspace membership, invitations/enrollment, portal support, identity changes, duplicate review, attachments and browser acceptance remain open.",
+  "status": "Customer Authority now has a bounded native customer-access grant: a source-bound request command, an independently reviewed approve/reject command, a revoke command, and Company/branch/department-scoped workspace/detail reads with immutable event and read-audit history. The owner also has an owner-local HTTP router, a strict Next transport, configured workspace/detail/command cutover, purchase preflight, and fail-closed native configuration. The crate is registered in the root Cargo workspace by the integrating session. The owner remains partial overall: shared composition mounting, invitations/enrollment, portal support, identity changes, duplicate review, attachments and browser acceptance remain open.",
   "capability": "customer-authority-customer-access-owner-closure",
   "integrationTarget": "codex/rust-backend-migration",
   "base": "4f2a9b668",
@@ -51,7 +51,7 @@
     "cargo": {
       "command": "ERPX_TEST_ADMIN_URL=<local test admin> cargo test -p erpx-server-customer-authority --locked -- --test-threads=1",
       "result": "18 passed, 0 failed, 0 ignored across 3 test targets plus the empty lib/doc targets (lib 0, customer_access 8, customer_access_http 2, customer_access_postgres 8, doc-tests 0)",
-      "workspaceNote": "packages/server-customer_authority is not listed in the root Cargo.toml workspace members, which this subagent is prohibited from editing. The exact --locked command was executed in an isolated mirror containing a copy of the current root Cargo.toml with only packages/server-customer_authority added to members, a copy of the current root Cargo.lock, and symlinked real packages/tests/migrations/src/vendor trees. The repository root Cargo.toml and Cargo.lock were not modified by this subagent (SHA-256 unchanged); the workspace owner must register the package and regenerate the lock before the command is reproducible directly.",
+      "workspaceNote": "The crate was registered in the root Cargo.toml workspace and Cargo.lock by the integrating session commit c4ceeaa04. The exact --locked command above now runs directly in the worktree; this subagent did not author the root Cargo.toml/Cargo.lock change.",
       "targets": {
         "customer_access": "8 passed: permission/context before source, expiry/email/reason/source-version negatives, foreign scope/stale version/draft/purchase kind denial, exact request plan and replay/idempotency conflict, independent reviewer plus active employment plus pending/expiry plus publishable source, reject/revoke requester-or-manager policy and CAS, workspace scope/flags, detail history/read audit and not-found.",
         "customer_access_http": "2 passed: exact distinct targets and HTTPS origins, actual loopback router forwarding workspace/detail/request/change, unknown query/host/Holding negatives, missing/short Idempotency-Key, malformed JSON/content type/GET body, conflict mapping, private/no-store/no-referrer/nosniff headers.",
@@ -120,7 +120,7 @@
       "router = router.merge(erpx_server_customer_authority::public::access_http::customer_access_http_router(targets).map_err(|_| \"PRIVATE_API_CUSTOMER_ACCESS_CONFIGURATION_INVALID\")?);",
       "Mount /customer-access before the generic 404 fallback."
     ],
-    "rootWorkspace": "Add \"packages/server-customer_authority\" to the root Cargo.toml [workspace] members and the corresponding workspace dependency entry, then update Cargo.lock in the integration change. This subagent did not make that shared edit.",
+    "rootWorkspace": "packages/server-customer_authority is registered in the root Cargo.toml [workspace] members and Cargo.lock by integrating commit c4ceeaa04. No shared dependency was added beyond the existing workspace set.",
     "nextEnvironment": "Set ERPX_NATIVE_CUSTOMER_ACCESS_CONFIG={\"privateBaseUrl\":\"http://127.0.0.1:<owned-loopback-port>\",\"timeoutMs\":250..30000,\"holdings\":[{\"origin\":\"https://<registered-holding>\",\"holdingSlug\":\"<slug>\",\"holdingId\":\"h00N\"}]} for each affected app."
   },
   "legacyRemovedOrRetained": {
@@ -140,18 +140,26 @@
   "concurrentWork": {
     "preserved": "This worktree also contains concurrent uncommitted agent/marketing/PMS/finance work, including packages/server-agent, packages/server-marketing, packages/server-platform_administration, feature-admin/agent-governance, workplace marketing/agents screens and tests/catalogue/suite-manifest.json. Those files were not edited, reverted or included in this slice. packages/feature-sales/package.json was concurrently rewritten by the marketing slice; this subagent re-applied only its three additive customer-access export entries.",
     "rootManifests": "Root Cargo.toml and Cargo.lock SHA-256 values were unchanged at the last verification; other agents' transient membership work was not touched.",
-    "headAdvance": "The worktree HEAD advanced from the mission base 4f2a9b668 to 8c2f8d66e during this task through other agents' marketing/agent commits. Those commits also swept the additive customer-access entries in packages/feature-sales/package.json into 1ab7ce889; the Rust crate, public transport, tests and cutover files remain uncommitted authored work in this worktree."
+    "headAdvance": "The worktree HEAD advanced from the mission base 4f2a9b668 through other agents' marketing/agent commits (8c2f8d66e) and then the integrating session commits for this slice (c4ceeaa04 feature, 4e9c21e6f status). The integrating commits also registered the crate in root Cargo.toml/Cargo.lock and added the four catalogue suite entries. No subagent commit or worktree was created by this task."
   },
   "blockersAndNextAction": {
     "blockers": [
-      "packages/server-customer_authority is not a root Cargo workspace member and the root lock has no package entry; the workspace owner must register it",
       "No composition backend implements the public ports or mounts customer_access_http_router",
       "No authenticated browser or deployment verification was performed",
-      "tests/catalogue/suite-manifest.json was concurrently modified by other owners and was not edited; the new Rust/transport tests were run directly",
-      "The full tests/config typecheck has a pre-existing concurrent agent-file failure outside this slice",
-      "Invitations/enrollment, portal support, identity changes, duplicate review, attachments and customer access work items remain retained TypeScript"
+      "Invitations/enrollment, portal support, identity changes, duplicate review, attachments and customer access work items remain retained TypeScript",
+      "The full tests/config typecheck has a pre-existing concurrent agent-file failure outside this slice"
     ],
     "nextAction": "Have the composition owner register the crate, implement the Account/scope/feature/purchase backend and mount the router; then qualify portal invitations/enrollment and portal support with their own native commands, followed by customer identity changes and duplicate review with Finance/CRM/Sales/Support same-transaction guards. Browser acceptance remains deferred."
   },
-  "verificationHead": "8c2f8d66e"
+  "verificationHead": "c4ceeaa04907ff7f2547e0cd5e27e753591011e2",
+  "sharedIntegrationFiles": {
+    "files": [
+      "Cargo.toml",
+      "Cargo.lock",
+      "tests/catalogue/suite-manifest.json",
+      "docs/status/rust-backend-migration.json",
+      "docs/status/rust-delivery-bundles.json"
+    ],
+    "note": "Changed by the integrating session commit c4ceeaa04/4e9c21e6f, not authored by this subagent: workspace member/lock entry, four catalogue suite entries and owner status/bundle partial qualification."
+  }
 }
