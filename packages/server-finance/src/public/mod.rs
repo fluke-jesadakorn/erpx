@@ -113,3 +113,5 @@ pub mod finance_setup;
 pub mod finance_reports;
 
 pub mod finance_opening;
+
+pub mod generic_payment;

@@ -152,8 +152,12 @@ async fn capture(
     .fetch_one(&mut *c)
     .await?;
     let allocations:Vec<Value>=sqlx::query_scalar("SELECT to_jsonb(a) FROM finance_allocations a WHERE payment_id=$1 OR (invoice_id=$2 AND company_id=$3) ORDER BY id COLLATE \"C\" FOR SHARE").bind(payment).bind(invoice).bind(company).fetch_all(&mut *c).await?;
+    let field_source = invoice
+        .strip_prefix("field-invoice-")
+        .map(|key| format!("field-billing-{key}"))
+        .unwrap_or_default();
     let money:Vec<String>=sqlx::query_scalar("SELECT to_jsonb(m)::text FROM money_transaction_snapshots m WHERE company_id=$1 AND ((source_type='finance_payment' AND source_id=$2) OR (source_type='finance_invoice' AND source_id=$3) OR (source_type='field_service_billing_release' AND source_id=$4)) ORDER BY to_jsonb(m)::text COLLATE \"C\" FOR SHARE")
- .bind(company).bind(payment).bind(invoice).bind(format!("field-billing-{}",invoice.strip_prefix("field-invoice-").ok_or_else(changed)?)).fetch_all(&mut *c).await?;
+ .bind(company).bind(payment).bind(invoice).bind(field_source).fetch_all(&mut *c).await?;
     let books:Vec<String>=sqlx::query_scalar("SELECT jsonb_build_array(to_jsonb(r),(SELECT coalesce(jsonb_agg(to_jsonb(m) ORDER BY m.primary_account_id),'[]'::jsonb) FROM finance_book_account_mappings m WHERE m.rule_id=r.id))::text FROM finance_book_rules r WHERE company_id=$1 AND primary_chart_id=$2 ORDER BY r.id COLLATE \"C\" FOR SHARE").bind(company).bind(t(&chart,"id")?).fetch_all(&mut *c).await?;
     Ok(Image {
         books,
@@ -484,9 +488,17 @@ pub async fn prepare_service_receipt_confirm(
         )
         .into());
     }
-    let invoice_account: String = sqlx::query_scalar(
-        "SELECT debit_account_id FROM finance_invoices WHERE id=$1 AND company_id=$2",
-    )
+    let payment_kind = t(row, "kind")?.to_owned();
+    let control_column = if payment_kind == "receipt" {
+        "debit_account_id"
+    } else {
+        "credit_account_id"
+    };
+    let invoice_account: String = sqlx::query_scalar(if payment_kind == "receipt" {
+        "SELECT debit_account_id FROM finance_invoices WHERE id=$1 AND company_id=$2"
+    } else {
+        "SELECT credit_account_id FROM finance_invoices WHERE id=$1 AND company_id=$2"
+    })
     .bind(invoice_id)
     .bind(actor.company_id.as_str())
     .fetch_optional(&mut *c)
@@ -515,7 +527,13 @@ pub async fn prepare_service_receipt_confirm(
     let bank = &before.bank;
     if invoice["party_id"] != row["party_id"]
         || invoice["currency"] != row["currency"]
-        || invoice["kind"] != "receivable"
+        || invoice["kind"]
+            != if payment_kind == "receipt" {
+                "receivable"
+            } else {
+                "payable"
+            }
+        || t(invoice, "source_type")? == "expense_claim"
         || !matches!(t(invoice, "status")?, "posted" | "partially_paid")
         || n(invoice, "outstanding_minor")? < amount
     {
@@ -555,7 +573,7 @@ pub async fn prepare_service_receipt_confirm(
     let control = before
         .accounts
         .iter()
-        .find(|a| a["id"] == invoice["debit_account_id"])
+        .find(|a| a["id"] == invoice[control_column])
         .ok_or_else(changed)?;
     if [bank_account, control].iter().any(|a| {
         a["currency"] != row["currency"]
@@ -629,6 +647,11 @@ pub async fn prepare_service_receipt_confirm(
             dimensions: None,
         })
     };
+    let (control_debit, control_credit, bank_debit, bank_credit) = if payment_kind == "receipt" {
+        (0, amount, amount, 0)
+    } else {
+        (amount, 0, 0, amount)
+    };
     let primary = JournalDraft {
         chart_id: t(&before.chart, "id")?.into(),
         period_id: input.period_id.clone(),
@@ -636,7 +659,8 @@ pub async fn prepare_service_receipt_confirm(
         currency: currency.into(),
         fx_rate: input.fx_rate.clone(),
         memo: format!(
-            "receipt {}: {}",
+            "{} {}: {}",
+            payment_kind,
             t(row, "payment_number")?,
             input.bank_reference
         ),
@@ -645,21 +669,25 @@ pub async fn prepare_service_receipt_confirm(
         is_opening: false,
         lines: vec![
             line(
-                t(invoice, "debit_account_id")?.into(),
-                0,
-                amount,
+                t(invoice, control_column)?.into(),
+                control_debit,
+                control_credit,
                 format!("Allocate {}", t(invoice, "invoice_number")?),
             )?,
             line(
                 t(row, "bank_account")?.into(),
-                amount,
-                0,
+                bank_debit,
+                bank_credit,
                 input.bank_reference.clone(),
             )?,
         ],
     };
     let fx = if difference != 0 {
-        let gain = difference > 0;
+        let gain = if payment_kind == "receipt" {
+            difference > 0
+        } else {
+            difference < 0
+        };
         let id = if gain {
             input.fx_gain_account_id.as_ref().ok_or_else(|| {
                 BusinessError::invalid(
@@ -700,7 +728,7 @@ pub async fn prepare_service_receipt_confirm(
             is_opening: false,
             lines: vec![
                 line(
-                    t(invoice, "debit_account_id")?.into(),
+                    t(invoice, control_column)?.into(),
                     if gain { delta } else { 0 },
                     if gain { 0 } else { delta },
                     format!("Realized FX {}", t(invoice, "invoice_number")?),

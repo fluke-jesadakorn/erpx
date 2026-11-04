@@ -3,8 +3,10 @@ use crate::finance_service_receipt_files::PaymentProofOwner;
 use crate::{
     finance_journal_create::{FinanceJournalCreateConfiguration, Ids},
     finance_journal_review::{command_actor, finance_actor},
-    finance_service_invoice_post::service_receipt_confirm_authority,
-    finance_service_receipt_create::ReceiptSources,
+    finance_service_invoice_post::{
+        ReceiptAction, generic_payment_authority, service_receipt_confirm_authority,
+    },
+    finance_service_receipt_create::{ReceiptSources, field_invoice},
 };
 use erpx_server_files::public::payment_proof_binding::*;
 use erpx_server_finance::public::{service_receipt::*, *};
@@ -537,13 +539,25 @@ where
                         .as_str()
                         .ok_or_else(changed)?
                         .to_owned();
-                    let mut auth = service_receipt_confirm_authority(
-                        current,
-                        &config,
-                        clock.as_ref(),
-                        invoice.clone(),
-                        id.clone(),
-                    );
+                    let field = field_invoice(c, &config.company, &invoice).await?;
+                    let mut auth = if field {
+                        service_receipt_confirm_authority(
+                            current,
+                            &config,
+                            clock.as_ref(),
+                            invoice.clone(),
+                            id.clone(),
+                        )
+                    } else {
+                        generic_payment_authority(
+                            current,
+                            &config,
+                            clock.as_ref(),
+                            invoice.clone(),
+                            Some(id.clone()),
+                            ReceiptAction::Confirm,
+                        )
+                    };
                     let request = WorkflowRequest {
                         key,
                         operation: "finance.payment.confirm".into(),

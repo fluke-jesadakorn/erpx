@@ -29,7 +29,7 @@ async fn unit(c: &mut PgConnection) -> Result<Unit, Error> {
 }
 #[allow(clippy::cmp_owned)]
 async fn image(c: &mut PgConnection, company: &str, id: &str) -> Result<(Value, String), Error> {
-    let payment:Option<Option<Value>>=sqlx::query_scalar("SELECT CASE WHEN octet_length(to_jsonb(p)::text)<=65536 THEN to_jsonb(p) END FROM finance_payments p WHERE company_id=$1 AND id=$2 AND kind='receipt' FOR UPDATE")
+    let payment:Option<Option<Value>>=sqlx::query_scalar("SELECT CASE WHEN octet_length(to_jsonb(p)::text)<=65536 THEN to_jsonb(p) END FROM finance_payments p WHERE company_id=$1 AND id=$2 AND kind IN ('payment','receipt') FOR UPDATE")
         .bind(company).bind(id).fetch_optional(&mut *c).await?;
     let row = payment.flatten().ok_or_else(|| {
         BusinessError::new(
@@ -69,7 +69,7 @@ impl CurrentServiceReceiptReview {
         }
         Ok(())
     }
-#[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)]
     pub async fn apply(
         self,
         c: &mut PgConnection,

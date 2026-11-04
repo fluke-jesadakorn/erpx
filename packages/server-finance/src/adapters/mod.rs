@@ -78,3 +78,5 @@ pub(crate) mod service_no_charge;
 pub mod field_journal_evidence;
 
 pub(crate) mod service_package_settlement;
+
+pub(crate) mod generic_payment;

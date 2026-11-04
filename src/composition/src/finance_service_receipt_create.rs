@@ -2,9 +2,15 @@
 use crate::{
     finance_journal_create::{FinanceJournalCreateConfiguration, Ids},
     finance_journal_review::{command_actor, finance_actor},
-    finance_service_invoice_post::{Sources, service_receipt_create_authority},
+    finance_service_invoice_post::{
+        Sources, generic_payment_authority, service_receipt_create_authority,
+    },
 };
-use erpx_server_finance::public::{service_receipt::*, units_to_decimal};
+use erpx_server_finance::public::{
+    generic_payment::{GenericPaymentInput, PreparedGenericPayment, RetainedGenericPayment},
+    service_receipt::*,
+    units_to_decimal,
+};
 use erpx_server_identity_access::public::{
     DeviceProof,
     effective_authority::{
@@ -128,12 +134,53 @@ impl HoldingWorkSourcePreparation for ReceiptSources {
         })
     }
 }
+enum PreparedCreate {
+    Field(PreparedServiceReceiptCreate),
+    Generic(PreparedGenericPayment),
+}
+enum RetainedCreate {
+    Field(RetainedServiceReceiptCreate),
+    Generic(RetainedGenericPayment),
+}
+impl RetainedCreate {
+    async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        match self {
+            Self::Field(retained) => retained.require_current(c).await,
+            Self::Generic(retained) => retained.require_current(c).await,
+        }
+    }
+}
+fn generic_input(input: &ServiceReceiptCreateInput) -> GenericPaymentInput {
+    GenericPaymentInput {
+        kind: input.kind.clone(),
+        party_id: input.party_id.clone(),
+        payment_number: input.payment_number.clone(),
+        payment_date: input.payment_date.clone(),
+        currency: input.currency.clone(),
+        amount: input.amount.clone(),
+        bank_account: input.bank_account.clone(),
+        settlement_invoice_id: input.settlement_invoice_id.clone(),
+    }
+}
+pub(crate) async fn field_invoice(
+    c: &mut PgConnection,
+    company: &erpx_server_shared::public::CompanyId,
+    invoice: &str,
+) -> Result<bool, Error> {
+    Ok(sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM finance_invoices WHERE id=$1 AND company_id=$2 AND source_type='field_service')",
+    )
+    .bind(invoice)
+    .bind(company.as_str())
+    .fetch_one(&mut *c)
+    .await?)
+}
 struct Effects<'a, C> {
     current: &'a AuthorizedWorkContext,
     clock: &'a C,
     input: ServiceReceiptCreateInput,
-    prepared: Option<PreparedServiceReceiptCreate>,
-    retained: Option<RetainedServiceReceiptCreate>,
+    prepared: Option<PreparedCreate>,
+    retained: Option<RetainedCreate>,
 }
 impl<C: Clock + Send + Sync> PgOwnerCommandEffects for Effects<'_, C> {
     async fn lock_sources(
@@ -149,20 +196,41 @@ impl<C: Clock + Send + Sync> PgOwnerCommandEffects for Effects<'_, C> {
         _: &CommandActor,
         r: &WorkflowRequest,
     ) -> Result<WorkflowOutput, Error> {
-        let prepared = prepare_service_receipt_create(
+        let (prepared, result) = if field_invoice(
             c,
-            &finance_actor(self.current),
-            &r.record_id,
-            &self.input,
-            self.clock,
+            &self.current.selection().workspace().company_id,
+            &self.input.settlement_invoice_id,
         )
-        .await?;
-        let amount = units_to_decimal(&prepared.amount().into(), 2).map_err(|_| {
-            BusinessError::invalid("MONEY_OVERFLOW", "Money exceeds supported precision.")
-        })?;
-        let result = CommandJson::from_serializable(
-            &serde_json::json!({"id":r.record_id,"amount":amount,"outstanding":amount,"status":"draft","version":1,"settlementInvoiceId":self.input.settlement_invoice_id}),
-        )?;
+        .await?
+        {
+            let prepared = prepare_service_receipt_create(
+                c,
+                &finance_actor(self.current),
+                &r.record_id,
+                &self.input,
+                self.clock,
+            )
+            .await?;
+            let amount = units_to_decimal(&prepared.amount().into(), 2).map_err(|_| {
+                BusinessError::invalid("MONEY_OVERFLOW", "Money exceeds supported precision.")
+            })?;
+            (
+                PreparedCreate::Field(prepared),
+                serde_json::json!({"id":r.record_id,"amount":amount,"outstanding":amount,"status":"draft","version":1,"settlementInvoiceId":self.input.settlement_invoice_id}),
+            )
+        } else {
+            let prepared = erpx_server_finance::public::generic_payment::prepare_generic_payment(
+                c,
+                &finance_actor(self.current),
+                &r.record_id,
+                &generic_input(&self.input),
+                self.clock,
+            )
+            .await?;
+            let result = prepared.result()?;
+            (PreparedCreate::Generic(prepared), result)
+        };
+        let result = CommandJson::from_serializable(&result)?;
         self.prepared = Some(prepared);
         Ok(WorkflowOutput {
             version: 1,
@@ -176,13 +244,11 @@ impl<C: Clock + Send + Sync> PgOwnerCommandEffects for Effects<'_, C> {
         _: &CommandActor,
         _: &WorkflowRequest,
     ) -> Result<(), Error> {
-        self.retained = Some(
-            self.prepared
-                .take()
-                .ok_or_else(unavailable)?
-                .persist(c)
-                .await?,
-        );
+        let retained = match self.prepared.take().ok_or_else(unavailable)? {
+            PreparedCreate::Field(plan) => RetainedCreate::Field(plan.persist(c).await?),
+            PreparedCreate::Generic(plan) => RetainedCreate::Generic(plan.persist(c).await?),
+        };
+        self.retained = Some(retained);
         Ok(())
     }
     async fn retain(
@@ -275,12 +341,24 @@ where
                         .facts()
                         .map(|r| r.record_id.clone())
                         .unwrap_or_else(|| format!("pay-{}", uuid::Uuid::new_v4()));
-                    let mut authority = service_receipt_create_authority(
-                        current,
-                        &config,
-                        clock.as_ref(),
-                        input.settlement_invoice_id.clone(),
-                    );
+                    let field = field_invoice(c, &config.company, &input.settlement_invoice_id).await?;
+                    let mut authority = if field {
+                        service_receipt_create_authority(
+                            current,
+                            &config,
+                            clock.as_ref(),
+                            input.settlement_invoice_id.clone(),
+                        )
+                    } else {
+                        generic_payment_authority(
+                            current,
+                            &config,
+                            clock.as_ref(),
+                            input.settlement_invoice_id.clone(),
+                            None,
+                            crate::finance_service_invoice_post::ReceiptAction::Create,
+                        )
+                    };
                     let request = WorkflowRequest {
                         key,
                         operation: "finance.payment.create".into(),

@@ -95,7 +95,7 @@ impl ReceiptAction {
         }
     }
 }
-struct Authority<'a, C> {
+pub(crate) struct Authority<'a, C> {
     current: &'a AuthorizedWorkContext,
     config: &'a FinanceJournalCreateConfiguration,
     clock: &'a C,
@@ -107,6 +107,7 @@ struct Authority<'a, C> {
     receipt_action: Option<ReceiptAction>,
     flow_assignment:bool,
     no_charge:bool,
+    generic_payment:bool,
 }
 impl<C: Clock + Send + Sync> PgCommandAuthority for Authority<'_, C> {
     async fn lock_sources(
@@ -339,14 +340,27 @@ impl<C: Clock + Send + Sync> PgCommandAuthority for Authority<'_, C> {
             no_charge.require_terminal(c,&r.key).await?;
         }
         if let Some(invoice) = &self.receipt_invoice {
-            erpx_server_finance::public::service_receipt::require_service_receipt_finance_lineage(
-                c,
-                &finance_actor(self.current),
-                self.receipt_payment.as_deref().unwrap_or(&r.record_id),
-                invoice,
-                self.receipt_action == Some(ReceiptAction::Create),
-            )
-            .await?;
+            if self.generic_payment {
+                let valid: bool = sqlx::query_scalar(
+                    "SELECT EXISTS(SELECT 1 FROM finance_invoices i WHERE i.id=$1 AND i.company_id=$2                      AND i.kind IN ('payable','receivable') AND i.status IN ('posted','partially_paid')                      AND i.source_type IS DISTINCT FROM 'expense_claim')",
+                )
+                .bind(invoice)
+                .bind(self.config.company.as_str())
+                .fetch_one(&mut *c)
+                .await?;
+                if !valid {
+                    return Err(changed().into());
+                }
+            } else {
+                erpx_server_finance::public::service_receipt::require_service_receipt_finance_lineage(
+                    c,
+                    &finance_actor(self.current),
+                    self.receipt_payment.as_deref().unwrap_or(&r.record_id),
+                    invoice,
+                    self.receipt_action == Some(ReceiptAction::Create),
+                )
+                .await?;
+            }
         }
         Ok(())
     }
@@ -567,6 +581,7 @@ where
                         receipt_invoice: None,
                         receipt_payment: None,
                         receipt_action: None,
+                        generic_payment:false,
                     };
                     let mut effects = Effects {
                         current,
@@ -668,7 +683,7 @@ pub(crate) fn service_receipt_create_authority<'a, C: Clock + Send + Sync>(
     config: &'a FinanceJournalCreateConfiguration,
     clock: &'a C,
     invoice: String,
-) -> impl PgCommandAuthority + 'a {
+) -> Authority<'a, C> {
     Authority {
         current,
         config,
@@ -681,6 +696,31 @@ pub(crate) fn service_receipt_create_authority<'a, C: Clock + Send + Sync>(
         receipt_invoice: Some(invoice),
         receipt_payment: None,
         receipt_action: Some(ReceiptAction::Create),
+        generic_payment:false,
+    }
+}
+
+pub(crate) fn generic_payment_authority<'a, C: Clock + Send + Sync>(
+    current: &'a AuthorizedWorkContext,
+    config: &'a FinanceJournalCreateConfiguration,
+    clock: &'a C,
+    invoice: String,
+    payment: Option<String>,
+    action: ReceiptAction,
+) -> Authority<'a, C> {
+    Authority {
+        current,
+        config,
+        clock,
+        purchase: None,
+        base: None,
+        lineage: None,
+        flow_assignment:false,
+        no_charge:false,
+        receipt_invoice: Some(invoice),
+        receipt_payment: payment,
+        receipt_action: Some(action),
+        generic_payment:true,
     }
 }
 
@@ -691,7 +731,7 @@ pub(crate) fn service_receipt_review_authority<'a, C: Clock + Send + Sync>(
     invoice: String,
     payment: String,
     approve: bool,
-) -> impl PgCommandAuthority + 'a {
+) -> Authority<'a, C> {
     Authority {
         current,
         config,
@@ -708,6 +748,7 @@ pub(crate) fn service_receipt_review_authority<'a, C: Clock + Send + Sync>(
         } else {
             ReceiptAction::Release
         }),
+        generic_payment:false,
     }
 }
 
@@ -717,7 +758,7 @@ pub(crate) fn service_receipt_bank_authority<'a, C: Clock + Send + Sync>(
     clock: &'a C,
     invoice: String,
     payment: String,
-) -> impl PgCommandAuthority + 'a {
+) -> Authority<'a, C> {
     Authority {
         current,
         config,
@@ -730,6 +771,7 @@ pub(crate) fn service_receipt_bank_authority<'a, C: Clock + Send + Sync>(
         receipt_invoice: Some(invoice),
         receipt_payment: Some(payment),
         receipt_action: Some(ReceiptAction::BankImport),
+        generic_payment:false,
     }
 }
 
@@ -739,7 +781,7 @@ pub(crate) fn service_receipt_confirm_authority<'a, C: Clock + Send + Sync>(
     clock: &'a C,
     invoice: String,
     payment: String,
-) -> impl PgCommandAuthority + 'a {
+) -> Authority<'a, C> {
     Authority {
         current,
         config,
@@ -752,13 +794,14 @@ pub(crate) fn service_receipt_confirm_authority<'a, C: Clock + Send + Sync>(
         receipt_invoice: Some(invoice),
         receipt_payment: Some(payment),
         receipt_action: Some(ReceiptAction::Confirm),
+        generic_payment:false,
     }
 }
 
 pub(crate) fn service_invoice_flow_authority<'a,C:Clock+Send+Sync>(current:&'a AuthorizedWorkContext,config:&'a FinanceJournalCreateConfiguration,clock:&'a C)->impl PgCommandAuthority+'a{
- Authority{current,config,clock,purchase:None,base:None,lineage:None,receipt_invoice:None,receipt_payment:None,receipt_action:None,flow_assignment:true,no_charge:false}
+ Authority{current,config,clock,purchase:None,base:None,lineage:None,receipt_invoice:None,receipt_payment:None,receipt_action:None,flow_assignment:true,no_charge:false,generic_payment:false}
 }
 
 pub(crate) fn service_no_charge_authority<'a,C:Clock+Send+Sync>(current:&'a AuthorizedWorkContext,config:&'a FinanceJournalCreateConfiguration,clock:&'a C)->impl PgCommandAuthority+'a{
-    Authority{current,config,clock,purchase:None,base:None,lineage:None,receipt_invoice:None,receipt_payment:None,receipt_action:None,flow_assignment:false,no_charge:true}
+    Authority{current,config,clock,purchase:None,base:None,lineage:None,receipt_invoice:None,receipt_payment:None,receipt_action:None,flow_assignment:false,no_charge:true,generic_payment:false}
 }

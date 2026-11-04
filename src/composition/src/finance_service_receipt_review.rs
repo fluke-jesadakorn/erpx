@@ -2,8 +2,10 @@
 use crate::{
     finance_journal_create::{FinanceJournalCreateConfiguration, Ids},
     finance_journal_review::{command_actor, finance_actor},
-    finance_service_invoice_post::service_receipt_review_authority,
-    finance_service_receipt_create::ReceiptSources,
+    finance_service_invoice_post::{
+        ReceiptAction, generic_payment_authority, service_receipt_review_authority,
+    },
+    finance_service_receipt_create::{ReceiptSources, field_invoice},
 };
 use erpx_server_finance::public::service_receipt::*;
 use erpx_server_identity_access::public::{
@@ -310,14 +312,26 @@ where
                         .as_str()
                         .ok_or_else(changed)?
                         .to_owned();
-                    let mut auth = service_receipt_review_authority(
-                        current,
-                        &config,
-                        clock.as_ref(),
-                        invoice,
-                        id.clone(),
-                        approve,
-                    );
+                    let field = field_invoice(c, &config.company, &invoice).await?;
+                    let mut auth = if field {
+                        service_receipt_review_authority(
+                            current,
+                            &config,
+                            clock.as_ref(),
+                            invoice,
+                            id.clone(),
+                            approve,
+                        )
+                    } else {
+                        generic_payment_authority(
+                            current,
+                            &config,
+                            clock.as_ref(),
+                            invoice,
+                            Some(id.clone()),
+                            if approve { ReceiptAction::Approve } else { ReceiptAction::Release },
+                        )
+                    };
                     let request = WorkflowRequest {
                         key,
                         operation: if approve {
