@@ -1,7 +1,7 @@
 {
   "version": 1,
   "date": "2026-11-04",
-  "status": "Talent now has a bounded native requisition lifecycle: a branch-scoped draft command, independent approve/reject, open/close/cancel transitions, and Company/branch/department-scoped workspace/detail reads with immutable event history, current IAM authority, versions/CAS, idempotency, audit/outbox, rollback and persisted readback. The owner also has an owner-local HTTP router and a strict Next transport with configured SSR/API cutover and fail-closed native configuration. Candidate, application, interview, proposal, offer, hire handoff, privacy and attachment workflows remain retained. The crate is not registered in the root Cargo workspace by this subagent because root Cargo.toml/Cargo.lock edits were forbidden; tests were executed in a disposable mirror workspace over the same sources.",
+  "status": "Talent now has a bounded native requisition lifecycle: a branch-scoped draft command, independent approve/reject, open/close/cancel transitions, and Company/branch/department-scoped workspace/detail reads with immutable event history, current IAM authority, versions/CAS, idempotency, audit/outbox, rollback and persisted readback. The owner also has an owner-local HTTP router and a strict Next transport with configured SSR/API cutover and fail-closed native configuration. Candidate, application, interview, proposal, offer, hire handoff, privacy and attachment workflows remain retained. The integrating session registered the crate and the catalogue entries; this subagent did not edit root Cargo.toml, Cargo.lock or docs/status.",
   "capability": "talent-requisition-owner-slice",
   "integrationTarget": "codex/rust-backend-migration",
   "base": "4e9c21e6f",
@@ -50,7 +50,7 @@
     "cargo": {
       "command": "ERPX_TEST_ADMIN_URL=<local test admin> cargo test -p erpx-server-talent --locked -- --test-threads=1",
       "result": "18 passed, 0 failed, 0 ignored across 3 test targets plus the empty lib/doc targets (lib 0, talent_requisition 9, talent_requisition_http 3, talent_requisition_postgres 6, doc-tests 0)",
-      "workspaceNote": "The subagent was forbidden to edit root Cargo.toml/Cargo.lock. The exact command ran in a disposable mirror workspace under the approved temporary directory whose only manifest delta was adding packages/server-talent to [workspace] members and erpx-server-talent as a workspace dependency; package sources, tests, migrations and the locked dependency graph were the real worktree files. Root Cargo.toml and Cargo.lock in the worktree were not edited.",
+      "workspaceNote": "The exact command ran directly in the worktree against the real package sources, tests, migrations and locked dependency graph. Root Cargo.toml/Cargo.lock membership for packages/server-talent was added by the integrating session commit bf61e5db7, not authored by this subagent; the subagent was forbidden to edit those files.",
       "targets": {
         "talent_requisition": "9 passed: exact wire-shape unknown/float/action negatives, permission/context/branch checks before effects, exact input and plan trimming, replay and idempotency mismatch, CAS/status/self-review policy across approve/reject/open/close/cancel, replay and not-found, Company/branch/department workspace filtering and duplicate denial, detail history ordering and scope, commit failure retry.",
         "talent_requisition_http": "3 passed: exact distinct targets and HTTPS origins, actual loopback router forwarding workspace/detail/create/change, unknown query/host/Holding/id, missing/short Idempotency-Key, malformed JSON/content type/GET body, conflict mapping, private/no-store/no-referrer/nosniff headers.",
@@ -119,7 +119,7 @@
       "router = router.merge(erpx_server_talent::public::requisition_http::talent_requisition_http_router(targets).map_err(|_| \"PRIVATE_API_TALENT_CONFIGURATION_INVALID\")?);",
       "Mount /talent/requisitions before the generic 404 fallback."
     ],
-    "rootWorkspace": "packages/server-talent is not registered in the root Cargo.toml [workspace] members and Cargo.lock in this worktree because this subagent was forbidden to edit those files. The integrating session must add the member and path dependency; no shared dependency beyond the existing workspace set is required.",
+    "rootWorkspace": "packages/server-talent is registered in the root Cargo.toml [workspace] members and Cargo.lock by integrating commit bf61e5db7. This subagent did not author that change. No shared dependency beyond the existing workspace set was required.",
     "nextEnvironment": "Set ERPX_NATIVE_TALENT_CONFIG={\"privateBaseUrl\":\"http://127.0.0.1:<owned-loopback-port>\",\"timeoutMs\":250..30000,\"holdings\":[{\"origin\":\"https://<registered-holding>\",\"holdingSlug\":\"<slug>\",\"holdingId\":\"h00N\"}]} for each affected app."
   },
   "legacyRemovedOrRetained": {
@@ -138,19 +138,18 @@
   },
   "concurrentWork": {
     "preserved": "This shared worktree also contains concurrent benefits and learning agent work, including packages/server-benefits, packages/server-learning, feature-benefits/feature-people changes, tests/catalogue/suite-manifest.json, test files and a shared .env.example Benefits block. Those files were not edited, reverted or included in this slice. The .env.example change in this slice is additive and leaves the concurrent Benefits block intact.",
-    "rootManifests": "Root Cargo.toml and Cargo.lock were unchanged by this subagent; no staging, private production or Cloudflare access was performed.",
+    "rootManifests": "Root Cargo.toml and Cargo.lock were not edited by this subagent; integrating commit bf61e5db7 registered packages/server-talent. No staging, private production or Cloudflare access was performed.",
     "headAdvance": "The worktree base was 4e9c21e6f. HEAD advanced through concurrent agent commits while this slice was implemented; the stated verification ran against the real worktree sources at verificationHead."
   },
   "blockersAndNextAction": {
     "blockers": [
-      "No root Cargo.toml/Cargo.lock registration for erpx-server-talent (forbidden here)",
       "No composition backend implements the public ports or mounts talent_requisition_http_router",
       "No authenticated browser or deployment verification was performed",
       "Candidate, application, proposal, offer, hire handoff, privacy and attachment workflows remain retained TypeScript"
     ],
     "nextAction": "Have the integrating session register the crate and lock entry, then have the composition owner implement the Account/scope/feature/purchase backend and mount the router. Qualify the candidate/application lifecycle next with its People retention/owner-eligibility and proposal/offer guards, followed by hire handoff and privacy workflows. Browser acceptance remains deferred."
   },
-  "verificationHead": "acd09e4a6019aed1b9b6cd5dadeafa1c00e70fbb",
+  "verificationHead": "684c6003e",
   "sharedIntegrationFiles": {
     "files": [
       "Cargo.toml",
@@ -159,6 +158,6 @@
       "docs/status/rust-backend-migration.json",
       "docs/status/rust-delivery-bundles.json"
     ],
-    "note": "Not changed by this subagent: root workspace membership/lock entry, catalogue test registration and owner status/bundle qualification remain integrating-session work. tests/catalogue/suite-manifest.json was concurrently modified by another owner and was not touched."
+    "note": "Authored by the integrating session, not this subagent: root workspace membership/lock entry and four catalogue suite entries (commit bf61e5db7) plus owner status/bundle qualification (commit 4c2ab63ea). This subagent did not edit docs/status or tests/catalogue."
   }
 }
