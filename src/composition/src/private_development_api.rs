@@ -1424,6 +1424,7 @@ async fn assemble_checked(
         let mut handbook_targets = Vec::new();
         let mut learning_targets = Vec::new();
         let mut quality_targets = Vec::new();
+        let mut manage_erpx_targets = Vec::new();
         let mut records_context_targets = Vec::new();
         let mut records_registry_targets = Vec::new();
         let mut legal_targets = Vec::new();
@@ -1576,6 +1577,23 @@ async fn assemble_checked(
                         Arc::new(crate::quality::QualityService::new(
                             authorizer.clone(),
                             crate::quality::QualityConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    )),
+                },
+            );
+            manage_erpx_targets.push(
+                erpx_server_manage_erpx::public::onboarding_http::ManageErpxHttpTarget {
+                    host: holding.host.clone(),
+                    backend: Arc::new(crate::manage_erpx::ManageErpxBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::manage_erpx::ManageErpxService::new(
+                            authorizer.clone(),
+                            crate::manage_erpx::ManageErpxConfiguration::new(
                                 holding.registration.holding_id.clone(),
                                 company.clone(),
                             ),
@@ -2148,6 +2166,12 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_quality::public::quality_http::quality_router(quality_targets)
                     .map_err(|_| "PRIVATE_API_QUALITY_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !manage_erpx_targets.is_empty() {
+            router = router.merge(
+                erpx_server_manage_erpx::public::onboarding_http::manage_erpx_router(manage_erpx_targets)
+                    .map_err(|_| "PRIVATE_API_MANAGE_ERPX_CONFIGURATION_INVALID")?,
             );
         }
         if !legal_targets.is_empty() {
