@@ -129,12 +129,13 @@ const nativeConfig = {
 const nativeHeaders = { get: (name: string) => ({ host: "acme.example.test", cookie: "session=value" })[name] ?? null };
 
 function nativeTransport(payload: unknown, status = 200) {
-  return vi.fn(async () =>
-    new Response(JSON.stringify(payload), {
+  return vi.fn(async (method: string, url: URL, headers: Headers, body: string | undefined, signal: AbortSignal) => {
+    void method; void url; void headers; void body; void signal;
+    return new Response(JSON.stringify(payload), {
       status,
       headers: { "content-type": "application/json; charset=utf-8" },
-    }),
-  );
+    });
+  });
 }
 
 const workspacePayload = {
