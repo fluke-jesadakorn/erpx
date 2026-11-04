@@ -5,6 +5,8 @@ pub mod service_count_flow_notification;
 
 pub mod collaboration_work;
 
+pub mod handbook;
+
 pub mod operations_notification;
 
 pub mod field_outbox;

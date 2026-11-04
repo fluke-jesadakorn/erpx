@@ -19,7 +19,7 @@
     "qualifiedBusinessFlows": 30,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 6,
+    "workflowsPartial": 11,
     "workflowsVerified": 24,
     "workflowsMerged": 24,
     "ownersComplete": 1,
@@ -4207,60 +4207,60 @@
       "kind": "module",
       "owner": "assets",
       "scope": "Asset register",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native owner register/detail/history and registration effects are PostgreSQL-qualified; HTTP/Next/SSR, Workflow/Commercial composition and browser remain open."
     },
     {
       "id": "assets/condition",
       "kind": "module",
       "owner": "assets",
       "scope": "Condition",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native condition policy/effects are owner-qualified; HTTP/Next/SSR and browser remain open."
     },
     {
       "id": "assets/feature-placement",
       "kind": "module",
       "owner": "assets",
       "scope": "Placement",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native placement policy/effects, Finance recognition and custodian guards are owner-qualified; HTTP/Next/SSR and browser remain open."
     },
     {
       "id": "assets/feature-maintenance-lifecycle",
       "kind": "module",
       "owner": "assets",
       "scope": "Maintenance lifecycle",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Asset-side maintenance references/status and placement/retirement guards are owner-qualified; Maintenance full lifecycle commands and browser remain open."
     },
     {
       "id": "assets/feature-retirement",
       "kind": "module",
       "owner": "assets",
       "scope": "Retirement",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native retirement request/refresh/approve with independent review and posted-disposal guards is owner-qualified; HTTP/Next/SSR and browser remain open."
     },
     {
       "id": "inventory/availability",

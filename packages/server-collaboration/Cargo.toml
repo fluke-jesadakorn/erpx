@@ -52,3 +52,11 @@ path = "../../tests/unit/collaboration/rust-collaboration-work.test.rs"
 [[test]]
 name = "collaboration_work_postgres"
 path = "../../tests/integration/collaboration/rust-collaboration-work-postgres.test.rs"
+
+[[test]]
+name = "handbook"
+path = "../../tests/unit/collaboration/rust-handbook.test.rs"
+
+[[test]]
+name = "handbook_postgres"
+path = "../../tests/integration/collaboration/rust-handbook-postgres.test.rs"

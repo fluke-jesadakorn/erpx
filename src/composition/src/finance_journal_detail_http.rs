@@ -1,8 +1,9 @@
 //! Unmounted detail HTTP; one retained read returns owner data + render context.
 use crate::{
     finance_journal_detail::{
-        FinanceJournalDetailService, FinanceSalesDefaultsResultResponse,
-        FinanceSalesDefaultsWorkspaceResponse,
+        FinanceChartAccountsResponse, FinanceJournalDetailService,
+        FinanceSalesDefaultsResultResponse, FinanceSalesDefaultsWorkspaceResponse,
+        FinanceSetupWorkspaceResponse,
     },
     http_scope::BusinessScopeSlugs,
 };
@@ -572,7 +573,9 @@ async fn finance_chart_accounts<C: Clock + Send + Sync + 'static>(
     State(state): State<Arc<ReadState<C>>>,
     Path((slug, chart_id)): Path<(String, String)>,
     headers: HeaderMap,
+    RawQuery(raw): RawQuery,
 ) -> Response {
+    let setup_view = raw.as_deref() == Some("view=setup");
     let result = async {
         let (host, target) = setup_target(&state, &headers, &slug)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
@@ -590,9 +593,27 @@ async fn finance_chart_accounts<C: Clock + Send + Sync + 'static>(
         let company = target.service.company_id().clone();
         let proof = inbound.into_proof();
         let input = move || { scope?; captured.resolve_read(company) };
-        target.service.finance_chart_accounts(&host, proof, input, chart_id).await
+        if setup_view {
+            return target
+                .service
+                .finance_setup_workspace(&host, proof, input)
+                .await
+                .map(SetupReadReply::Workspace);
+        }
+        target
+            .service
+            .finance_chart_accounts(&host, proof, input, chart_id)
+            .await
+            .map(SetupReadReply::ChartAccounts)
     }.await;
     read_json_response(result)
+}
+
+#[derive(serde::Serialize)]
+#[serde(untagged)]
+enum SetupReadReply {
+    Workspace(FinanceSetupWorkspaceResponse),
+    ChartAccounts(FinanceChartAccountsResponse),
 }
 
 async fn create_chart<C: Clock + Send + Sync + 'static>(

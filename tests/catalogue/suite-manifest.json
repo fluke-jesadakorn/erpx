@@ -71356,6 +71356,142 @@
         "reason": "Native owner workflow retains current Company scope, authority, version/idempotency and persisted-effect assertions."
       },
       "framework": "vitest"
+    },
+    {
+      "id": "assets.rust-asset-register-policy.unit",
+      "lane": "unit",
+      "owner": "assets",
+      "modules": [
+        "assets"
+      ],
+      "files": [
+        "tests/unit/assets/rust-asset-register.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner workflow retains Company scope, current authority, version/idempotency and persisted-effect assertions."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-assets",
+        "targets": [
+          "asset_register_policy"
+        ],
+        "manifest": "packages/server-assets/Cargo.toml"
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-assets/Cargo.toml"
+      ]
+    },
+    {
+      "id": "assets.rust-asset-register-postgres.integration",
+      "lane": "integration",
+      "owner": "assets",
+      "modules": [
+        "assets"
+      ],
+      "files": [
+        "tests/integration/assets/rust-asset-register-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner workflow retains Company scope, current authority, version/idempotency and persisted-effect assertions."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-assets",
+        "targets": [
+          "asset_register_postgres"
+        ],
+        "manifest": "packages/server-assets/Cargo.toml"
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-assets/Cargo.toml"
+      ]
+    },
+    {
+      "id": "collaboration.rust-handbook.unit",
+      "lane": "unit",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration"
+      ],
+      "files": [
+        "tests/unit/collaboration/rust-handbook.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner workflow retains Company scope, current authority, version/idempotency and persisted-effect assertions."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-collaboration",
+        "targets": [
+          "handbook"
+        ],
+        "manifest": "packages/server-collaboration/Cargo.toml"
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-collaboration/Cargo.toml"
+      ]
+    },
+    {
+      "id": "collaboration.rust-handbook-postgres.integration",
+      "lane": "integration",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration"
+      ],
+      "files": [
+        "tests/integration/collaboration/rust-handbook-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner workflow retains Company scope, current authority, version/idempotency and persisted-effect assertions."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-collaboration",
+        "targets": [
+          "handbook_postgres"
+        ],
+        "manifest": "packages/server-collaboration/Cargo.toml"
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-collaboration/Cargo.toml"
+      ]
     }
   ]
 }

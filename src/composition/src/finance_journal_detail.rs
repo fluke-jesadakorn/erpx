@@ -158,6 +158,12 @@ pub struct FinanceChartAccountsResponse {
 }
 #[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FinanceSetupWorkspaceResponse {
+    pub data: FinanceSetupWorkspace,
+    pub context: FinanceRenderedWorkContext,
+}
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub struct FinanceChartResponse { pub data: ChartResult }
 #[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
@@ -1103,6 +1109,46 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                     Self::require_sales_purchase(c, current, &configuration, CapabilityPurpose::History, clock.now()).await?;
                     let data = read_chart_accounts(c, configuration.company.as_str(), &chart_id).await?;
                     Ok(FinanceChartAccountsResponse { data, context: rendered(current)? })
+                })
+            },
+        ).await
+    }
+
+    pub async fn finance_setup_workspace<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+    ) -> Result<FinanceSetupWorkspaceResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != company { return Err(scope()); }
+            request.mutation = false;
+            Ok(request)
+        };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer.execute_with_sources_deferred(
+            host, proof, input,
+            WorkAuthorizationRequest { permission: "finance.read".into(), module: Some("finance".into()), destination: "finance/setup".into(), api: true },
+            FinanceSetupSources,
+            move |c, current| {
+                let configuration = configuration.clone();
+                let clock = clock.clone();
+                Box::pin(async move {
+                    if current.holding_id() != &configuration.holding || current.selection().workspace().company_id != configuration.company { return Err(scope().into()); }
+                    current.require_permission("finance.read")?;
+                    current.require_permission("module.finance.read")?;
+                    let workspace = current.selection().workspace();
+                    if workspace.branch_id.is_some() || workspace.department_id.is_some() { return Err(setup_company_scope().into()); }
+                    let now = clock.now();
+                    Self::require_sales_purchase(c, current, &configuration, CapabilityPurpose::History, now).await?;
+                    let data = read_finance_setup(c, configuration.company.as_str(), now.get()).await?;
+                    Ok(FinanceSetupWorkspaceResponse { data, context: rendered(current)? })
                 })
             },
         ).await

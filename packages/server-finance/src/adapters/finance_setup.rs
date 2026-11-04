@@ -1,6 +1,7 @@
 //! Native Finance chart-of-accounts management: chart/account/period reads and
 //! the chart, account, import, status and period writers.
 use super::sales_invoice_create::{SalesInvoiceCommandActor, authority_json, fingerprint, receipt};
+use crate::domain::finance_setup::{FinanceSetupCheck, FinanceSetupCounts, finance_setup_checks};
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
 use serde::{Deserialize, Serialize};
@@ -15,6 +16,14 @@ pub struct FinanceChartAccounts {
     pub chart: Value,
     pub accounts: Vec<Value>,
     pub periods: Vec<Value>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FinanceSetupWorkspace {
+    pub charts: Vec<Value>,
+    pub parties: Vec<Value>,
+    pub checks: Vec<FinanceSetupCheck>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -171,9 +180,11 @@ async fn serializable(c: &mut PgConnection) -> Result<(), Error> {
 
 pub async fn lock_finance_setup_sources(c: &mut PgConnection) -> Result<(), Error> {
     serializable(c).await?;
-    sqlx::query("LOCK TABLE finance_charts,finance_accounts,finance_periods IN SHARE ROW EXCLUSIVE MODE")
-        .execute(&mut *c)
-        .await?;
+    sqlx::query(
+        "LOCK TABLE finance_charts,finance_accounts,finance_periods IN SHARE ROW EXCLUSIVE MODE",
+    )
+    .execute(&mut *c)
+    .await?;
     Ok(())
 }
 
@@ -195,20 +206,27 @@ fn valid_date(value: &str) -> bool {
         return false;
     };
     let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
-    let days = [31, if leap { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let days = [
+        31,
+        if leap { 29 } else { 28 },
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
+    ];
     (1..=12).contains(&month) && day >= 1 && day <= days[month - 1]
 }
 
 fn valid_category(value: &str) -> bool {
     matches!(
         value,
-        "asset"
-            | "liability"
-            | "equity"
-            | "revenue"
-            | "expense"
-            | "other_income"
-            | "other_expense"
+        "asset" | "liability" | "equity" | "revenue" | "expense" | "other_income" | "other_expense"
     )
 }
 
@@ -266,6 +284,189 @@ pub async fn read_chart_accounts(
     })
 }
 
+pub async fn read_finance_setup(
+    c: &mut PgConnection,
+    company: &str,
+    now: i64,
+) -> Result<FinanceSetupWorkspace, Error> {
+    serializable(c).await?;
+    if company.is_empty() || company.len() > 200 || !(0..=9_007_199_254_740_991).contains(&now) {
+        return Err(unavailable());
+    }
+    let charts: Vec<Value> = sqlx::query_scalar::<_, String>(
+        "SELECT to_jsonb(c)::text FROM finance_charts c \
+         WHERE c.company_id=$1 ORDER BY c.created_at,c.id",
+    )
+    .bind(company)
+    .fetch_all(&mut *c)
+    .await?
+    .into_iter()
+    .map(parse)
+    .collect::<Result<Vec<_>, _>>()?;
+    let parties: Vec<Value> = sqlx::query_scalar::<_, String>(
+        "SELECT to_jsonb(p)::text FROM finance_parties p WHERE p.company_id=$1 \
+         AND p.kind IN ('customer','supplier') AND p.status='active' ORDER BY p.kind,p.name,p.id",
+    )
+    .bind(company)
+    .fetch_all(&mut *c)
+    .await?
+    .into_iter()
+    .map(parse)
+    .collect::<Result<Vec<_>, _>>()?;
+    let active_accounts = sqlx::query_scalar::<_, i64>(
+        "SELECT count(*) FROM finance_accounts WHERE company_id=$1 AND status='active'",
+    )
+    .bind(company)
+    .fetch_one(&mut *c)
+    .await?;
+    let periods =
+        sqlx::query_scalar::<_, i64>("SELECT count(*) FROM finance_periods WHERE company_id=$1")
+            .bind(company)
+            .fetch_one(&mut *c)
+            .await?;
+    let tax_codes = sqlx::query_scalar::<_, i64>(
+        "SELECT count(*) FROM finance_tax_codes WHERE company_id=$1 AND status='active'",
+    )
+    .bind(company)
+    .fetch_one(&mut *c)
+    .await?;
+    let bank_accounts = sqlx::query_scalar::<_, i64>(
+        "SELECT count(DISTINCT bank_account) FROM finance_bank_statements WHERE company_id=$1",
+    )
+    .bind(company)
+    .fetch_one(&mut *c)
+    .await?;
+    let business_date: String = sqlx::query_scalar(
+        "SELECT (to_timestamp($1::double precision/1000.0) AT TIME ZONE 'Asia/Bangkok')::date::text",
+    )
+    .bind(now)
+    .fetch_one(&mut *c)
+    .await?;
+    let profiles: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM finance_accounting_profiles p \
+         JOIN finance_charts c ON c.id=p.statutory_chart_id AND c.company_id=p.company_id \
+         AND c.status='active' WHERE p.company_id=$1 AND p.status='approved' \
+         AND p.effective_date<=$2",
+    )
+    .bind(company)
+    .bind(&business_date)
+    .fetch_one(&mut *c)
+    .await?;
+    let controls: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM (SELECT a.chart_id FROM finance_accounts a \
+         JOIN finance_charts c ON c.id=a.chart_id AND c.status='active' \
+         WHERE a.company_id=$1 AND a.status='active' AND NOT EXISTS(\
+           SELECT 1 FROM finance_book_rules r WHERE r.secondary_chart_id=a.chart_id \
+           AND r.status='approved') GROUP BY a.chart_id \
+         HAVING bool_or(a.control_kind='bank' AND a.category='asset') \
+         AND bool_or(a.control_kind='receivable' AND a.category='asset') \
+         AND bool_or(a.control_kind='payable' AND a.category='liability')) configured",
+    )
+    .bind(company)
+    .fetch_one(&mut *c)
+    .await?;
+    let (preparers, approvers, independent) = finance_setup_authority(c, company, now).await?;
+    let checks = finance_setup_checks(FinanceSetupCounts {
+        charts: charts.len() as i64,
+        active_accounts,
+        primary_control_books: controls,
+        effective_profiles: profiles,
+        preparers,
+        approvers,
+        independent_approver: independent,
+        periods,
+        active_tax_codes: tax_codes,
+        bank_statement_accounts: bank_accounts,
+    });
+    Ok(FinanceSetupWorkspace {
+        charts,
+        parties,
+        checks,
+    })
+}
+
+async fn finance_setup_authority(
+    c: &mut PgConnection,
+    company: &str,
+    now: i64,
+) -> Result<(i64, i64, bool), Error> {
+    let assignments: Vec<(String, String)> = sqlx::query_as(
+        "SELECT DISTINCT user_id,role FROM assignments WHERE company_id=$1 \
+         AND scope_kind='holding' AND revoked_at IS NULL AND valid_from<=$2 \
+         AND valid_until>$2 AND iam_assignment_active(id,$2) \
+         AND iam_principal_active(user_id,$1,$2) ORDER BY user_id,role",
+    )
+    .bind(company)
+    .bind(now)
+    .fetch_all(&mut *c)
+    .await?;
+    if assignments.is_empty() {
+        return Ok((0, 0, false));
+    }
+    let role_ids: Vec<String> = assignments
+        .iter()
+        .map(|(_, role)| role.clone())
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let roles: Vec<(String, Value)> = sqlx::query_as(
+        "SELECT r.id,v.permissions_json FROM iam_roles r \
+         JOIN iam_role_revisions v ON v.company_id=r.company_id AND v.role_id=r.id \
+         AND v.revision=r.published_revision WHERE r.company_id IN ('*',$1) \
+         AND r.id=ANY($2) AND r.status='active' \
+         ORDER BY CASE WHEN r.company_id=$1 THEN 0 ELSE 1 END,r.id",
+    )
+    .bind(company)
+    .bind(&role_ids)
+    .fetch_all(&mut *c)
+    .await?;
+    let mut permissions = std::collections::BTreeMap::<String, Vec<String>>::new();
+    for (id, value) in roles {
+        if permissions.contains_key(&id) {
+            continue;
+        }
+        let list = value
+            .as_array()
+            .map(|values| {
+                values
+                    .iter()
+                    .filter_map(|value| value.as_str().map(str::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default();
+        permissions.insert(id, list);
+    }
+    let with = |permission: &str| -> Vec<String> {
+        assignments
+            .iter()
+            .filter(|(_, role)| {
+                permissions
+                    .get(role)
+                    .is_some_and(|values| values.iter().any(|value| value == permission))
+            })
+            .map(|(user, _)| user.clone())
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    };
+    let preparers = with("finance.write");
+    let approvers = with("finance.approve");
+    let independent = if preparers.is_empty() || approvers.is_empty() {
+        false
+    } else {
+        sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM unnest($1::text[]) p \
+             CROSS JOIN unnest($2::text[]) a WHERE NOT iam_same_person(p,a,$3))",
+        )
+        .bind(&preparers)
+        .bind(&approvers)
+        .bind(company)
+        .fetch_one(&mut *c)
+        .await?
+    };
+    Ok((preparers.len() as i64, approvers.len() as i64, independent))
+}
+
 fn require_company(actor: &SalesInvoiceCommandActor) -> Result<(), Error> {
     if actor.company_id.is_empty()
         || actor.user_id.is_empty()
@@ -295,7 +496,10 @@ pub async fn create_chart(
     if input.name.trim().is_empty()
         || input.name.trim().len() > 160
         || input.base_currency.len() != 3
-        || !input.base_currency.bytes().all(|byte| byte.is_ascii_uppercase())
+        || !input
+            .base_currency
+            .bytes()
+            .all(|byte| byte.is_ascii_uppercase())
         || input.accounting_basis.trim().is_empty()
         || input.accounting_basis.trim().len() > 40
     {
@@ -362,7 +566,11 @@ pub async fn create_chart(
     Ok(result)
 }
 
-async fn chart(c: &mut PgConnection, company: &str, chart_id: &str) -> Result<(String, String), Error> {
+async fn chart(
+    c: &mut PgConnection,
+    company: &str,
+    chart_id: &str,
+) -> Result<(String, String), Error> {
     let row = sqlx::query(
         "SELECT id,base_currency FROM finance_charts WHERE id=$1 AND company_id=$2 FOR SHARE",
     )
@@ -389,10 +597,9 @@ pub async fn create_account(
         || input.name.trim().len() > 160
         || !valid_category(&input.category)
         || !valid_control(&input.control_kind)
-        || input
-            .currency
-            .as_deref()
-            .is_some_and(|value| value.len() != 3 || !value.bytes().all(|byte| byte.is_ascii_uppercase()))
+        || input.currency.as_deref().is_some_and(|value| {
+            value.len() != 3 || !value.bytes().all(|byte| byte.is_ascii_uppercase())
+        })
     {
         return Err(invalid(
             "INVALID_ACCOUNT",
@@ -488,7 +695,10 @@ pub async fn import_accounts(
                 || row.name.trim().is_empty()
                 || row.name.trim().len() > 160
                 || !valid_category(&row.category)
-                || row.control_kind.as_deref().is_some_and(|value| !valid_control(value))
+                || row
+                    .control_kind
+                    .as_deref()
+                    .is_some_and(|value| !valid_control(value))
                 || row.currency.as_deref().is_some_and(|value| {
                     value.len() != 3 || !value.bytes().all(|byte| byte.is_ascii_uppercase())
                 })
@@ -504,7 +714,8 @@ pub async fn import_accounts(
     let operation = "finance.account.import";
     let request_hash = fingerprint(actor, operation, &chart_id, &input_json);
     let authority = authority_json(actor);
-    if let Some(saved) = replay::<AccountImportResult>(c, command, operation, &request_hash).await? {
+    if let Some(saved) = replay::<AccountImportResult>(c, command, operation, &request_hash).await?
+    {
         return Ok(saved);
     }
     let mut codes = std::collections::BTreeSet::new();
@@ -532,7 +743,10 @@ pub async fn import_accounts(
     }
     for (index, row) in input.rows.iter().enumerate() {
         let id = format!("acct-{}-{index}", command.as_str());
-        let currency = row.currency.clone().unwrap_or_else(|| base_currency.clone());
+        let currency = row
+            .currency
+            .clone()
+            .unwrap_or_else(|| base_currency.clone());
         let control_kind = row.control_kind.clone().unwrap_or_else(|| "none".into());
         let is_control = control_kind != "none";
         sqlx::query(
@@ -602,7 +816,12 @@ pub async fn change_account_status(
     .bind(&actor.company_id)
     .fetch_optional(&mut *c)
     .await?
-    .ok_or_else(|| not_found("ACCOUNT_NOT_FOUND", "The account is not available in this chart."))?;
+    .ok_or_else(|| {
+        not_found(
+            "ACCOUNT_NOT_FOUND",
+            "The account is not available in this chart.",
+        )
+    })?;
     let current: String = row.try_get("status")?;
     let version: i64 = row.try_get("version")?;
     let operation = if input.status == "active" {
@@ -613,7 +832,8 @@ pub async fn change_account_status(
     let input_json = serde_json::to_string(input).map_err(|_| unavailable())?;
     let request_hash = fingerprint(actor, operation, account_id, &input_json);
     let authority = authority_json(actor);
-    if let Some(saved) = replay::<AccountStatusResult>(c, command, operation, &request_hash).await? {
+    if let Some(saved) = replay::<AccountStatusResult>(c, command, operation, &request_hash).await?
+    {
         return Ok(saved);
     }
     if version != input.expected_version {

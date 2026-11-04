@@ -7,6 +7,10 @@ pub(crate) mod collaboration_work;
 
 pub(crate) mod collaboration_work_wire;
 
+pub(crate) mod handbook;
+
+pub(crate) mod handbook_wire;
+
 pub mod operations_notification;
 
 #[cfg(feature="push-provider")]

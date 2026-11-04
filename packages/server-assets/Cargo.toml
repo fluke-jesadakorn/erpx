@@ -30,5 +30,13 @@ path = "../../tests/integration/assets/rust-maintenance-source.test.rs"
 name = "maintenance_effects"
 path = "../../tests/unit/assets/rust-maintenance-effects.test.rs"
 
+[[test]]
+name = "asset_register_postgres"
+path = "../../tests/integration/assets/rust-asset-register-postgres.test.rs"
+
+[[test]]
+name = "asset_register_policy"
+path = "../../tests/unit/assets/rust-asset-register.test.rs"
+
 [lints]
 workspace = true

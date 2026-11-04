@@ -7,6 +7,8 @@ vi.mock('next/headers',()=>({headers:vi.fn()}));
 import {createNativeServicePaymentCommands} from '../../../packages/feature-finance/src/adapters/server/native-service-payment-command';
 import {createNativeServicePaymentReader} from '../../../packages/feature-finance/src/adapters/server/native-service-payment';
 import {createNativeServiceInvoiceReader} from '../../../packages/feature-finance/src/adapters/server/native-service-invoice';
+import {createNativeFinanceSetupWorkspaceReader,nativeFinanceSetupWorkspace} from '../../../packages/feature-finance/src/adapters/server/native-finance-setup';
+import {NativeFinanceReadError} from '../../../packages/feature-finance/src/adapters/server/native-journal-detail';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import type {NativeJournalPageContext} from '../../../packages/feature-finance/src/adapters/server/native-journal-page';
 const config={privateBaseUrl:'http://127.0.0.1:43117',timeoutMs:250,holdings:[{origin:'https://acme.example.test',holdingSlug:'acme',holdingId:'h001'} ]};
@@ -263,5 +265,34 @@ describe('native generic controlled payment transport',()=>{
   const genericData={...paymentData,payment:generic,sourcePurchase:{capability:'finance.banking',settleExisting:true,history:true,revision:'actual-purchase'}};
   const read=createNativeServicePaymentReader(JSON.stringify(paymentConfig),async(url)=>json(url.pathname.endsWith('/runtime')?{data:{id:'payment-key',runtime:'rust'}}:{data:genericData,context,filesMode:'disabled',sourceOnly:false,purchaseControls}));
   expect((await read(actor,incoming,'acme','payment-key'))?.payment.kind).toBe('payment');
+ });
+});
+
+
+describe('native Finance setup readiness transport',()=>{
+ const setupReply={data:{charts:[{id:'chart',name:'Primary',base_currency:'THB'}],parties:[{id:'customer',code:'C-1',name:'Customer'}],checks:[{id:'chart',label:'Chart of accounts and base currency',complete:true,detail:'1 chart(s)'},{id:'approvers',label:'Independent Finance preparer and approver',complete:false,detail:'1 preparer(s), 1 approver(s) with current Company authority'}]},context};
+ it('reads the exact setup view with the current rendered context and no extra header forwarding',async()=>{
+  const calls:{url:URL;headers:Headers}[]=[];const transport=vi.fn(async(url:URL,headers:Headers)=>{calls.push({url,headers});return json(setupReply);});
+  const result=await createNativeFinanceSetupWorkspaceReader(JSON.stringify(config),transport)(incoming,actor,'acme');
+  expect(calls).toHaveLength(1);expect(calls[0]!.url.pathname).toBe('/api/v1/holdings/acme/finance/charts/setup/accounts');expect(calls[0]!.url.search).toBe('?view=setup');
+  expect([...calls[0]!.headers.keys()].sort()).toEqual(['accept','cache-control','cookie','host','x-erpx-context-assignment','x-erpx-context-assignment-version','x-erpx-context-company','x-erpx-context-revision']);
+  expect(result.checks[0]!.detail).toBe('1 chart(s)');
+ });
+ it('rejects changed context or malformed checks instead of synthesizing setup facts',async()=>{
+  const changed=structuredClone(setupReply);changed.context.companyId='foreign';
+  await expect(createNativeFinanceSetupWorkspaceReader(JSON.stringify(config),async()=>json(changed))(incoming,actor,'acme')).rejects.toMatchObject({code:'NATIVE_FINANCE_CONTEXT_CHANGED'});
+  const malformed=structuredClone(setupReply);malformed.data.checks[0]!.detail='';
+  await expect(createNativeFinanceSetupWorkspaceReader(JSON.stringify(config),async()=>json(malformed))(incoming,actor,'acme')).rejects.toMatchObject({code:'NATIVE_FINANCE_SETUP_RESPONSE_INVALID'});
+  await expect(createNativeFinanceSetupWorkspaceReader(JSON.stringify(config),async()=>json(null,503))(incoming,actor,'acme')).rejects.toMatchObject({code:'NATIVE_FINANCE_SETUP_UNAVAILABLE',status:503});
+ });
+ it('keeps configured native failures closed and branch setup explicitly legacy',async()=>{
+  const previous=process.env.ERPX_NATIVE_FINANCE_SETUP_CONFIG;
+  try{
+   delete process.env.ERPX_NATIVE_FINANCE_SETUP_CONFIG;expect(await nativeFinanceSetupWorkspace(actor,'acme')).toBeUndefined();
+   process.env.ERPX_NATIVE_FINANCE_SETUP_CONFIG='{broken';await expect(nativeFinanceSetupWorkspace(actor,'acme')).rejects.toBeInstanceOf(NativeFinanceReadError);
+   process.env.ERPX_NATIVE_FINANCE_SETUP_CONFIG=JSON.stringify(config);
+   const branch={...actor,scope:{kind:'branch',branchSlug:'bangkok'}} as typeof actor;
+   expect(await nativeFinanceSetupWorkspace(branch,'acme')).toBeUndefined();
+  }finally{if(previous===undefined)delete process.env.ERPX_NATIVE_FINANCE_SETUP_CONFIG;else process.env.ERPX_NATIVE_FINANCE_SETUP_CONFIG=previous;}
  });
 });

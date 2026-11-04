@@ -22,3 +22,5 @@ pub(crate) mod customer_receipt;
 
 pub(crate) mod service_no_charge;
 pub(crate) mod field_work;
+
+pub(crate) mod finance_setup;

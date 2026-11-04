@@ -16,6 +16,18 @@ export type NativeChartAccounts = {
   accounts: Row[];
   periods: Row[];
 };
+export type NativeFinanceSetupCheck = {
+  id: string;
+  label: string;
+  complete: boolean;
+  detail: string;
+};
+export type NativeSetupRow = Record<string, string | number | null>;
+export type NativeFinanceSetup = {
+  charts: NativeSetupRow[];
+  parties: NativeSetupRow[];
+  checks: NativeFinanceSetupCheck[];
+};
 
 const limit = 256 * 1024;
 const fail = (code: string, status?: number): never => {
@@ -38,6 +50,27 @@ const ledger = (value: unknown): value is Row =>
   );
 const rows = (value: unknown, max = 10000): value is Row[] =>
   Array.isArray(value) && value.length <= max && value.every(ledger);
+const setupRow = (value: unknown): value is NativeSetupRow =>
+  object(value) &&
+  Object.values(value).every(
+    (item) =>
+      item === null ||
+      typeof item === 'string' ||
+      (typeof item === 'number' && Number.isSafeInteger(item)),
+  );
+const setupRows = (value: unknown, max = 10000): value is NativeSetupRow[] =>
+  Array.isArray(value) && value.length <= max && value.every(setupRow);
+const checks = (value: unknown): value is NativeFinanceSetupCheck[] =>
+  Array.isArray(value) &&
+  value.length <= 32 &&
+  value.every(
+    (check) =>
+      object(check) &&
+      text(check.id, 100) &&
+      text(check.label, 200) &&
+      typeof check.complete === 'boolean' &&
+      text(check.detail, 1000),
+  );
 const sameSet = (left: readonly string[], right: readonly string[]) => {
   const a = new Set(left);
   const b = new Set(right);
@@ -176,6 +209,76 @@ export function createNativeFinanceSetupReader(
       clearTimeout(timer);
     }
   };
+}
+
+export function createNativeFinanceSetupWorkspaceReader(
+  raw: string,
+  transport: NativeFinanceReadTransport = directHttp,
+) {
+  const config = configuration(raw);
+  return async (
+    incoming: Pick<Headers, 'get'>,
+    actor: NativeJournalPageContext,
+    holdingSlug: string,
+  ): Promise<NativeFinanceSetup> => {
+    if (!actor.authority || !actor.iam || actor.holdingSlug !== holdingSlug) {
+      return fail('NATIVE_FINANCE_CONTEXT_CHANGED');
+    }
+    const host = incoming.get('host');
+    const holding = config.holdings.find(
+      (entry) => new URL(entry.origin).host === host && entry.holdingSlug === holdingSlug,
+    );
+    if (!holding || holding.holdingId !== actor.holdingId) return fail('NATIVE_FINANCE_AUTHORITY_INVALID');
+    const branchSlug = actor.scope.kind === 'holding' ? undefined : actor.scope.branchSlug;
+    const departmentSlug = actor.scope.kind === 'department' ? actor.scope.departmentSlug : undefined;
+    const out = requestHeaders(incoming, actor, branchSlug, departmentSlug);
+    const url = new URL(
+      `/api/v1/holdings/${encodeURIComponent(holdingSlug)}/finance/charts/setup/accounts?view=setup`,
+      config.privateBaseUrl,
+    );
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+    try {
+      const response = await transport(url, out, controller.signal);
+      if (response.redirected || response.status !== 200) {
+        void response.body?.cancel().catch(() => undefined);
+        return fail('NATIVE_FINANCE_SETUP_UNAVAILABLE', response.status);
+      }
+      if (response.headers.get('content-type')?.split(';')[0] !== 'application/json') {
+        return fail('NATIVE_FINANCE_SETUP_RESPONSE_INVALID');
+      }
+      const value: unknown = await response.json();
+      validateContext(value, actor, branchSlug, departmentSlug);
+      const data = value.data;
+      if (
+        !object(data) ||
+        !setupRows(data.charts) ||
+        !setupRows(data.parties) ||
+        !checks(data.checks)
+      ) {
+        return fail('NATIVE_FINANCE_SETUP_RESPONSE_INVALID');
+      }
+      return { charts: data.charts, parties: data.parties, checks: data.checks };
+    } catch (error) {
+      if (error instanceof NativeFinanceReadError) throw error;
+      return fail(
+        controller.signal.aborted ? 'NATIVE_FINANCE_SETUP_ABORTED' : 'NATIVE_FINANCE_SETUP_UNAVAILABLE',
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+}
+
+export async function nativeFinanceSetupWorkspace(
+  actor: NativeJournalPageContext | undefined,
+  holdingSlug: string,
+): Promise<NativeFinanceSetup | undefined> {
+  const raw = process.env.ERPX_NATIVE_FINANCE_SETUP_CONFIG;
+  if (raw === undefined) return undefined;
+  if (!actor) return fail('NATIVE_FINANCE_CONTEXT_CHANGED');
+  if (actor.scope.kind !== 'holding') return undefined;
+  return createNativeFinanceSetupWorkspaceReader(raw)(await headers(), actor, holdingSlug);
 }
 
 export async function nativeChartAccounts(

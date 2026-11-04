@@ -39,8 +39,8 @@ fn service(p: &Prepared) -> FinanceJournalDetailService<facts::TestClock> {
 fn owned_maker(
     p: &Prepared,
 ) -> impl FnOnce() -> Result<HoldingWorkspaceRequest, erpx_server_shared::public::BusinessError>
-       + Send
-       + 'static {
++ Send
++ 'static {
     let request = p.maker_selection.clone();
     move || Ok(request)
 }
@@ -427,6 +427,104 @@ async fn account_inactive_rejects_draft_journals_and_open_invoices() {
 }
 
 #[tokio::test]
+async fn setup_readiness_reports_company_facts_and_independent_authority() {
+    account::with_system(|system| async move {
+        let p = setup(system).await;
+        let pool = &p.system.holdings[0];
+        seed(pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,is_control,control_kind,status,version,created_at,updated_at)VALUES\
+             ('ap','company','chart','2100','Trade payables','liability','THB',1,'payable','active',1,0,0),\
+             ('bank','company','chart','1000','Bank','asset','THB',1,'bank','active',1,0,0) ON CONFLICT DO NOTHING;\
+             INSERT INTO finance_tax_codes(id,company_id,code,name,rate_micros,recoverable_micros,effective_from,status)VALUES\
+             ('vat','company','VAT','Value added tax',70000,1000000,'2026-01-01','active') ON CONFLICT DO NOTHING;\
+             INSERT INTO finance_accounting_profiles(id,company_id,statutory_chart_id,standard,fiscal_start_month,effective_date,eligibility_evidence,policy_evidence,tax_basis,inventory_policy,depreciation_policy,status,version,prepared_by,reviewed_by,review_reason,created_at,reviewed_at)VALUES\
+             ('profile','company','chart','TFRS for NPAEs',1,'2020-01-01','Reviewed NPAEs eligibility','Reviewed Company policies','current_tax','moving_average','straight_line','approved',1,'fixture-a','fixture-b','Independent setup review',0,0) ON CONFLICT DO NOTHING;\
+             INSERT INTO finance_bank_statements(id,company_id,bank_account,statement_number,statement_date,opening_minor,closing_minor,status,source_hash,version,imported_by,created_at)VALUES\
+             ('setup-statement','company','bank','SETUP-ST-1','2026-01-31',0,0,'imported','setup-hash',1,'fixture-a',0) ON CONFLICT DO NOTHING;\
+             INSERT INTO finance_charts(id,company_id,name,base_currency,created_by,created_at,updated_at)VALUES\
+             ('chart-b','company-b','Foreign chart','THB','fixture-a',0,0) ON CONFLICT DO NOTHING;\
+             INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,status,version,created_at,updated_at)VALUES\
+             ('account-b','company-b','chart-b','1000','Foreign cash','asset','THB','active',1,0,0) ON CONFLICT DO NOTHING;\
+             INSERT INTO finance_parties(id,company_id,kind,code,name,currency,status,version,created_at,updated_at)VALUES\
+             ('party-b','company-b','customer','C-B','Foreign customer','THB','active',1,0,0) ON CONFLICT DO NOTHING;",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+
+        let read = service(&p)
+            .finance_setup_workspace("acme.example.test", p.maker.clone(), owned_maker(&p))
+            .await
+            .unwrap();
+        assert_eq!(read.data.charts.len(), 2);
+        assert!(read.data.charts.iter().all(|chart| chart["company_id"] == "company"));
+        assert_eq!(read.data.parties.len(), 1);
+        assert_eq!(read.data.parties[0]["code"], "SET-C");
+        assert_eq!(read.data.parties[0]["company_id"], "company");
+        assert_eq!(read.data.checks.len(), 8);
+        assert!(read.data.checks.iter().all(|check| check.complete), "{:?}", read.data.checks.iter().map(|check| (&check.id, check.complete, &check.detail)).collect::<Vec<_>>());
+        assert_eq!(read.data.checks[0].detail, "2 chart(s)");
+        assert_eq!(read.data.checks[1].detail, "7 active account(s)");
+        assert_eq!(
+            read.data.checks[2].detail,
+            "1 primary book(s) with all three control mappings"
+        );
+        assert_eq!(
+            read.data.checks[3].detail,
+            "1 effective independently approved profile(s)"
+        );
+        assert_eq!(
+            read.data.checks[4].detail,
+            "2 preparer(s), 2 approver(s) with current Company authority"
+        );
+        assert_eq!(read.data.checks[5].detail, "1 period(s)");
+        assert_eq!(read.data.checks[6].detail, "1 active code(s)");
+        assert_eq!(read.data.checks[7].detail, "1 account(s) from statements");
+
+        sqlx::query("UPDATE assignments SET revoked_at=1 WHERE user_id='fixture-b'")
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        let one = service(&p)
+            .finance_setup_workspace("acme.example.test", p.maker.clone(), owned_maker(&p))
+            .await
+            .unwrap();
+        assert!(!one.data.checks[4].complete);
+        assert_eq!(
+            one.data.checks[4].detail,
+            "1 preparer(s), 1 approver(s) with current Company authority"
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn setup_readiness_requires_current_finance_read_authority() {
+    account::with_system(|system| async move {
+        let p = setup(system).await;
+        sqlx::raw_sql(
+            "INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES\
+             ('*','custom_finance_review',2,'[\"module.finance.read\"]','[]','[\"holding\",\"branch\",\"department\"]','fixture-a',0);\
+             UPDATE iam_roles SET published_revision=2 WHERE company_id='*' AND id='custom_finance_review';",
+        )
+        .execute(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        match service(&p)
+            .finance_setup_workspace("acme.example.test", p.maker.clone(), owned_maker(&p))
+            .await
+        {
+            Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
+                assert_eq!(error.code, "PERMISSION_REQUIRED");
+            }
+            other => panic!("missing finance.read must be denied: {other:?}"),
+        }
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn period_create_and_http_setup_routes() {
     account::with_system(|system| async move {
         let p = setup(system).await;
@@ -515,6 +613,27 @@ async fn period_create_and_http_setup_routes() {
         let body = to_bytes(response.into_body(), 2 * 1024 * 1024).await.unwrap();
         let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(value["data"]["chart"]["id"], "chart");
+
+        let setup = Request::builder()
+            .method("GET")
+            .uri("/api/v1/holdings/acme/finance/charts/chart/accounts?view=setup")
+            .header("host", "acme.example.test")
+            .header("cookie", format!("__Host-erpx-product={}", p.maker_token.expose()))
+            .header("origin", "https://acme.example.test")
+            .header("x-erpx-context-company", "company")
+            .header("x-erpx-context-assignment", "finance-fixture-a")
+            .header("x-erpx-context-revision", "7")
+            .header("x-erpx-context-assignment-version", "3")
+            .body(Body::empty())
+            .unwrap();
+        let response = app.clone().oneshot(setup).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), 2 * 1024 * 1024).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(value["data"]["charts"].as_array().unwrap().iter().any(|chart| chart["id"] == "chart"));
+        assert_eq!(value["data"]["checks"].as_array().unwrap().len(), 8);
+        assert_eq!(value["data"]["checks"][0]["id"], "chart");
+        assert_eq!(value["context"]["companyId"], "company");
 
         let chart = Request::builder()
             .method("POST")

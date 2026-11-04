@@ -162,11 +162,11 @@
     {
       "id": "assets",
       "package": "erpx-server-assets",
-      "phase": "foundation",
+      "phase": "partial",
       "businessMigrationComplete": false,
       "surfaces": {
-        "domain": "foundation",
-        "application": "pending",
+        "domain": "active",
+        "application": "active",
         "http": "pending",
         "ssr": "pending",
         "jobs": "pending",
@@ -435,11 +435,11 @@
     {
       "id": "collaboration",
       "package": "erpx-server-collaboration",
-      "phase": "foundation",
+      "phase": "partial",
       "businessMigrationComplete": false,
       "surfaces": {
-        "domain": "foundation",
-        "application": "pending",
+        "domain": "active",
+        "application": "active",
         "http": "pending",
         "ssr": "pending",
         "jobs": "pending",

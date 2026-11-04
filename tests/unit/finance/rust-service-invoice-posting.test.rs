@@ -356,3 +356,61 @@ fn field_cost_journal_requires_selected_eligible_reviewer_and_keeps_posted_histo
     assert_eq!(terminal["canAct"],false);
     assert_eq!(terminal["steps"][0]["status"],"recorded");
 }
+
+mod finance_setup_readiness {
+    use erpx_server_finance::public::finance_setup::{
+        FinanceSetupCounts, finance_setup_checks,
+    };
+
+    #[test]
+    fn reports_every_complete_company_check_with_stable_detail() {
+        let checks = finance_setup_checks(FinanceSetupCounts {
+            charts: 2,
+            active_accounts: 23,
+            primary_control_books: 1,
+            effective_profiles: 1,
+            preparers: 3,
+            approvers: 2,
+            independent_approver: true,
+            periods: 12,
+            active_tax_codes: 2,
+            bank_statement_accounts: 1,
+        });
+        assert_eq!(checks.len(), 8);
+        assert!(checks.iter().all(|check| check.complete));
+        assert_eq!(checks[0].id, "chart");
+        assert_eq!(checks[0].detail, "2 chart(s)");
+        assert_eq!(checks[1].detail, "23 active account(s)");
+        assert_eq!(
+            checks[2].detail,
+            "1 primary book(s) with all three control mappings"
+        );
+        assert_eq!(
+            checks[3].detail,
+            "1 effective independently approved profile(s)"
+        );
+        assert_eq!(
+            checks[4].detail,
+            "3 preparer(s), 2 approver(s) with current Company authority"
+        );
+        assert_eq!(checks[5].detail, "12 period(s)");
+        assert_eq!(checks[6].detail, "2 active code(s)");
+        assert_eq!(checks[7].detail, "1 account(s) from statements");
+    }
+
+    #[test]
+    fn keeps_empty_or_same_person_setup_incomplete() {
+        let checks = finance_setup_checks(FinanceSetupCounts {
+            preparers: 1,
+            approvers: 1,
+            independent_approver: false,
+            ..FinanceSetupCounts::default()
+        });
+        assert!(checks.iter().all(|check| !check.complete));
+        assert_eq!(checks[0].detail, "0 chart(s)");
+        assert_eq!(
+            checks[4].detail,
+            "1 preparer(s), 1 approver(s) with current Company authority"
+        );
+    }
+}
