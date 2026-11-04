@@ -158,16 +158,18 @@ async fn payment_runtime<C: Clock + Send + Sync + 'static>(
                         {
                             return Err(missing().into());
                         }
-                        let native: bool = sqlx::query_scalar(
-                            "SELECT EXISTS(SELECT 1 FROM finance_invoices i WHERE i.id=$1 AND i.company_id=$2 \
+                        let source: Option<String> = sqlx::query_scalar(
+                            "SELECT source_type FROM finance_invoices i WHERE i.id=$1 AND i.company_id=$2 \
                              AND i.kind IN ('payable','receivable') AND i.status IN ('posted','partially_paid') \
-                             AND i.source_type IS DISTINCT FROM 'expense_claim')",
+                             AND i.source_type IS DISTINCT FROM 'expense_claim'",
                         )
                         .bind(&id)
                         .bind(configuration.company.as_str())
-                        .fetch_one(&mut *c)
+                        .fetch_optional(&mut *c)
                         .await?;
-                        Ok(serde_json::json!({"data":{"id":id,"runtime":if native{"rust"}else{"legacy"}}}))
+                        let native = source.is_some();
+                        let path = if source.as_deref() == Some("field_service") { "field" } else { "generic" };
+                        Ok(serde_json::json!({"data":{"id":id,"runtime":if native{"rust"}else{"legacy"},"path":path}}))
                     })
                 },
             )

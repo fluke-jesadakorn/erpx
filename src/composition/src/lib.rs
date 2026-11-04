@@ -59,6 +59,8 @@ pub mod finance_bank_workspace;
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
 pub mod finance_generic_payment;
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
+pub mod finance_generic_payment_http;
+#[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
 pub mod finance_journal_detail;
 
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]

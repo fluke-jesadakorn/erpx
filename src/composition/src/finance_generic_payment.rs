@@ -6,7 +6,7 @@ use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
 };
 use erpx_server_finance::public::service_receipt::{
-    read_service_receipt_workspace, service_payment_routing_facts,
+    service_payment_routing_facts,
 };
 use erpx_server_identity_access::public::effective_authority::AuthorizedWorkContext;
 use erpx_server_identity_access::public::selected_command_authority::require_selected_actor_current;
@@ -159,13 +159,12 @@ pub async fn read_finance_generic_payment_workspace<C: Clock + Send + Sync>(
     let company_scope = current.selection().workspace().branch_id.is_none()
         && current.selection().workspace().department_id.is_none();
     let can_confirm = company_scope && current.has_permission("finance.pay") && base_allowed;
-    let workspace = read_service_receipt_workspace(
+    let workspace = erpx_server_finance::public::service_receipt::read_generic_payment_workspace(
         c,
         &finance_actor(current),
         id,
         &invoice,
         can_confirm,
-        &bank.statement_ids(),
     )
     .await?;
     bank.require_current(c).await?;

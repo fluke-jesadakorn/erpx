@@ -117,6 +117,11 @@ required-features = ["existing-business"]
 workspace = true
 
 [[test]]
+name = "generic_payment_http_postgres"
+path = "../../tests/integration/finance/rust-generic-payment-http-postgres.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
 name = "bank_reconciliation_http_postgres"
 path = "../../tests/integration/finance/rust-bank-reconciliation-http-postgres.test.rs"
 required-features = ["existing-business"]

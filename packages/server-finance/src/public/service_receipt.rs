@@ -36,7 +36,8 @@ pub use crate::adapters::service_receipt_confirm::{
 };
 
 pub use crate::adapters::service_receipt_workspace::{
-    CurrentServiceReceiptWorkspace, read_service_receipt_workspace,
+    CurrentServiceReceiptWorkspace, read_generic_payment_workspace,
+    read_service_receipt_workspace,
 };
 
 pub use crate::adapters::service_receipt_workspace::{

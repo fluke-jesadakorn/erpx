@@ -292,7 +292,10 @@ impl<C: Clock + Send + Sync> PgCommandAuthority for Authority<'_, C> {
             found.require_allowed()?;
             self.purchase = Some((purpose, found.witness));
         }
-        if let Some(lineage) = &self.lineage {
+        if self.generic_payment {
+            // Generic invoices have no Field release lineage; the owner
+            // command revalidates the persisted invoice and purchase below.
+        } else if let Some(lineage) = &self.lineage {
             lineage.require_current(c).await?;
         } else {
             let finance = read_service_invoice_workspace(

@@ -48,18 +48,19 @@ export function createNativeServicePaymentCommands(raw:string,transport:typeof n
    return closed(reply.status,e.code,e.message);
   }
   try {
-   let native=false;
+   let native=false,createPath:'field'|'generic'='field';
    for(const id of selected.ids){
     const path=selected.kind==='create'?`${base}/invoices/${segment(id)}/payment-runtime`:selected.kind==='flow'?`${base}/invoices/${segment(id)}/post-runtime`:`${base}/payments/${segment(id)}/runtime`;
     const reply=await exchange(path,'GET');if(reply.status!==200)return error(reply);
-    const d=reply.value.data;if(!object(d)||Object.keys(d).sort().join(',')!=='id,runtime'||d.id!==id.toWellFormed()||!['rust','legacy'].includes(String(d.runtime)))return closed(502,'NATIVE_FINANCE_RESPONSE_INVALID');
-    native ||= d.runtime==='rust';
+    const d=reply.value.data;const allowPath=selected.kind==='create',expectedKeys=(allowPath?['id','path','runtime']:['id','runtime']).join(',');
+    if(!object(d)||Object.keys(d).sort().join(',')!==expectedKeys||d.id!==id.toWellFormed()||!['rust','legacy'].includes(String(d.runtime))||allowPath&&!['field','generic'].includes(String(d.path)))return closed(502,'NATIVE_FINANCE_RESPONSE_INVALID');
+    native ||= d.runtime==='rust';if(allowPath&&d.runtime==='rust')createPath=d.path==='generic'?'generic':'field';
    }
    if(!native)return undefined;
    if(selected.kind==='export'||selected.kind==='decision'&&!['approve','release','confirm'].includes(selected.action??''))return closed(503,'NATIVE_SERVICE_PAYMENT_ACTION_UNAVAILABLE','This payment action is currently unavailable. Your draft is retained.');
    let body:Uint8Array;try{body=await nativeFinanceReplyBytes(request.body,limit);}catch(error){if(error instanceof Error&&error.message==='BODY_LIMIT')return closed(413,'BODY_TOO_LARGE','Use a smaller request.');throw error;}
    const key=request.headers.get('idempotency-key');headers.set('content-type','application/json');if(key!==null)headers.set('idempotency-key',key);
-   const path=selected.kind==='flow'?`${base}/invoices/${segment(selected.ids[0]!)}/flow`:selected.kind==='create'?`${base}/payments`:selected.kind==='bank'?`${base}/bank/statements/import`:`${base}/payments/${segment(selected.ids[0]!)}/${selected.action}`;
+   const path=selected.kind==='flow'?`${base}/invoices/${segment(selected.ids[0]!)}/flow`:selected.kind==='create'?`${base}/${createPath==='generic'?'payments/generic':'payments'}`:selected.kind==='bank'?`${base}/bank/statements/import`:`${base}/payments/${segment(selected.ids[0]!)}/${selected.action}`;
    const reply=await exchange(path,'POST',body);if(reply.status>=400)return error(reply);
    const d=reply.value.data,created=selected.kind==='create'||selected.kind==='bank';
    if(reply.status!==(created?201:200)||!object(d))return closed(502,'NATIVE_FINANCE_RESPONSE_INVALID');

@@ -564,3 +564,47 @@ async fn generic_supplier_payment_bank_import_then_confirm() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn generic_payment_workspace_lists_matching_unmatched_bank_rows() {
+    account::with_system(|system| async move {
+        let p = setup(system).await;
+        let pool = &p.system.holdings[0];
+        seed(pool).await;
+        let clock = p.system.scenario.clock.clone();
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        let maker = actor("fixture-a");
+        prepare_generic_payment(
+            &mut tx,
+            &maker,
+            "pay-workspace",
+            &payment("payment", "bill-open", "supplier"),
+            clock.as_ref(),
+        )
+        .await
+        .unwrap()
+        .persist(&mut tx)
+        .await
+        .unwrap();
+        let workspace = read_generic_payment_workspace(
+            &mut tx,
+            &maker,
+            "pay-workspace",
+            "bill-open",
+            true,
+        )
+        .await
+        .unwrap();
+        let rows = workspace.data()["bankTransactions"]
+            .as_array()
+            .unwrap();
+        assert!(rows.iter().any(|row| row["id"] == "bankrow-open"));
+        assert!(rows.iter().all(|row| row["match_status"] != "matched"));
+        tx.rollback().await.unwrap();
+    })
+    .await;
+}

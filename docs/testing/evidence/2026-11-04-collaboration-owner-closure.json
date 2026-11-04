@@ -1,7 +1,7 @@
 {
   "version": 1,
   "date": "2026-11-04",
-  "status": "Collaboration handbook now has an owner-local native HTTP router and the Next handbook transport is cut over fail-closed; native Social posts/comments/mentions/moderation/reactions/follows/topics/feed are PostgreSQL-qualified. Composition mounting, SSR cutover, attachments, teams/channels and browser acceptance remain open.",
+  "status": "Collaboration handbook now has an owner-local native HTTP router and the Next handbook transport is cut over fail-closed; native Messaging direct/group threads and native Social posts/comments/mentions/moderation/reactions/follows/topics/feed are PostgreSQL-qualified. Composition mounting, SSR cutover, attachments, teams/channels and browser acceptance remain open.",
   "capability": "collaboration-owner-closure",
   "integrationTarget": "codex/rust-backend-migration",
   "head": "cf2ddd6330ea61446821895604148316cdb1a560",
@@ -37,15 +37,27 @@
       ],
       "authorityBoundary": "The owner module selects only social_posts/social_comments/social_reactions/social_follows/social_topics/social_post_topics/social_comment_topics/social_mentions/staff_notifications. Person and record mention targets are resolved by a composition port; no People, IAM, Organization or Records SQL is embedded in Collaboration."
     },
-    "preserved": "Existing handbook lifecycle, collaboration action-card/record-relation slice, maintenance/service-count notifications, Field inbox/outbox and push contracts are unchanged."
+    "preserved": "Existing handbook lifecycle, collaboration action-card/record-relation slice, maintenance/service-count notifications, Field inbox/outbox and push contracts are unchanged.",
+    "messaging": {
+      "domain": "packages/server-collaboration/src/domain/messaging_native.rs",
+      "application": "packages/server-collaboration/src/application/messaging_native.rs",
+      "adapter": "packages/server-collaboration/src/adapters/messaging_native.rs",
+      "public": "packages/server-collaboration/src/public/messaging_native.rs",
+      "workflows": [
+        "Threads: create a direct conversation from a stable composition-supplied participant key or a group room with a normalized name and current Company participants",
+        "Messages: send bounded text, append a monotonic sequence under the owner update guard, reload authorized history with before/after cursors",
+        "Reads: upsert monotonic per-member read state and compute unread counts; direct/group membership is rechecked before every command and read"
+      ],
+      "authorityBoundary": "The owner module selects only messaging_rooms/messaging_room_members/messaging_messages/messaging_reads. Current Company membership and the stable direct-conversation key are supplied by composition; no IAM/People SQL is embedded in Collaboration."
+    }
   },
   "tests": [
     {
       "command": "cargo test -p erpx-server-collaboration --locked -- --test-threads=1",
       "environment": "ERPX_TEST_ADMIN_URL from ignored .env.local; local PostgreSQL 18.6 on 127.0.0.1:5432; isolated erpx_dev_rust_* test databases",
-      "result": "70 passed, 0 failed",
+      "result": "81 passed, 0 failed",
       "breakdown": {
-        "lib": "22 passed (7 handbook HTTP transport/handler, 7 social domain/adapter, 8 handbook domain/wire)",
+        "lib": "26 passed (7 handbook HTTP transport/handler, 7 social domain/adapter, 4 messaging domain, 8 handbook domain/wire)",
         "collaboration_work_unit": "13 passed",
         "collaboration_work_postgres": "1 passed",
         "handbook_unit": "8 passed",
@@ -54,7 +66,9 @@
         "maintenance_notifications_postgres": "6 passed",
         "service_count_flow_notification_postgres": "1 passed",
         "social_unit": "7 passed",
-        "social_postgres": "3 passed"
+        "social_postgres": "3 passed",
+        "messaging_unit": "5 passed",
+        "messaging_postgres": "2 passed"
       }
     },
     {
@@ -99,11 +113,12 @@
     "moderation": "Author edit/tombstone and reviewer tombstone are separately asserted; a reviewer cannot edit another author's comment.",
     "persistedEffects": "Post/comment/topic/mention/reaction/follow rows, staff notifications, command receipts, audit and outbox counts are asserted after commit and re-read in a fresh transaction.",
     "rollback": "A tampered retained effect or revoked authority rolls back the post/comment/receipt/audit/outbox unit; Social PG test proves counts are unchanged after the failed unit.",
-    "negativeCases": "Company audience without current role, branch audience without branch, unreadable person mention, unreadable record, invalid hashtag, invalid cursor, oversized body, missing/wrong origin, missing/invalid idempotency key, stale version and replayed tombstone."
+    "negativeCases": "Company audience without current role, branch audience without branch, unreadable person mention, unreadable record, invalid hashtag, invalid cursor, oversized body, missing/wrong origin, missing/invalid idempotency key, stale version and replayed tombstone.",
+    "threadsMessages": "Direct and group rooms normalize participants, reuse the composition-supplied direct key, enforce current Company membership and room membership, append monotonic message sequences with an owner update guard, persist read state and reload bounded before/after history. Replay returns the retained receipt without a duplicate message."
   },
   "limits": [
     "The handbook router is not mounted in src/composition. SSR presentation queries still use the retained TS handbook adapter, and no native HTTP/SSR cutover is claimed for the workplace handbook screens.",
-    "No Social/threads/messaging HTTP or Next route was cut over. The native Social module is an owner port with behavioural PostgreSQL tests, not a browser-verified UI journey.",
+    "No Messaging HTTP or Next route was cut over; direct/group threads are an owner port with PostgreSQL tests, not a browser-verified journey. Teams/channels, files/attachments and message search remain on the TS owner.",
     "Attachments, teams/channels, announcements, inbox notifications and the full messaging thread model remain on the TS owner and were not replaced.",
     "Action cards and record relations retain their existing native Field-linked slice; their general/legacy sources and HTTP routes were not widened in this change.",
     "No authenticated browser cohort was run. No browser, staging, installed production or Cloudflare access occurred.",
@@ -127,7 +142,8 @@
     "As a plain member confirm the draft list and edit actions are denied; as a non-owner confirm editor management is denied; as the service owner appoint/remove an editor and verify the settings version changes.",
     "Use a second registered Holding/Company (for example https://northstar.jesadakorn.com) and confirm the first Company's handbook is not visible and direct article IDs return 404.",
     "Unset ERPX_NATIVE_HANDBOOK_CONFIG and confirm handbook GET/POST returns 503 NATIVE_HANDBOOK_UNAVAILABLE without writing; restore config and confirm the same journey works.",
-    "If Social UI is mounted later: publish a branch post with a person/record mention and hashtag, reply/edit/tombstone the comment, appreciate/follow/unfollow, switch all/following/records filters and reload; verify another branch and another Company cannot read the branch post."
+    "If Social UI is mounted later: publish a branch post with a person/record mention and hashtag, reply/edit/tombstone the comment, appreciate/follow/unfollow, switch all/following/records filters and reload; verify another branch and another Company cannot read the branch post.",
+    "If Messaging UI is mounted later: start a direct thread with a current Company participant, send/reply, reload history, mark read and confirm unread clears; create a group thread, switch users, and confirm a non-participant and another Company cannot read or post."
   ],
   "legacy": {
     "removed": [

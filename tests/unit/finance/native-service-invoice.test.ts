@@ -103,14 +103,14 @@ describe('native Service payment command transport',()=>{
    [['payments'],{settlementInvoiceId:'field-invoice-key'},'field-invoice-key','/finance/payments',{id:'pay-9e0fb673-6d91-43a8-811e-65c62228e9ea',status:'draft',version:1,settlementInvoiceId:'field-invoice-key'}],
    [['bank','statements','import'],{settlementPaymentId:'payment-key'},'payment-key','/finance/bank/statements/import',{id:'statement-original-key',settlementPaymentId:'payment-key',imported:1}],
   ] as const){
-   const proxy=createNativeServicePaymentCommands(rawConfig,async(url,_h,_b,_s,method)=>method==='GET'?json({data:{id,runtime:'rust'}}):(expect(url.pathname.endsWith(path)).toBe(true),json({data},201)));
+   const proxy=createNativeServicePaymentCommands(rawConfig,async(url,_h,_b,_s,method)=>method==='GET'?json({data:parts[0]==='payments'?{id,runtime:'rust',path:'field'}:{id,runtime:'rust'}}):(expect(url.pathname.endsWith(path)).toBe(true),json({data},201)));
    expect((await proxy(command(JSON.stringify(input)),actor,'acme',parts,input))?.status).toBe(201);
   }
  });
  it('correlates the issued receipt to its source without deriving its ID from the command key',async()=>{
   const rawConfig=JSON.stringify(config),input={settlementInvoiceId:'field-invoice-key'},issued={id:'pay-9e0fb673-6d91-43a8-811e-65c62228e9ea',status:'draft',version:1,settlementInvoiceId:input.settlementInvoiceId};
   for(const data of [issued,{...issued,id:''},{...issued,id:'x'.repeat(181)},{...issued,id:'../receipt'},{...issued,settlementInvoiceId:'foreign-invoice'},{...issued,status:'approved'},{...issued,version:2}]){
-   const transport=vi.fn(async(_url:URL,_headers:Headers,_body:Uint8Array,_signal:AbortSignal,method:'GET'|'POST'='POST')=>method==='GET'?json({data:{id:input.settlementInvoiceId,runtime:'rust'}}):json({data},201));
+   const transport=vi.fn(async(_url:URL,_headers:Headers,_body:Uint8Array,_signal:AbortSignal,method:'GET'|'POST'='POST')=>method==='GET'?json({data:{id:input.settlementInvoiceId,runtime:'rust',path:'field'}}):json({data},201));
    const response=await createNativeServicePaymentCommands(rawConfig,transport)(command(JSON.stringify(input)),actor,'acme',['payments'],input);
    expect(response?.status).toBe(data===issued?201:502);if(data===issued)expect((await response!.json()).data).toEqual(issued);expect(transport).toHaveBeenCalledTimes(2);
   }
@@ -252,13 +252,13 @@ describe('native generic controlled payment transport',()=>{
   const calls:string[]=[];
   const transport=vi.fn(async(url:URL,_headers:Headers,_body:Uint8Array,_signal:AbortSignal,method:'GET'|'POST'='POST')=>{
    calls.push(`${method} ${url.pathname}`);
-   if(method==='GET')return json({data:{id:'bill-open',runtime:'rust'}});
+   if(method==='GET')return json({data:{id:'bill-open',runtime:'rust',path:'generic'}});
    return json({data:{id:'pay-generic',status:'draft',version:1,settlementInvoiceId:'bill-open'}},201);
   });
   const input={kind:'payment',partyId:'supplier',paymentNumber:'PAY-1',paymentDate:'2026-01-10',currency:'THB',amount:'10.00',bankAccount:'bank',settlementInvoiceId:'bill-open'};
   const response=await createNativeServicePaymentCommands(JSON.stringify(config),transport)(request(input),actor,'acme',['payments'],input);
   expect(response?.status).toBe(201);
-  expect(calls).toEqual(['GET /api/v1/holdings/acme/finance/invoices/bill-open/payment-runtime','POST /api/v1/holdings/acme/finance/payments']);
+  expect(calls).toEqual(['GET /api/v1/holdings/acme/finance/invoices/bill-open/payment-runtime','POST /api/v1/holdings/acme/finance/payments/generic']);
  });
  it('accepts a generic payable workspace with banking purchase controls',async()=>{
   const generic={...payment,kind:'payment',settlement_invoice_id:'bill-open'};
