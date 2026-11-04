@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Branch consolidation completed; the migration register is unchanged at 1/41 owners and 22/206 verified workflows",
+  "capability": "branch-consolidation",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "4292f0855ca91e743f94b8cab01c1a314883700a",
+  "head": "6568e492f04be2334b99155f7c86b5d96dd4854c",
+  "method": {
+    "retention": "Old refs with unique commits were merged with `git merge -s ours --no-ff` so their objects remain reachable from codex/rust-backend-migration without changing its tree.",
+    "retainedRefs": [
+      "codex/deferred-container-epoch",
+      "codex/support-sla-merge-receipt",
+      "codex/field-files-intake",
+      "origin/codex/support-tickets-owner-cutover"
+    ],
+    "alreadyAncestors": [
+      "codex/contributor-container-delivery",
+      "codex/holding-routing-delivery",
+      "codex/fix-oltp-query-latency"
+    ]
+  },
+  "branches": {
+    "before": {"remote": 63, "local": 78},
+    "after": {"remote": 2, "local": 2},
+    "remaining": ["development", "codex/rust-backend-migration"],
+    "deletedRemote": 61,
+    "deletedLocal": 76,
+    "note": "The open PR #4 head branch codex/contributor-container-delivery was deleted as requested; its commits remain reachable from codex/rust-backend-migration through the retained merge. The development branch and the default branch were not modified."
+  },
+  "worktrees": {
+    "removed": [
+      ".codex/worktrees/rust-backend-migration/erpx",
+      ".codex/worktrees/pms-candidate-verification/erpx",
+      ".codex/worktrees/workspace-release-verification/erpx",
+      ".codex/worktrees/security-package-upgrade/erpx",
+      ".codex/worktrees/erpx-full-closeout/erpx",
+      ".codex/worktrees/oltp-query-latency/erpx",
+      ".codex/worktrees/field-collaboration-native/erpx",
+      ".scratch/dev/next-native-candidate",
+      ".scratch/dev/next-native-final"
+    ],
+    "remaining": [
+      "/Users/fluke/Desktop/Work/erpx (development)",
+      "/Users/fluke/.codex/worktrees/contributor-container-delivery/erpx (codex/rust-backend-migration)"
+    ],
+    "freed": "approximately 190 GB; filesystem availability moved from 33 GB to 222 GB"
+  },
+  "parkedWork": {
+    "openingBalances": "stash@{1} on codex/finance-reports-merge-receipt: native opening-balance preview/import adapter, composition, HTTP, Next transport and PostgreSQL test; not compiled/verified before parking",
+    "fieldCollaboration": "stash@{0} on codex/field-collaboration-native: native collaboration/source-record implementation and unit test; unverified"
+  },
+  "register": {
+    "ownersComplete": 1,
+    "ownersTotal": 41,
+    "workflowsVerified": 22,
+    "workflowsPartial": 0,
+    "workflowsMerged": 22,
+    "workflowsTotal": 206
+  },
+  "limits": [
+    "No workflow was newly verified by this consolidation; counts are unchanged.",
+    "The parked opening-balance and field-collaboration work is unverified and must not be treated as acceptance.",
+    "No staging, private production, Cloudflare route or public runtime was changed."
+  ]
+}
