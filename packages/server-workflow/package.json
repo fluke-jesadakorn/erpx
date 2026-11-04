@@ -165,6 +165,7 @@
     "./public/people-evaluation-ai-facts": "./src/public/people-evaluation-ai-facts.ts",
     "./public/collaboration-agent-sources": "./src/public/collaboration-agent-sources.ts",
     "./public/approval-administration": "./src/public/approval-administration.ts",
+    "./public/native-workflow-evidence": "./src/public/native-workflow-evidence.ts",
     "./public/agent-bootstrap-assertions": "./src/public/agent-bootstrap-assertions.ts",
     "./public/technology-provisioning-effects": "./src/public/technology-provisioning-effects.ts",
     "./public/leave-evidence-decisions": "./src/public/leave-evidence-decisions.ts",

@@ -70633,6 +70633,133 @@
       ]
     },
     {
+      "id": "workflow.rust-approval-oversight.unit",
+      "lane": "unit",
+      "owner": "workflow",
+      "modules": [
+        "workflow"
+      ],
+      "files": [
+        "tests/unit/workflow/rust-approval-oversight.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native approval oversight retains open queue, route/decision history, receipt/audit/outbox evidence and bounded reads."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-workflow",
+        "targets": [
+          "approval_oversight"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-workflow/Cargo.toml"
+      ]
+    },
+    {
+      "id": "workflow.rust-approval-oversight-http.unit",
+      "lane": "unit",
+      "owner": "workflow",
+      "modules": [
+        "workflow"
+      ],
+      "files": [
+        "tests/unit/workflow/rust-approval-oversight-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native approval oversight HTTP ingress retains exact targets, fail-closed config and bounded errors."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-workflow",
+        "targets": [
+          "approval_oversight_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-workflow/Cargo.toml"
+      ]
+    },
+    {
+      "id": "workflow.rust-approval-oversight-postgres.integration",
+      "lane": "integration",
+      "owner": "workflow",
+      "modules": [
+        "workflow"
+      ],
+      "files": [
+        "tests/integration/workflow/rust-approval-oversight-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native approval oversight reads retain Company scope, serializable guards and persisted evidence readback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-workflow",
+        "targets": [
+          "approval_oversight_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-workflow/Cargo.toml"
+      ]
+    },
+    {
+      "id": "workflow.native-workflow-evidence-transport.unit",
+      "lane": "unit",
+      "owner": "workflow",
+      "modules": [
+        "workflow"
+      ],
+      "files": [
+        "tests/unit/workflow/native-workflow-evidence-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native workflow evidence transport must retain fail-closed config, bounded responses and owner error mapping."
+      },
+      "framework": "vitest",
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-workflow",
+        "@erpx/feature-workflow"
+      ]
+    },
+    {
       "id": "field_service.rust-service-count-company-postgres.integration",
       "lane": "integration",
       "owner": "field_service",

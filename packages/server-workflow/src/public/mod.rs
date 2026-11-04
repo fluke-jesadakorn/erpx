@@ -1,6 +1,9 @@
 pub mod commands;
 pub mod record_origin;
 
+pub mod approval_oversight;
+pub mod approval_oversight_http;
+
 pub mod journal_post_flow;
 
 pub mod service_parts_posting;

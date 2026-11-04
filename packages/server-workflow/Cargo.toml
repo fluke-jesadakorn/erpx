@@ -42,3 +42,15 @@ path = "../../tests/unit/workflow/rust-stock-count-flow.test.rs"
 [[test]]
 name = "stock_count_flow_postgres"
 path = "../../tests/integration/workflow/rust-stock-count-flow-postgres.test.rs"
+
+[[test]]
+name = "approval_oversight"
+path = "../../tests/unit/workflow/rust-approval-oversight.test.rs"
+
+[[test]]
+name = "approval_oversight_http"
+path = "../../tests/unit/workflow/rust-approval-oversight-http.test.rs"
+
+[[test]]
+name = "approval_oversight_postgres"
+path = "../../tests/integration/workflow/rust-approval-oversight-postgres.test.rs"

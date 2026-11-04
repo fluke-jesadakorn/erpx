@@ -1,6 +1,9 @@
 pub mod postgres_commands;
 pub mod postgres_record_origin;
 
+pub mod approval_oversight_postgres;
+pub mod approval_oversight_http;
+
 pub(crate) mod journal_post_flow;
 
 pub(crate) mod service_parts_posting;
