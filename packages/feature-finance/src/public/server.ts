@@ -10,6 +10,7 @@ export {nativeServiceInvoiceWorkspace,nativeServiceInvoiceReadback,nativeService
 export {nativeSalesInvoiceCreate} from '../adapters/server/native-sales-invoice-create';
 export {nativeSalesDefaultsWorkspace,nativeSalesDefaultsPrepare,nativeSalesDefaultsDecide} from '../adapters/server/native-sales-defaults';
 export {nativeSalesReceipt,nativeSalesReceiptIssue,nativeSalesReceiptExportReadback} from '../adapters/server/native-sales-receipt';
+export {nativeSalesInvoiceEdit,nativeSalesInvoiceVoid} from '../adapters/server/native-sales-invoice-edit';
 
 export {nativeServicePaymentWorkspace,nativeServicePaymentReadback} from '../adapters/server/native-service-payment';
 export {isNativeServicePaymentRequest,nativeServicePaymentCommand,nativeServiceInvoiceFlowCommand} from '../adapters/server/native-service-payment-command';

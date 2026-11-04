@@ -1,7 +1,7 @@
 import {nativeFieldJournalWorkspaceReadback,nativeFieldJournalLegacyUnavailable} from '@erpx/feature-finance/public/server';
 import {nativeServicePaymentReadback,nativeServiceInvoiceReadback} from '@erpx/feature-finance/public/server';
 import {isNativeServicePaymentRequest,nativeServicePaymentCommand} from '@erpx/feature-finance/public/server';
-import { nativeServiceNoCharge,nativeServiceInvoicePost, nativeJournalEdit, nativeJournalEditReadback, nativeJournalCreate, nativeJournalCreateReadback, nativeJournalPost, nativeJournalPostReadback, nativeJournalReverse, nativeJournalReverseReadback } from "@erpx/feature-finance/public/server";
+import { nativeServiceNoCharge,nativeServiceInvoicePost, nativeJournalEdit, nativeJournalEditReadback, nativeJournalCreate, nativeJournalCreateReadback, nativeJournalPost, nativeJournalPostReadback, nativeJournalReverse, nativeJournalReverseReadback, nativeSalesInvoiceEdit, nativeSalesInvoiceVoid } from "@erpx/feature-finance/public/server";
 import {expensePostingPrerequisites,createExpensePostingChart,createExpensePostingAccount,createExpensePostingPeriod,confirmExpensePostingRate,expensePostingPrerequisiteConfirmation,expensePostingChartSchema,expensePostingAccountSchema,expensePostingPeriodSchema,expensePostingRateSchema,expensePostingPrerequisiteConfirmationSchema} from '@erpx/server-finance/public/expense-posting-prerequisites';
 import {expensePostingSetup,initializeExpensePostingSetup,expensePostingSetupSchema} from '@erpx/server-commerce/public/expense-posting-setup';
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
@@ -231,6 +231,14 @@ export async function POST(request: Request, context: FinanceRouteContext) {
       if (response) return response;
     }
     if(parts.length===3&&parts[0]==="invoices"&&parts[2]==="confirm-no-charge")return nativeServiceNoCharge(request,holdingSlug,parts[1]);
+    if(parts.length===2&&parts[0]==="invoices"){
+      const response=await nativeSalesInvoiceEdit(request.clone(),holdingSlug,parts[1]);
+      if(response)return response;
+    }
+    if(parts.length===3&&parts[0]==="invoices"&&parts[2]==="void"){
+      const response=await nativeSalesInvoiceVoid(request.clone(),holdingSlug,parts[1]);
+      if(response)return response;
+    }
     const actor = requirePermission(await requireWorkContext(holdingSlug),"finance.read");
     const rawPayment=isNativeServicePaymentRequest(parts)?request.clone():null;
     const input = await body(request).catch(error=>{void rawPayment?.body?.cancel().catch(()=>undefined);throw error;});

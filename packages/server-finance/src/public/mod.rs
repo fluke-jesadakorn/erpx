@@ -103,3 +103,5 @@ pub mod sales_invoice_create;
 pub mod sales_defaults;
 
 pub mod sales_receipts;
+
+pub mod sales_invoice_edit;
