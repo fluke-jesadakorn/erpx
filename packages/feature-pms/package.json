@@ -45,6 +45,7 @@
     "./components/promptpay-counter": "./src/components/promptpay-counter.tsx",
     "./components/pms-front-front-desk-screen": "./src/components/pms-front-front-desk-screen.tsx",
     "./components/workspace": "./src/components/workspace.tsx",
+    "./adapters/server/native-pms": "./src/adapters/server/native-pms.ts",
     "./components/booking-policy-settings": "./src/components/booking-policy-settings.tsx",
     "./components/public-booking-reservation.module.css": "./src/components/public-booking-reservation.module.css",
     "./components/booking.module.css": "./src/components/booking.module.css",

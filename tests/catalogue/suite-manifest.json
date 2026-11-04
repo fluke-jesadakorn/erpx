@@ -73136,6 +73136,175 @@
         "@erpx/feature-commercial",
         "@erpx/server-commercial"
       ]
+    },
+    {
+      "lane": "unit",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native PMS room-board policy must require pms.read, the pms module, a current branch selection and the current package history entitlement, then return only bounded room/task/block/stay facts with explicit permission-based filtering and stable transport field names."
+      },
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-pms",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "id": "pms.rust-pms-room-board.unit",
+      "files": [
+        "tests/unit/pms/rust-pms-room-board.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-pms",
+        "targets": [
+          "pms_room_board"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-pms/Cargo.toml",
+        "packages/server-pms/src/domain/room_board.rs",
+        "packages/server-pms/src/application/room_board.rs"
+      ]
+    },
+    {
+      "lane": "integration",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native PMS room-board reads over migrated PostgreSQL must retain own-table SQL, Company/branch isolation, room filters, summary counts, pricing/guest visibility, setup facts and serializable transaction enforcement."
+      },
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-pms",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "id": "pms.rust-pms-room-board-postgres.integration",
+      "files": [
+        "tests/integration/pms/rust-pms-room-board-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-pms",
+        "targets": [
+          "pms_room_board_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-pms/Cargo.toml",
+        "packages/server-pms/src/adapters/room_board.rs",
+        "tests/support/rust-postgres.rs",
+        "migrations/postgres/holding-write/0031_pms.sql"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "H001_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
+      "lane": "integration",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native PMS HTTP ingress must retain exact registered Holding targets, a single bounded room-board query, private response headers, bounded error mapping and fail-closed configuration."
+      },
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-pms",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "id": "pms.rust-pms-http.integration",
+      "files": [
+        "tests/integration/pms/rust-pms-http.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-pms",
+        "targets": [
+          "pms_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-pms/Cargo.toml",
+        "packages/server-pms/src/adapters/pms_http.rs"
+      ]
+    },
+    {
+      "lane": "unit",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native PMS room-board transport must retain fail-closed configuration, exact Host/Holding/session/context forwarding, bounded response validation and owner error mapping without a TypeScript room-board fallback."
+      },
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/feature-pms",
+        "@erpx/server-pms",
+        "@erpx/workplace"
+      ],
+      "id": "pms.native-pms-transport.unit",
+      "framework": "vitest",
+      "files": [
+        "tests/unit/pms/native-pms-transport.test.ts"
+      ],
+      "verificationInputs": [
+        "packages/feature-pms/src/adapters/server/native-pms.ts",
+        "packages/workplace/src/lib/native-pms.ts"
+      ]
     }
   ]
 }

@@ -32,3 +32,15 @@ path = "../../tests/integration/pms/rust-scheduled-legal-postgres.test.rs"
 [[test]]
 name = "initial_count_modules_postgres"
 path = "../../tests/integration/pms/rust-initial-count-modules-postgres.test.rs"
+
+[[test]]
+name = "pms_room_board"
+path = "../../tests/unit/pms/rust-pms-room-board.test.rs"
+
+[[test]]
+name = "pms_room_board_postgres"
+path = "../../tests/integration/pms/rust-pms-room-board-postgres.test.rs"
+
+[[test]]
+name = "pms_http"
+path = "../../tests/integration/pms/rust-pms-http.test.rs"
