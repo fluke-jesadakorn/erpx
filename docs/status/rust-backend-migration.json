@@ -107,7 +107,7 @@
       "id": "support",
       "package": "erpx-server-support",
       "phase": "active",
-      "businessMigrationComplete": false,
+      "businessMigrationComplete": true,
       "surfaces": {
         "domain": "active",
         "application": "active",
