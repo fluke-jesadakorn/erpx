@@ -2,8 +2,9 @@ import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-r
 import {sectionWorkspaceTopics,workspaceTopicLinks} from "@erpx/feature-work_projection/lib/section-workspaces";
 import {SectionWorkspace} from "@erpx/workplace/components/section-workspace";
 import {BrandIdentityConsole} from "@erpx/feature-brand/components/brand-identity-console";
-import {brandIdentityWorkspace} from "@erpx/server-brand/public/brand-identity";
+import type {brandIdentityWorkspace} from "@erpx/server-brand/public/brand-identity";
 import {nativeBrandIdentityWorkspace} from "@erpx/feature-brand/lib/native-brand-identity";
+import {ApiError} from "@erpx/server-runtime/public/http";
 import {type RouteSearch} from "@erpx/feature-shared/lib/route-context";
 import { operationsPresentationQueries } from "@erpx/server-operations/public/presentation-queries";
 
@@ -83,7 +84,7 @@ export default async function Settings({
   const brandTab=typeof query.tab==='string'?query.tab:'identity';
   if(section==='brand'&&!['identity','media','history'].includes(brandTab))notFound();
   if(section==='brand'&&!topics.some(topic=>topic.id===`brand:${brandTab}`))return accessPage('permission',actor.holdingSlug);
-  const brandData=section==='brand'&&brandTab!=='media'?(await nativeBrandIdentityWorkspace(actor,actor.holdingSlug)??await brandIdentityWorkspace(actor)) as Awaited<ReturnType<typeof brandIdentityWorkspace>>:undefined;
+  const brandData=section==='brand'&&brandTab!=='media'?await (async()=>{const data=await nativeBrandIdentityWorkspace(actor,actor.holdingSlug);if(!data)throw new ApiError(503,'NATIVE_BRAND_UNAVAILABLE','The native Brand identity reader is unavailable.');return data as Awaited<ReturnType<typeof brandIdentityWorkspace>>;})():undefined;
   return (
     <SectionWorkspace title="Administration settings" items={topics} selected={section==='brand'?`brand:${brandTab}`:section==='approvals'?`approvals:${approvalTab}`:section} context={section==='brand'?topics.find(topic=>topic.id===`brand:${brandTab}`)?.title:adminSections.find(([id])=>id===section)?.[1]}>
 

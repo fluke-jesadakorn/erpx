@@ -2,8 +2,9 @@ import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-r
 import { sectionWorkspaceTopics, workspaceTopicLinks } from "@erpx/feature-work_projection/lib/section-workspaces";
 import { SectionWorkspace } from "@erpx/workplace/components/section-workspace";
 import { BrandIdentityConsole } from "@erpx/feature-brand/components/brand-identity-console";
-import { brandIdentityWorkspace } from "@erpx/server-brand/public/brand-identity";
+import type { brandIdentityWorkspace } from "@erpx/server-brand/public/brand-identity";
 import { nativeBrandIdentityWorkspace } from "@erpx/feature-brand/lib/native-brand-identity";
+import { ApiError } from "@erpx/server-runtime/public/http";
 import { type RouteSearch } from "@erpx/feature-shared/lib/route-context";
 
 import { ActionLink as UiActionLink } from "@erpx/ui/components/foundation";
@@ -56,6 +57,8 @@ export default async function Settings({ params, searchParams, }: {
     ;
     if (!topics.some(topic => topic.id === `brand:${brandTab}`))
         return accessPage('permission', actor.holdingSlug);
+    const brandData = await nativeBrandIdentityWorkspace(actor, actor.holdingSlug);
+    if (!brandData) throw new ApiError(503, "NATIVE_BRAND_UNAVAILABLE", "The native Brand identity reader is unavailable.");
     return (<SectionWorkspace title="Administration settings" items={topics} selected={`brand:${brandTab}`} context={topics.find(topic => topic.id === `brand:${brandTab}`)?.title}>
 
 
@@ -69,7 +72,7 @@ export default async function Settings({ params, searchParams, }: {
             </UiActionLink>)}
         </nav>)}
       {false}
-      {(<BrandIdentityConsole base={base} data={(await nativeBrandIdentityWorkspace(actor,actor.holdingSlug) ?? await brandIdentityWorkspace(actor)) as Awaited<ReturnType<typeof brandIdentityWorkspace>>} section={'identity'} embedded/>)}
+      {(<BrandIdentityConsole base={base} data={brandData as Awaited<ReturnType<typeof brandIdentityWorkspace>>} section={'identity'} embedded/>)}
       <WidgetGrid>
         {false}
         {false}

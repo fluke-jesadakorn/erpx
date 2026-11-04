@@ -1,7 +1,7 @@
 {
   "version": 1,
   "date": "2026-11-04",
-  "status": "Native Brand HTTP ingress is wire-qualified under a normal Account session; the authenticated Next browser journey remains open",
+  "status": "Native Brand HTTP ingress is wire-qualified under a normal Account session and every product Brand read/write path now fails closed without the native configuration; the authenticated Next browser journey remains open",
   "capability": "brand-native-port",
   "integrationTarget": "codex/rust-backend-migration",
   "commits": [
@@ -12,7 +12,7 @@
     "domain": "Strict identity parsing, canonical storage order, category locks, independent publication, rollback and cancellation rules.",
     "application": "save/publish/rollback/category-lock/cancel plus workspace and published reads with command receipts, audit and outbox.",
     "http": "Registered-Holding GET/POST /api/v1/holdings/{holding_slug}/brand; mounted for configured private Finance read targets; wire-qualified.",
-    "frontend": "Opt-in native Next transport for the Brand console, settings presenter, identity/history pages and API route; unset configuration retains the TypeScript path, invalid/failed native never falls back."
+    "frontend": "Native-only Next transport for the Brand console, settings presenter, identity/history pages and API route; missing or failed native configuration returns 503 NATIVE_BRAND_UNAVAILABLE and never falls back to the retained TypeScript owner."
   },
   "tests": [
     "cargo check -p erpx-server-brand and erpx-service --features existing-business: pass",
@@ -21,7 +21,10 @@
     "feature-brand/feature-admin/workplace typechecks: pass",
     "eslint changed Brand files: 0 errors",
     "architecture:check and structure:check: pass",
-    "brand.rust-brand-identity-http-postgres.integration: 2 passed (normal session GET workspace, POST draft save with audit/outbox, missing key, foreign origin, unknown host)"
+    "brand.rust-brand-identity-http-postgres.integration: 2 passed (normal session GET workspace, POST draft save with audit/outbox, missing key, foreign origin, unknown host)",
+    "brand.rust-brand-identity-policy.unit + brand.rust-brand-identity-postgres.integration re-run on the fallback-removal candidate: 7 + 4 passed",
+    "feature-brand/feature-admin/workplace typechecks: pass after the fallback removal",
+    "tests/unit/brand/brand-application.test.ts: 14 passed"
   ],
   "limits": [
     "No authenticated browser journey has exercised the native Brand route; http/ssr remain partial.",
