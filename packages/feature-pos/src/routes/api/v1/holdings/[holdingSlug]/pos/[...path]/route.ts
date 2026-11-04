@@ -8,6 +8,8 @@ import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { holdingResources } from "../../../../../../../../../../packages/server-runtime/src/public/runtime";
 import { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
 import {posCommand} from '@erpx/server-pos/public/pos-core';
+import {requirePosPurchased} from '@erpx/server-pos/adapters/purchase-boundary';
+import {nativePosCashActor,nativePosCashAvailable,nativePosCashConfiguration,createNativePosCashClient,nativePosCashFailure} from '@erpx/feature-pos/adapters/server/native-pos-cash';
 import {finishPosOAuth,oauthUrl} from '@erpx/server-pos/public/pos-stripe';
 import { posCustomers,posDayReport } from "@erpx/server-pos/public/pos-daily";
 import { posProductImage,uploadPosProductImage } from "@erpx/server-pos/public/pos-images";
@@ -18,7 +20,22 @@ export async function POST(request:Request,{params}:Context){
   const {holdingSlug,path}=await params,actor=await requireWorkContext(holdingSlug),key=request.headers.get('Idempotency-Key');if(!key)throw new ApiError(422,'COMMAND_KEY_REQUIRED','Idempotency-Key is required.');
   if(path.length!==2)throw new ApiError(404,'NOT_FOUND','Unknown POS action.');
   if(path.join('/')==='images/upload')return Response.json(canonicalDestinationLinks({data:await uploadPosProductImage(request,actor)}),{headers:{'Cache-Control':'private, no-store'}});
-  const input=await request.json(),operation=path.join("."),db=(await holdingResources(actor.holdingId)).write as PostgresDatabase;
+  const operation=path.join("."),raw=await request.text(),db=(await holdingResources(actor.holdingId)).write as PostgresDatabase;
+  if(operation==='cash.create'&&nativePosCashAvailable()){
+   try{
+    // Retained package preflight; the composition backend must repeat this
+    // purchase admission inside the native owner transaction.
+    await requirePosPurchased(db,actor,'pos.shifts','settle-existing');
+    const native=createNativePosCashClient(nativePosCashConfiguration(process.env.ERPX_NATIVE_POS_CASH_CONFIG!));
+    const data=await native.cash(request.headers,nativePosCashActor(actor),key,raw);
+    return Response.json(canonicalDestinationLinks({data}),{headers:{'Cache-Control':'private, no-store'}});
+   }catch(error){
+    const failure=nativePosCashFailure(error);
+    if(failure)throw new ApiError(failure.status,failure.code,failure.message);
+    throw error;
+   }
+  }
+  const input=JSON.parse(raw);
   const data=await posCommand(db,actor,operation,input,key);
   if(operation==='connection.oauth')data.url=oauthUrl(String(data.id),holdingSlug,Boolean(data.livemode));
   return Response.json(canonicalDestinationLinks({data}),{headers:{'Cache-Control':'private, no-store'}});

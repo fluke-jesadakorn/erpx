@@ -11,5 +11,17 @@ erpx-server-shared.workspace=true
 erpx-server-runtime.workspace=true
 sqlx.workspace=true
 serde_json.workspace=true
+[[test]]
+name = "cash_movement"
+path = "../../tests/unit/pos/rust-cash-movement.test.rs"
+
+[[test]]
+name = "cash_movement_http"
+path = "../../tests/unit/pos/rust-pos-cash-http.test.rs"
+
+[[test]]
+name = "cash_movement_postgres"
+path = "../../tests/integration/pos/rust-cash-movement-postgres.test.rs"
+
 [lints]
 workspace=true

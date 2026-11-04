@@ -27,6 +27,7 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import { pricingWorkspace } from "@erpx/server-sales/public/sales-pricing";
 import { salesToday } from "@erpx/server-sales/public/sales-customers";
 import { nativeSalesDocuments } from "@erpx/feature-sales/public/native-sales-documents-page";
+import { nativeCrmPipeline } from "@erpx/feature-sales/public/native-crm-pipeline-page";
 import { HubEmpty, HubPagination, HubSegments } from "@erpx/feature-sales/components/customers/hub-shell";
 import { HubCreate, HubCursor, HubFilters, HubTable, hubPage } from "@erpx/feature-sales/components/customers/hub-list";
 import styles from "@erpx/feature-sales/components/customers/hub.module.css";
@@ -44,13 +45,19 @@ export async function SalesTodayView({ actor, base, query }: { actor: WorkContex
   </>;
 }
 export async function SalesPipelineView({ actor, base, query }: { actor: WorkContext; base: string; query: HubQuery }) {
-  const data = await crmWorkspace(actor), search = queryValue(query, "q").trim().toLowerCase(), stage = queryValue(query, "stage");
-  const items = data.items.filter(row => (!stage || String(row.stage ?? row.status) === stage) && (!search || `${row.title} ${row.customer_name} ${row.owner_name}`.toLowerCase().includes(search))), rows = hubPage(items, query);
-  const identities = data.canCreate && query.new === "1" ? await crmIdentities(actor) : undefined;
+  const native = await nativeCrmPipeline(actor, { q: queryValue(query, "q"), stage: queryValue(query, "stage"), cursor: queryValue(query, "cursor") || undefined });
+  const data = native ? undefined : await crmWorkspace(actor), search = queryValue(query, "q").trim().toLowerCase(), stage = queryValue(query, "stage");
+  const items = native ? native.items : data!.items.filter(row => (!stage || String(row.stage ?? row.status) === stage) && (!search || `${row.title} ${row.customer_name} ${row.owner_name}`.toLowerCase().includes(search))), rows = native ? items : hubPage(items, query);
+  const canCreate = native ? native.canCreate : data!.canCreate, purchase = native ? native.purchase : data!.purchase;
+  const showCreate = canCreate && (purchase?.newWork !== false || query.new === "1");
+  const identities = showCreate && query.new === "1" ? await crmIdentities(actor) : undefined;
+  // Commands still use the retained owner read for their option lists; the native
+  // list itself never falls back once configured.
+  const formData = showCreate && query.new === "1" ? (native ? await crmWorkspace(actor) : data) : undefined;
   return <>
-    <div className={styles.filterRow}><HubFilters query={query} placeholder="Search opportunities and customers" filters={[{ name: "stage", label: "Pipeline stage", values: [["", "All stages"], ["open", "Lead"], ["discovery", "Discovery"], ["proposal", "Proposal"], ["negotiation", "Negotiation"], ["won", "Won"], ["lost", "Lost"], ["disqualified", "Disqualified"]] }]} />{data.canCreate && (data.purchase?.newWork!==false||query.new==="1") && <HubCreate base={base} hub="sales" query={query} label="New lead">{identities && <CRMConsole base={base} data={data} identityData={identities} inlineCapture />}</HubCreate>}</div>
+    <div className={styles.filterRow}><HubFilters query={query} placeholder="Search opportunities" filters={[{ name: "stage", label: "Pipeline stage", values: [["", "All stages"], ["open", "Lead"], ["discovery", "Discovery"], ["proposal", "Proposal"], ["negotiation", "Negotiation"], ["won", "Won"], ["lost", "Lost"], ["disqualified", "Disqualified"]] }]} />{showCreate && <HubCreate base={base} hub="sales" query={query} label="New lead">{identities && formData && <CRMConsole base={base} data={formData} identityData={identities} inlineCapture />}</HubCreate>}</div>
     {rows.length ? <HubTable label="Sales pipeline" columns={["Opportunity / customer", "Stage", "Owner", "Next date", "Value"]}>{rows.map(row => <tr key={String(row.id)}><td><Link className={styles.recordName} href={canonicalUiHref(`${base}/crm/${row.id}`)}>{String(row.title)}</Link><span className={styles.meta}>{String(row.customer_name ?? "Prospect")}</span></td><td data-label="Stage"><StatusBadge appearance="standard" status={String(row.stage ?? row.status)} /></td><td data-label="Owner">{String(row.owner_name ?? "Owner unavailable")}</td><td data-label="Next date">{String(row.close_date ?? row.due_date ?? "No date")}</td><td data-label="Value">{row.expected_minor !== null && row.expected_minor !== undefined ? <MoneyAmount units={String(row.expected_minor)} legacyScale={2} currency={String(row.currency)} /> : "—"}</td></tr>)}</HubTable> : <HubEmpty title="No opportunities match">Adjust your search or stage.</HubEmpty>}
-    <HubPagination base={base} hub="sales" query={query} count={rows.length} total={items.length} />
+    {native ? <HubCursor base={base} hub="sales" query={query} page={native} /> : <HubPagination base={base} hub="sales" query={query} count={rows.length} total={items.length} />}
   </>;
 }
 export async function SalesDocumentsView({ actor, base, query }: { actor: WorkContext; base: string; query: HubQuery }) {

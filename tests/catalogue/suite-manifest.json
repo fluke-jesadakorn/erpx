@@ -50971,6 +50971,387 @@
       ]
     },
     {
+      "id": "manufacturing.rust-manufacturing-bom.unit",
+      "lane": "unit",
+      "owner": "manufacturing",
+      "modules": [
+        "manufacturing"
+      ],
+      "files": [
+        "tests/unit/manufacturing/rust-manufacturing-bom.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Manufacturing BOM register retains Company scope, ordered components/routings and bounded readback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-manufacturing",
+        "targets": [
+          "manufacturing_bom"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-manufacturing/Cargo.toml"
+      ]
+    },
+    {
+      "id": "manufacturing.rust-manufacturing-bom-http.unit",
+      "lane": "unit",
+      "owner": "manufacturing",
+      "modules": [
+        "manufacturing"
+      ],
+      "files": [
+        "tests/unit/manufacturing/rust-manufacturing-bom-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Manufacturing HTTP ingress retains exact targets, fail-closed config and bounded errors."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-manufacturing",
+        "targets": [
+          "manufacturing_bom_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-manufacturing/Cargo.toml"
+      ]
+    },
+    {
+      "id": "manufacturing.rust-manufacturing-bom-postgres.integration",
+      "lane": "integration",
+      "owner": "manufacturing",
+      "modules": [
+        "manufacturing"
+      ],
+      "files": [
+        "tests/integration/manufacturing/rust-manufacturing-bom-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Manufacturing BOM reads retain Company isolation, persisted readback and transaction guards."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-manufacturing",
+        "targets": [
+          "manufacturing_bom_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-manufacturing/Cargo.toml"
+      ]
+    },
+    {
+      "id": "manufacturing.native-manufacturing-bom-transport.unit",
+      "lane": "unit",
+      "owner": "manufacturing",
+      "modules": [
+        "manufacturing"
+      ],
+      "files": [
+        "tests/unit/manufacturing/native-manufacturing-bom-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Manufacturing transport must retain fail-closed config, bounded responses and owner error mapping."
+      },
+      "framework": "vitest",
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/feature-manufacturing",
+        "@erpx/server-manufacturing"
+      ]
+    },
+    {
+      "id": "pos.rust-cash-movement.unit",
+      "lane": "unit",
+      "owner": "pos",
+      "modules": [
+        "pos"
+      ],
+      "files": [
+        "tests/unit/pos/rust-cash-movement.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native POS cash movement retains open-shift/session guards, version CAS, idempotency and readback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-pos",
+        "targets": [
+          "cash_movement"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-pos/Cargo.toml"
+      ]
+    },
+    {
+      "id": "pos.rust-pos-cash-http.unit",
+      "lane": "unit",
+      "owner": "pos",
+      "modules": [
+        "pos"
+      ],
+      "files": [
+        "tests/unit/pos/rust-pos-cash-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native POS HTTP ingress retains exact targets, fail-closed config and bounded errors."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-pos",
+        "targets": [
+          "cash_movement_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-pos/Cargo.toml"
+      ]
+    },
+    {
+      "id": "pos.rust-cash-movement-postgres.integration",
+      "lane": "integration",
+      "owner": "pos",
+      "modules": [
+        "pos"
+      ],
+      "files": [
+        "tests/integration/pos/rust-cash-movement-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native POS cash movement retains Company/branch isolation, replay/conflict/CAS, rollback and persisted readback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-pos",
+        "targets": [
+          "cash_movement_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-pos/Cargo.toml"
+      ]
+    },
+    {
+      "id": "pos.native-pos-cash-transport.unit",
+      "lane": "unit",
+      "owner": "pos",
+      "modules": [
+        "pos"
+      ],
+      "files": [
+        "tests/unit/pos/native-pos-cash-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native POS transport must retain fail-closed config, bounded responses and owner error mapping."
+      },
+      "framework": "vitest",
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/feature-pos",
+        "@erpx/server-pos"
+      ]
+    },
+    {
+      "id": "crm.rust-crm-pipeline.unit",
+      "lane": "unit",
+      "owner": "crm",
+      "modules": [
+        "crm"
+      ],
+      "files": [
+        "tests/unit/crm/rust-crm-pipeline.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native CRM pipeline retains Company scope, stage/value facts and bounded readback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-crm",
+        "targets": [
+          "crm_pipeline"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-crm/Cargo.toml"
+      ]
+    },
+    {
+      "id": "crm.rust-crm-pipeline-http.integration",
+      "lane": "integration",
+      "owner": "crm",
+      "modules": [
+        "crm"
+      ],
+      "files": [
+        "tests/integration/crm/rust-crm-pipeline-http.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native CRM HTTP ingress retains exact targets, fail-closed config and bounded errors."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-crm",
+        "targets": [
+          "crm_pipeline_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-crm/Cargo.toml"
+      ]
+    },
+    {
+      "id": "crm.rust-crm-pipeline-postgres.integration",
+      "lane": "integration",
+      "owner": "crm",
+      "modules": [
+        "crm"
+      ],
+      "files": [
+        "tests/integration/crm/rust-crm-pipeline-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native CRM pipeline reads retain Company isolation, persisted readback and transaction guards."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-crm",
+        "targets": [
+          "crm_pipeline_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-crm/Cargo.toml"
+      ]
+    },
+    {
+      "id": "crm.native-crm-pipeline-transport.unit",
+      "lane": "unit",
+      "owner": "crm",
+      "modules": [
+        "crm"
+      ],
+      "files": [
+        "tests/unit/crm/native-crm-pipeline-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native CRM transport must retain fail-closed config, bounded responses and owner error mapping."
+      },
+      "framework": "vitest",
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/feature-sales",
+        "@erpx/server-crm"
+      ]
+    },
+    {
       "id": "pms.pos-workspace-smoke.e2e",
       "lane": "e2e",
       "owner": "pms",
