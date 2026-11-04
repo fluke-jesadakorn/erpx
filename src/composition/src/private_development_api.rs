@@ -1424,6 +1424,7 @@ async fn assemble_checked(
         let mut handbook_targets = Vec::new();
         let mut learning_targets = Vec::new();
         let mut quality_targets = Vec::new();
+        let mut legal_targets = Vec::new();
         let mut benefits_targets = Vec::new();
         let mut pms_targets = Vec::new();
         let mut maintenance_targets = Vec::new();
@@ -1572,6 +1573,25 @@ async fn assemble_checked(
                         Arc::new(crate::quality::QualityService::new(
                             authorizer.clone(),
                             crate::quality::QualityConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    )),
+                },
+            );
+            legal_targets.push(
+                erpx_server_legal::public::legal_records::LegalHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: Arc::new(crate::legal::LegalBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::legal::LegalService::new(
+                            authorizer.clone(),
+                            crate::legal::LegalConfiguration::new(
                                 holding.registration.holding_id.clone(),
                                 company.clone(),
                             ),
@@ -2078,6 +2098,12 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_quality::public::quality_http::quality_router(quality_targets)
                     .map_err(|_| "PRIVATE_API_QUALITY_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !legal_targets.is_empty() {
+            router = router.merge(
+                erpx_server_legal::public::legal_records::legal_router(legal_targets)
+                    .map_err(|_| "PRIVATE_API_LEGAL_CONFIGURATION_INVALID")?,
             );
         }
         if !pms_targets.is_empty() {
