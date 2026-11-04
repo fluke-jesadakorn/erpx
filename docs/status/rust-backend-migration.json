@@ -14,7 +14,7 @@
         "domain": "active",
         "application": "active",
         "http": "active",
-        "ssr": "partial",
+        "ssr": "active",
         "jobs": "not-applicable",
         "providers": "not-applicable"
       }

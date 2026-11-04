@@ -3417,12 +3417,15 @@
       "verified": true,
       "merged": true,
       "evidenceFlows": [
+        "brand-draft-browser-desktop",
+        "brand-draft-browser-mobile",
+        "brand-draft-persisted-readback",
         "brand-draft-save-desktop",
         "brand-draft-save-mobile",
-        "brand-draft-persisted-readback"
+        "brand-http-wire"
       ],
       "sourceRef": "packages/server-brand/src/public/identity.rs",
-      "gap": "Verified native Brand draft create/save/readback on desktop and mobile through the real Admin product route; persisted brand_identity_drafts v1 retained the submitted tagline, with zero page/console/http errors. Category locks and independent publish/rollback remain separate workflows."
+      "gap": "Verified native Brand draft workspace: canonical Admin route, normal Account/SSO/Company entry, create/save and reload readback on desktop and mobile with zero page/console/HTTP errors. Category locks and published identity remain separate unverified workflows."
     },
     {
       "id": "brand/feature-category-locks",
@@ -4007,9 +4010,13 @@
       "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "finance-bank-settlement-browser",
+        "finance-controlled-payment-browser",
+        "finance-generic-payment-postgres"
+      ],
       "sourceRef": "packages/server-finance/src/public/finance.ts",
-      "gap": "Native controlled payment create/approve/release/confirm and bank confirmation are browser-qualified with settled payment, allocation, paid invoice and balanced journal; allocate/reverse, supplier/refund breadth, automated bank match groups and frozen-release gates remain open."
+      "gap": "Native generic create/approve/release/confirm and bank settlement are PostgreSQL-qualified; browser release/confirm/readback passed on current source. Payment creation/approval browser steps, refunds, supplier instructions and automated groups remain open."
     },
     {
       "id": "finance/feature-receivables-aging",
@@ -4035,9 +4042,14 @@
       "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "finance-bank-generic-import-browser",
+        "finance-bank-import-http",
+        "finance-bank-readback-browser",
+        "finance-bank-workspace-read"
+      ],
       "sourceRef": "packages/server-finance/src/public/finance.ts",
-      "gap": "Native generic bank import, workspace read and exact bank confirmation/matched-row readback are browser-qualified; automated match groups, manual POST reconcile UI and frozen-release gates remain open."
+      "gap": "Native bank workspace/import and controlled payment settlement are qualified; generic import persists and reads back on desktop/mobile. Manual workspace reconcile of an independently posted payment and automated mapping/groups remain open."
     },
     {
       "id": "finance/feature-reports",
