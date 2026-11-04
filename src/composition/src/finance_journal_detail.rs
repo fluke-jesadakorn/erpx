@@ -155,6 +155,11 @@ pub struct FinanceSupplierBillEditResponse {
 }
 #[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct FinanceSupplierBillVoidResponse {
+    pub data: SupplierBillResult,
+}
+#[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub struct FinanceSupplierBillPostResponse {
     pub data: SupplierBillPostResult,
 }
@@ -2021,6 +2026,83 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                         let data =
                             edit_supplier_bill(c, &actor, &command, &id, &body, now.get()).await?;
                         Ok(data.map(|data| FinanceSupplierBillEditResponse { data }))
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn void_supplier_bill<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: CommandKey,
+        id: String,
+        body: SupplierBillVoidInput,
+    ) -> Result<FinanceSupplierBillVoidResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != company {
+                return Err(scope());
+            }
+            request.mutation = true;
+            Ok(request)
+        };
+        let configuration = self.configuration.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "finance.write".into(),
+                    module: Some("finance".into()),
+                    destination: "finance/payables".into(),
+                    api: true,
+                },
+                SupplierBillWriteSources,
+                move |c, current| {
+                    let configuration = configuration.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    let id = id.clone();
+                    let body = body.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &configuration.holding
+                            || current.selection().workspace().company_id != configuration.company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("finance.write")?;
+                        current.require_permission("module.finance.read")?;
+                        let workspace = current.selection().workspace();
+                        if workspace.branch_id.is_some() || workspace.department_id.is_some() {
+                            return Err(BusinessError::new(
+                                FailureKind::Forbidden,
+                                "COMPANY_SCOPE_REQUIRED",
+                                "Use a Company Finance assignment for supplier bills.",
+                            )
+                            .into());
+                        }
+                        let now = clock.now();
+                        Self::require_accounting_purchase(
+                            c,
+                            current,
+                            &configuration,
+                            CapabilityPurpose::SettleExisting,
+                            now,
+                        )
+                        .await?;
+                        let actor = command_actor(current)?;
+                        let data =
+                            void_supplier_bill(c, &actor, &command, &id, &body, now.get()).await?;
+                        Ok(FinanceSupplierBillVoidResponse { data })
                     })
                 },
             )

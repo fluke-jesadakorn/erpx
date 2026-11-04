@@ -11,7 +11,7 @@ export {nativeSalesInvoiceCreate} from '../adapters/server/native-sales-invoice-
 export {nativeSalesDefaultsWorkspace,nativeSalesDefaultsPrepare,nativeSalesDefaultsDecide} from '../adapters/server/native-sales-defaults';
 export {nativeSalesReceipt,nativeSalesReceiptIssue,nativeSalesReceiptExportReadback} from '../adapters/server/native-sales-receipt';
 export {nativeSalesInvoiceEdit,nativeSalesInvoiceVoid} from '../adapters/server/native-sales-invoice-edit';
-export {nativeSupplierBillCreate,nativeSupplierBillEdit,nativeSupplierBillPost,nativeSupplierBillDetail} from '../adapters/server/native-supplier-bill';
+export {nativeSupplierBillCreate,nativeSupplierBillEdit,nativeSupplierBillPost,nativeSupplierBillDetail,nativeSupplierBillVoid} from '../adapters/server/native-supplier-bill';
 export {nativePeriodClose,nativePeriodCloseWorkspace} from '../adapters/server/native-period-close';
 export {nativeInvoicesPage,nativeInvoiceAging} from '../adapters/server/native-invoice-read';
 export {nativeChartAccounts,nativeFinanceSetupCommand,nativeFinanceSetupWorkspace,createNativeFinanceSetupWorkspaceReader} from '../adapters/server/native-finance-setup';

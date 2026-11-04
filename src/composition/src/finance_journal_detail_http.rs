@@ -116,6 +116,10 @@ pub fn finance_journal_read_router<C: Clock + Send + Sync + 'static>(
             post(post_supplier_bill::<C>),
         )
         .route(
+            "/api/v1/holdings/{holding_slug}/finance/payables/{id}/void",
+            post(void_supplier_bill::<C>),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/finance/periods/{id}/workspace",
             get(period_close_workspace::<C>),
         )
@@ -1607,6 +1611,75 @@ async fn post_supplier_bill<C: Clock + Send + Sync + 'static>(
         target
             .service
             .post_supplier_bill(
+                &host,
+                proof,
+                move || {
+                    scope?;
+                    captured.resolve()
+                },
+                command,
+                id,
+                input,
+            )
+            .await
+    }
+    .await;
+    let mut response = match result {
+        Ok(reply) => (StatusCode::OK, Json(reply)).into_response(),
+        Err(PgTransactionError::Business(error)) => business_error(error),
+        Err(_) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
+    };
+    no_store(&mut response);
+    response
+}
+
+async fn void_supplier_bill<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(request.headers(), "host")?
+            .ok_or_else(missing)?
+            .to_owned();
+        let target = crate::http_scope::selected_company_target(&state.targets, &host, &slug, request.headers())?;
+        let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(request.headers(), "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let key = unique_request_header(request.headers(), "idempotency-key")?
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                BusinessError::invalid("IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required.")
+            })?;
+        let command = CommandKey::new(key.to_owned())?;
+        let scope = state.scopes.slugs(request.headers());
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(request.headers(), branch, department);
+        let body = to_bytes(request.into_body(), 16 * 1024)
+            .await
+            .map_err(|_| BusinessError::invalid("BODY_TOO_LARGE", "Use a smaller request."))?;
+        let input: erpx_server_finance::public::supplier_bill::SupplierBillVoidInput =
+            serde_json::from_slice(&body).map_err(|_| {
+                BusinessError::invalid(
+                    "INVALID_SUPPLIER_BILL",
+                    "Use a valid supplier bill void request.",
+                )
+            })?;
+        let proof = inbound.into_proof();
+        target
+            .service
+            .void_supplier_bill(
                 &host,
                 proof,
                 move || {

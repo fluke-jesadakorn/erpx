@@ -440,7 +440,7 @@ export function InvoiceActions({
             type="button"
             variant="secondary"
             disabled={busy || unresolved || !canSend}
-            onClick={() => send(`/${invoice.id}/void`, { expectedVersion: invoice.version }, "invoices")}
+            onClick={() => send(`/${invoice.id}/void`, { expectedVersion: invoice.version }, invoice.kind === "payable" ? "payables" : "invoices")}
           >
             Void draft
           </Button>

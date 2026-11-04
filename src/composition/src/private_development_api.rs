@@ -3539,7 +3539,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             state.finance_targets.contains(&(host.to_owned(), (*slug).to_owned())),
         (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "finance", "payables", id]) if !id.is_empty() =>
             state.finance_targets.contains(&(host.to_owned(), (*slug).to_owned())),
-        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "finance", "payables", id, "post"]) if !id.is_empty() =>
+        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "finance", "payables", id, "post" | "void"]) if !id.is_empty() =>
             state.finance_targets.contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };

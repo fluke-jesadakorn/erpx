@@ -379,3 +379,32 @@ export async function nativeSupplierBillDetail(
     request.signal.removeEventListener('abort', cancel);
   }
 }
+
+export async function nativeSupplierBillVoid(
+  request: Request,
+  holdingSlug: string,
+  id: string,
+): Promise<Response | undefined> {
+  if (!id || id.includes('/') || id.includes('\\')) {
+    return closed(404, 'NOT_FOUND', 'Supplier bill not found.');
+  }
+  return command(
+    request,
+    holdingSlug,
+    `/${encodeURIComponent(id)}/void`,
+    (value) => {
+      const data = (value as { data?: unknown })?.data;
+      if (
+        !object(data) ||
+        data.id !== id ||
+        data.status !== 'voided' ||
+        data.outstanding !== '0.00' ||
+        !integer(data.version, 2)
+      ) {
+        return undefined;
+      }
+      return data;
+    },
+    200,
+  );
+}

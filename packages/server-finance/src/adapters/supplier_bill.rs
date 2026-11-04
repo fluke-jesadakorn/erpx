@@ -115,6 +115,12 @@ pub struct SupplierBillResult {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SupplierBillVoidInput {
+    pub expected_version: i64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SupplierBillPostResult {
     pub id: String,
@@ -201,6 +207,10 @@ fn invalid(code: &'static str, message: &'static str) -> Error {
 
 fn conflict(code: &'static str, message: &'static str) -> Error {
     BusinessError::new(FailureKind::Conflict, code, message).into()
+}
+
+fn not_found(code: &'static str, message: &'static str) -> Error {
+    BusinessError::new(FailureKind::NotFound, code, message).into()
 }
 
 fn unavailable() -> Error {
@@ -1197,6 +1207,94 @@ async fn resolved_bill(
     Ok((
         chart, supplier, debit, credit, tax, lines, subtotal, tax_total, mode,
     ))
+}
+
+pub async fn void_supplier_bill(
+    c: &mut PgConnection,
+    actor: &SalesInvoiceCommandActor,
+    command: &CommandKey,
+    id: &str,
+    input: &SupplierBillVoidInput,
+    now: i64,
+) -> Result<SupplierBillResult, Error> {
+    serializable(c).await?;
+    company_actor(
+        actor,
+        "Use a Company Finance assignment for supplier bills.",
+    )?;
+    if id.is_empty() || id.len() > 128 || input.expected_version < 1 {
+        return Err(invalid(
+            "INVALID_SUPPLIER_BILL",
+            "Use a current supplier bill draft and version.",
+        ));
+    }
+    let operation = "finance.invoice.void";
+    let input_json = serde_json::to_string(input).map_err(|_| unavailable())?;
+    let request_hash = fingerprint(actor, operation, id, &input_json);
+    let authority = authority_json(actor);
+    if let Some(result) = replay(c, command, &request_hash).await? {
+        return Ok(result);
+    }
+    let row = sqlx::query(
+        "SELECT status,kind,source_type,version,total_minor,invoice_number \
+         FROM finance_invoices WHERE id=$1 AND company_id=$2 FOR UPDATE",
+    )
+    .bind(id)
+    .bind(&actor.company_id)
+    .fetch_optional(&mut *c)
+    .await?
+    .ok_or_else(|| not_found("INVOICE_NOT_FOUND", "Supplier bill not found."))?;
+    let status: String = row.try_get("status")?;
+    let kind: String = row.try_get("kind")?;
+    let source_type: String = row.try_get("source_type")?;
+    let version: i64 = row.try_get("version")?;
+    if kind != "payable" || source_type != "standalone" {
+        return Err(not_found("INVOICE_NOT_FOUND", "Supplier bill not found."));
+    }
+    if status != "draft" {
+        return Err(conflict(
+            "INVOICE_NOT_DRAFT",
+            "Only a draft supplier bill can be voided.",
+        ));
+    }
+    if version != input.expected_version {
+        return Err(conflict(
+            "VERSION_CONFLICT",
+            "The supplier bill changed. Refresh and review again.",
+        ));
+    }
+    sqlx::query(
+        "UPDATE finance_invoices SET status='voided',outstanding_minor=0,version=version+1,updated_at=$1 \
+         WHERE id=$2 AND company_id=$3 AND status='draft' AND version=$4",
+    )
+    .bind(now)
+    .bind(id)
+    .bind(&actor.company_id)
+    .bind(input.expected_version)
+    .execute(&mut *c)
+    .await?;
+    let result = SupplierBillResult {
+        id: id.to_owned(),
+        number: row.try_get("invoice_number")?,
+        total: minor_decimal(row.try_get("total_minor")?),
+        outstanding: "0.00".into(),
+        status: "voided".into(),
+        version: input.expected_version + 1,
+    };
+    receipt(
+        c,
+        actor,
+        &authority,
+        command.as_str(),
+        operation,
+        &request_hash,
+        id,
+        &serde_json::to_value(&result).map_err(|_| unavailable())?,
+        input.expected_version + 1,
+        now,
+    )
+    .await?;
+    Ok(result)
 }
 
 pub async fn create_supplier_bill(

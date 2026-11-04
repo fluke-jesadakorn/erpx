@@ -1094,3 +1094,108 @@ async fn supplier_bill_http_route_creates_posts_and_reads_payable() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn supplier_bill_void_is_draft_only_and_replays() {
+    account::with_system(|system| async move {
+        let p = setup(system).await;
+        let pool = &p.system.holdings[0];
+        seed(pool).await;
+        let created = service(&p)
+            .create_supplier_bill(
+                "acme.example.test",
+                p.maker.clone(),
+                owned_maker(&p),
+                CommandKey::new("supplier-bill-void-create").unwrap(),
+                create_input("BILL-VOID-0001"),
+            )
+            .await
+            .unwrap();
+        assert_eq!(created.data.status, "draft");
+        assert_eq!(created.data.version, 1);
+        let voided = service(&p)
+            .void_supplier_bill(
+                "acme.example.test",
+                p.maker.clone(),
+                owned_maker(&p),
+                CommandKey::new("supplier-bill-void-0001").unwrap(),
+                created.data.id.clone(),
+                SupplierBillVoidInput {
+                    expected_version: 1,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(voided.data.id, created.data.id);
+        assert_eq!(voided.data.status, "voided");
+        assert_eq!(voided.data.outstanding, "0.00");
+        assert_eq!(voided.data.version, 2);
+        let row = sqlx::query(
+            "SELECT status,outstanding_minor,version FROM finance_invoices WHERE id=$1 AND company_id='company'",
+        )
+        .bind(&created.data.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        use sqlx::Row;
+        assert_eq!(row.try_get::<String, _>("status").unwrap(), "voided");
+        assert_eq!(row.try_get::<i64, _>("outstanding_minor").unwrap(), 0);
+        assert_eq!(row.try_get::<i64, _>("version").unwrap(), 2);
+        let replay = service(&p)
+            .void_supplier_bill(
+                "acme.example.test",
+                p.maker.clone(),
+                owned_maker(&p),
+                CommandKey::new("supplier-bill-void-0001").unwrap(),
+                created.data.id.clone(),
+                SupplierBillVoidInput {
+                    expected_version: 1,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(replay.data.status, "voided");
+        assert_eq!(replay.data.version, 2);
+        assert_business(
+            service(&p)
+                .void_supplier_bill(
+                    "acme.example.test",
+                    p.maker.clone(),
+                    owned_maker(&p),
+                    CommandKey::new("supplier-bill-void-again").unwrap(),
+                    created.data.id.clone(),
+                    SupplierBillVoidInput {
+                        expected_version: 2,
+                    },
+                )
+                .await,
+            "INVOICE_NOT_DRAFT",
+        );
+        let fresh = service(&p)
+            .create_supplier_bill(
+                "acme.example.test",
+                p.maker.clone(),
+                owned_maker(&p),
+                CommandKey::new("supplier-bill-void-create-2").unwrap(),
+                create_input("BILL-VOID-0002"),
+            )
+            .await
+            .unwrap();
+        assert_business(
+            service(&p)
+                .void_supplier_bill(
+                    "acme.example.test",
+                    p.maker.clone(),
+                    owned_maker(&p),
+                    CommandKey::new("supplier-bill-void-stale").unwrap(),
+                    fresh.data.id,
+                    SupplierBillVoidInput {
+                        expected_version: 99,
+                    },
+                )
+                .await,
+            "VERSION_CONFLICT",
+        );
+    })
+    .await;
+}
