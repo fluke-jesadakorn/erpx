@@ -58,6 +58,7 @@ pub mod learning;
 #[cfg(feature = "existing-business")]
 pub mod maintenance;
 pub mod quality;
+pub mod operations;
 pub mod asset_http;
 #[cfg(feature = "existing-business")]
 pub mod brand_identity;
