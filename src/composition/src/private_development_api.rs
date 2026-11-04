@@ -1424,6 +1424,7 @@ async fn assemble_checked(
         let mut handbook_targets = Vec::new();
         let mut learning_targets = Vec::new();
         let mut quality_targets = Vec::new();
+        let mut maintenance_targets = Vec::new();
         let mut asset_targets = Vec::new();
         let mut bank_targets = Vec::new();
         let mut generic_payment_targets = Vec::new();
@@ -1565,6 +1566,25 @@ async fn assemble_checked(
                         Arc::new(crate::quality::QualityService::new(
                             authorizer.clone(),
                             crate::quality::QualityConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    )),
+                },
+            );
+            maintenance_targets.push(
+                erpx_server_maintenance::public::http::MaintenanceHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: Arc::new(crate::maintenance::MaintenanceBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::maintenance::MaintenanceService::new(
+                            authorizer.clone(),
+                            crate::maintenance::MaintenanceConfiguration::new(
                                 holding.registration.holding_id.clone(),
                                 company.clone(),
                             ),
@@ -1938,6 +1958,12 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_quality::public::quality_http::quality_router(quality_targets)
                     .map_err(|_| "PRIVATE_API_QUALITY_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !maintenance_targets.is_empty() {
+            router = router.merge(
+                erpx_server_maintenance::public::http::maintenance_router(maintenance_targets)
+                    .map_err(|_| "PRIVATE_API_MAINTENANCE_CONFIGURATION_INVALID")?,
             );
         }
         if !asset_targets.is_empty() {
