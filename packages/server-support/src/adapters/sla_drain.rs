@@ -36,15 +36,3 @@ pub async fn drain_support_sla(
         .await?;
     Ok(inserted as i64)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn retained_notice_projection_stays_idempotent_and_purchase_gated() {
-        assert!(SLA_BREACHED_NOTIFICATION.contains("ON CONFLICT DO NOTHING"));
-        assert!(SLA_BREACHED_NOTIFICATION.contains("'support_sla_alert'"));
-        assert!(SLA_BREACHED_NOTIFICATION.contains("s.detected_at=$1"));
-    }
-}

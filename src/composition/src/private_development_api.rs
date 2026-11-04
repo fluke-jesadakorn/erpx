@@ -84,6 +84,9 @@ use erpx_server_runtime::public::{
     validate_foundation_address,
 };
 use erpx_server_shared::public::{Clock, CompanyId, HoldingId, TimestampMillis};
+use erpx_server_support::public::sla_drain::{
+    DEFAULT_INTERVAL_MS, SlaDrainSchedule, run_sla_drain_tick,
+};
 use serde::Deserialize;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -3592,7 +3595,14 @@ fn private(mut response: Response) -> Response {
 /// caller supplies a reviewed development configuration; no HTTP route or TS
 /// worker is involved.
 pub async fn run_support_sla_drain_file(path: &Path) -> Result<String, &'static str> {
-    let configuration = DevelopmentApiConfiguration::from_file(path)?;
+    run_support_sla_drain_file_with_profile(path, Profile::Development).await
+}
+
+async fn run_support_sla_drain_file_with_profile(
+    path: &Path,
+    profile: Profile,
+) -> Result<String, &'static str> {
+    let configuration = DevelopmentApiConfiguration::read_configuration_file(path, profile)?;
     let limits = PoolLimits {
         max_connections: 3,
         acquire_timeout: Duration::from_secs(5),
@@ -3636,6 +3646,46 @@ pub async fn run_support_sla_drain_file(path: &Path) -> Result<String, &'static 
             .map_err(|_| "PRIVATE_API_DATABASE_UNAVAILABLE")?;
     }
     Ok(format!(r#"{{"drained":{total}}}"#))
+}
+
+
+/// Durable Support SLA worker. Reuses the owner schedule and the one-shot
+/// drain; each tick reopens the reviewed configuration and rechecks the
+/// purchase, and a failure backs off without stopping the supervisor.
+pub async fn run_support_sla_worker_file(
+    path: &Path,
+    shutdown: impl std::future::Future<Output = ()> + Send + 'static,
+) -> Result<(), &'static str> {
+    let now = SystemAccountClock.now().get();
+    let mut schedule =
+        SlaDrainSchedule::start(now, DEFAULT_INTERVAL_MS).map_err(|_| "SUPPORT_SLA_SCHEDULE_INVALID")?;
+    let mut shutdown = Box::pin(shutdown);
+    loop {
+        let now = SystemAccountClock.now().get();
+        let delay = schedule.next_delay_ms(now);
+        if delay > 0 {
+            tokio::select! {
+                _ = &mut shutdown => return Ok(()),
+                _ = tokio::time::sleep(Duration::from_millis(delay as u64)) => continue,
+            }
+        }
+        let outcome = run_sla_drain_tick(&mut schedule, now, |_| async {
+            run_support_sla_drain_file_with_profile(path, Profile::Production)
+                .await
+                .map(|_| 0_i64)
+        })
+        .await;
+        if let Err(error) = outcome {
+            eprintln!("production Support SLA worker tick failed: {error}; retrying");
+        }
+        let next = schedule.next_delay_ms(SystemAccountClock.now().get());
+        if next > 0 {
+            tokio::select! {
+                _ = &mut shutdown => return Ok(()),
+                _ = tokio::time::sleep(Duration::from_millis(next as u64)) => {}
+            }
+        }
+    }
 }
 
 pub async fn run_development_api_file(
