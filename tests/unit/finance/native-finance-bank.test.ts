@@ -7,7 +7,7 @@ const request=(body:unknown)=>new Request('https://acme.example.test/api/finance
 const json=(value:unknown,status=200)=>new Response(JSON.stringify(value),{status,headers:{'content-type':'application/json'}});
 describe('native Finance bank transport',()=>{
  it('imports multi-row statements and reconciles through the exact native paths',async()=>{
-  const calls:string[]=[];const transport=vi.fn(async(url:URL,_h:Headers,body:Uint8Array,_s:AbortSignal,method:'GET'|'POST'='POST')=>{calls.push(`${method} ${url.pathname}`);const input=JSON.parse(new TextDecoder().decode(body));return url.pathname.endsWith('/import')?json({data:{id:`statement-${'bank-key'}`,status:'imported',imported:input.rows.length,settlementPaymentId:null}},201):json({data:{id:'bankrow-1',status:'matched',version:input.expectedVersion+1,matchedType:'payment',matchedId:input.matchedId}});});
+  const calls:string[]=[];const transport=vi.fn(async(url:URL,_h:Headers,body:Uint8Array,_s:AbortSignal,method:'GET'|'POST'='POST')=>{calls.push(`${method} ${url.pathname}`);const input=JSON.parse(new TextDecoder().decode(body));return url.pathname.endsWith('/generic-import')?json({data:{id:`statement-${'bank-key'}`,status:'imported',imported:input.rows.length,settlementPaymentId:null}},201):json({data:{id:'bankrow-1',status:'matched',version:input.expectedVersion+1,matchedType:'payment',matchedId:input.matchedId}});});
   const command=createNativeFinanceBankCommand(config,transport);
   const input={bankAccount:'bank',statementNumber:'ST-1',statementDate:'2026-01-31',opening:'0.00',closing:'15.00',sourceHash:'source-hash',rows:[{externalId:'E-1',transactionDate:'2026-01-05',amount:'15.00',currency:'THB'}]};
   const imported=await command(request(input),actor,'acme',['bank','statements','import'],input);
@@ -15,7 +15,14 @@ describe('native Finance bank transport',()=>{
   const reconcile={expectedVersion:1,matchedType:'payment',matchedId:'payment-1',proof:'Reviewed the row',attachmentSetIds:[]};
   const matched=await command(request(reconcile),actor,'acme',['bank','transactions','bankrow-1','reconcile'],reconcile);
   expect(matched?.status).toBe(200);
-  expect(calls).toEqual(['POST /api/v1/holdings/acme/finance/bank/statements/import','POST /api/v1/holdings/acme/finance/bank/transactions/bankrow-1/reconcile']);
+  expect(calls).toEqual(['POST /api/v1/holdings/acme/finance/bank/statements/generic-import','POST /api/v1/holdings/acme/finance/bank/transactions/bankrow-1/reconcile']);
+ });
+ it('leaves a settlement-bound Field receipt import to the retained owner route',async()=>{
+  const transport=vi.fn(async()=>json({data:{}}));
+  const command=createNativeFinanceBankCommand(config,transport);
+  const response=await command(request({settlementPaymentId:'payment-1',bankAccount:'bank'}),actor,'acme',['bank','statements','import'],{settlementPaymentId:'payment-1',bankAccount:'bank'});
+  expect(response).toBeUndefined();
+  expect(transport).not.toHaveBeenCalled();
  });
  it('returns a closed native error and never silently falls back',async()=>{
   const command=createNativeFinanceBankCommand(config,async()=>json({error:{code:'STATEMENT_UNBALANCED',message:'Opening plus movements must equal closing.'}},422));

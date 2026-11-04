@@ -1,7 +1,7 @@
 {
   "version": 1,
   "date": "2026-11-04",
-  "status": "Native Finance bank import, manual reconciliation and workspace read are PostgreSQL/HTTP qualified with an opt-in Next transport; the authenticated browser journey, automated match groups and default-writer cutover remain open",
+  "status": "Native Finance bank import, manual reconciliation and workspace read are PostgreSQL/HTTP qualified with an opt-in Next transport and private API boundary admission; the authenticated browser journey, automated match groups and default-writer cutover remain open",
   "capability": "finance-bank-reconciliation",
   "integrationTarget": "codex/rust-backend-migration",
   "scope": {

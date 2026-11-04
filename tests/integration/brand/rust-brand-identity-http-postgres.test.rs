@@ -3,6 +3,10 @@
 #![allow(dead_code)]
 #[path = "../../support/finance/review-composition.rs"]
 mod review;
+#[path = "../../support/runtime/private-session-config.rs"]
+mod private_fixture;
+use erpx_server_identity_access::public::SystemAuthenticationSecrets;
+use erpx_service::private_development_api::{DevelopmentApiConfiguration, assemble_development_api};
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
@@ -246,6 +250,44 @@ async fn brand_http_requires_origin_and_idempotency_and_rejects_foreign_scope() 
             app.clone().oneshot(unknown_host).await.unwrap().status(),
             StatusCode::NOT_FOUND
         );
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn brand_route_is_reachable_through_the_private_api_boundary() {
+    review::account::with_system(|system| async move {
+        let p = review::setup_with_finance(system, false).await;
+        seed(&p).await;
+        let mut document = private_fixture::document(&p.system.control, &p.system.holdings).await;
+        document["financeJournalReads"] =
+            serde_json::json!([{"holdingId": "h001", "companyId": "company"}]);
+        let configuration = DevelopmentApiConfiguration::parse(&document.to_string()).unwrap();
+        let runtime = assemble_development_api(
+            configuration,
+            p.system.scenario.clock.clone(),
+            Arc::new(SystemAuthenticationSecrets),
+        )
+        .await
+        .unwrap();
+        let request = Request::builder()
+            .method("GET")
+            .uri("/api/v1/holdings/acme/brand")
+            .header("host", "acme.example.test")
+            .header("cookie", cookie(&p))
+            .header("x-erpx-context-company", "company")
+            .header("x-erpx-context-assignment", "brand-fixture-a")
+            .header("x-erpx-context-revision", "7")
+            .header("x-erpx-context-assignment-version", "3")
+            .body(Body::empty())
+            .unwrap();
+        let response = runtime.router().oneshot(request).await.unwrap();
+        let status = response.status();
+        let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+        runtime.close().await;
+        assert_eq!(status, StatusCode::OK, "{}", String::from_utf8_lossy(&body));
+        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(value["data"]["drafts"].is_array());
     })
     .await;
 }

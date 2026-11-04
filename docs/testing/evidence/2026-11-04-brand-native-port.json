@@ -1,7 +1,7 @@
 {
   "version": 1,
   "date": "2026-11-04",
-  "status": "Native Brand HTTP ingress is wire-qualified under a normal Account session and every product Brand read/write path now fails closed without the native configuration; the authenticated Next browser journey remains open",
+  "status": "Native Brand HTTP ingress is wire-qualified under a normal Account session and reachable through the private API boundary; every product Brand read/write path now fails closed without the native configuration; the authenticated Next browser journey remains open",
   "capability": "brand-native-port",
   "integrationTarget": "codex/rust-backend-migration",
   "commits": [
@@ -24,7 +24,8 @@
     "brand.rust-brand-identity-http-postgres.integration: 2 passed (normal session GET workspace, POST draft save with audit/outbox, missing key, foreign origin, unknown host)",
     "brand.rust-brand-identity-policy.unit + brand.rust-brand-identity-postgres.integration re-run on the fallback-removal candidate: 7 + 4 passed",
     "feature-brand/feature-admin/workplace typechecks: pass after the fallback removal",
-    "tests/unit/brand/brand-application.test.ts: 14 passed"
+    "tests/unit/brand/brand-application.test.ts: 14 passed",
+    "brand_route_is_reachable_through_the_private_api_boundary: 1 passed (real Account session, private API boundary, GET 200)"
   ],
   "limits": [
     "No authenticated browser journey has exercised the native Brand route; http/ssr remain partial.",
