@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-04T18:05:00+07:00",
+  "updatedAt": "2026-11-04T18:30:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -16,10 +16,10 @@
     "interpretation": "The 206 items are catalogue workflows, not the number of bounded flows. Each listed ID occurs once below. A partial item has supporting qualified slices, not whole-workflow verification."
   },
   "counts": {
-    "qualifiedBusinessFlows": 62,
+    "qualifiedBusinessFlows": 65,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 45,
+    "workflowsPartial": 48,
     "workflowsVerified": 26,
     "workflowsMerged": 26,
     "ownersComplete": 2,
@@ -4183,24 +4183,30 @@
       "kind": "module",
       "owner": "sales",
       "scope": "Quotes",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "sales-native-documents",
+        "sales-native-documents-http"
+      ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native quotation/sales-order document list and HTTP/SSR are qualified; create/edit/transition/fulfillment/cancellation/revenue handoff and composition mount remain open."
     },
     {
       "id": "sales/orders",
       "kind": "module",
       "owner": "sales",
       "scope": "Orders",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "sales-native-documents",
+        "sales-native-documents-http"
+      ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native quotation/sales-order document list and HTTP/SSR are qualified; create/edit/transition/fulfillment/cancellation/revenue handoff and composition mount remain open."
     },
     {
       "id": "sales/fulfillment",
@@ -4622,12 +4628,14 @@
       "kind": "module",
       "owner": "procurement",
       "scope": "Supplier history",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "procurement-native-supplier-promises"
+      ],
       "sourceRef": "packages/server-procurement/src/public/supplier-promises.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native supplier-promise history and open-delivery read/HTTP/SSR are qualified; supplier-promise commands, RFQ/PO/receipt writers and composition mount remain open."
     },
     {
       "id": "quality/inspections",
