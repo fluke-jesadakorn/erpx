@@ -378,6 +378,100 @@ async fn issue_rejects_a_stale_stock_or_reservation_source() {
 }
 
 #[tokio::test]
+async fn issue_rejects_a_changed_replay_without_duplicating_evidence() {
+    fixture::with_database(2, |pool| async move {
+        facts::setup(&pool, "none").await;
+        PgUnitOfWork::new(pool.clone())
+            .run::<_, BusinessError, _>(TransactionOptions::default(), |c| {
+                Box::pin(async move {
+                    lock_stock_issue_sources(c).await?;
+                    let source =
+                        read_stock_issue_source(c, "company", None, None, "order-1").await?;
+                    let plan = prepare_stock_issue(&source, &input(2_000, vec![]))?;
+                    facts::align_fulfillment(c, 2_000, 1_000).await;
+                    apply_stock_issue(c, &plan, "delivery-key", "command-key", "issuer", 100)
+                        .await?;
+                    let changed = prepare_stock_issue(&source, &input(1_000, vec![]))?;
+                    assert_eq!(changed.total_value_minor, 500);
+                    facts::align_fulfillment(c, 1_000, 500).await;
+                    denied(
+                        apply_stock_issue(
+                            c,
+                            &changed,
+                            "delivery-key",
+                            "command-key-2",
+                            "issuer",
+                            100,
+                        )
+                        .await,
+                        "STOCK_ISSUE_REPLAY_MISMATCH",
+                    );
+                    let evidence: (i64, i64, i64) = sqlx::query_as(
+                        "SELECT (SELECT quantity_milli FROM commerce_stock \
+                           WHERE warehouse_id='warehouse' AND product_id='product'),\
+                         (SELECT count(*) FROM commerce_stock_moves),\
+                         (SELECT consumed_milli FROM inventory_order_reservations \
+                           WHERE id='reservation-1')",
+                    )
+                    .fetch_one(&mut *c)
+                    .await?;
+                    assert_eq!(evidence, (2_000, 1, 2_000));
+                    Ok(())
+                })
+            })
+            .await
+            .unwrap();
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn issue_replays_after_the_commerce_order_update() {
+    fixture::with_database(2, |pool| async move {
+        facts::setup(&pool, "none").await;
+        PgUnitOfWork::new(pool.clone())
+            .run::<_, BusinessError, _>(TransactionOptions::default(), |c| {
+                Box::pin(async move {
+                    lock_stock_issue_sources(c).await?;
+                    let source =
+                        read_stock_issue_source(c, "company", None, None, "order-1").await?;
+                    let plan = prepare_stock_issue(&source, &input(2_000, vec![]))?;
+                    facts::align_fulfillment(c, 2_000, 1_000).await;
+                    apply_stock_issue(c, &plan, "delivery-key", "command-key", "issuer", 100)
+                        .await?;
+                    sqlx::raw_sql(
+                        "UPDATE commerce_order_lines SET fulfilled_milli=2000 WHERE id='line-1';\
+                         UPDATE commerce_orders SET state='partially_fulfilled',version=5 \
+                         WHERE id='order-1';",
+                    )
+                    .execute(&mut *c)
+                    .await?;
+                    let replay =
+                        apply_stock_issue(c, &plan, "delivery-key", "command-key", "issuer", 100)
+                            .await?;
+                    assert!(replay.replayed);
+                    assert_eq!(replay.lines[0].quantity_milli, 2_000);
+                    let evidence: (i64, i64, i64, i64) = sqlx::query_as(
+                        "SELECT (SELECT quantity_milli FROM commerce_stock \
+                           WHERE warehouse_id='warehouse' AND product_id='product'),\
+                         (SELECT fulfilled_milli FROM commerce_order_lines WHERE id='line-1'),\
+                         (SELECT count(*) FROM commerce_stock_moves),\
+                         (SELECT consumed_milli FROM inventory_order_reservations \
+                           WHERE id='reservation-1')",
+                    )
+                    .fetch_one(&mut *c)
+                    .await?;
+                    assert_eq!(evidence, (2_000, 2_000, 1, 2_000));
+                    Ok(())
+                })
+            })
+            .await
+            .unwrap();
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn issue_rejects_over_fulfillment_and_a_changed_order_version() {
     fixture::with_database(2, |pool| async move {
         facts::setup(&pool, "none").await;
@@ -516,6 +610,13 @@ async fn issue_preserves_company_and_branch_isolation() {
                         apply_stock_issue(c, &plan, "delivery-key", "command-key", "issuer", 100)
                             .await,
                         "ORDER_NOT_FOUND",
+                    );
+                    plan.company_id = "company".into();
+                    plan.branch_id = "branch-two".into();
+                    denied(
+                        apply_stock_issue(c, &plan, "delivery-key", "command-key", "issuer", 100)
+                            .await,
+                        "STOCK_ISSUE_SCOPE_CHANGED",
                     );
                     Ok(())
                 })

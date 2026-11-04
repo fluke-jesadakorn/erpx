@@ -3,6 +3,18 @@
 //! Finance journal, authorization and command receipt; this adapter only reads
 //! current source facts and applies stock, lot/serial balances and Sales
 //! reservation consumption inside that same transaction.
+//!
+//! Required order inside the caller's serializable unit:
+//! 1. `lock_stock_issue_sources`
+//! 2. `read_stock_issue_source`
+//! 3. `prepare_stock_issue` (the returned values are authoritative)
+//! 4. insert `commerce_fulfillments`/`commerce_fulfillment_lines` using the plan
+//!    quantities and values
+//! 5. `apply_stock_issue`
+//! 6. update the Commerce order line/state, Finance and command-receipt records
+//!
+//! Step 5 re-reads and revalidates the order, stock, lot and reservation facts;
+//! a caller cannot substitute an HTTP read or trust plan labels/values.
 use crate::domain::stock_issue::{
     MAX_LINES, MAX_LOTS_PER_LINE, MAX_RESERVATIONS_PER_LINE, MAX_SAFE, StockIssueAppliedAllocation,
     StockIssueAppliedLine, StockIssueAppliedReceipt, StockIssueLine, StockIssueLinePlan,
@@ -391,6 +403,8 @@ struct CurrentLot {
     quality_hold_milli: i64,
 }
 
+type CurrentLotSqlRow = (Option<String>, Option<String>, String, i64, i64, i64, i64);
+
 async fn current_lot(
     c: &mut PgConnection,
     company: &str,
@@ -398,7 +412,7 @@ async fn current_lot(
     product: &str,
     lot_id: &str,
 ) -> Result<Option<CurrentLot>, Error> {
-    let row: Option<(Option<String>, Option<String>, String, i64, i64, i64, i64)> = sqlx::query_as(
+    let row: Option<CurrentLotSqlRow> = sqlx::query_as(
         "SELECT l.lot_code,l.serial_number,l.status,b.quantity_milli,b.value_minor,b.version,\
              COALESCE((SELECT SUM(COALESCE(h.held_quantity_milli,b.quantity_milli)) \
                FROM inventory_quality_holds h WHERE h.lot_id=l.id \
