@@ -5,7 +5,7 @@
   "capability": "finance-sales-invoice-edit-native",
   "base": "a5d47da8e7142406481a6179971f60051b03f977",
   "branch": "codex/finance-sales-invoice-edit-native",
-  "sourceCommit": "pending",
+  "sourceCommit": "28f4f7cb19c2e03cc916c79de497397ef9db5e1a",
   "implementation": {
     "adapter": "packages/server-finance/src/adapters/sales_invoice_edit.rs",
     "public": "packages/server-finance/src/public/sales_invoice_edit.rs",
@@ -42,28 +42,72 @@
   "browser": {
     "desktop": {
       "viewport": "1280x900",
-      "create": {"postStatus": 201, "id": "invoice-17a20ef9-c426-40b2-bf62-305351d4fc4a-invoice", "number": "INV-2026-000011", "total": "107.00", "version": 1},
-      "edit": {"postStatus": 200, "total": "214.00", "version": 2},
+      "create": {
+        "postStatus": 201,
+        "id": "invoice-17a20ef9-c426-40b2-bf62-305351d4fc4a-invoice",
+        "number": "INV-2026-000011",
+        "total": "107.00",
+        "version": 1
+      },
+      "edit": {
+        "postStatus": 200,
+        "total": "214.00",
+        "version": 2
+      },
       "editReadback": "Invoice detail Total THB 214.00, Outstanding THB 214.00, Revision 2, line Native edited service 2 x 100.00 net 200.00 VAT 14.00 total 214.00",
-      "void": {"postStatus": 200, "status": "voided", "version": 3},
+      "void": {
+        "postStatus": 200,
+        "status": "voided",
+        "version": 3
+      },
       "voidReadback": "Invoice detail status voided, Outstanding THB 0.00, list row INV-2026-000011 voided",
       "pageErrors": 0,
       "consoleErrors": 24
     },
     "mobile": {
       "viewport": "390x844",
-      "create": {"postStatus": 201, "id": "invoice-8a4afa03-2200-4abd-8c77-50f4358faf26-invoice", "number": "INV-2026-000012", "total": "107.00", "version": 1},
-      "edit": {"postStatus": 200, "total": "214.00", "version": 2},
+      "create": {
+        "postStatus": 201,
+        "id": "invoice-8a4afa03-2200-4abd-8c77-50f4358faf26-invoice",
+        "number": "INV-2026-000012",
+        "total": "107.00",
+        "version": 1
+      },
+      "edit": {
+        "postStatus": 200,
+        "total": "214.00",
+        "version": 2
+      },
       "editReadback": "Invoice detail Total THB 214.00, Outstanding THB 214.00, Revision 2, line Native edited service 2 x 100.00 net 200.00 VAT 14.00 total 214.00",
-      "void": {"postStatus": 200, "status": "voided", "version": 3},
+      "void": {
+        "postStatus": 200,
+        "status": "voided",
+        "version": 3
+      },
       "voidReadback": "Invoice detail status voided, Outstanding THB 0.00, list row INV-2026-000012 voided",
       "pageErrors": 0,
       "consoleErrors": 24
     },
     "persisted": {
       "invoices": [
-        {"id": "invoice-17a20ef9-c426-40b2-bf62-305351d4fc4a-invoice", "number": "INV-2026-000011", "status": "voided", "version": 3, "totalMinor": 21400, "outstandingMinor": 0, "lineRevision": 2},
-        {"id": "invoice-8a4afa03-2200-4abd-8c77-50f4358faf26-invoice", "number": "INV-2026-000012", "status": "voided", "version": 3, "totalMinor": 21400, "outstandingMinor": 0, "lineRevision": 2}
+        {
+          "id": "invoice-17a20ef9-c426-40b2-bf62-305351d4fc4a-invoice",
+          "number": "INV-2026-000011",
+          "status": "voided",
+          "version": 3,
+          "totalMinor": 21400,
+          "outstandingMinor": 0,
+          "lineRevision": 2
+        },
+        {
+          "id": "invoice-8a4afa03-2200-4abd-8c77-50f4358faf26-invoice",
+          "number": "INV-2026-000012",
+          "status": "voided",
+          "version": 3,
+          "totalMinor": 21400,
+          "outstandingMinor": 0,
+          "lineRevision": 2
+        }
       ],
       "lines": "v1 Native edit baseline service 1,000 millis / 10,000 net / 700 VAT; v2 Native edited service 2,000 millis / 20,000 net / 1,400 VAT",
       "money": "draft:v1 10,700 / USD 306; draft:v2 21,400 / USD 611, currency scale 2",

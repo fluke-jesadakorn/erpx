@@ -3312,7 +3312,7 @@
       "kind": "business-flow-evidence",
       "status": "flow-complete",
       "scope": "Native standalone sales-invoice edit/void: expected-version guard, per-line accounts, next line revision, Money snapshot, receipt/audit/outbox, replay/idempotency, whole-document and non-owned paths, HTTP/Next transport and desktop/mobile edit+void.",
-      "sourceIdentity": "finance-sales-invoice-edit-native",
+      "sourceIdentity": "28f4f7cb19c2e03cc916c79de497397ef9db5e1a",
       "evidenceRef": "docs/testing/evidence/2026-11-04-finance-sales-invoice-edit-native.json",
       "durableContractRefs": [
         "docs/contracts/next/rust-finance-journal-detail.md"
