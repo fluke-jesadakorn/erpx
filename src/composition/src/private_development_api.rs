@@ -1422,6 +1422,7 @@ async fn assemble_checked(
         let mut organization_setup_targets = Vec::new();
         let mut approval_targets = Vec::new();
         let mut handbook_targets = Vec::new();
+        let mut learning_targets = Vec::new();
         let mut asset_targets = Vec::new();
         let mut bank_targets = Vec::new();
         let mut generic_payment_targets = Vec::new();
@@ -1533,6 +1534,25 @@ async fn assemble_checked(
                     Arc::new(SharedClock(clock.clone())),
                 )),
             });
+            learning_targets.push(
+                erpx_server_learning::public::learning_http::LearningHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: Arc::new(crate::learning::LearningBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::learning::LearningService::new(
+                            authorizer.clone(),
+                            crate::learning::LearningConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    )),
+                },
+            );
             handbook_targets.push(
                 erpx_server_collaboration::public::handbook_http::HandbookHttpTarget {
                     host: holding.host.clone(),
@@ -1886,6 +1906,12 @@ async fn assemble_checked(
                     handbook_targets,
                 )
                 .map_err(|_| "PRIVATE_API_COLLABORATION_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !learning_targets.is_empty() {
+            router = router.merge(
+                erpx_server_learning::public::learning_http::learning_http_router(learning_targets)
+                    .map_err(|_| "PRIVATE_API_LEARNING_CONFIGURATION_INVALID")?,
             );
         }
         if !asset_targets.is_empty() {
@@ -3634,6 +3660,30 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };
+    let learning = match (request.method(), request.uri().path().split('/').collect::<Vec<_>>().as_slice()) {
+        (&axum::http::Method::GET, ["", "api", "v1", "holdings", slug, "learning", "workspace"]) => state
+            .organization_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (&axum::http::Method::GET, ["", "api", "v1", "holdings", slug, "learning", "eligibility", person]) if !person.is_empty() => state
+            .organization_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (&axum::http::Method::GET | &axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "learning", "assignments", id]) if !id.is_empty() => state
+            .organization_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "learning", "courses"]) => state
+            .organization_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "learning", "courses", id]) if !id.is_empty() => state
+            .organization_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "learning", "assignments"]) => state
+            .organization_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "learning", "certificates", id, "revoke"]) if !id.is_empty() => state
+            .organization_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        _ => false,
+    };
     let handbook = match (request.method(), request.uri().path().split('/').collect::<Vec<_>>().as_slice()) {
         (&axum::http::Method::GET | &axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "handbook"])
         | (&axum::http::Method::GET | &axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "handbook", "editors"]) => state
@@ -3690,7 +3740,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
     if !(matches!(
         request.uri().path(),
         "/api/auth/get-session" | "/api/health" | "/api/ready"
-    ) || account_mfa || service_packages || field_work_roles || field_operations || field_support || field_collaboration || field_inbox_state || support_ticket || support_incident || support_session || support_sla || support_evidence || inventory_availability || inventory_stock || organization_nodes || organization_setup || workflow_approvals || handbook || brand || bank || generic_payment || finance_supplier_bill || finance_period_close || finance_workspace || finance_invoice_read || finance_opening_balances || finance_report || finance_setup || finance_sales_invoice_create || finance_sales_invoice_edit || finance_sales_defaults || finance_sales_receipts
+    ) || account_mfa || service_packages || field_work_roles || field_operations || field_support || field_collaboration || field_inbox_state || support_ticket || support_incident || support_session || support_sla || support_evidence || inventory_availability || inventory_stock || organization_nodes || organization_setup || workflow_approvals || handbook || learning || brand || bank || generic_payment || finance_supplier_bill || finance_period_close || finance_workspace || finance_invoice_read || finance_opening_balances || finance_report || finance_setup || finance_sales_invoice_create || finance_sales_invoice_edit || finance_sales_defaults || finance_sales_receipts
         || finance_invoice_runtime
         || finance_field_journal_flow
         || finance_invoice_post
@@ -3725,6 +3775,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             || organization_setup
             || workflow_approvals
             || handbook
+            || learning
             || brand
             || bank
             || generic_payment

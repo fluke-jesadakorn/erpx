@@ -15,6 +15,7 @@ erpx-server-brand = { path = "packages/server-brand" }
 erpx-server-pos = { path = "packages/server-pos" }
 erpx-server-operations = { path = "packages/server-operations" }
 erpx-server-records = { path = "packages/server-records" }
+erpx-server-learning = { path = "packages/server-learning" }
 erpx-server-field-service = { path = "packages/server-field_service" }
 erpx-server-support = { path = "packages/server-support" }
 ml-dsa = { version = "=0.1.1", default-features = false }
