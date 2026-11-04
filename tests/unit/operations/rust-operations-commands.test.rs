@@ -481,6 +481,23 @@ async fn opening_uses_the_exact_published_policy_and_idempotent_receipt() {
         .code,
         "COMMAND_INCOMPLETE"
     );
+    repo.receipts.get_mut("command-key-01").unwrap().result_json = Some(
+        r#"{"id":"operations-exception-command-key-01","status":"closed","version":1}"#.into(),
+    );
+    assert_eq!(
+        open_operations_exception(
+            &actor(),
+            &mut repo,
+            &mut sources,
+            &open_input(),
+            "command-key-01",
+            10
+        )
+        .await
+        .unwrap_err()
+        .code,
+        "COMMAND_RECEIPT_INVALID"
+    );
 
     let mut stale_policy = Repo::new(row("open"), policy("[\"staff_task\"]"));
     let mut changed_policy = open_input();
