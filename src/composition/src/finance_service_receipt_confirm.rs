@@ -1,11 +1,12 @@
 //! Native Field receipt confirmation; all effects remain on the selected unit.
 use crate::finance_service_receipt_files::PaymentProofOwner;
+use erpx_server_commercial::public::purchases::{
+    CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
+    PurchaseWitness,
+};
 use crate::{
     finance_journal_create::{FinanceJournalCreateConfiguration, Ids},
     finance_journal_review::{command_actor, finance_actor},
-    finance_service_invoice_post::{
-        ReceiptAction, generic_payment_authority, service_receipt_confirm_authority,
-    },
     finance_service_receipt_create::{ReceiptSources, field_invoice},
 };
 use erpx_server_files::public::payment_proof_binding::*;
@@ -161,6 +162,101 @@ pub fn normalize_service_receipt_confirm(
         input,
         normalized: CommandJson::parse(&format!("{{{}}}", members.join(",")))?,
     })
+}
+struct GenericConfirmAuthority<'a, C> {
+    current: &'a AuthorizedWorkContext,
+    config: &'a FinanceJournalCreateConfiguration,
+    clock: &'a C,
+    invoice: String,
+    payment: String,
+    field: bool,
+    purchase: Option<(CapabilityPurpose, PurchaseWitness)>,
+}
+impl<C: Clock + Send + Sync> PgCommandAuthority for GenericConfirmAuthority<'_, C> {
+    async fn lock_sources(
+        &mut self,
+        c: &mut PgConnection,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        Sources.prepare(c).await
+    }
+    async fn authorize(
+        &mut self,
+        c: &mut PgConnection,
+        request: &WorkflowRequest,
+    ) -> Result<CommandActor, Error> {
+        let scope = self.current.selection().workspace();
+        if self.current.holding_id() != &self.config.holding
+            || scope.company_id != self.config.company
+            || scope.branch_id.is_some()
+            || scope.department_id.is_some()
+            || request.operation != "finance.payment.confirm"
+            || !request.record_id.starts_with("pay-")
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "COMPANY_TREASURY_REQUIRED",
+                "Use a current Company treasury assignment to confirm a controlled payment.",
+            )
+            .into());
+        }
+        self.current.require_permission("finance.pay")?;
+        self.current.require_permission("finance.write")?;
+        self.current.require_permission("finance.read")?;
+        self.current.require_permission("module.finance.read")?;
+        if self.field {
+            erpx_server_finance::public::service_receipt::require_service_receipt_finance_lineage(
+                c,
+                &finance_actor(self.current),
+                &self.payment,
+                &self.invoice,
+                false,
+            )
+            .await?;
+        }
+        erpx_server_identity_access::public::selected_command_authority::require_selected_actor_current(
+            c,
+            self.current,
+            self.clock.now().get(),
+        )
+        .await?;
+        Ok(command_actor(self.current)?)
+    }
+    async fn verify_command(
+        &mut self,
+        c: &mut PgConnection,
+        _: &CommandActor,
+        request: &WorkflowRequest,
+        _: CommandDisposition,
+    ) -> Result<(), Error> {
+        self.authorize(c, request).await?;
+        let mut reader = PgCompanyPurchaseReader::new(
+            self.config.holding.clone(),
+            self.config.company.clone(),
+            c,
+            &self.config.catalogue,
+        );
+        if let Some((purpose, witness)) = &self.purchase {
+            if *purpose != CapabilityPurpose::SettleExisting {
+                return Err(changed().into());
+            }
+            reader.revalidate(witness, self.clock.now()).await?.require_allowed()?;
+            return Ok(());
+        }
+        let found = reader
+            .inspect(
+                &PurchaseRequest {
+                    capabilities: vec!["finance.banking".into()],
+                    purpose: CapabilityPurpose::SettleExisting,
+                    mode: PackageEnforcementMode::Enforced,
+                },
+                self.clock.now(),
+            )
+            .await?;
+        found.require_allowed()?;
+        self.purchase = Some((CapabilityPurpose::SettleExisting, found.witness));
+        Ok(())
+    }
 }
 #[derive(Clone)]
 struct Sources;
@@ -550,23 +646,14 @@ where
                         .ok_or_else(changed)?
                         .to_owned();
                     let field = field_invoice(c, &config.company, &invoice).await?;
-                    let mut auth = if field {
-                        service_receipt_confirm_authority(
-                            current,
-                            &config,
-                            clock.as_ref(),
-                            invoice.clone(),
-                            id.clone(),
-                        )
-                    } else {
-                        generic_payment_authority(
-                            current,
-                            &config,
-                            clock.as_ref(),
-                            invoice.clone(),
-                            Some(id.clone()),
-                            ReceiptAction::Confirm,
-                        )
+                    let mut auth = GenericConfirmAuthority {
+                        current,
+                        config: &config,
+                        clock: clock.as_ref(),
+                        invoice: invoice.clone(),
+                        payment: id.clone(),
+                        field,
+                        purchase: None,
                     };
                     let request = WorkflowRequest {
                         key,

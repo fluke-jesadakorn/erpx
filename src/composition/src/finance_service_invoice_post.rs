@@ -70,6 +70,7 @@ impl HoldingWorkSourcePreparation for Sources {
     }
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub(crate) enum ReceiptAction {
     Create,
     Approve,
@@ -774,29 +775,6 @@ pub(crate) fn service_receipt_bank_authority<'a, C: Clock + Send + Sync>(
         receipt_invoice: Some(invoice),
         receipt_payment: Some(payment),
         receipt_action: Some(ReceiptAction::BankImport),
-        generic_payment:false,
-    }
-}
-
-pub(crate) fn service_receipt_confirm_authority<'a, C: Clock + Send + Sync>(
-    current: &'a AuthorizedWorkContext,
-    config: &'a FinanceJournalCreateConfiguration,
-    clock: &'a C,
-    invoice: String,
-    payment: String,
-) -> Authority<'a, C> {
-    Authority {
-        current,
-        config,
-        clock,
-        purchase: None,
-        base: None,
-        lineage: None,
-        flow_assignment:false,
-        no_charge:false,
-        receipt_invoice: Some(invoice),
-        receipt_payment: Some(payment),
-        receipt_action: Some(ReceiptAction::Confirm),
         generic_payment:false,
     }
 }
