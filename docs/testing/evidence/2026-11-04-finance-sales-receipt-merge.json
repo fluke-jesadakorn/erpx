@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Finance standalone customer-receipt slice merged; the sales-invoice workspace remains partial for standalone edit/void",
+  "capability": "finance-sales-receipt-merge",
+  "integrationTarget": "codex/rust-backend-migration",
+  "pullRequest": {
+    "number": 50,
+    "url": "https://github.com/fluke-jesadakorn/erpx/pull/50",
+    "state": "MERGED",
+    "mergedAt": "2026-11-04T00:33:51Z",
+    "base": "8e660db6e277f8aeb6530eafa83f8f88bec29148",
+    "head": "1a03d308b5605de463b857fbc7a48b9182a6a791",
+    "mergeCommit": "2a246aeedffcb83f1fe1ad04d1b1a791e890c377",
+    "mergeMethod": "merge commit"
+  },
+  "scope": {
+    "workflow": "finance:sales-invoice-workspace",
+    "slice": "standalone customer-receipt detail/export/issue",
+    "adapter": "packages/server-finance/src/adapters/sales_receipts.rs",
+    "http": "src/composition/src/finance_journal_detail_http.rs",
+    "transport": "packages/feature-finance/src/adapters/server/native-sales-receipt.ts",
+    "page": "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance/sales/receipts/[id]/screen.tsx"
+  },
+  "verification": {
+    "postgres": "finance.rust-sales-receipt-postgres.integration 2/2",
+    "regressions": "finance.rust-sales-defaults-postgres 3/3; finance.rust-sales-invoice-create-postgres 3/3; finance.rust-sales-invoice-list-postgres 3/3; finance.rust-journal-list-postgres 2/2",
+    "gates": "cargo clippy private-field-api, typecheck, structure, architecture, docs, catalogue (33 modules, 791 suites), rust-runtime-foundation 6/6, finance unit transport suites 4/4",
+    "browser": "Desktop RCPT-BROWSER-6 issue 201 RC-2026-000013 and mobile RCPT-BROWSER-7 issue 201 RC-2026-000014; receipt pages issued with Browser customer/INV-2026-000005 THB 10.00; exports 200 text/html with matching SHA-256; pageErrors 0."
+  },
+  "register": {
+    "ownersComplete": 1,
+    "ownersTotal": 41,
+    "workflowsVerified": 18,
+    "workflowsPartial": 1,
+    "workflowsMerged": 18,
+    "workflowsTotal": 206,
+    "workflowState": "finance:sales-invoice-workspace remains partial for standalone invoice edit/void"
+  },
+  "limits": [
+    "Field-owned receipts cannot be seeded into the isolated fixture; the deferred DB trigger correctly demands the native Field owner unit, and the generic adapter rejects them.",
+    "The export is the retained issued copy, not a re-render.",
+    "The Finance app still logs pre-existing hydration/work-source console errors; pageErrors stay 0."
+  ]
+}
