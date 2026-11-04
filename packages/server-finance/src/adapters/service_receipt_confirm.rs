@@ -546,7 +546,12 @@ pub async fn prepare_service_receipt_confirm(
     }
     if before.statement["bank_account"] != row["bank_account"]
         || bank["currency"] != row["currency"]
-        || n(bank, "amount_minor")? != n(row, "amount_minor")?
+        || n(bank, "amount_minor")?
+            != if payment_kind == "receipt" {
+                n(row, "amount_minor")?
+            } else {
+                -(n(row, "amount_minor")? - n(row, "withheld_minor")?)
+            }
         || t(bank, "transaction_date")? < t(row, "payment_date")?
     {
         return Err(BusinessError::invalid(

@@ -4,6 +4,9 @@
 #![allow(dead_code)]
 #[path = "../../support/finance/review-composition.rs"]
 mod facts;
+use erpx_server_finance::public::bank_reconciliation::{
+    BankImportInput, BankImportRow, prepare_bank_import,
+};
 use erpx_server_finance::public::generic_payment::*;
 use erpx_server_finance::public::service_receipt::*;
 use erpx_server_shared::public::{AssignmentId, Clock, CommandKey, CompanyId, HoldingId, UserId};
@@ -36,12 +39,12 @@ async fn seed(pool: &erpx_server_runtime::public::postgres::DatabasePool) {
          ON CONFLICT DO NOTHING;\
          INSERT INTO finance_bank_statements(id,company_id,bank_account,statement_number,statement_date,opening_minor,closing_minor,status,source_hash,version,imported_by,created_at)VALUES\
          ('statement-open','company','bank','ST-1','2026-01-10',0,1000,'imported','hash-st-1',1,'fixture-a',0),\
-         ('statement-payment','company','bank','ST-P','2026-01-10',0,1000,'imported','hash-st-p',1,'fixture-a',0),\
+         ('statement-payment','company','bank','ST-P','2026-01-10',0,-1000,'imported','hash-st-p',1,'fixture-a',0),\
          ('statement-receipt','company','bank','ST-R','2026-01-10',0,1000,'imported','hash-st-r',1,'fixture-a',0)\
          ON CONFLICT DO NOTHING;\
          INSERT INTO finance_bank_transactions(id,statement_id,company_id,transaction_date,external_id,description,amount_minor,currency,match_status,version)VALUES\
          ('bankrow-open','statement-open','company','2026-01-10','EXT-1','Incoming settlement',1000,'THB','unmatched',1),\
-         ('bankrow-payment','statement-payment','company','2026-01-10','EXT-P','Supplier settlement',1000,'THB','unmatched',1),\
+         ('bankrow-payment','statement-payment','company','2026-01-10','EXT-P','Supplier settlement',-1000,'THB','unmatched',1),\
          ('bankrow-receipt','statement-receipt','company','2026-01-10','EXT-R','Customer settlement',1000,'THB','unmatched',1)\
          ON CONFLICT DO NOTHING;\
          INSERT INTO finance_charts(id,company_id,name,base_currency,created_by,created_at,updated_at)VALUES('chart','company','Primary','THB','fixture-a',0,0)\
@@ -242,7 +245,7 @@ async fn generic_payment_confirmation_posts_payable_and_receivable_directions() 
                 &ServiceReceiptConfirmInput {
                     expected_version: 3,
                     period_id: "period".into(),
-                    bank_transaction_id: "bankrow-open".into(),
+                    bank_transaction_id: if kind == "payment" { "bankrow-payment" } else { "bankrow-receipt" }.into(),
                     bank_version: 1,
                     bank_reference: "REF-1".into(),
                     proof: "Reviewed the bank result".into(),
@@ -506,24 +509,23 @@ async fn generic_supplier_payment_bank_import_then_confirm() {
             .apply(&mut tx, &releaser, false, 2, false, false, clock.now().get())
             .await
             .unwrap();
-        let bank = prepare_service_receipt_bank(
+        let bank = prepare_bank_import(
             &mut tx,
             &releaser,
             "bank-generic",
-            &ServiceReceiptBankInput {
-                settlement_payment_id: id.into(),
+            &BankImportInput {
                 bank_account: "bank".into(),
                 statement_number: "ST-GENERIC".into(),
                 statement_date: "2026-01-10".into(),
                 opening: "0.00".into(),
-                closing: "10.00".into(),
-                closing_fx_rate: None,
-                source_hash: "caller-source-hash".into(),
-                rows: vec![ServiceReceiptBankRow {
+                closing: "-10.00".into(),
+                closing_fx_rate: Some("1.0".into()),
+                source_hash: "hash-generic".into(),
+                rows: vec![BankImportRow {
                     external_id: "EXT-GENERIC".into(),
                     transaction_date: "2026-01-10".into(),
                     description: Some("Supplier settlement".into()),
-                    amount: "10.00".into(),
+                    amount: "-10.00".into(),
                     currency: "THB".into(),
                 }],
             },
@@ -602,7 +604,7 @@ async fn generic_payment_workspace_lists_matching_unmatched_bank_rows() {
         let rows = workspace.data()["bankTransactions"]
             .as_array()
             .unwrap();
-        assert!(rows.iter().any(|row| row["id"] == "bankrow-open"));
+        assert!(rows.iter().any(|row| row["id"] == "bankrow-payment"));
         assert!(rows.iter().all(|row| row["match_status"] != "matched"));
         tx.rollback().await.unwrap();
     })

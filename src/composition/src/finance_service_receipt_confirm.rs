@@ -416,21 +416,30 @@ impl<C: Clock + Send + Sync> PgOwnerCommandEffects for Effects<'_, C> {
                 .await?,
         );
         self.decision.as_ref().ok_or_else(changed)?.apply(c).await?;
-        self.receipt = Some(
-            issue_customer_receipt(
-                c,
-                &finance_actor(self.current),
-                &r.record_id,
-                &self
-                    .company
-                    .as_ref()
-                    .ok_or_else(changed)?
-                    .company()
-                    .display_name,
-                self.clock,
-            )
-            .await?,
-        );
+        let kind: String = sqlx::query_scalar(
+            "SELECT kind FROM finance_payments WHERE id=$1 AND company_id=$2",
+        )
+        .bind(&r.record_id)
+        .bind(self.current.selection().workspace().company_id.as_str())
+        .fetch_one(&mut *c)
+        .await?;
+        if kind == "receipt" {
+            self.receipt = Some(
+                issue_customer_receipt(
+                    c,
+                    &finance_actor(self.current),
+                    &r.record_id,
+                    &self
+                        .company
+                        .as_ref()
+                        .ok_or_else(changed)?
+                        .company()
+                        .display_name,
+                    self.clock,
+                )
+                .await?,
+            );
+        }
         Ok(())
     }
     async fn retain(
@@ -448,11 +457,9 @@ impl<C: Clock + Send + Sync> PgOwnerCommandEffects for Effects<'_, C> {
         } else {
             retained.require_current(c).await?;
         }
-        self.receipt
-            .as_ref()
-            .ok_or_else(changed)?
-            .require_current(c)
-            .await?;
+        if let Some(receipt) = &self.receipt {
+            receipt.require_current(c).await?;
+        }
         self.decision
             .as_ref()
             .ok_or_else(changed)?
