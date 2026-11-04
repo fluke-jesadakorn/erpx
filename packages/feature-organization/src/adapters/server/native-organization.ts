@@ -282,6 +282,36 @@ function commandData(value: unknown): Row {
   return data;
 }
 
+function levelsData(value: unknown): Row {
+  if (!exact(value, ['data']) || !exact(value.data, ['id']) || !identifier(value.data.id))
+    return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
+  return value.data;
+}
+
+function templateData(value: unknown): Row {
+  if (
+    !exact(value, ['data']) ||
+    !exact(value.data, ['id', 'version']) ||
+    !identifier(value.data.id) ||
+    !integer(value.data.version, 1)
+  )
+    return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
+  return value.data;
+}
+
+function applyTemplateData(value: unknown): Row {
+  if (
+    !exact(value, ['data']) ||
+    !exact(value.data, ['id', 'positionIds']) ||
+    !identifier(value.data.id) ||
+    !Array.isArray(value.data.positionIds) ||
+    value.data.positionIds.length > 100 ||
+    !value.data.positionIds.every((id) => identifier(id))
+  )
+    return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
+  return value.data;
+}
+
 function previewData(value: unknown): Row {
   if (!exact(value, ['data']) || !record(value.data)) return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
   const data = value.data;
@@ -555,6 +585,7 @@ export function createNativeOrganizationClient(
         idempotencyKey: string;
         origin?: string;
         preview?: boolean;
+        result?: 'command' | 'levels' | 'template' | 'apply';
       },
     ): Promise<Row> {
       const response = await call(
@@ -573,7 +604,11 @@ export function createNativeOrganizationClient(
         return failure('NATIVE_ORGANIZATION_UNAVAILABLE');
       });
       const value = await boundedJson(response);
-      return input.preview ? previewData(value) : commandData(value);
+      if (input.preview) return previewData(value);
+      if (input.result === 'levels') return levelsData(value);
+      if (input.result === 'template') return templateData(value);
+      if (input.result === 'apply') return applyTemplateData(value);
+      return commandData(value);
     },
   };
 }

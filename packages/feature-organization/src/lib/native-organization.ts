@@ -41,17 +41,30 @@ function client(actor: WorkContext) {
   return createNativeOrganizationClient(nativeOrganizationConfiguration(raw));
 }
 
-/** Exact native selector for the node lifecycle commands already used by the
- * People organization route. The workspace read is selected separately by
- * `nativeOrganizationWorkspace`; other organization writes stay with the
- * retained owner until their native command surface is available. */
+/** Exact native selector for the node lifecycle and organization setup
+ * commands already used by the People organization route. The workspace read
+ * is selected separately by `nativeOrganizationWorkspace`; other organization
+ * writes stay with the retained owner until their native command surface is
+ * available. */
 export function nativeOrganizationSelector(parts: readonly string[]):
   | { kind: 'save'; id: string | null; submit: boolean }
   | { kind: 'preview' }
   | { kind: 'review'; id: string }
   | { kind: 'cancel'; id: string }
+  | { kind: 'levels' }
+  | { kind: 'templateSave'; id: string | null }
+  | { kind: 'templateApply'; id: string }
   | undefined {
-  if (parts[0] !== 'organization' || parts[1] !== 'changes') return undefined;
+  if (parts[0] !== 'organization') return undefined;
+  if (parts.length === 2 && parts[1] === 'levels') return { kind: 'levels' };
+  if (parts[1] === 'templates') {
+    if (parts.length === 2) return { kind: 'templateSave', id: null };
+    if (parts.length === 3 && parts[2]) return { kind: 'templateSave', id: parts[2] };
+    if (parts.length === 4 && parts[2] && parts[3] === 'apply')
+      return { kind: 'templateApply', id: parts[2] };
+    return undefined;
+  }
+  if (parts[1] !== 'changes') return undefined;
   if (parts.length === 3 && parts[2] === 'preview') return { kind: 'preview' };
   if (parts.length === 4 && parts[2] && parts[3] === 'review' && parts[2] !== 'preview')
     return { kind: 'review', id: parts[2] };
@@ -91,6 +104,33 @@ export async function nativeOrganizationChange(
       body,
       idempotencyKey: 'preview-command-key',
       preview: true,
+    });
+  }
+  if (selector.kind === 'levels') {
+    return await native.change(incoming, context(actor), {
+      path: '/levels',
+      body: {},
+      idempotencyKey,
+      result: 'levels',
+    });
+  }
+  if (selector.kind === 'templateSave') {
+    return await native.change(incoming, context(actor), {
+      path:
+        selector.id === null
+          ? '/templates'
+          : `/templates/${encodeURIComponent(selector.id)}`,
+      body,
+      idempotencyKey,
+      result: 'template',
+    });
+  }
+  if (selector.kind === 'templateApply') {
+    return await native.change(incoming, context(actor), {
+      path: `/templates/${encodeURIComponent(selector.id)}/apply`,
+      body,
+      idempotencyKey,
+      result: 'apply',
     });
   }
   if (selector.kind === 'review') {

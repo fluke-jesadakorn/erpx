@@ -192,14 +192,18 @@ const workspacePayload = {
 };
 
 describe("Native organization transport", () => {
-  it("maps only the current node-change selectors and leaves every other organization path to the retained owner", () => {
+  it("maps the current node-change and setup selectors and leaves unported organization paths to the retained owner", () => {
     expect(nativeOrganizationSelector(["organization", "changes", "submit"])).toEqual({ kind: "save", id: null, submit: true });
     expect(nativeOrganizationSelector(["organization", "changes", "change-1", "draft"])).toEqual({ kind: "save", id: "change-1", submit: false });
     expect(nativeOrganizationSelector(["organization", "changes", "preview"])).toEqual({ kind: "preview" });
     expect(nativeOrganizationSelector(["organization", "changes", "change-1", "review"])).toEqual({ kind: "review", id: "change-1" });
     expect(nativeOrganizationSelector(["organization", "changes", "change-1", "cancel"])).toEqual({ kind: "cancel", id: "change-1" });
+    expect(nativeOrganizationSelector(["organization", "levels"])).toEqual({ kind: "levels" });
+    expect(nativeOrganizationSelector(["organization", "templates"])).toEqual({ kind: "templateSave", id: null });
+    expect(nativeOrganizationSelector(["organization", "templates", "template-1"])).toEqual({ kind: "templateSave", id: "template-1" });
+    expect(nativeOrganizationSelector(["organization", "templates", "template-1", "apply"])).toEqual({ kind: "templateApply", id: "template-1" });
     expect(nativeOrganizationSelector(["organization"])).toBeUndefined();
-    expect(nativeOrganizationSelector(["organization", "templates"])).toBeUndefined();
+    expect(nativeOrganizationSelector(["organization", "drafts"])).toBeUndefined();
     expect(nativeOrganizationSelector(["organization", "position-moves", "submit"])).toBeUndefined();
   });
 

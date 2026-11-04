@@ -39,5 +39,17 @@ path = "../../tests/unit/organization/rust-organization-nodes.test.rs"
 name = "organization_nodes_postgres"
 path = "../../tests/integration/organization/rust-organization-nodes-postgres.test.rs"
 
+[[test]]
+name = "organization_setup"
+path = "../../tests/unit/organization/rust-organization-setup.test.rs"
+
+[[test]]
+name = "organization_setup_postgres"
+path = "../../tests/integration/organization/rust-organization-setup-postgres.test.rs"
+
+[[test]]
+name = "organization_setup_http_postgres"
+path = "../../tests/integration/organization/rust-organization-setup-http-postgres.test.rs"
+
 [lints]
 workspace = true

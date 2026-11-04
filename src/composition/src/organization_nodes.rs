@@ -56,7 +56,7 @@ impl OrganizationNodesConfiguration {
 }
 
 #[derive(Clone, Copy)]
-struct OrganizationSources;
+pub(crate) struct OrganizationSources;
 
 impl HoldingWorkSourcePreparation for OrganizationSources {
     fn prepare<'c>(&'c self, _: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
@@ -79,7 +79,7 @@ pub struct OrganizationPreviewResponse {
     pub data: PreviewResult,
 }
 
-fn command_actor(current: &AuthorizedWorkContext) -> Result<OrganizationCommand, BusinessError> {
+pub(crate) fn command_actor(current: &AuthorizedWorkContext) -> Result<OrganizationCommand, BusinessError> {
     let selected = current.selection();
     let workspace = selected.workspace();
     let assignment = selected.assignment();
@@ -116,7 +116,7 @@ fn command_actor(current: &AuthorizedWorkContext) -> Result<OrganizationCommand,
     })
 }
 
-fn organization_actor(
+pub(crate) fn organization_actor(
     current: &AuthorizedWorkContext,
 ) -> Result<OrganizationCommandActor, BusinessError> {
     Ok(OrganizationCommandActor {
