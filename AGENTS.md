@@ -94,13 +94,7 @@ Development browser login credentials are stored locally in ignored `.scratch/de
 
 ## Recovery
 
-To view the prior Rust monorepo:
-
-```bash
-git checkout backup/rust-2026-09-02
-git show rust-archive-2026-09-02 --stat
-# or see README.md recovery boundary cc0887d
-```
+The former `backup/rust-2026-09-02` branch and `rust-archive-2026-09-02` tag were removed during the 2026-11-04 cleanup. The recovery baseline is recorded as commit `cc0887d`; see the README recovery boundary.
 
 <!-- skills:start -->
 ## barlevalon workflow skills

@@ -9,11 +9,9 @@ Set `ERPX_DEV_MAX_APPS` in ignored `.env.local` only when the machine has room f
 
 ## Recovery
 
-Rust/Dioxus/Tonic/SQLx 137 crates (`:3004/:50051`) hard-cut to **Next.js 16** on `development` (`d15909bb`). Docs preserved, code not migrated. Recovery:
+Rust/Dioxus/Tonic/SQLx 137 crates (`:3004/:50051`) hard-cut to **Next.js 16** on `development` (`d15909bb`). Docs preserved, code not migrated. The former `backup/rust-2026-09-02` branch and `rust-archive-2026-09-02` tag were removed during the 2026-11-04 cleanup; the recovery baseline remains recorded as commit `cc0887d`.
 
 ```bash
-git checkout backup/rust-2026-09-02        # full Rust monorepo
-git show rust-archive-2026-09-02 --stat    # f97b74d6
 git show cc0887d --stat                    # baseline
 # Historical protobuf/SQLx contracts are archived; active REST contracts and PostgreSQL migrations live on this branch.
 ```

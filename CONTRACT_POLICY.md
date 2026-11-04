@@ -1,6 +1,6 @@
 # ERPX contract policy — Next.js era (from 2026-09-02)
 
-The Rust protobuf era is archived on `backup/rust-2026-09-02` (`rust-archive-2026-09-02`; verified refs in [README recovery](README.md#recovery)).
+The Rust protobuf era is archived as commit `cc0887d` (see [README recovery](README.md#recovery)); the former backup branch and tag were removed in the 2026-11-04 cleanup.
 The archived 37 `*.proto` files and descriptors under `docs/contracts/proto/` (pruned on `development`)
 and 28 SQLx migrations under `docs/schema/migrations*` are reference-only.
 

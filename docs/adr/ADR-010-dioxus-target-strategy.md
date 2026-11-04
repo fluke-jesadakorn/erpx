@@ -1,6 +1,6 @@
 # ADR-010: Shared Dioxus target strategy
 
-> **Deprecated — Archived (Dioxus, see backup/rust-2026-09-02). No longer authoritative on this branch.**
+> **Deprecated — Archived (Dioxus). No longer authoritative on this branch.**
 > See `CUTOVER.md` (2026-09-02) and `ADR-020-nextjs-stack.md`.
 
 

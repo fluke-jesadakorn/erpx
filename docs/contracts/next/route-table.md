@@ -179,7 +179,7 @@ navigation contract.
 
 - **Idempotency:** every command carries `Idempotency-Key` + authoritative tenant/holding scope (from `CONTRACT_POLICY.md`).
 - **Versioned namespace:** `/api/v1/platform/...` and the canonical Holding/Local workspace prefixes below `/api/v1/holdings/{holdingSlug}/...` — never reuse a route or field with different meaning; removed fields stay reserved.
-- **Verification:** `bun run lint`, `bun run typecheck`, `bun run deploy:build`, and `bun run test:integration` pass. Archived Rust gates stay on `backup/rust-2026-09-02`.
+- **Verification:** `bun run lint`, `bun run typecheck`, `bun run deploy:build`, and `bun run test:integration` pass. Archived Rust gates were removed with the 2026-11-04 backup ref cleanup.
 
 ## Links
 

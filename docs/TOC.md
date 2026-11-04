@@ -95,7 +95,7 @@ Update the owning contract and active production plan when current facts change.
 
 `docs:check` checks root Markdown, current documentation and the archive navigation index; it preserves immutable evidence/link topology and verifies checksum-ledger files. Existing tracked files under ignored `.scratch/` or `.tmp/` are rejected. Keep snapshots, private credentials, logs and temporary plans outside Git. Domain/issue-tracker templates and per-app generated Next.js instructions are intentional copies, not duplicate cleanup targets.
 
-Superseded plans, obsolete review prose and completed documentation-triage tickets are recoverable through [verified Git references](../README.md#recovery). [Archived Rust evidence](archive/README.md) retains its original bytes and dated scope. The [2026-10-13 relocation receipt](testing/repository-file-organization-2026-10-13.md) and [dated workplace journey inventory](journeys/2026-09-26-workplace-journey-inventory.md) remain historical evidence, not current source maps.
+Superseded plans, obsolete review prose and completed documentation-triage tickets are recoverable through [verified Git references](../README.md#recovery). [Archived engineering inputs](archive/README.md) retain the 2026-10-03 generated inputs. The [2026-10-13 relocation receipt](testing/repository-file-organization-2026-10-13.md) and [dated workplace journey inventory](journeys/2026-09-26-workplace-journey-inventory.md) remain historical evidence, not current source maps.
 
 Staging requires an explicit staging request; normal development verification does not authorize its hosts, services, databases or deployment directories.
 
