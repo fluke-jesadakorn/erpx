@@ -9,7 +9,13 @@ pub(crate) mod collaboration_work_wire;
 
 pub(crate) mod handbook;
 
+pub(crate) mod handbook_http;
+
 pub(crate) mod handbook_wire;
+
+pub(crate) mod social;
+
+pub(crate) mod messaging_native;
 
 pub mod operations_notification;
 

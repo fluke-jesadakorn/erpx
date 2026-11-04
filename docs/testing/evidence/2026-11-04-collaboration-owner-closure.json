@@ -1,0 +1,143 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Collaboration handbook now has an owner-local native HTTP router and the Next handbook transport is cut over fail-closed; native Social posts/comments/mentions/moderation/reactions/follows/topics/feed are PostgreSQL-qualified. Composition mounting, SSR cutover, attachments, teams/channels and browser acceptance remain open.",
+  "capability": "collaboration-owner-closure",
+  "integrationTarget": "codex/rust-backend-migration",
+  "head": "cf2ddd6330ea61446821895604148316cdb1a560",
+  "worktree": "/Users/fluke/.codex/worktrees/contributor-container-delivery/erpx",
+  "scope": {
+    "http": {
+      "owner": "packages/server-collaboration/src/adapters/handbook_http.rs",
+      "public": "packages/server-collaboration/src/public/handbook_http.rs",
+      "routes": [
+        "GET /api/v1/holdings/{holding_slug}/handbook",
+        "GET /api/v1/holdings/{holding_slug}/handbook/editors",
+        "GET /api/v1/holdings/{holding_slug}/handbook/{record_id}",
+        "POST /api/v1/holdings/{holding_slug}/handbook",
+        "POST /api/v1/holdings/{holding_slug}/handbook/editors",
+        "POST /api/v1/holdings/{holding_slug}/handbook/{record_id}",
+        "POST /api/v1/holdings/{holding_slug}/handbook/{record_id}/actions"
+      ],
+      "transportFacts": "Exact host+holding target, exact browser origin on POST, one bounded Idempotency-Key matching the existing service-command contract, 192000-byte body bound, 1..100 page bound, opaque cursor decode/re-encode, stable 403/404/409/422/503 error mapping, private no-store response headers.",
+      "authorityBoundary": "The router never resolves a session or mints Company/editor/purchase authority. A composition-owned HandbookHttpBackend resolves the normal Account session, current Holding/Company scope, membership, editor/owner authority and purchase; executes CAS/replay on one serializable owner unit.",
+      "frontend": "packages/feature-collaboration/src/adapters/server/native-handbook.ts plus packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/handbook/[[...path]]/route.ts. The Next route calls only native HTTP and returns 503 NATIVE_HANDBOOK_UNAVAILABLE when ERPX_NATIVE_HANDBOOK_CONFIG is absent; no TS service fallback remains in the route."
+    },
+    "social": {
+      "domain": "packages/server-collaboration/src/domain/social.rs",
+      "application": "packages/server-collaboration/src/application/social.rs",
+      "adapter": "packages/server-collaboration/src/adapters/social.rs",
+      "public": "packages/server-collaboration/src/public/social.rs",
+      "workflows": [
+        "Threads: publish a Company or branch-scoped post and reload bounded authorized history",
+        "Mentions: resolve current Company-readable person/record labels through owner ports, dedupe, persist social_mentions and person staff_notifications",
+        "Comments & moderation: reply, author edit, author/reviewer tombstone with optimistic version CAS",
+        "Following & reactions: idempotent appreciation and post/topic follows",
+        "Topics & feed: normalized hashtags/tags, bounded all/following/team/records feed and comment readback"
+      ],
+      "authorityBoundary": "The owner module selects only social_posts/social_comments/social_reactions/social_follows/social_topics/social_post_topics/social_comment_topics/social_mentions/staff_notifications. Person and record mention targets are resolved by a composition port; no People, IAM, Organization or Records SQL is embedded in Collaboration."
+    },
+    "preserved": "Existing handbook lifecycle, collaboration action-card/record-relation slice, maintenance/service-count notifications, Field inbox/outbox and push contracts are unchanged."
+  },
+  "tests": [
+    {
+      "command": "cargo test -p erpx-server-collaboration --locked -- --test-threads=1",
+      "environment": "ERPX_TEST_ADMIN_URL from ignored .env.local; local PostgreSQL 18.6 on 127.0.0.1:5432; isolated erpx_dev_rust_* test databases",
+      "result": "70 passed, 0 failed",
+      "breakdown": {
+        "lib": "22 passed (7 handbook HTTP transport/handler, 7 social domain/adapter, 8 handbook domain/wire)",
+        "collaboration_work_unit": "13 passed",
+        "collaboration_work_postgres": "1 passed",
+        "handbook_unit": "8 passed",
+        "handbook_postgres": "4 passed",
+        "maintenance_notifications_unit": "5 passed",
+        "maintenance_notifications_postgres": "6 passed",
+        "service_count_flow_notification_postgres": "1 passed",
+        "social_unit": "7 passed",
+        "social_postgres": "3 passed"
+      }
+    },
+    {
+      "command": "cargo clippy -p erpx-server-collaboration --locked --all-targets",
+      "result": "clean, no warnings"
+    },
+    {
+      "command": "cargo test -p erpx-server-collaboration --locked --lib",
+      "result": "28 passed, 0 failed"
+    },
+    {
+      "command": "node_modules/.bin/vitest run tests/unit/collaboration/*.test.ts --config tests/config/vitest.unit.config.mts",
+      "result": "184 passed across 9 files",
+      "newCoverage": "8 native-handbook transport/route-guard tests; 21 existing handbook service tests"
+    },
+    {
+      "command": "node_modules/.bin/tsc --noEmit",
+      "result": "passed"
+    },
+    {
+      "command": "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json",
+      "result": "passed"
+    },
+    {
+      "command": "node_modules/.bin/tsc --noEmit --project packages/feature-collaboration/tsconfig.json",
+      "result": "passed"
+    },
+    {
+      "command": "node_modules/.bin/tsc --noEmit --project packages/feature-apps/tsconfig.json",
+      "result": "passed"
+    },
+    {
+      "command": "node_modules/.bin/tsx -e \"import('./scripts/testing/layout.ts').then(m=>{m.checkRepositoryLayout();console.log('Repository layout passed')})\"",
+      "result": "Repository layout passed"
+    }
+  ],
+  "behaviouralCoverage": {
+    "authorization": "Membership denial, editor/owner denial, moderator denial, author-only comment edit, non-editor draft denial through the existing handbook slice; Social authority is supplied by the composition port and denied before owner effects in unit and PostgreSQL tests.",
+    "companyIsolation": "Handbook reads/writes and Social feeds select current Company rows only; an other-Company actor sees no post or article and cannot replay across Company scope.",
+    "casVersion": "Handbook article/editor versions and Social comment versions reject stale expectations without writing receipts or effects.",
+    "idempotency": "Exact replay returns the retained receipt without a second owner write; same-key different operation/actor/record/fingerprint returns IDEMPOTENCY_CONFLICT in the PostgreSQL harness.",
+    "moderation": "Author edit/tombstone and reviewer tombstone are separately asserted; a reviewer cannot edit another author's comment.",
+    "persistedEffects": "Post/comment/topic/mention/reaction/follow rows, staff notifications, command receipts, audit and outbox counts are asserted after commit and re-read in a fresh transaction.",
+    "rollback": "A tampered retained effect or revoked authority rolls back the post/comment/receipt/audit/outbox unit; Social PG test proves counts are unchanged after the failed unit.",
+    "negativeCases": "Company audience without current role, branch audience without branch, unreadable person mention, unreadable record, invalid hashtag, invalid cursor, oversized body, missing/wrong origin, missing/invalid idempotency key, stale version and replayed tombstone."
+  },
+  "limits": [
+    "The handbook router is not mounted in src/composition. SSR presentation queries still use the retained TS handbook adapter, and no native HTTP/SSR cutover is claimed for the workplace handbook screens.",
+    "No Social/threads/messaging HTTP or Next route was cut over. The native Social module is an owner port with behavioural PostgreSQL tests, not a browser-verified UI journey.",
+    "Attachments, teams/channels, announcements, inbox notifications and the full messaging thread model remain on the TS owner and were not replaced.",
+    "Action cards and record relations retain their existing native Field-linked slice; their general/legacy sources and HTTP routes were not widened in this change.",
+    "No authenticated browser cohort was run. No browser, staging, installed production or Cloudflare access occurred.",
+    "The repository Bun runner was not available in this host shell (bun not on PATH). Vitest and TypeScript were invoked directly with local node_modules binaries; Node was v26.12.0 rather than the pinned v26.11.1. The canonical bun test:unit/test:ci wrappers therefore remain unrun.",
+    "The shared Cargo.lock briefly diverged from the concurrent Assets manifest; final Rust runs used --locked after the shared lockfile became consistent again.",
+    "cargo test -p erpx-server-runtime --test rust_architecture fails on server-brand portable-layer findings outside Collaboration; runtime_foundation fails on pre-existing active owner metadata. Collaboration files were removed from the architecture finding before the final run."
+  ],
+  "compositionMountDelta": {
+    "summary": "Main must implement HandbookHttpBackend in src/composition and merge the owner router. Do not change the owner crate API for this mount.",
+    "cargo": "src/composition/Cargo.toml already depends on erpx-server-collaboration through workspace use; no new dependency edge is required.",
+    "routerImport": "use erpx_server_collaboration::public::handbook_http::{HandbookHttpBackend, HandbookHttpCommandRequest, HandbookHttpReadReply, HandbookHttpReadRequest, HandbookHttpTarget, HandbookDetailData, HandbookListData, HandbookEditorsData, handbook_router};",
+    "targets": "Build one HandbookHttpTarget per registered Holding host/slug with the exact AccountPolicy origin and an Arc<HandbookHttpBackend>. Reject duplicate (host, slug) pairs.",
+    "backend": "Resolve normal Account session/cookies, Host/Holding, Company, branch/department and rendered context from headers; check membership/module/purchase/editor/owner; open TransactionOptions serializable; acquire lock_handbook_sources before IAM/purchase snapshots; for commands implement HandbookUnit (authorize, replay, article, settings_version, is_company_member, apply via apply_plan+retain_effects, flush_deferred, require_unit_current) and use execute(key, change); for reads call read_list/read_article_detail/read_editor_options and construct HandbookListData/HandbookDetailData/HandbookEditorsData with current access facts.",
+    "mount": "Merge handbook_router(targets)? into the composition router used by foundation_router_with_inventory. Do not mount it in the TS compatibility route.",
+    "tsConfig": "Set ERPX_NATIVE_HANDBOOK_CONFIG to JSON {privateBaseUrl, timeoutMs, holdings:[{origin,holdingSlug,holdingId}]} pointing at the composition-owned native service. The client rejects reserved ports 3000/3001/3100/3101(dev)/3103/5432/5433/5435/8080, ports 3200-3299, non-loopback hosts and duplicate origins/slugs.",
+    "ssr": "To finish SSR cutover, replace handbookList/handbookArticle/handbookEditorOptions in packages/server-collaboration/src/adapters/presentation-queries.ts with a composition adapter backed by the same native reads, then verify the pages under packages/workplace/src/routes/holdings/[holdingSlug]/knowledge/handbook/* and learn."
+  },
+  "browserJourneysMainMustRun": [
+    "Sign in normally at the registered Holding host (for example https://acme.jesadakorn.com) and open Knowledge -> Handbook published and drafts. Confirm published articles load from the native read path and draft controls appear only for an appointed editor.",
+    "As an editor create a draft, edit it, publish, archive and restore it; reload and verify the persisted version/revision, revision history, list membership and archive visibility. Replay the same Idempotency-Key and confirm no duplicate revision.",
+    "As a plain member confirm the draft list and edit actions are denied; as a non-owner confirm editor management is denied; as the service owner appoint/remove an editor and verify the settings version changes.",
+    "Use a second registered Holding/Company (for example https://northstar.jesadakorn.com) and confirm the first Company's handbook is not visible and direct article IDs return 404.",
+    "Unset ERPX_NATIVE_HANDBOOK_CONFIG and confirm handbook GET/POST returns 503 NATIVE_HANDBOOK_UNAVAILABLE without writing; restore config and confirm the same journey works.",
+    "If Social UI is mounted later: publish a branch post with a person/record mention and hashtag, reply/edit/tombstone the comment, appreciate/follow/unfollow, switch all/following/records filters and reload; verify another branch and another Company cannot read the branch post."
+  ],
+  "legacy": {
+    "removed": [
+      "The Next handbook API route no longer imports handbookList, handbookArticle, saveHandbookArticle, actOnHandbook, setHandbookEditor or handbookEditorOptions; it has no TS fallback."
+    ],
+    "retained": [
+      "packages/server-collaboration/src/adapters/handbook.ts and application/handbook.ts remain for SSR presentation queries, the workspace assistant source read, staff-notification targets and existing TS service tests.",
+      "packages/server-runtime/src/public/handbook.ts remains the historical compatibility export for SSR/server-agent consumers above.",
+      "packages/feature-collaboration social/messaging components, routes and TS services remain authoritative because no native HTTP/SSR cutover or attachment/team model was delivered.",
+      "Action-card/record-relation TS routes remain for non-Field sources; the native slice is restricted to Field Service sources."
+    ]
+  }
+}

@@ -47,6 +47,7 @@
     "./lib/messaging-command": "./src/lib/messaging-command.ts",
     "./lib/social-post-editor-state": "./src/lib/social-post-editor-state.ts",
     "./lib/handbook-command": "./src/lib/handbook-command.ts",
+    "./lib/native-handbook": "./src/lib/native-handbook.ts",
     "./lib/marketing-editor": "./src/lib/marketing-editor.ts",
     "./lib/collaboration-work-read-model": "./src/lib/collaboration-work-read-model.ts"
   },

@@ -7,6 +7,12 @@ pub mod collaboration_work;
 
 pub mod handbook;
 
+pub mod handbook_http;
+
+pub mod social;
+
+pub mod messaging_native;
+
 pub mod operations_notification;
 
 pub mod field_outbox;

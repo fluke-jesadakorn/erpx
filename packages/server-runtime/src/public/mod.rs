@@ -11,6 +11,8 @@ pub use crate::domain::migration::MigrationReadiness;
 pub mod owned_process;
 pub mod postgres;
 
+pub mod http_support;
+
 pub mod module_contracts;
 
 pub mod executive_access;

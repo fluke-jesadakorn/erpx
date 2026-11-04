@@ -60,3 +60,19 @@ path = "../../tests/unit/collaboration/rust-handbook.test.rs"
 [[test]]
 name = "handbook_postgres"
 path = "../../tests/integration/collaboration/rust-handbook-postgres.test.rs"
+
+[[test]]
+name = "social"
+path = "../../tests/unit/collaboration/rust-social.test.rs"
+
+[[test]]
+name = "social_postgres"
+path = "../../tests/integration/collaboration/rust-social-postgres.test.rs"
+
+[[test]]
+name = "messaging"
+path = "../../tests/unit/collaboration/rust-messaging.test.rs"
+
+[[test]]
+name = "messaging_postgres"
+path = "../../tests/integration/collaboration/rust-messaging-postgres.test.rs"

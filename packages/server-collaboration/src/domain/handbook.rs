@@ -95,7 +95,7 @@ pub struct ArticleSnapshot {
     pub draft: DraftContent,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
 pub struct Receipt {
     pub id: String,
     pub version: i64,
