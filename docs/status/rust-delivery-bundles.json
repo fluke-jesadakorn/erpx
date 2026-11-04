@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-05T01:50:00+07:00",
+  "updatedAt": "2026-11-05T02:30:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,7 +19,7 @@
     "qualifiedBusinessFlows": 100,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 79,
+    "workflowsPartial": 85,
     "workflowsVerified": 28,
     "workflowsMerged": 28,
     "ownersComplete": 3,
@@ -4550,10 +4550,12 @@
       "verified": false,
       "merged": false,
       "evidenceFlows": [
-        "operations-native-queue-read"
+        "operations-native-queue-read",
+        "operations-native-commands",
+        "operations-native-transport"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Native Operations exception queue read and detail/HTTP transport are PostgreSQL-qualified; policy/exception commands and browser remain open."
+      "gap": "Native exception queue/detail reads, lifecycle commands, policy decisions and transport are PostgreSQL/HTTP-qualified; composition mount and authenticated browser journey remain open."
     },
     {
       "id": "operations/feature-escalations",
@@ -4564,46 +4566,57 @@
       "verified": false,
       "merged": false,
       "evidenceFlows": [
-        "operations-native-escalations"
+        "operations-native-escalations",
+        "operations-native-commands",
+        "operations-native-transport"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Native queue reads expose current escalations; native escalation commands remain retained."
+      "gap": "Native escalation/assign/prioritize commands and transport are PostgreSQL/HTTP-qualified; composition mount and browser remain open."
     },
     {
       "id": "operations/feature-approval-decisions",
       "kind": "module",
       "owner": "operations",
       "scope": "Approval decisions",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "operations-native-commands",
+        "operations-native-transport"
+      ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native approve/reject/close/reopen commands are PostgreSQL/HTTP-qualified; composition mount and browser remain open."
     },
     {
       "id": "operations/feature-resolution",
       "kind": "module",
       "owner": "operations",
       "scope": "Resolution",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "operations-native-commands",
+        "operations-native-transport"
+      ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native resolve/cancel/acknowledge/start commands are PostgreSQL/HTTP-qualified; composition mount and browser remain open."
     },
     {
       "id": "operations/feature-queue-policies",
       "kind": "module",
       "owner": "operations",
       "scope": "Queue policies",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "operations-native-commands",
+        "operations-native-transport"
+      ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native policy publish/retire commands are PostgreSQL/HTTP-qualified; composition mount and browser remain open."
     },
     {
       "id": "operations/feature-operations-summary",
@@ -4614,10 +4627,11 @@
       "verified": false,
       "merged": false,
       "evidenceFlows": [
-        "operations-native-summary"
+        "operations-native-summary",
+        "operations-native-transport"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Native queue summary/read is implemented; summary writes and browser remain open."
+      "gap": "Native queue summary/read and transport are implemented; summary writes, composition mount and browser remain open."
     },
     {
       "id": "procurement/requisitions",
@@ -5403,10 +5417,11 @@
       "evidenceFlows": [
         "learning-native-workspace",
         "learning-native-command",
-        "learning-native-http"
+        "learning-native-http",
+        "learning-native-composition"
       ],
       "sourceRef": "packages/server-learning/src/public/learning.ts",
-      "gap": "Native course/assignment/completion/certificate reads and commands are PostgreSQL/HTTP-qualified; attachment binding, eligibility handoff, purchase-atomic worker and composition mount remain open."
+      "gap": "Native Learning reads/commands, eligibility facts and composition-backed workspace/detail/eligibility reads are qualified; native command composition, Benefits consumption, attachments and browser remain open."
     },
     {
       "id": "learning/feature-assignments",
@@ -5419,10 +5434,11 @@
       "evidenceFlows": [
         "learning-native-workspace",
         "learning-native-command",
-        "learning-native-http"
+        "learning-native-http",
+        "learning-native-composition"
       ],
       "sourceRef": "packages/server-learning/src/public/learning.ts",
-      "gap": "Native course/assignment/completion/certificate reads and commands are PostgreSQL/HTTP-qualified; attachment binding, eligibility handoff, purchase-atomic worker and composition mount remain open."
+      "gap": "Native Learning reads/commands, eligibility facts and composition-backed workspace/detail/eligibility reads are qualified; native command composition, Benefits consumption, attachments and browser remain open."
     },
     {
       "id": "learning/feature-attendance-results",
@@ -5435,10 +5451,11 @@
       "evidenceFlows": [
         "learning-native-workspace",
         "learning-native-command",
-        "learning-native-http"
+        "learning-native-http",
+        "learning-native-composition"
       ],
       "sourceRef": "packages/server-learning/src/public/learning.ts",
-      "gap": "Native course/assignment/completion/certificate reads and commands are PostgreSQL/HTTP-qualified; attachment binding, eligibility handoff, purchase-atomic worker and composition mount remain open."
+      "gap": "Native Learning reads/commands, eligibility facts and composition-backed workspace/detail/eligibility reads are qualified; native command composition, Benefits consumption, attachments and browser remain open."
     },
     {
       "id": "learning/feature-completion",
@@ -5451,10 +5468,11 @@
       "evidenceFlows": [
         "learning-native-workspace",
         "learning-native-command",
-        "learning-native-http"
+        "learning-native-http",
+        "learning-native-composition"
       ],
       "sourceRef": "packages/server-learning/src/public/learning.ts",
-      "gap": "Native course/assignment/completion/certificate reads and commands are PostgreSQL/HTTP-qualified; attachment binding, eligibility handoff, purchase-atomic worker and composition mount remain open."
+      "gap": "Native Learning reads/commands, eligibility facts and composition-backed workspace/detail/eligibility reads are qualified; native command composition, Benefits consumption, attachments and browser remain open."
     },
     {
       "id": "learning/feature-eligibility-handoff",
@@ -5467,10 +5485,11 @@
       "evidenceFlows": [
         "learning-native-eligibility-facts",
         "learning-native-eligibility-json",
-        "learning-native-eligibility-http"
+        "learning-native-eligibility-http",
+        "learning-native-composition"
       ],
       "sourceRef": "packages/server-learning/src/public/learning.ts",
-      "gap": "Native certificate/consumption eligibility facts, HTTP and handoff JSON are qualified; downstream Benefits consumption, composition mount and browser remain open."
+      "gap": "Native Learning reads/commands, eligibility facts and composition-backed workspace/detail/eligibility reads are qualified; native command composition, Benefits consumption, attachments and browser remain open."
     },
     {
       "id": "talent/requisitions",
@@ -5766,10 +5785,11 @@
       "evidenceFlows": [
         "collaboration-handbook-http",
         "collaboration-social-postgres",
-        "collaboration-handbook-ssr"
+        "collaboration-handbook-ssr",
+        "collaboration-handbook-composition"
       ],
       "sourceRef": "packages/server-collaboration/src/public/social.ts",
-      "gap": "Native handbook HTTP and strict SSR transport are qualified; composition mount, authenticated handbook journey, Social/Messaging HTTP ingress, teams/channels, attachments and inbox presentation remain open."
+      "gap": "Native handbook HTTP, SSR transport and composition-backed reads are qualified; authenticated handbook journey, Social/Messaging HTTP ingress, teams/channels, attachments and inbox presentation remain open."
     },
     {
       "id": "collaboration/mentions",
@@ -5782,10 +5802,11 @@
       "evidenceFlows": [
         "collaboration-handbook-http",
         "collaboration-social-postgres",
-        "collaboration-handbook-ssr"
+        "collaboration-handbook-ssr",
+        "collaboration-handbook-composition"
       ],
       "sourceRef": "packages/server-collaboration/src/public/social.ts",
-      "gap": "Native handbook HTTP and strict SSR transport are qualified; composition mount, authenticated handbook journey, Social/Messaging HTTP ingress, teams/channels, attachments and inbox presentation remain open."
+      "gap": "Native handbook HTTP, SSR transport and composition-backed reads are qualified; authenticated handbook journey, Social/Messaging HTTP ingress, teams/channels, attachments and inbox presentation remain open."
     },
     {
       "id": "collaboration/feature-comments-moderation",
@@ -5798,10 +5819,11 @@
       "evidenceFlows": [
         "collaboration-handbook-http",
         "collaboration-social-postgres",
-        "collaboration-handbook-ssr"
+        "collaboration-handbook-ssr",
+        "collaboration-handbook-composition"
       ],
       "sourceRef": "packages/server-collaboration/src/public/social.ts",
-      "gap": "Native handbook HTTP and strict SSR transport are qualified; composition mount, authenticated handbook journey, Social/Messaging HTTP ingress, teams/channels, attachments and inbox presentation remain open."
+      "gap": "Native handbook HTTP, SSR transport and composition-backed reads are qualified; authenticated handbook journey, Social/Messaging HTTP ingress, teams/channels, attachments and inbox presentation remain open."
     },
     {
       "id": "collaboration/feature-following-reactions",
@@ -5814,10 +5836,11 @@
       "evidenceFlows": [
         "collaboration-handbook-http",
         "collaboration-social-postgres",
-        "collaboration-handbook-ssr"
+        "collaboration-handbook-ssr",
+        "collaboration-handbook-composition"
       ],
       "sourceRef": "packages/server-collaboration/src/public/social.ts",
-      "gap": "Native handbook HTTP and strict SSR transport are qualified; composition mount, authenticated handbook journey, Social/Messaging HTTP ingress, teams/channels, attachments and inbox presentation remain open."
+      "gap": "Native handbook HTTP, SSR transport and composition-backed reads are qualified; authenticated handbook journey, Social/Messaging HTTP ingress, teams/channels, attachments and inbox presentation remain open."
     },
     {
       "id": "collaboration/feature-topics-feed",
@@ -5830,52 +5853,56 @@
       "evidenceFlows": [
         "collaboration-handbook-http",
         "collaboration-social-postgres",
-        "collaboration-handbook-ssr"
+        "collaboration-handbook-ssr",
+        "collaboration-handbook-composition"
       ],
       "sourceRef": "packages/server-collaboration/src/public/social.ts",
-      "gap": "Native handbook HTTP and strict SSR transport are qualified; composition mount, authenticated handbook journey, Social/Messaging HTTP ingress, teams/channels, attachments and inbox presentation remain open."
+      "gap": "Native handbook HTTP, SSR transport and composition-backed reads are qualified; authenticated handbook journey, Social/Messaging HTTP ingress, teams/channels, attachments and inbox presentation remain open."
     },
     {
       "id": "collaboration/feature-attachments",
       "kind": "module",
       "owner": "collaboration",
       "scope": "Attachments",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
       "evidenceFlows": [
-        "collaboration-handbook-ssr"
+        "collaboration-handbook-ssr",
+        "collaboration-handbook-composition"
       ],
       "sourceRef": "packages/server-collaboration/src/public/messaging-files.ts",
-      "gap": "Native handbook HTTP and strict SSR transport are qualified; composition mount, authenticated handbook journey, Social/Messaging HTTP ingress, teams/channels, attachments and inbox presentation remain open."
+      "gap": "Native handbook HTTP, SSR transport and composition-backed reads are qualified; authenticated handbook journey, Social/Messaging HTTP ingress, teams/channels, attachments and inbox presentation remain open."
     },
     {
       "id": "collaboration/feature-action-cards",
       "kind": "module",
       "owner": "collaboration",
       "scope": "Action cards",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
       "evidenceFlows": [
-        "collaboration-handbook-ssr"
+        "collaboration-handbook-ssr",
+        "collaboration-handbook-composition"
       ],
       "sourceRef": "packages/server-collaboration/src/public/collaboration-work.ts",
-      "gap": "Native handbook HTTP and strict SSR transport are qualified; composition mount, authenticated handbook journey, Social/Messaging HTTP ingress, teams/channels, attachments and inbox presentation remain open."
+      "gap": "Native handbook HTTP, SSR transport and composition-backed reads are qualified; authenticated handbook journey, Social/Messaging HTTP ingress, teams/channels, attachments and inbox presentation remain open."
     },
     {
       "id": "collaboration/feature-record-relations",
       "kind": "module",
       "owner": "collaboration",
       "scope": "Record relations",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
       "evidenceFlows": [
-        "collaboration-handbook-ssr"
+        "collaboration-handbook-ssr",
+        "collaboration-handbook-composition"
       ],
       "sourceRef": "packages/server-collaboration/src/public/collaboration-work.ts",
-      "gap": "Native handbook HTTP and strict SSR transport are qualified; composition mount, authenticated handbook journey, Social/Messaging HTTP ingress, teams/channels, attachments and inbox presentation remain open."
+      "gap": "Native handbook HTTP, SSR transport and composition-backed reads are qualified; authenticated handbook journey, Social/Messaging HTTP ingress, teams/channels, attachments and inbox presentation remain open."
     },
     {
       "id": "pms/dashboard",
