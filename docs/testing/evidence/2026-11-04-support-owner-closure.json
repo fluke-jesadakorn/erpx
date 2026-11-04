@@ -38,7 +38,7 @@
   "verification": {
     "supportUnit": {
       "command": "cargo test -p erpx-server-support --locked",
-      "result": "52 passed, 0 failed, 0 ignored",
+      "result": "51 passed, 0 failed, 0 ignored",
       "newCases": [
         "starts due immediately and schedules the interval after success",
         "skips a tick that is not due without calling the owner",
@@ -48,7 +48,7 @@
       ]
     },
     "postgres": {
-      "command": "cargo test -p erpx-service --test support_sla_command_postgres --offline -- --test-threads=1",
+      "command": "cargo test -p erpx-service --test support_sla_command_postgres --locked -- --test-threads=1",
       "result": "4 passed, 0 failed, 0 ignored",
       "newCase": "scheduled_native_sla_drain_recovers_after_rollback_and_rechecks_purchase",
       "persisted": [
