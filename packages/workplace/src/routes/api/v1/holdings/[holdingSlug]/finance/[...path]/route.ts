@@ -1,7 +1,7 @@
 import {nativeFieldJournalWorkspaceReadback,nativeFieldJournalLegacyUnavailable} from '@erpx/feature-finance/public/server';
 import {nativeServicePaymentReadback,nativeServiceInvoiceReadback} from '@erpx/feature-finance/public/server';
 import {isNativeServicePaymentRequest,nativeServicePaymentCommand} from '@erpx/feature-finance/public/server';
-import { nativeServiceNoCharge,nativeServiceInvoicePost, nativeJournalEdit, nativeJournalEditReadback, nativeJournalCreate, nativeJournalCreateReadback, nativeJournalPost, nativeJournalPostReadback, nativeJournalReverse, nativeJournalReverseReadback, nativeSalesInvoiceEdit, nativeSalesInvoiceVoid } from "@erpx/feature-finance/public/server";
+import { nativeServiceNoCharge,nativeServiceInvoicePost, nativeJournalEdit, nativeJournalEditReadback, nativeJournalCreate, nativeJournalCreateReadback, nativeJournalPost, nativeJournalPostReadback, nativeJournalReverse, nativeJournalReverseReadback, nativeSalesInvoiceEdit, nativeSalesInvoiceVoid, nativeFinanceSetupCommand } from "@erpx/feature-finance/public/server";
 import {expensePostingPrerequisites,createExpensePostingChart,createExpensePostingAccount,createExpensePostingPeriod,confirmExpensePostingRate,expensePostingPrerequisiteConfirmation,expensePostingChartSchema,expensePostingAccountSchema,expensePostingPeriodSchema,expensePostingRateSchema,expensePostingPrerequisiteConfirmationSchema} from '@erpx/server-finance/public/expense-posting-prerequisites';
 import {expensePostingSetup,initializeExpensePostingSetup,expensePostingSetupSchema} from '@erpx/server-commerce/public/expense-posting-setup';
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
@@ -243,6 +243,15 @@ export async function POST(request: Request, context: FinanceRouteContext) {
     const rawPayment=isNativeServicePaymentRequest(parts)?request.clone():null;
     const input = await body(request).catch(error=>{void rawPayment?.body?.cancel().catch(()=>undefined);throw error;});
     if(rawPayment){try{const native=await nativeServicePaymentCommand(rawPayment,actor,holdingSlug,parts,input);if(native)return native;}finally{void rawPayment.body?.cancel().catch(()=>undefined);}}
+    if(parts[0]==="charts"&&parts.length===1){const native=await nativeFinanceSetupCommand(request,holdingSlug,{kind:"chart",input:input as Record<string,unknown>});if(native)return native;}
+    if(parts[0]==="charts"&&parts[1]==="import"){
+      const normalized=typeof input==="object"&&input!==null&&"csv" in input&&typeof (input as Record<string,unknown>).csv==="string"?{...(input as Record<string,unknown>),rows:csvRows((input as Record<string,unknown>).csv as string)}:input;
+      const parsed=z.object({chartId:z.string().min(1),rows:z.array(z.object({code:z.string(),name:z.string(),category:z.enum(["asset","liability","equity","revenue","expense","other_income","other_expense"]),currency:z.string().optional(),controlKind:z.enum(["none","receivable","payable","bank"]).optional()})).min(1)}).safeParse(normalized);
+      if(parsed.success){const native=await nativeFinanceSetupCommand(request,holdingSlug,{kind:"import",input:parsed.data as Record<string,unknown>});if(native)return native;}
+    }
+    if(parts[0]==="charts"&&parts[2]==="accounts"&&parts.length===3){const native=await nativeFinanceSetupCommand(request,holdingSlug,{kind:"account",chartId:parts[1],input:{...(input as Record<string,unknown>),chartId:parts[1]}});if(native)return native;}
+    if(parts[0]==="charts"&&parts[2]==="accounts"&&parts[4]==="status"&&parts.length===5){const native=await nativeFinanceSetupCommand(request,holdingSlug,{kind:"status",chartId:parts[1],accountId:parts[3],input:input as Record<string,unknown>});if(native)return native;}
+    if(parts[0]==="periods"&&parts.length===1){const native=await nativeFinanceSetupCommand(request,holdingSlug,{kind:"period",input:input as Record<string,unknown>});if(native)return native;}
     if(parts[0]?.startsWith('expense-setup')){
       if(parts[0]!=='expense-setup'||parts.length!==2)throw new ApiError(404,'NOT_FOUND','Expense setup resource not found.');
       const key=needCommand(request);

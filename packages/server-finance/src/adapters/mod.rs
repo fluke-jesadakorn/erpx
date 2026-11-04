@@ -1,3 +1,4 @@
+pub(crate) mod finance_setup;
 pub(crate) mod finance_invoice_read;
 pub(crate) mod sales_invoice_edit;
 pub(crate) mod sales_receipts;

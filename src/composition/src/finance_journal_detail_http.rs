@@ -123,6 +123,26 @@ pub fn finance_journal_read_router<C: Clock + Send + Sync + 'static>(
             post(issue_sales_receipt::<C>),
         )
         .route(
+            "/api/v1/holdings/{holding_slug}/finance/charts/{id}/accounts",
+            get(finance_chart_accounts::<C>).post(create_account::<C>),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/charts",
+            post(create_chart::<C>),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/charts/import",
+            post(import_accounts::<C>),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/charts/{id}/accounts/{account_id}/status",
+            post(change_account_status::<C>),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/periods",
+            post(create_period::<C>),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/finance/invoices",
             get(finance_invoices_page::<C>),
         )
@@ -403,6 +423,190 @@ fn read_json_response<T: serde::Serialize>(
 ) -> Response {
     let mut response = match result {
         Ok(reply) => Json(reply).into_response(),
+        Err(PgTransactionError::Business(error)) => business_error(error),
+        Err(_) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
+    };
+    no_store(&mut response);
+    response
+}
+
+fn setup_key(headers: &HeaderMap) -> Result<CommandKey, BusinessError> {
+    let key = unique_request_header(headers, "idempotency-key")?
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            BusinessError::invalid("IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required.")
+        })?;
+    CommandKey::new(key.to_owned())
+}
+
+async fn setup_body<T: serde::de::DeserializeOwned>(request: Request) -> Result<T, BusinessError> {
+    let body = to_bytes(request.into_body(), 256 * 1024)
+        .await
+        .map_err(|_| BusinessError::invalid("BODY_TOO_LARGE", "Use a smaller request."))?;
+    serde_json::from_slice(&body)
+        .map_err(|_| BusinessError::invalid("INVALID_SETUP_REQUEST", "Use a valid setup request."))
+}
+
+fn setup_target<'a, C>(
+    state: &'a Arc<ReadState<C>>,
+    headers: &HeaderMap,
+    slug: &str,
+) -> Result<(String, &'a FinanceJournalReadTarget<C>), BusinessError> {
+    let host = unique_request_header(headers, "host")?
+        .ok_or_else(missing)?
+        .to_owned();
+    let target = crate::http_scope::selected_company_target(&state.targets, &host, slug, headers)?;
+    Ok((host, target))
+}
+
+async fn finance_chart_accounts<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, chart_id)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Response {
+    let result = async {
+        let (host, target) = setup_target(&state, &headers, &slug)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(FailureKind::Forbidden, "ORIGIN_FORBIDDEN", "Use the application origin.").into());
+        }
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let company = target.service.company_id().clone();
+        let proof = inbound.into_proof();
+        let input = move || { scope?; captured.resolve_read(company) };
+        target.service.finance_chart_accounts(&host, proof, input, chart_id).await
+    }.await;
+    read_json_response(result)
+}
+
+async fn create_chart<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async {
+        let (host, target) = setup_target(&state, request.headers(), &slug)?;
+        let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) { return Err(missing().into()); }
+        if unique_request_header(request.headers(), "origin")?.is_some_and(|value| value != inbound.expected_origin()) {
+            return Err(BusinessError::new(FailureKind::Forbidden, "ORIGIN_FORBIDDEN", "Use the application origin.").into());
+        }
+        let command = setup_key(request.headers())?;
+        let scope = state.scopes.slugs(request.headers());
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(request.headers(), branch, department);
+        let body: erpx_server_finance::public::finance_setup::CreateChartInput = setup_body(request).await?;
+        let proof = inbound.into_proof();
+        target.service.create_chart(&host, proof, move || { scope?; captured.resolve() }, command, body).await
+    }.await;
+    write_json_response(result, StatusCode::CREATED)
+}
+
+async fn import_accounts<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async {
+        let (host, target) = setup_target(&state, request.headers(), &slug)?;
+        let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) { return Err(missing().into()); }
+        if unique_request_header(request.headers(), "origin")?.is_some_and(|value| value != inbound.expected_origin()) {
+            return Err(BusinessError::new(FailureKind::Forbidden, "ORIGIN_FORBIDDEN", "Use the application origin.").into());
+        }
+        let command = setup_key(request.headers())?;
+        let scope = state.scopes.slugs(request.headers());
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(request.headers(), branch, department);
+        let body: erpx_server_finance::public::finance_setup::ImportAccountsInput = setup_body(request).await?;
+        let proof = inbound.into_proof();
+        target.service.import_accounts(&host, proof, move || { scope?; captured.resolve() }, command, body).await
+    }.await;
+    write_json_response(result, StatusCode::CREATED)
+}
+
+async fn create_account<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, chart_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let result = async {
+        let (host, target) = setup_target(&state, request.headers(), &slug)?;
+        let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) { return Err(missing().into()); }
+        if unique_request_header(request.headers(), "origin")?.is_some_and(|value| value != inbound.expected_origin()) {
+            return Err(BusinessError::new(FailureKind::Forbidden, "ORIGIN_FORBIDDEN", "Use the application origin.").into());
+        }
+        let command = setup_key(request.headers())?;
+        let scope = state.scopes.slugs(request.headers());
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(request.headers(), branch, department);
+        let body: erpx_server_finance::public::finance_setup::CreateAccountInput = setup_body(request).await?;
+        let proof = inbound.into_proof();
+        target.service.create_account(&host, proof, move || { scope?; captured.resolve() }, command, chart_id, body).await
+    }.await;
+    write_json_response(result, StatusCode::CREATED)
+}
+
+async fn change_account_status<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, chart_id, account_id)): Path<(String, String, String)>,
+    request: Request,
+) -> Response {
+    let result = async {
+        let (host, target) = setup_target(&state, request.headers(), &slug)?;
+        let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) { return Err(missing().into()); }
+        if unique_request_header(request.headers(), "origin")?.is_some_and(|value| value != inbound.expected_origin()) {
+            return Err(BusinessError::new(FailureKind::Forbidden, "ORIGIN_FORBIDDEN", "Use the application origin.").into());
+        }
+        let command = setup_key(request.headers())?;
+        let scope = state.scopes.slugs(request.headers());
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(request.headers(), branch, department);
+        let body: erpx_server_finance::public::finance_setup::ChangeAccountStatusInput = setup_body(request).await?;
+        let proof = inbound.into_proof();
+        target.service.change_account_status(&host, proof, move || { scope?; captured.resolve() }, command, chart_id, account_id, body).await
+    }.await;
+    write_json_response(result, StatusCode::OK)
+}
+
+async fn create_period<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async {
+        let (host, target) = setup_target(&state, request.headers(), &slug)?;
+        let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) { return Err(missing().into()); }
+        if unique_request_header(request.headers(), "origin")?.is_some_and(|value| value != inbound.expected_origin()) {
+            return Err(BusinessError::new(FailureKind::Forbidden, "ORIGIN_FORBIDDEN", "Use the application origin.").into());
+        }
+        let command = setup_key(request.headers())?;
+        let scope = state.scopes.slugs(request.headers());
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(request.headers(), branch, department);
+        let body: erpx_server_finance::public::finance_setup::CreatePeriodInput = setup_body(request).await?;
+        let proof = inbound.into_proof();
+        target.service.create_period(&host, proof, move || { scope?; captured.resolve() }, command, body).await
+    }.await;
+    write_json_response(result, StatusCode::CREATED)
+}
+
+fn write_json_response<T: serde::Serialize>(
+    result: Result<T, PgTransactionError<BusinessError>>,
+    status: StatusCode,
+) -> Response {
+    let mut response = match result {
+        Ok(reply) => (status, Json(reply)).into_response(),
         Err(PgTransactionError::Business(error)) => business_error(error),
         Err(_) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
     };

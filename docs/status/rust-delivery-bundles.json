@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-04T01:25:37+00:00",
+  "updatedAt": "2026-11-04T01:56:44+00:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -20,8 +20,8 @@
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
     "workflowsPartial": 0,
-    "workflowsVerified": 20,
-    "workflowsMerged": 20,
+    "workflowsVerified": 21,
+    "workflowsMerged": 21,
     "ownersComplete": 1,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -3350,6 +3350,17 @@
       "durableContractRefs": [
         "docs/contracts/next/rust-finance-journal-detail.md"
       ]
+    },
+    {
+      "id": "finance-chart-of-accounts-native",
+      "kind": "business-flow-evidence",
+      "status": "flow-complete",
+      "scope": "Native Finance chart-of-accounts management: chart/account/period read, chart/account create, import, status guards, period create, receipts/audit/outbox, HTTP/Next and desktop/mobile chart page.",
+      "sourceIdentity": "finance-chart-of-accounts-native",
+      "evidenceRef": "docs/testing/evidence/2026-11-04-finance-chart-of-accounts-native.json",
+      "durableContractRefs": [
+        "docs/contracts/next/rust-finance-journal-detail.md"
+      ]
     }
   ],
   "workflows": [
@@ -3930,11 +3941,14 @@
       "owner": "finance",
       "scope": "Chart of accounts",
       "partial": false,
-      "verified": false,
-      "merged": false,
-      "evidenceFlows": [],
+      "verified": true,
+      "merged": true,
+      "evidenceFlows": [
+        "finance-chart-of-accounts-native",
+        "finance-chart-of-accounts-browser"
+      ],
       "sourceRef": "packages/server-finance/src/public/finance.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": ""
     },
     {
       "id": "finance/feature-payments",
