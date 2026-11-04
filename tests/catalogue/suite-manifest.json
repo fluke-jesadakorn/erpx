@@ -40098,6 +40098,133 @@
       ]
     },
     {
+      "id": "planning.rust-planning-workspace.unit",
+      "lane": "unit",
+      "owner": "planning",
+      "modules": [
+        "planning"
+      ],
+      "files": [
+        "tests/unit/planning/rust-planning-workspace.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Planning workspace retains Company/branch scope, scenarios/shortages/recommendations/capacity reads and bounded facts."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-manufacturing",
+        "targets": [
+          "planning_workspace"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-manufacturing/Cargo.toml"
+      ]
+    },
+    {
+      "id": "planning.rust-planning-workspace-http.unit",
+      "lane": "unit",
+      "owner": "planning",
+      "modules": [
+        "planning"
+      ],
+      "files": [
+        "tests/unit/planning/rust-planning-workspace-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Planning HTTP ingress retains exact targets, fail-closed config and bounded errors."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-manufacturing",
+        "targets": [
+          "planning_workspace_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-manufacturing/Cargo.toml"
+      ]
+    },
+    {
+      "id": "planning.rust-planning-workspace-postgres.integration",
+      "lane": "integration",
+      "owner": "planning",
+      "modules": [
+        "planning"
+      ],
+      "files": [
+        "tests/integration/planning/rust-planning-workspace-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Planning reads retain Company isolation, serializable transaction guards and persisted readback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-manufacturing",
+        "targets": [
+          "planning_workspace_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-manufacturing/Cargo.toml"
+      ]
+    },
+    {
+      "id": "planning.native-planning-workspace-transport.unit",
+      "lane": "unit",
+      "owner": "planning",
+      "modules": [
+        "planning"
+      ],
+      "files": [
+        "tests/unit/planning/native-planning-workspace-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Planning transport must retain fail-closed config, bounded responses and owner error mapping."
+      },
+      "framework": "vitest",
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/feature-manufacturing",
+        "@erpx/server-manufacturing"
+      ]
+    },
+    {
       "id": "finance.accrual-tools.unit",
       "lane": "unit",
       "owner": "finance",

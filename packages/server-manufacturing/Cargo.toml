@@ -34,3 +34,15 @@ path = "../../tests/unit/manufacturing/rust-manufacturing-bom-http.test.rs"
 [[test]]
 name = "manufacturing_bom_postgres"
 path = "../../tests/integration/manufacturing/rust-manufacturing-bom-postgres.test.rs"
+
+[[test]]
+name = "planning_workspace"
+path = "../../tests/unit/planning/rust-planning-workspace.test.rs"
+
+[[test]]
+name = "planning_workspace_http"
+path = "../../tests/unit/planning/rust-planning-workspace-http.test.rs"
+
+[[test]]
+name = "planning_workspace_postgres"
+path = "../../tests/integration/planning/rust-planning-workspace-postgres.test.rs"
