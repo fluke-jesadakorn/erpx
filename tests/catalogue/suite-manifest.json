@@ -68370,6 +68370,134 @@
       }
     },
     {
+      "id": "commerce.rust-commerce-order.unit",
+      "lane": "unit",
+      "owner": "commerce",
+      "modules": [
+        "commerce"
+      ],
+      "files": [
+        "tests/unit/commerce/rust-commerce-order.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Commerce order/quote transition retains IAM, scope, CAS, idempotency, receipt/audit/outbox and rollback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-commerce",
+        "targets": [
+          "order"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-commerce/Cargo.toml"
+      ]
+    },
+    {
+      "id": "commerce.rust-commerce-order-http.unit",
+      "lane": "unit",
+      "owner": "commerce",
+      "modules": [
+        "commerce"
+      ],
+      "files": [
+        "tests/unit/commerce/rust-commerce-order-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Commerce HTTP ingress retains exact targets, origin/key/content checks and bounded errors."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-commerce",
+        "targets": [
+          "order_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-commerce/Cargo.toml"
+      ]
+    },
+    {
+      "id": "commerce.rust-commerce-order-postgres.integration",
+      "lane": "integration",
+      "owner": "commerce",
+      "modules": [
+        "commerce"
+      ],
+      "files": [
+        "tests/integration/commerce/rust-commerce-order-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Commerce order reads/transitions retain Company isolation, persisted readback, CAS and rollback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-commerce",
+        "targets": [
+          "order_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-commerce/Cargo.toml"
+      ]
+    },
+    {
+      "id": "commerce.native-commerce-orders-transport.unit",
+      "lane": "unit",
+      "owner": "commerce",
+      "modules": [
+        "commerce"
+      ],
+      "files": [
+        "tests/unit/commerce/native-commerce-orders-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Commerce transport must retain fail-closed config, bounded responses and owner error mapping."
+      },
+      "framework": "vitest",
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/feature-commerce",
+        "@erpx/feature-sales",
+        "@erpx/server-commerce"
+      ]
+    },
+    {
       "id": "files.rust-count-submission-postgres.integration",
       "lane": "integration",
       "owner": "files",

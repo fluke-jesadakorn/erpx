@@ -26,6 +26,7 @@ import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import {commerceOverview,commercePermissions} from '@erpx/server-commerce/public/commerce';
 import { nativeInventoryReceiptFromHeaders } from "@erpx/feature-inventory/lib/native-availability";
+import { nativeCommerceOrderPage } from "@erpx/feature-sales/public/native-commerce-orders-page";
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {salesEditorOptions,type SalesEditorOptions} from "@erpx/server-commerce/public/sales-editor";
 
@@ -54,7 +55,14 @@ export default async function OrderPage({
   const actor = await requireWorkContext(holdingSlug);
   const base = workspaceBase(publicScope(actor));
   const data = await getOrder(actor, id).catch((error) => pageError(error, holdingSlug));
-  const { order, lines } = data;
+  const nativeOrder =
+    data.order.kind === "purchase"
+      ? undefined
+      : await nativeCommerceOrderPage(actor, id).catch((error) =>
+          pageError(error, holdingSlug),
+        );
+  const order = nativeOrder ? { ...data.order, ...nativeOrder.order } : data.order;
+  const lines = nativeOrder ? nativeOrder.lines : data.lines;
   const nativeActor =
     actor.authority && actor.iam
       ? {

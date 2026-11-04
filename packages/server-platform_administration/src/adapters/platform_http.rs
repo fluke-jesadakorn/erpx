@@ -5,12 +5,15 @@
 //! backend resolves the normal Account session, current Platform assignment and
 //! Holding `erpx` scope before calling the owner application. The router never
 //! mints a session, Platform role, Holding scope or permission.
-use crate::domain::platform_operations::{ProvisionHoldingInput, RecoverDeadLetterInput};
+use crate::domain::platform_operations::{
+    ProvisionHoldingInput, RecoverDeadLetterInput, RunHoldingMigrationInput,
+};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Request, Response, Router, State,
     StatusCode, body::to_bytes, get, header, post, serde_json,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
+use serde::Deserialize;
 use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
 
 const BODY_LIMIT: usize = 64 * 1024;
@@ -18,10 +21,24 @@ const BODY_LIMIT: usize = 64 * 1024;
 pub type PlatformHttpFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RecoverDeadLetterRequest {
+    holding_id: String,
+    event_id: String,
+    expected_attempts: i64,
+    expected_last_error: Option<String>,
+    reason: String,
+}
+
 #[derive(Clone, Debug)]
 pub enum PlatformHttpCommand {
     Provision(ProvisionHoldingInput),
-    Recover(RecoverDeadLetterInput),
+    Recover {
+        holding_id: String,
+        input: RecoverDeadLetterInput,
+    },
+    Migrate(RunHoldingMigrationInput),
 }
 
 pub struct PlatformHttpReadRequest<'a> {
@@ -239,12 +256,30 @@ impl PlatformHttpService {
                     })?
             }
             PlatformCommandOperation::Recover => {
-                serde_json::from_slice::<RecoverDeadLetterInput>(body)
-                    .map(PlatformHttpCommand::Recover)
-                    .map_err(|_| {
+                let request =
+                    serde_json::from_slice::<RecoverDeadLetterRequest>(body).map_err(|_| {
                         malformed(
                             "PLATFORM_INPUT_INVALID",
                             "Review the failed job recovery request.",
+                        )
+                    })?;
+                PlatformHttpCommand::Recover {
+                    holding_id: request.holding_id,
+                    input: RecoverDeadLetterInput {
+                        event_id: request.event_id,
+                        expected_attempts: request.expected_attempts,
+                        expected_last_error: request.expected_last_error,
+                        reason: request.reason,
+                    },
+                }
+            }
+            PlatformCommandOperation::Migrate => {
+                serde_json::from_slice::<RunHoldingMigrationInput>(body)
+                    .map(PlatformHttpCommand::Migrate)
+                    .map_err(|_| {
+                        malformed(
+                            "PLATFORM_INPUT_INVALID",
+                            "Review the Holding migration request.",
                         )
                     })?
             }
@@ -266,6 +301,7 @@ impl PlatformHttpService {
 pub enum PlatformCommandOperation {
     Provision,
     Recover,
+    Migrate,
 }
 
 pub fn platform_router(targets: Vec<PlatformHttpTarget>) -> Result<Router, BusinessError> {
@@ -274,6 +310,7 @@ pub fn platform_router(targets: Vec<PlatformHttpTarget>) -> Result<Router, Busin
         .route("/api/v1/platform/operations", get(read_operations))
         .route("/api/v1/platform/operations/provision", post(provision))
         .route("/api/v1/platform/operations/recover", post(recover))
+        .route("/api/v1/platform/operations/migrate", post(migrate))
         .with_state(Arc::new(PlatformHttpState { service })))
 }
 
@@ -319,6 +356,25 @@ async fn recover(
     state
         .service
         .command(&headers, &body, PlatformCommandOperation::Recover)
+        .await
+}
+async fn migrate(
+    State(state): State<Arc<PlatformHttpState>>,
+    headers: HeaderMap,
+    request: Request,
+) -> Response {
+    let body = match to_bytes(request.into_body(), BODY_LIMIT).await {
+        Ok(body) => body,
+        Err(_) => {
+            return error_response(malformed(
+                "BODY_TOO_LARGE",
+                "Use a smaller Platform request.",
+            ));
+        }
+    };
+    state
+        .service
+        .command(&headers, &body, PlatformCommandOperation::Migrate)
         .await
 }
 
@@ -410,14 +466,34 @@ mod tests {
             br#"{"holdingId":"h004","slug":"northstar","displayName":"Northstar","writeBinding":"H004_DB","readBinding":"H004_READ_DB","filesBinding":"H004_FILES","reason":"Reviewed onboarding and verified health.","extra":true}"#,
         );
         assert!(unknown.is_err());
-        let recovery = serde_json::from_slice::<RecoverDeadLetterInput>(
-            br#"{"eventId":"platform-recovery-event","expectedAttempts":6,"expectedLastError":"PROJECTOR_TIMEOUT","reason":"Provider is healthy."}"#,
+        let recovery = serde_json::from_slice::<RecoverDeadLetterRequest>(
+            br#"{"holdingId":"h001","eventId":"platform-recovery-event","expectedAttempts":6,"expectedLastError":"PROJECTOR_TIMEOUT","reason":"Provider is healthy."}"#,
         );
         assert!(recovery.is_ok());
-        let missing = serde_json::from_slice::<RecoverDeadLetterInput>(
-            br#"{"expectedAttempts":6,"reason":"Provider is healthy."}"#,
+        let missing = serde_json::from_slice::<RecoverDeadLetterRequest>(
+            br#"{"eventId":"platform-recovery-event","expectedAttempts":6,"reason":"Provider is healthy."}"#,
         );
         assert!(missing.is_err());
+        let domain = serde_json::from_slice::<RecoverDeadLetterInput>(
+            br#"{"eventId":"platform-recovery-event","expectedAttempts":6,"expectedLastError":"PROJECTOR_TIMEOUT","reason":"Provider is healthy."}"#,
+        );
+        assert!(domain.is_ok());
+        let unknown = serde_json::from_slice::<RecoverDeadLetterRequest>(
+            br#"{"holdingId":"h001","eventId":"platform-recovery-event","expectedAttempts":6,"expectedLastError":"PROJECTOR_TIMEOUT","reason":"Provider is healthy.","extra":true}"#,
+        );
+        assert!(unknown.is_err());
+        let migration = serde_json::from_slice::<RunHoldingMigrationInput>(
+            br#"{"holdingId":"h001","track":"holding-write","reason":"Apply the reviewed release schema."}"#,
+        );
+        assert!(migration.is_ok());
+        let wrong_track = serde_json::from_slice::<RunHoldingMigrationInput>(
+            br#"{"holdingId":"h001","track":"holding-read","reason":"Apply the reviewed release schema."}"#,
+        );
+        assert!(wrong_track.is_ok());
+        let unknown = serde_json::from_slice::<RunHoldingMigrationInput>(
+            br#"{"holdingId":"h001","track":"holding-write","reason":"Apply the reviewed release schema.","extra":true}"#,
+        );
+        assert!(unknown.is_err());
         assert_eq!(key().as_str(), "platform-http-key-01");
     }
 
@@ -513,12 +589,38 @@ mod tests {
         )
         .await;
         assert_eq!(status, 200);
+        let (status, _) = http(
+            addr,
+            post(
+                "erpx-internal.example.test",
+                "https://erpx-internal.example.test",
+                Some("platform-http-key-02"),
+                "application/json",
+                &provision,
+            ),
+        )
+        .await;
+        assert_eq!(status, 200);
+        let migration = serde_json::json!({
+            "holdingId":"h001","track":"holding-write",
+            "reason":"Apply the reviewed release schema before enabling the next workflow."
+        })
+        .to_string();
+        let (status, _) = http(
+            addr,
+            format!(
+                "POST /api/v1/platform/operations/migrate HTTP/1.1\r\nHost: erpx-internal.example.test\r\nOrigin: https://erpx-internal.example.test\r\nContent-Type: application/json\r\nIdempotency-Key: platform-http-migration-01\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{migration}",
+                migration.len()
+            ),
+        )
+        .await;
+        assert_eq!(status, 200);
         let (status, body) = http(
             addr,
             post(
                 "erpx-internal.example.test",
                 "https://evil.example.test",
-                Some("platform-http-key-02"),
+                Some("platform-http-key-03"),
                 "application/json",
                 &provision,
             ),
@@ -571,6 +673,14 @@ mod tests {
         assert!(
             seen.iter()
                 .any(|value| value.starts_with("command:platform-http-key-01"))
+        );
+        assert!(
+            seen.iter()
+                .any(|value| value.starts_with("command:platform-http-migration-01"))
+        );
+        assert!(
+            seen.iter()
+                .any(|value| value.contains("Migrate(RunHoldingMigrationInput"))
         );
         server.abort();
     }

@@ -118,6 +118,16 @@ export type NativePlatformRecoveryResult = {
   previousError: string | null;
   recoveredAt: number;
 };
+export type NativePlatformMigrationResult = {
+  runId: string;
+  holdingId: string;
+  track: 'holding-write';
+  status: 'succeeded';
+  appliedBefore: number;
+  appliedAfter: number;
+  pending: string[];
+  finishedAt: number;
+};
 
 export class NativePlatformAdminError extends Error {
   readonly code: string;
@@ -465,6 +475,35 @@ function recovery(value: unknown, actor: NativePlatformAdminActor): NativePlatfo
   return data as NativePlatformRecoveryResult;
 }
 
+function migration(value: unknown, actor: NativePlatformAdminActor): NativePlatformMigrationResult {
+  const row = fields(value, ['data', 'context']);
+  context(row.context, actor);
+  const data = fields(row.data, [
+    'runId',
+    'holdingId',
+    'track',
+    'status',
+    'appliedBefore',
+    'appliedAfter',
+    'pending',
+    'finishedAt',
+  ]);
+  if (
+    !identifier(data.runId) ||
+    !identifier(data.holdingId) ||
+    data.track !== 'holding-write' ||
+    data.status !== 'succeeded' ||
+    !integer(data.appliedBefore) ||
+    !integer(data.appliedAfter) ||
+    data.appliedAfter < data.appliedBefore ||
+    !Array.isArray(data.pending) ||
+    !data.pending.every((item) => text(item, 240)) ||
+    !integer(data.finishedAt)
+  )
+    return fail('NATIVE_PLATFORM_ADMIN_RESPONSE_INVALID');
+  return data as NativePlatformMigrationResult;
+}
+
 function configuration(raw: NativePlatformAdminConfiguration): NativePlatformAdminConfiguration {
   if (
     typeof raw?.privateBaseUrl !== 'string' ||
@@ -765,6 +804,27 @@ export function createNativePlatformAdminClient(
           incoming,
           actor,
           '/operations/recover',
+          JSON.stringify(body),
+          idempotencyKey,
+          incoming.get('origin') ?? undefined,
+        ),
+        actor,
+      );
+    },
+    async migrate(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativePlatformAdminActor,
+      body: unknown,
+      idempotencyKey: string,
+    ): Promise<NativePlatformMigrationResult> {
+      if (!object(body)) throw new NativePlatformAdminError('NATIVE_PLATFORM_ADMIN_REQUEST_INVALID');
+      return migration(
+        await call(
+          transport,
+          config,
+          incoming,
+          actor,
+          '/operations/migrate',
           JSON.stringify(body),
           idempotencyKey,
           incoming.get('origin') ?? undefined,

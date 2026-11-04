@@ -8,7 +8,7 @@ use crate::application::platform_operations::{PlatformAdministrationStore, Platf
 use crate::domain::platform_operations::*;
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationFile, MigrationTrack, PgTransactionError, PgUnitOfWork, SessionLock,
-    TransactionOptions, inspect_migrations,
+    TransactionOptions, inspect_migrations, migrate_database,
 };
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use sqlx::{PgConnection, Row};
@@ -37,6 +37,22 @@ fn configuration_error() -> BusinessError {
     BusinessError::invalid(
         "PLATFORM_OPERATIONS_CONFIGURATION_INVALID",
         "Use distinct configured Control and Holding sources.",
+    )
+}
+
+fn receipt_unavailable() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "MIGRATION_RECEIPT_UNAVAILABLE",
+        "Migration receipts are unavailable for this Holding.",
+    )
+}
+
+fn migration_failed() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "MIGRATION_FAILED",
+        "The Holding migration failed. Review the platform migration receipt and database logs.",
     )
 }
 
@@ -156,6 +172,28 @@ fn provisioning_row(row: &sqlx::postgres::PgRow) -> Result<PlatformProvisioningR
         activated_at: row.try_get("activated_at")?,
         updated_at: row.try_get("updated_at")?,
     })
+}
+
+fn migration_receipt(row: &sqlx::postgres::PgRow) -> Result<MigrationRunReceipt, BusinessError> {
+    let status: String = row.try_get("status").map_err(|_| database_error())?;
+    Ok(MigrationRunReceipt {
+        request_hash: row.try_get("request_hash").map_err(|_| database_error())?,
+        status: MigrationRunStatus::parse(&status).ok_or_else(receipt_unavailable)?,
+        result_json: row.try_get("result_json").map_err(|_| database_error())?,
+        error: row.try_get("error").map_err(|_| database_error())?,
+    })
+}
+
+fn bounded_migration_error(
+    error: &erpx_server_runtime::public::postgres::PersistenceError,
+) -> String {
+    let message = error.to_string();
+    message.chars().take(MIGRATION_ERROR_MAX).collect()
+}
+
+enum MigrationStart {
+    Started { run_id: String, version: i64 },
+    Replay(RunHoldingMigrationResult),
 }
 
 impl PlatformAdministrationStore for PgPlatformAdministration {
@@ -411,6 +449,326 @@ impl PlatformAdministrationStore for PgPlatformAdministration {
             }
         })
     }
+
+    fn migration_run_receipt<'a>(
+        &'a self,
+        key: &'a str,
+    ) -> PlatformFuture<'a, Option<MigrationRunReceipt>> {
+        Box::pin(async move {
+            let row = sqlx::query(
+                "SELECT request_hash,status,result_json,error FROM platform_migration_runs \
+                 WHERE idempotency_key=$1",
+            )
+            .bind(key)
+            .fetch_optional(self.control.raw())
+            .await
+            .map_err(|_| database_error())?;
+            row.as_ref().map(migration_receipt).transpose()
+        })
+    }
+
+    fn run_holding_migration<'a>(
+        &'a self,
+        plan: MigrationRunPlan,
+    ) -> PlatformFuture<'a, RunHoldingMigrationResult> {
+        Box::pin(async move {
+            let pool = self.holding(&plan.holding.id)?.pool.clone();
+            let files = self.migration_files.clone();
+            let before = inspect_migrations(&pool, MigrationTrack::HoldingWrite, files.as_slice())
+                .await
+                .map_err(|_| receipt_unavailable())?;
+            let started = self
+                .start_migration_run(&plan, before.applied as i64)
+                .await?;
+            let (run_id, version) = match started {
+                MigrationStart::Replay(result) => return Ok(result),
+                MigrationStart::Started { run_id, version } => (run_id, version),
+            };
+            match migrate_database(&pool, MigrationTrack::HoldingWrite, files.as_slice()).await {
+                Ok(_) => {
+                    let after = match inspect_migrations(
+                        &pool,
+                        MigrationTrack::HoldingWrite,
+                        files.as_slice(),
+                    )
+                    .await
+                    {
+                        Ok(after) => after,
+                        Err(_) => {
+                            self.fail_migration_run(
+                                &plan,
+                                &run_id,
+                                version,
+                                before.applied as i64,
+                                "MIGRATION_RECEIPT_UNAVAILABLE",
+                            )
+                            .await;
+                            return Err(receipt_unavailable());
+                        }
+                    };
+                    let result = RunHoldingMigrationResult {
+                        run_id: run_id.clone(),
+                        holding_id: plan.holding.id.clone(),
+                        track: MIGRATION_TRACK.into(),
+                        status: MigrationRunStatus::Succeeded,
+                        applied_before: before.applied as i64,
+                        applied_after: after.applied as i64,
+                        pending: after.pending,
+                        finished_at: plan.now,
+                    };
+                    self.finish_migration_run(&plan, &run_id, version, &result)
+                        .await
+                }
+                Err(error) => {
+                    let applied_after =
+                        inspect_migrations(&pool, MigrationTrack::HoldingWrite, files.as_slice())
+                            .await
+                            .map(|after| after.applied as i64)
+                            .unwrap_or(before.applied as i64);
+                    self.fail_migration_run(
+                        &plan,
+                        &run_id,
+                        version,
+                        applied_after,
+                        &bounded_migration_error(&error),
+                    )
+                    .await;
+                    Err(migration_failed())
+                }
+            }
+        })
+    }
+}
+
+impl PgPlatformAdministration {
+    async fn start_migration_run(
+        &self,
+        plan: &MigrationRunPlan,
+        applied_before: i64,
+    ) -> Result<MigrationStart, BusinessError> {
+        let unit = PgUnitOfWork::new(self.control.clone());
+        let options = TransactionOptions {
+            session_lock: Some(SessionLock {
+                namespace: "platform-migration-start".into(),
+                key: plan.key.clone(),
+            }),
+            prefer_indexed_reads: false,
+        };
+        let plan = plan.clone();
+        unit.run(options, move |connection| {
+            let plan = plan.clone();
+            Box::pin(
+                async move { start_migration_transaction(connection, &plan, applied_before).await },
+            )
+        })
+        .await
+        .map_err(platform_business_error)
+    }
+
+    async fn finish_migration_run(
+        &self,
+        plan: &MigrationRunPlan,
+        run_id: &str,
+        version: i64,
+        result: &RunHoldingMigrationResult,
+    ) -> Result<RunHoldingMigrationResult, BusinessError> {
+        let result_json = serde_json::to_string(result).map_err(|_| {
+            BusinessError::new(
+                FailureKind::Unavailable,
+                "MIGRATION_RECEIPT_INVALID",
+                "The migration receipt could not be retained.",
+            )
+        })?;
+        let unit = PgUnitOfWork::new(self.control.clone());
+        let options = TransactionOptions {
+            session_lock: Some(SessionLock {
+                namespace: "platform-migration-finish".into(),
+                key: run_id.to_owned(),
+            }),
+            prefer_indexed_reads: false,
+        };
+        let plan = plan.clone();
+        let run_id = run_id.to_owned();
+        let result = result.clone();
+        unit.run(options, move |connection| {
+            let plan = plan.clone();
+            let run_id = run_id.clone();
+            let result = result.clone();
+            let result_json = result_json.clone();
+            Box::pin(async move {
+                finalize_migration_success(
+                    connection,
+                    &plan,
+                    &run_id,
+                    version,
+                    &result_json,
+                    result,
+                )
+                .await
+            })
+        })
+        .await
+        .map_err(platform_business_error)
+    }
+
+    async fn fail_migration_run(
+        &self,
+        plan: &MigrationRunPlan,
+        run_id: &str,
+        version: i64,
+        applied_after: i64,
+        error: &str,
+    ) {
+        let unit = PgUnitOfWork::new(self.control.clone());
+        let options = TransactionOptions {
+            session_lock: Some(SessionLock {
+                namespace: "platform-migration-fail".into(),
+                key: run_id.to_owned(),
+            }),
+            prefer_indexed_reads: false,
+        };
+        let run_id = run_id.to_owned();
+        let error = error.to_owned();
+        let now = plan.now;
+        let _ = unit
+            .run(options, move |connection| {
+                let run_id = run_id.clone();
+                let error = error.clone();
+                Box::pin(async move {
+                    finalize_migration_failure(
+                        connection,
+                        &run_id,
+                        version,
+                        applied_after,
+                        now,
+                        &error,
+                    )
+                    .await
+                })
+            })
+            .await;
+    }
+}
+
+async fn start_migration_transaction(
+    connection: &mut PgConnection,
+    plan: &MigrationRunPlan,
+    applied_before: i64,
+) -> Result<MigrationStart, PgTransactionError<BusinessError>> {
+    if let Some(row) = sqlx::query(
+        "SELECT request_hash,status,result_json,error FROM platform_migration_runs \
+         WHERE idempotency_key=$1 FOR UPDATE",
+    )
+    .bind(&plan.key)
+    .fetch_optional(&mut *connection)
+    .await?
+    {
+        let receipt = migration_receipt(&row).map_err(PgTransactionError::Business)?;
+        if receipt.request_hash != plan.digest {
+            return Err(BusinessError::new(
+                FailureKind::Conflict,
+                "IDEMPOTENCY_CONFLICT",
+                "This command key belongs to a different migration request.",
+            )
+            .into());
+        }
+        return migration_run_result(&receipt)
+            .map(MigrationStart::Replay)
+            .map_err(PgTransactionError::Business);
+    }
+    let row = sqlx::query(
+        "INSERT INTO platform_migration_runs(id,idempotency_key,request_hash,holding_id,track,status,\
+         requested_by,assignment_id,reason,applied_before,applied_after,requested_at,started_at,version) \
+         VALUES('platform-migration-'||gen_random_uuid()::text,$1,$2,$3,$4,'running',$5,$6,$7,$8,$8,$9,$9,1) \
+         RETURNING id,version",
+    )
+    .bind(&plan.key)
+    .bind(&plan.digest)
+    .bind(&plan.holding.id)
+    .bind(MIGRATION_TRACK)
+    .bind(&plan.actor.user_id)
+    .bind(&plan.actor.assignment_id)
+    .bind(&plan.input.reason)
+    .bind(applied_before)
+    .bind(plan.now)
+    .fetch_one(&mut *connection)
+    .await?;
+    Ok(MigrationStart::Started {
+        run_id: row.try_get("id")?,
+        version: row.try_get("version")?,
+    })
+}
+
+async fn finalize_migration_success(
+    connection: &mut PgConnection,
+    plan: &MigrationRunPlan,
+    run_id: &str,
+    version: i64,
+    result_json: &str,
+    result: RunHoldingMigrationResult,
+) -> Result<RunHoldingMigrationResult, PgTransactionError<BusinessError>> {
+    let updated = sqlx::query(
+        "UPDATE platform_migration_runs SET status='succeeded',applied_after=$1,result_json=$2,\
+         finished_at=$3,version=version+1 WHERE id=$4 AND status='running' AND version=$5 \
+         RETURNING version",
+    )
+    .bind(result.applied_after)
+    .bind(result_json)
+    .bind(plan.now)
+    .bind(run_id)
+    .bind(version)
+    .fetch_optional(&mut *connection)
+    .await?;
+    if updated.is_none() {
+        let row = sqlx::query(
+            "SELECT request_hash,status,result_json,error FROM platform_migration_runs \
+             WHERE idempotency_key=$1",
+        )
+        .bind(&plan.key)
+        .fetch_optional(&mut *connection)
+        .await?;
+        let Some(row) = row else {
+            return Err(BusinessError::new(
+                FailureKind::Conflict,
+                "MIGRATION_STATE_CHANGED",
+                "This migration receipt changed. Refresh the operations page before retrying.",
+            )
+            .into());
+        };
+        let receipt = migration_receipt(&row).map_err(PgTransactionError::Business)?;
+        if receipt.request_hash != plan.digest {
+            return Err(BusinessError::new(
+                FailureKind::Conflict,
+                "IDEMPOTENCY_CONFLICT",
+                "This command key belongs to a different migration request.",
+            )
+            .into());
+        }
+        return migration_run_result(&receipt).map_err(PgTransactionError::Business);
+    }
+    Ok(result)
+}
+
+async fn finalize_migration_failure(
+    connection: &mut PgConnection,
+    run_id: &str,
+    version: i64,
+    applied_after: i64,
+    now: i64,
+    error: &str,
+) -> Result<(), PgTransactionError<BusinessError>> {
+    sqlx::query(
+        "UPDATE platform_migration_runs SET status='failed',error=$1,applied_after=$2,finished_at=$3,\
+         version=version+1 WHERE id=$4 AND status='running' AND version=$5",
+    )
+    .bind(error)
+    .bind(applied_after)
+    .bind(now)
+    .bind(run_id)
+    .bind(version)
+    .execute(&mut *connection)
+    .await?;
+    Ok(())
 }
 
 async fn provision_transaction(

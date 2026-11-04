@@ -15,6 +15,8 @@ pub const REASON_MAX: usize = 1000;
 pub const EVENT_ID_MAX: usize = 181;
 pub const LAST_ERROR_MAX: usize = 64;
 pub const DEAD_LETTER_LIMIT: usize = 20;
+pub const MIGRATION_TRACK: &str = "holding-write";
+pub const MIGRATION_ERROR_MAX: usize = 1000;
 
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -229,6 +231,70 @@ pub struct RecoveryReceipt {
     pub result_json: Option<String>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MigrationRunStatus {
+    Running,
+    Succeeded,
+    Failed,
+}
+impl MigrationRunStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Running => "running",
+            Self::Succeeded => "succeeded",
+            Self::Failed => "failed",
+        }
+    }
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "running" => Some(Self::Running),
+            "succeeded" => Some(Self::Succeeded),
+            "failed" => Some(Self::Failed),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RunHoldingMigrationInput {
+    pub holding_id: String,
+    pub track: String,
+    pub reason: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunHoldingMigrationResult {
+    pub run_id: String,
+    pub holding_id: String,
+    pub track: String,
+    pub status: MigrationRunStatus,
+    pub applied_before: i64,
+    pub applied_after: i64,
+    pub pending: Vec<String>,
+    pub finished_at: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MigrationRunPlan {
+    pub actor: PlatformActor,
+    pub holding: PlatformHoldingIdentity,
+    pub input: RunHoldingMigrationInput,
+    pub key: String,
+    pub digest: String,
+    pub now: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MigrationRunReceipt {
+    pub request_hash: String,
+    pub status: MigrationRunStatus,
+    pub result_json: Option<String>,
+    pub error: Option<String>,
+}
+
 pub fn sha256_hex(bytes: &[u8]) -> String {
     hex::encode(Sha256::digest(bytes))
 }
@@ -254,6 +320,17 @@ fn forbidden(
 ) -> erpx_server_shared::public::BusinessError {
     erpx_server_shared::public::BusinessError::new(
         erpx_server_shared::public::FailureKind::Forbidden,
+        code,
+        message,
+    )
+}
+
+fn unavailable(
+    code: &'static str,
+    message: &'static str,
+) -> erpx_server_shared::public::BusinessError {
+    erpx_server_shared::public::BusinessError::new(
+        erpx_server_shared::public::FailureKind::Unavailable,
         code,
         message,
     )
@@ -469,6 +546,79 @@ pub fn recovery_digest(
         "input": input,
     });
     sha256_hex(value.to_string().as_bytes())
+}
+
+pub fn validate_migration_run(
+    actor: &PlatformActor,
+    holding_id: &str,
+    input: &RunHoldingMigrationInput,
+) -> Result<RunHoldingMigrationInput, erpx_server_shared::public::BusinessError> {
+    require_platform_admin(actor)?;
+    validate_holding_id(holding_id)?;
+    if input.holding_id != holding_id {
+        return Err(invalid(
+            "VALIDATION_FAILED",
+            "Choose the Holding selected for this migration run.",
+        ));
+    }
+    if input.track != MIGRATION_TRACK {
+        return Err(invalid(
+            "VALIDATION_FAILED",
+            "Only Holding write migrations can be run from this console.",
+        ));
+    }
+    Ok(RunHoldingMigrationInput {
+        holding_id: holding_id.to_owned(),
+        track: MIGRATION_TRACK.to_owned(),
+        reason: validate_reason(&input.reason, 3)?,
+    })
+}
+
+pub fn migration_digest(
+    actor: &PlatformActor,
+    key: &str,
+    holding_id: &str,
+    input: &RunHoldingMigrationInput,
+) -> String {
+    let value = serde_json::json!({
+        "actor": actor.user_id,
+        "assignment": actor.assignment_id,
+        "role": actor.role,
+        "operation": "platform.holding.migrate",
+        "key": key,
+        "holdingId": holding_id,
+        "input": input,
+    });
+    sha256_hex(value.to_string().as_bytes())
+}
+
+pub fn migration_run_result(
+    receipt: &MigrationRunReceipt,
+) -> Result<RunHoldingMigrationResult, erpx_server_shared::public::BusinessError> {
+    match receipt.status {
+        MigrationRunStatus::Succeeded => {
+            let retained = receipt.result_json.as_deref().ok_or_else(|| {
+                unavailable(
+                    "COMMAND_RECEIPT_INVALID",
+                    "The previous migration receipt is unavailable.",
+                )
+            })?;
+            serde_json::from_str(retained).map_err(|_| {
+                unavailable(
+                    "COMMAND_RECEIPT_INVALID",
+                    "The previous migration receipt is unavailable.",
+                )
+            })
+        }
+        MigrationRunStatus::Running => Err(conflict(
+            "MIGRATION_IN_PROGRESS",
+            "The previous migration run is still being finalized. Retry the same command later.",
+        )),
+        MigrationRunStatus::Failed => Err(conflict(
+            "MIGRATION_FAILED",
+            "The previous migration run failed. Review the platform migration receipt before retrying.",
+        )),
+    }
 }
 
 pub fn provisioning_result(
@@ -812,5 +962,139 @@ mod tests {
         bad = input;
         bad.reason = "x".into();
         assert!(validate_recovery(&actor("platform_admin"), "h001", &bad).is_err());
+    }
+
+    fn migration_input() -> RunHoldingMigrationInput {
+        RunHoldingMigrationInput {
+            holding_id: "h001".into(),
+            track: MIGRATION_TRACK.into(),
+            reason: "Apply the reviewed release schema before enabling the next workflow.".into(),
+        }
+    }
+
+    #[test]
+    fn migration_runs_require_admin_the_holding_identity_and_only_the_write_track() {
+        assert_eq!(
+            validate_migration_run(&actor("platform_auditor"), "h001", &migration_input())
+                .unwrap_err()
+                .code,
+            "FORBIDDEN"
+        );
+        let mut changed = migration_input();
+        changed.track = "holding-read".into();
+        assert_eq!(
+            validate_migration_run(&actor("platform_admin"), "h001", &changed)
+                .unwrap_err()
+                .code,
+            "VALIDATION_FAILED"
+        );
+        let mut changed = migration_input();
+        changed.holding_id = "h002".into();
+        assert_eq!(
+            validate_migration_run(&actor("platform_admin"), "h001", &changed)
+                .unwrap_err()
+                .code,
+            "VALIDATION_FAILED"
+        );
+        let mut changed = migration_input();
+        changed.reason = " x ".into();
+        assert!(validate_migration_run(&actor("platform_admin"), "h001", &changed).is_err());
+        assert!(
+            validate_migration_run(&actor("platform_admin"), "erpx", &migration_input()).is_err()
+        );
+    }
+
+    #[test]
+    fn migration_digest_binds_the_actor_holding_key_and_normalized_input() {
+        let unchanged =
+            validate_migration_run(&actor("platform_admin"), "h001", &migration_input()).unwrap();
+        let first = migration_digest(
+            &actor("platform_admin"),
+            "platform-migration-key-1",
+            "h001",
+            &unchanged,
+        );
+        assert_eq!(first.len(), 64);
+        assert_eq!(
+            first,
+            migration_digest(
+                &actor("platform_admin"),
+                "platform-migration-key-1",
+                "h001",
+                &unchanged,
+            )
+        );
+        assert_ne!(
+            first,
+            migration_digest(
+                &actor("platform_admin"),
+                "platform-migration-key-2",
+                "h001",
+                &unchanged,
+            )
+        );
+        assert_ne!(
+            first,
+            migration_digest(
+                &actor("platform_admin"),
+                "platform-migration-key-1",
+                "h002",
+                &unchanged,
+            )
+        );
+    }
+
+    #[test]
+    fn migration_receipts_replay_only_succeeded_results_and_fail_closed_otherwise() {
+        let result = RunHoldingMigrationResult {
+            run_id: "platform-migration-1".into(),
+            holding_id: "h001".into(),
+            track: MIGRATION_TRACK.into(),
+            status: MigrationRunStatus::Succeeded,
+            applied_before: 4,
+            applied_after: 5,
+            pending: Vec::new(),
+            finished_at: 10,
+        };
+        let succeeded = MigrationRunReceipt {
+            request_hash: "hash".into(),
+            status: MigrationRunStatus::Succeeded,
+            result_json: Some(serde_json::to_string(&result).unwrap()),
+            error: None,
+        };
+        assert_eq!(migration_run_result(&succeeded).unwrap(), result);
+        assert_eq!(
+            migration_run_result(&MigrationRunReceipt {
+                status: MigrationRunStatus::Succeeded,
+                result_json: None,
+                ..succeeded.clone()
+            })
+            .unwrap_err()
+            .code,
+            "COMMAND_RECEIPT_INVALID"
+        );
+        assert_eq!(
+            migration_run_result(&MigrationRunReceipt {
+                status: MigrationRunStatus::Running,
+                ..succeeded.clone()
+            })
+            .unwrap_err()
+            .code,
+            "MIGRATION_IN_PROGRESS"
+        );
+        assert_eq!(
+            migration_run_result(&MigrationRunReceipt {
+                status: MigrationRunStatus::Failed,
+                ..succeeded
+            })
+            .unwrap_err()
+            .code,
+            "MIGRATION_FAILED"
+        );
+        assert_eq!(
+            MigrationRunStatus::parse("succeeded"),
+            Some(MigrationRunStatus::Succeeded)
+        );
+        assert_eq!(MigrationRunStatus::parse("unknown"), None);
     }
 }

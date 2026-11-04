@@ -4,6 +4,7 @@ import {
   nativePlatformAdminConfiguration,
   NativePlatformAdminError,
   type NativePlatformAdminActor,
+  type NativePlatformMigrationResult,
   type NativePlatformOperationsSnapshot,
   type NativePlatformProvisioningResult,
   type NativePlatformRecoveryResult,
@@ -100,6 +101,18 @@ export async function nativePlatformRecover(
   const native = nativeClient();
   if (!native) return undefined;
   return native.recover(incoming, platformAdminActor(work, platform), body, idempotencyKey);
+}
+
+export async function nativePlatformMigrate(
+  work: PlatformAdminWorkInput,
+  platform: PlatformAdminPlatformInput,
+  incoming: Pick<Headers, 'get'>,
+  body: unknown,
+  idempotencyKey: string,
+): Promise<NativePlatformMigrationResult | undefined> {
+  const native = nativeClient();
+  if (!native) return undefined;
+  return native.migrate(incoming, platformAdminActor(work, platform), body, idempotencyKey);
 }
 
 export { nativePlatformAdminFailure } from '../adapters/server/native-platform-administration';

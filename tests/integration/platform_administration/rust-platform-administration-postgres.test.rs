@@ -8,7 +8,7 @@
 mod fixture;
 use erpx_server_platform_administration::public::platform_operations::*;
 use erpx_server_runtime::public::postgres::{
-    DatabasePool, MigrationTrack, load_migrations, migrate_database,
+    DatabasePool, MigrationTrack, inspect_migrations, load_migrations, migrate_database,
 };
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use sqlx::Row;
@@ -56,6 +56,13 @@ fn holding_identity(id: &str, slug: &str) -> PlatformHoldingIdentity {
         id: id.into(),
         slug: slug.into(),
         display_name: format!("Holding {slug}"),
+    }
+}
+fn migration_input(holding_id: &str) -> RunHoldingMigrationInput {
+    RunHoldingMigrationInput {
+        holding_id: holding_id.into(),
+        track: MIGRATION_TRACK.into(),
+        reason: "Apply the reviewed release schema before enabling the next workflow.".into(),
     }
 }
 async fn migrate(pool: &DatabasePool, track: MigrationTrack) {
@@ -499,6 +506,346 @@ async fn operations_summary_reads_real_queues_and_recovery_is_reviewed_idempoten
     .await;
 }
 
+#[tokio::test]
+async fn holding_migrations_run_once_with_control_receipt_and_holdings_isolation() {
+    fixture::with_database(3, |control| async move {
+        fixture::with_database(2, move |h001| async move {
+            fixture::with_database(2, move |h002| async move {
+                migrate(&control, MigrationTrack::Control).await;
+                let store = owner(
+                    &control,
+                    vec![
+                        PlatformHoldingDatabase {
+                            identity: holding_identity("h001", "acme"),
+                            pool: h001.clone(),
+                        },
+                        PlatformHoldingDatabase {
+                            identity: holding_identity("h002", "northstar"),
+                            pool: h002.clone(),
+                        },
+                    ],
+                )
+                .await;
+                let first = run_holding_migration(
+                    &admin(),
+                    &store,
+                    &holding_identity("h001", "acme"),
+                    &migration_input("h001"),
+                    "platform-migration-key-1",
+                    NOW,
+                )
+                .await
+                .unwrap();
+                assert_eq!(first.holding_id, "h001");
+                assert_eq!(first.track, MIGRATION_TRACK);
+                assert_eq!(first.status, MigrationRunStatus::Succeeded);
+                assert_eq!(first.applied_before, 0);
+                assert!(first.applied_after > 0);
+                assert!(first.pending.is_empty());
+                assert_eq!(first.finished_at, NOW);
+                assert!(first.run_id.starts_with("platform-migration-"));
+
+                let receipt = sqlx::query(
+                    "SELECT status,holding_id,requested_by,assignment_id,reason,applied_before,\
+                     applied_after,result_json,error,version,finished_at \
+                     FROM platform_migration_runs WHERE idempotency_key='platform-migration-key-1'",
+                )
+                .fetch_one(control.raw())
+                .await
+                .unwrap();
+                assert_eq!(receipt.get::<String, _>("status"), "succeeded");
+                assert_eq!(receipt.get::<String, _>("holding_id"), "h001");
+                assert_eq!(
+                    receipt.get::<String, _>("requested_by"),
+                    "platform-operator"
+                );
+                assert_eq!(
+                    receipt.get::<String, _>("assignment_id"),
+                    "platform-assignment"
+                );
+                assert_eq!(
+                    receipt.get::<String, _>("reason"),
+                    "Apply the reviewed release schema before enabling the next workflow."
+                );
+                assert_eq!(receipt.get::<i64, _>("applied_before"), 0);
+                assert_eq!(receipt.get::<i64, _>("applied_after"), first.applied_after);
+                assert_eq!(receipt.get::<Option<String>, _>("error"), None);
+                assert_eq!(receipt.get::<i64, _>("version"), 2);
+                assert_eq!(receipt.get::<i64, _>("finished_at"), NOW);
+                let retained: RunHoldingMigrationResult =
+                    serde_json::from_str(&receipt.get::<String, _>("result_json")).unwrap();
+                assert_eq!(retained, first);
+
+                let h001_applied =
+                    count(&h001, "SELECT count(*)::bigint FROM erpx_migrations").await;
+                assert_eq!(h001_applied, first.applied_after);
+                let h002_files = load_migrations(
+                    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                        .join("../../migrations/postgres"),
+                    MigrationTrack::HoldingWrite,
+                )
+                .await
+                .unwrap();
+                let h002_status =
+                    inspect_migrations(&h002, MigrationTrack::HoldingWrite, &h002_files)
+                        .await
+                        .unwrap();
+                assert_eq!(h002_status.applied, 0);
+                assert_eq!(h002_status.pending.len(), h002_files.len());
+                let summary = platform_operations_summary(
+                    &admin(),
+                    &store,
+                    &[holding_identity("h001", "acme")],
+                    NOW,
+                )
+                .await
+                .unwrap();
+                assert_eq!(summary.holdings[0].migrations.applied, first.applied_after);
+                assert!(summary.holdings[0].migrations.pending.is_empty());
+                assert_eq!(summary.holdings[0].migrations.error, None);
+
+                let replay = run_holding_migration(
+                    &admin(),
+                    &store,
+                    &holding_identity("h001", "acme"),
+                    &migration_input("h001"),
+                    "platform-migration-key-1",
+                    NOW + 1,
+                )
+                .await
+                .unwrap();
+                assert_eq!(replay, first);
+                assert_eq!(
+                    count(
+                        &control,
+                        "SELECT count(*)::bigint FROM platform_migration_runs \
+                         WHERE idempotency_key='platform-migration-key-1'"
+                    )
+                    .await,
+                    1
+                );
+                assert_eq!(
+                    count(&h001, "SELECT count(*)::bigint FROM erpx_migrations").await,
+                    h001_applied
+                );
+                assert_eq!(
+                    count(
+                        &control,
+                        "SELECT version FROM platform_migration_runs \
+                         WHERE idempotency_key='platform-migration-key-1'"
+                    )
+                    .await,
+                    2
+                );
+
+                let conflict = run_holding_migration(
+                    &admin(),
+                    &store,
+                    &holding_identity("h001", "acme"),
+                    &RunHoldingMigrationInput {
+                        reason: "A different request using the same command key.".into(),
+                        ..migration_input("h001")
+                    },
+                    "platform-migration-key-1",
+                    NOW + 2,
+                )
+                .await
+                .unwrap_err();
+                assert_eq!(conflict.code, "IDEMPOTENCY_CONFLICT");
+                let denied = run_holding_migration(
+                    &auditor(),
+                    &store,
+                    &holding_identity("h001", "acme"),
+                    &migration_input("h001"),
+                    "platform-migration-key-2",
+                    NOW,
+                )
+                .await
+                .unwrap_err();
+                assert_eq!(denied.code, "FORBIDDEN");
+                let invalid = run_holding_migration(
+                    &admin(),
+                    &store,
+                    &holding_identity("h001", "acme"),
+                    &RunHoldingMigrationInput {
+                        track: "holding-read".into(),
+                        ..migration_input("h001")
+                    },
+                    "platform-migration-key-3",
+                    NOW,
+                )
+                .await
+                .unwrap_err();
+                assert_eq!(invalid.code, "VALIDATION_FAILED");
+                let missing = run_holding_migration(
+                    &admin(),
+                    &store,
+                    &holding_identity("missing", "missing"),
+                    &migration_input("missing"),
+                    "platform-migration-key-4",
+                    NOW,
+                )
+                .await
+                .unwrap_err();
+                assert_eq!(missing.code, "NOT_FOUND");
+            })
+            .await;
+        })
+        .await;
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn a_failed_holding_migration_is_retained_as_failed_without_a_success_result() {
+    fixture::with_database(3, |control| async move {
+        fixture::with_database(2, move |holding| async move {
+            migrate(&control, MigrationTrack::Control).await;
+            let root =
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+            let mut files = load_migrations(root, MigrationTrack::HoldingWrite)
+                .await
+                .unwrap();
+            files.push(
+                erpx_server_runtime::public::postgres::MigrationFile::from_sql(
+                    "9999_platform_migration_fault.sql",
+                    "SELECT * FROM erpx_missing_platform_migration_table",
+                )
+                .unwrap(),
+            );
+            let store = PgPlatformAdministration::new(
+                control.clone(),
+                vec![PlatformHoldingDatabase {
+                    identity: holding_identity("h001", "acme"),
+                    pool: holding.clone(),
+                }],
+                files,
+            )
+            .unwrap();
+            let failed = run_holding_migration(
+                &admin(),
+                &store,
+                &holding_identity("h001", "acme"),
+                &migration_input("h001"),
+                "platform-migration-failed-1",
+                NOW,
+            )
+            .await
+            .unwrap_err();
+            assert_eq!(failed.kind, FailureKind::Unavailable);
+            assert_eq!(failed.code, "MIGRATION_FAILED");
+            let receipt = sqlx::query(
+                "SELECT status,result_json,error,applied_after,version,finished_at \
+                 FROM platform_migration_runs WHERE idempotency_key='platform-migration-failed-1'",
+            )
+            .fetch_one(control.raw())
+            .await
+            .unwrap();
+            assert_eq!(receipt.get::<String, _>("status"), "failed");
+            assert_eq!(receipt.get::<Option<String>, _>("result_json"), None);
+            assert!(
+                receipt
+                    .get::<Option<String>, _>("error")
+                    .is_some_and(|error| !error.is_empty() && error.len() <= MIGRATION_ERROR_MAX)
+            );
+            assert!(receipt.get::<i64, _>("applied_after") > 0);
+            assert_eq!(receipt.get::<i64, _>("version"), 2);
+            assert_eq!(receipt.get::<i64, _>("finished_at"), NOW);
+            let replay = run_holding_migration(
+                &admin(),
+                &store,
+                &holding_identity("h001", "acme"),
+                &migration_input("h001"),
+                "platform-migration-failed-1",
+                NOW + 1,
+            )
+            .await
+            .unwrap_err();
+            assert_eq!(replay.code, "MIGRATION_FAILED");
+            assert_eq!(
+                count(
+                    &control,
+                    "SELECT count(*)::bigint FROM platform_migration_runs \
+                     WHERE idempotency_key='platform-migration-failed-1'"
+                )
+                .await,
+                1
+            );
+        })
+        .await;
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn a_rolled_back_migration_finalize_never_claims_success() {
+    fixture::with_database(3, |control| async move {
+        fixture::with_database(2, move |holding| async move {
+            migrate(&control, MigrationTrack::Control).await;
+            let store = owner(
+                &control,
+                vec![PlatformHoldingDatabase {
+                    identity: holding_identity("h001", "acme"),
+                    pool: holding.clone(),
+                }],
+            )
+            .await;
+            sqlx::raw_sql(
+                "CREATE FUNCTION platform_migration_finalize_fault() RETURNS trigger LANGUAGE plpgsql AS $$ \
+                 BEGIN IF NEW.status='succeeded' THEN RAISE EXCEPTION 'late migration receipt failure'; END IF; RETURN NEW; END $$;\
+                 CREATE TRIGGER platform_migration_finalize_fault BEFORE UPDATE ON platform_migration_runs \
+                 FOR EACH ROW EXECUTE FUNCTION platform_migration_finalize_fault();",
+            )
+            .execute(control.raw())
+            .await
+            .unwrap();
+            let failed = run_holding_migration(
+                &admin(),
+                &store,
+                &holding_identity("h001", "acme"),
+                &migration_input("h001"),
+                "platform-migration-rollback-1",
+                NOW,
+            )
+            .await
+            .unwrap_err();
+            assert_eq!(failed.kind, FailureKind::Unavailable);
+            let receipt = sqlx::query(
+                "SELECT status,result_json,error,version,finished_at \
+                 FROM platform_migration_runs WHERE idempotency_key='platform-migration-rollback-1'",
+            )
+            .fetch_one(control.raw())
+            .await
+            .unwrap();
+            assert_eq!(receipt.get::<String, _>("status"), "running");
+            assert_eq!(receipt.get::<Option<String>, _>("result_json"), None);
+            assert_eq!(receipt.get::<Option<String>, _>("error"), None);
+            assert_eq!(receipt.get::<i64, _>("version"), 1);
+            assert_eq!(receipt.get::<Option<i64>, _>("finished_at"), None);
+            let replay = run_holding_migration(
+                &admin(),
+                &store,
+                &holding_identity("h001", "acme"),
+                &migration_input("h001"),
+                "platform-migration-rollback-1",
+                NOW + 1,
+            )
+            .await
+            .unwrap_err();
+            assert_eq!(replay.code, "MIGRATION_IN_PROGRESS");
+            sqlx::raw_sql(
+                "DROP TRIGGER platform_migration_finalize_fault ON platform_migration_runs;\
+                 DROP FUNCTION platform_migration_finalize_fault();",
+            )
+            .execute(control.raw())
+            .await
+            .unwrap();
+        })
+        .await;
+    })
+    .await;
+}
+
 struct HttpBackend {
     store: Arc<PgPlatformAdministration>,
     actor: PlatformActor,
@@ -588,8 +935,35 @@ impl PlatformHttpBackend for HttpBackend {
                         )
                     })?
                 }
-                PlatformHttpCommand::Recover(input) => serde_json::to_value(
-                    recover_dead_letter_job(
+                PlatformHttpCommand::Recover { holding_id, input } => {
+                    if holding_id != self.holding.id {
+                        return Err(BusinessError::new(
+                            FailureKind::NotFound,
+                            "NOT_FOUND",
+                            "Holding not found.",
+                        ));
+                    }
+                    serde_json::to_value(
+                        recover_dead_letter_job(
+                            &self.actor,
+                            self.store.as_ref(),
+                            &self.holding,
+                            &input,
+                            request.key.as_str(),
+                            self.now,
+                        )
+                        .await?,
+                    )
+                    .map_err(|_| {
+                        BusinessError::new(
+                            FailureKind::Unavailable,
+                            "PLATFORM_REPLY_INVALID",
+                            "The Platform reply could not be rendered.",
+                        )
+                    })?
+                }
+                PlatformHttpCommand::Migrate(input) => serde_json::to_value(
+                    run_holding_migration(
                         &self.actor,
                         self.store.as_ref(),
                         &self.holding,
@@ -713,6 +1087,40 @@ async fn actual_router_reads_and_provisions_over_postgres_with_target_and_key_ne
                 body["data"]["provisioning"]["availableSlots"],
                 serde_json::json!([])
             );
+            let migration = serde_json::json!({
+                "holdingId": "h001",
+                "track": "holding-write",
+                "reason": "Apply the reviewed release schema before enabling the next workflow.",
+            })
+            .to_string();
+            let (status, body) = http(
+                addr,
+                format!(
+                    "POST /api/v1/platform/operations/migrate HTTP/1.1\r\nHost: erpx-internal.example.test\r\nOrigin: https://erpx-internal.example.test\r\nContent-Type: application/json\r\nIdempotency-Key: platform-http-migration-1\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{migration}",
+                    migration.len()
+                ),
+            )
+            .await;
+            assert_eq!(status, 200);
+            assert_eq!(body["data"]["holdingId"], "h001");
+            assert_eq!(body["data"]["track"], "holding-write");
+            assert_eq!(body["data"]["status"], "succeeded");
+            assert!(body["data"]["appliedBefore"].as_i64().unwrap() > 0);
+            assert_eq!(
+                body["data"]["appliedBefore"],
+                body["data"]["appliedAfter"]
+            );
+            assert_eq!(body["data"]["pending"], serde_json::json!([]));
+            let (status, body) = http(
+                addr,
+                format!(
+                    "POST /api/v1/platform/operations/migrate HTTP/1.1\r\nHost: erpx-internal.example.test\r\nOrigin: https://evil.example.test\r\nContent-Type: application/json\r\nIdempotency-Key: platform-http-migration-2\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{migration}",
+                    migration.len()
+                ),
+            )
+            .await;
+            assert_eq!(status, 403);
+            assert_eq!(body["error"]["code"], "ORIGIN_FORBIDDEN");
             let (status, body) = http(
                 addr,
                 format!(

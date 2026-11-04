@@ -1,40 +1,37 @@
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
-import { z } from "zod";
-import { requireManageErpxContext } from "@erpx/server-identity_access/public/authorization";
-import { errorResponse, ApiError } from "@erpx/server-runtime/public/http";
-import { resourceSlots } from "@erpx/feature-runtime/lib/holding-registry";
-import { holdingResources, runtimeEnv } from "../../../../../../../../../packages/server-runtime/src/public/runtime";
-import { provisionHolding, platformProvisioningSnapshot } from "@erpx/server-platform_administration/public/platform-operations";
+import {requireManageErpxContext} from "@erpx/server-identity_access/public/authorization";
+import {errorResponse,ApiError} from "@erpx/server-runtime/public/http";
+import {nativePlatformAdminFailure,nativePlatformOperationsForPresentation,nativePlatformProvision} from "@erpx/feature-platform_administration/lib/native-platform-administration";
+import {headers} from "next/headers";
 
-const schema = z.object({
-  holdingId: z.string().regex(/^[a-z0-9]{3,24}$/),
-  slug: z.string().regex(/^[a-z][a-z0-9-]{2,39}$/),
-  displayName: z.string().trim().min(2).max(120),
-  reason: z.string().trim().min(10).max(1000),
-});
+function failure(error: unknown): never {
+  const mapped = nativePlatformAdminFailure(error);
+  if (mapped) throw new ApiError(mapped.status, mapped.code, mapped.message);
+  throw error;
+}
 
 export async function POST(request: Request) {
   try {
-    const { platform: actor } = await requireManageErpxContext();
+    const { platform, work } = await requireManageErpxContext();
     const key = request.headers.get("Idempotency-Key") ?? "";
-    const parsed = schema.safeParse(await request.json());
-    if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid provisioning request.");
-    const env = await runtimeEnv();
-    const slot = resourceSlots(env).find((candidate) => candidate.id === parsed.data.holdingId);
-    if (!slot) throw new ApiError(404, "RESOURCE_SLOT_NOT_FOUND", "This Holding resource slot is not configured in the operator registry.");
+    let body: unknown;
     try {
-      await holdingResources(slot.id);
+      body = await request.json();
     } catch {
-      throw new ApiError(503, "RESOURCE_UNAVAILABLE", "The selected Holding database or private file namespace is unavailable.");
+      throw new ApiError(422, "INVALID_JSON", "Provide a provisioning command.");
     }
-    const result = await provisionHolding(
-      actor,
-      env.CONTROL_DB as import("@erpx/server-runtime/public/runtime/postgres").PostgresDatabase,
-      slot,
-      { ...parsed.data, writeBinding: slot.write, readBinding: slot.read, filesBinding: slot.files },
-      key,
-    );
-    return Response.json(canonicalDestinationLinks({ data: result }), { headers: { "Cache-Control": "no-store" } });
+    if (!body || typeof body !== "object" || Array.isArray(body))
+      throw new ApiError(422, "COMMAND_REQUIRED", "Provide a provisioning command.");
+    const data = await nativePlatformProvision(work, platform, await headers(), body, key).catch(failure);
+    if (!data)
+      throw new ApiError(
+        503,
+        "NATIVE_PLATFORM_ADMIN_UNAVAILABLE",
+        "Platform Administration native access is not configured.",
+      );
+    return Response.json(canonicalDestinationLinks({ data }), {
+      headers: { "Cache-Control": "private, no-store" },
+    });
   } catch (error) {
     return errorResponse(error);
   }
@@ -42,8 +39,18 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
-    await requireManageErpxContext();
-    const env=await runtimeEnv();
-    return Response.json(canonicalDestinationLinks({data:await platformProvisioningSnapshot(env.CONTROL_DB,resourceSlots(env))}),{headers:{"Cache-Control":"private, no-store"}});
-  } catch(error) {return errorResponse(error);}
+    const { platform, work } = await requireManageErpxContext();
+    const snapshot = await nativePlatformOperationsForPresentation(work, platform, await headers()).catch(failure);
+    if (!snapshot)
+      throw new ApiError(
+        503,
+        "NATIVE_PLATFORM_ADMIN_UNAVAILABLE",
+        "Platform Administration native access is not configured.",
+      );
+    return Response.json(canonicalDestinationLinks({ data: snapshot.provisioning }), {
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  } catch (error) {
+    return errorResponse(error);
+  }
 }

@@ -43,6 +43,14 @@ pub trait PlatformAdministrationStore: Send + Sync {
         key: &'a str,
     ) -> PlatformFuture<'a, Option<RecoveryReceipt>>;
     fn recover<'a>(&'a self, plan: RecoveryPlan) -> PlatformFuture<'a, RecoverDeadLetterResult>;
+    fn migration_run_receipt<'a>(
+        &'a self,
+        key: &'a str,
+    ) -> PlatformFuture<'a, Option<MigrationRunReceipt>>;
+    fn run_holding_migration<'a>(
+        &'a self,
+        plan: MigrationRunPlan,
+    ) -> PlatformFuture<'a, RunHoldingMigrationResult>;
 }
 
 fn conflict(code: &'static str, message: &'static str) -> BusinessError {
@@ -211,6 +219,39 @@ pub async fn recover_dead_letter_job<S: PlatformAdministrationStore + ?Sized>(
         .await
 }
 
+pub async fn run_holding_migration<S: PlatformAdministrationStore + ?Sized>(
+    actor: &PlatformActor,
+    store: &S,
+    holding: &PlatformHoldingIdentity,
+    raw: &RunHoldingMigrationInput,
+    key: &str,
+    now: i64,
+) -> Result<RunHoldingMigrationResult, BusinessError> {
+    require_platform_admin(actor)?;
+    validate_command_key(key)?;
+    let input = validate_migration_run(actor, &holding.id, raw)?;
+    let digest = migration_digest(actor, key, &holding.id, &input);
+    if let Some(receipt) = store.migration_run_receipt(key).await? {
+        if receipt.request_hash != digest {
+            return Err(conflict(
+                "IDEMPOTENCY_CONFLICT",
+                "This command key belongs to a different migration request.",
+            ));
+        }
+        return migration_run_result(&receipt);
+    }
+    store
+        .run_holding_migration(MigrationRunPlan {
+            actor: actor.clone(),
+            holding: holding.clone(),
+            input,
+            key: key.to_owned(),
+            digest,
+            now,
+        })
+        .await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -220,6 +261,7 @@ mod tests {
     struct Store {
         receipt: Mutex<Option<ProvisioningReceipt>>,
         recovery: Mutex<Option<RecoveryReceipt>>,
+        migration: Mutex<Option<MigrationRunReceipt>>,
         provisioning_error: Mutex<Option<BusinessError>>,
         jobs_error: Mutex<Option<BusinessError>>,
         migration_error: Mutex<Option<BusinessError>>,
@@ -341,6 +383,33 @@ mod tests {
                     previous_attempts: plan.input.expected_attempts,
                     previous_error: plan.input.expected_last_error,
                     recovered_at: plan.now,
+                })
+            })
+        }
+        fn migration_run_receipt<'a>(
+            &'a self,
+            _: &'a str,
+        ) -> PlatformFuture<'a, Option<MigrationRunReceipt>> {
+            Box::pin(async move { Ok(self.migration.lock().unwrap().clone()) })
+        }
+        fn run_holding_migration<'a>(
+            &'a self,
+            plan: MigrationRunPlan,
+        ) -> PlatformFuture<'a, RunHoldingMigrationResult> {
+            Box::pin(async move {
+                self.calls
+                    .lock()
+                    .unwrap()
+                    .push(format!("migrate:{}", plan.key));
+                Ok(RunHoldingMigrationResult {
+                    run_id: format!("migration-{}", plan.holding.id),
+                    holding_id: plan.holding.id,
+                    track: plan.input.track,
+                    status: MigrationRunStatus::Succeeded,
+                    applied_before: 3,
+                    applied_after: 4,
+                    pending: Vec::new(),
+                    finished_at: plan.now,
                 })
             })
         }
@@ -604,5 +673,156 @@ mod tests {
             .await
             .is_err()
         );
+    }
+
+    fn migration_input() -> RunHoldingMigrationInput {
+        RunHoldingMigrationInput {
+            holding_id: "h001".into(),
+            track: MIGRATION_TRACK.into(),
+            reason: "Apply the reviewed release schema before enabling the next workflow.".into(),
+        }
+    }
+
+    #[tokio::test]
+    async fn a_migration_replay_returns_the_retained_result_before_a_new_run() {
+        let store = Store::default();
+        let holding = holding();
+        let first = run_holding_migration(
+            &actor("platform_admin"),
+            &store,
+            &holding,
+            &migration_input(),
+            "platform-migration-key-1",
+            10,
+        )
+        .await
+        .unwrap();
+        assert_eq!(first.status, MigrationRunStatus::Succeeded);
+        assert_eq!(first.applied_after, 4);
+        assert_eq!(store.calls.lock().unwrap().len(), 1);
+        let digest = migration_digest(
+            &actor("platform_admin"),
+            "platform-migration-key-1",
+            &holding.id,
+            &validate_migration_run(&actor("platform_admin"), &holding.id, &migration_input())
+                .unwrap(),
+        );
+        *store.migration.lock().unwrap() = Some(MigrationRunReceipt {
+            request_hash: digest,
+            status: MigrationRunStatus::Succeeded,
+            result_json: Some(serde_json::to_string(&first).unwrap()),
+            error: None,
+        });
+        let replay = run_holding_migration(
+            &actor("platform_admin"),
+            &store,
+            &holding,
+            &migration_input(),
+            "platform-migration-key-1",
+            11,
+        )
+        .await
+        .unwrap();
+        assert_eq!(replay, first);
+        assert_eq!(store.calls.lock().unwrap().len(), 1);
+        let conflict = run_holding_migration(
+            &actor("platform_admin"),
+            &store,
+            &holding,
+            &RunHoldingMigrationInput {
+                reason: "A different request using the same command key.".into(),
+                ..migration_input()
+            },
+            "platform-migration-key-1",
+            11,
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(conflict.code, "IDEMPOTENCY_CONFLICT");
+    }
+
+    #[tokio::test]
+    async fn migration_authority_track_and_identity_are_checked_before_the_store() {
+        let store = Store::default();
+        let holding = holding();
+        for (actor, input) in [
+            (actor("platform_auditor"), migration_input()),
+            (
+                actor("platform_admin"),
+                RunHoldingMigrationInput {
+                    track: "holding-read".into(),
+                    ..migration_input()
+                },
+            ),
+            (
+                actor("platform_admin"),
+                RunHoldingMigrationInput {
+                    reason: " x ".into(),
+                    ..migration_input()
+                },
+            ),
+            (
+                actor("platform_admin"),
+                RunHoldingMigrationInput {
+                    holding_id: "h002".into(),
+                    ..migration_input()
+                },
+            ),
+        ] {
+            assert!(
+                run_holding_migration(
+                    &actor,
+                    &store,
+                    &holding,
+                    &input,
+                    "platform-migration-key-check",
+                    10,
+                )
+                .await
+                .is_err()
+            );
+        }
+        assert!(store.calls.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn running_failed_and_incomplete_migration_receipts_fail_closed_without_a_new_run() {
+        let store = Store::default();
+        let holding = holding();
+        let actor = actor("platform_admin");
+        let digest = migration_digest(
+            &actor,
+            "platform-migration-key-2",
+            &holding.id,
+            &validate_migration_run(&actor, &holding.id, &migration_input()).unwrap(),
+        );
+        for (status, result_json, code) in [
+            (MigrationRunStatus::Running, None, "MIGRATION_IN_PROGRESS"),
+            (MigrationRunStatus::Failed, None, "MIGRATION_FAILED"),
+            (
+                MigrationRunStatus::Succeeded,
+                None,
+                "COMMAND_RECEIPT_INVALID",
+            ),
+        ] {
+            *store.migration.lock().unwrap() = Some(MigrationRunReceipt {
+                request_hash: digest.clone(),
+                status,
+                result_json,
+                error: None,
+            });
+            let error = run_holding_migration(
+                &actor,
+                &store,
+                &holding,
+                &migration_input(),
+                "platform-migration-key-2",
+                10,
+            )
+            .await
+            .unwrap_err();
+            assert_eq!(error.code, code);
+        }
+        assert!(store.calls.lock().unwrap().is_empty());
     }
 }

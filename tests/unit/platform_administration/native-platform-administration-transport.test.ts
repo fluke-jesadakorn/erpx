@@ -7,7 +7,7 @@ import {
   NativePlatformAdminError,
   type NativePlatformAdminActor,
 } from '../../../packages/feature-platform_administration/src/adapters/server/native-platform-administration';
-import { platformAdminActor } from '../../../packages/feature-platform_administration/src/lib/native-platform-administration';
+import { platformAdminActor, nativePlatformMigrate } from '../../../packages/feature-platform_administration/src/lib/native-platform-administration';
 
 const config = (overrides: Record<string, unknown> = {}) =>
   JSON.stringify({
@@ -258,6 +258,96 @@ describe('native Platform Administration transport', () => {
     await expect(
       invalid.recover(incoming(), actor, {}, 'platform-recovery-key-2'),
     ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_RESPONSE_INVALID' });
+  });
+
+  it('sends one keyed Holding migration command and rejects an invalid receipt', async () => {
+    const response = {
+      data: {
+        runId: 'platform-migration-1',
+        holdingId: 'h001',
+        track: 'holding-write',
+        status: 'succeeded',
+        appliedBefore: 4,
+        appliedAfter: 10,
+        pending: [],
+        finishedAt: 10,
+      },
+      context,
+    };
+    const transport = vi.fn().mockResolvedValue(ok(response));
+    const client = createNativePlatformAdminClient(JSON.parse(config()), transport as never);
+    const body = {
+      holdingId: 'h001',
+      track: 'holding-write',
+      reason: 'Apply the reviewed release schema before enabling the next workflow.',
+    };
+    const result = await client.migrate(
+      incoming(),
+      actor,
+      body,
+      'platform-migration-key-1',
+    );
+    expect(result).toEqual(response.data);
+    const [method, url, headers, sent] = transport.mock.calls[0]!;
+    expect(method).toBe('POST');
+    expect(url.toString()).toBe('http://127.0.0.1:44991/api/v1/platform/operations/migrate');
+    expect(headers.get('origin')).toBe('https://erpx-internal.example.test');
+    expect(headers.get('idempotency-key')).toBe('platform-migration-key-1');
+    expect(headers.get('content-type')).toBe('application/json');
+    expect(JSON.parse(sent)).toEqual(body);
+    const invalid = createNativePlatformAdminClient(
+      JSON.parse(config()),
+      vi.fn().mockResolvedValue(
+        ok({ data: { ...response.data, appliedAfter: 3 }, context }),
+      ) as never,
+    );
+    await expect(
+      invalid.migrate(incoming(), actor, body, 'platform-migration-key-2'),
+    ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_RESPONSE_INVALID' });
+    const missingContext = createNativePlatformAdminClient(
+      JSON.parse(config()),
+      vi.fn().mockResolvedValue(ok({ data: response.data })) as never,
+    );
+    await expect(
+      missingContext.migrate(incoming(), actor, body, 'platform-migration-key-3'),
+    ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_RESPONSE_INVALID' });
+  });
+
+  it('fails closed when the native Platform configuration is absent or invalid', async () => {
+    const previous = process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+    try {
+      delete process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+      expect(
+        await nativePlatformMigrate(
+          work,
+          platform,
+          incoming(),
+          {
+            holdingId: 'h001',
+            track: 'holding-write',
+            reason: 'Apply the reviewed release schema before enabling the next workflow.',
+          },
+          'platform-migration-key-4',
+        ),
+      ).toBeUndefined();
+      process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG = '{}';
+      await expect(
+        nativePlatformMigrate(
+          work,
+          platform,
+          incoming(),
+          {
+            holdingId: 'h001',
+            track: 'holding-write',
+            reason: 'Apply the reviewed release schema before enabling the next workflow.',
+          },
+          'platform-migration-key-5',
+        ),
+      ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_CONFIGURATION_INVALID' });
+    } finally {
+      if (previous === undefined) delete process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG = previous;
+    }
   });
 
   it('rejects a foreign reply context and preserves a bounded owner failure', async () => {
