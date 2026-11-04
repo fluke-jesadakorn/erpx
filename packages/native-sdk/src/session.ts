@@ -188,12 +188,13 @@ export function createNativeAccountHttpTransport(configuration:NativeSessionClie
   const host=incoming.headers.get('host'),origin=incoming.headers.get('origin'),publicUrl=new URL(incoming.url);
   if(!host||!hostOrigins.has(host))return fail('NATIVE_ACCOUNT_AUTHORITY_INVALID');
   if(!['GET','POST','DELETE','OPTIONS'].includes(incoming.method))return new Response(null,{status:405,headers:{allow:'GET, POST, DELETE, OPTIONS'}});
-  if(!(/^\/api\/auth\/[A-Za-z0-9_/-]+$/.test(publicUrl.pathname)||/^\/api\/v1\/account\/device-accounts(?:\/(initialize|active|sign-in))?$/.test(publicUrl.pathname)||/^\/api\/v1\/account\/iam\/mfa\/(enroll|verify)$/.test(publicUrl.pathname)||/^\/sso\/(start|authorize|callback)$/.test(publicUrl.pathname)))return new Response(null,{status:404});
+  if(!(/^\/api\/auth\/[A-Za-z0-9_/-]+$/.test(publicUrl.pathname)||/^\/api\/v1\/account\/device-accounts(?:\/(initialize|active|sign-in))?$/.test(publicUrl.pathname)||/^\/api\/v1\/account\/iam\/mfa\/(enroll|verify)$/.test(publicUrl.pathname)||/^\/api\/v1\/account\/security$/.test(publicUrl.pathname)||/^\/sso\/(start|authorize|callback)$/.test(publicUrl.pathname)))return new Response(null,{status:404});
   if(origin&&!origins.includes(origin)||!['GET','OPTIONS'].includes(incoming.method)&&!origin)return fail('NATIVE_ACCOUNT_ORIGIN_FORBIDDEN',403);
   if(publicUrl.search.length>8192)return fail('NATIVE_ACCOUNT_QUERY_LIMIT',400);
   const cookie=incoming.headers.get('cookie');if(cookie&&new TextEncoder().encode(cookie).length>8192)return fail('NATIVE_ACCOUNT_COOKIE_LIMIT',400);
+  const idempotencyKey=incoming.headers.get('idempotency-key');if(idempotencyKey!==null&&(idempotencyKey.length<8||idempotencyKey.length>128))return fail('NATIVE_ACCOUNT_HEADER_LIMIT',400);
   const headers=new Headers({host,accept:incoming.headers.get('accept')??'application/json','cache-control':'no-cache'});
-  if(cookie)headers.set('cookie',cookie);if(origin)headers.set('origin',origin);
+  if(cookie)headers.set('cookie',cookie);if(origin)headers.set('origin',origin);if(idempotencyKey!==null)headers.set('idempotency-key',idempotencyKey);
   const contentType=incoming.headers.get('content-type');if(contentType)headers.set('content-type',contentType);
   if(incoming.method==='OPTIONS')for(const name of ['access-control-request-method','access-control-request-headers']){const value=incoming.headers.get(name);if(value)headers.set(name,value);}
   const controller=new AbortController(),cancel=()=>controller.abort();incoming.signal.addEventListener('abort',cancel,{once:true});if(incoming.signal.aborted)cancel();

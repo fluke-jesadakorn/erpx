@@ -274,3 +274,53 @@ it('forwards only native Account MFA enrollment/verification while preserving op
  expect(send).toHaveBeenCalledTimes(2);
  const unknown=await run(new Request(configuration.holdingOrigins[0]+'/api/v1/account/iam/mfa/reset',{method:'POST',headers:{host:'acme.example.test',origin:configuration.holdingOrigins[0]},body:'{}'}));expect(unknown.status).toBe(404);expect(send).toHaveBeenCalledTimes(2);
 });
+
+it('forwards native Account security read and revocation with their exact key and no broader writer',async()=>{
+ const {createNativeAccountHttpTransport}=await import('@erpx/native-sdk/session');
+ const seed={accountKey:'a'.repeat(64),revision:'b'.repeat(64),mfaEnabled:true,mfaFreshUntil:1_900_000_000_000,families:[{handle:'c'.repeat(64),current:true,createdAt:1,expiresAt:2,userAgent:null,audiences:['account']}],legacySessions:0};
+ const send=vi.fn(async(url:URL,init:RequestInit)=>{
+  expect(url.pathname).toBe('/api/v1/account/security');
+  const headers=new Headers(init.headers);expect(headers.get('host')).toBe('account.example.test');
+  if(init.method==='GET'){expect(headers.has('idempotency-key')).toBe(false);return Response.json({data:seed});}
+  expect(init.method).toBe('POST');expect(headers.get('origin')).toBe(configuration.accountOrigin);expect(headers.get('idempotency-key')).toBe('account-security-key');expect(init.body).toBe('{"scope":"all"}');
+  return Response.json({data:{revoked:true,count:2,reauthenticate:true}});
+ });
+ const run=createNativeAccountHttpTransport(configuration,send);
+ const read=await run(new Request(configuration.accountOrigin+'/api/v1/account/security',{headers:{host:'account.example.test'}}));expect(read.status).toBe(200);expect(await read.json()).toEqual({data:seed});
+ const revoked=await run(new Request(configuration.accountOrigin+'/api/v1/account/security',{method:'POST',headers:{host:'account.example.test',origin:configuration.accountOrigin,'content-type':'application/json','idempotency-key':'account-security-key'},body:'{"scope":"all"}'}));expect(revoked.status).toBe(200);expect(await revoked.json()).toEqual({data:{revoked:true,count:2,reauthenticate:true}});
+ expect(send).toHaveBeenCalledTimes(2);
+ for(const key of ['short','x'.repeat(129)])await expect(run(new Request(configuration.accountOrigin+'/api/v1/account/security',{method:'POST',headers:{host:'account.example.test',origin:configuration.accountOrigin,'content-type':'application/json','idempotency-key':key},body:'{}'}))).rejects.toMatchObject({code:'NATIVE_ACCOUNT_HEADER_LIMIT'});
+ const unknown=await run(new Request(configuration.accountOrigin+'/api/v1/account/security/extra',{headers:{host:'account.example.test'}}));expect(unknown.status).toBe(404);expect(send).toHaveBeenCalledTimes(2);
+ for(const origin of [undefined,'https://foreign.example.test'])await expect(run(new Request(configuration.accountOrigin+'/api/v1/account/security',{method:'POST',headers:{host:'account.example.test',...(origin?{origin}:{})},body:'{}'}))).rejects.toMatchObject({code:'NATIVE_ACCOUNT_ORIGIN_FORBIDDEN'});
+});
+
+it('uses native Account security for the SSR seed and never falls back to the retained projection',async()=>{
+ const seed={accountKey:'a'.repeat(64),revision:'b'.repeat(64),mfaEnabled:true,mfaFreshUntil:1_900_000_000_000,families:[],legacySessions:0};
+ const native=vi.fn<(headers:Pick<Headers,'get'>)=>Promise<typeof seed>>(async()=>seed),session=vi.fn(async()=>({session:{user:{id:'alpha'},session:{id:'session-alpha'}}}));
+ vi.resetModules();
+ vi.doMock('@erpx/server-identity_access/adapters/authorization',()=>({currentSession:session}));
+ vi.doMock('@erpx/server-identity_access/adapters/iam-recovery',()=>({listEmergencyAccess:async()=>[]}));
+ vi.doMock('@erpx/server-identity_access/adapters/native-account-security',()=>({nativeAccountSecurityRead:native}));
+ try{
+  vi.stubEnv('ERPX_NATIVE_ACCOUNT_SESSION_CONFIG',JSON.stringify(configuration));
+  requestHeaders.mockResolvedValue(incoming('account.example.test','__Host-erpx-device=synthetic'));
+  let security=await import('../../../packages/server-identity_access/src/adapters/account-security');
+  expect(await security.currentAccountSecurity()).toEqual({security:seed,emergency:[]});
+  expect(native).toHaveBeenCalledOnce();expect(native.mock.calls[0]![0].get('host')).toBe('account.example.test');
+  native.mockRejectedValueOnce(new Error('native security unavailable'));vi.resetModules();
+  security=await import('../../../packages/server-identity_access/src/adapters/account-security');
+  await expect(security.currentAccountSecurity()).rejects.toThrow('native security unavailable');
+ }finally{vi.unstubAllEnvs();vi.doUnmock('@erpx/server-identity_access/adapters/authorization');vi.doUnmock('@erpx/server-identity_access/adapters/iam-recovery');vi.doUnmock('@erpx/server-identity_access/adapters/native-account-security');vi.resetModules();}
+});
+
+it('reads the native Account security seed through validated private authority and fails closed',async()=>{
+ const {createNativeAccountSecurityReader}=await import('../../../packages/server-identity_access/src/adapters/native-account-security');
+ const seed={accountKey:'a'.repeat(64),revision:'b'.repeat(64),mfaEnabled:false,mfaFreshUntil:null,families:[],legacySessions:0};
+ const send=vi.fn(async(request:Request)=>{expect(request.url).toBe('https://account.example.test/api/v1/account/security');expect(request.method).toBe('GET');expect(request.headers.get('accept')).toBe('application/json');expect(request.headers.get('cookie')).toBe('__Host-erpx-device=synthetic');return Response.json({data:seed});});
+ expect(await createNativeAccountSecurityReader(send)(new Headers({host:'account.example.test',cookie:'__Host-erpx-device=synthetic'}))).toEqual(seed);expect(send).toHaveBeenCalledOnce();
+ const malformed=createNativeAccountSecurityReader(async()=>Response.json({data:{...seed,accountKey:'not-opaque'}}));
+ await expect(malformed(new Headers({host:'account.example.test'}))).rejects.toMatchObject({code:'NATIVE_ACCOUNT_SECURITY_RESPONSE_INVALID'});
+ const rejected=createNativeAccountSecurityReader(async()=>Response.json({error:{code:'SESSION_REVOKED',message:'Sign in again.'}},{status:401}));
+ await expect(rejected(new Headers({host:'account.example.test'}))).rejects.toMatchObject({status:401,code:'SESSION_REVOKED'});
+ await expect(createNativeAccountSecurityReader(async()=>Response.json({data:seed}))(new Headers())).rejects.toMatchObject({code:'NATIVE_ACCOUNT_SECURITY_AUTHORITY_REQUIRED'});
+});

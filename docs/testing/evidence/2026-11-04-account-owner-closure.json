@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "The Account owner now routes Account security read, MFA-gated family revocation and all-device revocation through the native Identity Access HTTP owner. The Account security page seed and the public Next route no longer use the retained TypeScript security command; a missing or failed native runtime is explicit and never falls back. This is a bounded owner surface cutover, not full Account owner or catalogue acceptance.",
+  "capability": "account-native-security-and-device-revocation",
+  "owner": "account",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "a53a96c03",
+  "worktreeHeadAtStart": "92e865b44",
+  "concurrentWorktreeNote": "Other agents advanced the shared worktree with unrelated commits and uncommitted Finance/Learning/Inventory/Organization/Records/composition changes while this slice was being implemented. This subagent created no commit, branch, worktree or register and left those changes untouched.",
+  "scope": {
+    "workflows": [
+      "account:mfa-expiry-replay-family-all-device-revocation"
+    ],
+    "workflowBoundary": "The qualified source slice is the signed-in Account security seed and the existing `POST /api/v1/account/security` family/all-device revocation command used by the Account security page and AccountSessions drawer. MFA enrollment/verification was already native through `/api/v1/account/iam/mfa/{enroll,verify}` and is unchanged. Central login/directory linking, profile/language/theme, role/Company/account switching, authorized package areas, emergency-access administration, invitation/recovery administration, Directory administration and browser acceptance remain outside this slice.",
+    "nativeOwnerReused": "The existing `erpx_server_identity_access::public::account_security` domain/application/PostgreSQL/HTTP implementation and the existing private-development router mount. No new Rust business logic, SQL, migration or composition mount was added.",
+    "transport": "`packages/native-sdk/src/session.ts` admits only the exact `/api/v1/account/security` path to the native Account ingress and forwards one bounded `Idempotency-Key` header for POST. The Next Account security route now always delegates to `nativeAccountHttp`; a missing/invalid native configuration or upstream failure is an explicit 503/error response and never re-enters the retired TypeScript handler.",
+    "ssr": "`currentAccountSecurity` now reads the signed-in security seed through the validated private native Account transport using the current request Host/Cookie. It no longer calls `accountSessionSecurity` or opens a Control transaction for the seed. Emergency-access display remains the existing retained Identity read because that workflow is not part of this slice.",
+    "securityPropertiesPreserved": "Native policy ownership, Account-audience host/origin checks, current-session and fresh-MFA checks, opaque account/family handles, expected revision/CAS, exact idempotency receipt replay, session-family and all-device revocation, Holding child invalidation, receipt/audit persistence, rollback and post-command source readback remain in the existing native owner implementation and its tests."
+  },
+  "changedFiles": [
+    "packages/native-sdk/src/session.ts",
+    "packages/server-identity_access/package.json",
+    "packages/server-identity_access/src/adapters/account-security.ts",
+    "packages/server-identity_access/src/adapters/native-account-security.ts",
+    "packages/server-identity_access/src/public/account-security.ts",
+    "packages/server-identity_access/src/public/native-account-security.ts",
+    "packages/feature-account/src/routes/api/v1/account/security/route.ts",
+    "tests/unit/identity_access/native-session-server.test.ts",
+    "tests/unit/identity_access/account-preferences-native-boundary.test.ts",
+    "docs/testing/evidence/2026-11-04-account-owner-closure.json"
+  ],
+  "verification": {
+    "typescript": {
+      "runner": "Direct Vitest 5.0.5 with pinned Node 26.11.1 because the repository catalogue runner currently fails before execution on an unrelated missing verification input (`customer_360.rust-customer-timeline.unit`). The worktree has no local `.runtime`; the pinned binary from the primary checkout was supplied explicitly.",
+      "command": "ERPX_SELECTED_TEST_FILES='[\"tests/unit/identity_access/native-session-server.test.ts\",\"tests/unit/identity_access/account-preferences-native-boundary.test.ts\"]' <pinned-node> node_modules/vitest/vitest.mjs run --config tests/config/vitest.unit.config.mts",
+      "result": "37 passed, 0 failed, 0 skipped across the two registered unit files: native-session-server 30, account-preferences-native-boundary 7.",
+      "newCases": [
+        "native-session-server: forwards native Account security read and revocation with their exact key and no broader writer (allowlisted path, GET/POST, exact Origin, Idempotency-Key forwarding, short/long key rejection before private IO, unknown sibling path 404, missing/foreign Origin rejection).",
+        "native-session-server: uses native Account security for the SSR seed and never falls back to the retained projection (native seed, request Host forwarding, configured native failure rejection).",
+        "native-session-server: reads the native Account security seed through validated private authority and fails closed (validated seed, malformed seed rejection, upstream error mapping, missing Host rejection).",
+        "account-preferences-native-boundary: Account security route selection (native GET/POST with exact retry key, native selection without runtime configuration, native failure without a retained command fallback)."
+      ]
+    },
+    "rust": {
+      "note": "No Rust business code changed in this slice. The existing native owner tests for the exact Security and MFA implementations consumed by the route were run against disposable PostgreSQL fixtures.",
+      "commands": [
+        "ERPX_TEST_ADMIN_URL=<local disposable test admin> cargo test -p erpx-server-identity-access --test account_security_postgres --locked",
+        "ERPX_TEST_ADMIN_URL=<local disposable test admin> cargo test -p erpx-server-identity-access --test account_mfa_postgres --locked"
+      ],
+      "result": "16 passed, 0 failed, 0 ignored: account_security_postgres 10 (39.82s), account_mfa_postgres 6 (24.53s).",
+      "coveredByExistingTests": [
+        "actual Axum security contract: read and MFA-gated revocation, foreign origin/scope/cookie replay, no bearer/cookie credentials in responses, post-revocation 401",
+        "stale/foreign account handle and revision rejection without effects",
+        "family/all-device revocation, Holding child fencing, exact receipt replay, fresh-MFA expiry, source/audit rollback and persisted receipt/audit/session readback",
+        "MFA expiry/replay, global counter winner, child freshness isolation, enrollment age and late-failure rollback"
+      ]
+    },
+    "typechecks": {
+      "commands": [
+        "tsc --noEmit --project packages/server-identity_access/tsconfig.json",
+        "tsc --noEmit --project packages/feature-account/tsconfig.json",
+        "tsc --noEmit --project apps/account/tsconfig.json",
+        "tsc --noEmit --project packages/native-sdk/tsconfig.json",
+        "tsc --noEmit --project packages/feature-identity_access/tsconfig.json",
+        "tsc --noEmit --project tests/config/tsconfig.json",
+        "tsc --noEmit"
+      ],
+      "result": "The changed Owner, Account app, native SDK, feature-identity-access and root projects pass with pinned Node 26.11.1. The tests/config project passed earlier in this run, then a concurrent unrelated Finance edit introduced `packages/feature-finance/src/adapters/server/native-period-close.ts(6,8): TS2305 NativeJournalPageContext` and now blocks that umbrella project; no changed Account file is named by the remaining diagnostic.",
+      "concurrentFailure": "packages/feature-finance/src/adapters/server/native-period-close.ts imports a missing NativeJournalPageContext export from the concurrently edited native-journal-detail module."
+    },
+    "eslint": {
+      "command": "eslint on every changed TypeScript file",
+      "result": "pass, 0 errors. One pre-existing warning remains in tests/unit/identity_access/native-session-server.test.ts (`_input` unused); no changed-code warning was introduced."
+    },
+    "formatAndDiff": {
+      "command": "git diff --check on every changed file",
+      "result": "pass"
+    },
+    "browser": "not run. No Next dev server, authenticated page, product URL, staging, private production or Cloudflare route was accessed. No browser or whole-workflow verification is claimed."
+  },
+  "sharedCompositionAndSchema": {
+    "schemaDelta": "none; no migration, table, column, index, trigger or constraint was added or changed",
+    "dependencyDelta": "none; no root Cargo.toml, Cargo.lock or package lockfile change was authored by this subagent",
+    "compositionDelta": "none; `src/composition/**` was not edited. The existing private-development Account security route mount is reused as-is.",
+    "packageMetadataDelta": "Only two internal package export entries were added for the new owner-local reader: `./adapters/native-account-security` and `./public/native-account-security`.",
+    "publicPortsRequiredByComposition": "none; no new composition backend is required for this slice"
+  },
+  "legacyRemovedOrRetained": {
+    "removed": [
+      "The Account security Next route no longer imports or selects `accountSecurityRequest`; it always delegates to the native Account ingress.",
+      "`accountSecurityRequest` and its public export were removed from the Identity Access Account security adapter surface after the last repository consumer (the route) was cut over.",
+      "The Account security SSR seed no longer calls `accountSessionSecurity` or opens its retained Control transaction."
+    ],
+    "retained": [
+      "`packages/server-identity_access/src/adapters/account-session-security.ts` remains in the tree for now because generated workspace inputs still reference the file; no Account route or SSR reader imports it after this slice.",
+      "Emergency-access listing (`listEmergencyAccess`) remains retained and is still the source of the page's temporary-access panel; this slice does not claim emergency-access migration.",
+      "MFA enrollment/verification remains on its pre-existing native route; no code path changed.",
+      "Account login/SSO, profile/language/theme, role/Company/account switching and authorized package areas remain retained outside this slice."
+    ]
+  },
+  "blockers": [
+    "The repository catalogue/layout runner fails before test selection with `INVALID_SUITE_VERIFICATION_INPUT:customer_360.rust-customer-timeline.unit` because the manifest references a missing `packages/server-customer-360/Cargo.toml` path (the checkout uses `server-customer_360`). This prevents using `scripts/testing/test.ts` and `scripts/testing/layout.ts` for this slice; direct Vitest with the pinned Node was used instead.",
+    "`cargo test -p erpx-service --test private_session_api_postgres --features private-development-api --no-run --locked` cannot currently compile because concurrently edited, unrelated Finance sources (`packages/server-finance/src/adapters/period_close.rs` and its dynamic SQL calls) fail SQLx `SqlSafeStr`/lifetime checks. The Account/Identity owner targets used above compile and pass independently.",
+    "The umbrella `tests/config/tsconfig.json` project is currently blocked by a concurrent Finance edit (`packages/feature-finance/src/adapters/server/native-period-close.ts` importing a missing `NativeJournalPageContext`). The changed Account projects passed before that edit landed, and the focused Vitest suite passes now.",
+    "The worktree contains other agents' uncommitted changes in Finance, Learning, Inventory, Organization, Records, composition and workplace files. They were left untouched; no cleanup or reset was performed.",
+    "No browser journey was run, so the Account security page's visual behavior, normal-authentication round trip and drawer interaction remain unverified."
+  ],
+  "nextAction": "Mount/verify the already-existing Account security route in the authorized running environment, then run the focused browser Account security journey (MFA enroll/verify, family sign-out, all-device sign-out, stale retry) with the user's normal authenticated session. Do not claim the Account workflow complete until that browser evidence and the composition-level verification pass, and do not delete the retained emergency-access or other Account workflows in the same step."
+}
