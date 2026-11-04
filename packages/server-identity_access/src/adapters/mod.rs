@@ -40,6 +40,9 @@ pub(crate) mod account_mfa_postgres;
 pub(crate) mod account_security_http;
 pub(crate) mod account_security_postgres;
 
+pub(crate) mod assignment_http;
+pub(crate) mod assignment_postgres;
+
 pub(crate) mod account_holding_bindings;
 pub(crate) mod account_inbound_http;
 

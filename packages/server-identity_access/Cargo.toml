@@ -230,3 +230,15 @@ required-features = ["directory-ldaps"]
 [[test]]
 name = "oidc_url_values"
 path = "../../tests/unit/identity_access/rust-oidc-url-values.test.rs"
+
+[[test]]
+name = "assignment"
+path = "../../tests/unit/identity_access/rust-assignment.test.rs"
+
+[[test]]
+name = "assignment_http"
+path = "../../tests/unit/identity_access/rust-assignment-http.test.rs"
+
+[[test]]
+name = "assignment_postgres"
+path = "../../tests/integration/identity_access/rust-assignment-postgres.test.rs"

@@ -66657,6 +66657,132 @@
       ]
     },
     {
+      "id": "identity_access.rust-assignment.unit",
+      "lane": "unit",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access"
+      ],
+      "files": [
+        "tests/unit/identity_access/rust-assignment.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native IAM assignment reads/revoke retain scope/self/last-admin guards, CAS/idempotency, audit/outbox and rollback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-identity-access",
+        "targets": [
+          "assignment"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-identity_access/Cargo.toml"
+      ]
+    },
+    {
+      "id": "identity_access.rust-assignment-http.unit",
+      "lane": "unit",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access"
+      ],
+      "files": [
+        "tests/unit/identity_access/rust-assignment-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native IAM assignment HTTP ingress retains exact targets, origin/key/content checks and bounded errors."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-identity-access",
+        "targets": [
+          "assignment_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-identity_access/Cargo.toml"
+      ]
+    },
+    {
+      "id": "identity_access.rust-assignment-postgres.integration",
+      "lane": "integration",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access"
+      ],
+      "files": [
+        "tests/integration/identity_access/rust-assignment-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native IAM assignment reads/revoke retain Company isolation, persisted readback, CAS and rollback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-identity-access",
+        "targets": [
+          "assignment_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-identity_access/Cargo.toml"
+      ]
+    },
+    {
+      "id": "identity_access.native-iam-assignments-transport.unit",
+      "lane": "unit",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access"
+      ],
+      "files": [
+        "tests/unit/identity_access/native-iam-assignments-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native IAM assignment transport must retain fail-closed config, bounded responses and owner error mapping."
+      },
+      "framework": "vitest",
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-identity_access"
+      ]
+    },
+    {
       "id": "field_service.rust-parts-policy.unit",
       "lane": "unit",
       "owner": "field_service",

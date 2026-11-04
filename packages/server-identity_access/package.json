@@ -459,6 +459,7 @@
     "./domain/account-access": "./src/domain/account-access.ts",
     "./public/native-work-role-transport": "./src/public/native-work-role-transport.ts",
     "./public/native-account-http": "./src/public/native-account-http.ts",
+    "./public/native-iam-assignments": "./src/public/native-iam-assignments.ts",
     "./public/account-session": "./src/public/account-session.ts"
   },
   "scripts": {
