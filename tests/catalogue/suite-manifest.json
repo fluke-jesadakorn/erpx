@@ -70747,6 +70747,19 @@
       ]
     },
     {
+      "id": "finance.rust-generic-payment-http-postgres.integration",
+      "lane": "integration",
+      "owner": "finance",
+      "modules": ["finance"],
+      "files": ["tests/integration/finance/rust-generic-payment-http-postgres.test.rs"],
+      "fixture": "postgres",
+      "requires": {"jobs": false, "scanner": false},
+      "ci": {"critical": true, "reason": "Native generic payment create ingress retains normal Account session, Company, finance.banking purchase, idempotency, audit/outbox and draft persistence without Field receipt configuration."},
+      "framework": "cargo",
+      "cargo": {"package": "erpx-service", "targets": ["generic_payment_http_postgres"], "features": ["existing-business"]},
+      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "src/composition/Cargo.toml", "tests/support/finance/review-composition.rs"]
+    },
+    {
       "id": "finance.rust-generic-payment-postgres.integration",
       "lane": "integration",
       "owner": "finance",
