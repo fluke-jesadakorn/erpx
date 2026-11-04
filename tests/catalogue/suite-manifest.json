@@ -61098,7 +61098,8 @@
         "tests/unit/finance/native-journal-detail.test.ts",
         "tests/unit/finance/native-journal-post-action.test.ts",
         "tests/unit/finance/native-service-invoice.test.ts",
-        "tests/unit/finance/native-finance-bank.test.ts"
+        "tests/unit/finance/native-finance-bank.test.ts",
+        "tests/unit/finance/native-finance-bank-read.test.ts"
       ],
       "verificationInputs": [
         "packages/contracts/src/finance-journal-read.generated.ts",

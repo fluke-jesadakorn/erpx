@@ -117,3 +117,4 @@ pub mod finance_opening;
 pub mod generic_payment;
 
 pub mod bank_reconciliation;
+pub mod bank_workspace;

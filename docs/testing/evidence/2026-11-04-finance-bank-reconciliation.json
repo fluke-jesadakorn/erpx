@@ -1,24 +1,28 @@
 {
   "version": 1,
   "date": "2026-11-04",
-  "status": "Native Finance bank import and manual reconciliation are PostgreSQL/HTTP qualified with an opt-in Next transport; the authenticated browser journey and automated match groups remain open",
+  "status": "Native Finance bank import, manual reconciliation and workspace read are PostgreSQL/HTTP qualified with an opt-in Next transport; the authenticated browser journey, automated match groups and default-writer cutover remain open",
   "capability": "finance-bank-reconciliation",
   "integrationTarget": "codex/rust-backend-migration",
   "scope": {
     "import": "Multi-row statement import with active primary bank account, currency scale, opening/closing balance, unique external reference, row currency/date, duplicate statement, FX closing rate, command receipt, audit and outbox.",
     "reconcile": "Manual exact released/settled payment match to an unmatched/proposed row with Company, bank account, currency, posted journal, amount, version, already-matched and replay guards.",
-    "read": "Bounded Company statements, transactions and unmatched posted payments.",
-    "http": "Registered-Holding /finance/bank/statements/import and /finance/bank/transactions/{id}/reconcile with normal Account session, Company scope, finance.banking purchase and ledger receipt.",
-    "frontend": "Opt-in Next transport for the existing BankImport/BankMatch commands; missing config retains TS, native failure never falls back."
+    "read": "Bounded Company statements, transactions and unmatched posted payments with chart filter, cursor pages and selected movement evidence.",
+    "http": "Registered-Holding GET /finance/bank plus POST /finance/bank/statements/import and /finance/bank/transactions/{id}/reconcile with normal Account session, Company scope, finance.banking purchase and ledger receipt.",
+    "frontend": "Opt-in Next transport for the existing BankImport/BankMatch commands and the bank workspace read; unset config retains TS, native failure never falls back."
   },
   "tests": [
     "finance.rust-bank-reconciliation-postgres.integration: 2 passed",
     "finance.rust-bank-reconciliation-http-postgres.integration: 1 passed (normal session import then reconcile persisted)",
-    "native-finance-bank transport: 3 passed"
+    "finance.rust-bank-workspace-postgres.integration: 4 passed (Company/chart scope, cursor pages, unmatched payments, selected movement, current purchase/authority denial, normal-session HTTP GET)",
+    "cargo test -p erpx-server-finance: all registered unit/integration targets pass, including the journal-source aggregate/provenance limit regressions",
+    "native-finance-bank transport: 3 passed",
+    "native-finance-bank-read transport: 4 passed"
   ],
   "limits": [
     "No authenticated browser journey yet; finance/feature-bank-reconciliation is not claimed verified.",
     "Automated mapping/multi-candidate groups and attachment workpapers remain in the legacy path.",
+    "The bank workspace and command transports remain opt-in; unset configuration still selects the retained TypeScript path.",
     "Hosted CI, staging and installed production were not accessed."
   ]
 }

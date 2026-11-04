@@ -1416,6 +1416,7 @@ async fn assemble_checked(
         let mut targets = Vec::new();
         let mut brand_targets = Vec::new();
         let mut bank_targets = Vec::new();
+        let mut bank_workspace_targets = Vec::new();
         #[cfg(feature = "finance-field-write")]
         let mut invoice_post_targets = Vec::new();
         #[cfg(feature = "finance-field-write")]
@@ -1464,8 +1465,28 @@ async fn assemble_checked(
                 host: holding.host.clone(),
                 holding_slug: holding.registration.slug.clone(),
                 authorizer: authorizer.clone(),
-                configuration: configuration.clone(),
+                configuration: FinanceJournalCreateConfiguration::new(
+                    FinanceJournalEnvironment::Development,
+                    holding.registration.holding_id.clone(),
+                    company.clone(),
+                    catalogue.clone(),
+                )
+                .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
                 clock: Arc::new(SharedClock(clock.clone())),
+            });
+            bank_workspace_targets.push(crate::finance_bank_workspace::FinanceBankWorkspaceTarget {
+                host: holding.host.clone(),
+                holding_slug: holding.registration.slug.clone(),
+                service: Arc::new(crate::finance_bank_workspace::FinanceBankWorkspaceService::new(
+                    authorizer.clone(),
+                    crate::finance_bank_workspace::FinanceBankWorkspaceConfiguration::new(
+                        holding.registration.holding_id.clone(),
+                        company.clone(),
+                        catalogue.clone(),
+                    )
+                    .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
+                    Arc::new(SharedClock(clock.clone())),
+                )),
             });
             brand_targets.push(crate::brand_identity_http::BrandIdentityTarget {
                 host: holding.host.clone(),
@@ -1690,6 +1711,17 @@ async fn assemble_checked(
                     config.policy.clone(),
                     config.holdings_registry.clone(),
                     bank_targets,
+                )
+                .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !bank_workspace_targets.is_empty() {
+            router = router.merge(
+                crate::finance_bank_workspace::finance_bank_workspace_router(
+                    config.policy.clone(),
+                    config.holdings_registry.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    bank_workspace_targets,
                 )
                 .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
             );

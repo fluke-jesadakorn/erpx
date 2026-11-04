@@ -1,6 +1,7 @@
 import {nativeFieldJournalWorkspaceReadback,nativeFieldJournalLegacyUnavailable} from '@erpx/feature-finance/public/server';
 import {nativeServicePaymentReadback,nativeServiceInvoiceReadback} from '@erpx/feature-finance/public/server';
 import {nativeFinanceBankCommand} from '@erpx/feature-finance/lib/native-finance-bank';
+import {nativeFinanceBankHttpGet} from '@erpx/feature-finance/lib/native-finance-bank-read';
 import {isNativeServicePaymentRequest,nativeServicePaymentCommand} from '@erpx/feature-finance/public/server';
 import { nativeServiceNoCharge,nativeServiceInvoicePost, nativeJournalEdit, nativeJournalEditReadback, nativeJournalCreate, nativeJournalCreateReadback, nativeJournalPost, nativeJournalPostReadback, nativeJournalReverse, nativeJournalReverseReadback, nativeSalesInvoiceEdit, nativeSalesInvoiceVoid, nativeFinanceSetupCommand, nativeOpeningBalance } from "@erpx/feature-finance/public/server";
 import {expensePostingPrerequisites,createExpensePostingChart,createExpensePostingAccount,createExpensePostingPeriod,confirmExpensePostingRate,expensePostingPrerequisiteConfirmation,expensePostingChartSchema,expensePostingAccountSchema,expensePostingPeriodSchema,expensePostingRateSchema,expensePostingPrerequisiteConfirmationSchema} from '@erpx/server-finance/public/expense-posting-prerequisites';
@@ -109,6 +110,10 @@ export async function GET(request: Request, context: FinanceRouteContext) {
       if (response) return response;
     }
     const actor = requirePermission(await requireWorkContext(holdingSlug),"finance.read");
+    if(parts.length===1&&parts[0]==="bank"){
+      const native=await nativeFinanceBankHttpGet(request,actor,holdingSlug);
+      if(native)return native;
+    }
     const search = new URL(request.url).searchParams;
     if(parts[0]?.startsWith('expense-setup')){
       if(parts[0]!=='expense-setup'||parts.length!==1)throw new ApiError(404,'NOT_FOUND','Expense setup resource not found.');

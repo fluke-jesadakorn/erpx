@@ -127,6 +127,11 @@ path = "../../tests/integration/finance/rust-bank-reconciliation-postgres.test.r
 required-features = ["existing-business"]
 
 [[test]]
+name = "bank_workspace_postgres"
+path = "../../tests/integration/finance/rust-bank-workspace-postgres.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
 name = "brand_identity_http_postgres"
 path = "../../tests/integration/brand/rust-brand-identity-http-postgres.test.rs"
 required-features = ["existing-business"]

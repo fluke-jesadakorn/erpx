@@ -143,7 +143,21 @@ pub async fn inspect_journal_review_source(
                 id,
                 (32 * 1024 * 1024_usize).saturating_sub(origin_text_bytes),
             )
-            .await?;
+            .await
+            .map_err(|error| match error {
+                PgTransactionError::Business(error)
+                    if error.code == "MANUAL_DRAFT_PROVENANCE_INVALID" =>
+                {
+                    unsupported()
+                }
+                PgTransactionError::Business(error)
+                    if error.code == "COMMAND_RECEIPT_TOO_LARGE"
+                        || error.code == "JOURNAL_DETAIL_SOURCE_LIMIT" =>
+                {
+                    origin_limit()
+                }
+                other => other,
+            })?;
             origin_text_bytes = origin_text_bytes
                 .checked_add(proof.retained_text_bytes())
                 .filter(|n| *n <= 32 * 1024 * 1024)
@@ -171,7 +185,15 @@ pub async fn inspect_journal_review_source(
             },
             receipt_limit,
         )
-        .await?
+        .await
+        .map_err(|error| match error {
+            PgTransactionError::Business(error)
+                if error.code == "COMMAND_RECEIPT_TOO_LARGE" && origin_text_bytes > 0 =>
+            {
+                origin_limit()
+            }
+            other => other,
+        })?
         .ok_or_else(unsupported)?;
         origin_text_bytes = origin_text_bytes
             .checked_add(origin.retained_text_bytes())
