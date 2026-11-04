@@ -2830,8 +2830,9 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
     let finance_receipt_review = match (request.method(),request.uri().path().split('/').collect::<Vec<_>>().as_slice()) {
         (&axum::http::Method::POST,["","api","v1","holdings",slug,"finance","bank","statements","import"])
         | (&axum::http::Method::POST,["","api","v1","holdings",slug,"finance","payments"]) => state.finance_service_receipt_targets.contains(&(host.to_owned(),(*slug).to_owned())),
-        (&axum::http::Method::GET,["","api","v1","holdings",slug,"finance","payments",id,"workspace"|"runtime"])
-        | (&axum::http::Method::GET,["","api","v1","holdings",slug,"finance","sales","receipts",id,"workspace"|"runtime"])
+        (&axum::http::Method::GET,["","api","v1","holdings",slug,"finance","payments",_id,"workspace"|"runtime"]) => state.finance_service_receipt_targets.contains(&(host.to_owned(),(*slug).to_owned())),
+        (&axum::http::Method::GET,["","api","v1","holdings",slug,"finance","invoices",id,"payment-runtime"]) if !id.is_empty() => state.finance_service_receipt_targets.contains(&(host.to_owned(),(*slug).to_owned())),
+        (&axum::http::Method::GET,["","api","v1","holdings",slug,"finance","sales","receipts",id,"workspace"|"runtime"])
         | (&axum::http::Method::POST,["","api","v1","holdings",slug,"finance","payments",id,"approve"|"release"|"confirm"]) if !id.is_empty() => state.finance_service_receipt_targets.contains(&(host.to_owned(),(*slug).to_owned())),
         _ => false,
     };

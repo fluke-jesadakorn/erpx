@@ -311,10 +311,13 @@ impl<C: Clock + Send + Sync> PgOwnerCommandEffects for Effects<'_, C> {
         })?;
         let result: serde_json::Value =
             serde_json::from_str(result.as_str()).map_err(|_| changed())?;
-        if result["id"] != statement_id || result["settlementPaymentId"] != r.record_id {
+        let field_import = result.get("settlementPaymentId").is_some_and(|value| !value.is_null());
+        if result["id"] != statement_id
+            || field_import && result["settlementPaymentId"] != r.record_id
+        {
             return Err(BusinessError::invalid(
                 "SERVICE_PAYMENT_BANK_SOURCE_INVALID",
-                "Import the bank evidence for this exact controlled Service receipt.",
+                "Import the bank evidence for this exact controlled payment.",
             )
             .into());
         }
