@@ -1412,6 +1412,51 @@ async fn assemble_checked(
     {
         return Err("PRIVATE_API_FINANCE_CONFIGURATION_INVALID");
     }
+    let platform_administration_store = Arc::new(
+        erpx_server_platform_administration::public::platform_operations::PgPlatformAdministration::new(
+            pools[0].clone(),
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, h)| {
+                    erpx_server_platform_administration::public::platform_operations::PlatformHoldingDatabase {
+                        identity: erpx_server_platform_administration::public::platform_operations::PlatformHoldingIdentity {
+                            id: h.registration.holding_id.as_str().to_owned(),
+                            slug: h.registration.slug.clone(),
+                            display_name: h.registration.slug.clone(),
+                        },
+                        pool: pools[i + 1].clone(),
+                    }
+                })
+                .collect(),
+            holding_files.clone(),
+        )
+        .map_err(|_| "PRIVATE_API_PLATFORM_ADMINISTRATION_CONFIGURATION_INVALID")?,
+    );
+    let platform_administration_slots = vec![
+        erpx_server_platform_administration::public::platform_operations::PlatformResourceSlot {
+            id: "h004".into(),
+            write: "H004_DB".into(),
+            read: "H004_READ_DB".into(),
+            files: "H004_FILES".into(),
+            beta: false,
+            internal: false,
+        },
+    ];
+    let platform_administration_holdings: Vec<
+        erpx_server_platform_administration::public::platform_operations::PlatformHoldingIdentity,
+    > = config
+        .holdings
+        .iter()
+        .map(|h| {
+            erpx_server_platform_administration::public::platform_operations::PlatformHoldingIdentity {
+                id: h.registration.holding_id.as_str().to_owned(),
+                slug: h.registration.slug.clone(),
+                display_name: h.registration.slug.clone(),
+            }
+        })
+        .collect();
     if !config.finance_journal_reads.is_empty() {
         let catalogue = Arc::new(
             current_package_catalogue().map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
@@ -1425,6 +1470,7 @@ async fn assemble_checked(
         let mut learning_targets = Vec::new();
         let mut quality_targets = Vec::new();
         let mut manage_erpx_targets = Vec::new();
+        let mut platform_administration_targets = Vec::new();
         let mut records_context_targets = Vec::new();
         let mut records_registry_targets = Vec::new();
         let mut legal_targets = Vec::new();
@@ -1602,6 +1648,31 @@ async fn assemble_checked(
                     )),
                 },
             );
+
+            if holding.registration.holding_id.as_str() == "h003" {
+                platform_administration_targets.push(
+                    erpx_server_platform_administration::public::platform_operations::PlatformHttpTarget {
+                        host: holding.host.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::platform_administration::PlatformAdministrationBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::platform_administration::PlatformAdministrationService::new(
+                                authorizer.clone(),
+                                crate::platform_administration::PlatformAdministrationConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                    platform_administration_store.clone(),
+                                    platform_administration_slots.clone(),
+                                    platform_administration_holdings.clone(),
+                                    pools[0].clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
+            }
             legal_targets.push(
                 erpx_server_legal::public::legal_records::LegalHttpTarget {
                     host: holding.host.clone(),
@@ -2172,6 +2243,15 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_manage_erpx::public::onboarding_http::manage_erpx_router(manage_erpx_targets)
                     .map_err(|_| "PRIVATE_API_MANAGE_ERPX_CONFIGURATION_INVALID")?,
+            );
+        }
+
+        if !platform_administration_targets.is_empty() {
+            router = router.merge(
+                erpx_server_platform_administration::public::platform_operations::platform_router(
+                    platform_administration_targets,
+                )
+                .map_err(|_| "PRIVATE_API_PLATFORM_ADMINISTRATION_CONFIGURATION_INVALID")?,
             );
         }
         if !legal_targets.is_empty() {

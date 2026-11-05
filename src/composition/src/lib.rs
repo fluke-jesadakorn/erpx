@@ -62,6 +62,7 @@ pub mod benefits;
 pub mod projects;
 pub mod quality;
 pub mod manage_erpx;
+pub mod platform_administration;
 pub mod records;
 pub mod files;
 #[cfg(feature = "existing-business")]
