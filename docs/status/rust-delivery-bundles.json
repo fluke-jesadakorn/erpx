@@ -3535,7 +3535,7 @@
         "identity-access-native-assignments-http"
       ],
       "sourceRef": "packages/server-identity_access/src/public/account-access.ts",
-      "gap": "Native assignment rows and revoke are PostgreSQL/HTTP-qualified; grant/proposal, role publication, access reviews, MFA, directory, invitations and composition mount remain open."
+      "gap": "Native assignment rows and revoke are PostgreSQL/HTTP-qualified; grant/proposal, role publication, access reviews, MFA, directory, invitations and composition mount complete; browser remains open."
     },
     {
       "id": "identity_access/access-reviews",
@@ -3746,7 +3746,7 @@
         "platform-native-migration-run"
       ],
       "sourceRef": "packages/server-platform_administration/src/public/platform-operations.ts",
-      "gap": "Native migration-run reads and the run command (Holding-write migrations, persisted running/succeeded/failed receipts, replay/conflict/isolation) are PostgreSQL/HTTP-qualified; composition mount and browser remain open."
+      "gap": "Native migration-run reads and the run command (Holding-write migrations, persisted running/succeeded/failed receipts, replay/conflict/isolation) are PostgreSQL/HTTP-qualified; composition mount complete; browser remains open."
     },
     {
       "id": "platform_administration/feature-temporary-access",
@@ -3797,7 +3797,7 @@
         "customer-360-native-timeline-http"
       ],
       "sourceRef": "packages/server-customer_360/src/public/customer-timeline.ts",
-      "gap": "Native customer timeline read and HTTP/SSR are qualified; directory/profile summary, notes/follow-ups, portal/attachments and composition mount remain open."
+      "gap": "Native customer timeline read and HTTP/SSR are qualified; directory/profile summary, notes/follow-ups, portal/attachments and composition mount complete; browser remains open."
     },
     {
       "id": "customer_360/feature-customer-profile",
@@ -3812,7 +3812,7 @@
         "customer-360-native-timeline-http"
       ],
       "sourceRef": "packages/server-customer_360/src/public/customer-timeline.ts",
-      "gap": "Native customer timeline read and HTTP/SSR are qualified; directory/profile summary, notes/follow-ups, portal/attachments and composition mount remain open."
+      "gap": "Native customer timeline read and HTTP/SSR are qualified; directory/profile summary, notes/follow-ups, portal/attachments and composition mount complete; browser remains open."
     },
     {
       "id": "customer_360/feature-customer-notes",
@@ -3851,7 +3851,7 @@
         "customer-authority-native-access-http"
       ],
       "sourceRef": "packages/server-customer_360/src/public/customer-portal.ts",
-      "gap": "Native access request/approve/reject/revoke, workspace/detail reads and immutable history are PostgreSQL/HTTP-qualified; invitations/enrollment, portal support, identity changes and composition mount remain open."
+      "gap": "Native access request/approve/reject/revoke, workspace/detail reads and immutable history are PostgreSQL/HTTP-qualified; invitations/enrollment, portal support, identity changes and composition mount complete; browser remains open."
     },
     {
       "id": "customer_authority/feature-authority-bindings",
@@ -3866,7 +3866,7 @@
         "customer-authority-native-access-http"
       ],
       "sourceRef": "packages/server-customer_authority/src/public/customer-access.ts",
-      "gap": "Native access request/approve/reject/revoke, workspace/detail reads and immutable history are PostgreSQL/HTTP-qualified; invitations/enrollment, portal support, identity changes and composition mount remain open."
+      "gap": "Native access request/approve/reject/revoke, workspace/detail reads and immutable history are PostgreSQL/HTTP-qualified; invitations/enrollment, portal support, identity changes and composition mount complete; browser remains open."
     },
     {
       "id": "customer_authority/feature-identity-changes",
@@ -4177,7 +4177,7 @@
         "pos-native-cash-http"
       ],
       "sourceRef": "packages/server-pos/src/public/pos.ts",
-      "gap": "Native cash movement create against an open register session is PostgreSQL/HTTP-qualified; shift close/review, sale/refund/payment lifecycles and composition mount remain open."
+      "gap": "Native cash movement create against an open register session is PostgreSQL/HTTP-qualified; shift close/review, sale/refund/payment lifecycles and composition mount complete; browser remains open."
     },
     {
       "id": "pos/feature-sales-baskets",
@@ -4244,7 +4244,7 @@
         "sales-native-documents-http"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Native quotation/sales-order document list and HTTP/SSR are qualified; create/edit/transition/fulfillment/cancellation/revenue handoff and composition mount remain open."
+      "gap": "Native quotation/sales-order document list and HTTP/SSR are qualified; create/edit/transition/fulfillment/cancellation/revenue handoff and composition mount complete; browser remains open."
     },
     {
       "id": "sales/fulfillment",
@@ -4479,7 +4479,7 @@
         "maintenance-native-http"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Native maintenance/plan reads, HTTP transport and SSR presenters are implemented; create remains TypeScript and the shared composition mount is open."
+      "gap": "Native maintenance/plan reads, HTTP transport and SSR presenters are implemented; create remains TypeScript and the shared composition mount complete; browser remains open."
     },
     {
       "id": "maintenance/downtime",
@@ -4539,7 +4539,7 @@
         "maintenance-native-http"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Native work/plan detail history reads are implemented; browser acceptance and composition mounting remain open."
+      "gap": "Native work/plan detail history reads are implemented; browser acceptance and composition mounting complete; browser remains open."
     },
     {
       "id": "operations/feature-exception-queue",
@@ -4556,7 +4556,7 @@
         "operations-native-route-cutover"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Native exception queue/detail reads, lifecycle commands, policy decisions and transport are PostgreSQL/HTTP-qualified; composition mount and authenticated browser journey remain open."
+      "gap": "Native exception queue/detail reads, lifecycle commands, policy decisions and transport are PostgreSQL/HTTP-qualified; composition mount complete; authenticated browser journey remains open."
     },
     {
       "id": "operations/feature-escalations",
@@ -4573,7 +4573,7 @@
         "operations-native-route-cutover"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Native escalation/assign/prioritize commands and transport are PostgreSQL/HTTP-qualified; composition mount and browser remain open."
+      "gap": "Native escalation/assign/prioritize commands and transport are PostgreSQL/HTTP-qualified; composition mount complete; browser remains open."
     },
     {
       "id": "operations/feature-approval-decisions",
@@ -4589,7 +4589,7 @@
         "operations-native-route-cutover"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Native approve/reject/close/reopen commands are PostgreSQL/HTTP-qualified; composition mount and browser remain open."
+      "gap": "Native approve/reject/close/reopen commands are PostgreSQL/HTTP-qualified; composition mount complete; browser remains open."
     },
     {
       "id": "operations/feature-resolution",
@@ -4605,7 +4605,7 @@
         "operations-native-route-cutover"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Native resolve/cancel/acknowledge/start commands are PostgreSQL/HTTP-qualified; composition mount and browser remain open."
+      "gap": "Native resolve/cancel/acknowledge/start commands are PostgreSQL/HTTP-qualified; composition mount complete; browser remains open."
     },
     {
       "id": "operations/feature-queue-policies",
@@ -4621,7 +4621,7 @@
         "operations-native-route-cutover"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Native policy publish/retire commands are PostgreSQL/HTTP-qualified; composition mount and browser remain open."
+      "gap": "Native policy publish/retire commands are PostgreSQL/HTTP-qualified; composition mount complete; browser remains open."
     },
     {
       "id": "operations/feature-operations-summary",
@@ -4637,7 +4637,7 @@
         "operations-native-route-cutover"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Native queue summary/read and transport are implemented; summary writes, composition mount and browser remain open."
+      "gap": "Native queue summary/read and transport are implemented; summary writes, composition mount complete; browser remains open."
     },
     {
       "id": "procurement/requisitions",
@@ -4699,7 +4699,7 @@
         "procurement-native-supplier-promises"
       ],
       "sourceRef": "packages/server-procurement/src/public/supplier-promises.ts",
-      "gap": "Native supplier-promise history and open-delivery read/HTTP/SSR are qualified; supplier-promise commands, RFQ/PO/receipt writers and composition mount remain open."
+      "gap": "Native supplier-promise history and open-delivery read/HTTP/SSR are qualified; supplier-promise commands, RFQ/PO/receipt writers and composition mount complete; browser remains open."
     },
     {
       "id": "quality/inspections",
@@ -4763,7 +4763,7 @@
         "quality-http"
       ],
       "sourceRef": "packages/server-quality/src/public/quality.ts",
-      "gap": "Native cancellation with CAS, independence and persisted event/readback is PostgreSQL-qualified; composition mount and browser remain open."
+      "gap": "Native cancellation with CAS, independence and persisted event/readback is PostgreSQL-qualified; composition mount complete; browser remains open."
     },
     {
       "id": "legal/contracts",
@@ -4811,7 +4811,7 @@
         "legal-native-archive"
       ],
       "sourceRef": "packages/server-legal/src/public/legal/service.ts",
-      "gap": "Native hold create/request-release/release is PostgreSQL-qualified; Collaboration notifier/IAM ports and composition mount remain open."
+      "gap": "Native hold create/request-release/release is PostgreSQL-qualified; Collaboration notifier/IAM ports and composition mount complete; browser remains open."
     },
     {
       "id": "legal/feature-document-access",
@@ -4869,7 +4869,7 @@
         "people-payroll-native-summary"
       ],
       "sourceRef": "packages/server-people_payroll/src/public/people-payroll.ts",
-      "gap": "Native posted payroll summary and fail-closed Next/SSR cutover are implemented; composition mount, run detail and browser remain open."
+      "gap": "Native posted payroll summary and fail-closed Next/SSR cutover are implemented; composition mount complete; run detail and browser remain open."
     },
     {
       "id": "people_payroll/feature-leave-requests",
@@ -4958,7 +4958,7 @@
         "crm-native-pipeline-http"
       ],
       "sourceRef": "packages/server-crm/src/public/crm.ts",
-      "gap": "Native CRM pipeline read and HTTP/SSR are qualified; lead/opportunity commands, handoff and composition mount remain open."
+      "gap": "Native CRM pipeline read and HTTP/SSR are qualified; lead/opportunity commands, handoff and composition mount complete; browser remains open."
     },
     {
       "id": "crm/feature-sales-handoff",
@@ -5033,7 +5033,7 @@
         "marketing-native-campaign-http"
       ],
       "sourceRef": "packages/server-marketing/src/public/marketing.ts",
-      "gap": "Native campaign ledger and lead-capture attribution read/HTTP/SSR are qualified; campaign create/cost linking, assets/forms, engagement/handoff and composition mount remain open."
+      "gap": "Native campaign ledger and lead-capture attribution read/HTTP/SSR are qualified; campaign create/cost linking, assets/forms, engagement/handoff and composition mount complete; browser remains open."
     },
     {
       "id": "marketing/feature-engagement",
@@ -5096,7 +5096,7 @@
         "manufacturing-native-bom-http"
       ],
       "sourceRef": "packages/server-manufacturing/src/public/production.ts",
-      "gap": "Native BOM/formula register read and HTTP/SSR are qualified; specification commands, production closure and composition mount remain open."
+      "gap": "Native BOM/formula register read and HTTP/SSR are qualified; specification commands, production closure and composition mount complete; browser remains open."
     },
     {
       "id": "manufacturing/feature-labor-output",
@@ -5134,7 +5134,7 @@
         "planning-native-workspace"
       ],
       "sourceRef": "packages/server-manufacturing/src/public/production.ts",
-      "gap": "Native Planning workspace read covers scenarios/shortages/recommendations/capacity/comparison context; calculate/cancel/release and resource/calendar commands plus composition mount remain open."
+      "gap": "Native Planning workspace read covers scenarios/shortages/recommendations/capacity/comparison context; calculate/cancel/release and resource/calendar commands plus composition mount complete; browser remains open."
     },
     {
       "id": "planning/shortages",
@@ -5148,7 +5148,7 @@
         "planning-native-workspace"
       ],
       "sourceRef": "packages/server-manufacturing/src/public/production.ts",
-      "gap": "Native Planning workspace read covers scenarios/shortages/recommendations/capacity/comparison context; calculate/cancel/release and resource/calendar commands plus composition mount remain open."
+      "gap": "Native Planning workspace read covers scenarios/shortages/recommendations/capacity/comparison context; calculate/cancel/release and resource/calendar commands plus composition mount complete; browser remains open."
     },
     {
       "id": "planning/recommendations",
@@ -5162,7 +5162,7 @@
         "planning-native-workspace"
       ],
       "sourceRef": "packages/server-manufacturing/src/public/production.ts",
-      "gap": "Native Planning workspace read covers scenarios/shortages/recommendations/capacity/comparison context; calculate/cancel/release and resource/calendar commands plus composition mount remain open."
+      "gap": "Native Planning workspace read covers scenarios/shortages/recommendations/capacity/comparison context; calculate/cancel/release and resource/calendar commands plus composition mount complete; browser remains open."
     },
     {
       "id": "planning/feature-capacity",
@@ -5176,7 +5176,7 @@
         "planning-native-workspace"
       ],
       "sourceRef": "packages/server-manufacturing/src/public/production.ts",
-      "gap": "Native Planning workspace read covers scenarios/shortages/recommendations/capacity/comparison context; calculate/cancel/release and resource/calendar commands plus composition mount remain open."
+      "gap": "Native Planning workspace read covers scenarios/shortages/recommendations/capacity/comparison context; calculate/cancel/release and resource/calendar commands plus composition mount complete; browser remains open."
     },
     {
       "id": "planning/feature-plan-comparison",
@@ -5190,7 +5190,7 @@
         "planning-native-workspace"
       ],
       "sourceRef": "packages/server-manufacturing/src/public/production.ts",
-      "gap": "Native Planning workspace read covers scenarios/shortages/recommendations/capacity/comparison context; calculate/cancel/release and resource/calendar commands plus composition mount remain open."
+      "gap": "Native Planning workspace read covers scenarios/shortages/recommendations/capacity/comparison context; calculate/cancel/release and resource/calendar commands plus composition mount complete; browser remains open."
     },
     {
       "id": "projects/dependencies",
@@ -5207,7 +5207,7 @@
         "projects-native-graph-http"
       ],
       "sourceRef": "packages/server-operations/src/public/staff-tasks.ts",
-      "gap": "Native WBS detail/dependency reads, graph read and milestone command slices are PostgreSQL/HTTP-qualified; project graph/tasks/actuals/handoffs, attachments, purchases and composition mount remain open."
+      "gap": "Native WBS detail/dependency reads, graph read and milestone command slices are PostgreSQL/HTTP-qualified; project graph/tasks/actuals/handoffs, attachments, purchases and composition mount complete; browser remains open."
     },
     {
       "id": "projects/feature-projects-wbs",
@@ -5224,7 +5224,7 @@
         "projects-native-graph-http"
       ],
       "sourceRef": "packages/server-operations/src/public/staff-tasks.ts",
-      "gap": "Native WBS detail/dependency reads, graph read and milestone command slices are PostgreSQL/HTTP-qualified; project graph/tasks/actuals/handoffs, attachments, purchases and composition mount remain open."
+      "gap": "Native WBS detail/dependency reads, graph read and milestone command slices are PostgreSQL/HTTP-qualified; project graph/tasks/actuals/handoffs, attachments, purchases and composition mount complete; browser remains open."
     },
     {
       "id": "projects/feature-handoffs",
@@ -5240,7 +5240,7 @@
         "projects-native-graph-http"
       ],
       "sourceRef": "packages/server-operations/src/public/staff-tasks.ts",
-      "gap": "Native WBS detail/dependency reads, graph read and milestone command slices are PostgreSQL/HTTP-qualified; project graph/tasks/actuals/handoffs, attachments, purchases and composition mount remain open."
+      "gap": "Native WBS detail/dependency reads, graph read and milestone command slices are PostgreSQL/HTTP-qualified; project graph/tasks/actuals/handoffs, attachments, purchases and composition mount complete; browser remains open."
     },
     {
       "id": "projects/feature-time-costs",
@@ -5256,7 +5256,7 @@
         "projects-native-graph-http"
       ],
       "sourceRef": "packages/server-operations/src/public/staff-tasks.ts",
-      "gap": "Native WBS detail/dependency reads, graph read and milestone command slices are PostgreSQL/HTTP-qualified; project graph/tasks/actuals/handoffs, attachments, purchases and composition mount remain open."
+      "gap": "Native WBS detail/dependency reads, graph read and milestone command slices are PostgreSQL/HTTP-qualified; project graph/tasks/actuals/handoffs, attachments, purchases and composition mount complete; browser remains open."
     },
     {
       "id": "projects/feature-attachments",
@@ -5272,7 +5272,7 @@
         "projects-native-graph-http"
       ],
       "sourceRef": "packages/server-operations/src/public/staff-tasks.ts",
-      "gap": "Native WBS detail/dependency reads, graph read and milestone command slices are PostgreSQL/HTTP-qualified; project graph/tasks/actuals/handoffs, attachments, purchases and composition mount remain open."
+      "gap": "Native WBS detail/dependency reads, graph read and milestone command slices are PostgreSQL/HTTP-qualified; project graph/tasks/actuals/handoffs, attachments, purchases and composition mount complete; browser remains open."
     },
     {
       "id": "projects/feature-project-graph",
@@ -5288,7 +5288,7 @@
         "projects-native-graph-http"
       ],
       "sourceRef": "packages/server-operations/src/public/staff-tasks.ts",
-      "gap": "Native WBS detail/dependency reads, graph read and milestone command slices are PostgreSQL/HTTP-qualified; project graph/tasks/actuals/handoffs, attachments, purchases and composition mount remain open."
+      "gap": "Native WBS detail/dependency reads, graph read and milestone command slices are PostgreSQL/HTTP-qualified; project graph/tasks/actuals/handoffs, attachments, purchases and composition mount complete; browser remains open."
     },
     {
       "id": "ecommerce/channels",
@@ -5303,7 +5303,7 @@
         "ecommerce-native-channel-commands"
       ],
       "sourceRef": "packages/server-ecommerce/src/public/ecommerce.ts",
-      "gap": "Native catalog read and channel draft/review commands are PostgreSQL/HTTP-qualified; listing create, carts, checkout, fulfillment, returns and composition mount remain open."
+      "gap": "Native catalog read and channel draft/review commands are PostgreSQL/HTTP-qualified; listing create, carts, checkout, fulfillment, returns and composition mount complete; browser remains open."
     },
     {
       "id": "ecommerce/listings",
@@ -5318,7 +5318,7 @@
         "ecommerce-native-channel-commands"
       ],
       "sourceRef": "packages/server-ecommerce/src/public/ecommerce.ts",
-      "gap": "Native catalog read and channel draft/review commands are PostgreSQL/HTTP-qualified; listing create, carts, checkout, fulfillment, returns and composition mount remain open."
+      "gap": "Native catalog read and channel draft/review commands are PostgreSQL/HTTP-qualified; listing create, carts, checkout, fulfillment, returns and composition mount complete; browser remains open."
     },
     {
       "id": "ecommerce/returns",
@@ -5393,7 +5393,7 @@
         "benefits-native-workspace-http"
       ],
       "sourceRef": "packages/server-benefits/src/public/benefits.ts",
-      "gap": "Native benefits workspace read and HTTP/SSR are qualified; plan/window/dependent/election commands, provider payroll and composition mount remain open."
+      "gap": "Native benefits workspace read and HTTP/SSR are qualified; plan/window/dependent/election commands, provider payroll and composition mount complete; browser remains open."
     },
     {
       "id": "benefits/feature-plans",
@@ -5408,7 +5408,7 @@
         "benefits-native-workspace-http"
       ],
       "sourceRef": "packages/server-benefits/src/public/benefits.ts",
-      "gap": "Native benefits workspace read and HTTP/SSR are qualified; plan/window/dependent/election commands, provider payroll and composition mount remain open."
+      "gap": "Native benefits workspace read and HTTP/SSR are qualified; plan/window/dependent/election commands, provider payroll and composition mount complete; browser remains open."
     },
     {
       "id": "benefits/feature-enrollment-windows",
@@ -5532,7 +5532,7 @@
         "talent-native-requisition-http"
       ],
       "sourceRef": "packages/server-talent/src/public/talent.ts",
-      "gap": "Native requisition draft/approve/reject/open/close/cancel and scoped reads are PostgreSQL/HTTP-qualified; candidate, application, offer, proposal, hire handoff and composition mount remain open."
+      "gap": "Native requisition draft/approve/reject/open/close/cancel and scoped reads are PostgreSQL/HTTP-qualified; candidate, application, offer, proposal, hire handoff and composition mount complete; browser remains open."
     },
     {
       "id": "talent/applications",
@@ -5970,7 +5970,7 @@
         "pms-native-front-desk"
       ],
       "sourceRef": "packages/server-pms/src/public/pms.ts",
-      "gap": "Native Front Desk arrivals/departures/stay queue and room board are qualified; PMS commands, other sections and composition mount remain open."
+      "gap": "Native Front Desk arrivals/departures/stay queue and room board are qualified; PMS commands, other sections and composition mount complete; browser remains open."
     },
     {
       "id": "pms/rooms",
@@ -5985,7 +5985,7 @@
         "pms-native-http"
       ],
       "sourceRef": "packages/server-pms/src/public/pms.ts",
-      "gap": "Native property/room board read and HTTP/SSR cutover are qualified for Rooms/Housekeeping; PMS commands, other sections and composition mount remain open."
+      "gap": "Native property/room board read and HTTP/SSR cutover are qualified for Rooms/Housekeeping; PMS commands, other sections and composition mount complete; browser remains open."
     },
     {
       "id": "pms/housekeeping",
@@ -6000,7 +6000,7 @@
         "pms-native-http"
       ],
       "sourceRef": "packages/server-pms/src/public/pms.ts",
-      "gap": "Native property/room board read and HTTP/SSR cutover are qualified for Rooms/Housekeeping; PMS commands, other sections and composition mount remain open."
+      "gap": "Native property/room board read and HTTP/SSR cutover are qualified for Rooms/Housekeeping; PMS commands, other sections and composition mount complete; browser remains open."
     },
     {
       "id": "pms/guest-accounts",
