@@ -18,6 +18,14 @@ use erpx_server_platform_administration::public::platform_operations::{
     platform_operations_snapshot, provision_holding, recover_dead_letter_job, run_holding_migration,
 };
 use erpx_server_platform_administration::public::platform_operations::PlatformHttpReadRequest;
+use erpx_server_platform_administration::public::agent_evidence::{
+    AgentEvidenceActor, AgentEvidenceKind, AgentEvidenceRecord, AgentEvidenceWorkspace,
+    PgAgentEvidenceRead, agent_evidence_record, agent_evidence_workspace, lock_agent_evidence_sources,
+};
+use erpx_server_platform_administration::public::agent_evidence_http::{
+    AgentEvidenceHttpBackend, AgentEvidenceHttpFuture, AgentEvidenceHttpQuery,
+    AgentEvidenceHttpReadRequest, AgentEvidenceHttpResponse,
+};
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{DatabasePool, PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
@@ -554,4 +562,272 @@ fn unique_header(headers: &HeaderMap, name: HeaderName) -> Result<Option<&str>, 
                 })
         })
         .transpose()
+}
+
+#[derive(Clone, Copy)]
+struct AgentEvidenceSources;
+
+impl HoldingWorkSourcePreparation for AgentEvidenceSources {
+    fn prepare<'c>(&'c self, _: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async { Ok(()) })
+    }
+}
+
+#[derive(Clone)]
+pub struct AgentEvidenceConfiguration {
+    holding: HoldingId,
+    company: CompanyId,
+}
+
+impl AgentEvidenceConfiguration {
+    pub fn new(holding: HoldingId, company: CompanyId) -> Self {
+        Self { holding, company }
+    }
+
+    pub fn company(&self) -> &CompanyId {
+        &self.company
+    }
+
+    pub fn holding(&self) -> &HoldingId {
+        &self.holding
+    }
+}
+
+pub struct AgentEvidenceService<C> {
+    authorizer: Arc<HoldingWorkAuthorizer>,
+    configuration: AgentEvidenceConfiguration,
+    clock: Arc<C>,
+}
+
+impl<C: Clock + Send + Sync + 'static> AgentEvidenceService<C> {
+    pub fn new(
+        authorizer: Arc<HoldingWorkAuthorizer>,
+        configuration: AgentEvidenceConfiguration,
+        clock: Arc<C>,
+    ) -> Self {
+        Self {
+            authorizer,
+            configuration,
+            clock,
+        }
+    }
+
+    pub fn company(&self) -> &CompanyId {
+        self.configuration.company()
+    }
+
+    fn access() -> WorkAuthorizationRequest {
+        WorkAuthorizationRequest {
+            permission: "records.read".into(),
+            module: Some("agent".into()),
+            destination: "agent_evidence".into(),
+            api: true,
+        }
+    }
+
+    fn input<Input>(
+        &self,
+        input: Input,
+    ) -> impl FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company.clone();
+        move || {
+            let mut request = input()?;
+            if request.company_id != company {
+                return Err(scope());
+            }
+            request.mutation = false;
+            Ok(request)
+        }
+    }
+
+    pub async fn read_workspace<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+    ) -> Result<AgentEvidenceHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                AgentEvidenceSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.read")?;
+                        let now = clock.now().get();
+                        let actor = AgentEvidenceActor {
+                            user_id: current.user_id().as_str().to_owned(),
+                            company_id: company.as_str().to_owned(),
+                            permissions: current.command_iam_metadata().permissions.clone(),
+                            modules: current.modules().to_vec(),
+                            expires_at: current.expires_at(),
+                        };
+                        lock_agent_evidence_sources(connection).await?;
+                        let mut repository = PgAgentEvidenceRead::new(connection);
+                        let workspace =
+                            agent_evidence_workspace(&actor, &mut repository, now).await?;
+                        let data = serde_json::to_value(workspace).map_err(|_| {
+                            BusinessError::new(
+                                FailureKind::Unavailable,
+                                "AGENT_EVIDENCE_REPLY_INVALID",
+                                "The Agent evidence reply could not be rendered.",
+                            )
+                        })?;
+                        Ok(AgentEvidenceHttpResponse {
+                            data,
+                            context: context_value(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn read_record<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        kind: AgentEvidenceKind,
+        id: String,
+    ) -> Result<AgentEvidenceHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                AgentEvidenceSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let id = id.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.read")?;
+                        let now = clock.now().get();
+                        let actor = AgentEvidenceActor {
+                            user_id: current.user_id().as_str().to_owned(),
+                            company_id: company.as_str().to_owned(),
+                            permissions: current.command_iam_metadata().permissions.clone(),
+                            modules: current.modules().to_vec(),
+                            expires_at: current.expires_at(),
+                        };
+                        lock_agent_evidence_sources(connection).await?;
+                        let mut repository = PgAgentEvidenceRead::new(connection);
+                        let record =
+                            agent_evidence_record(&actor, kind, &id, &mut repository, now).await?;
+                        let data = serde_json::to_value(record).map_err(|_| {
+                            BusinessError::new(
+                                FailureKind::Unavailable,
+                                "AGENT_EVIDENCE_REPLY_INVALID",
+                                "The Agent evidence reply could not be rendered.",
+                            )
+                        })?;
+                        Ok(AgentEvidenceHttpResponse {
+                            data,
+                            context: context_value(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+}
+
+pub struct AgentEvidenceBackend<C> {
+    policy: Arc<AccountPolicy>,
+    scopes: Arc<dyn BusinessScopeSlugs>,
+    service: Arc<AgentEvidenceService<C>>,
+}
+
+impl<C: Clock + Send + Sync + 'static> AgentEvidenceBackend<C> {
+    pub fn new(
+        policy: Arc<AccountPolicy>,
+        scopes: Arc<dyn BusinessScopeSlugs>,
+        service: Arc<AgentEvidenceService<C>>,
+    ) -> Self {
+        Self {
+            policy,
+            scopes,
+            service,
+        }
+    }
+
+    fn context(
+        &self,
+        headers: &HeaderMap,
+    ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
+        let inbound = parse_inbound_account_request(&self.policy, headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(not_found());
+        }
+        let (branch, department) = self.scopes.slugs(headers)?;
+        Ok((
+            inbound.into_proof(),
+            HoldingWorkspaceRequest {
+                company_id: self.service.company().clone(),
+                branch_slug: branch,
+                department_slug: department,
+                expected: None,
+                mutation: false,
+            },
+        ))
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> AgentEvidenceHttpBackend for AgentEvidenceBackend<C> {
+    fn read<'a>(
+        &'a self,
+        request: AgentEvidenceHttpReadRequest<'a>,
+    ) -> AgentEvidenceHttpFuture<'a, AgentEvidenceHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            match request.query {
+                AgentEvidenceHttpQuery::Workspace => self
+                    .service
+                    .read_workspace(request.host, proof, move || Ok(selection))
+                    .await
+                    .map_err(business),
+                AgentEvidenceHttpQuery::Record(query) => {
+                    let kind = query.kind;
+                    let id = query.id.clone();
+                    self.service
+                        .read_record(request.host, proof, move || Ok(selection), kind, id)
+                        .await
+                        .map_err(business)
+                }
+            }
+        })
+    }
 }

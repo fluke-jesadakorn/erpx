@@ -1712,6 +1712,7 @@ async fn assemble_checked(
         let mut crm_targets = Vec::new();
         let mut manage_erpx_targets = Vec::new();
         let mut platform_administration_targets = Vec::new();
+        let mut agent_evidence_targets = Vec::new();
         let mut records_context_targets = Vec::new();
         let mut records_registry_targets = Vec::new();
         let mut legal_targets = Vec::new();
@@ -2105,6 +2106,25 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                    agent_evidence_targets.push(
+                        erpx_server_platform_administration::public::agent_evidence_http::AgentEvidenceHttpTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: format!("https://{}", holding.host),
+                            backend: Arc::new(crate::platform_administration::AgentEvidenceBackend::new(
+                                config.policy.clone(),
+                                Arc::new(FinanceJournalReadScopeHeaders),
+                                Arc::new(crate::platform_administration::AgentEvidenceService::new(
+                                    authorizer.clone(),
+                                    crate::platform_administration::AgentEvidenceConfiguration::new(
+                                        holding.registration.holding_id.clone(),
+                                        company.clone(),
+                                    ),
+                                    Arc::new(SharedClock(clock.clone())),
+                                )),
+                            )),
+                        },
+                    );
                 }
                 legal_targets.push(erpx_server_legal::public::legal_records::LegalHttpTarget {
                     host: holding.host.clone(),
@@ -2898,6 +2918,14 @@ async fn assemble_checked(
                     platform_administration_targets,
                 )
                 .map_err(|_| "PRIVATE_API_PLATFORM_ADMINISTRATION_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !agent_evidence_targets.is_empty() {
+            router = router.merge(
+                erpx_server_platform_administration::public::agent_evidence_http::agent_evidence_http_router(
+                    agent_evidence_targets,
+                )
+                .map_err(|_| "PRIVATE_API_AGENT_EVIDENCE_CONFIGURATION_INVALID")?,
             );
         }
         if !legal_targets.is_empty() {
