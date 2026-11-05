@@ -1641,6 +1641,7 @@ async fn assemble_checked(
         let mut quality_targets = Vec::new();
         let mut customer_360_targets = Vec::new();
         let mut customer_authority_targets = Vec::new();
+        let mut ecommerce_targets = Vec::new();
         let mut crm_targets = Vec::new();
         let mut manage_erpx_targets = Vec::new();
         let mut platform_administration_targets = Vec::new();
@@ -1851,6 +1852,25 @@ async fn assemble_checked(
                             Arc::new(crate::customer_authority::CustomerAuthorityService::new(
                                 authorizer.clone(),
                                 crate::customer_authority::CustomerAuthorityConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
+                ecommerce_targets.push(
+                    erpx_server_ecommerce::public::ecommerce_http::EcommerceHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::ecommerce::EcommerceBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::ecommerce::EcommerceService::new(
+                                authorizer.clone(),
+                                crate::ecommerce::EcommerceConfiguration::new(
                                     holding.registration.holding_id.clone(),
                                     company.clone(),
                                 ),
@@ -2605,6 +2625,12 @@ async fn assemble_checked(
                     customer_authority_targets,
                 )
                 .map_err(|_| "PRIVATE_API_CUSTOMER_AUTHORITY_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !ecommerce_targets.is_empty() {
+            router = router.merge(
+                erpx_server_ecommerce::public::ecommerce_http::ecommerce_router(ecommerce_targets)
+                    .map_err(|_| "PRIVATE_API_ECOMMERCE_CONFIGURATION_INVALID")?,
             );
         }
         if !crm_targets.is_empty() {

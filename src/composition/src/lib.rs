@@ -78,6 +78,8 @@ pub mod marketing;
 pub mod customer_360;
 #[cfg(feature = "existing-business")]
 pub mod customer_authority;
+#[cfg(feature = "existing-business")]
+pub mod ecommerce;
 pub mod manage_erpx;
 #[cfg(feature = "existing-business")]
 pub mod talent;

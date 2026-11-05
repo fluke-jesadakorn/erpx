@@ -1340,6 +1340,7 @@ dependencies = [
  "erpx-server-crm",
  "erpx-server-customer-360",
  "erpx-server-customer-authority",
+ "erpx-server-ecommerce",
  "erpx-server-field-service",
  "erpx-server-files",
  "erpx-server-finance",
