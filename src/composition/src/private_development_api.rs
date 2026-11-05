@@ -1477,6 +1477,8 @@ async fn assemble_checked(
         let mut benefits_targets = Vec::new();
         let mut pms_targets = Vec::new();
         let mut maintenance_targets = Vec::new();
+        let mut sales_documents_targets = Vec::new();
+        let mut sales_price_lists_targets = Vec::new();
         let mut files_targets = Vec::new();
         let mut procurement_targets = Vec::new();
         let mut projects_targets = Vec::new();
@@ -1728,6 +1730,34 @@ async fn assemble_checked(
                             Arc::new(SharedClock(clock.clone())),
                         )),
                     )),
+                },
+            );
+            let sales_backend = Arc::new(crate::sales::SalesBackend::new(
+                config.policy.clone(),
+                Arc::new(FinanceJournalReadScopeHeaders),
+                Arc::new(crate::sales::SalesService::new(
+                    authorizer.clone(),
+                    crate::sales::SalesConfiguration::new(
+                        holding.registration.holding_id.clone(),
+                        company.clone(),
+                    ),
+                    Arc::new(SharedClock(clock.clone())),
+                )),
+            ));
+            sales_documents_targets.push(
+                erpx_server_sales::public::sales_documents_http::SalesDocumentsHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: sales_backend.clone(),
+                },
+            );
+            sales_price_lists_targets.push(
+                erpx_server_sales::public::sales_price_lists_http::PriceListHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: sales_backend.clone(),
                 },
             );
             let records_backend = Arc::new(crate::records::RecordsBackend::new(
@@ -2276,6 +2306,22 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_maintenance::public::http::maintenance_router(maintenance_targets)
                     .map_err(|_| "PRIVATE_API_MAINTENANCE_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !sales_documents_targets.is_empty() {
+            router = router.merge(
+                erpx_server_sales::public::sales_documents_http::sales_documents_router(
+                    sales_documents_targets,
+                )
+                .map_err(|_| "PRIVATE_API_SALES_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !sales_price_lists_targets.is_empty() {
+            router = router.merge(
+                erpx_server_sales::public::sales_price_lists_http::sales_price_lists_router(
+                    sales_price_lists_targets,
+                )
+                .map_err(|_| "PRIVATE_API_SALES_CONFIGURATION_INVALID")?,
             );
         }
         if !records_context_targets.is_empty() {

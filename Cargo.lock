@@ -1357,6 +1357,7 @@ dependencies = [
  "erpx-server-quality",
  "erpx-server-records",
  "erpx-server-runtime",
+ "erpx-server-sales",
  "erpx-server-shared",
  "erpx-server-support",
  "erpx-server-work-projection",

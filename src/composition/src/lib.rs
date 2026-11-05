@@ -57,6 +57,8 @@ pub mod handbook;
 pub mod learning;
 #[cfg(feature = "existing-business")]
 pub mod maintenance;
+#[cfg(feature = "existing-business")]
+pub mod sales;
 pub mod benefits;
 #[cfg(feature = "existing-business")]
 pub mod projects;
