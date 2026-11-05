@@ -1665,6 +1665,8 @@ async fn assemble_checked(
         let mut files_targets = Vec::new();
         let mut procurement_targets = Vec::new();
         let mut projects_targets = Vec::new();
+        let mut project_graph_targets = Vec::new();
+        let mut project_command_targets = Vec::new();
         let mut operations_targets = Vec::new();
         let mut people_payroll_targets = Vec::new();
         let mut asset_targets = Vec::new();
@@ -2257,23 +2259,41 @@ async fn assemble_checked(
                     )),
                 },
             );
+                let projects_backend = Arc::new(crate::projects::ProjectsBackend::new(
+                    config.policy.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    Arc::new(crate::projects::ProjectsService::new(
+                        authorizer.clone(),
+                        crate::projects::ProjectsConfiguration::new(
+                            holding.registration.holding_id.clone(),
+                            company.clone(),
+                        ),
+                        Arc::new(SharedClock(clock.clone())),
+                        catalogue.clone(),
+                    )),
+                ));
                 projects_targets.push(
                     erpx_server_projects::public::project_wbs_http::ProjectWbsHttpTarget {
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
-                        backend: Arc::new(crate::projects::ProjectsBackend::new(
-                            config.policy.clone(),
-                            Arc::new(FinanceJournalReadScopeHeaders),
-                            Arc::new(crate::projects::ProjectsService::new(
-                                authorizer.clone(),
-                                crate::projects::ProjectsConfiguration::new(
-                                    holding.registration.holding_id.clone(),
-                                    company.clone(),
-                                ),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )),
+                        backend: projects_backend.clone(),
+                    },
+                );
+                project_graph_targets.push(
+                    erpx_server_projects::public::project_graph_http::ProjectGraphHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: projects_backend.clone(),
+                    },
+                );
+                project_command_targets.push(
+                    erpx_server_projects::public::project_commands_http::ProjectCommandHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: projects_backend.clone(),
                     },
                 );
                 people_payroll_targets.push(
@@ -2916,6 +2936,22 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_projects::public::project_wbs_http::projects_router(projects_targets)
                     .map_err(|_| "PRIVATE_API_PROJECTS_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !project_graph_targets.is_empty() {
+            router = router.merge(
+                erpx_server_projects::public::project_graph_http::project_graph_router(
+                    project_graph_targets,
+                )
+                .map_err(|_| "PRIVATE_API_PROJECTS_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !project_command_targets.is_empty() {
+            router = router.merge(
+                erpx_server_projects::public::project_commands_http::project_milestone_commands_router(
+                    project_command_targets,
+                )
+                .map_err(|_| "PRIVATE_API_PROJECTS_CONFIGURATION_INVALID")?,
             );
         }
         if !operations_targets.is_empty() {

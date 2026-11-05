@@ -10,6 +10,22 @@ use erpx_server_identity_access::public::{
     },
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
+use erpx_server_commercial::public::purchases::{
+    CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
+    PurchaseRequest,
+};
+use erpx_server_projects::public::project_commands::{
+    ProjectCommandActor, PgProjectMilestoneCommands, SaveMilestoneCommand, TransitionMilestoneCommand,
+    save_milestone, transition_milestone,
+};
+use erpx_server_projects::public::project_commands_http::{
+    ProjectCommandHttpResponse, ProjectMilestoneCommandHttpBackend, ProjectMilestoneSaveHttpRequest,
+    ProjectMilestoneTransitionHttpRequest, ProjectCommandHttpFuture,
+};
+use erpx_server_projects::public::project_graph::{ProjectGraphActor, project_graph, PgProjectGraphRead};
+use erpx_server_projects::public::project_graph_http::{
+    ProjectGraphHttpBackend, ProjectGraphHttpFuture, ProjectGraphHttpRequest, ProjectGraphHttpResponse,
+};
 use erpx_server_projects::public::project_wbs::{ProjectReadActor, project_wbs};
 use erpx_server_projects::public::project_wbs::PgProjectWbsRead;
 use erpx_server_projects::public::project_wbs_http::{
@@ -50,6 +66,22 @@ fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
         PgTransactionError::Business(error) => error,
         PgTransactionError::Persistence(_) => unavailable(),
     }
+}
+
+async fn active_staff(
+    connection: &mut PgConnection,
+    user_id: &str,
+    company: &CompanyId,
+) -> Result<bool, BusinessError> {
+    let value: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM hr_people p JOIN hr_engagements e          ON e.person_id=p.id AND e.company_id=p.company_id          WHERE p.user_id=$1 AND p.company_id=$2 AND p.status='active'            AND p.merged_into_id IS NULL AND e.status='active'            AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')            AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')))",
+    )
+    .bind(user_id)
+    .bind(company.as_str())
+    .fetch_one(connection)
+    .await
+    .map_err(|_| unavailable())?;
+    Ok(value)
 }
 
 #[derive(Clone, Copy)]
@@ -122,6 +154,7 @@ pub struct ProjectsService<C> {
     authorizer: Arc<HoldingWorkAuthorizer>,
     configuration: ProjectsConfiguration,
     clock: Arc<C>,
+    catalogue: Arc<CommercialCatalogue>,
 }
 
 impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
@@ -129,11 +162,13 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
         authorizer: Arc<HoldingWorkAuthorizer>,
         configuration: ProjectsConfiguration,
         clock: Arc<C>,
+        catalogue: Arc<CommercialCatalogue>,
     ) -> Self {
         Self {
             authorizer,
             configuration,
             clock,
+            catalogue,
         }
     }
 
@@ -144,6 +179,15 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
     fn access() -> WorkAuthorizationRequest {
         WorkAuthorizationRequest {
             permission: "records.read".into(),
+            module: Some("projects".into()),
+            destination: "projects".into(),
+            api: true,
+        }
+    }
+
+    fn command_access() -> WorkAuthorizationRequest {
+        WorkAuthorizationRequest {
+            permission: "records.write".into(),
             module: Some("projects".into()),
             destination: "projects".into(),
             api: true,
@@ -213,6 +257,269 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
             )
             .await
     }
+
+    pub async fn graph<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        project_id: String,
+    ) -> Result<ProjectGraphHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let catalogue = self.catalogue.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                ProjectsSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let project_id = project_id.clone();
+                    let clock = clock.clone();
+                    let catalogue = catalogue.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.read")?;
+                        let actor_read = project_read_actor(current)?;
+                        let now = clock.now();
+                        let can_read_cost_history = if current.has_permission("finance.read") {
+                            let mut reader = PgCompanyPurchaseReader::new(
+                                holding.clone(),
+                                company.clone(),
+                                connection,
+                                &catalogue,
+                            );
+                            let request = PurchaseRequest {
+                                capabilities: vec!["projects.costs".into()],
+                                purpose: CapabilityPurpose::History,
+                                mode: PackageEnforcementMode::Enforced,
+                            };
+                            match reader.inspect(&request, now).await {
+                                Ok(inspection) => inspection.require_allowed().is_ok(),
+                                Err(_) => false,
+                            }
+                        } else {
+                            false
+                        };
+                        let actor = ProjectGraphActor {
+                            read: actor_read,
+                            can_read_cost_history,
+                        };
+                        let mut repository = PgProjectGraphRead::new(connection);
+                        let data = project_graph(&actor, &mut repository, &project_id, now).await?;
+                        Ok(ProjectGraphHttpResponse {
+                            data: serde_json::to_value(data).map_err(|_| unavailable())?,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn save_milestone<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        project_id: String,
+        milestone_id: Option<String>,
+        command: SaveMilestoneCommand,
+        key: String,
+    ) -> Result<ProjectCommandHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let catalogue = self.catalogue.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::command_access(),
+                ProjectsSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let project_id = project_id.clone();
+                    let milestone_id = milestone_id.clone();
+                    let command = command.clone();
+                    let key = key.clone();
+                    let clock = clock.clone();
+                    let catalogue = catalogue.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.write")?;
+                        let now = clock.now();
+                        let active_staff = active_staff(connection, current.user_id().as_str(), &company).await?;
+                        let mut reader = PgCompanyPurchaseReader::new(
+                            holding.clone(),
+                            company.clone(),
+                            connection,
+                            &catalogue,
+                        );
+                        let request = PurchaseRequest {
+                            capabilities: vec!["projects.wbs".into()],
+                            purpose: CapabilityPurpose::NewWork,
+                            mode: PackageEnforcementMode::Enforced,
+                        };
+                        let wbs_new_work = match reader.inspect(&request, now).await {
+                            Ok(inspection) => inspection.require_allowed().is_ok(),
+                            Err(_) => false,
+                        };
+                        let actor = ProjectCommandActor {
+                            user_id: current.user_id().as_str().to_owned(),
+                            company_id: company.clone(),
+                            branch_id: current.selection().workspace().branch_id.clone(),
+                            department_id: current.selection().workspace().department_id.clone(),
+                            assignment_id: current.selection().assignment().id.as_str().to_owned(),
+                            permissions: current.command_iam_metadata().permissions.clone(),
+                            modules: current.modules().to_vec(),
+                            expires_at: current.expires_at(),
+                            active_staff,
+                            wbs_new_work,
+                            wbs_settle_existing: false,
+                        };
+                        let mut repository = PgProjectMilestoneCommands::new(connection);
+                        let receipt = save_milestone(
+                            &actor,
+                            &mut repository,
+                            &project_id,
+                            milestone_id.as_deref(),
+                            &command,
+                            &key,
+                            now,
+                        )
+                        .await?;
+                        Ok(ProjectCommandHttpResponse {
+                            data: serde_json::to_value(receipt).map_err(|_| unavailable())?,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn transition_milestone<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        project_id: String,
+        milestone_id: String,
+        command: TransitionMilestoneCommand,
+        key: String,
+    ) -> Result<ProjectCommandHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let catalogue = self.catalogue.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::command_access(),
+                ProjectsSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let project_id = project_id.clone();
+                    let milestone_id = milestone_id.clone();
+                    let command = command.clone();
+                    let key = key.clone();
+                    let clock = clock.clone();
+                    let catalogue = catalogue.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.write")?;
+                        let now = clock.now();
+                        let active_staff = active_staff(connection, current.user_id().as_str(), &company).await?;
+                        let mut reader = PgCompanyPurchaseReader::new(
+                            holding.clone(),
+                            company.clone(),
+                            connection,
+                            &catalogue,
+                        );
+                        let new_request = PurchaseRequest {
+                            capabilities: vec!["projects.wbs".into()],
+                            purpose: CapabilityPurpose::NewWork,
+                            mode: PackageEnforcementMode::Enforced,
+                        };
+                        let settle_request = PurchaseRequest {
+                            capabilities: vec!["projects.wbs".into()],
+                            purpose: CapabilityPurpose::SettleExisting,
+                            mode: PackageEnforcementMode::Enforced,
+                        };
+                        let wbs_new_work = match reader.inspect(&new_request, now).await {
+                            Ok(inspection) => inspection.require_allowed().is_ok(),
+                            Err(_) => false,
+                        };
+                        let wbs_settle_existing = match reader.inspect(&settle_request, now).await {
+                            Ok(inspection) => inspection.require_allowed().is_ok(),
+                            Err(_) => false,
+                        };
+                        let actor = ProjectCommandActor {
+                            user_id: current.user_id().as_str().to_owned(),
+                            company_id: company.clone(),
+                            branch_id: current.selection().workspace().branch_id.clone(),
+                            department_id: current.selection().workspace().department_id.clone(),
+                            assignment_id: current.selection().assignment().id.as_str().to_owned(),
+                            permissions: current.command_iam_metadata().permissions.clone(),
+                            modules: current.modules().to_vec(),
+                            expires_at: current.expires_at(),
+                            active_staff,
+                            wbs_new_work,
+                            wbs_settle_existing,
+                        };
+                        let mut repository = PgProjectMilestoneCommands::new(connection);
+                        let receipt = transition_milestone(
+                            &actor,
+                            &mut repository,
+                            &project_id,
+                            &milestone_id,
+                            &command,
+                            &key,
+                            now,
+                        )
+                        .await?;
+                        Ok(ProjectCommandHttpResponse {
+                            data: serde_json::to_value(receipt).map_err(|_| unavailable())?,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
 }
 
 pub struct ProjectsBackend<C> {
@@ -265,6 +572,70 @@ impl<C: Clock + Send + Sync + 'static> ProjectWbsHttpBackend for ProjectsBackend
             let (proof, selection) = self.context(request.headers)?;
             self.service
                 .wbs(request.host, proof, move || Ok(selection), request.project_id.to_owned())
+                .await
+                .map_err(business)
+        })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> ProjectGraphHttpBackend for ProjectsBackend<C> {
+    fn read<'a>(
+        &'a self,
+        request: ProjectGraphHttpRequest<'a>,
+    ) -> ProjectGraphHttpFuture<'a, ProjectGraphHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .graph(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.project_id.to_owned(),
+                )
+                .await
+                .map_err(business)
+        })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> ProjectMilestoneCommandHttpBackend for ProjectsBackend<C> {
+    fn save<'a>(
+        &'a self,
+        request: ProjectMilestoneSaveHttpRequest<'a>,
+    ) -> ProjectCommandHttpFuture<'a, ProjectCommandHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .save_milestone(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.project_id.to_owned(),
+                    request.milestone_id.map(str::to_owned),
+                    request.input.clone(),
+                    request.key.to_owned(),
+                )
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn transition<'a>(
+        &'a self,
+        request: ProjectMilestoneTransitionHttpRequest<'a>,
+    ) -> ProjectCommandHttpFuture<'a, ProjectCommandHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .transition_milestone(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.project_id.to_owned(),
+                    request.milestone_id.to_owned(),
+                    request.input.clone(),
+                    request.key.to_owned(),
+                )
                 .await
                 .map_err(business)
         })
