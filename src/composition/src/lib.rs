@@ -76,6 +76,8 @@ pub mod legal;
 #[cfg(feature = "existing-business")]
 pub mod maintenance;
 #[cfg(feature = "existing-business")]
+pub mod manufacturing;
+#[cfg(feature = "existing-business")]
 pub mod marketing;
 #[cfg(feature = "existing-business")]
 pub mod customer_360;

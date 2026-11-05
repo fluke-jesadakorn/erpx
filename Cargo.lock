@@ -1351,6 +1351,7 @@ dependencies = [
  "erpx-server-legal",
  "erpx-server-maintenance",
  "erpx-server-manage-erpx",
+ "erpx-server-manufacturing",
  "erpx-server-marketing",
  "erpx-server-operations",
  "erpx-server-organization",

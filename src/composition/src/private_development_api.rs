@@ -1656,6 +1656,8 @@ async fn assemble_checked(
         let mut benefits_targets = Vec::new();
         let mut pms_targets = Vec::new();
         let mut maintenance_targets = Vec::new();
+        let mut bom_targets = Vec::new();
+        let mut planning_targets = Vec::new();
         let mut marketing_targets = Vec::new();
         let mut talent_targets = Vec::new();
         let mut sales_documents_targets = Vec::new();
@@ -2093,6 +2095,34 @@ async fn assemble_checked(
                                 Arc::new(SharedClock(clock.clone())),
                             )),
                         )),
+                    },
+                );
+                let manufacturing_backend = Arc::new(crate::manufacturing::ManufacturingBackend::new(
+                    config.policy.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    Arc::new(crate::manufacturing::ManufacturingService::new(
+                        authorizer.clone(),
+                        crate::manufacturing::ManufacturingConfiguration::new(
+                            holding.registration.holding_id.clone(),
+                            company.clone(),
+                        ),
+                        Arc::new(SharedClock(clock.clone())),
+                    )),
+                ));
+                bom_targets.push(
+                    erpx_server_manufacturing::public::bom_http::BomHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: manufacturing_backend.clone(),
+                    },
+                );
+                planning_targets.push(
+                    erpx_server_manufacturing::public::planning_http::PlanningHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: manufacturing_backend.clone(),
                     },
                 );
                 marketing_targets.push(
@@ -2812,6 +2842,18 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_maintenance::public::http::maintenance_router(maintenance_targets)
                     .map_err(|_| "PRIVATE_API_MAINTENANCE_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !bom_targets.is_empty() {
+            router = router.merge(
+                erpx_server_manufacturing::public::bom_http::bom_router(bom_targets)
+                    .map_err(|_| "PRIVATE_API_MANUFACTURING_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !planning_targets.is_empty() {
+            router = router.merge(
+                erpx_server_manufacturing::public::planning_http::planning_router(planning_targets)
+                    .map_err(|_| "PRIVATE_API_MANUFACTURING_CONFIGURATION_INVALID")?,
             );
         }
         if !marketing_targets.is_empty() {
