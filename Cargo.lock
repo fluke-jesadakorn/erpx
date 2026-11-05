@@ -1333,6 +1333,7 @@ dependencies = [
  "bytes",
  "erpx-server-assets",
  "erpx-server-benefits",
+ "erpx-server-billing",
  "erpx-server-brand",
  "erpx-server-collaboration",
  "erpx-server-commerce",

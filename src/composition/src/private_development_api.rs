@@ -1639,6 +1639,7 @@ async fn assemble_checked(
         let mut handbook_targets = Vec::new();
         let mut learning_targets = Vec::new();
         let mut quality_targets = Vec::new();
+        let mut billing_targets = Vec::new();
         let mut commercial_targets = Vec::new();
         let mut commerce_targets = Vec::new();
         let mut customer_360_targets = Vec::new();
@@ -1816,6 +1817,25 @@ async fn assemble_checked(
                             Arc::new(crate::quality::QualityService::new(
                                 authorizer.clone(),
                                 crate::quality::QualityConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
+                billing_targets.push(
+                    erpx_server_billing::public::billing_http::BillingHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::billing::BillingBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::billing::BillingService::new(
+                                authorizer.clone(),
+                                crate::billing::BillingConfiguration::new(
                                     holding.registration.holding_id.clone(),
                                     company.clone(),
                                 ),
@@ -2649,6 +2669,12 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_quality::public::quality_http::quality_router(quality_targets)
                     .map_err(|_| "PRIVATE_API_QUALITY_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !billing_targets.is_empty() {
+            router = router.merge(
+                erpx_server_billing::public::billing_http::billing_router(billing_targets)
+                    .map_err(|_| "PRIVATE_API_BILLING_CONFIGURATION_INVALID")?,
             );
         }
         if !commercial_targets.is_empty() {
