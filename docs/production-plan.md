@@ -1,5 +1,11 @@
 # ERPX — Rust and Next.js capability integration
 
+## Browser fixture activation recovery — 2026-11-05
+
+The native provider writes `fixture.json.seed` and consumes activation JSON on stdin; it does not produce `fixture-activation.json`. Use `ERPX_COHORT_AUTO_SEED=1` with the existing fixture launcher to bundle and execute the guarded Company/actor seed, then relay its actual activation. Do not send textual guesses such as `activate` or restart a provider against already seeded databases.
+
+For a clean retry, `ERPX_COHORT_FRESH_RUNTIME=1` on the existing driver creates an isolated runtime volume and fresh leased databases while mounting the reviewed release read-only. Earlier cohort data and evidence remain separate. The repaired held descriptor is `.scratch/dev/cohort-activation-working.json`; its launcher log records seed ready, activation relayed, fixture ready and read-only identity reconciliation. Preserve this running fixture instead of reseeding it. This verifies fixture orchestration only: qualify the release against the intended candidate, run normal authenticated desktop/mobile owner journeys, and reconcile their command journals before advancing canonical counts.
+
 ## Active long-running native migration plan — 2026-11-03
 
 This section is the sole current execution queue. It supersedes older queue/status/after-owner container instructions below while preserving their historical source and evidence. Use one primary agent, the existing checkout, existing registers and existing verification runners. The user explicitly requested a new long-running Goal after clearing the previous Goal.
