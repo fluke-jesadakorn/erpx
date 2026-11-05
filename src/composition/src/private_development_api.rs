@@ -1640,7 +1640,6 @@ async fn assemble_checked(
         let mut learning_targets = Vec::new();
         let mut quality_targets = Vec::new();
         let mut crm_targets = Vec::new();
-        let mut crm_targets = Vec::new();
         let mut manage_erpx_targets = Vec::new();
         let mut platform_administration_targets = Vec::new();
         let mut records_context_targets = Vec::new();
@@ -1649,6 +1648,7 @@ async fn assemble_checked(
         let mut benefits_targets = Vec::new();
         let mut pms_targets = Vec::new();
         let mut maintenance_targets = Vec::new();
+        let mut talent_targets = Vec::new();
         let mut sales_documents_targets = Vec::new();
         let mut sales_price_lists_targets = Vec::new();
         let mut files_targets = Vec::new();
@@ -1915,25 +1915,6 @@ async fn assemble_checked(
                         )),
                     },
                 );
-                crm_targets.push(
-                erpx_server_crm::public::pipeline_http::CrmPipelineHttpTarget {
-                    host: holding.host.clone(),
-                    holding_slug: holding.registration.slug.clone(),
-                    origin: format!("https://{}", holding.host),
-                    backend: Arc::new(crate::crm::CrmBackend::new(
-                        config.policy.clone(),
-                        Arc::new(FinanceJournalReadScopeHeaders),
-                        Arc::new(crate::crm::CrmService::new(
-                            authorizer.clone(),
-                            crate::crm::CrmConfiguration::new(
-                                holding.registration.holding_id.clone(),
-                                company.clone(),
-                            ),
-                            Arc::new(SharedClock(clock.clone())),
-                        )),
-                    )),
-                },
-            );
             maintenance_targets.push(
                     erpx_server_maintenance::public::http::MaintenanceHttpTarget {
                         host: holding.host.clone(),
@@ -1945,6 +1926,25 @@ async fn assemble_checked(
                             Arc::new(crate::maintenance::MaintenanceService::new(
                                 authorizer.clone(),
                                 crate::maintenance::MaintenanceConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
+                talent_targets.push(
+                    erpx_server_talent::public::requisition_http::TalentRequisitionHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::talent::TalentBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::talent::TalentService::new(
+                                authorizer.clone(),
+                                crate::talent::TalentConfiguration::new(
                                     holding.registration.holding_id.clone(),
                                     company.clone(),
                                 ),
@@ -2574,16 +2574,16 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_BENEFITS_CONFIGURATION_INVALID")?,
             );
         }
-        if !crm_targets.is_empty() {
-            router = router.merge(
-                erpx_server_crm::public::pipeline_http::crm_pipeline_http_router(crm_targets)
-                    .map_err(|_| "PRIVATE_API_CRM_CONFIGURATION_INVALID")?,
-            );
-        }
         if !maintenance_targets.is_empty() {
             router = router.merge(
                 erpx_server_maintenance::public::http::maintenance_router(maintenance_targets)
                     .map_err(|_| "PRIVATE_API_MAINTENANCE_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !talent_targets.is_empty() {
+            router = router.merge(
+                erpx_server_talent::public::requisition_http::talent_requisition_http_router(talent_targets)
+                    .map_err(|_| "PRIVATE_API_TALENT_CONFIGURATION_INVALID")?,
             );
         }
         if !sales_documents_targets.is_empty() {

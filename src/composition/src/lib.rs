@@ -73,6 +73,8 @@ pub mod legal;
 #[cfg(feature = "existing-business")]
 pub mod maintenance;
 pub mod manage_erpx;
+#[cfg(feature = "existing-business")]
+pub mod talent;
 pub mod operations;
 #[cfg(feature = "existing-business")]
 pub mod organization_nodes;

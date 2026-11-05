@@ -1361,6 +1361,7 @@ dependencies = [
  "erpx-server-sales",
  "erpx-server-shared",
  "erpx-server-support",
+ "erpx-server-talent",
  "erpx-server-work-projection",
  "erpx-server-workflow",
  "hex",
