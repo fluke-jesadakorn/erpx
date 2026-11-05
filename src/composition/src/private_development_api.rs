@@ -1640,6 +1640,7 @@ async fn assemble_checked(
         let mut learning_targets = Vec::new();
         let mut quality_targets = Vec::new();
         let mut crm_targets = Vec::new();
+        let mut crm_targets = Vec::new();
         let mut manage_erpx_targets = Vec::new();
         let mut platform_administration_targets = Vec::new();
         let mut records_context_targets = Vec::new();
@@ -1914,7 +1915,26 @@ async fn assemble_checked(
                         )),
                     },
                 );
-                maintenance_targets.push(
+                crm_targets.push(
+                erpx_server_crm::public::pipeline_http::CrmPipelineHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: Arc::new(crate::crm::CrmBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::crm::CrmService::new(
+                            authorizer.clone(),
+                            crate::crm::CrmConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    )),
+                },
+            );
+            maintenance_targets.push(
                     erpx_server_maintenance::public::http::MaintenanceHttpTarget {
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
@@ -2552,6 +2572,12 @@ async fn assemble_checked(
                     benefits_targets,
                 )
                 .map_err(|_| "PRIVATE_API_BENEFITS_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !crm_targets.is_empty() {
+            router = router.merge(
+                erpx_server_crm::public::pipeline_http::crm_pipeline_http_router(crm_targets)
+                    .map_err(|_| "PRIVATE_API_CRM_CONFIGURATION_INVALID")?,
             );
         }
         if !maintenance_targets.is_empty() {

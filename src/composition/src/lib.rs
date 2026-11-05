@@ -51,6 +51,7 @@ pub mod benefits;
 pub mod brand_identity;
 #[cfg(feature = "existing-business")]
 pub mod brand_identity_http;
+#[cfg(feature = "existing-business")]
 pub mod crm;
 pub mod files;
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
