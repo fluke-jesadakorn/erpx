@@ -60,6 +60,7 @@ pub struct FinanceJournalCreateConfiguration {
     pub(crate) holding: HoldingId,
     pub(crate) company: CompanyId,
     pub(crate) catalogue: Arc<CommercialCatalogue>,
+    environment: FinanceJournalEnvironment,
 }
 impl FinanceJournalCreateConfiguration {
     pub fn new(
@@ -68,25 +69,30 @@ impl FinanceJournalCreateConfiguration {
         company: CompanyId,
         catalogue: Arc<CommercialCatalogue>,
     ) -> Result<Self, BusinessError> {
-        if matches!(environment, FinanceJournalEnvironment::Production) {
-            return Err(BusinessError::new(
-                FailureKind::Unavailable,
-                "FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE",
-                "Finance production release and Company acceptance ports are incomplete.",
-            ));
-        }
         Ok(Self {
             holding,
             company,
             catalogue,
+            environment,
         })
+    }
+    /// Carried so mounts and Field journal flow commands allocate the same
+    /// environments as the documents that mounted them; production is gated at
+    /// source preparation, never resident in the constructor.
+    pub(crate) fn environment(&self) -> FinanceJournalEnvironment {
+        self.environment
     }
 }
 impl HoldingWorkSourcePreparation for FinanceJournalCreateConfiguration {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
             lock_commercial_authority_sources(c).await?;
-            lock_journal_review_sources(c).await
+            lock_journal_review_sources(c).await?;
+            if matches!(self.environment, FinanceJournalEnvironment::Production) {
+                crate::finance_production_release::require_production_release(c, &self.company)
+                    .await?;
+            }
+            Ok(())
         })
     }
 }

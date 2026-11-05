@@ -14,6 +14,7 @@ type Error = PgTransactionError<BusinessError>;
 const PAGE_SIZE: usize = 30;
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SalesInvoiceListQuery {
     pub tab: String,
@@ -32,8 +33,11 @@ pub struct SalesInvoiceListQuery {
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SalesInvoiceListPage {
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub items: Vec<Value>,
     pub next_cursor: Option<String>,
     pub previous_cursor: Option<String>,
@@ -41,10 +45,15 @@ pub struct SalesInvoiceListPage {
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SalesInvoiceList {
     pub query: SalesInvoiceListQuery,
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub summary: Vec<Value>,
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub received: Vec<Value>,
     pub page: SalesInvoiceListPage,
     pub permission_required: Option<String>,

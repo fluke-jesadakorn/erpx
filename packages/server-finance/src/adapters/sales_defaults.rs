@@ -13,19 +13,31 @@ use sqlx::{Connection, PgConnection, Row};
 type Error = PgTransactionError<BusinessError>;
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SalesDefaultsWorkspace {
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub editions: Vec<Value>,
     pub options: SalesDefaultsOptions,
     pub usable_defaults: Vec<String>,
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub issues: Vec<Value>,
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SalesDefaultsOptions {
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub charts: Vec<Value>,
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub accounts: Vec<Value>,
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub parties: Vec<Value>,
 }
 
@@ -50,6 +62,7 @@ pub struct SalesDefaultsDecisionInput {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SalesDefaultsResult {
     pub id: String,

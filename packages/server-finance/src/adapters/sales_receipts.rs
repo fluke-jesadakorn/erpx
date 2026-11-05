@@ -20,15 +20,21 @@ pub struct SalesReceiptIssueInput {
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SalesReceiptRead {
     pub sha256: String,
+    #[cfg_attr(feature = "contracts", ts(type = "Record<string, unknown>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Object))]
     pub receipt: Value,
+    #[cfg_attr(feature = "contracts", ts(type = "Record<string, unknown>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Object))]
     pub snapshot: Value,
     pub status: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SalesReceiptExport {
     pub content: String,
@@ -37,6 +43,7 @@ pub struct SalesReceiptExport {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SalesReceiptIssueResult {
     pub id: String,

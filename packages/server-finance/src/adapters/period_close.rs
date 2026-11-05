@@ -172,6 +172,7 @@ pub struct PeriodCloseProofInput {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct CloseReconciliation {
     pub kind: String,
@@ -183,16 +184,21 @@ pub struct CloseReconciliation {
     pub ledger_minor: i64,
     pub source_minor: i64,
     pub difference_minor: i64,
+    #[cfg_attr(feature = "contracts", ts(type = "Record<string, unknown>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Object))]
     pub source: Value,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct VatCloseEvidence {
     pub profile_id: String,
     pub chart_id: String,
     pub effective_date: String,
     pub end_date: String,
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub rows: Vec<Value>,
     pub missing: i64,
     pub pending_corrections: i64,
@@ -200,6 +206,7 @@ pub struct VatCloseEvidence {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct PeriodCloseReadiness {
     pub draft_journals: i64,
@@ -210,8 +217,11 @@ pub struct PeriodCloseReadiness {
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct PeriodCloseWorkspace {
+    #[cfg_attr(feature = "contracts", ts(type = "Record<string, unknown>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Object))]
     pub period: Value,
     pub readiness: PeriodCloseReadiness,
     pub pending_tax: i64,
@@ -226,6 +236,7 @@ pub struct PeriodCloseWorkspace {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct PeriodCloseResult {
     pub id: String,

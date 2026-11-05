@@ -46,14 +46,29 @@ pub async fn lock_journal_list_sources(c: &mut PgConnection) -> Result<(), Error
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct JournalList {
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub charts: Vec<Value>,
+    #[cfg_attr(feature = "contracts", ts(type = "Record<string, unknown>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Object))]
     pub chart: Value,
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub accounts: Vec<Value>,
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub periods: Vec<Value>,
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub dimensions: Vec<Value>,
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub dimension_values: Vec<Value>,
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub journals: Vec<Value>,
     pub next_cursor: Option<String>,
 }

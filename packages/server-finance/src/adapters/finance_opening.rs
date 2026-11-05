@@ -46,6 +46,7 @@ fn default_kind() -> String {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OpeningSubledgerItem {
     pub kind: String,
@@ -58,6 +59,7 @@ pub struct OpeningSubledgerItem {
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct OpeningPreviewLine {
     pub account_id: String,
@@ -70,6 +72,7 @@ pub struct OpeningPreviewLine {
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct OpeningPreview {
     pub preview_token: String,
@@ -632,6 +635,7 @@ pub async fn insert_opening_invoices(
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct OpeningImportResult {
     pub id: String,

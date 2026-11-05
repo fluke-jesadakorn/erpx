@@ -18,6 +18,7 @@ pub struct FinanceSetupCounts {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct FinanceSetupCheck {
     pub id: &'static str,

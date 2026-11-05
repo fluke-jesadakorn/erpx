@@ -55,6 +55,7 @@ pub struct SalesInvoiceVoidInput {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SalesInvoiceEditResult {
     pub id: String,
@@ -65,6 +66,7 @@ pub struct SalesInvoiceEditResult {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SalesInvoiceVoidResult {
     pub id: String,

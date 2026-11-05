@@ -483,21 +483,9 @@ impl DevelopmentApiConfiguration {
         {
             return Err("PRODUCTION_API_SECURITY_CONFIGURATION_REQUIRED");
         }
-        // Finance still fails closed for production composition. A production
-        // document must not mount Finance routes with development semantics.
-        if profile == Profile::Production
-            && (!doc.finance_journal_reads.is_empty()
-                || !doc.finance_field_service_invoice_reads.is_empty()
-                || !doc.finance_field_service_invoice_posts.is_empty()
-                || !doc.finance_field_service_receipt_writes.is_empty()
-                || !doc.finance_journal_posts.is_empty()
-                || !doc.finance_field_service_journal_posts.is_empty()
-                || !doc.finance_journal_creates.is_empty()
-                || !doc.finance_journal_edits.is_empty()
-                || !doc.finance_journal_reversals.is_empty())
-        {
-            return Err("FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE");
-        }
+        // Finance production composition is mounted with the production
+        // environment and same-transaction release gates, never with
+        // development semantics (see finance_composition_environment).
         let listen = match profile {
             Profile::Development => validate_foundation_address(&doc.listen)
                 .map_err(|_| "DISPOSABLE_PRIVATE_API_PORT_REQUIRED")?,
@@ -1403,6 +1391,21 @@ pub async fn assemble_development_api(
         }
     }
 }
+/// Finance composition is mounted with the environment this document was
+/// parsed under. Development documents mount development semantics; a private
+/// production document mounts the production environment whose every command
+/// and read is gated by the Finance production release acceptance of the
+/// Company within the same serializable transaction. The runtime gate stays
+/// fail-closed (`FINANCE_PRODUCTION_RELEASE_REQUIRED`) until an accepted
+/// release exists.
+fn finance_composition_environment(
+    configuration: &DevelopmentApiConfiguration,
+) -> FinanceJournalEnvironment {
+    match configuration.profile {
+        Profile::Development => FinanceJournalEnvironment::Development,
+        Profile::Production => FinanceJournalEnvironment::Production,
+    }
+}
 async fn assemble_checked(
     config: &DevelopmentApiConfiguration,
     pools: &[DatabasePool],
@@ -1779,7 +1782,7 @@ async fn assemble_checked(
                     .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
                 );
                 let configuration = FinanceJournalReadConfiguration::new(
-                    FinanceJournalEnvironment::Development,
+                    finance_composition_environment(config),
                     holding.registration.holding_id.clone(),
                     company.clone(),
                     catalogue.clone(),
@@ -1791,7 +1794,7 @@ async fn assemble_checked(
                         holding_slug: holding.registration.slug.clone(),
                         authorizer: authorizer.clone(),
                         configuration: FinanceJournalCreateConfiguration::new(
-                            FinanceJournalEnvironment::Development,
+                            finance_composition_environment(config),
                             holding.registration.holding_id.clone(),
                             company.clone(),
                             catalogue.clone(),
@@ -1805,7 +1808,7 @@ async fn assemble_checked(
                     holding_slug: holding.registration.slug.clone(),
                     authorizer: authorizer.clone(),
                     configuration: FinanceJournalCreateConfiguration::new(
-                        FinanceJournalEnvironment::Development,
+                        finance_composition_environment(config),
                         holding.registration.holding_id.clone(),
                         company.clone(),
                         catalogue.clone(),
@@ -2534,7 +2537,7 @@ async fn assemble_checked(
                         .contains(&holding.registration.holding_id);
                     if post || reverse {
                         let action_config = FinanceJournalConfiguration::new_private_actions(
-                            FinanceJournalEnvironment::Development,
+                            finance_composition_environment(config),
                             holding.registration.holding_id.clone(),
                             company.clone(),
                             catalogue.clone(),
@@ -2576,7 +2579,7 @@ async fn assemble_checked(
                         .contains(&holding.registration.holding_id)
                     {
                         let create_config = FinanceJournalCreateConfiguration::new(
-                            FinanceJournalEnvironment::Development,
+                            finance_composition_environment(config),
                             holding.registration.holding_id.clone(),
                             company.clone(),
                             catalogue.clone(),
@@ -2599,7 +2602,7 @@ async fn assemble_checked(
                         .contains(&holding.registration.holding_id)
                     {
                         let edit_config = FinanceJournalCreateConfiguration::new(
-                            FinanceJournalEnvironment::Development,
+                            finance_composition_environment(config),
                             holding.registration.holding_id.clone(),
                             company.clone(),
                             catalogue.clone(),
@@ -2624,7 +2627,7 @@ async fn assemble_checked(
                     .contains(&holding.registration.holding_id)
                 {
                     let configuration = InvoicePostConfiguration::new(
-                        FinanceJournalEnvironment::Development,
+                        finance_composition_environment(config),
                         holding.registration.holding_id.clone(),
                         company.clone(),
                         catalogue.clone(),
@@ -2646,7 +2649,7 @@ async fn assemble_checked(
                     .contains(&holding.registration.holding_id)
                 {
                     let configuration = InvoicePostConfiguration::new(
-                        FinanceJournalEnvironment::Development,
+                        finance_composition_environment(config),
                         holding.registration.holding_id.clone(),
                         company.clone(),
                         catalogue.clone(),

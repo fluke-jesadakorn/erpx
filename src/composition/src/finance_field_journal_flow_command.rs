@@ -2,7 +2,7 @@
 use crate::{
     finance_field_journal_flow::{CurrentFieldJournalFlow,read_field_journal_flow},
     finance_journal_create::{FinanceJournalCreateConfiguration,Ids},
-    finance_journal_review::{FinanceJournalConfiguration,FinanceJournalEnvironment,command_actor},
+    finance_journal_review::{FinanceJournalConfiguration,command_actor},
     finance_service_invoice_flow_command::physical,
 };
 use erpx_server_collaboration::public::field_journal_flow_notification::*;
@@ -23,7 +23,7 @@ fn changed()->BusinessError{BusinessError::new(FailureKind::Conflict,"FLOW_SOURC
 pub(crate) struct Sources(FinanceJournalConfiguration);
 impl Sources{
     pub(crate) fn new(config:&FinanceJournalCreateConfiguration)->Result<Self,BusinessError>{
-        Ok(Self(FinanceJournalConfiguration::new_enforced_post(FinanceJournalEnvironment::Development,config.holding.clone(),config.company.clone(),config.catalogue.clone())?.with_field_service_post()?))
+        Ok(Self(FinanceJournalConfiguration::new_enforced_post(config.environment(),config.holding.clone(),config.company.clone(),config.catalogue.clone())?.with_field_service_post()?))
     }
 }
 impl HoldingWorkSourcePreparation for Sources{

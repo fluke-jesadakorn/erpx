@@ -34,6 +34,7 @@ pub struct SalesInvoiceCreateLine {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SalesInvoiceCompletionEvidence {
     pub note: String,
@@ -43,6 +44,7 @@ pub struct SalesInvoiceCompletionEvidence {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SalesInvoiceCreateResult {
     pub id: String,

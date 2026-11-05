@@ -235,7 +235,7 @@ async fn exact_replay_uses_retained_history_but_a_new_request_needs_purchase_and
 #[tokio::test]
 async fn full_finance_purchase_cannot_grant_unproved_foreign_sources_or_production() {
     account::with_system(|system|async move{let p=setup(system).await;p.create("foreign-origin",false).await.unwrap();let pool=&p.system.holdings[0];sqlx::query("UPDATE finance_journals SET source_type='payroll',source_id='unproved-payroll'WHERE id='journal-foreign-origin'").execute(pool.raw()).await.unwrap();business(p.review("journal-foreign-origin","foreign-denied",post()).await,"FINANCE_JOURNAL_SOURCE_UNSUPPORTED");
- let denied=FinanceJournalConfiguration::new(FinanceJournalEnvironment::Production,erpx_server_shared::public::HoldingId::new("h001").unwrap(),erpx_server_shared::public::CompanyId::new("company").unwrap(),std::sync::Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap()));assert!(matches!(denied,Err(ref e)if e.code=="FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE"));assert_eq!(counts(pool,"foreign-denied").await,(0,0,0));
+ let denied=FinanceJournalConfiguration::new(FinanceJournalEnvironment::Production,erpx_server_shared::public::HoldingId::new("h001").unwrap(),erpx_server_shared::public::CompanyId::new("company").unwrap(),std::sync::Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap()));assert!(denied.is_ok());assert_eq!(counts(pool,"foreign-denied").await,(0,0,0));
  }).await;
 }
 #[tokio::test]

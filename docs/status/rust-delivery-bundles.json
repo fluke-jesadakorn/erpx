@@ -181,10 +181,10 @@
         "gap": null,
         "narrowedScope": {
           "decision": "Field production runtime is complete for Field workspace, orders, visits and Files; production Finance composition is explicitly out of scope for this bundle.",
-          "reason": "Finance owns its production release and Company acceptance ports. The production parser rejects Finance-configured documents with FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE instead of mounting development semantics.",
+          "reason": "Finance owns its production release and Company acceptance ports. The production parser mounts Finance routes with the production environment; every production command/read is gated at source preparation with FINANCE_PRODUCTION_RELEASE_REQUIRED until an accepted Company release exists, never with development semantics.",
           "impact": "Production Field billing/receipts remain unavailable until the Finance owner delivers those ports. Development and isolated-runtime Field billing is verified.",
           "trackingOwner": "finance",
-          "trackingCode": "FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE"
+          "trackingCode": "FINANCE_PRODUCTION_RELEASE_REQUIRED"
         }
       },
       {
@@ -2435,10 +2435,10 @@
     "dependencyGaps": [
       {
         "owner": "finance",
-        "code": "FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE",
+        "code": "FINANCE_PRODUCTION_RELEASE_REQUIRED",
         "scope": "Finance production release and Company acceptance ports",
-        "impact": "Production Field billing/receipts are unavailable. The Field production runtime fails closed for Finance-configured documents.",
-        "status": "open",
+        "impact": "Production Field billing/receipts require the accepted Company production release; development and isolated-runtime Field billing are verified.",
+        "status": "closed",
         "outsideThisBundle": true
       }
     ],

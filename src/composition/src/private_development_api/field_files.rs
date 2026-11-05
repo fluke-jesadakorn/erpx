@@ -206,7 +206,7 @@ pub(super) async fn assemble(
                 for company in &companies {
                     owner_configurations.push(
                         crate::finance_journal_create::FinanceJournalCreateConfiguration::new(
-                            crate::finance_journal_review::FinanceJournalEnvironment::Development,
+                            super::finance_composition_environment(config),
                             target.holding.clone(),
                             company.clone(),
                             catalogue.clone(),

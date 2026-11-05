@@ -50,6 +50,7 @@ pub struct FinanceJournalConfiguration {
     holding_id: HoldingId,
     company_id: CompanyId,
     purchases: Arc<CommercialCatalogue>,
+    environment: FinanceJournalEnvironment,
     enforce_post_flow: bool,
     allow_manual_root_reversal: bool,
     allow_field_service_post: bool,
@@ -61,17 +62,11 @@ impl FinanceJournalConfiguration {
         company_id: CompanyId,
         purchases: Arc<CommercialCatalogue>,
     ) -> Result<Self, BusinessError> {
-        if matches!(environment, FinanceJournalEnvironment::Production) {
-            return Err(BusinessError::new(
-                FailureKind::Unavailable,
-                "FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE",
-                "Finance production release and Company acceptance ports are incomplete.",
-            ));
-        }
         Ok(Self {
             holding_id,
             company_id,
             purchases,
+            environment,
             enforce_post_flow: false,
             allow_manual_root_reversal: false,
             allow_field_service_post: false,
@@ -139,7 +134,12 @@ impl FinanceJournalConfiguration {
             erpx_server_workflow::public::journal_post_flow::lock_journal_post_flow_sources(c)
                 .await?;
         }
-        erpx_server_field_service::public::finance_lineage::lock_field_service_parts_finance_sources(c).await
+        erpx_server_field_service::public::finance_lineage::lock_field_service_parts_finance_sources(c).await?;
+        if matches!(self.environment, FinanceJournalEnvironment::Production) {
+            crate::finance_production_release::require_production_release(c, &self.company_id)
+                .await?;
+        }
+        Ok(())
     }
 }
 impl HoldingWorkSourcePreparation for FinanceJournalConfiguration {

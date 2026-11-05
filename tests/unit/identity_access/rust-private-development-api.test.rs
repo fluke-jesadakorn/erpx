@@ -443,19 +443,17 @@ fn production_configuration_requires_durable_loopback_databases_and_real_authori
 }
 
 #[test]
-fn production_configuration_rejects_finance_composition() {
+fn production_configuration_mounts_finance_gated() {
     let mut production = production_document();
     production["financeJournalReads"] =
         serde_json::json!([{"holdingId": "h001", "companyId": "company"}]);
-    assert_eq!(
-        DevelopmentApiConfiguration::parse_production(&production.to_string()).err(),
-        Some("FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE")
+    assert!(
+        DevelopmentApiConfiguration::parse_production(&production.to_string()).is_ok()
     );
     let mut production = production_document();
     production["financeFieldServiceReceiptWrites"] = serde_json::json!(["h001"]);
-    assert_eq!(
-        DevelopmentApiConfiguration::parse_production(&production.to_string()).err(),
-        Some("FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE")
+    assert!(
+        DevelopmentApiConfiguration::parse_production(&production.to_string()).is_ok()
     );
 }
 
@@ -477,7 +475,7 @@ async fn production_assembly_rejects_a_development_configuration() {
 }
 
 #[test]
-fn manual_create_configuration_never_admits_production() {
+fn manual_create_configuration_admits_production_gated() {
     use erpx_server_commercial::public::purchases::current_package_catalogue;
     use erpx_server_shared::public::{CompanyId, HoldingId};
     use erpx_service::{
@@ -491,7 +489,7 @@ fn manual_create_configuration_never_admits_production() {
             CompanyId::new("company").unwrap(),
             std::sync::Arc::new(current_package_catalogue().unwrap())
         )
-        .is_err()
+        .is_ok()
     );
 }
 

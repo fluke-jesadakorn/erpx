@@ -26,6 +26,7 @@ erpx-server-workflow.workspace = true
 tokio.workspace = true
 erpx-server-shared.workspace = true
 erpx-server-runtime.workspace = true
+erpx-server-platform-administration.workspace = true
 sqlx.workspace = true
 icu_collator.workspace = true
 icu_locale.workspace = true

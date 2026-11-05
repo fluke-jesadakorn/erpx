@@ -38,6 +38,7 @@ pub struct FinanceJournalReadConfiguration {
     holding: HoldingId,
     company: CompanyId,
     purchases: Arc<CommercialCatalogue>,
+    environment: FinanceJournalEnvironment,
     field_service_parts: bool,
     field_service_invoices: bool,
 }
@@ -48,17 +49,11 @@ impl FinanceJournalReadConfiguration {
         company: CompanyId,
         purchases: Arc<CommercialCatalogue>,
     ) -> Result<Self, BusinessError> {
-        if matches!(environment, FinanceJournalEnvironment::Production) {
-            return Err(BusinessError::new(
-                FailureKind::Unavailable,
-                "FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE",
-                "Finance release and Company acceptance ports are incomplete.",
-            ));
-        }
         Ok(Self {
             holding,
             company,
             purchases,
+            environment,
             field_service_parts: false,
             field_service_invoices: false,
         })
@@ -80,7 +75,12 @@ impl HoldingWorkSourcePreparation for FinanceJournalReadConfiguration {
         Box::pin(async move {
             lock_commercial_authority_sources(c).await?;
             lock_journal_detail_sources(c).await?;
-            lock_finance_journal_name_sources(c).await
+            lock_finance_journal_name_sources(c).await?;
+            if matches!(self.environment, FinanceJournalEnvironment::Production) {
+                crate::finance_production_release::require_production_release(c, &self.company)
+                    .await?;
+            }
+            Ok(())
         })
     }
 }
@@ -189,6 +189,8 @@ pub struct FinanceInvoicePageResponse {
 #[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub struct FinanceInvoiceAgingResponse {
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub data: Vec<serde_json::Value>,
     pub context: FinanceRenderedWorkContext,
 }
@@ -785,7 +787,7 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
         self.authorizer.execute_with_sources_deferred(host,proof,move||{let mut s=input()?;if s.company_id!=company{return Err(scope());}s.mutation=false;Ok(s)},WorkAuthorizationRequest{permission:"finance.read".into(),module:Some("finance".into()),destination:"finance/work".into(),api:true},FieldFinanceWorkSources,move|c,current|{
             let(config,clock)=(config.clone(),clock.clone());Box::pin(async move{
                 if current.holding_id()!=&config.holding||current.selection().workspace().company_id!=config.company{return Err(scope().into());}
-                let source_config=crate::finance_journal_create::FinanceJournalCreateConfiguration{holding:config.holding,company:config.company,catalogue:config.purchases};
+                let source_config=crate::finance_journal_create::FinanceJournalCreateConfiguration::new(config.environment,config.holding.clone(),config.company.clone(),config.purchases.clone())?;
                 let data=crate::finance_field_work::read(c,current,&source_config,clock.as_ref()).await?;
                 erpx_server_identity_access::public::selected_command_authority::require_selected_actor_current(c,current,clock.now().get()).await?;
                 let reply=FinanceFieldWorkResponse{data,context:rendered(current)?};admit_finance_transport_response(&reply)?;Ok(reply)

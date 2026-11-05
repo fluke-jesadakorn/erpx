@@ -909,6 +909,7 @@ name = "erpx-server-finance"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
+ "erpx-server-platform-administration",
  "erpx-server-runtime",
  "erpx-server-shared",
  "erpx-server-workflow",

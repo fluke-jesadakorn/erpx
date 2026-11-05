@@ -59,7 +59,7 @@ The product path is native-only:
 
 Two external boundaries remain explicit:
 
-- Finance production composition stays fail-closed (`FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE`) for Finance HTTP posting/receipts; the Field billing release itself creates its draft invoice through the Finance owner Rust interface and does not depend on those unmounted Finance routes.
+- Finance production composition is mounted with the production environment and gated at runtime by an accepted Company production release (`FINANCE_PRODUCTION_RELEASE_REQUIRED`); parse-time rejection of Finance documents is no longer used. The Field billing release creates its draft invoice through the Finance owner Rust interface.
 - Support/Collaboration/Operations/Records/Runtime/Workflow/Work/Identity/Finance/Customer consumers still use the retained read-only Field bridges listed above. Their removal condition belongs to those owners' migrations, not to deleting Field history.
 
 Evidence: `docs/testing/evidence/2026-11-03-field-catalogue-scopes.json`, `field-writer-ownership.json`, `field-integrated-exact-candidate.json`, `field-production-runtime.json`, `field-production-transport-and-header.json`, `field-cold-hydration.json`, `field-modularity-withdrawal.json`, `field-records-source-guards.json` and `field-bundle-merge.json`.

@@ -128,6 +128,13 @@ pub mod finance_field_work;
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
 pub mod finance_journal_environment;
 
+#[cfg(any(
+    feature = "existing-business",
+    feature = "finance-field-read",
+    feature = "finance-field-write"
+))]
+pub mod finance_production_release;
+
 #[cfg(feature = "field-service")]
 #[path = "finance_journal_review/field_service_parts.rs"]
 mod finance_field_service_lineage;

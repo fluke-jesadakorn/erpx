@@ -9,6 +9,7 @@ use sqlx::{Connection, PgConnection, Row};
 type Error = PgTransactionError<BusinessError>;
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct ReportDates {
     pub start_date: Option<String>,
@@ -16,6 +17,7 @@ pub struct ReportDates {
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct BalanceSheet {
     pub assets: String,
@@ -26,6 +28,7 @@ pub struct BalanceSheet {
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct ProfitAndLoss {
     pub revenue: String,
@@ -36,11 +39,14 @@ pub struct ProfitAndLoss {
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct FinancialReport {
     pub dates: ReportDates,
     pub balance_sheet: BalanceSheet,
     pub profit_and_loss: ProfitAndLoss,
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub trial_balance: Vec<Value>,
 }
 

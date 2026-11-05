@@ -11,17 +11,29 @@ use sqlx::{Connection, PgConnection, Row};
 type Error = PgTransactionError<BusinessError>;
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct FinanceChartAccounts {
+    #[cfg_attr(feature = "contracts", ts(type = "Record<string, unknown>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Object))]
     pub chart: Value,
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub accounts: Vec<Value>,
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub periods: Vec<Value>,
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct FinanceSetupWorkspace {
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub charts: Vec<Value>,
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub parties: Vec<Value>,
     pub checks: Vec<FinanceSetupCheck>,
 }
@@ -91,6 +103,7 @@ pub struct CreatePeriodInput {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct ChartResult {
     pub id: String,
@@ -102,6 +115,7 @@ pub struct ChartResult {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct AccountResult {
     pub id: String,
@@ -117,6 +131,7 @@ pub struct AccountResult {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct AccountImportResult {
     pub chart_id: String,
@@ -124,6 +139,7 @@ pub struct AccountImportResult {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct AccountStatusResult {
     pub id: String,
@@ -133,6 +149,7 @@ pub struct AccountStatusResult {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct PeriodResult {
     pub id: String,

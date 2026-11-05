@@ -14,6 +14,7 @@ type Error = PgTransactionError<BusinessError>;
 const PAGE_SIZE: usize = 30;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct InvoicePageQuery {
     pub q: String,
@@ -27,8 +28,11 @@ pub struct InvoicePageQuery {
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct InvoicePage {
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub items: Vec<Value>,
     pub next_cursor: Option<String>,
     pub previous_cursor: Option<String>,

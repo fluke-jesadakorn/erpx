@@ -104,6 +104,7 @@ pub struct SupplierBillPostInput {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SupplierBillResult {
     pub id: String,
@@ -121,6 +122,7 @@ pub struct SupplierBillVoidInput {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SupplierBillPostResult {
     pub id: String,
@@ -129,13 +131,26 @@ pub struct SupplierBillPostResult {
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SupplierBillDetail {
+    #[cfg_attr(feature = "contracts", ts(type = "Record<string, unknown>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Object))]
     pub invoice: Value,
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub allocations: Vec<Value>,
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub lines: Vec<Value>,
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub line_history: Vec<Value>,
+    #[cfg_attr(feature = "contracts", ts(type = "Array<Record<string, unknown>>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Vec<Object>))]
     pub thai_documents: Vec<Value>,
+    #[cfg_attr(feature = "contracts", ts(type = "Record<string, unknown>"))]
+    #[cfg_attr(feature = "contracts", schema(value_type = Object))]
     pub journal: Option<Value>,
 }
 
