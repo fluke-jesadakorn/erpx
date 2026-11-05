@@ -27,6 +27,7 @@ erpx-server-benefits = { path = "packages/server-benefits" }
 erpx-server-maintenance = { path = "packages/server-maintenance" }
 erpx-server-marketing = { path = "packages/server-marketing" }
 erpx-server-customer-360 = { path = "packages/server-customer_360" }
+erpx-server-customer-authority = { path = "packages/server-customer_authority" }
 erpx-server-talent = { path = "packages/server-talent" }
 libvips = "=2.3.0"
 pkg-config = "=0.3.34"

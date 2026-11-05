@@ -1640,6 +1640,7 @@ async fn assemble_checked(
         let mut learning_targets = Vec::new();
         let mut quality_targets = Vec::new();
         let mut customer_360_targets = Vec::new();
+        let mut customer_authority_targets = Vec::new();
         let mut crm_targets = Vec::new();
         let mut manage_erpx_targets = Vec::new();
         let mut platform_administration_targets = Vec::new();
@@ -1831,6 +1832,25 @@ async fn assemble_checked(
                             Arc::new(crate::customer_360::Customer360Service::new(
                                 authorizer.clone(),
                                 crate::customer_360::Customer360Configuration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
+                customer_authority_targets.push(
+                    erpx_server_customer_authority::public::access_http::CustomerAccessHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::customer_authority::CustomerAuthorityBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::customer_authority::CustomerAuthorityService::new(
+                                authorizer.clone(),
+                                crate::customer_authority::CustomerAuthorityConfiguration::new(
                                     holding.registration.holding_id.clone(),
                                     company.clone(),
                                 ),
@@ -2577,6 +2597,14 @@ async fn assemble_checked(
                     customer_360_targets,
                 )
                 .map_err(|_| "PRIVATE_API_CUSTOMER_360_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !customer_authority_targets.is_empty() {
+            router = router.merge(
+                erpx_server_customer_authority::public::access_http::customer_access_http_router(
+                    customer_authority_targets,
+                )
+                .map_err(|_| "PRIVATE_API_CUSTOMER_AUTHORITY_CONFIGURATION_INVALID")?,
             );
         }
         if !crm_targets.is_empty() {
