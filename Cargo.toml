@@ -25,6 +25,7 @@ erpx-server-collaboration = { path = "packages/server-collaboration" }
 erpx-server-assets = { path = "packages/server-assets" }
 erpx-server-benefits = { path = "packages/server-benefits" }
 erpx-server-maintenance = { path = "packages/server-maintenance" }
+erpx-server-marketing = { path = "packages/server-marketing" }
 erpx-server-talent = { path = "packages/server-talent" }
 libvips = "=2.3.0"
 pkg-config = "=0.3.34"

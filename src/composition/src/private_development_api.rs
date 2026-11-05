@@ -1648,6 +1648,7 @@ async fn assemble_checked(
         let mut benefits_targets = Vec::new();
         let mut pms_targets = Vec::new();
         let mut maintenance_targets = Vec::new();
+        let mut marketing_targets = Vec::new();
         let mut talent_targets = Vec::new();
         let mut sales_documents_targets = Vec::new();
         let mut sales_price_lists_targets = Vec::new();
@@ -1926,6 +1927,25 @@ async fn assemble_checked(
                             Arc::new(crate::maintenance::MaintenanceService::new(
                                 authorizer.clone(),
                                 crate::maintenance::MaintenanceConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
+                marketing_targets.push(
+                    erpx_server_marketing::public::campaign_attribution_http::MarketingCampaignHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::marketing::MarketingBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::marketing::MarketingService::new(
+                                authorizer.clone(),
+                                crate::marketing::MarketingConfiguration::new(
                                     holding.registration.holding_id.clone(),
                                     company.clone(),
                                 ),
@@ -2578,6 +2598,12 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_maintenance::public::http::maintenance_router(maintenance_targets)
                     .map_err(|_| "PRIVATE_API_MAINTENANCE_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !marketing_targets.is_empty() {
+            router = router.merge(
+                erpx_server_marketing::public::campaign_attribution_http::marketing_campaign_http_router(marketing_targets)
+                    .map_err(|_| "PRIVATE_API_MARKETING_CONFIGURATION_INVALID")?,
             );
         }
         if !talent_targets.is_empty() {

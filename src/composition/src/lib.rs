@@ -72,6 +72,8 @@ pub mod learning;
 pub mod legal;
 #[cfg(feature = "existing-business")]
 pub mod maintenance;
+#[cfg(feature = "existing-business")]
+pub mod marketing;
 pub mod manage_erpx;
 #[cfg(feature = "existing-business")]
 pub mod talent;
