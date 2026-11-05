@@ -1639,6 +1639,7 @@ async fn assemble_checked(
         let mut handbook_targets = Vec::new();
         let mut learning_targets = Vec::new();
         let mut quality_targets = Vec::new();
+        let mut identity_access_targets = Vec::new();
         let mut billing_targets = Vec::new();
         let mut pos_targets = Vec::new();
         let mut commercial_targets = Vec::new();
@@ -1818,6 +1819,25 @@ async fn assemble_checked(
                             Arc::new(crate::quality::QualityService::new(
                                 authorizer.clone(),
                                 crate::quality::QualityConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
+                identity_access_targets.push(
+                    erpx_server_identity_access::public::assignment_http::IamAssignmentHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::identity_access::IdentityAccessBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::identity_access::IdentityAccessService::new(
+                                authorizer.clone(),
+                                crate::identity_access::IdentityAccessConfiguration::new(
                                     holding.registration.holding_id.clone(),
                                     company.clone(),
                                 ),
@@ -2689,6 +2709,14 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_quality::public::quality_http::quality_router(quality_targets)
                     .map_err(|_| "PRIVATE_API_QUALITY_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !identity_access_targets.is_empty() {
+            router = router.merge(
+                erpx_server_identity_access::public::assignment_http::iam_assignment_http_router(
+                    identity_access_targets,
+                )
+                .map_err(|_| "PRIVATE_API_IDENTITY_ACCESS_CONFIGURATION_INVALID")?,
             );
         }
         if !billing_targets.is_empty() {

@@ -101,6 +101,7 @@ pub mod procurement;
 pub mod projects;
 pub mod billing;
 pub mod pos;
+pub mod identity_access;
 pub mod quality;
 pub mod records;
 #[cfg(feature = "existing-business")]
