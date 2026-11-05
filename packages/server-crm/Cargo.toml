@@ -26,6 +26,14 @@ name = "crm_pipeline"
 path = "../../tests/unit/crm/rust-crm-pipeline.test.rs"
 
 [[test]]
+name = "crm_accounts"
+path = "../../tests/unit/crm/rust-crm-accounts.test.rs"
+
+[[test]]
+name = "crm_activities"
+path = "../../tests/unit/crm/rust-crm-activities.test.rs"
+
+[[test]]
 name = "crm_pipeline_http"
 path = "../../tests/integration/crm/rust-crm-pipeline-http.test.rs"
 
