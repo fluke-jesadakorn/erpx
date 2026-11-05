@@ -64,9 +64,11 @@ use axum::{
 };
 use erpx_server_commercial::public::purchases::current_package_catalogue;
 use erpx_server_identity_access::public::{
-    AccountAuthentication, AccountPolicy, Argon2Passwords, AuthenticationSecrets, HoldingOrigin,
-    PostgresAccountRepository, SystemAccountClock, SystemAuthenticationSecrets,
-    account_auth_router,
+    AccountAuthentication, AccountCredentials, AccountInvitations, AccountMailKeyring, AccountPolicy,
+    Argon2Passwords, AuthenticationSecrets, HoldingOrigin, PostgresAccountCredentials,
+    PostgresAccountInvitations, PostgresAccountRepository, PostgresInvitationCredentialAuthority,
+    SystemAccountClock, SystemAuthenticationSecrets,
+    account_auth_router, account_credentials_router, account_invitations_router,
     account_holding_bindings::{
         ConfiguredAccountHolding, ConfiguredHoldingRegistry, lock_holding_binding_sources,
     },
@@ -1469,7 +1471,7 @@ async fn assemble_checked(
                 )
                 .map_err(|_| "PRIVATE_API_ACCOUNT_UNAVAILABLE")?,
             ),
-            passwords,
+            passwords.clone(),
             secrets.clone(),
             clock.clone(),
         )
@@ -1506,6 +1508,66 @@ async fn assemble_checked(
         .map_err(|_| "PRIVATE_API_ACCOUNT_SECURITY_CONFIGURATION_INVALID")?;
         router = router.merge(account_security_router(Arc::new(security)));
     }
+
+    let invitation_authority = Arc::new(PostgresInvitationCredentialAuthority::new(
+        config
+            .holdings
+            .iter()
+            .enumerate()
+            .map(|(i, h)| (h.registration.holding_id.clone(), pools[i + 1].clone()))
+            .collect(),
+        clock.clone(),
+    ));
+    let mail_keyring = Arc::new(
+        AccountMailKeyring::new("erpx-development".into(), vec![("erpx-development".into(), [7u8; 32])])
+            .map_err(|_| "PRIVATE_API_ACCOUNT_UNAVAILABLE")?,
+    );
+    let credentials = Arc::new(
+        AccountCredentials::new(
+            (*config.policy).clone(),
+            Arc::new(
+                PostgresAccountCredentials::from_control_database(
+                    pools[0].clone(),
+                    config.environment.clone(),
+                    invitation_authority.clone(),
+                    invalidation.clone(),
+                    clock.clone(),
+                    config.holdings_registry.clone(),
+                )
+                .map_err(|_| "PRIVATE_API_ACCOUNT_UNAVAILABLE")?,
+            ),
+            passwords.clone(),
+            secrets.clone(),
+            mail_keyring.clone(),
+            clock.clone(),
+        )
+        .map_err(|_| "PRIVATE_API_ACCOUNT_UNAVAILABLE")?,
+    );
+    router = router.merge(
+        account_credentials_router(auth.clone(), credentials.clone())
+            .map_err(|_| "PRIVATE_API_ACCOUNT_UNAVAILABLE")?,
+    );
+    let invitations_repository = Arc::new(PostgresAccountInvitations::new(
+        pools[0].clone(),
+        config
+            .holdings
+            .iter()
+            .enumerate()
+            .map(|(i, h)| (h.registration.holding_id.clone(), pools[i + 1].clone()))
+            .collect(),
+        clock.clone(),
+    ));
+    let invitations = Arc::new(AccountInvitations::new(
+        invitations_repository,
+        credentials.clone(),
+        passwords.clone(),
+        secrets.clone(),
+        clock.clone(),
+    ));
+    router = router.merge(
+        account_invitations_router(auth.clone(), invitations)
+            .map_err(|_| "PRIVATE_API_ACCOUNT_UNAVAILABLE")?,
+    );
 
     if config.account_bootstrap {
         let sso_policy = SsoPolicy::new((*config.policy).clone())
