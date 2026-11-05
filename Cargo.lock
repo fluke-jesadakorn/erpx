@@ -1337,6 +1337,7 @@ dependencies = [
  "erpx-server-collaboration",
  "erpx-server-commerce",
  "erpx-server-commercial",
+ "erpx-server-crm",
  "erpx-server-field-service",
  "erpx-server-files",
  "erpx-server-finance",

@@ -1,5 +1,4 @@
 //! Cross-owner assembly only. Business rules remain in each owner's public ports.
-pub(crate) mod runtime_database;
 #[cfg(feature = "legal-document-worker")]
 pub mod legal_document_bridge;
 #[cfg(feature = "legal-document-worker")]
@@ -18,6 +17,7 @@ pub mod legal_pdf_bridge;
 pub mod legal_pdf_worker;
 #[cfg(feature = "existing-business")]
 pub mod legal_queue_source;
+pub(crate) mod runtime_database;
 
 #[cfg(any(feature = "legal-pdf-worker", feature = "legal-document-worker"))]
 pub mod legal_system_worker;
@@ -44,40 +44,15 @@ pub mod http_scope;
 pub mod private_development_api;
 
 #[cfg(feature = "existing-business")]
-pub mod organization_nodes;
-#[cfg(any(feature = "existing-business", feature = "business-http"))]
-pub mod organization_nodes_http;
-#[cfg(feature = "existing-business")]
-pub mod organization_setup;
-#[cfg(feature = "existing-business")]
 pub mod approval_oversight;
-#[cfg(feature = "existing-business")]
-pub mod handbook;
-#[cfg(feature = "existing-business")]
-pub mod learning;
-#[cfg(feature = "existing-business")]
-pub mod maintenance;
-#[cfg(feature = "existing-business")]
-pub mod sales;
-pub mod benefits;
-#[cfg(feature = "existing-business")]
-pub mod projects;
-pub mod quality;
-pub mod manage_erpx;
-pub mod platform_administration;
-pub mod records;
-pub mod files;
-#[cfg(feature = "existing-business")]
-pub mod legal;
-pub mod pms;
-pub mod operations;
-pub mod people_payroll;
-pub mod procurement;
 pub mod asset_http;
+pub mod benefits;
 #[cfg(feature = "existing-business")]
 pub mod brand_identity;
 #[cfg(feature = "existing-business")]
 pub mod brand_identity_http;
+pub mod crm;
+pub mod files;
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
 pub mod finance_bank_http;
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
@@ -88,6 +63,32 @@ pub mod finance_generic_payment;
 pub mod finance_generic_payment_http;
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
 pub mod finance_journal_detail;
+#[cfg(feature = "existing-business")]
+pub mod handbook;
+#[cfg(feature = "existing-business")]
+pub mod learning;
+#[cfg(feature = "existing-business")]
+pub mod legal;
+#[cfg(feature = "existing-business")]
+pub mod maintenance;
+pub mod manage_erpx;
+pub mod operations;
+#[cfg(feature = "existing-business")]
+pub mod organization_nodes;
+#[cfg(any(feature = "existing-business", feature = "business-http"))]
+pub mod organization_nodes_http;
+#[cfg(feature = "existing-business")]
+pub mod organization_setup;
+pub mod people_payroll;
+pub mod platform_administration;
+pub mod pms;
+pub mod procurement;
+#[cfg(feature = "existing-business")]
+pub mod projects;
+pub mod quality;
+pub mod records;
+#[cfg(feature = "existing-business")]
+pub mod sales;
 
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
 pub mod finance_presentation;
@@ -101,9 +102,9 @@ pub mod finance_service_invoice_flow_command;
 #[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
 pub mod finance_field_journal_flow;
 #[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
-pub mod finance_field_work;
-#[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
 pub mod finance_field_journal_flow_command;
+#[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
+pub mod finance_field_work;
 
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
 pub mod finance_journal_environment;
@@ -156,16 +157,16 @@ mod field_service_http_core;
 #[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
 pub mod finance_journal_create;
 
+#[cfg(feature = "field-service")]
+mod finance_journal_actor;
 #[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
 pub mod finance_service_invoice_post;
 #[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
-pub mod finance_service_no_charge;
-#[cfg(feature="field-service")]
-mod finance_journal_actor;
-#[cfg(any(feature="existing-business",feature="finance-field-read"))]
-mod finance_service_no_charge_read;
-#[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
 pub mod finance_service_invoice_post_http;
+#[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
+pub mod finance_service_no_charge;
+#[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
+mod finance_service_no_charge_read;
 
 #[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
 pub mod finance_journal_edit;
@@ -205,71 +206,71 @@ pub mod field_upload_http;
 pub mod field_attachment_intake_contracts;
 
 #[cfg(feature = "field-service")]
-pub mod field_service_source_record;
-#[cfg(feature = "field-service")]
-mod field_service_records_source;
-#[cfg(feature = "field-service")]
-pub mod field_service_package_settlement;
-#[cfg(feature = "field-service-http")]
-pub mod field_service_package_http;
-#[cfg(feature = "field-service")]
 pub mod field_collaboration_command;
 #[cfg(feature = "field-service")]
 pub mod field_collaboration_read;
 #[cfg(feature = "field-service")]
 pub mod field_inbox_read;
-
-#[cfg(feature="field-service")]
-mod finance_service_invoice_history;
-#[cfg(feature="field-service")]
-mod finance_field_journal_history;
+#[cfg(feature = "field-service-http")]
+pub mod field_service_package_http;
 #[cfg(feature = "field-service")]
-pub mod field_executive_read;
+pub mod field_service_package_settlement;
+#[cfg(feature = "field-service")]
+mod field_service_records_source;
+#[cfg(feature = "field-service")]
+pub mod field_service_source_record;
+
 #[cfg(feature = "field-service")]
 pub mod field_executive_evidence;
+#[cfg(feature = "field-service")]
+pub mod field_executive_read;
 #[cfg(feature = "field-service")]
 pub mod field_inbox_command;
 #[cfg(feature = "field-service")]
 pub mod field_support_read;
+#[cfg(feature = "field-service")]
+mod finance_field_journal_history;
+#[cfg(feature = "field-service")]
+mod finance_service_invoice_history;
 
 pub mod module_assembly;
 #[cfg(feature = "module-example")]
 mod module_example;
 
 #[cfg(feature = "field-service")]
+pub mod field_dependency_worker;
+#[cfg(feature = "field-service")]
 pub mod service_company_ownership;
 #[cfg(feature = "field-service")]
 pub mod service_count_worker;
-#[cfg(feature="field-service")]
-pub mod field_dependency_worker;
-#[cfg(feature = "field-service")]
-pub mod service_stock_setup;
 #[cfg(feature = "field-service")]
 pub mod service_customer_preparation;
 #[cfg(feature = "field-service")]
-mod service_initial_physical_stock_sources;
+pub mod service_initial_physical_stock;
+#[cfg(feature = "field-service")]
+mod service_initial_physical_stock_action;
+#[cfg(feature = "field-service")]
+mod service_initial_physical_stock_command;
+#[cfg(feature = "field-service")]
+pub mod service_initial_physical_stock_contracts;
+#[cfg(feature = "field-service")]
+mod service_initial_physical_stock_create;
+#[cfg(feature = "field-service")]
+mod service_initial_physical_stock_flow;
 #[cfg(feature = "field-service")]
 mod service_initial_physical_stock_purchases;
 #[cfg(feature = "field-service")]
 mod service_initial_physical_stock_read;
 #[cfg(feature = "field-service")]
-mod service_initial_physical_stock_command;
-#[cfg(feature = "field-service")]
-mod service_initial_physical_stock_flow;
-#[cfg(feature = "field-service")]
 mod service_initial_physical_stock_record;
 #[cfg(feature = "field-service")]
-mod service_initial_physical_stock_create;
-#[cfg(feature = "field-service")]
-mod service_initial_physical_stock_action;
-#[cfg(feature = "field-service")]
-pub mod service_initial_physical_stock_update;
-#[cfg(feature = "field-service")]
-pub mod service_initial_physical_stock;
+mod service_initial_physical_stock_sources;
 #[cfg(feature = "field-service-http")]
 pub mod service_initial_physical_stock_transport;
 #[cfg(feature = "field-service")]
-pub mod service_initial_physical_stock_contracts;
+pub mod service_initial_physical_stock_update;
+#[cfg(feature = "field-service")]
+pub mod service_stock_setup;
 
 #[cfg(feature = "field-service")]
 pub mod field_attachment_intake_command;
@@ -286,35 +287,35 @@ pub mod field_files_cleanup_worker;
 #[cfg(feature = "field-service")]
 pub mod field_operations_command;
 
-#[cfg(feature="field-push-worker")]
+#[cfg(feature = "field-push-worker")]
 pub mod field_push_worker;
 
-#[cfg(feature="field-service")]
+#[cfg(feature = "field-service")]
 pub mod field_reservation_alerts;
-#[cfg(feature = "existing-business")]
-pub mod inventory_stock_read;
+pub mod inventory_availability_http;
+pub mod inventory_availability_read;
+pub mod inventory_reservation_alerts;
 #[cfg(feature = "existing-business")]
 pub mod inventory_stock_http;
-pub mod inventory_availability_read;
-pub mod inventory_availability_http;
-pub mod inventory_reservation_alerts;
+#[cfg(feature = "existing-business")]
+pub mod inventory_stock_read;
 
-#[cfg(feature="field-service")]
+#[cfg(feature = "field-service")]
 pub mod native_work_roles;
 
-#[cfg(feature="field-service-http")]
+#[cfg(feature = "field-service-http")]
 pub mod native_work_roles_http;
 
-#[cfg(feature="field-service")]
+#[cfg(feature = "field-service")]
 pub mod native_account_preferences;
 
 #[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
 pub mod finance_service_receipt_create;
 
 #[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
-pub mod finance_service_receipt_review;
-#[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
 pub mod finance_service_receipt_http;
+#[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
+pub mod finance_service_receipt_review;
 
 #[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
 pub mod finance_service_receipt_bank;
@@ -323,35 +324,35 @@ pub mod finance_service_receipt_bank;
 pub mod finance_service_receipt_confirm;
 
 #[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
-pub mod finance_service_receipt_files;
+pub mod finance_field_files_intake_command;
 #[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
 pub mod finance_field_journal_files;
 #[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
 mod finance_field_journal_files_bind;
 #[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
-pub mod finance_field_files_intake_command;
+pub mod finance_service_receipt_files;
 
-#[cfg(feature = "existing-business")]
-pub mod support_incident_command;
-#[cfg(feature = "existing-business")]
-pub mod support_session_command;
 #[cfg(feature = "existing-business")]
 pub mod support_evidence_command;
 #[cfg(feature = "existing-business")]
 pub mod support_evidence_http;
 #[cfg(feature = "existing-business")]
-pub mod support_sla_command;
-#[cfg(feature = "existing-business")]
-pub mod support_sla_http;
-#[cfg(feature = "existing-business")]
-pub mod support_session_http;
+pub mod support_incident_command;
 #[cfg(feature = "existing-business")]
 pub mod support_incident_http;
 #[cfg(feature = "existing-business")]
 pub mod support_read_http;
 #[cfg(feature = "existing-business")]
+pub mod support_session_command;
+#[cfg(feature = "existing-business")]
+pub mod support_session_http;
+#[cfg(feature = "existing-business")]
+pub mod support_sla_command;
+#[cfg(feature = "existing-business")]
+pub mod support_sla_http;
+#[cfg(feature = "existing-business")]
 pub mod support_ticket_command;
 #[cfg(feature = "existing-business")]
-pub mod support_ticket_read;
-#[cfg(feature = "existing-business")]
 pub mod support_ticket_http;
+#[cfg(feature = "existing-business")]
+pub mod support_ticket_read;

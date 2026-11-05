@@ -1,5 +1,6 @@
 //! Explicit private development assembly. No environment discovery, migrations,
 //! public listener, installed service, business readiness or legacy backend proxy.
+use crate::runtime_database::RuntimeDatabase;
 #[cfg(feature = "finance-field-write")]
 use crate::{
     business_http::{BusinessHttpTarget, business_router},
@@ -9,7 +10,6 @@ use crate::{
     finance_journal_edit_http::{FinanceJournalEditTarget, finance_journal_edit_router},
     finance_journal_review::{FinanceJournalConfiguration, FinanceJournalReviewAdministration},
 };
-use crate::runtime_database::RuntimeDatabase;
 use crate::{
     field_service_http::{FieldServiceHttpTarget, field_service_http_router},
     field_service_parts::{
@@ -27,18 +27,26 @@ use crate::{
         InventoryAvailabilityHttpTarget, inventory_availability_http_router,
     },
     inventory_availability_read::InventoryAvailabilityReadService,
-    support_incident_command::SupportIncidentCommand,
-    support_incident_http::{SupportIncidentHttpTarget, support_incident_http_router},
     support_evidence_command::SupportEvidenceCommand,
     support_evidence_http::{SupportEvidenceHttpTarget, support_evidence_http_router},
+    support_incident_command::SupportIncidentCommand,
+    support_incident_http::{SupportIncidentHttpTarget, support_incident_http_router},
+    support_read_http::{SupportReadHttpTarget, support_read_http_router},
     support_session_command::SupportSessionCommand,
     support_session_http::{SupportSessionHttpTarget, support_session_http_router},
     support_sla_command::{SupportSlaCommand, drain_support_sla},
     support_sla_http::{SupportSlaHttpTarget, support_sla_http_router},
     support_ticket_command::SupportTicketCommand,
-    support_read_http::{SupportReadHttpTarget, support_read_http_router},
     support_ticket_http::{SupportTicketHttpTarget, support_ticket_http_router},
     support_ticket_read::SupportTicketReadService,
+};
+#[cfg(feature = "finance-field-write")]
+use crate::{
+    finance_journal_create::FinanceJournalCreateConfiguration as InvoicePostConfiguration,
+    finance_service_invoice_post_http::{
+        FinanceServiceInvoicePostTarget, finance_service_invoice_post_router,
+    },
+    finance_service_receipt_http::{FinanceServiceReceiptTarget, finance_service_receipt_router},
 };
 use crate::{
     finance_journal_detail::{FinanceJournalDetailService, FinanceJournalReadConfiguration},
@@ -46,12 +54,6 @@ use crate::{
         FinanceJournalReadScopeHeaders, FinanceJournalReadTarget, finance_journal_read_router,
     },
     finance_journal_environment::FinanceJournalEnvironment,
-};
-#[cfg(feature = "finance-field-write")]
-use crate::{
-    finance_journal_create::FinanceJournalCreateConfiguration as InvoicePostConfiguration,
-    finance_service_receipt_http::{FinanceServiceReceiptTarget,finance_service_receipt_router},
-    finance_service_invoice_post_http::{FinanceServiceInvoicePostTarget, finance_service_invoice_post_router},
 };
 use axum::{
     Router,
@@ -132,9 +134,18 @@ struct FieldAttachmentDocument {
     mode: String,
 }
 #[derive(Deserialize)]
-#[serde(rename_all="camelCase",deny_unknown_fields)]
-#[cfg_attr(not(feature="files-scan-worker"),allow(dead_code,reason="Decoded only to reject unavailable provider policy in this build"))]
-struct FieldFilesPolicyDocument {mode:String,uploads_frozen:bool}
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(
+    not(feature = "files-scan-worker"),
+    allow(
+        dead_code,
+        reason = "Decoded only to reject unavailable provider policy in this build"
+    )
+)]
+struct FieldFilesPolicyDocument {
+    mode: String,
+    uploads_frozen: bool,
+}
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct FieldInitialCountDocument {
@@ -144,23 +155,29 @@ struct FieldInitialCountDocument {
     uploads_frozen: bool,
 }
 #[derive(Deserialize)]
-#[serde(rename_all="camelCase",deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ServicePackageDocument {
-    provider_holding_id:String,
-    holding_ids:Vec<String>,
-    review_secret:String,
+    provider_holding_id: String,
+    holding_ids: Vec<String>,
+    review_secret: String,
 }
 struct ServicePackageConfiguration {
-    provider_holding:HoldingId,
-    holdings:BTreeSet<HoldingId>,
-    signer:Arc<erpx_server_commercial::public::package_review::PackageLifecycleReviewSigner>,
+    provider_holding: HoldingId,
+    holdings: BTreeSet<HoldingId>,
+    signer: Arc<erpx_server_commercial::public::package_review::PackageLifecycleReviewSigner>,
 }
 #[derive(Deserialize)]
-#[serde(rename_all="camelCase",deny_unknown_fields)]
-struct AccountSecurityKeyDocument {id:String,key_hex:String}
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct AccountSecurityKeyDocument {
+    id: String,
+    key_hex: String,
+}
 #[derive(Deserialize)]
-#[serde(rename_all="camelCase",deny_unknown_fields)]
-struct AccountSecurityKeysDocument {current:String,keys:Vec<AccountSecurityKeyDocument>}
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct AccountSecurityKeysDocument {
+    current: String,
+    keys: Vec<AccountSecurityKeyDocument>,
+}
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ConfigurationDocument {
@@ -228,7 +245,7 @@ struct ConfigurationDocument {
     #[serde(default)]
     field_files_providers: Option<serde_json::Value>,
     #[serde(default)]
-    field_files_policy:Option<FieldFilesPolicyDocument>,
+    field_files_policy: Option<FieldFilesPolicyDocument>,
     #[serde(default)]
     field_service_work_reads: Vec<String>,
     #[serde(default)]
@@ -258,9 +275,9 @@ struct ConfigurationDocument {
     #[serde(default)]
     account_bootstrap: bool,
     #[serde(default)]
-    service_package_lifecycle:Option<ServicePackageDocument>,
+    service_package_lifecycle: Option<ServicePackageDocument>,
     #[serde(default)]
-    account_security_keys:Option<AccountSecurityKeysDocument>,
+    account_security_keys: Option<AccountSecurityKeysDocument>,
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Profile {
@@ -308,16 +325,17 @@ pub struct DevelopmentApiConfiguration {
     field_service_parts_posting_setups: BTreeSet<HoldingId>,
     field_service_parts_prerequisites: BTreeSet<HoldingId>,
     field_service_stock_setups: BTreeSet<HoldingId>,
-    field_service_initial_counts: BTreeMap<HoldingId, crate::service_initial_physical_stock::CountBindingFeatures>,
+    field_service_initial_counts:
+        BTreeMap<HoldingId, crate::service_initial_physical_stock::CountBindingFeatures>,
     field_service_source_record_reads:
         BTreeMap<HoldingId, crate::field_service_source_record::SourceRecordMode>,
     field_attachment_links: BTreeMap<HoldingId, bool>,
     field_attachment_binds: BTreeMap<HoldingId, bool>,
-    #[cfg(feature="files-scan-worker")]
+    #[cfg(feature = "files-scan-worker")]
     field_files_providers: Option<serde_json::Value>,
-    #[cfg(feature="files-scan-worker")]
-    field_files_policy:crate::field_attachment_intake_http::FieldIntakePolicy,
-    field_files_companies: BTreeMap<HoldingId,BTreeSet<CompanyId>>,
+    #[cfg(feature = "files-scan-worker")]
+    field_files_policy: crate::field_attachment_intake_http::FieldIntakePolicy,
+    field_files_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     field_service_work_reads: BTreeSet<HoldingId>,
     field_service_detail_reads: BTreeSet<HoldingId>,
     field_service_reservations: BTreeSet<HoldingId>,
@@ -332,8 +350,9 @@ pub struct DevelopmentApiConfiguration {
     field_service_agreement_reviews: BTreeSet<HoldingId>,
     field_service_agreement_creates: BTreeSet<HoldingId>,
     account_bootstrap: bool,
-    service_package_lifecycle:Option<ServicePackageConfiguration>,
-    account_security_keys:Option<Arc<erpx_server_identity_access::public::account_security::AccountMfaKeyring>>,
+    service_package_lifecycle: Option<ServicePackageConfiguration>,
+    account_security_keys:
+        Option<Arc<erpx_server_identity_access::public::account_security::AccountMfaKeyring>>,
 }
 impl fmt::Debug for DevelopmentApiConfiguration {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -373,8 +392,8 @@ fn durable_database(url: &str) -> Result<RuntimeDatabase, &'static str> {
     {
         return Err("EXACT_PRIVATE_PRODUCTION_DATABASE_REQUIRED");
     }
-    let configuration = DatabaseConfig::from_url(url)
-        .map_err(|_| "EXACT_PRIVATE_PRODUCTION_DATABASE_REQUIRED")?;
+    let configuration =
+        DatabaseConfig::from_url(url).map_err(|_| "EXACT_PRIVATE_PRODUCTION_DATABASE_REQUIRED")?;
     let identity = (
         endpoint.path().trim_matches('/').to_owned(),
         endpoint.username().to_owned(),
@@ -482,7 +501,8 @@ impl DevelopmentApiConfiguration {
                 .map_err(|_| "DISPOSABLE_PRIVATE_API_PORT_REQUIRED")?,
             Profile::Production => validate_private_production_address(&doc.listen)?,
         };
-        let control = runtime_database(&doc.control, profile, "EXACT_LEASED_API_DATABASE_REQUIRED")?;
+        let control =
+            runtime_database(&doc.control, profile, "EXACT_LEASED_API_DATABASE_REQUIRED")?;
         let mut tokens = BTreeSet::new();
         if let Some(token) = &doc.control.lease_token {
             tokens.insert(token.clone());
@@ -497,7 +517,8 @@ impl DevelopmentApiConfiguration {
         for h in doc.holdings {
             let holding_id =
                 HoldingId::new(&h.holding_id).map_err(|_| "PRIVATE_API_HOLDING_INVALID")?;
-            let database = runtime_database(&h.database, profile, "EXACT_LEASED_API_DATABASE_REQUIRED")?;
+            let database =
+                runtime_database(&h.database, profile, "EXACT_LEASED_API_DATABASE_REQUIRED")?;
             if !ids.insert(h.holding_id.clone())
                 || !slugs.insert(h.slug.clone())
                 || !hosts.insert(h.host.clone())
@@ -520,7 +541,11 @@ impl DevelopmentApiConfiguration {
             }
             match profile {
                 Profile::Development => {
-                    let token = h.database.lease_token.as_ref().ok_or("EXACT_LEASED_API_DATABASE_REQUIRED")?;
+                    let token = h
+                        .database
+                        .lease_token
+                        .as_ref()
+                        .ok_or("EXACT_LEASED_API_DATABASE_REQUIRED")?;
                     if !tokens.insert(token.clone()) {
                         return Err("DISTINCT_EXACT_API_HOLDINGS_REQUIRED");
                     }
@@ -533,10 +558,14 @@ impl DevelopmentApiConfiguration {
             }
             let read_database = match h.read_database {
                 Some(read) => {
-                    let selected = runtime_database(&read, profile, "EXACT_LEASED_API_DATABASE_REQUIRED")?;
+                    let selected =
+                        runtime_database(&read, profile, "EXACT_LEASED_API_DATABASE_REQUIRED")?;
                     match profile {
                         Profile::Development => {
-                            let token = read.lease_token.as_ref().ok_or("EXACT_LEASED_API_DATABASE_REQUIRED")?;
+                            let token = read
+                                .lease_token
+                                .as_ref()
+                                .ok_or("EXACT_LEASED_API_DATABASE_REQUIRED")?;
                             if !tokens.insert(token.clone()) {
                                 return Err("DISTINCT_EXACT_API_HOLDINGS_REQUIRED");
                             }
@@ -569,8 +598,22 @@ impl DevelopmentApiConfiguration {
                 read_database,
             });
         }
-        let expected_ids = if contributor { BTreeSet::from(["h001".to_owned(), "h002".to_owned(), "h003".to_owned()]) } else { BTreeSet::from(["h001".to_owned(), "h002".to_owned()]) };
-        if ids != expected_ids || (contributor && ![("h001", "acme"), ("h002", "northstar"), ("h003", "erpx")].iter().all(|(id,slug)| holdings.iter().any(|h| h.registration.holding_id.as_str() == *id && h.registration.slug == *slug))) {
+        let expected_ids = if contributor {
+            BTreeSet::from(["h001".to_owned(), "h002".to_owned(), "h003".to_owned()])
+        } else {
+            BTreeSet::from(["h001".to_owned(), "h002".to_owned()])
+        };
+        if ids != expected_ids
+            || (contributor
+                && ![("h001", "acme"), ("h002", "northstar"), ("h003", "erpx")]
+                    .iter()
+                    .all(|(id, slug)| {
+                        holdings.iter().any(|h| {
+                            h.registration.holding_id.as_str() == *id
+                                && h.registration.slug == *slug
+                        })
+                    }))
+        {
             return Err("EXACT_H001_H002_RESOURCES_REQUIRED");
         }
         let mut finance_journal_reads: BTreeMap<HoldingId, BTreeSet<CompanyId>> = BTreeMap::new();
@@ -580,7 +623,10 @@ impl DevelopmentApiConfiguration {
             let company = CompanyId::new(&read.company_id)
                 .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
             if !ids.contains(&read.holding_id)
-                || !finance_journal_reads.entry(holding).or_default().insert(company)
+                || !finance_journal_reads
+                    .entry(holding)
+                    .or_default()
+                    .insert(company)
             {
                 return Err("PRIVATE_API_FINANCE_CONFIGURATION_INVALID");
             }
@@ -597,7 +643,8 @@ impl DevelopmentApiConfiguration {
         }
         let mut finance_field_service_invoice_posts = BTreeSet::new();
         for id in doc.finance_field_service_invoice_posts {
-            let holding = HoldingId::new(id).map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
+            let holding =
+                HoldingId::new(id).map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
             if !cfg!(feature = "finance-field-write")
                 || !finance_field_service_invoice_reads.contains(&holding)
                 || !finance_field_service_invoice_posts.insert(holding)
@@ -607,8 +654,14 @@ impl DevelopmentApiConfiguration {
         }
         let mut finance_field_service_receipt_writes = BTreeSet::new();
         for id in doc.finance_field_service_receipt_writes {
-            let holding=HoldingId::new(id).map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
-            if !cfg!(feature = "finance-field-write") || !finance_field_service_invoice_posts.contains(&holding) || !finance_field_service_receipt_writes.insert(holding) { return Err("PRIVATE_API_FINANCE_CONFIGURATION_INVALID"); }
+            let holding =
+                HoldingId::new(id).map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
+            if !cfg!(feature = "finance-field-write")
+                || !finance_field_service_invoice_posts.contains(&holding)
+                || !finance_field_service_receipt_writes.insert(holding)
+            {
+                return Err("PRIVATE_API_FINANCE_CONFIGURATION_INVALID");
+            }
         }
         let mut finance_journal_posts = BTreeSet::new();
         for id in doc.finance_journal_posts {
@@ -650,14 +703,17 @@ impl DevelopmentApiConfiguration {
                 return Err("PRIVATE_API_FINANCE_CONFIGURATION_INVALID");
             }
         }
-        let mut field_service_reads: BTreeMap<HoldingId,BTreeSet<CompanyId>> = BTreeMap::new();
+        let mut field_service_reads: BTreeMap<HoldingId, BTreeSet<CompanyId>> = BTreeMap::new();
         for read in doc.field_service_reads {
             let holding = HoldingId::new(&read.holding_id)
                 .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
             let company = CompanyId::new(&read.company_id)
                 .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
             if !ids.contains(&read.holding_id)
-                || !field_service_reads.entry(holding).or_default().insert(company)
+                || !field_service_reads
+                    .entry(holding)
+                    .or_default()
+                    .insert(company)
             {
                 return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
             }
@@ -726,31 +782,64 @@ impl DevelopmentApiConfiguration {
                 return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
             }
         }
-        let account_security_keys=match doc.account_security_keys {
-            None=>None,
-            Some(input)=>{
-                if input.keys.is_empty()||input.keys.len()>8{return Err("PRIVATE_API_ACCOUNT_SECURITY_CONFIGURATION_INVALID");}
-                let mut keys=Vec::new();
-                for key in input.keys {
-                    if key.key_hex.len()!=64{return Err("PRIVATE_API_ACCOUNT_SECURITY_CONFIGURATION_INVALID");}
-                    let bytes:[u8;32]=hex::decode(key.key_hex).map_err(|_|"PRIVATE_API_ACCOUNT_SECURITY_CONFIGURATION_INVALID")?.try_into().map_err(|_|"PRIVATE_API_ACCOUNT_SECURITY_CONFIGURATION_INVALID")?;
-                    keys.push((key.id,bytes));
+        let account_security_keys = match doc.account_security_keys {
+            None => None,
+            Some(input) => {
+                if input.keys.is_empty() || input.keys.len() > 8 {
+                    return Err("PRIVATE_API_ACCOUNT_SECURITY_CONFIGURATION_INVALID");
                 }
-                Some(Arc::new(erpx_server_identity_access::public::account_security::AccountMfaKeyring::new(input.current,keys).map_err(|_|"PRIVATE_API_ACCOUNT_SECURITY_CONFIGURATION_INVALID")?))
+                let mut keys = Vec::new();
+                for key in input.keys {
+                    if key.key_hex.len() != 64 {
+                        return Err("PRIVATE_API_ACCOUNT_SECURITY_CONFIGURATION_INVALID");
+                    }
+                    let bytes: [u8; 32] = hex::decode(key.key_hex)
+                        .map_err(|_| "PRIVATE_API_ACCOUNT_SECURITY_CONFIGURATION_INVALID")?
+                        .try_into()
+                        .map_err(|_| "PRIVATE_API_ACCOUNT_SECURITY_CONFIGURATION_INVALID")?;
+                    keys.push((key.id, bytes));
+                }
+                Some(Arc::new(
+                    erpx_server_identity_access::public::account_security::AccountMfaKeyring::new(
+                        input.current,
+                        keys,
+                    )
+                    .map_err(|_| "PRIVATE_API_ACCOUNT_SECURITY_CONFIGURATION_INVALID")?,
+                ))
             }
         };
-        let service_package_lifecycle=match doc.service_package_lifecycle {
-            None=>None,
-            Some(input)=>{
-                let provider_holding=HoldingId::new(input.provider_holding_id).map_err(|_|"PRIVATE_API_SERVICE_PACKAGE_CONFIGURATION_INVALID")?;
-                if account_security_keys.is_none()||!holdings.iter().any(|h|h.registration.holding_id==provider_holding)||input.holding_ids.is_empty()||input.review_secret.len()>4096{return Err("PRIVATE_API_SERVICE_PACKAGE_CONFIGURATION_INVALID");}
-                let mut selected=BTreeSet::new();
+        let service_package_lifecycle = match doc.service_package_lifecycle {
+            None => None,
+            Some(input) => {
+                let provider_holding = HoldingId::new(input.provider_holding_id)
+                    .map_err(|_| "PRIVATE_API_SERVICE_PACKAGE_CONFIGURATION_INVALID")?;
+                if account_security_keys.is_none()
+                    || !holdings
+                        .iter()
+                        .any(|h| h.registration.holding_id == provider_holding)
+                    || input.holding_ids.is_empty()
+                    || input.review_secret.len() > 4096
+                {
+                    return Err("PRIVATE_API_SERVICE_PACKAGE_CONFIGURATION_INVALID");
+                }
+                let mut selected = BTreeSet::new();
                 for id in input.holding_ids {
-                    let id=HoldingId::new(id).map_err(|_|"PRIVATE_API_SERVICE_PACKAGE_CONFIGURATION_INVALID")?;
-                    if !matches!(field_service_source_record_reads.get(&id),Some(crate::field_service_source_record::SourceRecordMode::Enforced))||!selected.insert(id){return Err("PRIVATE_API_SERVICE_PACKAGE_CONFIGURATION_INVALID");}
+                    let id = HoldingId::new(id)
+                        .map_err(|_| "PRIVATE_API_SERVICE_PACKAGE_CONFIGURATION_INVALID")?;
+                    if !matches!(
+                        field_service_source_record_reads.get(&id),
+                        Some(crate::field_service_source_record::SourceRecordMode::Enforced)
+                    ) || !selected.insert(id)
+                    {
+                        return Err("PRIVATE_API_SERVICE_PACKAGE_CONFIGURATION_INVALID");
+                    }
                 }
                 let signer=erpx_server_commercial::public::package_review::PackageLifecycleReviewSigner::new(&input.review_secret).map_err(|_|"PRIVATE_API_SERVICE_PACKAGE_CONFIGURATION_INVALID")?;
-                Some(ServicePackageConfiguration{provider_holding,holdings:selected,signer:Arc::new(signer)})
+                Some(ServicePackageConfiguration {
+                    provider_holding,
+                    holdings: selected,
+                    signer: Arc::new(signer),
+                })
             }
         };
         let mut field_service_parts_prerequisites = BTreeSet::new();
@@ -768,11 +857,16 @@ impl DevelopmentApiConfiguration {
             let holding = HoldingId::new(target.holding_id)
                 .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
             if !field_service_reads.contains_key(&holding)
-                || field_service_initial_counts.insert(holding, crate::service_initial_physical_stock::CountBindingFeatures {
-                    enabled: target.files_enabled,
-                    read_only: target.files_read_only,
-                    uploads_frozen: target.uploads_frozen,
-                }).is_some()
+                || field_service_initial_counts
+                    .insert(
+                        holding,
+                        crate::service_initial_physical_stock::CountBindingFeatures {
+                            enabled: target.files_enabled,
+                            read_only: target.files_read_only,
+                            uploads_frozen: target.uploads_frozen,
+                        },
+                    )
+                    .is_some()
             {
                 return Err("PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID");
             }
@@ -842,7 +936,11 @@ impl DevelopmentApiConfiguration {
             let holding = HoldingId::new(id)
                 .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
             if !field_service_reservations.contains(&holding)
-                || !field_service_reads.get(&holding).is_some_and(|required| finance_journal_reads.get(&holding).is_some_and(|companies|required.is_subset(companies)))
+                || !field_service_reads.get(&holding).is_some_and(|required| {
+                    finance_journal_reads
+                        .get(&holding)
+                        .is_some_and(|companies| required.is_subset(companies))
+                })
                 || !finance_journal_reads.contains_key(&holding)
                 || !field_service_issues.insert(holding)
             {
@@ -972,33 +1070,70 @@ impl DevelopmentApiConfiguration {
             )
             .map_err(|_| "PRIVATE_API_BINDINGS_INVALID")?,
         );
-        #[cfg(not(feature="files-scan-worker"))]
-        if doc.field_files_providers.is_some() || doc.field_files_policy.is_some(){return Err("PRIVATE_API_FIELD_FILES_FEATURE_REQUIRED");}
-        #[cfg(feature="files-scan-worker")]
-        let field_files_policy=match &doc.field_files_policy {
-            Some(policy) if doc.field_files_providers.is_some()=>crate::field_attachment_intake_http::FieldIntakePolicy{
-                mode:match policy.mode.as_str(){"enabled"=>crate::field_attachment_intake_http::FieldIntakeMode::Enabled,"read-only"=>crate::field_attachment_intake_http::FieldIntakeMode::ReadOnly,"disabled"=>crate::field_attachment_intake_http::FieldIntakeMode::Disabled,_=>return Err("PRIVATE_API_FIELD_FILES_POLICY_INVALID")},uploads_frozen:policy.uploads_frozen,
-            },
-            None if doc.field_files_providers.is_none()=>crate::field_attachment_intake_http::FieldIntakePolicy{mode:crate::field_attachment_intake_http::FieldIntakeMode::Disabled,uploads_frozen:true},
-            _=>return Err("PRIVATE_API_FIELD_FILES_POLICY_INVALID"),
+        #[cfg(not(feature = "files-scan-worker"))]
+        if doc.field_files_providers.is_some() || doc.field_files_policy.is_some() {
+            return Err("PRIVATE_API_FIELD_FILES_FEATURE_REQUIRED");
+        }
+        #[cfg(feature = "files-scan-worker")]
+        let field_files_policy = match &doc.field_files_policy {
+            Some(policy) if doc.field_files_providers.is_some() => {
+                crate::field_attachment_intake_http::FieldIntakePolicy {
+                    mode: match policy.mode.as_str() {
+                        "enabled" => crate::field_attachment_intake_http::FieldIntakeMode::Enabled,
+                        "read-only" => {
+                            crate::field_attachment_intake_http::FieldIntakeMode::ReadOnly
+                        }
+                        "disabled" => {
+                            crate::field_attachment_intake_http::FieldIntakeMode::Disabled
+                        }
+                        _ => return Err("PRIVATE_API_FIELD_FILES_POLICY_INVALID"),
+                    },
+                    uploads_frozen: policy.uploads_frozen,
+                }
+            }
+            None if doc.field_files_providers.is_none() => {
+                crate::field_attachment_intake_http::FieldIntakePolicy {
+                    mode: crate::field_attachment_intake_http::FieldIntakeMode::Disabled,
+                    uploads_frozen: true,
+                }
+            }
+            _ => return Err("PRIVATE_API_FIELD_FILES_POLICY_INVALID"),
         };
-        #[cfg(feature="files-scan-worker")]
-        let mut field_files_companies=BTreeMap::<HoldingId,BTreeSet<CompanyId>>::new();
-        #[cfg(not(feature="files-scan-worker"))]
-        let field_files_companies=BTreeMap::<HoldingId,BTreeSet<CompanyId>>::new();
-        #[cfg(feature="files-scan-worker")]
-        if let Some(ref providers)=doc.field_files_providers {
-            let raw=serde_json::to_vec(providers).map_err(|_|"PRIVATE_API_FIELD_FILES_CONFIGURATION_INVALID")?;
-            let targets=crate::field_files_runtime_configuration::parse_field_files_runtime_configuration(&raw,&holdings_registry).map_err(|_|"PRIVATE_API_FIELD_FILES_CONFIGURATION_INVALID")?;
+        #[cfg(feature = "files-scan-worker")]
+        let mut field_files_companies = BTreeMap::<HoldingId, BTreeSet<CompanyId>>::new();
+        #[cfg(not(feature = "files-scan-worker"))]
+        let field_files_companies = BTreeMap::<HoldingId, BTreeSet<CompanyId>>::new();
+        #[cfg(feature = "files-scan-worker")]
+        if let Some(ref providers) = doc.field_files_providers {
+            let raw = serde_json::to_vec(providers)
+                .map_err(|_| "PRIVATE_API_FIELD_FILES_CONFIGURATION_INVALID")?;
+            let targets =
+                crate::field_files_runtime_configuration::parse_field_files_runtime_configuration(
+                    &raw,
+                    &holdings_registry,
+                )
+                .map_err(|_| "PRIVATE_API_FIELD_FILES_CONFIGURATION_INVALID")?;
             for target in targets {
-                if !field_service_reads.contains_key(&target.holding_id) || !field_attachment_links.contains_key(&target.holding_id) || !field_attachment_binds.contains_key(&target.holding_id) {
+                if !field_service_reads.contains_key(&target.holding_id)
+                    || !field_attachment_links.contains_key(&target.holding_id)
+                    || !field_attachment_binds.contains_key(&target.holding_id)
+                {
                     return Err("PRIVATE_API_FIELD_FILES_CONFIGURATION_INVALID");
                 }
-                if field_files_policy.mode!=crate::field_attachment_intake_http::FieldIntakeMode::Enabled {
-                    if let Some(value)=field_attachment_links.get_mut(&target.holding_id){*value=true;}
-                    if let Some(value)=field_attachment_binds.get_mut(&target.holding_id){*value=true;}
+                if field_files_policy.mode
+                    != crate::field_attachment_intake_http::FieldIntakeMode::Enabled
+                {
+                    if let Some(value) = field_attachment_links.get_mut(&target.holding_id) {
+                        *value = true;
+                    }
+                    if let Some(value) = field_attachment_binds.get_mut(&target.holding_id) {
+                        *value = true;
+                    }
                 }
-                field_files_companies.entry(target.holding_id).or_default().insert(target.company_id);
+                field_files_companies
+                    .entry(target.holding_id)
+                    .or_default()
+                    .insert(target.company_id);
             }
         }
         let mut support_ticket_writes = Vec::new();
@@ -1007,7 +1142,9 @@ impl DevelopmentApiConfiguration {
                 .map_err(|_| "PRIVATE_API_SUPPORT_TICKET_CONFIGURATION_INVALID")?;
             let company = CompanyId::new(&target.company_id)
                 .map_err(|_| "PRIVATE_API_SUPPORT_TICKET_CONFIGURATION_INVALID")?;
-            if !holdings.iter().any(|h| h.registration.holding_id == holding)
+            if !holdings
+                .iter()
+                .any(|h| h.registration.holding_id == holding)
                 || support_ticket_writes
                     .iter()
                     .any(|(h, c)| h == &holding && c == &company)
@@ -1022,7 +1159,9 @@ impl DevelopmentApiConfiguration {
                 .map_err(|_| "PRIVATE_API_SUPPORT_INCIDENT_CONFIGURATION_INVALID")?;
             let company = CompanyId::new(&target.company_id)
                 .map_err(|_| "PRIVATE_API_SUPPORT_INCIDENT_CONFIGURATION_INVALID")?;
-            if !holdings.iter().any(|h| h.registration.holding_id == holding)
+            if !holdings
+                .iter()
+                .any(|h| h.registration.holding_id == holding)
                 || support_incident_writes
                     .iter()
                     .any(|(h, c)| h == &holding && c == &company)
@@ -1037,7 +1176,9 @@ impl DevelopmentApiConfiguration {
                 .map_err(|_| "PRIVATE_API_SUPPORT_SESSION_CONFIGURATION_INVALID")?;
             let company = CompanyId::new(&target.company_id)
                 .map_err(|_| "PRIVATE_API_SUPPORT_SESSION_CONFIGURATION_INVALID")?;
-            if !holdings.iter().any(|h| h.registration.holding_id == holding)
+            if !holdings
+                .iter()
+                .any(|h| h.registration.holding_id == holding)
                 || support_session_writes
                     .iter()
                     .any(|(h, c)| h == &holding && c == &company)
@@ -1052,7 +1193,9 @@ impl DevelopmentApiConfiguration {
                 .map_err(|_| "PRIVATE_API_SUPPORT_SLA_CONFIGURATION_INVALID")?;
             let company = CompanyId::new(&target.company_id)
                 .map_err(|_| "PRIVATE_API_SUPPORT_SLA_CONFIGURATION_INVALID")?;
-            if !holdings.iter().any(|h| h.registration.holding_id == holding)
+            if !holdings
+                .iter()
+                .any(|h| h.registration.holding_id == holding)
                 || support_sla_writes
                     .iter()
                     .any(|(h, c)| h == &holding && c == &company)
@@ -1067,7 +1210,9 @@ impl DevelopmentApiConfiguration {
                 .map_err(|_| "PRIVATE_API_SUPPORT_EVIDENCE_CONFIGURATION_INVALID")?;
             let company = CompanyId::new(&target.company_id)
                 .map_err(|_| "PRIVATE_API_SUPPORT_EVIDENCE_CONFIGURATION_INVALID")?;
-            if !holdings.iter().any(|h| h.registration.holding_id == holding)
+            if !holdings
+                .iter()
+                .any(|h| h.registration.holding_id == holding)
                 || support_evidence_writes
                     .iter()
                     .any(|(h, c)| h == &holding && c == &company)
@@ -1079,9 +1224,9 @@ impl DevelopmentApiConfiguration {
         Ok(Self {
             profile,
             environment,
-            #[cfg(feature="files-scan-worker")]
-            field_files_providers:doc.field_files_providers,
-            #[cfg(feature="files-scan-worker")]
+            #[cfg(feature = "files-scan-worker")]
+            field_files_providers: doc.field_files_providers,
+            #[cfg(feature = "files-scan-worker")]
             field_files_policy,
             field_files_companies,
             listen,
@@ -1179,9 +1324,9 @@ impl DevelopmentApiConfiguration {
 }
 
 struct CheckedAssembly {
-    router:Router,
-    #[cfg(feature="files-scan-worker")]
-    files_workers:Vec<crate::files_scan_native::NativeFilesScanWorker<SharedClock>>,
+    router: Router,
+    #[cfg(feature = "files-scan-worker")]
+    files_workers: Vec<crate::files_scan_native::NativeFilesScanWorker<SharedClock>>,
 }
 /// The assembled private API runtime. Development and production share the
 /// same owner routers; only the database binding and environment label differ.
@@ -1189,8 +1334,8 @@ pub struct DevelopmentApiRuntime {
     router: Router,
     listen: SocketAddr,
     pools: Vec<DatabasePool>,
-    #[cfg(feature="files-scan-worker")]
-    files_workers:Vec<crate::files_scan_native::NativeFilesScanWorker<SharedClock>>,
+    #[cfg(feature = "files-scan-worker")]
+    files_workers: Vec<crate::files_scan_native::NativeFilesScanWorker<SharedClock>>,
 }
 impl DevelopmentApiRuntime {
     pub fn router(&self) -> Router {
@@ -1200,8 +1345,10 @@ impl DevelopmentApiRuntime {
         self.listen
     }
     pub async fn close(self) {
-        #[cfg(feature="files-scan-worker")]
-        for worker in self.files_workers {worker.close().await;}
+        #[cfg(feature = "files-scan-worker")]
+        for worker in self.files_workers {
+            worker.close().await;
+        }
         for pool in &self.pools {
             pool.close().await;
         }
@@ -1240,9 +1387,9 @@ pub async fn assemble_development_api(
     let result = assemble_checked(&config, &pools, clock, secrets).await;
     match result {
         Ok(assembly) => Ok(DevelopmentApiRuntime {
-            router:assembly.router,
-            #[cfg(feature="files-scan-worker")]
-            files_workers:assembly.files_workers,
+            router: assembly.router,
+            #[cfg(feature = "files-scan-worker")]
+            files_workers: assembly.files_workers,
             listen: config.listen,
             pools,
         }),
@@ -1329,12 +1476,35 @@ async fn assemble_checked(
         .map_err(|_| "PRIVATE_API_ACCOUNT_UNAVAILABLE")?,
     );
     let mut router = foundation_router();
-    if let Some(keys)=&config.account_security_keys {
-        use erpx_server_identity_access::public::{account_security::*,account_security_http::account_security_router};
-        let mfa=PostgresAccountMfa::new(pools[0].clone(),config.environment.clone(),keys.clone(),clock.clone(),config.holdings_registry.clone()).map_err(|_|"PRIVATE_API_ACCOUNT_SECURITY_CONFIGURATION_INVALID")?;
-        let repository=PostgresAccountSecurity::new(pools[0].clone(),config.environment.clone(),clock.clone(),invalidation.clone(),keys.clone(),config.holdings_registry.clone()).map_err(|_|"PRIVATE_API_ACCOUNT_SECURITY_CONFIGURATION_INVALID")?;
-        let security=AccountSecurity::new((*config.policy).clone(),Arc::new(mfa),Arc::new(repository),secrets.clone()).map_err(|_|"PRIVATE_API_ACCOUNT_SECURITY_CONFIGURATION_INVALID")?;
-        router=router.merge(account_security_router(Arc::new(security)));
+    if let Some(keys) = &config.account_security_keys {
+        use erpx_server_identity_access::public::{
+            account_security::*, account_security_http::account_security_router,
+        };
+        let mfa = PostgresAccountMfa::new(
+            pools[0].clone(),
+            config.environment.clone(),
+            keys.clone(),
+            clock.clone(),
+            config.holdings_registry.clone(),
+        )
+        .map_err(|_| "PRIVATE_API_ACCOUNT_SECURITY_CONFIGURATION_INVALID")?;
+        let repository = PostgresAccountSecurity::new(
+            pools[0].clone(),
+            config.environment.clone(),
+            clock.clone(),
+            invalidation.clone(),
+            keys.clone(),
+            config.holdings_registry.clone(),
+        )
+        .map_err(|_| "PRIVATE_API_ACCOUNT_SECURITY_CONFIGURATION_INVALID")?;
+        let security = AccountSecurity::new(
+            (*config.policy).clone(),
+            Arc::new(mfa),
+            Arc::new(repository),
+            secrets.clone(),
+        )
+        .map_err(|_| "PRIVATE_API_ACCOUNT_SECURITY_CONFIGURATION_INVALID")?;
+        router = router.merge(account_security_router(Arc::new(security)));
     }
 
     if config.account_bootstrap {
@@ -1469,6 +1639,7 @@ async fn assemble_checked(
         let mut handbook_targets = Vec::new();
         let mut learning_targets = Vec::new();
         let mut quality_targets = Vec::new();
+        let mut crm_targets = Vec::new();
         let mut manage_erpx_targets = Vec::new();
         let mut platform_administration_targets = Vec::new();
         let mut records_context_targets = Vec::new();
@@ -1507,152 +1678,184 @@ async fn assemble_checked(
             };
             // Native journal post and Field handoffs have Company targets.
             // Other journal editing/reversal routers retain their own cutover.
-            if companies.len()>1 && [
-                &config.finance_journal_reversals,
-                &config.finance_journal_creates,&config.finance_journal_edits,
-            ].iter().any(|scopes|scopes.contains(&holding.registration.holding_id)) {
+            if companies.len() > 1
+                && [
+                    &config.finance_journal_reversals,
+                    &config.finance_journal_creates,
+                    &config.finance_journal_edits,
+                ]
+                .iter()
+                .any(|scopes| scopes.contains(&holding.registration.holding_id))
+            {
                 return Err("PRIVATE_API_FINANCE_CONFIGURATION_INVALID");
             }
             for company in companies {
-            let authorizer = Arc::new(
-                HoldingWorkAuthorizer::new(
-                    pools[0].clone(),
-                    pools[i + 1].clone(),
-                    holding.registration.holding_id.clone(),
-                    (*config.policy).clone(),
-                    clock.clone(),
-                    config.holdings_registry.clone(),
-                )
-                .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
-            );
-            let configuration = FinanceJournalReadConfiguration::new(
-                FinanceJournalEnvironment::Development,
-                holding.registration.holding_id.clone(),
-                company.clone(),
-                catalogue.clone(),
-            )
-            .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
-            generic_payment_targets.push(crate::finance_generic_payment_http::GenericPaymentTarget {
-                host: holding.host.clone(),
-                holding_slug: holding.registration.slug.clone(),
-                authorizer: authorizer.clone(),
-                configuration: FinanceJournalCreateConfiguration::new(
-                    FinanceJournalEnvironment::Development,
-                    holding.registration.holding_id.clone(),
-                    company.clone(),
-                    catalogue.clone(),
-                ).map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
-                clock: Arc::new(SharedClock(clock.clone())),
-            });
-            bank_targets.push(crate::finance_bank_http::FinanceBankTarget {
-                host: holding.host.clone(),
-                holding_slug: holding.registration.slug.clone(),
-                authorizer: authorizer.clone(),
-                configuration: FinanceJournalCreateConfiguration::new(
+                let authorizer = Arc::new(
+                    HoldingWorkAuthorizer::new(
+                        pools[0].clone(),
+                        pools[i + 1].clone(),
+                        holding.registration.holding_id.clone(),
+                        (*config.policy).clone(),
+                        clock.clone(),
+                        config.holdings_registry.clone(),
+                    )
+                    .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
+                );
+                let configuration = FinanceJournalReadConfiguration::new(
                     FinanceJournalEnvironment::Development,
                     holding.registration.holding_id.clone(),
                     company.clone(),
                     catalogue.clone(),
                 )
-                .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
-                clock: Arc::new(SharedClock(clock.clone())),
-            });
-            bank_workspace_targets.push(crate::finance_bank_workspace::FinanceBankWorkspaceTarget {
-                host: holding.host.clone(),
-                holding_slug: holding.registration.slug.clone(),
-                service: Arc::new(crate::finance_bank_workspace::FinanceBankWorkspaceService::new(
-                    authorizer.clone(),
-                    crate::finance_bank_workspace::FinanceBankWorkspaceConfiguration::new(
+                .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
+                generic_payment_targets.push(
+                    crate::finance_generic_payment_http::GenericPaymentTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        authorizer: authorizer.clone(),
+                        configuration: FinanceJournalCreateConfiguration::new(
+                            FinanceJournalEnvironment::Development,
+                            holding.registration.holding_id.clone(),
+                            company.clone(),
+                            catalogue.clone(),
+                        )
+                        .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
+                        clock: Arc::new(SharedClock(clock.clone())),
+                    },
+                );
+                bank_targets.push(crate::finance_bank_http::FinanceBankTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    authorizer: authorizer.clone(),
+                    configuration: FinanceJournalCreateConfiguration::new(
+                        FinanceJournalEnvironment::Development,
                         holding.registration.holding_id.clone(),
                         company.clone(),
                         catalogue.clone(),
                     )
                     .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
-                    Arc::new(SharedClock(clock.clone())),
-                )),
-            });
-            brand_targets.push(crate::brand_identity_http::BrandIdentityTarget {
-                host: holding.host.clone(),
-                holding_slug: holding.registration.slug.clone(),
-                service: Arc::new(crate::brand_identity::BrandIdentityService::new(
-                    authorizer.clone(),
-                    crate::brand_identity::BrandIdentityConfiguration::new(
-                        holding.registration.holding_id.clone(),
-                        company.clone(),
-                    ),
-                    Arc::new(SharedClock(clock.clone())),
-                )),
-            });
-            organization_targets.push(crate::organization_nodes_http::OrganizationNodesTarget {
-                host: holding.host.clone(),
-                holding_slug: holding.registration.slug.clone(),
-                service: Arc::new(crate::organization_nodes::OrganizationNodeService::new(
-                    authorizer.clone(),
-                    crate::organization_nodes::OrganizationNodesConfiguration::new(
-                        holding.registration.holding_id.clone(),
-                        company.clone(),
-                    ),
-                    Arc::new(SharedClock(clock.clone())),
-                )),
-            });
-            learning_targets.push(
-                erpx_server_learning::public::learning_http::LearningHttpTarget {
+                    clock: Arc::new(SharedClock(clock.clone())),
+                });
+                bank_workspace_targets
+                    .push(crate::finance_bank_workspace::FinanceBankWorkspaceTarget {
                     host: holding.host.clone(),
                     holding_slug: holding.registration.slug.clone(),
-                    origin: format!("https://{}", holding.host),
-                    backend: Arc::new(crate::learning::LearningBackend::new(
-                        config.policy.clone(),
-                        Arc::new(FinanceJournalReadScopeHeaders),
-                        Arc::new(crate::learning::LearningService::new(
+                    service: Arc::new(
+                        crate::finance_bank_workspace::FinanceBankWorkspaceService::new(
                             authorizer.clone(),
-                            crate::learning::LearningConfiguration::new(
+                            crate::finance_bank_workspace::FinanceBankWorkspaceConfiguration::new(
                                 holding.registration.holding_id.clone(),
                                 company.clone(),
-                            ),
+                                catalogue.clone(),
+                            )
+                            .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
                             Arc::new(SharedClock(clock.clone())),
-                        )),
-                    )),
-                },
-            );
-            quality_targets.push(
-                erpx_server_quality::public::quality_http::QualityHttpTarget {
+                        ),
+                    ),
+                });
+                brand_targets.push(crate::brand_identity_http::BrandIdentityTarget {
                     host: holding.host.clone(),
                     holding_slug: holding.registration.slug.clone(),
-                    origin: format!("https://{}", holding.host),
-                    backend: Arc::new(crate::quality::QualityBackend::new(
-                        config.policy.clone(),
-                        Arc::new(FinanceJournalReadScopeHeaders),
-                        Arc::new(crate::quality::QualityService::new(
+                    service: Arc::new(crate::brand_identity::BrandIdentityService::new(
+                        authorizer.clone(),
+                        crate::brand_identity::BrandIdentityConfiguration::new(
+                            holding.registration.holding_id.clone(),
+                            company.clone(),
+                        ),
+                        Arc::new(SharedClock(clock.clone())),
+                    )),
+                });
+                organization_targets.push(
+                    crate::organization_nodes_http::OrganizationNodesTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        service: Arc::new(crate::organization_nodes::OrganizationNodeService::new(
                             authorizer.clone(),
-                            crate::quality::QualityConfiguration::new(
+                            crate::organization_nodes::OrganizationNodesConfiguration::new(
                                 holding.registration.holding_id.clone(),
                                 company.clone(),
                             ),
                             Arc::new(SharedClock(clock.clone())),
                         )),
-                    )),
-                },
-            );
-            manage_erpx_targets.push(
-                erpx_server_manage_erpx::public::onboarding_http::ManageErpxHttpTarget {
-                    host: holding.host.clone(),
-                    backend: Arc::new(crate::manage_erpx::ManageErpxBackend::new(
-                        config.policy.clone(),
-                        Arc::new(FinanceJournalReadScopeHeaders),
-                        Arc::new(crate::manage_erpx::ManageErpxService::new(
-                            authorizer.clone(),
-                            crate::manage_erpx::ManageErpxConfiguration::new(
-                                holding.registration.holding_id.clone(),
-                                company.clone(),
-                            ),
-                            Arc::new(SharedClock(clock.clone())),
+                    },
+                );
+                learning_targets.push(
+                    erpx_server_learning::public::learning_http::LearningHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::learning::LearningBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::learning::LearningService::new(
+                                authorizer.clone(),
+                                crate::learning::LearningConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
                         )),
-                    )),
-                },
-            );
+                    },
+                );
+                quality_targets.push(
+                    erpx_server_quality::public::quality_http::QualityHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::quality::QualityBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::quality::QualityService::new(
+                                authorizer.clone(),
+                                crate::quality::QualityConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
+                crm_targets.push(
+                    erpx_server_crm::public::pipeline_http::CrmPipelineHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::crm::CrmBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::crm::CrmService::new(
+                                authorizer.clone(),
+                                crate::crm::CrmConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
+                manage_erpx_targets.push(
+                    erpx_server_manage_erpx::public::onboarding_http::ManageErpxHttpTarget {
+                        host: holding.host.clone(),
+                        backend: Arc::new(crate::manage_erpx::ManageErpxBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::manage_erpx::ManageErpxService::new(
+                                authorizer.clone(),
+                                crate::manage_erpx::ManageErpxConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
 
-            if holding.registration.holding_id.as_str() == "h003" {
-                platform_administration_targets.push(
+                if holding.registration.holding_id.as_str() == "h003" {
+                    platform_administration_targets.push(
                     erpx_server_platform_administration::public::platform_operations::PlatformHttpTarget {
                         host: holding.host.clone(),
                         origin: format!("https://{}", holding.host),
@@ -1674,9 +1877,8 @@ async fn assemble_checked(
                         )),
                     },
                 );
-            }
-            legal_targets.push(
-                erpx_server_legal::public::legal_records::LegalHttpTarget {
+                }
+                legal_targets.push(erpx_server_legal::public::legal_records::LegalHttpTarget {
                     host: holding.host.clone(),
                     holding_slug: holding.registration.slug.clone(),
                     origin: format!("https://{}", holding.host),
@@ -1692,122 +1894,121 @@ async fn assemble_checked(
                             Arc::new(SharedClock(clock.clone())),
                         )),
                     )),
-                },
-            );
-            benefits_targets.push(
-                erpx_server_benefits::public::workspace_http::BenefitsWorkspaceHttpTarget {
-                    host: holding.host.clone(),
-                    holding_slug: holding.registration.slug.clone(),
-                    origin: format!("https://{}", holding.host),
-                    backend: Arc::new(crate::benefits::BenefitsBackend::new(
-                        config.policy.clone(),
-                        Arc::new(FinanceJournalReadScopeHeaders),
-                        Arc::new(crate::benefits::BenefitsService::new(
-                            authorizer.clone(),
-                            crate::benefits::BenefitsConfiguration::new(
-                                holding.registration.holding_id.clone(),
-                                company.clone(),
-                            ),
-                            Arc::new(SharedClock(clock.clone())),
+                });
+                benefits_targets.push(
+                    erpx_server_benefits::public::workspace_http::BenefitsWorkspaceHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::benefits::BenefitsBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::benefits::BenefitsService::new(
+                                authorizer.clone(),
+                                crate::benefits::BenefitsConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
                         )),
-                    )),
-                },
-            );
-            maintenance_targets.push(
-                erpx_server_maintenance::public::http::MaintenanceHttpTarget {
-                    host: holding.host.clone(),
-                    holding_slug: holding.registration.slug.clone(),
-                    origin: format!("https://{}", holding.host),
-                    backend: Arc::new(crate::maintenance::MaintenanceBackend::new(
-                        config.policy.clone(),
-                        Arc::new(FinanceJournalReadScopeHeaders),
-                        Arc::new(crate::maintenance::MaintenanceService::new(
-                            authorizer.clone(),
-                            crate::maintenance::MaintenanceConfiguration::new(
-                                holding.registration.holding_id.clone(),
-                                company.clone(),
-                            ),
-                            Arc::new(SharedClock(clock.clone())),
+                    },
+                );
+                maintenance_targets.push(
+                    erpx_server_maintenance::public::http::MaintenanceHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::maintenance::MaintenanceBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::maintenance::MaintenanceService::new(
+                                authorizer.clone(),
+                                crate::maintenance::MaintenanceConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
                         )),
+                    },
+                );
+                let sales_backend = Arc::new(crate::sales::SalesBackend::new(
+                    config.policy.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    Arc::new(crate::sales::SalesService::new(
+                        authorizer.clone(),
+                        crate::sales::SalesConfiguration::new(
+                            holding.registration.holding_id.clone(),
+                            company.clone(),
+                        ),
+                        Arc::new(SharedClock(clock.clone())),
                     )),
-                },
-            );
-            let sales_backend = Arc::new(crate::sales::SalesBackend::new(
-                config.policy.clone(),
-                Arc::new(FinanceJournalReadScopeHeaders),
-                Arc::new(crate::sales::SalesService::new(
-                    authorizer.clone(),
-                    crate::sales::SalesConfiguration::new(
-                        holding.registration.holding_id.clone(),
-                        company.clone(),
-                    ),
-                    Arc::new(SharedClock(clock.clone())),
-                )),
-            ));
-            sales_documents_targets.push(
-                erpx_server_sales::public::sales_documents_http::SalesDocumentsHttpTarget {
-                    host: holding.host.clone(),
-                    holding_slug: holding.registration.slug.clone(),
-                    origin: format!("https://{}", holding.host),
-                    backend: sales_backend.clone(),
-                },
-            );
-            sales_price_lists_targets.push(
-                erpx_server_sales::public::sales_price_lists_http::PriceListHttpTarget {
-                    host: holding.host.clone(),
-                    holding_slug: holding.registration.slug.clone(),
-                    origin: format!("https://{}", holding.host),
-                    backend: sales_backend.clone(),
-                },
-            );
-            let records_backend = Arc::new(crate::records::RecordsBackend::new(
-                config.policy.clone(),
-                Arc::new(FinanceJournalReadScopeHeaders),
-                Arc::new(crate::records::RecordsService::new(
-                    authorizer.clone(),
-                    crate::records::RecordsConfiguration::new(
-                        holding.registration.holding_id.clone(),
-                        company.clone(),
-                    ),
-                    Arc::new(SharedClock(clock.clone())),
-                )),
-            ));
-            records_context_targets.push(
-                erpx_server_records::public::record_context_http::RecordsContextHttpTarget {
-                    host: holding.host.clone(),
-                    holding_slug: holding.registration.slug.clone(),
-                    origin: format!("https://{}", holding.host),
-                    backend: records_backend.clone(),
-                },
-            );
-            records_registry_targets.push(
-                erpx_server_records::public::record_registry_http::RecordsRegistryHttpTarget {
-                    host: holding.host.clone(),
-                    holding_slug: holding.registration.slug.clone(),
-                    origin: format!("https://{}", holding.host),
-                    backend: records_backend.clone(),
-                },
-            );
-            files_targets.push(
-                erpx_server_files::public::attachment_http::AttachmentReadHttpTarget {
-                    host: holding.host.clone(),
-                    holding_slug: holding.registration.slug.clone(),
-                    origin: format!("https://{}", holding.host),
-                    backend: Arc::new(crate::files::FilesBackend::new(
-                        config.policy.clone(),
-                        Arc::new(FinanceJournalReadScopeHeaders),
-                        Arc::new(crate::files::FilesService::new(
-                            authorizer.clone(),
-                            crate::files::FilesConfiguration::new(
-                                holding.registration.holding_id.clone(),
-                                company.clone(),
-                            ),
-                            Arc::new(SharedClock(clock.clone())),
+                ));
+                sales_documents_targets.push(
+                    erpx_server_sales::public::sales_documents_http::SalesDocumentsHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: sales_backend.clone(),
+                    },
+                );
+                sales_price_lists_targets.push(
+                    erpx_server_sales::public::sales_price_lists_http::PriceListHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: sales_backend.clone(),
+                    },
+                );
+                let records_backend = Arc::new(crate::records::RecordsBackend::new(
+                    config.policy.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    Arc::new(crate::records::RecordsService::new(
+                        authorizer.clone(),
+                        crate::records::RecordsConfiguration::new(
+                            holding.registration.holding_id.clone(),
+                            company.clone(),
+                        ),
+                        Arc::new(SharedClock(clock.clone())),
+                    )),
+                ));
+                records_context_targets.push(
+                    erpx_server_records::public::record_context_http::RecordsContextHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: records_backend.clone(),
+                    },
+                );
+                records_registry_targets.push(
+                    erpx_server_records::public::record_registry_http::RecordsRegistryHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: records_backend.clone(),
+                    },
+                );
+                files_targets.push(
+                    erpx_server_files::public::attachment_http::AttachmentReadHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::files::FilesBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::files::FilesService::new(
+                                authorizer.clone(),
+                                crate::files::FilesConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
                         )),
-                    )),
-                },
-            );
-            procurement_targets.push(
+                    },
+                );
+                procurement_targets.push(
                 erpx_server_procurement::public::supplier_promise_history_http::SupplierPromiseHistoryHttpTarget {
                     host: holding.host.clone(),
                     holding_slug: holding.registration.slug.clone(),
@@ -1826,26 +2027,26 @@ async fn assemble_checked(
                     )),
                 },
             );
-            projects_targets.push(
-                erpx_server_projects::public::project_wbs_http::ProjectWbsHttpTarget {
-                    host: holding.host.clone(),
-                    holding_slug: holding.registration.slug.clone(),
-                    origin: format!("https://{}", holding.host),
-                    backend: Arc::new(crate::projects::ProjectsBackend::new(
-                        config.policy.clone(),
-                        Arc::new(FinanceJournalReadScopeHeaders),
-                        Arc::new(crate::projects::ProjectsService::new(
-                            authorizer.clone(),
-                            crate::projects::ProjectsConfiguration::new(
-                                holding.registration.holding_id.clone(),
-                                company.clone(),
-                            ),
-                            Arc::new(SharedClock(clock.clone())),
+                projects_targets.push(
+                    erpx_server_projects::public::project_wbs_http::ProjectWbsHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::projects::ProjectsBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::projects::ProjectsService::new(
+                                authorizer.clone(),
+                                crate::projects::ProjectsConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
                         )),
-                    )),
-                },
-            );
-            people_payroll_targets.push(
+                    },
+                );
+                people_payroll_targets.push(
                 erpx_server_people_payroll::public::payroll_summary_http::PayrollReadHttpTarget {
                     host: holding.host.clone(),
                     holding_slug: holding.registration.slug.clone(),
@@ -1864,27 +2065,26 @@ async fn assemble_checked(
                     )),
                 },
             );
-            operations_targets.push(
-                erpx_server_operations::public::operations_http::OperationsHttpTarget {
-                    host: holding.host.clone(),
-                    holding_slug: holding.registration.slug.clone(),
-                    origin: format!("https://{}", holding.host),
-                    backend: Arc::new(crate::operations::OperationsBackend::new(
-                        config.policy.clone(),
-                        Arc::new(FinanceJournalReadScopeHeaders),
-                        Arc::new(crate::operations::OperationsService::new(
-                            authorizer.clone(),
-                            crate::operations::OperationsConfiguration::new(
-                                holding.registration.holding_id.clone(),
-                                company.clone(),
-                            ),
-                            Arc::new(SharedClock(clock.clone())),
+                operations_targets.push(
+                    erpx_server_operations::public::operations_http::OperationsHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::operations::OperationsBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::operations::OperationsService::new(
+                                authorizer.clone(),
+                                crate::operations::OperationsConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
                         )),
-                    )),
-                },
-            );
-            pms_targets.push(
-                erpx_server_pms::public::pms_http::PmsHttpTarget {
+                    },
+                );
+                pms_targets.push(erpx_server_pms::public::pms_http::PmsHttpTarget {
                     host: holding.host.clone(),
                     holding_slug: holding.registration.slug.clone(),
                     origin: format!("https://{}", holding.host),
@@ -1900,28 +2100,27 @@ async fn assemble_checked(
                             Arc::new(SharedClock(clock.clone())),
                         )),
                     )),
-                },
-            );
-            handbook_targets.push(
-                erpx_server_collaboration::public::handbook_http::HandbookHttpTarget {
-                    host: holding.host.clone(),
-                    holding_slug: holding.registration.slug.clone(),
-                    origin: format!("https://{}", holding.host),
-                    backend: Arc::new(crate::handbook::HandbookBackend::new(
-                        config.policy.clone(),
-                        Arc::new(FinanceJournalReadScopeHeaders),
-                        Arc::new(crate::handbook::HandbookService::new(
-                            authorizer.clone(),
-                            crate::handbook::HandbookConfiguration::new(
-                                holding.registration.holding_id.clone(),
-                                company.clone(),
-                            ),
-                            Arc::new(SharedClock(clock.clone())),
+                });
+                handbook_targets.push(
+                    erpx_server_collaboration::public::handbook_http::HandbookHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::handbook::HandbookBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::handbook::HandbookService::new(
+                                authorizer.clone(),
+                                crate::handbook::HandbookConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
                         )),
-                    )),
-                },
-            );
-            approval_targets.push(
+                    },
+                );
+                approval_targets.push(
                 erpx_server_workflow::public::approval_oversight_http::ApprovalOversightHttpTarget {
                     host: holding.host.clone(),
                     holding_slug: holding.registration.slug.clone(),
@@ -1940,7 +2139,7 @@ async fn assemble_checked(
                     )),
                 },
             );
-            organization_setup_targets.push(
+                organization_setup_targets.push(
                 erpx_server_organization::public::organization_setup_http::OrganizationSetupHttpTarget {
                     host: holding.host.clone(),
                     holding_slug: holding.registration.slug.clone(),
@@ -1959,180 +2158,225 @@ async fn assemble_checked(
                     )),
                 },
             );
-            asset_targets.push(erpx_server_assets::public::asset_http::AssetHttpTarget {
-                host: holding.host.clone(),
-                holding_slug: holding.registration.slug.clone(),
-                origin: format!("https://{}", holding.host),
-                backend: Arc::new(crate::asset_http::AssetHttpService::new(
-                    config.policy.clone(),
-                    authorizer.clone(),
-                    crate::asset_http::AssetHttpConfiguration::new(
-                        holding.registration.holding_id.clone(),
-                        company.clone(),
-                    ),
-                    Arc::new(SharedClock(clock.clone())),
-                    Arc::new(crate::asset_http::FinanceAssetCost),
-                )),
-            });
-            let configuration = if config
-                .field_service_issues
-                .contains(&holding.registration.holding_id)
-            {
-                configuration.with_field_service_parts()
-            } else {
-                configuration
-            };
-            let configuration = if config
-                .finance_field_service_invoice_reads
-                .contains(&holding.registration.holding_id)
-            {
-                finance_service_invoice_targets
-                    .insert((holding.host.clone(), holding.registration.slug.clone()));
-                configuration.with_field_service_invoices()
-            } else {
-                configuration
-            };
-            finance_targets.insert((holding.host.clone(), holding.registration.slug.clone()));
-            #[cfg(feature = "finance-field-write")]
-            {
-                let post = config
-                    .finance_journal_posts
-                    .contains(&holding.registration.holding_id);
-                let reverse = config
-                    .finance_journal_reversals
-                    .contains(&holding.registration.holding_id);
-                if post || reverse {
-                    let action_config = FinanceJournalConfiguration::new_private_actions(
-                        FinanceJournalEnvironment::Development,
-                        holding.registration.holding_id.clone(),
-                        company.clone(),
-                        catalogue.clone(),
-                        post,
-                        reverse,
-                    )
-                    .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
-                    let action_config = if config
-                        .finance_field_service_journal_posts
+                asset_targets.push(erpx_server_assets::public::asset_http::AssetHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: Arc::new(crate::asset_http::AssetHttpService::new(
+                        config.policy.clone(),
+                        authorizer.clone(),
+                        crate::asset_http::AssetHttpConfiguration::new(
+                            holding.registration.holding_id.clone(),
+                            company.clone(),
+                        ),
+                        Arc::new(SharedClock(clock.clone())),
+                        Arc::new(crate::asset_http::FinanceAssetCost),
+                    )),
+                });
+                let configuration = if config
+                    .field_service_issues
+                    .contains(&holding.registration.holding_id)
+                {
+                    configuration.with_field_service_parts()
+                } else {
+                    configuration
+                };
+                let configuration = if config
+                    .finance_field_service_invoice_reads
+                    .contains(&holding.registration.holding_id)
+                {
+                    finance_service_invoice_targets
+                        .insert((holding.host.clone(), holding.registration.slug.clone()));
+                    configuration.with_field_service_invoices()
+                } else {
+                    configuration
+                };
+                finance_targets.insert((holding.host.clone(), holding.registration.slug.clone()));
+                #[cfg(feature = "finance-field-write")]
+                {
+                    let post = config
+                        .finance_journal_posts
+                        .contains(&holding.registration.holding_id);
+                    let reverse = config
+                        .finance_journal_reversals
+                        .contains(&holding.registration.holding_id);
+                    if post || reverse {
+                        let action_config = FinanceJournalConfiguration::new_private_actions(
+                            FinanceJournalEnvironment::Development,
+                            holding.registration.holding_id.clone(),
+                            company.clone(),
+                            catalogue.clone(),
+                            post,
+                            reverse,
+                        )
+                        .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
+                        let action_config = if config
+                            .finance_field_service_journal_posts
+                            .contains(&holding.registration.holding_id)
+                        {
+                            action_config
+                                .with_field_service_post()
+                                .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?
+                        } else {
+                            action_config
+                        };
+                        let target = (holding.host.clone(), holding.registration.slug.clone());
+                        if post {
+                            finance_post_targets.insert(target.clone());
+                        }
+                        if reverse {
+                            finance_reversal_targets.insert(target);
+                        }
+                        post_targets.push(BusinessHttpTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            #[cfg(feature = "business-http")]
+                            legal: None,
+                            finance: Some(Arc::new(FinanceJournalReviewAdministration::new(
+                                authorizer.clone(),
+                                action_config,
+                                Arc::new(SharedClock(clock.clone())),
+                            ))),
+                        });
+                    }
+                    if config
+                        .finance_journal_creates
                         .contains(&holding.registration.holding_id)
                     {
-                        action_config
-                            .with_field_service_post()
-                            .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?
+                        let create_config = FinanceJournalCreateConfiguration::new(
+                            FinanceJournalEnvironment::Development,
+                            holding.registration.holding_id.clone(),
+                            company.clone(),
+                            catalogue.clone(),
+                        )
+                        .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
+                        finance_create_targets
+                            .insert((holding.host.clone(), holding.registration.slug.clone()));
+                        create_targets.push(FinanceJournalCreateTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            service: Arc::new(FinanceJournalCreateService::new(
+                                authorizer.clone(),
+                                create_config,
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        });
+                    }
+                    if config
+                        .finance_journal_edits
+                        .contains(&holding.registration.holding_id)
+                    {
+                        let edit_config = FinanceJournalCreateConfiguration::new(
+                            FinanceJournalEnvironment::Development,
+                            holding.registration.holding_id.clone(),
+                            company.clone(),
+                            catalogue.clone(),
+                        )
+                        .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
+                        finance_edit_targets
+                            .insert((holding.host.clone(), holding.registration.slug.clone()));
+                        edit_targets.push(FinanceJournalEditTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            service: Arc::new(FinanceJournalEditService::new(
+                                authorizer.clone(),
+                                edit_config,
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        });
+                    }
+                }
+                #[cfg(feature = "finance-field-write")]
+                if config
+                    .finance_field_service_invoice_posts
+                    .contains(&holding.registration.holding_id)
+                {
+                    let configuration = InvoicePostConfiguration::new(
+                        FinanceJournalEnvironment::Development,
+                        holding.registration.holding_id.clone(),
+                        company.clone(),
+                        catalogue.clone(),
+                    )
+                    .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
+                    finance_service_invoice_post_targets
+                        .insert((holding.host.clone(), holding.registration.slug.clone()));
+                    invoice_post_targets.push(FinanceServiceInvoicePostTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        authorizer: authorizer.clone(),
+                        configuration,
+                        clock: Arc::new(SharedClock(clock.clone())),
+                    });
+                }
+                #[cfg(feature = "finance-field-write")]
+                if config
+                    .finance_field_service_receipt_writes
+                    .contains(&holding.registration.holding_id)
+                {
+                    let configuration = InvoicePostConfiguration::new(
+                        FinanceJournalEnvironment::Development,
+                        holding.registration.holding_id.clone(),
+                        company.clone(),
+                        catalogue.clone(),
+                    )
+                    .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
+                    finance_service_receipt_targets
+                        .insert((holding.host.clone(), holding.registration.slug.clone()));
+                    let file_features=erpx_server_files::public::payment_proof_binding::PaymentProofBindingFeatures {enabled:false,read_only:false,uploads_frozen:true};
+                    #[cfg(feature = "files-scan-worker")]
+                    let file_features = if config
+                        .field_files_companies
+                        .get(&holding.registration.holding_id)
+                        .is_some_and(|companies| companies.contains(company))
+                    {
+                        use crate::field_attachment_intake_http::FieldIntakeMode;
+                        erpx_server_files::public::payment_proof_binding::PaymentProofBindingFeatures {enabled:config.field_files_policy.mode==FieldIntakeMode::Enabled,read_only:config.field_files_policy.mode==FieldIntakeMode::ReadOnly,uploads_frozen:config.field_files_policy.uploads_frozen}
                     } else {
-                        action_config
+                        file_features
                     };
-                    let target = (holding.host.clone(), holding.registration.slug.clone());
-                    if post {
-                        finance_post_targets.insert(target.clone());
-                    }
-                    if reverse {
-                        finance_reversal_targets.insert(target);
-                    }
-                    post_targets.push(BusinessHttpTarget {
+                    receipt_targets.push(FinanceServiceReceiptTarget {
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
-                        #[cfg(feature = "business-http")]
-                        legal: None,
-                        finance: Some(Arc::new(FinanceJournalReviewAdministration::new(
-                            authorizer.clone(),
-                            action_config,
-                            Arc::new(SharedClock(clock.clone())),
-                        ))),
+                        authorizer: authorizer.clone(),
+                        configuration,
+                        file_features,
+                        clock: Arc::new(SharedClock(clock.clone())),
                     });
                 }
-                if config
-                    .finance_journal_creates
-                    .contains(&holding.registration.holding_id)
-                {
-                    let create_config = FinanceJournalCreateConfiguration::new(
-                        FinanceJournalEnvironment::Development,
-                        holding.registration.holding_id.clone(),
-                        company.clone(),
-                        catalogue.clone(),
-                    )
-                    .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
-                    finance_create_targets
-                        .insert((holding.host.clone(), holding.registration.slug.clone()));
-                    create_targets.push(FinanceJournalCreateTarget {
-                        host: holding.host.clone(),
-                        holding_slug: holding.registration.slug.clone(),
-                        service: Arc::new(FinanceJournalCreateService::new(
-                            authorizer.clone(),
-                            create_config,
-                            Arc::new(SharedClock(clock.clone())),
-                        )),
-                    });
-                }
-                if config
-                    .finance_journal_edits
-                    .contains(&holding.registration.holding_id)
-                {
-                    let edit_config = FinanceJournalCreateConfiguration::new(
-                        FinanceJournalEnvironment::Development,
-                        holding.registration.holding_id.clone(),
-                        company.clone(),
-                        catalogue.clone(),
-                    )
-                    .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
-                    finance_edit_targets
-                        .insert((holding.host.clone(), holding.registration.slug.clone()));
-                    edit_targets.push(FinanceJournalEditTarget {
-                        host: holding.host.clone(),
-                        holding_slug: holding.registration.slug.clone(),
-                        service: Arc::new(FinanceJournalEditService::new(
-                            authorizer.clone(),
-                            edit_config,
-                            Arc::new(SharedClock(clock.clone())),
-                        )),
-                    });
-                }
-            }
-            #[cfg(feature = "finance-field-write")]
-            if config.finance_field_service_invoice_posts.contains(&holding.registration.holding_id) {
-                let configuration = InvoicePostConfiguration::new(
-                    FinanceJournalEnvironment::Development,
-                    holding.registration.holding_id.clone(), company.clone(), catalogue.clone(),
-                ).map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
-                finance_service_invoice_post_targets.insert((holding.host.clone(), holding.registration.slug.clone()));
-                invoice_post_targets.push(FinanceServiceInvoicePostTarget {
-                    host: holding.host.clone(), holding_slug: holding.registration.slug.clone(),
-                    authorizer: authorizer.clone(), configuration,
-                    clock: Arc::new(SharedClock(clock.clone())),
+                targets.push(FinanceJournalReadTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    service: Arc::new(FinanceJournalDetailService::new(
+                        authorizer,
+                        configuration,
+                        Arc::new(SharedClock(clock.clone())),
+                    )),
                 });
             }
-            #[cfg(feature = "finance-field-write")]
-            if config.finance_field_service_receipt_writes.contains(&holding.registration.holding_id) {
-                let configuration = InvoicePostConfiguration::new(FinanceJournalEnvironment::Development,holding.registration.holding_id.clone(),company.clone(),catalogue.clone()).map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
-                finance_service_receipt_targets.insert((holding.host.clone(),holding.registration.slug.clone()));
-                let file_features=erpx_server_files::public::payment_proof_binding::PaymentProofBindingFeatures {enabled:false,read_only:false,uploads_frozen:true};
-                #[cfg(feature="files-scan-worker")]
-                let file_features=if config.field_files_companies.get(&holding.registration.holding_id).is_some_and(|companies|companies.contains(company)) {
-                    use crate::field_attachment_intake_http::FieldIntakeMode;
-                    erpx_server_files::public::payment_proof_binding::PaymentProofBindingFeatures {enabled:config.field_files_policy.mode==FieldIntakeMode::Enabled,read_only:config.field_files_policy.mode==FieldIntakeMode::ReadOnly,uploads_frozen:config.field_files_policy.uploads_frozen}
-                }else{file_features};
-                receipt_targets.push(FinanceServiceReceiptTarget {host:holding.host.clone(),holding_slug:holding.registration.slug.clone(),authorizer:authorizer.clone(),configuration,file_features,clock:Arc::new(SharedClock(clock.clone()))});
-            }
-            targets.push(FinanceJournalReadTarget {
-                host: holding.host.clone(),
-                holding_slug: holding.registration.slug.clone(),
-                service: Arc::new(FinanceJournalDetailService::new(
-                    authorizer,
-                    configuration,
-                    Arc::new(SharedClock(clock.clone())),
-                )),
-            });
-        }
         }
         #[cfg(feature = "finance-field-write")]
         if !invoice_post_targets.is_empty() {
-            router = router.merge(finance_service_invoice_post_router(
-                config.policy.clone(), config.holdings_registry.clone(),
-                Arc::new(FinanceJournalReadScopeHeaders), invoice_post_targets,
-            ).map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?);
+            router = router.merge(
+                finance_service_invoice_post_router(
+                    config.policy.clone(),
+                    config.holdings_registry.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    invoice_post_targets,
+                )
+                .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
+            );
         }
         #[cfg(feature = "finance-field-write")]
         if !receipt_targets.is_empty() {
-            router=router.merge(finance_service_receipt_router(config.policy.clone(),config.holdings_registry.clone(),Arc::new(FinanceJournalReadScopeHeaders),receipt_targets).map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?);
+            router = router.merge(
+                finance_service_receipt_router(
+                    config.policy.clone(),
+                    config.holdings_registry.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    receipt_targets,
+                )
+                .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
+            );
         }
         #[cfg(feature = "finance-field-write")]
         {
@@ -2251,10 +2495,8 @@ async fn assemble_checked(
         }
         if !handbook_targets.is_empty() {
             router = router.merge(
-                erpx_server_collaboration::public::handbook_http::handbook_router(
-                    handbook_targets,
-                )
-                .map_err(|_| "PRIVATE_API_COLLABORATION_CONFIGURATION_INVALID")?,
+                erpx_server_collaboration::public::handbook_http::handbook_router(handbook_targets)
+                    .map_err(|_| "PRIVATE_API_COLLABORATION_CONFIGURATION_INVALID")?,
             );
         }
         if !learning_targets.is_empty() {
@@ -2269,10 +2511,18 @@ async fn assemble_checked(
                     .map_err(|_| "PRIVATE_API_QUALITY_CONFIGURATION_INVALID")?,
             );
         }
+        if !crm_targets.is_empty() {
+            router = router.merge(
+                erpx_server_crm::public::pipeline_http::crm_pipeline_http_router(crm_targets)
+                    .map_err(|_| "PRIVATE_API_CRM_CONFIGURATION_INVALID")?,
+            );
+        }
         if !manage_erpx_targets.is_empty() {
             router = router.merge(
-                erpx_server_manage_erpx::public::onboarding_http::manage_erpx_router(manage_erpx_targets)
-                    .map_err(|_| "PRIVATE_API_MANAGE_ERPX_CONFIGURATION_INVALID")?,
+                erpx_server_manage_erpx::public::onboarding_http::manage_erpx_router(
+                    manage_erpx_targets,
+                )
+                .map_err(|_| "PRIVATE_API_MANAGE_ERPX_CONFIGURATION_INVALID")?,
             );
         }
 
@@ -2298,8 +2548,10 @@ async fn assemble_checked(
         }
         if !benefits_targets.is_empty() {
             router = router.merge(
-                erpx_server_benefits::public::workspace_http::benefits_workspace_http_router(benefits_targets)
-                    .map_err(|_| "PRIVATE_API_BENEFITS_CONFIGURATION_INVALID")?,
+                erpx_server_benefits::public::workspace_http::benefits_workspace_http_router(
+                    benefits_targets,
+                )
+                .map_err(|_| "PRIVATE_API_BENEFITS_CONFIGURATION_INVALID")?,
             );
         }
         if !maintenance_targets.is_empty() {
@@ -2360,8 +2612,10 @@ async fn assemble_checked(
         }
         if !operations_targets.is_empty() {
             router = router.merge(
-                erpx_server_operations::public::operations_http::operations_router(operations_targets)
-                    .map_err(|_| "PRIVATE_API_OPERATIONS_CONFIGURATION_INVALID")?,
+                erpx_server_operations::public::operations_http::operations_router(
+                    operations_targets,
+                )
+                .map_err(|_| "PRIVATE_API_OPERATIONS_CONFIGURATION_INVALID")?,
             );
         }
         if !people_payroll_targets.is_empty() {
@@ -2395,38 +2649,38 @@ async fn assemble_checked(
                 continue;
             };
             for company in companies {
-            let authorizer = Arc::new(
-                HoldingWorkAuthorizer::new(
-                    pools[0].clone(),
-                    pools[i + 1].clone(),
-                    holding.registration.holding_id.clone(),
-                    (*config.policy).clone(),
-                    clock.clone(),
-                    config.holdings_registry.clone(),
-                )
-                .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?,
-            );
-            let target = (holding.host.clone(), holding.registration.slug.clone());
-            if config
-                .field_service_issues
-                .contains(&holding.registration.holding_id)
-            {
-                service_issue_targets.insert(target.clone());
-            }
-            if config
-                .field_service_requests
-                .contains(&holding.registration.holding_id)
-            {
-                service_request_targets.insert(target.clone());
-            }
-            if config
-                .field_service_order_creates
-                .contains(&holding.registration.holding_id)
-            {
-                service_order_create_targets.insert(target.clone());
-            }
-            if service_read_targets.insert(target.clone()) {
-            work_roles.push(crate::native_work_roles_http::NativeWorkRoleTarget {
+                let authorizer = Arc::new(
+                    HoldingWorkAuthorizer::new(
+                        pools[0].clone(),
+                        pools[i + 1].clone(),
+                        holding.registration.holding_id.clone(),
+                        (*config.policy).clone(),
+                        clock.clone(),
+                        config.holdings_registry.clone(),
+                    )
+                    .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?,
+                );
+                let target = (holding.host.clone(), holding.registration.slug.clone());
+                if config
+                    .field_service_issues
+                    .contains(&holding.registration.holding_id)
+                {
+                    service_issue_targets.insert(target.clone());
+                }
+                if config
+                    .field_service_requests
+                    .contains(&holding.registration.holding_id)
+                {
+                    service_request_targets.insert(target.clone());
+                }
+                if config
+                    .field_service_order_creates
+                    .contains(&holding.registration.holding_id)
+                {
+                    service_order_create_targets.insert(target.clone());
+                }
+                if service_read_targets.insert(target.clone()) {
+                    work_roles.push(crate::native_work_roles_http::NativeWorkRoleTarget {
                 control:pools[0].clone(),
                 host: target.0.clone(), holding_slug: target.1.clone(),
                 inspector: Arc::new(erpx_server_identity_access::public::work_context::HoldingWorkContextInspector::new(
@@ -2434,318 +2688,326 @@ async fn assemble_checked(
                     (*config.policy).clone(), clock.clone(), config.holdings_registry.clone(),
                 ).map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?),
             });
-            }
-            let read_configuration = FieldServiceReservationReadConfiguration::new(
-                FieldServicePartsEnvironment::Development,
-                holding.registration.holding_id.clone(),
-                company.clone(),
-                catalogue.clone(),
-            )
-            .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
-            let read_configuration = if let Some(files) = config.field_service_initial_counts.get(&holding.registration.holding_id) {
-                service_initial_count_targets.insert(target.clone());
-                read_configuration.with_initial_count(files.clone())
-            } else {
-                read_configuration
-            };
-            let read_configuration = if let Some(companies)=config.field_files_companies.get(&holding.registration.holding_id) {
-                read_configuration.with_field_attachment_companies(companies.clone())
-            }else{read_configuration};
-            let read_configuration = if config
-                .field_service_stock_setups
-                .contains(&holding.registration.holding_id)
-            {
-                service_stock_setup_targets.insert(target.clone());
-                read_configuration.with_stock_setup()
-            } else {
-                read_configuration
-            };
-            let read_configuration = if config
-                .field_service_parts_prerequisites
-                .contains(&holding.registration.holding_id)
-            {
-                service_parts_prerequisite_targets.insert(target.clone());
-                read_configuration.with_parts_prerequisites()
-            } else {
-                read_configuration
-            };
-            let read_configuration = if config
-                .field_service_parts_posting_setups
-                .contains(&holding.registration.holding_id)
-            {
-                service_parts_posting_targets.insert(target.clone());
-                read_configuration.with_parts_posting_setup()
-            } else {
-                read_configuration
-            };
-            let read_configuration = if config
-                .field_service_requests
-                .contains(&holding.registration.holding_id)
-            {
-                read_configuration.with_requests()
-            } else {
-                read_configuration
-            };
-            let read_configuration = if config
-                .field_service_order_creates
-                .contains(&holding.registration.holding_id)
-            {
-                read_configuration.with_order_creates()
-            } else {
-                read_configuration
-            };
-            let read_configuration = if config
-                .field_service_issues
-                .contains(&holding.registration.holding_id)
-            {
-                read_configuration.with_issues()
-            } else {
-                read_configuration
-            };
-            let read_configuration = if let Some(read_only) = config
-                .field_attachment_links
-                .get(&holding.registration.holding_id)
-            {
-                field_attachment_targets.insert(target.clone());
-                read_configuration.with_attachments(*read_only)
-            } else {
-                read_configuration
-            };
-            let read_configuration = if let Some(read_only) = config
-                .field_attachment_binds
-                .get(&holding.registration.holding_id)
-            {
-                field_attachment_bind_targets.insert(target.clone());
-                read_configuration.with_attachment_binds(*read_only)
-            } else {
-                read_configuration
-            };
-            let workspace_enabled = config
-                .field_service_workspace_reads
-                .contains(&holding.registration.holding_id);
-            if workspace_enabled {
-                service_workspace_targets.insert(target.clone());
-            }
-            let read_configuration = if workspace_enabled {
-                read_configuration.with_workspace()
-            } else {
-                read_configuration
-            };
-            let read_configuration = if let Some(mode) = config
-                .field_service_source_record_reads
-                .get(&holding.registration.holding_id)
-            {
-                service_source_record_targets.insert(target.clone());
-                read_configuration.with_source_record(*mode)
-            } else {
-                read_configuration
-            };
-            let work_enabled = config
-                .field_service_work_reads
-                .contains(&holding.registration.holding_id);
-            if work_enabled {
-                service_work_targets.insert(target.clone());
-            }
-            let read_configuration = if work_enabled {
-                read_configuration.with_work()
-            } else {
-                read_configuration
-            };
-            let detail_enabled = config
-                .field_service_detail_reads
-                .contains(&holding.registration.holding_id);
-            if detail_enabled {
-                service_detail_targets.insert(target.clone());
-            }
-            let read_configuration = if detail_enabled {
-                read_configuration.with_detail()
-            } else {
-                read_configuration
-            };
-            let visit_enabled = config
-                .field_service_visits
-                .contains(&holding.registration.holding_id);
-            let completion_enabled = config
-                .field_service_visit_completions
-                .contains(&holding.registration.holding_id);
-            let recovery_enabled = config
-                .field_service_visit_recoveries
-                .contains(&holding.registration.holding_id);
-            let cancel_enabled = config
-                .field_service_order_cancellations
-                .contains(&holding.registration.holding_id);
-            let billing_enabled = config
-                .field_service_billing_releases
-                .contains(&holding.registration.holding_id);
-            let agreement_review_enabled = config
-                .field_service_agreement_reviews
-                .contains(&holding.registration.holding_id);
-            let agreement_create_enabled = config
-                .field_service_agreement_creates
-                .contains(&holding.registration.holding_id);
-            if agreement_create_enabled {
-                service_agreement_create_targets.insert(target.clone());
-            }
-            let read_configuration = if agreement_create_enabled {
-                read_configuration.with_agreement_creates()
-            } else {
-                read_configuration
-            };
-            if agreement_review_enabled {
-                service_agreement_review_targets.insert(target.clone());
-            }
-            let read_configuration = if agreement_review_enabled {
-                read_configuration.with_agreement_reviews()
-            } else {
-                read_configuration
-            };
-            if visit_enabled || completion_enabled || recovery_enabled || cancel_enabled {
-                service_visit_targets.insert(target.clone());
-            }
-            let read_configuration = if visit_enabled {
-                read_configuration.with_visits()
-            } else {
-                read_configuration
-            };
-            let read_configuration = if completion_enabled {
-                read_configuration.with_completions()
-            } else {
-                read_configuration
-            };
-            let read_configuration = if recovery_enabled {
-                read_configuration.with_recoveries()
-            } else {
-                read_configuration
-            };
-            let read_configuration = if cancel_enabled {
-                read_configuration.with_cancellations()
-            } else {
-                read_configuration
-            };
-            if billing_enabled {
-                service_billing_targets.insert(target.clone());
-            }
-            let read_configuration = if billing_enabled {
-                read_configuration.with_billings()
-            } else {
-                read_configuration
-            };
-            reads.push(FieldServiceReservationReadTarget {
-                host: target.0.clone(),
-                holding_slug: target.1.clone(),
-                service: Arc::new(FieldServiceReservationReadService::new(
-                    authorizer.clone(),
-                    read_configuration,
-                    Arc::new(SharedClock(clock.clone())),
-                )),
-            });
-            let reserve_enabled = config
-                .field_service_reservations
-                .contains(&holding.registration.holding_id);
-            let request_enabled = config
-                .field_service_requests
-                .contains(&holding.registration.holding_id);
-            let order_create_enabled = config
-                .field_service_order_creates
-                .contains(&holding.registration.holding_id);
-            if reserve_enabled
-                || request_enabled
-                || order_create_enabled
-                || visit_enabled
-                || completion_enabled
-                || recovery_enabled
-                || cancel_enabled
-                || billing_enabled
-                || agreement_review_enabled
-                || agreement_create_enabled
-            {
-                service_reservation_targets.insert(target.clone());
-                let action = FieldServicePartsConfiguration::new(
+                }
+                let read_configuration = FieldServiceReservationReadConfiguration::new(
                     FieldServicePartsEnvironment::Development,
                     holding.registration.holding_id.clone(),
                     company.clone(),
-                    erpx_server_commercial::public::purchases::PackageEnforcementMode::Enforced,
+                    catalogue.clone(),
                 )
                 .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
-                let service = Arc::new(FieldServicePartsAdministration::new(
-                    authorizer,
-                    action,
-                    Arc::new(SharedClock(clock.clone())),
-                    Arc::new(SharedClock(clock.clone())),
-                ));
-                let issue_enabled = config
+                let read_configuration = if let Some(files) = config
+                    .field_service_initial_counts
+                    .get(&holding.registration.holding_id)
+                {
+                    service_initial_count_targets.insert(target.clone());
+                    read_configuration.with_initial_count(files.clone())
+                } else {
+                    read_configuration
+                };
+                let read_configuration = if let Some(companies) = config
+                    .field_files_companies
+                    .get(&holding.registration.holding_id)
+                {
+                    read_configuration.with_field_attachment_companies(companies.clone())
+                } else {
+                    read_configuration
+                };
+                let read_configuration = if config
+                    .field_service_stock_setups
+                    .contains(&holding.registration.holding_id)
+                {
+                    service_stock_setup_targets.insert(target.clone());
+                    read_configuration.with_stock_setup()
+                } else {
+                    read_configuration
+                };
+                let read_configuration = if config
+                    .field_service_parts_prerequisites
+                    .contains(&holding.registration.holding_id)
+                {
+                    service_parts_prerequisite_targets.insert(target.clone());
+                    read_configuration.with_parts_prerequisites()
+                } else {
+                    read_configuration
+                };
+                let read_configuration = if config
+                    .field_service_parts_posting_setups
+                    .contains(&holding.registration.holding_id)
+                {
+                    service_parts_posting_targets.insert(target.clone());
+                    read_configuration.with_parts_posting_setup()
+                } else {
+                    read_configuration
+                };
+                let read_configuration = if config
+                    .field_service_requests
+                    .contains(&holding.registration.holding_id)
+                {
+                    read_configuration.with_requests()
+                } else {
+                    read_configuration
+                };
+                let read_configuration = if config
+                    .field_service_order_creates
+                    .contains(&holding.registration.holding_id)
+                {
+                    read_configuration.with_order_creates()
+                } else {
+                    read_configuration
+                };
+                let read_configuration = if config
                     .field_service_issues
+                    .contains(&holding.registration.holding_id)
+                {
+                    read_configuration.with_issues()
+                } else {
+                    read_configuration
+                };
+                let read_configuration = if let Some(read_only) = config
+                    .field_attachment_links
+                    .get(&holding.registration.holding_id)
+                {
+                    field_attachment_targets.insert(target.clone());
+                    read_configuration.with_attachments(*read_only)
+                } else {
+                    read_configuration
+                };
+                let read_configuration = if let Some(read_only) = config
+                    .field_attachment_binds
+                    .get(&holding.registration.holding_id)
+                {
+                    field_attachment_bind_targets.insert(target.clone());
+                    read_configuration.with_attachment_binds(*read_only)
+                } else {
+                    read_configuration
+                };
+                let workspace_enabled = config
+                    .field_service_workspace_reads
                     .contains(&holding.registration.holding_id);
-                reserves.push(
-                    if request_enabled
-                        || order_create_enabled
-                        || visit_enabled
-                        || completion_enabled
-                        || recovery_enabled
-                        || cancel_enabled
-                        || billing_enabled
-                        || agreement_review_enabled
-                        || agreement_create_enabled
-                    {
-                        FieldServiceHttpTarget::new_private_creates(
-                            target.0,
-                            target.1,
-                            service,
-                            request_enabled.then(|| {
-                                Arc::new(RequestDispatcher {
-                                    clock: Arc::new(SharedClock(clock.clone())),
-                                })
-                                    as Arc<dyn crate::field_service_parts::OtherPost>
-                            }),
-                            order_create_enabled.then(|| {
-                                Arc::new(OrderCreateDispatcher {
-                                    clock: Arc::new(SharedClock(clock.clone())),
-                                })
-                                    as Arc<dyn crate::field_service_parts::OtherPost>
-                            }),
-                            (
-                                (visit_enabled
-                                    || completion_enabled
-                                    || recovery_enabled
-                                    || cancel_enabled
-                                    || billing_enabled)
-                                    .then(|| {
-                                        Arc::new(crate::field_service_parts::VisitDispatcher {
-                                            allow_visits: visit_enabled,
-                                            allow_completion: completion_enabled,
-                                            allow_recovery: recovery_enabled,
-                                            allow_cancel: cancel_enabled,
-                                            allow_billing: billing_enabled,
-                                            clock: Arc::new(SharedClock(clock.clone())),
-                                        })
+                if workspace_enabled {
+                    service_workspace_targets.insert(target.clone());
+                }
+                let read_configuration = if workspace_enabled {
+                    read_configuration.with_workspace()
+                } else {
+                    read_configuration
+                };
+                let read_configuration = if let Some(mode) = config
+                    .field_service_source_record_reads
+                    .get(&holding.registration.holding_id)
+                {
+                    service_source_record_targets.insert(target.clone());
+                    read_configuration.with_source_record(*mode)
+                } else {
+                    read_configuration
+                };
+                let work_enabled = config
+                    .field_service_work_reads
+                    .contains(&holding.registration.holding_id);
+                if work_enabled {
+                    service_work_targets.insert(target.clone());
+                }
+                let read_configuration = if work_enabled {
+                    read_configuration.with_work()
+                } else {
+                    read_configuration
+                };
+                let detail_enabled = config
+                    .field_service_detail_reads
+                    .contains(&holding.registration.holding_id);
+                if detail_enabled {
+                    service_detail_targets.insert(target.clone());
+                }
+                let read_configuration = if detail_enabled {
+                    read_configuration.with_detail()
+                } else {
+                    read_configuration
+                };
+                let visit_enabled = config
+                    .field_service_visits
+                    .contains(&holding.registration.holding_id);
+                let completion_enabled = config
+                    .field_service_visit_completions
+                    .contains(&holding.registration.holding_id);
+                let recovery_enabled = config
+                    .field_service_visit_recoveries
+                    .contains(&holding.registration.holding_id);
+                let cancel_enabled = config
+                    .field_service_order_cancellations
+                    .contains(&holding.registration.holding_id);
+                let billing_enabled = config
+                    .field_service_billing_releases
+                    .contains(&holding.registration.holding_id);
+                let agreement_review_enabled = config
+                    .field_service_agreement_reviews
+                    .contains(&holding.registration.holding_id);
+                let agreement_create_enabled = config
+                    .field_service_agreement_creates
+                    .contains(&holding.registration.holding_id);
+                if agreement_create_enabled {
+                    service_agreement_create_targets.insert(target.clone());
+                }
+                let read_configuration = if agreement_create_enabled {
+                    read_configuration.with_agreement_creates()
+                } else {
+                    read_configuration
+                };
+                if agreement_review_enabled {
+                    service_agreement_review_targets.insert(target.clone());
+                }
+                let read_configuration = if agreement_review_enabled {
+                    read_configuration.with_agreement_reviews()
+                } else {
+                    read_configuration
+                };
+                if visit_enabled || completion_enabled || recovery_enabled || cancel_enabled {
+                    service_visit_targets.insert(target.clone());
+                }
+                let read_configuration = if visit_enabled {
+                    read_configuration.with_visits()
+                } else {
+                    read_configuration
+                };
+                let read_configuration = if completion_enabled {
+                    read_configuration.with_completions()
+                } else {
+                    read_configuration
+                };
+                let read_configuration = if recovery_enabled {
+                    read_configuration.with_recoveries()
+                } else {
+                    read_configuration
+                };
+                let read_configuration = if cancel_enabled {
+                    read_configuration.with_cancellations()
+                } else {
+                    read_configuration
+                };
+                if billing_enabled {
+                    service_billing_targets.insert(target.clone());
+                }
+                let read_configuration = if billing_enabled {
+                    read_configuration.with_billings()
+                } else {
+                    read_configuration
+                };
+                reads.push(FieldServiceReservationReadTarget {
+                    host: target.0.clone(),
+                    holding_slug: target.1.clone(),
+                    service: Arc::new(FieldServiceReservationReadService::new(
+                        authorizer.clone(),
+                        read_configuration,
+                        Arc::new(SharedClock(clock.clone())),
+                    )),
+                });
+                let reserve_enabled = config
+                    .field_service_reservations
+                    .contains(&holding.registration.holding_id);
+                let request_enabled = config
+                    .field_service_requests
+                    .contains(&holding.registration.holding_id);
+                let order_create_enabled = config
+                    .field_service_order_creates
+                    .contains(&holding.registration.holding_id);
+                if reserve_enabled
+                    || request_enabled
+                    || order_create_enabled
+                    || visit_enabled
+                    || completion_enabled
+                    || recovery_enabled
+                    || cancel_enabled
+                    || billing_enabled
+                    || agreement_review_enabled
+                    || agreement_create_enabled
+                {
+                    service_reservation_targets.insert(target.clone());
+                    let action = FieldServicePartsConfiguration::new(
+                        FieldServicePartsEnvironment::Development,
+                        holding.registration.holding_id.clone(),
+                        company.clone(),
+                        erpx_server_commercial::public::purchases::PackageEnforcementMode::Enforced,
+                    )
+                    .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?;
+                    let service = Arc::new(FieldServicePartsAdministration::new(
+                        authorizer,
+                        action,
+                        Arc::new(SharedClock(clock.clone())),
+                        Arc::new(SharedClock(clock.clone())),
+                    ));
+                    let issue_enabled = config
+                        .field_service_issues
+                        .contains(&holding.registration.holding_id);
+                    reserves.push(
+                        if request_enabled
+                            || order_create_enabled
+                            || visit_enabled
+                            || completion_enabled
+                            || recovery_enabled
+                            || cancel_enabled
+                            || billing_enabled
+                            || agreement_review_enabled
+                            || agreement_create_enabled
+                        {
+                            FieldServiceHttpTarget::new_private_creates(
+                                target.0,
+                                target.1,
+                                service,
+                                request_enabled.then(|| {
+                                    Arc::new(RequestDispatcher {
+                                        clock: Arc::new(SharedClock(clock.clone())),
+                                    })
+                                        as Arc<dyn crate::field_service_parts::OtherPost>
+                                }),
+                                order_create_enabled.then(|| {
+                                    Arc::new(OrderCreateDispatcher {
+                                        clock: Arc::new(SharedClock(clock.clone())),
+                                    })
+                                        as Arc<dyn crate::field_service_parts::OtherPost>
+                                }),
+                                (
+                                    (visit_enabled
+                                        || completion_enabled
+                                        || recovery_enabled
+                                        || cancel_enabled
+                                        || billing_enabled)
+                                        .then(|| {
+                                            Arc::new(crate::field_service_parts::VisitDispatcher {
+                                                allow_visits: visit_enabled,
+                                                allow_completion: completion_enabled,
+                                                allow_recovery: recovery_enabled,
+                                                allow_cancel: cancel_enabled,
+                                                allow_billing: billing_enabled,
+                                                clock: Arc::new(SharedClock(clock.clone())),
+                                            })
+                                                as Arc<dyn crate::field_service_parts::OtherPost>
+                                        }),
+                                    agreement_review_enabled.then(|| {
+                                        Arc::new(
+                                            crate::field_service_parts::AgreementReviewDispatcher {
+                                                clock: Arc::new(SharedClock(clock.clone())),
+                                            },
+                                        )
                                             as Arc<dyn crate::field_service_parts::OtherPost>
                                     }),
-                                agreement_review_enabled.then(|| {
-                                    Arc::new(
-                                        crate::field_service_parts::AgreementReviewDispatcher {
-                                            clock: Arc::new(SharedClock(clock.clone())),
-                                        },
-                                    )
-                                        as Arc<dyn crate::field_service_parts::OtherPost>
-                                }),
-                                agreement_create_enabled.then(|| {
-                                    Arc::new(
-                                        crate::field_service_parts::AgreementCreateDispatcher {
-                                            clock: Arc::new(SharedClock(clock.clone())),
-                                        },
-                                    )
-                                        as Arc<dyn crate::field_service_parts::OtherPost>
-                                }),
-                            ),
-                            (reserve_enabled, issue_enabled),
-                        )
-                    } else if issue_enabled {
-                        FieldServiceHttpTarget::new_private_parts(target.0, target.1, service)
-                    } else {
-                        FieldServiceHttpTarget::new_private_reserve(target.0, target.1, service)
-                    },
-                );
-            }
+                                    agreement_create_enabled.then(|| {
+                                        Arc::new(
+                                            crate::field_service_parts::AgreementCreateDispatcher {
+                                                clock: Arc::new(SharedClock(clock.clone())),
+                                            },
+                                        )
+                                            as Arc<dyn crate::field_service_parts::OtherPost>
+                                    }),
+                                ),
+                                (reserve_enabled, issue_enabled),
+                            )
+                        } else if issue_enabled {
+                            FieldServiceHttpTarget::new_private_parts(target.0, target.1, service)
+                        } else {
+                            FieldServiceHttpTarget::new_private_reserve(target.0, target.1, service)
+                        },
+                    );
+                }
             }
         }
         router = router.merge(
@@ -2797,13 +3059,15 @@ async fn assemble_checked(
                     stock_targets.push(crate::inventory_stock_http::InventoryStockHttpTarget {
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
-                        service: Arc::new(crate::inventory_stock_read::InventoryStockRegisterService {
-                            authorizer: authorizer.clone(),
-                            holding: holding_id.clone(),
-                            company: company.clone(),
-                            catalogue: catalogue.clone(),
-                            clock: Arc::new(SharedClock(clock.clone())),
-                        }),
+                        service: Arc::new(
+                            crate::inventory_stock_read::InventoryStockRegisterService {
+                                authorizer: authorizer.clone(),
+                                holding: holding_id.clone(),
+                                company: company.clone(),
+                                catalogue: catalogue.clone(),
+                                clock: Arc::new(SharedClock(clock.clone())),
+                            },
+                        ),
                     });
                 }
             }
@@ -2826,10 +3090,16 @@ async fn assemble_checked(
                 );
             }
         }
-        router = router.merge(crate::native_work_roles_http::native_work_roles_router(
-            config.policy.clone(), config.holdings_registry.clone(), Arc::new(FieldServiceReadScopeHeaders),
-            Arc::new(SharedClock(clock.clone())), work_roles,
-        ).map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?);
+        router = router.merge(
+            crate::native_work_roles_http::native_work_roles_router(
+                config.policy.clone(),
+                config.holdings_registry.clone(),
+                Arc::new(FieldServiceReadScopeHeaders),
+                Arc::new(SharedClock(clock.clone())),
+                work_roles,
+            )
+            .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?,
+        );
         if !reserves.is_empty() {
             router = router.merge(
                 field_service_http_router(
@@ -3088,22 +3358,60 @@ async fn assemble_checked(
             .map_err(|_| "PRIVATE_API_SUPPORT_INCIDENT_CONFIGURATION_INVALID")?,
         );
     }
-    #[cfg(feature="files-scan-worker")]
-    let (files_router,files_workers,field_files_targets)=field_files::assemble(config,pools,clock.clone()).await?;
-    #[cfg(feature="files-scan-worker")]
-    { router=router.merge(files_router); }
-    #[cfg(not(feature="files-scan-worker"))]
-    let field_files_targets=BTreeSet::new();
-    let service_package_provider_host=if let Some(packages)=&config.service_package_lifecycle {
-        let provider=config.holdings.iter().find(|h|h.registration.holding_id==packages.provider_holding).ok_or("PRIVATE_API_SERVICE_PACKAGE_CONFIGURATION_INVALID")?;
-        let targets=config.holdings.iter().enumerate().filter(|(_,h)|packages.holdings.contains(&h.registration.holding_id)).map(|(index,h)|crate::field_service_package_http::ServicePackageHttpTarget{holding_id:h.registration.holding_id.clone(),audience:format!("holding:{}:{}:{}",config.environment,h.registration.holding_id.as_str(),h.host),write:pools[index+1].clone()}).collect();
-        router=router.merge(crate::field_service_package_http::service_package_router(pools[0].clone(),config.policy.clone(),config.holdings_registry.clone(),Arc::new(SharedClock(clock.clone())),provider.host.clone(),packages.provider_holding.clone(),targets,packages.signer.clone()).map_err(|_|"PRIVATE_API_SERVICE_PACKAGE_CONFIGURATION_INVALID")?);
+    #[cfg(feature = "files-scan-worker")]
+    let (files_router, files_workers, field_files_targets) =
+        field_files::assemble(config, pools, clock.clone()).await?;
+    #[cfg(feature = "files-scan-worker")]
+    {
+        router = router.merge(files_router);
+    }
+    #[cfg(not(feature = "files-scan-worker"))]
+    let field_files_targets = BTreeSet::new();
+    let service_package_provider_host = if let Some(packages) = &config.service_package_lifecycle {
+        let provider = config
+            .holdings
+            .iter()
+            .find(|h| h.registration.holding_id == packages.provider_holding)
+            .ok_or("PRIVATE_API_SERVICE_PACKAGE_CONFIGURATION_INVALID")?;
+        let targets = config
+            .holdings
+            .iter()
+            .enumerate()
+            .filter(|(_, h)| packages.holdings.contains(&h.registration.holding_id))
+            .map(
+                |(index, h)| crate::field_service_package_http::ServicePackageHttpTarget {
+                    holding_id: h.registration.holding_id.clone(),
+                    audience: format!(
+                        "holding:{}:{}:{}",
+                        config.environment,
+                        h.registration.holding_id.as_str(),
+                        h.host
+                    ),
+                    write: pools[index + 1].clone(),
+                },
+            )
+            .collect();
+        router = router.merge(
+            crate::field_service_package_http::service_package_router(
+                pools[0].clone(),
+                config.policy.clone(),
+                config.holdings_registry.clone(),
+                Arc::new(SharedClock(clock.clone())),
+                provider.host.clone(),
+                packages.provider_holding.clone(),
+                targets,
+                packages.signer.clone(),
+            )
+            .map_err(|_| "PRIVATE_API_SERVICE_PACKAGE_CONFIGURATION_INVALID")?,
+        );
         Some(provider.host.clone())
-    }else{None};
+    } else {
+        None
+    };
     let state = Arc::new(Boundary {
         field_files_targets,
         service_package_provider_host,
-        account_mfa:config.account_security_keys.is_some(),
+        account_mfa: config.account_security_keys.is_some(),
         policy: config.policy.clone(),
         loopback: config.listen.to_string(),
         permits: Arc::new(Semaphore::new(config.maximum_requests)),
@@ -3120,28 +3428,44 @@ async fn assemble_checked(
             .finance_journal_reads
             .keys()
             .filter_map(|holding_id| {
-                config.holdings.iter().find(|h| &h.registration.holding_id == holding_id).map(|h| (h.host.clone(), h.registration.slug.clone()))
+                config
+                    .holdings
+                    .iter()
+                    .find(|h| &h.registration.holding_id == holding_id)
+                    .map(|h| (h.host.clone(), h.registration.slug.clone()))
             })
             .collect(),
         generic_payment_targets: config
             .finance_journal_reads
             .keys()
             .filter_map(|holding_id| {
-                config.holdings.iter().find(|h| &h.registration.holding_id == holding_id).map(|h| (h.host.clone(), h.registration.slug.clone()))
+                config
+                    .holdings
+                    .iter()
+                    .find(|h| &h.registration.holding_id == holding_id)
+                    .map(|h| (h.host.clone(), h.registration.slug.clone()))
             })
             .collect(),
         bank_targets: config
             .finance_journal_reads
             .keys()
             .filter_map(|holding_id| {
-                config.holdings.iter().find(|h| &h.registration.holding_id == holding_id).map(|h| (h.host.clone(), h.registration.slug.clone()))
+                config
+                    .holdings
+                    .iter()
+                    .find(|h| &h.registration.holding_id == holding_id)
+                    .map(|h| (h.host.clone(), h.registration.slug.clone()))
             })
             .collect(),
         bank_workspace_targets: config
             .finance_journal_reads
             .keys()
             .filter_map(|holding_id| {
-                config.holdings.iter().find(|h| &h.registration.holding_id == holding_id).map(|h| (h.host.clone(), h.registration.slug.clone()))
+                config
+                    .holdings
+                    .iter()
+                    .find(|h| &h.registration.holding_id == holding_id)
+                    .map(|h| (h.host.clone(), h.registration.slug.clone()))
             })
             .collect(),
         service_read_targets,
@@ -3167,61 +3491,97 @@ async fn assemble_checked(
             .support_ticket_writes
             .iter()
             .filter_map(|(holding_id, _)| {
-                config.holdings.iter().find(|h| &h.registration.holding_id == holding_id).map(|h| (h.host.clone(), h.registration.slug.clone()))
+                config
+                    .holdings
+                    .iter()
+                    .find(|h| &h.registration.holding_id == holding_id)
+                    .map(|h| (h.host.clone(), h.registration.slug.clone()))
             })
             .collect(),
         support_incident_targets: config
             .support_incident_writes
             .iter()
             .filter_map(|(holding_id, _)| {
-                config.holdings.iter().find(|h| &h.registration.holding_id == holding_id).map(|h| (h.host.clone(), h.registration.slug.clone()))
+                config
+                    .holdings
+                    .iter()
+                    .find(|h| &h.registration.holding_id == holding_id)
+                    .map(|h| (h.host.clone(), h.registration.slug.clone()))
             })
             .collect(),
         support_session_targets: config
             .support_session_writes
             .iter()
             .filter_map(|(holding_id, _)| {
-                config.holdings.iter().find(|h| &h.registration.holding_id == holding_id).map(|h| (h.host.clone(), h.registration.slug.clone()))
+                config
+                    .holdings
+                    .iter()
+                    .find(|h| &h.registration.holding_id == holding_id)
+                    .map(|h| (h.host.clone(), h.registration.slug.clone()))
             })
             .collect(),
         support_sla_targets: config
             .support_sla_writes
             .iter()
             .filter_map(|(holding_id, _)| {
-                config.holdings.iter().find(|h| &h.registration.holding_id == holding_id).map(|h| (h.host.clone(), h.registration.slug.clone()))
+                config
+                    .holdings
+                    .iter()
+                    .find(|h| &h.registration.holding_id == holding_id)
+                    .map(|h| (h.host.clone(), h.registration.slug.clone()))
             })
             .collect(),
         support_evidence_targets: config
             .support_evidence_writes
             .iter()
             .filter_map(|(holding_id, _)| {
-                config.holdings.iter().find(|h| &h.registration.holding_id == holding_id).map(|h| (h.host.clone(), h.registration.slug.clone()))
+                config
+                    .holdings
+                    .iter()
+                    .find(|h| &h.registration.holding_id == holding_id)
+                    .map(|h| (h.host.clone(), h.registration.slug.clone()))
             })
             .collect(),
         inventory_availability_targets: config
             .inventory_availability_reads
             .keys()
             .filter_map(|holding_id| {
-                config.holdings.iter().find(|h| &h.registration.holding_id == holding_id).map(|h| (h.host.clone(), h.registration.slug.clone()))
+                config
+                    .holdings
+                    .iter()
+                    .find(|h| &h.registration.holding_id == holding_id)
+                    .map(|h| (h.host.clone(), h.registration.slug.clone()))
             })
             .collect(),
         inventory_stock_targets: config
             .inventory_availability_reads
             .keys()
             .filter_map(|holding_id| {
-                config.holdings.iter().find(|h| &h.registration.holding_id == holding_id).map(|h| (h.host.clone(), h.registration.slug.clone()))
+                config
+                    .holdings
+                    .iter()
+                    .find(|h| &h.registration.holding_id == holding_id)
+                    .map(|h| (h.host.clone(), h.registration.slug.clone()))
             })
             .collect(),
         organization_targets: config
             .finance_journal_reads
             .keys()
             .filter_map(|holding_id| {
-                config.holdings.iter().find(|h| &h.registration.holding_id == holding_id).map(|h| (h.host.clone(), h.registration.slug.clone()))
+                config
+                    .holdings
+                    .iter()
+                    .find(|h| &h.registration.holding_id == holding_id)
+                    .map(|h| (h.host.clone(), h.registration.slug.clone()))
             })
             .collect(),
         account_bootstrap: config.account_bootstrap,
     });
-    Ok(CheckedAssembly { router:router.layer(middleware::from_fn_with_state(state,boundary)), #[cfg(feature="files-scan-worker")] files_workers })
+    Ok(CheckedAssembly {
+        router: router.layer(middleware::from_fn_with_state(state, boundary)),
+        #[cfg(feature = "files-scan-worker")]
+        files_workers,
+    })
 }
 #[derive(Clone)]
 struct SharedClock(Arc<dyn Clock + Send + Sync>);
@@ -3231,8 +3591,8 @@ impl Clock for SharedClock {
     }
 }
 struct Boundary {
-    service_package_provider_host:Option<String>,
-    account_mfa:bool,
+    service_package_provider_host: Option<String>,
+    account_mfa: bool,
     policy: Arc<AccountPolicy>,
     loopback: String,
     permits: Arc<Semaphore>,
@@ -3255,7 +3615,7 @@ struct Boundary {
     service_parts_prerequisite_targets: BTreeSet<(String, String)>,
     service_stock_setup_targets: BTreeSet<(String, String)>,
     service_initial_count_targets: BTreeSet<(String, String)>,
-    field_files_targets: BTreeSet<(String,String)>,
+    field_files_targets: BTreeSet<(String, String)>,
     field_attachment_targets: BTreeSet<(String, String)>,
     field_attachment_bind_targets: BTreeSet<(String, String)>,
     service_work_targets: BTreeSet<(String, String)>,
@@ -3325,10 +3685,24 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
     {
         return Err(BoundaryDenial::NotFound);
     }
-    let account_mfa=state.account_mfa&&request.method()==axum::http::Method::POST&&matches!(request.uri().path(),"/api/v1/account/iam/mfa/enroll"|"/api/v1/account/iam/mfa/verify");
-    let service_packages=state.service_package_provider_host.as_deref()==Some(host)&&matches!((request.method(),request.uri().path()),
-        (&axum::http::Method::GET,"/api/v1/platform/commercial"|"/api/v1/platform/commercial/packages")|
-        (&axum::http::Method::POST,"/api/v1/platform/commercial/packages/preview"|"/api/v1/platform/commercial/packages/apply"));
+    let account_mfa = state.account_mfa
+        && request.method() == axum::http::Method::POST
+        && matches!(
+            request.uri().path(),
+            "/api/v1/account/iam/mfa/enroll" | "/api/v1/account/iam/mfa/verify"
+        );
+    let service_packages = state.service_package_provider_host.as_deref() == Some(host)
+        && matches!(
+            (request.method(), request.uri().path()),
+            (
+                &axum::http::Method::GET,
+                "/api/v1/platform/commercial" | "/api/v1/platform/commercial/packages"
+            ) | (
+                &axum::http::Method::POST,
+                "/api/v1/platform/commercial/packages/preview"
+                    | "/api/v1/platform/commercial/packages/apply"
+            )
+        );
     let finance_workspace = match request
         .uri()
         .path()
@@ -3336,17 +3710,37 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         .collect::<Vec<_>>()
         .as_slice()
     {
-        ["","api","v1","holdings",slug,"finance","journals"] if request.method()==axum::http::Method::GET => {
-            state.finance_targets.contains(&(host.to_owned(),(*slug).to_owned()))
-        }
-        ["","api","v1","holdings",slug,"finance","sales","invoices"]
-            if matches!(request.method(), &axum::http::Method::GET | &axum::http::Method::POST) =>
+        ["", "api", "v1", "holdings", slug, "finance", "journals"]
+            if request.method() == axum::http::Method::GET =>
         {
-            state.finance_targets.contains(&(host.to_owned(),(*slug).to_owned()))
+            state
+                .finance_targets
+                .contains(&(host.to_owned(), (*slug).to_owned()))
         }
-        ["","api","v1","holdings",slug,"finance","field-work"] if request.method()==axum::http::Method::GET => {
-            let key=(host.to_owned(),(*slug).to_owned());
-            state.finance_targets.contains(&key)&&state.finance_service_invoice_targets.contains(&key)
+        [
+            "",
+            "api",
+            "v1",
+            "holdings",
+            slug,
+            "finance",
+            "sales",
+            "invoices",
+        ] if matches!(
+            request.method(),
+            &axum::http::Method::GET | &axum::http::Method::POST
+        ) =>
+        {
+            state
+                .finance_targets
+                .contains(&(host.to_owned(), (*slug).to_owned()))
+        }
+        ["", "api", "v1", "holdings", slug, "finance", "field-work"]
+            if request.method() == axum::http::Method::GET =>
+        {
+            let key = (host.to_owned(), (*slug).to_owned());
+            state.finance_targets.contains(&key)
+                && state.finance_service_invoice_targets.contains(&key)
         }
         [
             "",
@@ -3384,30 +3778,168 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         }
         _ => false,
     };
-    let finance_field_journal_flow=matches!(request.method(),&axum::http::Method::GET|&axum::http::Method::POST)
-        && match request.uri().path().split('/').collect::<Vec<_>>().as_slice(){
-            ["","api","v1","holdings",slug,"finance","journals",id,"flow"] if !id.is_empty()=>state.finance_service_invoice_post_targets.contains(&(host.to_owned(),(*slug).to_owned())),
-            _=>false,
-        };
+    let finance_field_journal_flow = matches!(
+        request.method(),
+        &axum::http::Method::GET | &axum::http::Method::POST
+    ) && match request
+        .uri()
+        .path()
+        .split('/')
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        [
+            "",
+            "api",
+            "v1",
+            "holdings",
+            slug,
+            "finance",
+            "journals",
+            id,
+            "flow",
+        ] if !id.is_empty() => state
+            .finance_service_invoice_post_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        _ => false,
+    };
     let finance_invoice_post = request.method() == axum::http::Method::POST
-        && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
-            ["", "api", "v1", "holdings", slug, "finance", "invoices", id, "post"|"flow"|"confirm-no-charge"] if !id.is_empty() =>
-                state.finance_service_invoice_post_targets.contains(&(host.to_owned(), (*slug).to_owned())),
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "invoices",
+                id,
+                "post" | "flow" | "confirm-no-charge",
+            ] if !id.is_empty() => state
+                .finance_service_invoice_post_targets
+                .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
-    let finance_receipt_review = match (request.method(),request.uri().path().split('/').collect::<Vec<_>>().as_slice()) {
-        (&axum::http::Method::POST,["","api","v1","holdings",slug,"finance","bank","statements","import"])
-        | (&axum::http::Method::POST,["","api","v1","holdings",slug,"finance","payments"]) => state.finance_service_receipt_targets.contains(&(host.to_owned(),(*slug).to_owned())),
-        (&axum::http::Method::GET,["","api","v1","holdings",slug,"finance","payments",_id,"workspace"|"runtime"]) => state.finance_service_receipt_targets.contains(&(host.to_owned(),(*slug).to_owned())),
-        (&axum::http::Method::GET,["","api","v1","holdings",slug,"finance","invoices",id,"payment-runtime"]) if !id.is_empty() => state.finance_service_receipt_targets.contains(&(host.to_owned(),(*slug).to_owned())),
-        (&axum::http::Method::GET,["","api","v1","holdings",slug,"finance","sales","receipts",id,"workspace"|"runtime"])
-        | (&axum::http::Method::POST,["","api","v1","holdings",slug,"finance","payments",id,"approve"|"release"|"confirm"]) if !id.is_empty() => state.finance_service_receipt_targets.contains(&(host.to_owned(),(*slug).to_owned())),
+    let finance_receipt_review = match (
+        request.method(),
+        request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) {
+        (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "bank",
+                "statements",
+                "import",
+            ],
+        )
+        | (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "finance", "payments"]) => {
+            state
+                .finance_service_receipt_targets
+                .contains(&(host.to_owned(), (*slug).to_owned()))
+        }
+        (
+            &axum::http::Method::GET,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "payments",
+                _id,
+                "workspace" | "runtime",
+            ],
+        ) => state
+            .finance_service_receipt_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (
+            &axum::http::Method::GET,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "invoices",
+                id,
+                "payment-runtime",
+            ],
+        ) if !id.is_empty() => state
+            .finance_service_receipt_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (
+            &axum::http::Method::GET,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "sales",
+                "receipts",
+                id,
+                "workspace" | "runtime",
+            ],
+        )
+        | (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "payments",
+                id,
+                "approve" | "release" | "confirm",
+            ],
+        ) if !id.is_empty() => state
+            .finance_service_receipt_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };
     let finance_invoice_runtime = request.method() == axum::http::Method::GET
-        && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
-            ["", "api", "v1", "holdings", slug, "finance", "invoices", id, "post-runtime"] if !id.is_empty() =>
-                state.finance_service_invoice_post_targets.contains(&(host.to_owned(), (*slug).to_owned())),
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "invoices",
+                id,
+                "post-runtime",
+            ] if !id.is_empty() => state
+                .finance_service_invoice_post_targets
+                .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
     let finance_create = request.method() == axum::http::Method::POST
@@ -3715,25 +4247,101 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
     };
     let service_initial_count = match (
         request.method(),
-        request.uri().path().split('/').collect::<Vec<_>>().as_slice(),
+        request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice(),
     ) {
-        (&axum::http::Method::GET | &axum::http::Method::POST,
-            ["", "api", "v1", "holdings", slug, "field-service", "initial-physical-stock"])
-        | (&axum::http::Method::GET,
-            ["", "api", "v1", "holdings", slug, "field-service", "initial-physical-stock", _])
-        | (&axum::http::Method::GET,
-            ["", "api", "v1", "holdings", slug, "field-service", "initial-physical-stock", _, "stock-count"])
-        | (&axum::http::Method::GET | &axum::http::Method::POST,
-            ["", "api", "v1", "holdings", slug, "field-service", "initial-physical-stock", _, "flow"])
-        | (&axum::http::Method::POST,
-            ["", "api", "v1", "holdings", slug, "field-service", "initial-physical-stock", _, "update" | "submit" | "approve" | "post" | "reject" | "cancel"])
-        | (&axum::http::Method::POST,
-            ["", "api", "v1", "holdings", slug, "field-service", "initial-physical-stock", _, "stock-count", "flow" | "submit" | "approve" | "post" | "reject" | "cancel"])
-            => state.service_initial_count_targets.contains(&(host.to_owned(), (*slug).to_owned())),
+        (
+            &axum::http::Method::GET | &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "field-service",
+                "initial-physical-stock",
+            ],
+        )
+        | (
+            &axum::http::Method::GET,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "field-service",
+                "initial-physical-stock",
+                _,
+            ],
+        )
+        | (
+            &axum::http::Method::GET,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "field-service",
+                "initial-physical-stock",
+                _,
+                "stock-count",
+            ],
+        )
+        | (
+            &axum::http::Method::GET | &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "field-service",
+                "initial-physical-stock",
+                _,
+                "flow",
+            ],
+        )
+        | (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "field-service",
+                "initial-physical-stock",
+                _,
+                "update" | "submit" | "approve" | "post" | "reject" | "cancel",
+            ],
+        )
+        | (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "field-service",
+                "initial-physical-stock",
+                _,
+                "stock-count",
+                "flow" | "submit" | "approve" | "post" | "reject" | "cancel",
+            ],
+        ) => state
+            .service_initial_count_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };
-    let service_initial_count = service_initial_count
-        && request.uri().path().split('/').nth(7) != Some("masters");
+    let service_initial_count =
+        service_initial_count && request.uri().path().split('/').nth(7) != Some("masters");
     let service_stock_setup = match (
         request.method(),
         request
@@ -3743,10 +4351,31 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .collect::<Vec<_>>()
             .as_slice(),
     ) {
-        (&axum::http::Method::GET | &axum::http::Method::POST,
-         ["", "api", "v1", "holdings", slug, "field-service", "customer-preparation"])
-        | (&axum::http::Method::POST,
-         ["", "api", "v1", "holdings", slug, "field-service", "customer-preparation", "confirmations"])
+        (
+            &axum::http::Method::GET | &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "field-service",
+                "customer-preparation",
+            ],
+        )
+        | (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "field-service",
+                "customer-preparation",
+                "confirmations",
+            ],
+        )
         | (
             &axum::http::Method::GET,
             [
@@ -3791,23 +4420,257 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
-    let field_files = match (request.method(),request.uri().path().split('/').collect::<Vec<_>>().as_slice()) {
-        (&axum::http::Method::GET|&axum::http::Method::POST,["","api","v1","holdings",slug,"field-service","attachment-sets"])
-        | (&axum::http::Method::POST,["","api","v1","holdings",slug,"field-service","attachment-sets",_,"files"])
-        | (&axum::http::Method::PUT,["","api","v1","holdings",slug,"field-service","uploads",_,"content"])
-        | (&axum::http::Method::GET,["","api","v1","holdings",slug,"field-service","attachment-links",_,"status"|"content"]) => state.field_files_targets.contains(&(host.to_owned(),(*slug).to_owned())),
-        (&axum::http::Method::GET|&axum::http::Method::POST,["","api","v1","holdings",slug,"finance","payment-files","attachment-sets"])
-        | (&axum::http::Method::POST,["","api","v1","holdings",slug,"finance","payment-files","attachment-sets",_,"files"])
-        | (&axum::http::Method::PUT,["","api","v1","holdings",slug,"finance","payment-files","uploads",_,"content"])
-        | (&axum::http::Method::POST,["","api","v1","holdings",slug,"finance","payment-files","attachment-links",_,"withdraw"])
-        | (&axum::http::Method::GET,["","api","v1","holdings",slug,"finance","payment-files","attachment-links",_,"status"|"content"]) => state.field_files_targets.contains(&(host.to_owned(),(*slug).to_owned())) && state.finance_service_receipt_targets.contains(&(host.to_owned(),(*slug).to_owned())),
-        (&axum::http::Method::GET|&axum::http::Method::POST,["","api","v1","holdings",slug,"finance","journal-files","attachment-sets"])
-        | (&axum::http::Method::POST,["","api","v1","holdings",slug,"finance","journal-files","attachment-sets",_,"files"])
-        | (&axum::http::Method::PUT,["","api","v1","holdings",slug,"finance","journal-files","uploads",_,"content"])
-        | (&axum::http::Method::POST,["","api","v1","holdings",slug,"finance","journal-files","attachment-links",_,"withdraw"])
-        | (&axum::http::Method::GET,["","api","v1","holdings",slug,"finance","journal-files","attachment-links",_,"status"|"content"])=>state.field_files_targets.contains(&(host.to_owned(),(*slug).to_owned()))&&state.finance_targets.contains(&(host.to_owned(),(*slug).to_owned())),
-        (&axum::http::Method::POST,["","api","v1","holdings",slug,"finance","journal-files","attachment-sets",_,"bind"])=>state.field_files_targets.contains(&(host.to_owned(),(*slug).to_owned()))&&state.finance_targets.contains(&(host.to_owned(),(*slug).to_owned()))&&state.field_attachment_bind_targets.contains(&(host.to_owned(),(*slug).to_owned())),
-        _=>false,
+    let field_files = match (
+        request.method(),
+        request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) {
+        (
+            &axum::http::Method::GET | &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "field-service",
+                "attachment-sets",
+            ],
+        )
+        | (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "field-service",
+                "attachment-sets",
+                _,
+                "files",
+            ],
+        )
+        | (
+            &axum::http::Method::PUT,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "field-service",
+                "uploads",
+                _,
+                "content",
+            ],
+        )
+        | (
+            &axum::http::Method::GET,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "field-service",
+                "attachment-links",
+                _,
+                "status" | "content",
+            ],
+        ) => state
+            .field_files_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (
+            &axum::http::Method::GET | &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "payment-files",
+                "attachment-sets",
+            ],
+        )
+        | (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "payment-files",
+                "attachment-sets",
+                _,
+                "files",
+            ],
+        )
+        | (
+            &axum::http::Method::PUT,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "payment-files",
+                "uploads",
+                _,
+                "content",
+            ],
+        )
+        | (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "payment-files",
+                "attachment-links",
+                _,
+                "withdraw",
+            ],
+        )
+        | (
+            &axum::http::Method::GET,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "payment-files",
+                "attachment-links",
+                _,
+                "status" | "content",
+            ],
+        ) => {
+            state
+                .field_files_targets
+                .contains(&(host.to_owned(), (*slug).to_owned()))
+                && state
+                    .finance_service_receipt_targets
+                    .contains(&(host.to_owned(), (*slug).to_owned()))
+        }
+        (
+            &axum::http::Method::GET | &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "journal-files",
+                "attachment-sets",
+            ],
+        )
+        | (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "journal-files",
+                "attachment-sets",
+                _,
+                "files",
+            ],
+        )
+        | (
+            &axum::http::Method::PUT,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "journal-files",
+                "uploads",
+                _,
+                "content",
+            ],
+        )
+        | (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "journal-files",
+                "attachment-links",
+                _,
+                "withdraw",
+            ],
+        )
+        | (
+            &axum::http::Method::GET,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "journal-files",
+                "attachment-links",
+                _,
+                "status" | "content",
+            ],
+        ) => {
+            state
+                .field_files_targets
+                .contains(&(host.to_owned(), (*slug).to_owned()))
+                && state
+                    .finance_targets
+                    .contains(&(host.to_owned(), (*slug).to_owned()))
+        }
+        (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "journal-files",
+                "attachment-sets",
+                _,
+                "bind",
+            ],
+        ) => {
+            state
+                .field_files_targets
+                .contains(&(host.to_owned(), (*slug).to_owned()))
+                && state
+                    .finance_targets
+                    .contains(&(host.to_owned(), (*slug).to_owned()))
+                && state
+                    .field_attachment_bind_targets
+                    .contains(&(host.to_owned(), (*slug).to_owned()))
+        }
+        _ => false,
     };
     let field_attachment = match (
         request.method(),
@@ -3870,39 +4733,197 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
-    let field_operations = matches!(request.method(), &axum::http::Method::GET | &axum::http::Method::POST) && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
-        ["", "api", "v1", "holdings", slug, "field-service", "operations"] => state.service_source_record_targets.contains(&(host.to_owned(),(*slug).to_owned())),
-        ["", "api", "v1", "holdings", slug, "field-service", "operations", id] => !id.is_empty() && state.service_source_record_targets.contains(&(host.to_owned(),(*slug).to_owned())),
+    let field_operations = matches!(
+        request.method(),
+        &axum::http::Method::GET | &axum::http::Method::POST
+    ) && match request
+        .uri()
+        .path()
+        .split('/')
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        [
+            "",
+            "api",
+            "v1",
+            "holdings",
+            slug,
+            "field-service",
+            "operations",
+        ] => state
+            .service_source_record_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        [
+            "",
+            "api",
+            "v1",
+            "holdings",
+            slug,
+            "field-service",
+            "operations",
+            id,
+        ] => {
+            !id.is_empty()
+                && state
+                    .service_source_record_targets
+                    .contains(&(host.to_owned(), (*slug).to_owned()))
+        }
         _ => false,
     };
-    let field_support = request.method() == axum::http::Method::GET && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
-        ["", "api", "v1", "holdings", slug, "field-service", "support", id] => !id.is_empty() && state.service_source_record_targets.contains(&(host.to_owned(),(*slug).to_owned())),
-        _ => false,
-    };
-    let field_work_roles = matches!(request.method(), &axum::http::Method::GET | &axum::http::Method::POST)
-        && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
-            ["", "api", "v1", "holdings", slug, "field-service", "work-roles"] | ["", "api", "v1", "holdings", slug, "field-service", "work-roles", "current" | "initialize" | "companies" | "preferences" | "workspace-preference" | "access" | "context"] => state.service_read_targets.contains(&(host.to_owned(), (*slug).to_owned())),
+    let field_support = request.method() == axum::http::Method::GET
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "field-service",
+                "support",
+                id,
+            ] => {
+                !id.is_empty()
+                    && state
+                        .service_source_record_targets
+                        .contains(&(host.to_owned(), (*slug).to_owned()))
+            }
             _ => false,
         };
+    let field_work_roles = matches!(
+        request.method(),
+        &axum::http::Method::GET | &axum::http::Method::POST
+    ) && match request
+        .uri()
+        .path()
+        .split('/')
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        [
+            "",
+            "api",
+            "v1",
+            "holdings",
+            slug,
+            "field-service",
+            "work-roles",
+        ]
+        | [
+            "",
+            "api",
+            "v1",
+            "holdings",
+            slug,
+            "field-service",
+            "work-roles",
+            "current"
+            | "initialize"
+            | "companies"
+            | "preferences"
+            | "workspace-preference"
+            | "access"
+            | "context",
+        ] => state
+            .service_read_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        _ => false,
+    };
     let field_evidence = request.method() == axum::http::Method::POST
-        && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
-            ["", "api", "v1", "holdings", slug, "field-service", "executive-evidence", "search" | "open"] => state.service_source_record_targets.contains(&(host.to_owned(), (*slug).to_owned())),
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "field-service",
+                "executive-evidence",
+                "search" | "open",
+            ] => state
+                .service_source_record_targets
+                .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
     let field_collaboration_write = request.method() == axum::http::Method::POST
-        && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
-            ["", "api", "v1", "holdings", slug, "field-service", "collaboration"] => state.service_source_record_targets.contains(&(host.to_owned(), (*slug).to_owned())),
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "field-service",
+                "collaboration",
+            ] => state
+                .service_source_record_targets
+                .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
-    let field_collaboration = field_evidence || field_collaboration_write || request.method() == axum::http::Method::GET
-        && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
-            ["", "api", "v1", "holdings", slug, "field-service", "collaboration" | "inbox-candidates" | "executive"] => state.service_source_record_targets.contains(&(host.to_owned(),(*slug).to_owned())),
+    let field_collaboration = field_evidence
+        || field_collaboration_write
+        || request.method() == axum::http::Method::GET
+            && match request
+                .uri()
+                .path()
+                .split('/')
+                .collect::<Vec<_>>()
+                .as_slice()
+            {
+                [
+                    "",
+                    "api",
+                    "v1",
+                    "holdings",
+                    slug,
+                    "field-service",
+                    "collaboration" | "inbox-candidates" | "executive",
+                ] => state
+                    .service_source_record_targets
+                    .contains(&(host.to_owned(), (*slug).to_owned())),
+                _ => false,
+            };
+    let field_inbox_state = request.method() == axum::http::Method::POST
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "field-service",
+                "inbox",
+                id,
+                "state",
+            ] if !id.is_empty() => state
+                .service_source_record_targets
+                .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
-    let field_inbox_state=request.method()==axum::http::Method::POST && match request.uri().path().split('/').collect::<Vec<_>>().as_slice(){
-        ["", "api", "v1", "holdings", slug, "field-service", "inbox", id, "state"] if !id.is_empty()=>state.service_source_record_targets.contains(&(host.to_owned(),(*slug).to_owned())),
-        _=>false,
-    };
     let bootstrap = state.account_bootstrap
         && match (request.method(), request.uri().path()) {
             (&axum::http::Method::POST, "/api/auth/sign-in/email" | "/api/auth/sign-out")
@@ -3932,67 +4953,180 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             _ => false,
         };
     let support_ticket = request.method() == axum::http::Method::POST
-        && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
             ["", "api", "v1", "holdings", slug, "support"] => state
                 .support_ticket_targets
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
     let support_incident = request.method() == axum::http::Method::POST
-        && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
             ["", "api", "v1", "holdings", slug, "support", "incidents"] => state
                 .support_incident_targets
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
     let support_session = request.method() == axum::http::Method::POST
-        && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
             ["", "api", "v1", "holdings", slug, "support", "sessions"] => state
                 .support_session_targets
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
     let support_sla = request.method() == axum::http::Method::POST
-        && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
             ["", "api", "v1", "holdings", slug, "support", "sla"] => state
                 .support_sla_targets
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
     let support_evidence = request.method() == axum::http::Method::POST
-        && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
             ["", "api", "v1", "holdings", slug, "support", "evidence"] => state
                 .support_evidence_targets
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
     let finance_opening_balances = request.method() == axum::http::Method::POST
-        && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
-            ["", "api", "v1", "holdings", slug, "finance", "opening-balances", "preview"]
-            | ["", "api", "v1", "holdings", slug, "finance", "opening-balances", "import"] => state
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "opening-balances",
+                "preview",
+            ]
+            | [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "opening-balances",
+                "import",
+            ] => state
                 .finance_targets
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
     let finance_report = request.method() == axum::http::Method::GET
-        && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
             ["", "api", "v1", "holdings", slug, "finance", "reports"] => state
                 .finance_targets
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
     let finance_setup = match *request.method() {
-        axum::http::Method::GET => match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
-            ["", "api", "v1", "holdings", slug, "finance", "charts", _, "accounts"] => state
+        axum::http::Method::GET => match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "charts",
+                _,
+                "accounts",
+            ] => state
                 .finance_targets
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         },
-        axum::http::Method::POST => match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
+        axum::http::Method::POST => match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
             ["", "api", "v1", "holdings", slug, "finance", "charts"]
-            | ["", "api", "v1", "holdings", slug, "finance", "charts", "import"]
-            | ["", "api", "v1", "holdings", slug, "finance", "charts", _, "accounts"]
-            | ["", "api", "v1", "holdings", slug, "finance", "charts", _, "accounts", _, "status"]
+            | [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "charts",
+                "import",
+            ]
+            | [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "charts",
+                _,
+                "accounts",
+            ]
+            | [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "charts",
+                _,
+                "accounts",
+                _,
+                "status",
+            ]
             | ["", "api", "v1", "holdings", slug, "finance", "periods"] => state
                 .finance_targets
                 .contains(&(host.to_owned(), (*slug).to_owned())),
@@ -4001,35 +5135,106 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         _ => false,
     };
     let finance_invoice_read = request.method() == axum::http::Method::GET
-        && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
             ["", "api", "v1", "holdings", slug, "finance", "invoices"]
-            | ["", "api", "v1", "holdings", slug, "finance", "invoices", "aging"] => state
+            | [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "invoices",
+                "aging",
+            ] => state
                 .finance_targets
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
     let finance_sales_invoice_edit = request.method() == axum::http::Method::POST
-        && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
             ["", "api", "v1", "holdings", slug, "finance", "invoices", id]
-            | ["", "api", "v1", "holdings", slug, "finance", "invoices", id, "void"]
-                if !id.is_empty() =>
-            {
-                state
-                    .finance_targets
-                    .contains(&(host.to_owned(), (*slug).to_owned()))
-            }
+            | [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "invoices",
+                id,
+                "void",
+            ] if !id.is_empty() => state
+                .finance_targets
+                .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
     let finance_sales_receipts = match *request.method() {
-        axum::http::Method::GET => match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
-            ["", "api", "v1", "holdings", slug, "finance", "sales", "receipts", _]
-            | ["", "api", "v1", "holdings", slug, "finance", "sales", "receipts", _, "export"] => state
+        axum::http::Method::GET => match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "sales",
+                "receipts",
+                _,
+            ]
+            | [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "sales",
+                "receipts",
+                _,
+                "export",
+            ] => state
                 .finance_targets
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         },
-        axum::http::Method::POST => match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
-            ["", "api", "v1", "holdings", slug, "finance", "sales", "receipts", _, "issue"] => state
+        axum::http::Method::POST => match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "sales",
+                "receipts",
+                _,
+                "issue",
+            ] => state
                 .finance_targets
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
@@ -4038,11 +5243,37 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
     };
     let finance_sales_defaults = match request.method() {
         &axum::http::Method::GET | &axum::http::Method::POST => {
-            match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
-                ["", "api", "v1", "holdings", slug, "finance", "sales", "defaults"] => state
+            match request
+                .uri()
+                .path()
+                .split('/')
+                .collect::<Vec<_>>()
+                .as_slice()
+            {
+                [
+                    "",
+                    "api",
+                    "v1",
+                    "holdings",
+                    slug,
+                    "finance",
+                    "sales",
+                    "defaults",
+                ] => state
                     .finance_targets
                     .contains(&(host.to_owned(), (*slug).to_owned())),
-                ["", "api", "v1", "holdings", slug, "finance", "sales", "defaults", _, "decide"] => {
+                [
+                    "",
+                    "api",
+                    "v1",
+                    "holdings",
+                    slug,
+                    "finance",
+                    "sales",
+                    "defaults",
+                    _,
+                    "decide",
+                ] => {
                     request.method() == axum::http::Method::POST
                         && state
                             .finance_targets
@@ -4054,47 +5285,197 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         _ => false,
     };
     let finance_sales_invoice_create = request.method() == axum::http::Method::POST
-        && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
-            ["", "api", "v1", "holdings", slug, "finance", "sales", "invoices"] => state
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "sales",
+                "invoices",
+            ] => state
                 .finance_targets
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
-    let brand = match (request.method(), request.uri().path().split('/').collect::<Vec<_>>().as_slice()) {
-        (&axum::http::Method::GET | &axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "brand"]) => state
+    let brand = match (
+        request.method(),
+        request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) {
+        (
+            &axum::http::Method::GET | &axum::http::Method::POST,
+            ["", "api", "v1", "holdings", slug, "brand"],
+        ) => state
             .brand_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };
-    let generic_payment = match (request.method(), request.uri().path().split('/').collect::<Vec<_>>().as_slice()) {
-        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "finance", "payments", "generic"]) => state
+    let generic_payment = match (
+        request.method(),
+        request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) {
+        (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "payments",
+                "generic",
+            ],
+        ) => state
             .generic_payment_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };
-    let finance_supplier_bill = match (request.method(), request.uri().path().split('/').collect::<Vec<_>>().as_slice()) {
-        (&axum::http::Method::GET, ["", "api", "v1", "holdings", slug, "finance", "payables", id]) if !id.is_empty() =>
-            state.finance_targets.contains(&(host.to_owned(), (*slug).to_owned())),
-        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "finance", "payables"]) =>
-            state.finance_targets.contains(&(host.to_owned(), (*slug).to_owned())),
-        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "finance", "payables", id]) if !id.is_empty() =>
-            state.finance_targets.contains(&(host.to_owned(), (*slug).to_owned())),
-        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "finance", "payables", id, "post" | "void"]) if !id.is_empty() =>
-            state.finance_targets.contains(&(host.to_owned(), (*slug).to_owned())),
+    let finance_supplier_bill = match (
+        request.method(),
+        request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) {
+        (
+            &axum::http::Method::GET,
+            ["", "api", "v1", "holdings", slug, "finance", "payables", id],
+        ) if !id.is_empty() => state
+            .finance_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "finance", "payables"]) => {
+            state
+                .finance_targets
+                .contains(&(host.to_owned(), (*slug).to_owned()))
+        }
+        (
+            &axum::http::Method::POST,
+            ["", "api", "v1", "holdings", slug, "finance", "payables", id],
+        ) if !id.is_empty() => state
+            .finance_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "payables",
+                id,
+                "post" | "void",
+            ],
+        ) if !id.is_empty() => state
+            .finance_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };
-    let finance_period_close = match (request.method(), request.uri().path().split('/').collect::<Vec<_>>().as_slice()) {
-        (&axum::http::Method::GET, ["", "api", "v1", "holdings", slug, "finance", "periods", id, "workspace"]) if !id.is_empty() =>
-            state.finance_targets.contains(&(host.to_owned(), (*slug).to_owned())),
-        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "finance", "periods", id, "begin-close" | "cancel-close" | "close" | "reopen"]) if !id.is_empty() =>
-            state.finance_targets.contains(&(host.to_owned(), (*slug).to_owned())),
+    let finance_period_close = match (
+        request.method(),
+        request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) {
+        (
+            &axum::http::Method::GET,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "periods",
+                id,
+                "workspace",
+            ],
+        ) if !id.is_empty() => state
+            .finance_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "periods",
+                id,
+                "begin-close" | "cancel-close" | "close" | "reopen",
+            ],
+        ) if !id.is_empty() => state
+            .finance_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };
-    let bank = match (request.method(), request.uri().path().split('/').collect::<Vec<_>>().as_slice()) {
-        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "finance", "bank", "statements", "generic-import"]) => state
+    let bank = match (
+        request.method(),
+        request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) {
+        (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "bank",
+                "statements",
+                "generic-import",
+            ],
+        ) => state
             .bank_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),
-        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "finance", "bank", "transactions", id, "reconcile"]) if !id.is_empty() => state
+        (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "finance",
+                "bank",
+                "transactions",
+                id,
+                "reconcile",
+            ],
+        ) if !id.is_empty() => state
             .bank_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),
         (&axum::http::Method::GET, ["", "api", "v1", "holdings", slug, "finance", "bank"]) => state
@@ -4103,94 +5484,348 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         _ => false,
     };
     let inventory_availability = request.method() == axum::http::Method::GET
-        && match request.uri().path().split('/').collect::<Vec<_>>().as_slice() {
-            ["", "api", "v1", "holdings", slug, "inventory", "availability" | "movements"] => state
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "inventory",
+                "availability" | "movements",
+            ] => state
                 .inventory_availability_targets
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
-    let inventory_stock = match (request.method(), request.uri().path().split('/').collect::<Vec<_>>().as_slice()) {
-        (&axum::http::Method::GET, ["", "api", "v1", "holdings", slug, "inventory", "stock-register"]) => state
+    let inventory_stock = match (
+        request.method(),
+        request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) {
+        (
+            &axum::http::Method::GET,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "inventory",
+                "stock-register",
+            ],
+        ) => state
             .inventory_stock_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),
-        (&axum::http::Method::GET, ["", "api", "v1", "holdings", slug, "inventory", "receipts", id]) if !id.is_empty() => state
+        (
+            &axum::http::Method::GET,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "inventory",
+                "receipts",
+                id,
+            ],
+        ) if !id.is_empty() => state
             .inventory_stock_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };
-    let learning = match (request.method(), request.uri().path().split('/').collect::<Vec<_>>().as_slice()) {
-        (&axum::http::Method::GET, ["", "api", "v1", "holdings", slug, "learning", "workspace"]) => state
+    let learning = match (
+        request.method(),
+        request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) {
+        (
+            &axum::http::Method::GET,
+            ["", "api", "v1", "holdings", slug, "learning", "workspace"],
+        ) => state
             .organization_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),
-        (&axum::http::Method::GET, ["", "api", "v1", "holdings", slug, "learning", "eligibility", person]) if !person.is_empty() => state
+        (
+            &axum::http::Method::GET,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "learning",
+                "eligibility",
+                person,
+            ],
+        ) if !person.is_empty() => state
             .organization_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),
-        (&axum::http::Method::GET | &axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "learning", "assignments", id]) if !id.is_empty() => state
+        (
+            &axum::http::Method::GET | &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "learning",
+                "assignments",
+                id,
+            ],
+        ) if !id.is_empty() => state
             .organization_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),
-        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "learning", "courses"]) => state
-            .organization_targets
-            .contains(&(host.to_owned(), (*slug).to_owned())),
-        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "learning", "courses", id]) if !id.is_empty() => state
-            .organization_targets
-            .contains(&(host.to_owned(), (*slug).to_owned())),
-        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "learning", "assignments"]) => state
-            .organization_targets
-            .contains(&(host.to_owned(), (*slug).to_owned())),
-        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "learning", "certificates", id, "revoke"]) if !id.is_empty() => state
-            .organization_targets
-            .contains(&(host.to_owned(), (*slug).to_owned())),
-        _ => false,
-    };
-    let handbook = match (request.method(), request.uri().path().split('/').collect::<Vec<_>>().as_slice()) {
-        (&axum::http::Method::GET | &axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "handbook"])
-        | (&axum::http::Method::GET | &axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "handbook", "editors"]) => state
-            .organization_targets
-            .contains(&(host.to_owned(), (*slug).to_owned())),
-        (&axum::http::Method::GET | &axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "handbook", id]) if !id.is_empty() => state
-            .organization_targets
-            .contains(&(host.to_owned(), (*slug).to_owned())),
-        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "handbook", id, "actions"]) if !id.is_empty() => state
-            .organization_targets
-            .contains(&(host.to_owned(), (*slug).to_owned())),
-        _ => false,
-    };
-    let workflow_approvals = match (request.method(), request.uri().path().split('/').collect::<Vec<_>>().as_slice()) {
-        (&axum::http::Method::GET, ["", "api", "v1", "holdings", slug, "workflow", "approvals"]) => state
-            .organization_targets
-            .contains(&(host.to_owned(), (*slug).to_owned())),
-        (&axum::http::Method::GET, ["", "api", "v1", "holdings", slug, "workflow", "approvals", kind, record_id, "evidence"])
-            if !kind.is_empty() && !record_id.is_empty() => state
+        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "learning", "courses"]) => {
+            state
                 .organization_targets
-                .contains(&(host.to_owned(), (*slug).to_owned())),
+                .contains(&(host.to_owned(), (*slug).to_owned()))
+        }
+        (
+            &axum::http::Method::POST,
+            ["", "api", "v1", "holdings", slug, "learning", "courses", id],
+        ) if !id.is_empty() => state
+            .organization_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (
+            &axum::http::Method::POST,
+            ["", "api", "v1", "holdings", slug, "learning", "assignments"],
+        ) => state
+            .organization_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "learning",
+                "certificates",
+                id,
+                "revoke",
+            ],
+        ) if !id.is_empty() => state
+            .organization_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };
-    let organization_setup = match (request.method(), request.uri().path().split('/').collect::<Vec<_>>().as_slice()) {
-        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "people", "organization", "levels"]) => state
+    let handbook = match (
+        request.method(),
+        request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) {
+        (
+            &axum::http::Method::GET | &axum::http::Method::POST,
+            ["", "api", "v1", "holdings", slug, "handbook"],
+        )
+        | (
+            &axum::http::Method::GET | &axum::http::Method::POST,
+            ["", "api", "v1", "holdings", slug, "handbook", "editors"],
+        ) => state
             .organization_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),
-        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "people", "organization", "templates"]) => state
+        (
+            &axum::http::Method::GET | &axum::http::Method::POST,
+            ["", "api", "v1", "holdings", slug, "handbook", id],
+        ) if !id.is_empty() => state
             .organization_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),
-        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "people", "organization", "templates", id]) if !id.is_empty() => state
-            .organization_targets
-            .contains(&(host.to_owned(), (*slug).to_owned())),
-        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "people", "organization", "templates", id, "apply"]) if !id.is_empty() => state
+        (
+            &axum::http::Method::POST,
+            ["", "api", "v1", "holdings", slug, "handbook", id, "actions"],
+        ) if !id.is_empty() => state
             .organization_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };
-    let organization_nodes = match (request.method(), request.uri().path().split('/').collect::<Vec<_>>().as_slice()) {
-        (&axum::http::Method::GET, ["", "api", "v1", "holdings", slug, "people", "organization"]) => state
+    let workflow_approvals = match (
+        request.method(),
+        request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) {
+        (
+            &axum::http::Method::GET,
+            ["", "api", "v1", "holdings", slug, "workflow", "approvals"],
+        ) => state
             .organization_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),
-        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "people", "organization", "changes"]) => state
+        (
+            &axum::http::Method::GET,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "workflow",
+                "approvals",
+                kind,
+                record_id,
+                "evidence",
+            ],
+        ) if !kind.is_empty() && !record_id.is_empty() => state
             .organization_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),
-        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "people", "organization", "changes", "preview"]) => state
+        _ => false,
+    };
+    let organization_setup = match (
+        request.method(),
+        request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) {
+        (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "people",
+                "organization",
+                "levels",
+            ],
+        ) => state
             .organization_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),
-        (&axum::http::Method::POST, ["", "api", "v1", "holdings", slug, "people", "organization", "changes", id, "review" | "cancel"]) if !id.is_empty() => state
+        (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "people",
+                "organization",
+                "templates",
+            ],
+        ) => state
+            .organization_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "people",
+                "organization",
+                "templates",
+                id,
+            ],
+        ) if !id.is_empty() => state
+            .organization_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "people",
+                "organization",
+                "templates",
+                id,
+                "apply",
+            ],
+        ) if !id.is_empty() => state
+            .organization_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        _ => false,
+    };
+    let organization_nodes = match (
+        request.method(),
+        request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) {
+        (
+            &axum::http::Method::GET,
+            ["", "api", "v1", "holdings", slug, "people", "organization"],
+        ) => state
+            .organization_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "people",
+                "organization",
+                "changes",
+            ],
+        ) => state
+            .organization_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "people",
+                "organization",
+                "changes",
+                "preview",
+            ],
+        ) => state
+            .organization_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "people",
+                "organization",
+                "changes",
+                id,
+                "review" | "cancel",
+            ],
+        ) if !id.is_empty() => state
             .organization_targets
             .contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
@@ -4198,7 +5833,39 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
     if !(matches!(
         request.uri().path(),
         "/api/auth/get-session" | "/api/health" | "/api/ready"
-    ) || account_mfa || service_packages || field_work_roles || field_operations || field_support || field_collaboration || field_inbox_state || support_ticket || support_incident || support_session || support_sla || support_evidence || inventory_availability || inventory_stock || organization_nodes || organization_setup || workflow_approvals || handbook || learning || brand || bank || generic_payment || finance_supplier_bill || finance_period_close || finance_workspace || finance_invoice_read || finance_opening_balances || finance_report || finance_setup || finance_sales_invoice_create || finance_sales_invoice_edit || finance_sales_defaults || finance_sales_receipts
+    ) || account_mfa
+        || service_packages
+        || field_work_roles
+        || field_operations
+        || field_support
+        || field_collaboration
+        || field_inbox_state
+        || support_ticket
+        || support_incident
+        || support_session
+        || support_sla
+        || support_evidence
+        || inventory_availability
+        || inventory_stock
+        || organization_nodes
+        || organization_setup
+        || workflow_approvals
+        || handbook
+        || learning
+        || brand
+        || bank
+        || generic_payment
+        || finance_supplier_bill
+        || finance_period_close
+        || finance_workspace
+        || finance_invoice_read
+        || finance_opening_balances
+        || finance_report
+        || finance_setup
+        || finance_sales_invoice_create
+        || finance_sales_invoice_edit
+        || finance_sales_defaults
+        || finance_sales_receipts
         || finance_invoice_runtime
         || finance_field_journal_flow
         || finance_invoice_post
@@ -4240,7 +5907,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             || finance_supplier_bill
             || finance_period_close
             || finance_field_journal_flow
-        || finance_invoice_post
+            || finance_invoice_post
             || finance_receipt_review
             || finance_post
             || finance_create
@@ -4364,7 +6031,6 @@ async fn run_support_sla_drain_file_with_profile(
     Ok(format!(r#"{{"drained":{total}}}"#))
 }
 
-
 /// Durable Support SLA worker. Reuses the owner schedule and the one-shot
 /// drain; each tick reopens the reviewed configuration and rechecks the
 /// purchase, and a failure backs off without stopping the supervisor.
@@ -4373,8 +6039,8 @@ pub async fn run_support_sla_worker_file(
     shutdown: impl std::future::Future<Output = ()> + Send + 'static,
 ) -> Result<(), &'static str> {
     let now = SystemAccountClock.now().get();
-    let mut schedule =
-        SlaDrainSchedule::start(now, DEFAULT_INTERVAL_MS).map_err(|_| "SUPPORT_SLA_SCHEDULE_INVALID")?;
+    let mut schedule = SlaDrainSchedule::start(now, DEFAULT_INTERVAL_MS)
+        .map_err(|_| "SUPPORT_SLA_SCHEDULE_INVALID")?;
     let mut shutdown = Box::pin(shutdown);
     loop {
         let now = SystemAccountClock.now().get();
@@ -4485,18 +6151,26 @@ pub async fn run_service_count_worker_file(
     path: &Path,
     shutdown: impl std::future::Future<Output = ()> + Send + 'static,
 ) -> Result<(), &'static str> {
-    run_outbox_worker_file(path,shutdown,false,None,Profile::Development).await
+    run_outbox_worker_file(path, shutdown, false, None, Profile::Development).await
 }
-pub async fn run_field_dependency_worker_file(path:&Path,shutdown:impl std::future::Future<Output=()>+Send+'static)->Result<(),&'static str>{
-    run_outbox_worker_file(path,shutdown,true,None,Profile::Development).await.map_err(|code|match code{
-        "COUNT_WORKER_DISTINCT_READ_DATABASE_REQUIRED"=>"FIELD_WORKER_DISTINCT_READ_DATABASE_REQUIRED",
-        "COUNT_WORKER_SCHEMA_UNAVAILABLE"=>"FIELD_WORKER_SCHEMA_UNAVAILABLE",
-        "COUNT_WORKER_DATABASE_UNAVAILABLE"=>"FIELD_WORKER_DATABASE_UNAVAILABLE",
-        "COUNT_WORKER_SCHEMA_MISMATCH"=>"FIELD_WORKER_SCHEMA_MISMATCH",
-        "COUNT_WORKER_BINDINGS_MISMATCH"=>"FIELD_WORKER_BINDINGS_MISMATCH",
-        "COUNT_WORKER_QUERY_CANCEL_FAILED"=>"FIELD_WORKER_QUERY_CANCEL_FAILED",
-        "COUNT_WORKER_CLOSE_TIMEOUT"=>"FIELD_WORKER_CLOSE_TIMEOUT",other=>other,
-    })
+pub async fn run_field_dependency_worker_file(
+    path: &Path,
+    shutdown: impl std::future::Future<Output = ()> + Send + 'static,
+) -> Result<(), &'static str> {
+    run_outbox_worker_file(path, shutdown, true, None, Profile::Development)
+        .await
+        .map_err(|code| match code {
+            "COUNT_WORKER_DISTINCT_READ_DATABASE_REQUIRED" => {
+                "FIELD_WORKER_DISTINCT_READ_DATABASE_REQUIRED"
+            }
+            "COUNT_WORKER_SCHEMA_UNAVAILABLE" => "FIELD_WORKER_SCHEMA_UNAVAILABLE",
+            "COUNT_WORKER_DATABASE_UNAVAILABLE" => "FIELD_WORKER_DATABASE_UNAVAILABLE",
+            "COUNT_WORKER_SCHEMA_MISMATCH" => "FIELD_WORKER_SCHEMA_MISMATCH",
+            "COUNT_WORKER_BINDINGS_MISMATCH" => "FIELD_WORKER_BINDINGS_MISMATCH",
+            "COUNT_WORKER_QUERY_CANCEL_FAILED" => "FIELD_WORKER_QUERY_CANCEL_FAILED",
+            "COUNT_WORKER_CLOSE_TIMEOUT" => "FIELD_WORKER_CLOSE_TIMEOUT",
+            other => other,
+        })
 }
 struct FieldDependencyRetry {
     holding: HoldingId,
@@ -4506,38 +6180,106 @@ struct FieldDependencyRetry {
 }
 /// Operator-only process entry, admitted by the same private configuration,
 /// enforced Holding registry and migration checks as the native worker.
-pub async fn retry_field_dependency_worker_file(path:&Path,holding:&str,event:&str,dead_at:i64,reason:&str)->Result<(),&'static str>{
-    let holding=HoldingId::new(holding).map_err(|_|"FIELD_RETRY_HOLDING_INVALID")?;
-    if event.is_empty()||event.len()>180||reason.trim().chars().count()<3||reason.len()>2000{return Err("FIELD_RETRY_INPUT_INVALID");}
-    run_outbox_worker_file(path,std::future::ready(()),true,Some(FieldDependencyRetry{holding,event:event.into(),dead_at,reason:reason.into()}),Profile::Development).await
+pub async fn retry_field_dependency_worker_file(
+    path: &Path,
+    holding: &str,
+    event: &str,
+    dead_at: i64,
+    reason: &str,
+) -> Result<(), &'static str> {
+    let holding = HoldingId::new(holding).map_err(|_| "FIELD_RETRY_HOLDING_INVALID")?;
+    if event.is_empty()
+        || event.len() > 180
+        || reason.trim().chars().count() < 3
+        || reason.len() > 2000
+    {
+        return Err("FIELD_RETRY_INPUT_INVALID");
+    }
+    run_outbox_worker_file(
+        path,
+        std::future::ready(()),
+        true,
+        Some(FieldDependencyRetry {
+            holding,
+            event: event.into(),
+            dead_at,
+            reason: reason.into(),
+        }),
+        Profile::Development,
+    )
+    .await
 }
-async fn run_outbox_worker_file(path:&Path,shutdown:impl std::future::Future<Output=()>+Send+'static,field:bool,retry:Option<FieldDependencyRetry>,profile:Profile)->Result<(),&'static str>{
+async fn run_outbox_worker_file(
+    path: &Path,
+    shutdown: impl std::future::Future<Output = ()> + Send + 'static,
+    field: bool,
+    retry: Option<FieldDependencyRetry>,
+    profile: Profile,
+) -> Result<(), &'static str> {
     let config = DevelopmentApiConfiguration::read_configuration_file(path, profile)?;
     if field {
-        if !config.field_service_source_record_reads.values().any(|m|matches!(m,crate::field_service_source_record::SourceRecordMode::Enforced)){return Err("FIELD_WORKER_ENFORCED_SOURCE_TARGET_REQUIRED");}
-    } else if config.field_service_initial_counts.is_empty(){return Err("COUNT_WORKER_TARGET_REQUIRED");}
-    if let Some(target)=&retry
-        && (!field||!config.holdings.iter().any(|h|h.registration.holding_id==target.holding)
-            ||!matches!(config.field_service_source_record_reads.get(&target.holding),Some(crate::field_service_source_record::SourceRecordMode::Enforced))){
+        if !config.field_service_source_record_reads.values().any(|m| {
+            matches!(
+                m,
+                crate::field_service_source_record::SourceRecordMode::Enforced
+            )
+        }) {
+            return Err("FIELD_WORKER_ENFORCED_SOURCE_TARGET_REQUIRED");
+        }
+    } else if config.field_service_initial_counts.is_empty() {
+        return Err("COUNT_WORKER_TARGET_REQUIRED");
+    }
+    if let Some(target) = &retry
+        && (!field
+            || !config
+                .holdings
+                .iter()
+                .any(|h| h.registration.holding_id == target.holding)
+            || !matches!(
+                config
+                    .field_service_source_record_reads
+                    .get(&target.holding),
+                Some(crate::field_service_source_record::SourceRecordMode::Enforced)
+            ))
+    {
         return Err("FIELD_RETRY_ENFORCED_HOLDING_REQUIRED");
     }
     // Startup and admission share the same explicit Holding partition. A
     // registered but shadow/disabled Holding must never be drained implicitly.
-    let selected = |id: &HoldingId| if field {
-        matches!(config.field_service_source_record_reads.get(id), Some(crate::field_service_source_record::SourceRecordMode::Enforced))
-            && retry.as_ref().is_none_or(|target|target.holding==*id)
-    } else { config.field_service_initial_counts.contains_key(id) };
+    let selected = |id: &HoldingId| {
+        if field {
+            matches!(
+                config.field_service_source_record_reads.get(id),
+                Some(crate::field_service_source_record::SourceRecordMode::Enforced)
+            ) && retry.as_ref().is_none_or(|target| target.holding == *id)
+        } else {
+            config.field_service_initial_counts.contains_key(id)
+        }
+    };
     for holding in &config.holdings {
         if selected(&holding.registration.holding_id) && holding.read_database.is_none() {
             return Err("COUNT_WORKER_DISTINCT_READ_DATABASE_REQUIRED");
         }
     }
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
-    let control_files = load_migrations(&root, MigrationTrack::Control).await.map_err(|_| "COUNT_WORKER_SCHEMA_UNAVAILABLE")?;
-    let write_files = load_migrations(&root, MigrationTrack::HoldingWrite).await.map_err(|_| "COUNT_WORKER_SCHEMA_UNAVAILABLE")?;
-    let read_files = load_migrations(&root, MigrationTrack::HoldingRead).await.map_err(|_| "COUNT_WORKER_SCHEMA_UNAVAILABLE")?;
-    let limits = PoolLimits { max_connections: 3, acquire_timeout: Duration::from_secs(5) };
-    let control = config.control.connect(limits).await.map_err(|_| "COUNT_WORKER_DATABASE_UNAVAILABLE")?;
+    let control_files = load_migrations(&root, MigrationTrack::Control)
+        .await
+        .map_err(|_| "COUNT_WORKER_SCHEMA_UNAVAILABLE")?;
+    let write_files = load_migrations(&root, MigrationTrack::HoldingWrite)
+        .await
+        .map_err(|_| "COUNT_WORKER_SCHEMA_UNAVAILABLE")?;
+    let read_files = load_migrations(&root, MigrationTrack::HoldingRead)
+        .await
+        .map_err(|_| "COUNT_WORKER_SCHEMA_UNAVAILABLE")?;
+    let limits = PoolLimits {
+        max_connections: 3,
+        acquire_timeout: Duration::from_secs(5),
+    };
+    let control = config
+        .control
+        .connect(limits)
+        .await
+        .map_err(|_| "COUNT_WORKER_DATABASE_UNAVAILABLE")?;
     let mut opened = vec![control.clone()];
     let mut worker_names = Vec::<String>::new();
     let run_id = uuid::Uuid::new_v4().simple().to_string();
@@ -4619,28 +6361,48 @@ async fn run_outbox_worker_file(path:&Path,shutdown:impl std::future::Future<Out
         let cancelled = tokio::time::timeout(Duration::from_secs(2),
             sqlx::query("SELECT pg_cancel_backend(pid) FROM pg_stat_activity WHERE application_name=ANY($1) AND usename=current_user AND backend_type='client backend' AND state='active' AND pid<>pg_backend_pid()")
                 .bind(&worker_names).fetch_all(control.raw())).await;
-        if !matches!(cancelled, Ok(Ok(_))) { return Err("COUNT_WORKER_QUERY_CANCEL_FAILED"); }
+        if !matches!(cancelled, Ok(Ok(_))) {
+            return Err("COUNT_WORKER_QUERY_CANCEL_FAILED");
+        }
     }
     tokio::time::timeout(Duration::from_secs(2), async {
-        for pool in opened { pool.close().await; }
-    }).await.map_err(|_| "COUNT_WORKER_CLOSE_TIMEOUT")?;
+        for pool in opened {
+            pool.close().await;
+        }
+    })
+    .await
+    .map_err(|_| "COUNT_WORKER_CLOSE_TIMEOUT")?;
     result
 }
 
-#[cfg(feature="files-scan-worker")]
+#[cfg(feature = "files-scan-worker")]
 mod field_files;
 
-#[cfg(feature="files-scan-worker")]
-pub async fn run_field_files_worker_file(path:&Path,shutdown:impl std::future::Future<Output=()>+Send)->Result<(), &'static str>{
-    run_field_files_worker_file_with_profile(path,shutdown,Profile::Development).await
+#[cfg(feature = "files-scan-worker")]
+pub async fn run_field_files_worker_file(
+    path: &Path,
+    shutdown: impl std::future::Future<Output = ()> + Send,
+) -> Result<(), &'static str> {
+    run_field_files_worker_file_with_profile(path, shutdown, Profile::Development).await
 }
-#[cfg(feature="files-scan-worker")]
-async fn run_field_files_worker_file_with_profile(path:&Path,shutdown:impl std::future::Future<Output=()>+Send,profile:Profile)->Result<(), &'static str>{
-    field_files::run_workers(DevelopmentApiConfiguration::read_configuration_file(path,profile)?,shutdown).await
+#[cfg(feature = "files-scan-worker")]
+async fn run_field_files_worker_file_with_profile(
+    path: &Path,
+    shutdown: impl std::future::Future<Output = ()> + Send,
+    profile: Profile,
+) -> Result<(), &'static str> {
+    field_files::run_workers(
+        DevelopmentApiConfiguration::read_configuration_file(path, profile)?,
+        shutdown,
+    )
+    .await
 }
-#[cfg(feature="files-scan-worker")]
-pub async fn run_production_files_worker_file(path:&Path,shutdown:impl std::future::Future<Output=()>+Send)->Result<(), &'static str>{
-    run_field_files_worker_file_with_profile(path,shutdown,Profile::Production).await
+#[cfg(feature = "files-scan-worker")]
+pub async fn run_production_files_worker_file(
+    path: &Path,
+    shutdown: impl std::future::Future<Output = ()> + Send,
+) -> Result<(), &'static str> {
+    run_field_files_worker_file_with_profile(path, shutdown, Profile::Production).await
 }
 
 /// Durable private production Field worker supervisor. Each worker claims its
@@ -4656,7 +6418,12 @@ pub async fn run_production_workers_file(
     if !config
         .field_service_source_record_reads
         .values()
-        .any(|mode| matches!(mode, crate::field_service_source_record::SourceRecordMode::Enforced))
+        .any(|mode| {
+            matches!(
+                mode,
+                crate::field_service_source_record::SourceRecordMode::Enforced
+            )
+        })
     {
         return Err("FIELD_WORKER_ENFORCED_SOURCE_TARGET_REQUIRED");
     }
