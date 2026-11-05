@@ -1639,6 +1639,7 @@ async fn assemble_checked(
         let mut handbook_targets = Vec::new();
         let mut learning_targets = Vec::new();
         let mut quality_targets = Vec::new();
+        let mut customer_360_targets = Vec::new();
         let mut crm_targets = Vec::new();
         let mut manage_erpx_targets = Vec::new();
         let mut platform_administration_targets = Vec::new();
@@ -1811,6 +1812,25 @@ async fn assemble_checked(
                             Arc::new(crate::quality::QualityService::new(
                                 authorizer.clone(),
                                 crate::quality::QualityConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
+                customer_360_targets.push(
+                    erpx_server_customer_360::public::customer_timeline_http::CustomerTimelineHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::customer_360::Customer360Backend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::customer_360::Customer360Service::new(
+                                authorizer.clone(),
+                                crate::customer_360::Customer360Configuration::new(
                                     holding.registration.holding_id.clone(),
                                     company.clone(),
                                 ),
@@ -2549,6 +2569,14 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_quality::public::quality_http::quality_router(quality_targets)
                     .map_err(|_| "PRIVATE_API_QUALITY_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !customer_360_targets.is_empty() {
+            router = router.merge(
+                erpx_server_customer_360::public::customer_timeline_http::customer_timeline_http_router(
+                    customer_360_targets,
+                )
+                .map_err(|_| "PRIVATE_API_CUSTOMER_360_CONFIGURATION_INVALID")?,
             );
         }
         if !crm_targets.is_empty() {
