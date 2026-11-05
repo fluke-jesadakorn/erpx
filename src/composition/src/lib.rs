@@ -55,6 +55,7 @@ pub mod brand_identity_http;
 pub mod crm;
 #[cfg(feature = "existing-business")]
 pub mod commerce;
+pub mod commercial;
 pub mod files;
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
 pub mod finance_bank_http;
