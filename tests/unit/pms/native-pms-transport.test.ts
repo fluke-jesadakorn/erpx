@@ -145,7 +145,7 @@ describe('native PMS room-board transport',()=>{
   const foreign=structuredClone(frontWorkspace);
   foreign.snapshot.property.companyId='other';
   const roomMeta=structuredClone(frontWorkspace);
-  roomMeta.snapshot.listMeta={...frontListMeta,kind:'room',section:'rooms',roomSummary:{total:1,active:1,dirty:0,clean:1,inspected:0,dnd:0,occupied:0}};
+  roomMeta.snapshot.listMeta={...frontListMeta,kind:'room',section:'rooms',roomSummary:{total:1,active:1,dirty:0,clean:1,inspected:0,dnd:0,occupied:0}} as typeof frontListMeta & {roomSummary:{total:number;active:number;dirty:number;clean:number;inspected:number;dnd:number;occupied:number}};
   const untrusted=structuredClone(frontWorkspace);
   untrusted.permissions.push('pms.reports');
   const missingMeta=structuredClone(frontWorkspace);
