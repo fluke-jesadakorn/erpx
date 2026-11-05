@@ -100,6 +100,7 @@ pub mod procurement;
 #[cfg(feature = "existing-business")]
 pub mod projects;
 pub mod billing;
+pub mod pos;
 pub mod quality;
 pub mod records;
 #[cfg(feature = "existing-business")]

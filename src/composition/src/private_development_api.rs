@@ -1640,6 +1640,7 @@ async fn assemble_checked(
         let mut learning_targets = Vec::new();
         let mut quality_targets = Vec::new();
         let mut billing_targets = Vec::new();
+        let mut pos_targets = Vec::new();
         let mut commercial_targets = Vec::new();
         let mut commerce_targets = Vec::new();
         let mut customer_360_targets = Vec::new();
@@ -1836,6 +1837,25 @@ async fn assemble_checked(
                             Arc::new(crate::billing::BillingService::new(
                                 authorizer.clone(),
                                 crate::billing::BillingConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
+                pos_targets.push(
+                    erpx_server_pos::public::cash_movement_http::CashMovementHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::pos::PosBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::pos::PosService::new(
+                                authorizer.clone(),
+                                crate::pos::PosConfiguration::new(
                                     holding.registration.holding_id.clone(),
                                     company.clone(),
                                 ),
@@ -2675,6 +2695,12 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_billing::public::billing_http::billing_router(billing_targets)
                     .map_err(|_| "PRIVATE_API_BILLING_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !pos_targets.is_empty() {
+            router = router.merge(
+                erpx_server_pos::public::cash_movement_http::cash_movement_router(pos_targets)
+                    .map_err(|_| "PRIVATE_API_POS_CONFIGURATION_INVALID")?,
             );
         }
         if !commercial_targets.is_empty() {
