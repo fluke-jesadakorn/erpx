@@ -1,5 +1,16 @@
 # ERPX — Rust and Next.js capability integration
 
+## Multi-agent native migration execution — 2026-11-05
+
+The user directed the native migration to close all 41 owners/206 catalogue workflows as fast as possible with one primary agent plus six Beam Free subagents (four owners, one reviewer, one verification; seven total, no further spawning), pushed directly to `origin/codex/rust-backend-migration` without PRs. The main checkout now runs detached at the pushed candidate; `development` is untouched. All roles use `opencode/beam-free` (verified via the models catalogue; cost 0; no paid fallback, no key printing, no probe requests). On HTTP 429 the six roles stay open but requests pause per the provider `Retry-After`/reset; where absent, backoff 30→60→120→300 seconds plus jitter; quota exhaustion waits for reset. No limit evasion, no extra spawning.
+
+- Candidate history pushed to `origin/codex/rust-backend-migration`: `84d3a4ae9` (Finance production composition gated at source preparation with `FINANCE_PRODUCTION_RELEASE_REQUIRED`; Finance routes mount under the configured environment; every production command/read fails closed until an accepted Company production release exists — Finance-owner dependency, by contract) and `1afbd1f40` (bounded CRM account/activity owner checkpoint; CRM remains partial; TS runtime authoritative).
+- Finance handoffs/production composition are verified against the Finance contract; the dependency owner is not moved wholesale and no Finance owner scope ships in this batch. Field workflows keep the existing Count/Parts/Files/jobs/evidence; no requalification or acceptance is claimed.
+- Shared files (root `Cargo.toml`/`Cargo.lock`, `src/composition`, registers, catalogues, contracts, docs/status, gateway, shared packages) are main-owned. Owners work only their `packages/server-<owner>`, `packages/feature-<owner>`, their tests and owner-local docs; they report shared-file needs. Main alone commits and pushes to `origin/codex/rust-backend-migration`; no force-push; remote SHA verified after each push.
+- Resource guards: at most one heavy build/link/Next build and one PostgreSQL/browser run at a time; local checks proceed while API waits; queue API separately from heavy work.
+- Owner assignments (independent of the Field/Finance critical path): CRM (continue the committed checkpoint), Operations, Quality, Procurement. Reviewer checks frozen diffs; verification organizes checks/DB/browser and reports; neither edits owner files.
+- Completion still requires all 41 owners/206 workflows, frontend/PDF/legacy retirement/final native integration/handoff, and a verified push; Docker/Dev Container/production preparation/performance/restore/rollback remain after this Goal. End-of-work availability keeps 3100/public dev hosts/SSO/PostgreSQL unchanged; staging and private production untouched.
+
 ## Browser fixture activation recovery — 2026-11-05
 
 The native provider writes `fixture.json.seed` and consumes activation JSON on stdin; it does not produce `fixture-activation.json`. Use `ERPX_COHORT_AUTO_SEED=1` with the existing fixture launcher to bundle and execute the guarded Company/actor seed, then relay its actual activation. Do not send textual guesses such as `activate` or restart a provider against already seeded databases.
