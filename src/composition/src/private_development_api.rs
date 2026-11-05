@@ -1639,6 +1639,7 @@ async fn assemble_checked(
         let mut handbook_targets = Vec::new();
         let mut learning_targets = Vec::new();
         let mut quality_targets = Vec::new();
+        let mut commerce_targets = Vec::new();
         let mut customer_360_targets = Vec::new();
         let mut customer_authority_targets = Vec::new();
         let mut ecommerce_targets = Vec::new();
@@ -1814,6 +1815,25 @@ async fn assemble_checked(
                             Arc::new(crate::quality::QualityService::new(
                                 authorizer.clone(),
                                 crate::quality::QualityConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
+                commerce_targets.push(
+                    erpx_server_commerce::public::order_http::CommerceOrderHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::commerce::CommerceBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::commerce::CommerceService::new(
+                                authorizer.clone(),
+                                crate::commerce::CommerceConfiguration::new(
                                     holding.registration.holding_id.clone(),
                                     company.clone(),
                                 ),
@@ -2609,6 +2629,12 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_quality::public::quality_http::quality_router(quality_targets)
                     .map_err(|_| "PRIVATE_API_QUALITY_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !commerce_targets.is_empty() {
+            router = router.merge(
+                erpx_server_commerce::public::order_http::commerce_order_http_router(commerce_targets)
+                    .map_err(|_| "PRIVATE_API_COMMERCE_CONFIGURATION_INVALID")?,
             );
         }
         if !customer_360_targets.is_empty() {
