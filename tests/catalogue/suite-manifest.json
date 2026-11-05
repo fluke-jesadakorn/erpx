@@ -50830,13 +50830,79 @@
       },
       "ci": {
         "critical": true,
-        "reason": "Native Procurement supplier-promise reads retain Company scope, persisted readback and serializable transaction guards."
+        "reason": "Native Procurement supplier-promise command retains source, idempotency replay/conflict, CAS, insert, audit/outbox, readback, rollback, serializable guard and Company isolation."
       },
       "framework": "cargo",
       "cargo": {
         "package": "erpx-server-procurement",
         "targets": [
           "supplier_promise_history_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-procurement/Cargo.toml"
+      ]
+    },
+    {
+      "id": "procurement.rust-supplier-promise-command.unit",
+      "lane": "unit",
+      "owner": "procurement",
+      "modules": [
+        "procurement"
+      ],
+      "files": [
+        "tests/unit/procurement/rust-supplier-promise-command.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Procurement supplier-promise command retains request validation, authority, idempotency fingerprint and persisted readback shape."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-procurement",
+        "targets": [
+          "supplier_promise_command"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-procurement/Cargo.toml"
+      ]
+    },
+    {
+      "id": "procurement.rust-supplier-promise-command-postgres.integration",
+      "lane": "integration",
+      "owner": "procurement",
+      "modules": [
+        "procurement"
+      ],
+      "files": [
+        "tests/integration/procurement/rust-supplier-promise-command-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Procurement supplier-promise command retains source, idempotency replay/conflict, CAS, insert, audit/outbox, readback, rollback, serializable guard and Company isolation."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-procurement",
+        "targets": [
+          "supplier_promise_command_postgres"
         ]
       },
       "verificationInputs": [
