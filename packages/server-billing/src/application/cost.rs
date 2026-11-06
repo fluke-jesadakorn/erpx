@@ -10,9 +10,9 @@ use crate::domain::actor::BillingActor;
 use crate::domain::command::{
     BillingCostCommand, CommandReceipt, ValidatedCostCommand, ValidatedCostDraft, account_required,
     command_identity, cost_frozen, holding_not_found, idempotency_conflict, invalid_evidence,
-    invalid_original, parse_receipt_result, period_required, readback_invalid, receipt_replay,
-    result_json, source_invalid, valid_hash, validate_complete_readback, validate_period_dates,
-    version_conflict,
+    invalid_original, js_trim, parse_receipt_result, period_required, readback_invalid,
+    receipt_replay, result_json, source_invalid, valid_hash, validate_complete_readback,
+    validate_period_dates, version_conflict,
 };
 use crate::domain::workspace::{BillingCostView, BillingPeriodView};
 use erpx_server_shared::public::{BusinessError, HoldingId, TimestampMillis};
@@ -285,7 +285,7 @@ pub async fn execute_cost_command<R: BillingCostCommandRepository>(
                 actor,
                 target,
                 action: command.action(),
-                reason: command.reason().trim(),
+                reason: js_trim(command.reason()),
                 details_json: &details,
             },
             now,
@@ -326,26 +326,26 @@ fn command_details(command: &BillingCostCommand) -> String {
     match command {
         BillingCostCommand::Record(command) => serde_json::json!({
             "version": command.expected_version,
-            "reason": command.reason.trim(),
+            "reason": js_trim(&command.reason),
             "periodId": command.period_id.as_str(),
             "costId": command.cost_id.as_ref().map(|id| id.as_str()),
             "category": command.category.as_str(),
             "amountSatang": command.amount_satang,
             "serviceStart": command.service_start,
             "serviceEnd": command.service_end,
-            "note": command.note.trim(),
+            "note": js_trim(&command.note),
             "simulated": command.simulated,
             "evidenceId": command.evidence_id.as_ref().map(|id| id.as_str()),
             "originalInvoiceId": command.original_invoice_id.as_ref().map(|id| id.as_str()),
         }),
         BillingCostCommand::Delete(command) => serde_json::json!({
             "version": command.expected_version,
-            "reason": command.reason.trim(),
+            "reason": js_trim(&command.reason),
             "costId": command.cost_id.as_str(),
         }),
         BillingCostCommand::Complete(command) => serde_json::json!({
             "version": command.expected_version,
-            "reason": command.reason.trim(),
+            "reason": js_trim(&command.reason),
             "periodId": command.period_id.as_str(),
             "complete": command.complete,
         }),

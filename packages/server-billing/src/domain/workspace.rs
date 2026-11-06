@@ -148,13 +148,19 @@ pub fn source_invalid() -> BusinessError {
     )
 }
 
+/// Zod `string.length` counts JavaScript UTF-16 code units, not UTF-8
+/// bytes. Command-persisted text (Thai/astral) must pass read validation.
+fn utf16_len(value: &str) -> usize {
+    value.encode_utf16().count()
+}
+
 fn valid_text(value: &str, maximum: usize) -> bool {
-    !value.is_empty() && value.len() <= maximum && !value.chars().any(char::is_control)
+    !value.is_empty() && utf16_len(value) <= maximum && !value.chars().any(char::is_control)
 }
 
 fn valid_line_text(value: &str, maximum: usize) -> bool {
     !value.is_empty()
-        && value.len() <= maximum
+        && utf16_len(value) <= maximum
         && !value
             .chars()
             .any(|character| character.is_control() && !matches!(character, '\n' | '\r' | '\t'))

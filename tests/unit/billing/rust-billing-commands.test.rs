@@ -676,3 +676,115 @@ fn fails_closed_on_readback_audit_and_receipt_loss() {
         "KEY_CONFLICT"
     );
 }
+
+#[test]
+fn reason_counts_js_utf16_units_not_utf8_bytes_or_scalars() {
+    // 1000 Thai scalars: 1000 UTF-16 units (allowed), 3000 bytes.
+    let mut thai = record();
+    thai.reason = "ก".repeat(1000);
+    let mut probe = Probe::default();
+    run_with(BillingCostCommand::Record(thai), &admin(), &mut probe).unwrap();
+
+    // 1001 Thai scalars exceed the JS max.
+    let mut over = record();
+    over.reason = "ก".repeat(1001);
+    let mut probe = Probe::default();
+    assert_eq!(
+        run_with(BillingCostCommand::Record(over), &admin(), &mut probe)
+            .unwrap_err()
+            .code,
+        "BILLING_REQUEST_INVALID"
+    );
+    assert!(probe.calls.is_empty());
+
+    // 500 astral scalars: 1000 UTF-16 units, 2000 bytes.
+    let mut astral = record();
+    astral.reason = "😀".repeat(500);
+    let mut probe = Probe::default();
+    run_with(BillingCostCommand::Record(astral), &admin(), &mut probe).unwrap();
+
+    // Two astral scalars count 4 UTF-16 units, so they pass the 3-unit
+    // minimum where a scalar count would reject them.
+    let mut short_astral = record();
+    short_astral.reason = "😀😀".into();
+    let mut probe = Probe::default();
+    run_with(
+        BillingCostCommand::Record(short_astral),
+        &admin(),
+        &mut probe,
+    )
+    .unwrap();
+}
+
+#[test]
+fn note_counts_js_utf16_units_not_utf8_bytes() {
+    // 2000 Thai scalars: 2000 UTF-16 units (allowed), 6000 bytes.
+    let mut thai = record();
+    thai.note = "ก".repeat(2000);
+    let mut probe = Probe {
+        readback: Some(BillingCostView {
+            note: thai.note.clone(),
+            ..readback()
+        }),
+        ..Probe::default()
+    };
+    run_with(BillingCostCommand::Record(thai), &admin(), &mut probe).unwrap();
+
+    let mut over = record();
+    over.note = "ก".repeat(2001);
+    let mut probe = Probe::default();
+    assert_eq!(
+        run_with(BillingCostCommand::Record(over), &admin(), &mut probe)
+            .unwrap_err()
+            .code,
+        "BILLING_REQUEST_INVALID"
+    );
+    assert!(probe.calls.is_empty());
+
+    // 1000 astral scalars: 2000 UTF-16 units, 4000 bytes.
+    let mut astral = record();
+    astral.note = "😀".repeat(1000);
+    let mut probe = Probe {
+        readback: Some(BillingCostView {
+            note: astral.note.clone(),
+            ..readback()
+        }),
+        ..Probe::default()
+    };
+    run_with(BillingCostCommand::Record(astral), &admin(), &mut probe).unwrap();
+}
+
+#[test]
+fn trims_feff_but_not_nel_like_javascript() {
+    // JS trim strips ZWNBSP (U+FEFF): the note normalizes and the
+    // identity matches the unpadded text.
+    let mut padded = record();
+    padded.note = "\u{FEFF}Provider hosting\u{FEFF}".into();
+    padded.reason = "\u{FEFF}Reviewed actual cost\u{FEFF}".into();
+    let mut probe = Probe::default();
+    run_with(
+        BillingCostCommand::Record(padded.clone()),
+        &admin(),
+        &mut probe,
+    )
+    .unwrap();
+    assert_eq!(probe.inserted.as_ref().unwrap().note, "Provider hosting");
+    assert_eq!(
+        command_identity(&admin(), &target(), &BillingCostCommand::Record(record())),
+        command_identity(&admin(), &target(), &BillingCostCommand::Record(padded))
+    );
+
+    // JS trim does not strip NEL (U+0085): those units count toward the
+    // length and remain a control character, so Rust must reject rather
+    // than trim and accept.
+    let mut nel = record();
+    nel.reason = format!("\u{0085}{}", "x".repeat(1000));
+    let mut probe = Probe::default();
+    assert_eq!(
+        run_with(BillingCostCommand::Record(nel), &admin(), &mut probe)
+            .unwrap_err()
+            .code,
+        "BILLING_REQUEST_INVALID"
+    );
+    assert!(probe.calls.is_empty());
+}

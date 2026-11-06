@@ -6,8 +6,8 @@
 use super::actor::EcommerceActor;
 use super::command::{
     CONFIGURATION_LIMIT, CommandReceipt, EcommerceReceipt, command_identity, idempotency_conflict,
-    parse_receipt_result, readback_invalid, request_invalid, source_invalid, valid_configuration,
-    valid_hash, valid_text,
+    js_trim, parse_receipt_result, readback_invalid, request_invalid, source_invalid, utf16_len,
+    valid_configuration, valid_hash, valid_text,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey};
 use serde::Serialize;
@@ -61,8 +61,8 @@ fn valid_channel_type(value: &str) -> bool {
 
 impl CreateChannel {
     pub fn validate(&self) -> Result<ValidatedChannel, BusinessError> {
-        let name = self.name.trim();
-        let name_len = name.chars().count();
+        let name = js_trim(&self.name);
+        let name_len = utf16_len(name);
         if !(NAME_MIN..=NAME_MAX).contains(&name_len)
             || !valid_text(name, NAME_MAX)
             || !valid_channel_type(&self.channel_type)

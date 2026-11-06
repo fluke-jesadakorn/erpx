@@ -5,8 +5,8 @@
 use crate::domain::requisition::{
     ChangePlan, CreatePlan, MAX_EVENT_ROWS, MAX_WORKSPACE_ROWS, ReceiptSnapshot, RequisitionChange,
     RequisitionEventRow, RequisitionReceipt, RequisitionRequest, RequisitionRow, TalentActor,
-    access_changed, change_identity, change_plan, create_identity, create_plan,
-    idempotency_conflict, readback_invalid, requisition_not_found, source_invalid,
+    access_changed, change_identity, change_plan, create_identity, create_plan, js_trim,
+    idempotency_conflict, readback_invalid, requisition_not_found, source_invalid, utf16_len,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, RecordId};
 use serde_json::Value;
@@ -74,12 +74,12 @@ fn validate_events(rows: Vec<RequisitionEventRow>) -> Result<Vec<Value>, Busines
     for row in rows {
         if row.version <= previous
             || row.version > 1_000_000
-            || row.action.trim().is_empty()
-            || row.action.len() > 200
+            || js_trim(&row.action).is_empty()
+            || utf16_len(&row.action) > 200
             || row.actor_id.is_empty()
-            || row.reason.trim().is_empty()
-            || row.reason.len() > crate::domain::requisition::MAX_REASON
-            || row.status.trim().is_empty()
+            || js_trim(&row.reason).is_empty()
+            || utf16_len(&row.reason) > crate::domain::requisition::MAX_REASON
+            || js_trim(&row.status).is_empty()
             || row.created_at < 0
         {
             return Err(source_invalid());

@@ -842,3 +842,153 @@ fn review_rejects_stale_source_cas_loss_and_bad_readback() {
         "ECOMMERCE_SOURCE_INVALID"
     );
 }
+
+#[test]
+fn channel_name_uses_js_trim_and_utf16_length_parity() {
+    let validate = |name: String| {
+        CreateChannel {
+            name,
+            ..create_command()
+        }
+        .validate()
+        .map(|validated| validated.name)
+        .map_err(|error| error.code)
+    };
+    // 160 Thai scalars: 160 UTF-16 units (allowed), 480 UTF-8 bytes.
+    assert_eq!(validate("ก".repeat(160)), Ok("ก".repeat(160)));
+    assert_eq!(validate("ก".repeat(161)), Err("ECOMMERCE_REQUEST_INVALID"));
+    // One astral scalar is 2 UTF-16 units, so it meets the JS minimum of 2.
+    assert_eq!(validate("😀".to_owned()), Ok("😀".to_owned()));
+    // 80 astral scalars: 160 UTF-16 units; 81 would be 162.
+    assert!(validate("😀".repeat(80)).is_ok());
+    assert!(validate("😀".repeat(81)).is_err());
+    // JS trim strips ZWNBSP (U+FEFF); Rust trim does not.
+    assert_eq!(
+        validate("\u{FEFF}ab\u{FEFF}".to_owned()),
+        Ok("ab".to_owned())
+    );
+    assert!(validate("\u{FEFF}a\u{FEFF}".to_owned()).is_err());
+    assert_eq!(
+        validate("  Storefront  ".to_owned()),
+        Ok("Storefront".to_owned())
+    );
+}
+
+#[test]
+fn review_reason_uses_js_trim_and_utf16_length_parity() {
+    let validate = |reason: String| {
+        ReviewCommand {
+            reason,
+            ..review(ReviewKind::Channel, ReviewAction::Activate)
+        }
+        .validate()
+        .map(|validated| validated.reason)
+        .map_err(|error| error.code)
+    };
+    // 2000 Thai scalars: 2000 UTF-16 units (allowed), 6000 UTF-8 bytes.
+    assert_eq!(validate("ก".repeat(2000)), Ok("ก".repeat(2000)));
+    assert_eq!(validate("ก".repeat(2001)), Err("ECOMMERCE_REQUEST_INVALID"));
+    // Astral text: 2 scalars are 4 UTF-16 units (pass the 3-unit minimum),
+    // while 1 scalar is 2 units and must fail.
+    assert_eq!(validate("😀😀".to_owned()), Ok("😀😀".to_owned()));
+    assert!(validate("😀".to_owned()).is_err());
+    // JS trim strips ZWNBSP padding before the length check.
+    assert_eq!(
+        validate("\u{FEFF}abc\u{FEFF}".to_owned()),
+        Ok("abc".to_owned())
+    );
+    assert!(validate("\u{FEFF}ab\u{FEFF}".to_owned()).is_err());
+    assert_eq!(
+        validate("  Independent review  ".to_owned()),
+        Ok("Independent review".to_owned())
+    );
+}
+
+#[test]
+fn catalog_text_uses_utf16_length_and_js_trim_for_stored_rows() {
+    let mut thai_channel = CatalogProbe {
+        channels: vec![EcommerceChannelRow {
+            name: "ก".repeat(160),
+            ..channel()
+        }],
+        listings: vec![listing()],
+        calls: vec![],
+    };
+    assert!(run_catalog(&mut thai_channel, &actor()).is_ok());
+
+    let mut oversized_channel = CatalogProbe {
+        channels: vec![EcommerceChannelRow {
+            name: "ก".repeat(161),
+            ..channel()
+        }],
+        listings: vec![listing()],
+        calls: vec![],
+    };
+    assert_eq!(
+        run_catalog(&mut oversized_channel, &actor())
+            .unwrap_err()
+            .code,
+        "ECOMMERCE_SOURCE_INVALID"
+    );
+
+    let mut astral_channel = CatalogProbe {
+        channels: vec![EcommerceChannelRow {
+            name: "😀".repeat(80),
+            ..channel()
+        }],
+        listings: vec![listing()],
+        calls: vec![],
+    };
+    assert!(run_catalog(&mut astral_channel, &actor()).is_ok());
+
+    let mut thai_listing = CatalogProbe {
+        channels: vec![channel()],
+        listings: vec![EcommerceListingRow {
+            title: "ก".repeat(200),
+            ..listing()
+        }],
+        calls: vec![],
+    };
+    assert!(run_catalog(&mut thai_listing, &actor()).is_ok());
+
+    let mut oversized_listing = CatalogProbe {
+        channels: vec![channel()],
+        listings: vec![EcommerceListingRow {
+            title: "ก".repeat(201),
+            ..listing()
+        }],
+        calls: vec![],
+    };
+    assert_eq!(
+        run_catalog(&mut oversized_listing, &actor())
+            .unwrap_err()
+            .code,
+        "ECOMMERCE_SOURCE_INVALID"
+    );
+
+    // A stored name/title of only ZWNBSP is empty after JS trim.
+    let mut feff_channel = CatalogProbe {
+        channels: vec![EcommerceChannelRow {
+            name: "\u{FEFF}".to_owned(),
+            ..channel()
+        }],
+        listings: vec![listing()],
+        calls: vec![],
+    };
+    assert_eq!(
+        run_catalog(&mut feff_channel, &actor()).unwrap_err().code,
+        "ECOMMERCE_SOURCE_INVALID"
+    );
+    let mut feff_listing = CatalogProbe {
+        channels: vec![channel()],
+        listings: vec![EcommerceListingRow {
+            title: "\u{FEFF}".to_owned(),
+            ..listing()
+        }],
+        calls: vec![],
+    };
+    assert_eq!(
+        run_catalog(&mut feff_listing, &actor()).unwrap_err().code,
+        "ECOMMERCE_SOURCE_INVALID"
+    );
+}

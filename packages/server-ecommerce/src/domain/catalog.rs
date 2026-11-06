@@ -7,7 +7,7 @@
 //! for the candidate options used by create forms.
 use super::actor::EcommerceActor;
 use super::command::{
-    source_invalid, valid_configuration, valid_currency, valid_identifier, valid_text,
+    js_trim, source_invalid, valid_configuration, valid_currency, valid_identifier, valid_text,
 };
 use erpx_server_shared::public::{BusinessError, FailureKind, TimestampMillis};
 use serde::Serialize;
@@ -87,7 +87,7 @@ impl EcommerceChannelRow {
         if self.company_id != actor.company_id.as_str()
             || !valid_identifier(&self.id)
             || !valid_text(&self.name, NAME_LIMIT)
-            || self.name.trim().is_empty()
+            || js_trim(&self.name).is_empty()
             || !valid_channel_type(&self.channel_type)
             || !valid_configuration(&self.configuration_json)
             || !valid_channel_status(&self.status)
@@ -111,7 +111,7 @@ impl EcommerceListingRow {
             || self.channel_id != channel.id
             || !valid_identifier(&self.product_id)
             || !valid_text(&self.title, TITLE_LIMIT)
-            || self.title.trim().is_empty()
+            || js_trim(&self.title).is_empty()
             || !valid_currency(&self.currency)
             || self.price_minor < 0
             || !valid_listing_status(&self.status)

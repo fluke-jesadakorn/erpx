@@ -238,8 +238,39 @@ pub struct ValidatedChange {
     pub reason: String,
 }
 
+/// ECMAScript `String.prototype.trim` whitespace: WhiteSpace plus
+/// LineTerminator. Rust's `str::trim` additionally strips U+0085 NEL
+/// (Unicode White_Space, not JavaScript whitespace) and keeps U+FEFF, so
+/// the exact set is spelled out to match the retained Zod `trim()`
+/// boundary of the Talent requisition schema.
+pub(crate) fn js_trim(value: &str) -> &str {
+    value.trim_matches(|c: char| {
+        matches!(
+            c,
+            '\u{0009}'..='\u{000d}'
+                | '\u{0020}'
+                | '\u{00a0}'
+                | '\u{1680}'
+                | '\u{2000}'..='\u{200a}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202f}'
+                | '\u{205f}'
+                | '\u{3000}'
+                | '\u{feff}'
+        )
+    })
+}
+
+/// Zod string limits count UTF-16 code units (`String.length`), not Unicode
+/// scalar values or UTF-8 bytes, so Thai text (3 bytes, 1 unit) and astral
+/// text (surrogate pairs) match the retained schema boundary.
+pub(crate) fn utf16_len(value: &str) -> usize {
+    value.encode_utf16().count()
+}
+
 fn valid_text(value: &str, max: usize) -> bool {
-    value.len() <= max && !value.chars().any(char::is_control)
+    utf16_len(value) <= max && !value.chars().any(char::is_control)
 }
 
 fn valid_date(value: &str) -> bool {
@@ -278,8 +309,8 @@ pub fn normalize_text(
     minimum: usize,
     maximum: usize,
 ) -> Result<String, BusinessError> {
-    let text = value.trim();
-    let length = text.chars().count();
+    let text = js_trim(value);
+    let length = utf16_len(text);
     if length < minimum || length > maximum || !valid_text(text, maximum) {
         return Err(request_invalid());
     }
@@ -338,9 +369,9 @@ impl RequisitionRow {
             || self.branch_id.is_empty()
             || self.created_by.is_empty()
             || self.job_title.is_empty()
-            || self.job_title.len() > MAX_TITLE
+            || utf16_len(&self.job_title) > MAX_TITLE
             || self.description.is_empty()
-            || self.description.len() > MAX_DESCRIPTION
+            || utf16_len(&self.description) > MAX_DESCRIPTION
             || !(1..=MAX_OPENINGS).contains(&self.openings)
             || !valid_date(&self.target_start_date)
             || self.version < 1

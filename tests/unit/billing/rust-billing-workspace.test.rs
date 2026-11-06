@@ -335,3 +335,32 @@ fn returns_the_exact_bounded_current_holding_workspace() {
     assert_eq!(workspace.jobs[0].state, "pending");
     assert_eq!(workspace.legacy.as_ref().unwrap().status, "active");
 }
+
+#[test]
+fn cost_note_and_audit_reason_count_js_utf16_units_not_utf8_bytes() {
+    // 2000 Thai scalars in the note and 1000 in the audit reason:
+    // 2000/1000 UTF-16 units (allowed), 6000/3000 bytes.
+    let mut rows = valid_rows();
+    rows.costs[0].note = "ก".repeat(2000);
+    rows.audit[0].reason = "ก".repeat(1000);
+    assert!(result(&owner(), rows).is_ok());
+
+    let mut rows = valid_rows();
+    rows.costs[0].note = "ก".repeat(2001);
+    assert_eq!(
+        result(&owner(), rows).unwrap_err().code,
+        "BILLING_SOURCE_INVALID"
+    );
+
+    let mut rows = valid_rows();
+    rows.audit[0].reason = "ก".repeat(1001);
+    assert_eq!(
+        result(&owner(), rows).unwrap_err().code,
+        "BILLING_SOURCE_INVALID"
+    );
+
+    // 1000 astral scalars: 2000 UTF-16 units, 4000 bytes.
+    let mut rows = valid_rows();
+    rows.costs[0].note = "😀".repeat(1000);
+    assert!(result(&owner(), rows).is_ok());
+}

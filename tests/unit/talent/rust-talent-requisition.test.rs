@@ -3,10 +3,11 @@ use erpx_server_shared::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId, UserId,
 };
 use erpx_server_talent::public::requisition::{
-    ChangePlan, CreatePlan, ReceiptSnapshot, RequisitionAction, RequisitionChange,
-    RequisitionEventRow, RequisitionFuture, RequisitionReceipt, RequisitionRequest, RequisitionRow,
-    TalentActor, TalentRequisitionCommandRepository, TalentRequisitionReadRepository,
-    change_requisition, create_requisition, requisition_detail, requisition_workspace,
+    ChangePlan, CreatePlan, MAX_DESCRIPTION, MAX_REASON, MAX_TITLE, ReceiptSnapshot,
+    RequisitionAction, RequisitionChange, RequisitionEventRow, RequisitionFuture,
+    RequisitionReceipt, RequisitionRequest, RequisitionRow, TalentActor,
+    TalentRequisitionCommandRepository, TalentRequisitionReadRepository, change_requisition,
+    create_requisition, normalize_text, requisition_detail, requisition_workspace,
 };
 use serde_json::Value;
 use std::sync::Mutex;
@@ -830,4 +831,68 @@ async fn commit_failure_returns_the_owner_failure_for_exact_retry() {
             .unwrap()["version"],
         1
     );
+}
+
+#[tokio::test]
+async fn requisition_text_bounds_use_utf16_units_after_ecma_trim() {
+    // Astral code points count as two UTF-16 units, as in the retained Zod
+    // schema: one emoji meets the title minimum of 2, 80 meet the maximum
+    // of 160 and 81 exceed it.
+    assert!(normalize_text("😀", 2, MAX_TITLE).is_ok());
+    assert!(normalize_text(&"😀".repeat(80), 2, MAX_TITLE).is_ok());
+    assert!(normalize_text(&"😀".repeat(81), 2, MAX_TITLE).is_err());
+    // BMP text counts one unit per code point regardless of UTF-8 width:
+    // 160 accented units are 320 bytes, 3,000 Thai units are 9,000 bytes.
+    assert!(normalize_text(&"é".repeat(160), 2, MAX_TITLE).is_ok());
+    assert!(normalize_text(&"é".repeat(161), 2, MAX_TITLE).is_err());
+    assert!(normalize_text(&"ก".repeat(3_000), 3, MAX_DESCRIPTION).is_ok());
+    assert!(normalize_text(&"ก".repeat(3_001), 3, MAX_DESCRIPTION).is_err());
+    // The ECMAScript trim set trims U+FEFF but not U+0085 NEL, unlike
+    // Rust's Unicode White_Space trim.
+    assert_eq!(
+        normalize_text("\u{feff}ab\u{feff}", 2, MAX_TITLE).unwrap(),
+        "ab"
+    );
+    assert_eq!(
+        normalize_text("\u{00a0} Service specialist \u{3000}", 2, MAX_TITLE).unwrap(),
+        "Service specialist"
+    );
+    assert!(normalize_text(&format!("\u{feff}{}", "a".repeat(160)), 2, MAX_TITLE).is_ok());
+    assert!(normalize_text(&format!("\u{0085}{}", "a".repeat(160)), 2, MAX_TITLE).is_err());
+    // Change reasons use the same units and ECMAScript trim.
+    assert!(normalize_text(&"😀".repeat(1_500), 3, MAX_REASON).is_ok());
+    assert!(normalize_text(&"😀".repeat(1_501), 3, MAX_REASON).is_err());
+    // Interior controls remain rejected.
+    assert!(normalize_text("ab\u{0007}cd", 2, MAX_TITLE).is_err());
+
+    // End to end: an emoji-only title commits verbatim through the owner.
+    let mut fake = Fake::ready();
+    let result = create_requisition(
+        &mut fake,
+        &writer(),
+        &key(KEY),
+        &RequisitionRequest {
+            job_title: "😀".into(),
+            openings: 1,
+            target_start_date: "2026-11-01".into(),
+            description: "abc".into(),
+        },
+        NOW,
+    )
+    .await
+    .unwrap();
+    assert_eq!(result["status"], "draft");
+    assert!(fake.committed()[0].contains("|😀|"));
+
+    // Persisted source rows validate by UTF-16 units, not UTF-8 bytes.
+    let mut fake = Fake::ready();
+    fake.rows = vec![RequisitionRow {
+        job_title: "é".repeat(160),
+        ..row("talent-req-1", "draft", 1)
+    }];
+    fake.row = Some(fake.rows[0].clone());
+    let value = requisition_workspace(&mut fake, &writer(), NOW)
+        .await
+        .unwrap();
+    assert_eq!(value["requisitions"][0]["job_title"], "é".repeat(160));
 }

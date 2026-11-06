@@ -85,8 +85,37 @@ pub fn valid_identifier(value: &str) -> bool {
     RecordId::new(value).is_ok()
 }
 
+/// ECMAScript `String.prototype.trim` whitespace: White_Space plus
+/// Line_Terminator. Rust's `str::trim` additionally strips U+0085 (White_Space
+/// in Unicode but not in JavaScript `trim`) and keeps U+FEFF, so the exact
+/// set is spelled out to match the retained Zod `trim()` boundary.
+pub(crate) fn js_trim(value: &str) -> &str {
+    value.trim_matches(|c| {
+        matches!(c,
+            '\u{0009}'..='\u{000d}'
+                | '\u{0020}'
+                | '\u{00a0}'
+                | '\u{1680}'
+                | '\u{2000}'..='\u{200a}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202f}'
+                | '\u{205f}'
+                | '\u{3000}'
+                | '\u{feff}')
+    })
+}
+
+/// Zod string limits count UTF-16 code units (`String.length`), not UTF-8
+/// bytes or Unicode scalar values. Thai text (3 bytes, 1 unit) and astral
+/// text (surrogate pairs) must be measured the way the retained TypeScript
+/// gateway measures them.
+pub(crate) fn utf16_len(value: &str) -> usize {
+    value.encode_utf16().count()
+}
+
 pub fn valid_text(value: &str, limit: usize) -> bool {
-    !value.is_empty() && value.len() <= limit && !value.chars().any(char::is_control)
+    !value.is_empty() && utf16_len(value) <= limit && !value.chars().any(char::is_control)
 }
 
 pub fn valid_currency(value: &str) -> bool {

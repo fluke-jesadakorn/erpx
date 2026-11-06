@@ -439,3 +439,66 @@ fn bounded_register_limits_are_enforced() {
         "MANUFACTURING_BOM_LIMIT"
     );
 }
+
+#[test]
+fn text_limits_count_utf16_units_with_js_trim_edges() {
+    // 41 non-BMP characters are 82 UTF-16 code units (within the 160-unit
+    // name limit) but 164 UTF-8 bytes, so this passes only with UTF-16
+    // length parity.
+    let mut name_at_limit = specification();
+    name_at_limit.name = "😀".repeat(41);
+    assert!(validate_register(&actor(), vec![name_at_limit]).is_ok());
+
+    // 81 emoji exceed the 160-unit name limit even though code-point
+    // counting would accept them.
+    let mut name_over_limit = specification();
+    name_over_limit.name = "😀".repeat(81);
+    assert_eq!(
+        validate_register(&actor(), vec![name_over_limit])
+            .unwrap_err()
+            .code,
+        "MANUFACTURING_BOM_SOURCE_INVALID"
+    );
+
+    // U+FEFF is trimmed by ECMAScript trim but not by Rust trim; a value with
+    // a leading zero-width no-break space must fail the edge check.
+    let mut bom_prefix = specification();
+    bom_prefix.name = "\u{feff}Bounded assembly".to_owned();
+    assert_eq!(
+        validate_register(&actor(), vec![bom_prefix])
+            .unwrap_err()
+            .code,
+        "MANUFACTURING_BOM_SOURCE_INVALID"
+    );
+
+    // A lone U+FEFF substitution group is trimmed to empty by ECMAScript
+    // trim, so the minimum-length/edge checks must reject it.
+    let mut feff_group = specification();
+    feff_group.lines[0].substitution_group = Some("\u{feff}".to_owned());
+    assert_eq!(
+        validate_register(&actor(), vec![feff_group])
+            .unwrap_err()
+            .code,
+        "MANUFACTURING_BOM_SOURCE_INVALID"
+    );
+
+    // U+00A0 trailing whitespace still fails the JS edge check.
+    let mut nbsp_trailing = specification();
+    nbsp_trailing.name = "Bounded assembly\u{00a0}".to_owned();
+    assert_eq!(
+        validate_register(&actor(), vec![nbsp_trailing])
+            .unwrap_err()
+            .code,
+        "MANUFACTURING_BOM_SOURCE_INVALID"
+    );
+
+    // Interior C0 control fails closed.
+    let mut control = specification();
+    control.name = "Bounded\u{0007}assembly".to_owned();
+    assert_eq!(
+        validate_register(&actor(), vec![control])
+            .unwrap_err()
+            .code,
+        "MANUFACTURING_BOM_SOURCE_INVALID"
+    );
+}

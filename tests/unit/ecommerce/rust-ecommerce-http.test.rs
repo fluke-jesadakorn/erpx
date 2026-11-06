@@ -385,3 +385,54 @@ fn bad_command_receipts_and_invalid_configuration_fail_closed() {
         assert!(ecommerce_router(vec![invalid]).is_err());
     }
 }
+
+#[test]
+fn channel_command_forwards_js_trimmed_name_at_utf16_boundary() {
+    sqlx::test_block_on(async {
+        let probe = Arc::new(Probe::default());
+        let state = EcommerceHttpState::new(vec![target(probe.clone())]).unwrap();
+        // ZWNBSP (U+FEFF) JSON escapes: JS trim removes them, so the backend
+        // must receive the trimmed "Storefront", exactly as Zod would send it.
+        let body =
+            br#"{"name":"\uFEFFStorefront\uFEFF","channelType":"web","configuration":{}}"#.to_vec();
+        let response = state
+            .create_channel(&headers(&[]), "acme", None, &body)
+            .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            probe.seen.lock().unwrap().as_slice(),
+            [
+                "channel|acme.example.test|acme|ecommerce-command-0001|Storefront|web|{}|__Host-erpx-product=session"
+            ]
+        );
+
+        // 160 Thai scalars are 160 UTF-16 units (allowed, 480 UTF-8 bytes).
+        let thai_name = "ก".repeat(160);
+        let thai_body =
+            format!("{{\"name\":\"{thai_name}\",\"channelType\":\"web\",\"configuration\":{{}}}}")
+                .into_bytes();
+        let probe = Arc::new(Probe::default());
+        let state = EcommerceHttpState::new(vec![target(probe.clone())]).unwrap();
+        let response = state
+            .create_channel(&headers(&[]), "acme", None, &thai_body)
+            .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            probe.seen.lock().unwrap().as_slice(),
+            [format!(
+                "channel|acme.example.test|acme|ecommerce-command-0001|{thai_name}|web|{{}}|__Host-erpx-product=session"
+            )]
+        );
+
+        // 161 Thai scalars exceed the 160 UTF-16-unit Zod maximum.
+        let oversized = format!(
+            "{{\"name\":\"{}\",\"channelType\":\"web\",\"configuration\":{{}}}}",
+            "ก".repeat(161)
+        )
+        .into_bytes();
+        let response = state
+            .create_channel(&headers(&[]), "acme", None, &oversized)
+            .await;
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    });
+}

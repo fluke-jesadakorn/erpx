@@ -202,13 +202,29 @@ pub fn valid_hash(value: &str) -> bool {
     value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
+/// Zod `string.length` counts JavaScript UTF-16 code units, not UTF-8 bytes.
+/// Thai text (3 bytes, 1 unit) and astral text (surrogate pairs: 4 bytes,
+/// 2 units) must be accepted exactly as the TypeScript gateway allows.
+fn utf16_len(value: &str) -> usize {
+    value.encode_utf16().count()
+}
+
+/// JavaScript `String.prototype.trim()` parity for zod `.trim()` fields.
+/// Rust `str::trim` additionally trims NEL (U+0085) and omits ZWNBSP
+/// (U+FEFF); JS trims FEFF and not NEL.
+pub(crate) fn js_trim(value: &str) -> &str {
+    value.trim_matches(|character: char| {
+        matches!(character, '\u{0009}'..='\u{000d}' | '\u{0020}' | '\u{00a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}')
+    })
+}
+
 fn multiline_control(character: char) -> bool {
     character.is_control() && !matches!(character, '\n' | '\r' | '\t')
 }
 
 fn valid_reason(value: &str) -> bool {
-    let trimmed = value.trim();
-    (3..=REASON_LIMIT).contains(&trimmed.len()) && !trimmed.chars().any(multiline_control)
+    let trimmed = js_trim(value);
+    (3..=REASON_LIMIT).contains(&utf16_len(trimmed)) && !trimmed.chars().any(multiline_control)
 }
 
 fn valid_category(value: &str) -> bool {
@@ -216,8 +232,10 @@ fn valid_category(value: &str) -> bool {
 }
 
 fn valid_note(value: &str) -> bool {
-    let trimmed = value.trim();
-    !trimmed.is_empty() && trimmed.len() <= NOTE_LIMIT && !trimmed.chars().any(multiline_control)
+    let trimmed = js_trim(value);
+    !trimmed.is_empty()
+        && utf16_len(trimmed) <= NOTE_LIMIT
+        && !trimmed.chars().any(multiline_control)
 }
 
 impl RecordCost {
@@ -250,7 +268,7 @@ impl RecordCost {
             amount_satang: self.amount_satang,
             service_start: self.service_start,
             service_end: self.service_end,
-            note: self.note.trim().to_owned(),
+            note: js_trim(&self.note).to_owned(),
             simulated: self.simulated,
             evidence_id: self.evidence_id.as_ref().map(|id| id.as_str().to_owned()),
             original_invoice_id: self
@@ -358,7 +376,7 @@ struct Identity<'a> {
 
 fn command_input(command: &BillingCostCommand) -> Value {
     let version = command.expected_version();
-    let reason = command.reason().trim();
+    let reason = js_trim(command.reason());
     match command {
         BillingCostCommand::Record(command) => serde_json::json!({
             "version": version,
@@ -369,7 +387,7 @@ fn command_input(command: &BillingCostCommand) -> Value {
             "amountSatang": command.amount_satang,
             "serviceStart": command.service_start,
             "serviceEnd": command.service_end,
-            "note": command.note.trim(),
+            "note": js_trim(&command.note),
             "simulated": command.simulated,
             "evidenceId": command.evidence_id.as_ref().map(|id| id.as_str()),
             "originalInvoiceId": command.original_invoice_id.as_ref().map(|id| id.as_str()),
