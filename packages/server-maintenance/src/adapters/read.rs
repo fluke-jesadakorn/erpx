@@ -22,6 +22,7 @@ use erpx_server_identity_access::public::{
         OperationalWorkerPermission, RawOperationalWorkerRequest, inspect_operational_worker_raw,
     },
 };
+use erpx_server_runtime::public::http_support::Value;
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{
     BusinessError, CompanyId, FailureKind, RecordId, TimestampMillis,
@@ -329,7 +330,7 @@ impl MaintenanceReadRepository for PgMaintenanceRead<'_> {
         Box::pin(async move {
             let rows = sqlx::query(
                 "SELECT o.id,o.plan_id,o.plan_version,o.work_order_id,o.due_local,o.due_at,\
-                 o.source_asset_version,o.generated_by,o.generated_at,w.status,w.version work_version \
+                 o.source_asset_version,o.generated_by,o.generated_at,o.definition_json,w.status,w.version work_version \
                  FROM maintenance_preventive_occurrences o \
                  JOIN maintenance_preventive_plans p ON p.id=o.plan_id AND p.company_id=$2 \
                  JOIN maintenance_work_orders w ON w.id=o.work_order_id \
@@ -357,6 +358,9 @@ impl MaintenanceReadRepository for PgMaintenanceRead<'_> {
                         generated_at: row.try_get("generated_at")?,
                         status: row.try_get("status")?,
                         work_version: row.try_get("work_version")?,
+                        definition_json: row
+                            .try_get::<Value, _>("definition_json")?
+                            .to_string(),
                     })
                 })
                 .collect()

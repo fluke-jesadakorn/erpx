@@ -296,6 +296,7 @@ pub struct MaintenanceOccurrenceRow {
     pub generated_at: i64,
     pub status: String,
     pub work_version: i64,
+    pub definition_json: String,
 }
 impl MaintenanceOccurrenceRow {
     pub fn value(&self) -> Value {
@@ -311,6 +312,7 @@ impl MaintenanceOccurrenceRow {
             "generated_at": self.generated_at,
             "status": self.status,
             "work_version": self.work_version,
+            "definition_json": self.definition_json,
         })
     }
 }

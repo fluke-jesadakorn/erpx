@@ -93,6 +93,8 @@ const optionalText = (value: unknown, max = 4096) => value === null || text(valu
 const optionalInteger = (value: unknown) => value === null || safeInteger(value);
 const texts = (value: unknown, max = 256): value is string[] =>
   Array.isArray(value) && value.length <= max && value.every((item) => text(item, 256));
+const jsonText = (value: unknown, max = 65536): value is string =>
+  text(value, max) && (() => { try { JSON.parse(value); return true; } catch { return false; } })();
 const sameSet = (left: readonly string[], right: readonly string[]) => {
   const a = new Set(left);
   const b = new Set(right);
@@ -218,6 +220,7 @@ const occurrenceRow = (row: Row) =>
   exact(row, [
     'id', 'plan_id', 'plan_version', 'work_order_id', 'due_local', 'due_at',
     'source_asset_version', 'generated_by', 'generated_at', 'status', 'work_version',
+    'definition_json',
   ]) &&
   identifier(row.id) &&
   identifier(row.plan_id) &&
@@ -229,7 +232,8 @@ const occurrenceRow = (row: Row) =>
   identifier(row.generated_by) &&
   integer(row.generated_at) &&
   workStatuses.has(String(row.status)) &&
-  integer(row.work_version, 1);
+  integer(row.work_version, 1) &&
+  jsonText(row.definition_json);
 
 function context(value: unknown, actor: NativeMaintenancePageContext, input: NativeMaintenanceReadInput): Context {
   if (

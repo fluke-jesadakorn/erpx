@@ -53,3 +53,12 @@ path = "../../tests/integration/organization/rust-organization-setup-http-postgr
 
 [lints]
 workspace = true
+
+
+[[test]]
+name = "journal_flow_department"
+path = "../../tests/unit/organization/rust-journal-flow-department.test.rs"
+
+[[test]]
+name = "journal_flow_department_postgres"
+path = "../../tests/integration/organization/rust-journal-flow-department-postgres.test.rs"

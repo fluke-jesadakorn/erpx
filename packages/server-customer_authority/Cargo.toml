@@ -33,5 +33,13 @@ path = "../../tests/unit/customer_authority/rust-customer-access-http.test.rs"
 name = "customer_access_postgres"
 path = "../../tests/integration/customer_authority/rust-customer-access-postgres.test.rs"
 
+[[test]]
+name = "customer_duplicates"
+path = "../../tests/unit/customer_authority/rust-customer-duplicates.test.rs"
+
+[[test]]
+name = "customer_duplicates_postgres"
+path = "../../tests/integration/customer_authority/rust-customer-duplicates-postgres.test.rs"
+
 [lints]
 workspace = true

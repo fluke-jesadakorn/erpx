@@ -133,6 +133,7 @@ export type NativeMaintenanceOccurrence = {
   generated_at: number;
   status: string;
   work_version: number;
+  definition_json: string;
 };
 
 export type NativeMaintenancePlanDetail = {
