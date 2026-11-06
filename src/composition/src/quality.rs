@@ -68,8 +68,12 @@ fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
 struct QualitySources;
 
 impl HoldingWorkSourcePreparation for QualitySources {
-    fn prepare<'c>(&'c self, _: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
-        Box::pin(async { Ok(()) })
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            erpx_server_quality::public::quality_http::lock_quality_cancellation_writes(c).await.map_err(business)?;
+            erpx_server_quality::public::quality_http::lock_quality_read_sources(c).await.map_err(business)?;
+            Ok(())
+        })
     }
 }
 
