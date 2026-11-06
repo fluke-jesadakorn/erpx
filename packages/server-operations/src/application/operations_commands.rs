@@ -145,6 +145,7 @@ fn replay(
     operation: &str,
     record_id: &str,
     request_fingerprint: &str,
+    actor: &CommandActor,
 ) -> Result<Option<CommandReceipt>, BusinessError> {
     let Some(stored) = stored else {
         return Ok(None);
@@ -152,6 +153,10 @@ fn replay(
     if stored.operation != operation
         || stored.record_id != record_id
         || stored.request_fingerprint != request_fingerprint
+        || stored.company_id != actor.company_id
+        || stored.branch_id != actor.branch_id
+        || stored.department_id != actor.department_id
+        || stored.actor_id != actor.user_id
     {
         return Err(crate::domain::operations_commands::idempotency_conflict());
     }
@@ -217,6 +222,18 @@ where
     actor.require_write(now)?;
     input.validate()?;
     let key = CommandKey::new(key)?;
+    let record_id = exception_record_id(&key);
+    let operation = "operations.exception.open";
+    let fingerprint = fingerprint_json(operation, &record_id, input)?;
+    if let Some(receipt) = replay(
+        repository.stored_receipt(key.as_str()).await?,
+        operation,
+        &record_id,
+        &fingerprint,
+        actor,
+    )? {
+        return Ok(check_receipt(receipt, &record_id, "open", 1)?);
+    }
     let reference = input.reference();
     let source = sources
         .source(actor, &reference)
@@ -240,17 +257,6 @@ where
         .recipient(actor, &scope, &input.owner_id, false)
         .await
         .map_err(R::Error::from)?;
-    let record_id = exception_record_id(&key);
-    let operation = "operations.exception.open";
-    let fingerprint = fingerprint_json(operation, &record_id, input)?;
-    if let Some(receipt) = replay(
-        repository.stored_receipt(key.as_str()).await?,
-        operation,
-        &record_id,
-        &fingerprint,
-    )? {
-        return Ok(check_receipt(receipt, &record_id, "open", 1)?);
-    }
     let receipt = repository
         .open(OpenPlan {
             key,
@@ -291,6 +297,7 @@ where
     }
     let key = CommandKey::new(key)?;
     identifier(&input.id)?;
+    let operation = format!("operations.exception.{}", action.as_str());
     let row = repository
         .exception(
             &actor.company_id,
@@ -345,13 +352,13 @@ where
             .await
             .map_err(R::Error::from)?;
     }
-    let operation = format!("operations.exception.{}", action.as_str());
     let fingerprint = fingerprint_json(&operation, &row.id, input)?;
     if let Some(receipt) = replay(
         repository.stored_receipt(key.as_str()).await?,
         &operation,
         &row.id,
         &fingerprint,
+        actor,
     )? {
         return check_receipt(receipt, &row.id, &plan.status, plan.version).map_err(Into::into);
     }
@@ -395,6 +402,7 @@ where
         operation,
         &record_id,
         &fingerprint,
+        actor,
     )? {
         return Ok(check_receipt(receipt, &record_id, "draft", 1)?);
     }
@@ -448,6 +456,7 @@ where
         &operation,
         &input.id,
         &fingerprint,
+        actor,
     )? {
         return check_receipt(receipt, &input.id, action.status(), next_version)
             .map_err(Into::into);

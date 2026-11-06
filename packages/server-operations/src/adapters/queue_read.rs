@@ -69,6 +69,7 @@ pub async fn read_operations_workspace(
     department_id: Option<&str>,
 ) -> Result<WorkspaceData, Error> {
     serializable(c).await?;
+    lock_operations_read_sources(c).await?;
     let image = workspace_image(c, company_id, branch_id, department_id).await?;
     let data: WorkspaceData = serde_json::from_str(&image).map_err(|_| {
         BusinessError::new(
@@ -88,6 +89,7 @@ pub async fn read_operations_history(
     exception_id: &str,
 ) -> Result<Vec<OperationsEventRow>, Error> {
     serializable(c).await?;
+    lock_operations_read_sources(c).await?;
     let image = history_image(c, exception_id).await?;
     let rows: Vec<OperationsEventRow> = serde_json::from_str(&image).map_err(|_| {
         BusinessError::new(

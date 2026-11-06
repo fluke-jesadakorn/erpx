@@ -366,6 +366,12 @@ pub struct StoredReceipt {
     pub record_id: String,
     pub request_fingerprint: String,
     pub result_json: Option<String>,
+    /// Scoped authority binding for the retained receipt. A replay is valid only
+    /// when the current actor and selected Company/branch/department match.
+    pub company_id: String,
+    pub branch_id: Option<String>,
+    pub department_id: Option<String>,
+    pub actor_id: String,
 }
 
 pub fn exception_record_id(key: &CommandKey) -> String {
