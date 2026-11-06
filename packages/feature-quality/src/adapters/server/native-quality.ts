@@ -127,6 +127,11 @@ export type NativeQualityDetail = Readonly<{
   alerts: readonly NativeQualityAlert[];
 }>;
 
+/// Detail source facts without the bounded retained cancellation array. The
+/// caller loads the complete history through the paged contract.
+export type NativeQualityDetailCore = Omit<NativeQualityDetail, 'cancellations'> &
+  Readonly<{ cancellationHistory: 'paged' }>;
+
 export type NativeQualityReceipt = Readonly<{
   id: string;
   holdId: string;
@@ -676,6 +681,37 @@ export function createNativeQualityReader(raw: string, transport: QualityTranspo
         dispositions: rows(value.dispositions, disposition),
         specMetrics: rows(value.specMetrics, metric),
         alerts: rows(value.alerts, alert),
+      };
+    },
+    detailCore: async (
+      incoming: Pick<Headers, 'get'>,
+      slug: string,
+      id: string,
+    ): Promise<NativeQualityDetailCore> => {
+      const value = await send(
+        'GET',
+        incoming,
+        slug,
+        `/${encodeURIComponent(id)}/detail-core`,
+      );
+      if (
+        !record(value.hold) ||
+        !Array.isArray(value.inspections) ||
+        !Array.isArray(value.measurements) ||
+        !Array.isArray(value.dispositions) ||
+        !Array.isArray(value.specMetrics) ||
+        !Array.isArray(value.alerts) ||
+        value.cancellationHistory !== 'paged'
+      )
+        return fail('NATIVE_QUALITY_RESPONSE_INVALID');
+      return {
+        hold: hold(value.hold),
+        inspections: rows(value.inspections, inspection),
+        measurements: rows(value.measurements, measurement),
+        dispositions: rows(value.dispositions, disposition),
+        specMetrics: rows(value.specMetrics, metric),
+        alerts: rows(value.alerts, alert),
+        cancellationHistory: 'paged',
       };
     },
     cancel: async (

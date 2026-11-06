@@ -1,4 +1,4 @@
-import {describe,expect,it,vi} from 'vitest';
+import {afterEach,describe,expect,it,vi} from 'vitest';
 import {createHoldingDirectoryApplication} from "@erpx/server-organization/application/holding-directory";
 import {createMemberProfileApplication,type MemberProfilePorts} from "@erpx/server-organization/application/member-profiles";
 import {profileInput} from "@erpx/server-organization/domain/member-profiles";
@@ -102,10 +102,17 @@ import {
   createNativeOrganizationClient,
   NativeOrganizationError,
   nativeOrganizationConfiguration,
+  nativeOrganizationDetail,
   nativeOrganizationFailure,
   nativeOrganizationOverview,
 } from "../../../packages/feature-organization/src/adapters/server/native-organization";
-import { nativeOrganizationSelector } from "../../../packages/feature-organization/src/lib/native-organization";
+import {
+  nativeOrganizationPage,
+  nativeOrganizationSelector,
+  nativeOrganizationWorkspace,
+} from "../../../packages/feature-organization/src/lib/native-organization";
+import type { OrganizationAccessData } from "../../../packages/feature-organization/src/lib/organization-access";
+import type { OrganizationOverview } from "../../../packages/feature-organization/src/lib/organization-domain";
 
 const nativeActor = {
   userId: "user",
@@ -121,7 +128,7 @@ const nativeActor = {
   authority: { revision: 7, assignmentVersion: 3 },
   modules: ["people"],
   iam: { permissions: ["organization.manage"] },
-};
+} as unknown as WorkContext;
 const nativeConfig = {
   privateBaseUrl: "http://127.0.0.1:3199",
   holdings: [{ origin: "https://acme.example.test", holdingSlug: "acme", holdingId: "h001" }],
@@ -343,5 +350,283 @@ describe("Native organization transport", () => {
     expect(
       nativeOrganizationFailure(new NativeOrganizationError("NATIVE_ORGANIZATION_RESPONSE_INVALID")),
     ).toMatchObject({ status: 502, code: "NATIVE_ORGANIZATION_RESPONSE_INVALID" });
+  });
+});
+
+const pagePeople: OrganizationAccessData["people"] = [
+  {
+    person_id: "person-1",
+    user_id: "user-1",
+    legal_name: "Person One",
+    email: "private@example.test",
+    engagement_id: "engagement-1",
+    engagement_version: 1,
+    person_version: 1,
+    company_id: "company",
+    branch_id: "branch",
+    department_id: null,
+    position_id: "position-branch",
+    manager_person_id: null,
+    level_id: "level-1",
+    level_number: 1,
+    level_name: "CEO",
+    status: "active",
+    person_status: "active",
+    start_date: "2026-01-01",
+    end_date: null,
+    job_title: "North lead",
+    issues: [],
+  },
+];
+
+const retainedAccess = (): OrganizationAccessData => ({
+  positions: [
+    {
+      id: "retained-position",
+      company_id: "company",
+      branch_id: "branch",
+      department_id: null,
+      title: "Retained position",
+      level_id: "level-retained",
+      level_number: 9,
+      reports_to_position_id: null,
+      requirements: "",
+      is_ceo: 0,
+      roster_required: 0,
+      active: 1,
+      version: 1,
+    },
+  ],
+  people: pagePeople,
+  nodes: [
+    {
+      id: "retained-company",
+      kind: "company",
+      slug: "retained",
+      display_name: "Retained company",
+      branch_id: null,
+      status: "active",
+      hierarchy_revision: 1,
+    },
+  ],
+  levels: [{ id: "level-retained", name: "Retained level", level_number: 9 }],
+  canManage: true,
+  canMovePeople: true,
+  actorId: nativeActor.userId,
+});
+
+async function nativeWorkspace(payload: unknown = workspacePayload) {
+  return createNativeOrganizationClient(nativeConfig, nativeTransport(payload)).workspace(
+    nativeHeaders,
+    nativeActor,
+    "",
+  );
+}
+
+describe("Native organization page read", () => {
+  it("uses the native tree, positions and levels while retaining only People rows and the move ceiling", async () => {
+    const native = await nativeWorkspace();
+    const retained = retainedAccess();
+    const page = await nativeOrganizationPage(
+      nativeActor,
+      "acme",
+      {},
+      nativeHeaders,
+      retained,
+      async () => native,
+    );
+    expect(page?.access).toMatchObject({
+      people: retained.people,
+      canManage: true,
+      canMovePeople: true,
+      actorId: "user",
+    });
+    expect(page?.access.people).toBe(retained.people);
+    expect(page?.access.nodes).toEqual([
+      {
+        id: "branch",
+        kind: "branch",
+        slug: "north",
+        display_name: "North",
+        branch_id: "branch",
+        status: "active",
+        hierarchy_revision: 1,
+      },
+    ]);
+    expect(page?.access.positions.map((position) => position.id)).toEqual(["position-branch"]);
+    expect(page?.access.levels).toEqual([{ id: "level-1", name: "CEO", level_number: 1 }]);
+    expect(page?.overview).toMatchObject({
+      nodes: [expect.objectContaining({ id: "branch" })],
+      positions: [expect.objectContaining({ id: "position-branch" })],
+      levels: [{ id: "level-1", name: "CEO", level_number: 1 }],
+      channels: [expect.objectContaining({ room_id: "org-channel-branch" })],
+      canManage: true,
+    });
+    expect(page?.overview.people).toBe(retained.people);
+  });
+
+  it("keeps retained detail defaults while replacing every Organization-owned overview fact", async () => {
+    const native = await nativeWorkspace();
+    const retained = retainedAccess();
+    const page = await nativeOrganizationPage(
+      nativeActor,
+      "acme",
+      {},
+      nativeHeaders,
+      retained,
+      async () => native,
+    );
+    const retainedDetail: OrganizationOverview = {
+      defaults: { pay: [], leave: [] },
+      monthlyPayGroups: [{ id: "pay-group", name: "Monthly", currency: "THB" }],
+      positions: retained.positions,
+      people: retained.people,
+      nodes: retained.nodes,
+      levels: retained.levels,
+      templates: [],
+      nodeChanges: [],
+      changeQueue: { recordId: null, state: "open", query: "", page: 1, pageSize: 20, total: 0, pages: 1 },
+      canManageUnits: false,
+      actorId: "user",
+      canManage: true,
+    };
+    const detail = nativeOrganizationDetail(page!.overview, retainedDetail, page!.access.canManage);
+    expect(detail.defaults).toEqual({ pay: [], leave: [] });
+    expect(detail.monthlyPayGroups).toEqual([{ id: "pay-group", name: "Monthly", currency: "THB" }]);
+    expect(detail.nodes).toEqual([expect.objectContaining({ id: "branch" })]);
+    expect(detail.positions).toEqual([expect.objectContaining({ id: "position-branch" })]);
+    expect(detail.people).toBe(retained.people);
+    expect(detail.canManage).toBe(true);
+    expect(nativeOrganizationDetail(page!.overview, retainedDetail, false).canManage).toBe(false);
+  });
+
+  it("filters inactive and out-of-scope native positions without filtering authoritative People rows", async () => {
+    const native = await nativeWorkspace();
+    const position = native.positions[0]!;
+    const page = await nativeOrganizationPage(
+      { ...nativeActor, branchId: "branch" },
+      "acme",
+      {},
+      nativeHeaders,
+      retainedAccess(),
+      async () => ({
+        ...native,
+        positions: [
+          position,
+          { ...position, id: "inactive", active: 0 },
+          { ...position, id: "other-branch", branch_id: "branch-2" },
+          { ...position, id: "company-wide", branch_id: null },
+          { ...position, id: "department-position", department_id: "department-1" },
+        ],
+      }),
+    );
+    expect(page?.access.positions.map((item) => item.id)).toEqual([
+      "position-branch",
+      "department-position",
+    ]);
+    expect(page?.access.people).toBe(pagePeople);
+    const departmentPage = await nativeOrganizationPage(
+      { ...nativeActor, branchId: "branch", departmentId: "department-1" },
+      "acme",
+      {},
+      nativeHeaders,
+      retainedAccess(),
+      async () => ({
+        ...native,
+        positions: [position, { ...position, id: "department-position", department_id: "department-1" }],
+      }),
+    );
+    expect(departmentPage?.access.positions.map((item) => item.id)).toEqual(["department-position"]);
+  });
+
+  it("never raises the retained Company-manage ceiling from native data", async () => {
+    const native = await nativeWorkspace();
+    const page = await nativeOrganizationPage(
+      nativeActor,
+      "acme",
+      {},
+      nativeHeaders,
+      { ...retainedAccess(), canManage: false, canMovePeople: false },
+      async () => native,
+    );
+    expect(page?.access.canManage).toBe(false);
+    expect(page?.access.canMovePeople).toBe(false);
+    expect(page?.overview.canManage).toBe(false);
+  });
+
+  it("returns undefined, without composing, when the native transport is not configured", async () => {
+    await expect(
+      nativeOrganizationPage(nativeActor, "acme", {}, nativeHeaders, retainedAccess(), async () => undefined),
+    ).resolves.toBeUndefined();
+  });
+
+  it("propagates a configured native failure instead of returning retained data", async () => {
+    const failure = new NativeOrganizationError("NATIVE_ORGANIZATION_UNAVAILABLE");
+    await expect(
+      nativeOrganizationPage(nativeActor, "acme", {}, nativeHeaders, retainedAccess(), async () => {
+        throw failure;
+      }),
+    ).rejects.toBe(failure);
+  });
+
+  it("rejects a native actor, Company or duplicate identity mismatch before composing the page", async () => {
+    const native = await nativeWorkspace();
+    const rejected = { code: "NATIVE_ORGANIZATION_RESPONSE_INVALID" };
+    await expect(
+      nativeOrganizationPage(nativeActor, "acme", {}, nativeHeaders, retainedAccess(), async () => ({
+        ...native,
+        actorId: "other-user",
+      })),
+    ).rejects.toMatchObject(rejected);
+    await expect(
+      nativeOrganizationPage(nativeActor, "acme", {}, nativeHeaders, retainedAccess(), async () => ({
+        ...native,
+        nodes: native.nodes.map((node) => ({ ...node, company_id: "other-company" })),
+      })),
+    ).rejects.toMatchObject(rejected);
+    await expect(
+      nativeOrganizationPage(nativeActor, "acme", {}, nativeHeaders, retainedAccess(), async () => ({
+        ...native,
+        positions: native.positions.map((position) => ({ ...position, company_id: "other-company" })),
+      })),
+    ).rejects.toMatchObject(rejected);
+    await expect(
+      nativeOrganizationPage(nativeActor, "acme", {}, nativeHeaders, retainedAccess(), async () => ({
+        ...native,
+        levels: [...native.levels, ...native.levels],
+      })),
+    ).rejects.toMatchObject(rejected);
+  });
+});
+
+describe("Native organization page configuration selection", () => {
+  const configured = process.env.ERPX_NATIVE_ORGANIZATION_CONFIG;
+  afterEach(() => {
+    if (configured === undefined) delete process.env.ERPX_NATIVE_ORGANIZATION_CONFIG;
+    else process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = configured;
+  });
+
+  it("returns undefined before any transport work when configuration is absent", async () => {
+    delete process.env.ERPX_NATIVE_ORGANIZATION_CONFIG;
+    await expect(
+      nativeOrganizationWorkspace(nativeActor, "acme", {}, nativeHeaders),
+    ).resolves.toBeUndefined();
+    await expect(
+      nativeOrganizationPage(nativeActor, "acme", {}, nativeHeaders, retainedAccess()),
+    ).resolves.toBeUndefined();
+  });
+
+  it("fails closed before any transport work when configured configuration is malformed", async () => {
+    process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = "{";
+    await expect(
+      nativeOrganizationWorkspace(nativeActor, "acme", {}, nativeHeaders),
+    ).rejects.toMatchObject({ code: "NATIVE_ORGANIZATION_CONFIGURATION_INVALID" });
+  });
+
+  it("rejects a changed Holding before any transport work", async () => {
+    process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = JSON.stringify(nativeConfig);
+    await expect(
+      nativeOrganizationWorkspace(nativeActor, "other", {}, nativeHeaders),
+    ).rejects.toMatchObject({ code: "NATIVE_ORGANIZATION_CONTEXT_CHANGED" });
   });
 });

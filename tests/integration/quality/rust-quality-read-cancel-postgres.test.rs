@@ -446,6 +446,7 @@ async fn cancel(
             let actor = actor.clone();
             let command = command.clone();
             Box::pin(async move {
+                lock_quality_cancellation_writes(c).await?;
                 lock_quality_read_sources(c).await?;
                 let mut repository = PgQualityCancellation {
                     connection: &mut *c,
@@ -720,6 +721,7 @@ async fn cancellation_rejects_inspected_holds_and_a_late_failure_rolls_back() {
         let result = PgUnitOfWork::new(pool.clone())
             .run::<(), BusinessError, _>(TransactionOptions::default(), |c| {
                 Box::pin(async move {
+                    lock_quality_cancellation_writes(c).await?;
                     lock_quality_read_sources(c).await?;
                     let command = command(
                         "quality-cancel-rollback",
@@ -838,6 +840,7 @@ async fn readback_uses_the_owner_transaction_and_persists_the_cancellation_event
         let event = PgUnitOfWork::new(pool.clone())
             .run::<_, BusinessError, _>(TransactionOptions::default(), |c| {
                 Box::pin(async move {
+                    lock_quality_cancellation_writes(c).await?;
                     lock_quality_read_sources(c).await?;
                     let command = command(
                         "quality-cancel-readback",

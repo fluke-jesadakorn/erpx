@@ -2,6 +2,11 @@
 //! with the selected coordinator; owner ports supply the bounded workspace,
 //! detail, preventive plans and cancellation facts.
 use crate::business_http::BusinessScopeSlugs;
+use crate::maintenance_parts::{MaintenancePartsSourcePreparation, execute_maintenance_issue_part};
+use crate::maintenance_transitions::{
+    MaintenanceTransitionsSourcePreparation, execute_maintenance_transition,
+};
+use erpx_server_commercial::public::purchases::PackageEnforcementMode;
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
     account_inbound_http::parse_inbound_account_request,
@@ -12,17 +17,20 @@ use erpx_server_identity_access::public::{
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
 use erpx_server_maintenance::public::http::{
-    MaintenanceHttpBackend, MaintenanceHttpCommand, MaintenanceHttpCommandRequest,
-    MaintenanceHttpFuture, MaintenanceHttpReadKind, MaintenanceHttpReadRequest,
-    MaintenanceHttpResponse, MaintenanceHttpTarget,
+    MaintenanceHttpBackend, MaintenanceHttpCommandRequest, MaintenanceHttpFuture,
+    MaintenanceHttpReadKind, MaintenanceHttpReadRequest, MaintenanceHttpResponse,
 };
 use erpx_server_maintenance::public::read::{
     read_maintenance_detail, read_maintenance_plan_detail, read_maintenance_plans,
     read_maintenance_workspace,
 };
+use erpx_server_maintenance::public::{
+    work_commands::MaintenanceWorkCommand, work_wire::MaintenanceChangeAction,
+};
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
+use erpx_server_shared::public::{IdentifierSource, RecordId};
 use serde_json::Value;
 use sqlx::PgConnection;
 use std::sync::Arc;
@@ -281,7 +289,8 @@ impl<C: Clock + Send + Sync + 'static> MaintenanceService<C> {
                         }
                         current.require_permission("records.read")?;
                         let plans = read_maintenance_plans(connection, current, now).await?;
-                        let data = Value::Array(plans.into_iter().map(|plan| plan.value()).collect());
+                        let data =
+                            Value::Array(plans.into_iter().map(|plan| plan.value()).collect());
                         Ok(MaintenanceHttpResponse {
                             data,
                             context: context(current),
@@ -324,7 +333,8 @@ impl<C: Clock + Send + Sync + 'static> MaintenanceService<C> {
                             return Err(scope().into());
                         }
                         current.require_permission("records.read")?;
-                        let data = read_maintenance_plan_detail(connection, current, &id, now).await?;
+                        let data =
+                            read_maintenance_plan_detail(connection, current, &id, now).await?;
                         Ok(MaintenanceHttpResponse {
                             data: data.value(),
                             context: context(current),
@@ -333,6 +343,140 @@ impl<C: Clock + Send + Sync + 'static> MaintenanceService<C> {
                 },
             )
             .await
+    }
+    /// Native transition/issue-part command. The preparation is selected from
+    /// the owner command action before the first Holding snapshot; Account,
+    /// current IAM, purchase history and the owner unit stay in one commit.
+    pub async fn command(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        mut selection: HoldingWorkspaceRequest,
+        command: MaintenanceWorkCommand,
+    ) -> Result<MaintenanceHttpResponse, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        if selection.company_id != company {
+            return Err(scope().into());
+        }
+        selection.mutation = true;
+        let access = WorkAuthorizationRequest {
+            permission: "records.write".into(),
+            module: Some("maintenance".into()),
+            destination: "maintenance".into(),
+            api: true,
+        };
+        let issue_part = matches!(
+            command.input().action,
+            MaintenanceChangeAction::IssuePart { .. }
+        );
+        if issue_part {
+            self.authorizer
+                .execute_with_sources(
+                    host,
+                    proof,
+                    selection,
+                    access,
+                    MaintenancePartsSourcePreparation,
+                    move |connection, current| {
+                        run_maintenance_command(
+                            connection,
+                            current,
+                            &holding,
+                            &company,
+                            clock.clone(),
+                            &command,
+                        )
+                    },
+                )
+                .await
+        } else {
+            self.authorizer
+                .execute_with_sources(
+                    host,
+                    proof,
+                    selection,
+                    access,
+                    MaintenanceTransitionsSourcePreparation,
+                    move |connection, current| {
+                        run_maintenance_command(
+                            connection,
+                            current,
+                            &holding,
+                            &company,
+                            clock.clone(),
+                            &command,
+                        )
+                    },
+                )
+                .await
+        }
+    }
+}
+
+fn run_maintenance_command<'c, C: Clock + Send + Sync + 'static>(
+    connection: &'c mut PgConnection,
+    current: &'c AuthorizedWorkContext,
+    holding: &HoldingId,
+    company: &CompanyId,
+    clock: Arc<C>,
+    command: &MaintenanceWorkCommand,
+) -> PgWorkFuture<'c, MaintenanceHttpResponse, BusinessError> {
+    let holding = holding.clone();
+    let company = company.clone();
+    let command = command.clone();
+    Box::pin(async move {
+        if current.holding_id() != &holding || current.selection().workspace().company_id != company
+        {
+            return Err(scope().into());
+        }
+        current.require_permission("records.write")?;
+        let mut identifiers = MaintenanceIds;
+        let outcome = if matches!(
+            command.input().action,
+            MaintenanceChangeAction::IssuePart { .. }
+        ) {
+            execute_maintenance_issue_part(
+                connection,
+                current,
+                &command,
+                PackageEnforcementMode::Enforced,
+                clock.as_ref(),
+                clock.as_ref(),
+                &mut identifiers,
+            )
+            .await?
+        } else {
+            execute_maintenance_transition(
+                connection,
+                current,
+                &command,
+                PackageEnforcementMode::Enforced,
+                clock.as_ref(),
+                clock.as_ref(),
+                &mut identifiers,
+            )
+            .await?
+        };
+        let data = serde_json::from_str(outcome.result.as_str()).map_err(|_| {
+            BusinessError::new(
+                FailureKind::Conflict,
+                "MAINTENANCE_RESULT_INVALID",
+                "Refresh the work order before continuing.",
+            )
+        })?;
+        Ok(MaintenanceHttpResponse {
+            data,
+            context: context(current),
+        })
+    })
+}
+
+struct MaintenanceIds;
+impl IdentifierSource for MaintenanceIds {
+    fn next(&mut self) -> RecordId {
+        RecordId::new(uuid::Uuid::new_v4().to_string()).expect("generated UUID")
     }
 }
 

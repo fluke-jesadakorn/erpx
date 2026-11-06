@@ -14,7 +14,7 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import { qualityAlerts } from "@erpx/server-quality/public/quality-alerts";
 import { qualityDetail } from "@erpx/server-quality/public/quality";
 import { QualityCancellationHistory } from "@erpx/feature-quality/components/quality-cancellation-history";
-import { nativeQualityAvailable, nativeQualityCancellationHistory, nativeQualityDetail } from "@erpx/feature-quality/public/native-quality";
+import { nativeQualityAvailable, nativeQualityCancellationHistory, nativeQualityDetailCore } from "@erpx/feature-quality/public/native-quality";
 import { accessPage } from "@erpx/server-work_projection/public/page-error";
 import styles from "@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/quality/[id]/quality-detail.module.css";
 
@@ -50,7 +50,7 @@ export default async function Page({
     data = await qualityDetail(actor, id);
     alerts = (await qualityAlerts(actor)).filter((alert) => alert.hold_id === id);
     if (nativeQualityAvailable()) {
-      const native = await nativeQualityDetail(holdingSlug, id);
+      const native = await nativeQualityDetailCore(holdingSlug, id);
       if (!native)
         throw new ApiError(
           503,
@@ -66,6 +66,7 @@ export default async function Page({
         );
       data = {
         ...data,
+        cancellations: [],
         canInspect: native.hold.decision.canInspect,
         canRelease: native.hold.decision.canRelease,
         canCancel: native.hold.decision.canCancel,

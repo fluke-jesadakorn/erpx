@@ -81617,7 +81617,10 @@
         "tests/support/rust-account-revocation.rs",
         "tests/support/rust-account-credentials.rs",
         "tests/support/rust-account.rs",
-        "tests/support/rust-postgres.rs"
+        "tests/support/rust-postgres.rs",
+        "packages/server-quality/Cargo.toml",
+        "packages/server-quality/src/public/quality_http.rs",
+        "packages/server-quality/src/adapters/quality_read.rs"
       ],
       "cargo": {
         "package": "erpx-service",
@@ -81640,6 +81643,7 @@
         "@erpx/feature-identity_access",
         "@erpx/feature-operations",
         "@erpx/feature-organization",
+        "@erpx/feature-quality",
         "@erpx/feature-records",
         "@erpx/feature-runtime",
         "@erpx/feature-service",
@@ -81656,6 +81660,7 @@
         "@erpx/server-organization",
         "@erpx/server-people_payroll",
         "@erpx/server-platform_administration",
+        "@erpx/server-quality",
         "@erpx/server-runtime",
         "@erpx/server-shared",
         "@erpx/server-support",

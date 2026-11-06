@@ -1,6 +1,7 @@
 import 'server-only';
 import { Agent, request } from 'node:http';
 import { Readable } from 'node:stream';
+import type { OrganizationAccessData } from '../../lib/organization-access';
 import type {
   OrganizationNode,
   OrganizationNodeChange,
@@ -98,6 +99,7 @@ const integer = (value: unknown, min = 0): value is number =>
 const optionalText = (value: unknown, max = 4096) => value === null || text(value, max);
 const nullableIdentifier = (value: unknown): value is string | null => value === null || identifier(value);
 const flag = (value: unknown): value is number => value === 0 || value === 1;
+const unique = (values: readonly string[]): boolean => new Set(values).size === values.length;
 
 function position(value: unknown): value is NativeOrganizationPosition {
   return (
@@ -271,6 +273,92 @@ export function nativeOrganizationOverview(
     ...(retained.spendingTemplate === undefined
       ? {}
       : { spendingTemplate: retained.spendingTemplate }),
+  };
+}
+
+/** Replace Organization-owned detail facts without dropping retained People
+ * defaults, pay groups or spending template that the native workspace cannot
+ * represent. */
+export function nativeOrganizationDetail(
+  native: OrganizationOverview,
+  retained: OrganizationOverview,
+  canManage: boolean,
+): OrganizationOverview {
+  return { ...retained, ...native, canManage };
+}
+
+/** Rendering input from the retained People page authorization, never a grant. */
+export type NativeOrganizationAccessContext = Readonly<{
+  userId: string;
+  companyId: string;
+  branchId: string | null;
+  departmentId: string | null;
+}>;
+
+/** Compose the OrganizationAccessData used by the People/Organization page.
+ * Native owns the tree, positions, levels and the Company-manage ceiling; the
+ * People rows and the move-people ceiling stay retained because the native
+ * workspace does not represent them. */
+export function nativeOrganizationAccess(
+  native: NativeOrganizationWorkspace,
+  retained: OrganizationAccessData,
+  actor: NativeOrganizationAccessContext,
+): OrganizationAccessData {
+  if (native.actorId !== actor.userId) return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
+  const nodeIds = new Set<string>();
+  const nodes = native.nodes.map((value) => {
+    if (
+      !record(value) ||
+      !identifier(value.id) ||
+      !text(value.kind, 40) ||
+      !text(value.slug, 80) ||
+      !text(value.display_name, 120) ||
+      !nullableIdentifier(value.branch_id) ||
+      !identifier(value.company_id) ||
+      !['active', 'suspended', 'archived'].includes(String(value.status)) ||
+      !integer(value.hierarchy_revision, 1)
+    )
+      return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
+    if (
+      value.company_id !== actor.companyId ||
+      !['company', 'branch', 'department'].includes(value.kind) ||
+      nodeIds.has(value.id) ||
+      (actor.branchId !== null &&
+        value.kind !== 'company' &&
+        value.id !== actor.branchId &&
+        value.branch_id !== actor.branchId) ||
+      (actor.departmentId !== null && value.kind === 'department' && value.id !== actor.departmentId)
+    )
+      return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
+    nodeIds.add(value.id);
+    return {
+      id: value.id,
+      kind: value.kind,
+      slug: value.slug,
+      display_name: value.display_name,
+      branch_id: value.branch_id,
+      status: String(value.status),
+      hierarchy_revision: value.hierarchy_revision,
+    } satisfies OrganizationNode;
+  });
+  if (
+    native.positions.some((value) => value.company_id !== actor.companyId) ||
+    !unique(native.positions.map((value) => value.id)) ||
+    !unique(native.levels.map((value) => value.id))
+  )
+    return failure('NATIVE_ORGANIZATION_RESPONSE_INVALID');
+  const inScope = (value: NativeOrganizationPosition) =>
+    value.active === 1 &&
+    (actor.branchId === null || value.branch_id === actor.branchId) &&
+    (actor.departmentId === null || value.department_id === actor.departmentId);
+  return {
+    positions: native.positions.filter(inScope) as unknown as OrganizationAccessData['positions'],
+    people: retained.people,
+    nodes,
+    levels: native.levels,
+    canManage: retained.canManage && native.canManage,
+    canMovePeople: retained.canMovePeople,
+    actorId: native.actorId,
   };
 }
 

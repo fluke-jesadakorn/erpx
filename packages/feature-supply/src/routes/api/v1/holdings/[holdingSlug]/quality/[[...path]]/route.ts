@@ -4,7 +4,7 @@ import {requestPublicOrigin} from "@erpx/server-manage_erpx/public/public-origin
 import {ApiError,errorResponse} from "@erpx/server-runtime/public/http";
 import {cancelQualityHold,qualityWorkspace,qualityDetail,createQualityHold,inspectQualityHold,releaseQualityHold,createQualityScrapDisposition,saveQualitySpec,transitionQualitySpec,qualityHoldSchema,qualityInspectionSchema,qualityReleaseSchema,qualityDispositionSchema,qualitySpecSchema,qualitySpecActionSchema} from "@erpx/server-quality/public/quality";
 import {acknowledgeQualityAlert} from "@erpx/server-quality/public/quality-alerts";
-import {nativeQualityAvailable,nativeQualityCancellationHistory,nativeQualityDetail,nativeQualityWorkspace} from "@erpx/feature-quality/public/native-quality";
+import {nativeQualityAvailable,nativeQualityCancellationHistory,nativeQualityDetailCore,nativeQualityWorkspace} from "@erpx/feature-quality/public/native-quality";
 import {ownedNativeQualityCancel} from "@erpx/feature-quality/public/native-quality";
 type Context={params:Promise<{holdingSlug:string;path?:string[]}>};
 function historyCursor(request:Request){
@@ -26,9 +26,9 @@ export async function GET(request:Request,context:Context){try{const {holdingSlu
   if(path.length){
     const data=await qualityDetail(actor,path[0]);
     if(!nativeQualityAvailable())return Response.json(canonicalDestinationLinks({data}),{headers:{'Cache-Control':'private, no-store'}});
-    const native=await nativeQualityDetail(holdingSlug,path[0]);
+    const native=await nativeQualityDetailCore(holdingSlug,path[0]);
     if(!native)throw new ApiError(503,'NATIVE_QUALITY_UNAVAILABLE','The native Quality service is unavailable.');
-    return Response.json(canonicalDestinationLinks({data:{...data,canInspect:native.hold.decision.canInspect,canRelease:native.hold.decision.canRelease,canCancel:native.hold.decision.canCancel,canReviewCancellation:native.hold.decision.canReviewCancellation,canDisposition:native.hold.decision.canDisposition,hold:{...data.hold,version:native.hold.version,status:native.hold.status,last_result:native.hold.lastResult}}}),{headers:{'Cache-Control':'private, no-store'}});
+    return Response.json(canonicalDestinationLinks({data:{...data,cancellations:[],canInspect:native.hold.decision.canInspect,canRelease:native.hold.decision.canRelease,canCancel:native.hold.decision.canCancel,canReviewCancellation:native.hold.decision.canReviewCancellation,canDisposition:native.hold.decision.canDisposition,hold:{...data.hold,version:native.hold.version,status:native.hold.status,last_result:native.hold.lastResult}}}),{headers:{'Cache-Control':'private, no-store'}});
   }
   const data=await qualityWorkspace(actor);
   if(!nativeQualityAvailable())return Response.json(canonicalDestinationLinks({data}),{headers:{'Cache-Control':'private, no-store'}});

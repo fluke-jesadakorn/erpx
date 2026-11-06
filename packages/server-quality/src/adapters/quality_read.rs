@@ -590,6 +590,7 @@ async fn cancellation_history_revision(
     Ok(format!("qch1:{:x}", hash.finalize()))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn read_quality_cancellation_history_page(
     c: &mut PgConnection,
     company: &CompanyId,
@@ -1227,11 +1228,14 @@ pub async fn apply_quality_cancellation(
     now: i64,
 ) -> Result<QualityCancellationReceipt, Error> {
     serializable(c).await?;
+    require_quality_cancellation_write_locks(c).await?;
     let cancellation = format!("quality-cancel-{}", command.command_key.as_str());
     if let Some(row) = sqlx::query(
-        "SELECT hold_id,action,reason,actor_id,version FROM inventory_quality_cancellations WHERE id=$1",
+        "SELECT c.hold_id,c.action,c.reason,c.actor_id,c.version FROM inventory_quality_cancellations c JOIN inventory_quality_holds h ON h.id=c.hold_id WHERE c.id=$1 AND h.company_id=$2 AND ($3::text IS NULL OR h.branch_id=$3)",
     )
     .bind(&cancellation)
+    .bind(company.as_str())
+    .bind(branch.map(RecordId::as_str))
     .fetch_optional(&mut *c)
     .await?
     {

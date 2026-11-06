@@ -10,7 +10,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use erpx_server_quality::public::quality_http::{QualityHttpTarget, quality_router};
-use erpx_server_shared::public::{CompanyId, HoldingId};
+use erpx_server_shared::public::{Clock, CompanyId, HoldingId};
 use erpx_service::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
 use erpx_service::quality::{QualityBackend, QualityConfiguration, QualityService};
 use std::sync::Arc;
@@ -89,6 +89,20 @@ async fn grant_quality(p: &review::Prepared) {
          UPDATE assignments SET modules_json='[\"finance\",\"quality\"]',version=4 WHERE id IN ('finance-fixture-a','finance-fixture-b');\
          UPDATE active_work_contexts SET assignment_version=4 WHERE assignment_id IN ('finance-fixture-a','finance-fixture-b')",
     )
+    .execute(p.system.holdings[0].raw())
+    .await
+    .unwrap();
+    let now = p.system.scenario.clock.now().get();
+    let expires = now + 3_600_000;
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at) \
+         VALUES('company','supply-quality',1,'active',0,{expires},1,'Synthetic reviewed Quality purchase','public synthetic evidence',{now}),\
+                ('company','supply',1,'active',0,{expires},1,'Synthetic reviewed supply dependency','public synthetic evidence',{now}),\
+                ('company','finance',1,'active',0,{expires},1,'Synthetic reviewed finance dependency','public synthetic evidence',{now});\
+         INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) \
+         SELECT 'quality-origin-'||package_id,company_id,package_id,'fixture-a','synthetic-request',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),{now} \
+         FROM company_package_grants WHERE company_id='company' AND package_id IN ('supply-quality','supply','finance')"
+    )))
     .execute(p.system.holdings[0].raw())
     .await
     .unwrap();

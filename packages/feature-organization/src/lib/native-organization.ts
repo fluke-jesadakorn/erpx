@@ -1,14 +1,27 @@
 import 'server-only';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
+import type { OrganizationAccessData } from './organization-access';
+import type { OrganizationOverview } from './organization-domain';
 import {
   createNativeOrganizationClient,
+  nativeOrganizationAccess,
   nativeOrganizationConfiguration,
+  nativeOrganizationDetail,
+  nativeOrganizationFailure,
+  nativeOrganizationOverview,
   NativeOrganizationError,
   type NativeOrganizationPageContext,
   type NativeOrganizationWorkspace,
 } from '../adapters/server/native-organization';
 
 type Row = Record<string, unknown>;
+
+/** Native Organization facts plus the retained People projection for one
+ * People/Organization page render. */
+export type NativeOrganizationPage = Readonly<{
+  access: OrganizationAccessData;
+  overview: OrganizationOverview;
+}>;
 
 function context(actor: WorkContext): NativeOrganizationPageContext {
   return {
@@ -174,4 +187,38 @@ export async function nativeOrganizationWorkspace(
   return await native.workspace(incoming, context(actor), search.toString());
 }
 
-export {nativeOrganizationFailure, nativeOrganizationOverview} from '../adapters/server/native-organization';
+/** Compose one page read from the native Organization workspace and the
+ * retained People projection. A missing configuration returns `undefined` so
+ * the page keeps its retained Organization read; a configured failure throws
+ * instead of silently returning retained data. */
+export async function nativeOrganizationPage(
+  actor: WorkContext,
+  holdingSlug: string,
+  query: Record<string, string | undefined>,
+  incoming: Pick<Headers, 'get'>,
+  retained: OrganizationAccessData,
+  read: typeof nativeOrganizationWorkspace = nativeOrganizationWorkspace,
+): Promise<NativeOrganizationPage | undefined> {
+  const native = await read(actor, holdingSlug, query, incoming);
+  if (!native) return undefined;
+  const access = nativeOrganizationAccess(native, retained, {
+    userId: actor.userId,
+    companyId: actor.companyId,
+    branchId: actor.branchId,
+    departmentId: actor.departmentId,
+  });
+  return {
+    access,
+    overview: {
+      ...nativeOrganizationOverview(native, { people: retained.people }),
+      canManage: access.canManage,
+    },
+  };
+}
+
+export {
+  nativeOrganizationAccess,
+  nativeOrganizationDetail,
+  nativeOrganizationFailure,
+  nativeOrganizationOverview,
+};

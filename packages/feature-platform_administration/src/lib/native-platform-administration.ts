@@ -56,19 +56,47 @@ export function platformAdminActor(
   };
 }
 
+const configurationNames = [
+  'ERPX_NATIVE_PLATFORM_ADMIN_CONFIG',
+  'ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG',
+] as const;
+
+/** Trusted deployment input only. The short name stays canonical; the longer
+ * name is accepted so deployment notes may use either label. */
+function configurationValue(): string | undefined {
+  for (const name of configurationNames) {
+    const value = process.env[name];
+    if (value !== undefined) return value;
+  }
+  return undefined;
+}
+
 /** Selector presence only; a configured failure never falls back to the retained reader. */
 export function nativePlatformAdminAvailable(): boolean {
-  return process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG !== undefined;
+  return configurationValue() !== undefined;
 }
 
 function nativeClient() {
-  const raw = process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+  const raw = configurationValue();
   if (raw === undefined) return undefined;
   return createNativePlatformAdminClient(nativePlatformAdminConfiguration(raw));
 }
 
+/**
+ * Keep the explicit retained implementation only while the native transport is
+ * unset. `native` throws for a configured but unavailable service, so this
+ * selector can never replace a configured failure with retained data.
+ */
+export async function nativePlatformAdministrationOrRetained<T>(
+  native: () => Promise<T | undefined>,
+  retained: () => Promise<T>,
+): Promise<T> {
+  const result = await native();
+  return result ?? (await retained());
+}
+
 /** Native control-plane snapshot. Unset configuration returns undefined so the
- * caller can fail closed with an explicit 503 instead of using the retained reader. */
+ * caller keeps the retained reader; a configured failure is surfaced. */
 export async function nativePlatformOperationsForPresentation(
   work: PlatformAdminWorkInput,
   platform: PlatformAdminPlatformInput,

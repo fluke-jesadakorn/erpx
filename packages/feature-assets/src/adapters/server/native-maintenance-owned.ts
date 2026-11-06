@@ -22,6 +22,14 @@ import {
   nativeMaintenanceWorkspace,
 } from './native-maintenance-page';
 
+/** Native transition selection is configuration presence only. A malformed
+ * setting still selects the native path so its failure closes instead of
+ * silently falling back to the retained TypeScript writer. Creation remains on
+ * the retained TypeScript application until its native composition is mounted. */
+export function nativeMaintenanceTransitionAvailable(): boolean {
+  return nativeMaintenanceAvailable();
+}
+
 function ownedFailure(error: unknown): never {
   const failure = nativeMaintenanceFailure(error);
   if (failure) throw new ApiError(failure.status, failure.code, failure.message);

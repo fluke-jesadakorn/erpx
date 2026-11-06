@@ -2,6 +2,10 @@
 //! authority remains with the selected coordinator; owner ports supply the
 //! Quality workspace, detail and cancellation facts.
 use crate::business_http::BusinessScopeSlugs;
+use erpx_server_commercial::public::purchases::{
+    CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
+    current_package_catalogue, lock_commercial_authority_sources,
+};
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
     account_inbound_http::parse_inbound_account_request,
@@ -9,7 +13,7 @@ use erpx_server_identity_access::public::{
         AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
         WorkAuthorizationRequest,
     },
-    work_context::{HoldingWorkspaceRequest, WorkScopeKind},
+    work_context::HoldingWorkspaceRequest,
 };
 use erpx_server_quality::public::quality_http::{
     PgQualityCancellation, PgQualityRead, QualityHttpBackend, QualityHttpCommandRequest,
@@ -17,18 +21,13 @@ use erpx_server_quality::public::quality_http::{
     QualityHttpReadRequest, QualityHttpTarget, parse_cancellation, parse_quality_history_query,
     quality_router, read_quality_cancellation_history_page, read_quality_detail_core,
 };
-use erpx_server_quality::public::quality_http::{
-    apply_quality_cancellation, prepare_quality_cancellation,
-};
 use erpx_server_quality::public::quality_read::{
     QualityActor, QualityCancellationCommand, QualityCancellationReceipt, cancel_quality_hold,
-    normalize_quality_cancellation, quality_detail, quality_detail_core_from_source,
-    quality_workspace, validate_reason,
+    quality_detail, quality_detail_core_from_source, quality_workspace,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
-use serde_json::Value;
 use sqlx::PgConnection;
 use std::sync::Arc;
 
@@ -39,13 +38,6 @@ fn scope() -> BusinessError {
         FailureKind::Forbidden,
         "QUALITY_SCOPE_REQUIRED",
         "Choose the current authorized Company workspace.",
-    )
-}
-fn access_changed() -> BusinessError {
-    BusinessError::new(
-        FailureKind::Forbidden,
-        "QUALITY_ACCESS_CHANGED",
-        "Choose a current authorized Quality assignment.",
     )
 }
 
@@ -71,14 +63,6 @@ fn unavailable() -> BusinessError {
     )
 }
 
-fn command_unavailable() -> BusinessError {
-    BusinessError::new(
-        FailureKind::Unavailable,
-        "QUALITY_COMMAND_UNAVAILABLE",
-        "Native Quality commands are not enabled yet.",
-    )
-}
-
 fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
     match error {
         PgTransactionError::Business(error) => error,
@@ -92,6 +76,11 @@ struct QualitySources;
 impl HoldingWorkSourcePreparation for QualitySources {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
+            // Commercial purchase authority is fenced before any owner lock so
+            // the same serializable unit can prove the current History right.
+            lock_commercial_authority_sources(c)
+                .await
+                .map_err(business)?;
             erpx_server_quality::public::quality_http::lock_quality_cancellation_writes(c)
                 .await
                 .map_err(business)?;
@@ -128,33 +117,6 @@ fn quality_actor(current: &AuthorizedWorkContext) -> Result<QualityActor, Busine
         branch_id: workspace.branch_id.clone(),
         department_id: workspace.department_id.clone(),
         permissions: current.command_iam_metadata().permissions.clone(),
-    })
-}
-
-fn context(current: &AuthorizedWorkContext) -> Value {
-    let selected = current.selection();
-    let workspace = selected.workspace();
-    let assignment = selected.assignment();
-    serde_json::json!({
-        "userId": current.user_id().as_str(),
-        "holdingId": current.holding_id().as_str(),
-        "companyId": workspace.company_id.as_str(),
-        "branchId": workspace.branch_id.as_ref().map(|value| value.as_str()),
-        "departmentId": workspace.department_id.as_ref().map(|value| value.as_str()),
-        "branchSlug": workspace.branch_slug,
-        "departmentSlug": workspace.department_slug,
-        "assignmentId": assignment.id.as_str(),
-        "assignmentVersion": assignment.version,
-        "revision": selected.revision(),
-        "role": assignment.role,
-        "assignmentScopeKind": match assignment.scope_kind {
-            WorkScopeKind::Holding => "holding",
-            WorkScopeKind::Branch => "branch",
-            WorkScopeKind::Department => "department",
-        },
-        "modules": current.modules(),
-        "permissions": current.command_iam_metadata().permissions,
-        "expiresAt": current.expires_at(),
     })
 }
 
@@ -303,6 +265,7 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
     {
         let holding = self.configuration.holding.clone();
         let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
         self.authorizer
             .execute_with_sources_deferred(
                 host,
@@ -314,6 +277,7 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
                     let holding = holding.clone();
                     let company = company.clone();
                     let id = id.clone();
+                    let clock = clock.clone();
                     Box::pin(async move {
                         if current.holding_id() != &holding
                             || current.selection().workspace().company_id != company
@@ -321,6 +285,29 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
                             return Err(scope().into());
                         }
                         current.require_permission("quality.read")?;
+                        let now = clock.now();
+                        let witness = {
+                            let catalogue = current_package_catalogue()?;
+                            let mut purchase = PgCompanyPurchaseReader::new(
+                                holding.clone(),
+                                company.clone(),
+                                connection,
+                                &catalogue,
+                            );
+                            purchase
+                                .inspect(
+                                    &PurchaseRequest {
+                                        capabilities: vec!["supply.quality".into()],
+                                        purpose: CapabilityPurpose::History,
+                                        mode: PackageEnforcementMode::Enforced,
+                                    },
+                                    now,
+                                )
+                                .await
+                                .map_err(business)?
+                                .require_allowed()?
+                                .clone()
+                        };
                         let actor = quality_actor(current)?;
                         let Some(current) = read_quality_detail_core(
                             connection,
@@ -332,6 +319,17 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
                         else {
                             return Err(hold_not_found().into());
                         };
+                        let catalogue = current_package_catalogue()?;
+                        PgCompanyPurchaseReader::new(
+                            holding.clone(),
+                            company.clone(),
+                            connection,
+                            &catalogue,
+                        )
+                        .revalidate(&witness, now)
+                        .await
+                        .map_err(business)?
+                        .require_allowed()?;
                         Ok(quality_detail_core_from_source(
                             &actor,
                             current.data().clone(),
@@ -358,6 +356,7 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
     {
         let holding = self.configuration.holding.clone();
         let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
         self.authorizer
             .execute_with_sources_deferred(
                 host,
@@ -370,6 +369,7 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
                     let company = company.clone();
                     let id = id.clone();
                     let raw_query = raw_query.clone();
+                    let clock = clock.clone();
                     Box::pin(async move {
                         if current.holding_id() != &holding
                             || current.selection().workspace().company_id != company
@@ -378,6 +378,29 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
                         }
                         current.require_permission("quality.read")?;
                         let cursor = parse_quality_history_query(raw_query.as_deref())?;
+                        let now = clock.now();
+                        let witness = {
+                            let catalogue = current_package_catalogue()?;
+                            let mut purchase = PgCompanyPurchaseReader::new(
+                                holding.clone(),
+                                company.clone(),
+                                connection,
+                                &catalogue,
+                            );
+                            purchase
+                                .inspect(
+                                    &PurchaseRequest {
+                                        capabilities: vec!["supply.quality".into()],
+                                        purpose: CapabilityPurpose::History,
+                                        mode: PackageEnforcementMode::Enforced,
+                                    },
+                                    now,
+                                )
+                                .await
+                                .map_err(business)?
+                                .require_allowed()?
+                                .clone()
+                        };
                         let actor = quality_actor(current)?;
                         let page = read_quality_cancellation_history_page(
                             connection,
@@ -390,6 +413,17 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
                             QUALITY_HISTORY_PAGE_SIZE,
                         )
                         .await?;
+                        let catalogue = current_package_catalogue()?;
+                        PgCompanyPurchaseReader::new(
+                            holding.clone(),
+                            company.clone(),
+                            connection,
+                            &catalogue,
+                        )
+                        .revalidate(&witness, now)
+                        .await
+                        .map_err(business)?
+                        .require_allowed()?;
                         Ok(QualityHttpHistoryReply {
                             items: page.rows().to_vec(),
                             next_before: page.next_before(),

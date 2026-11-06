@@ -5,7 +5,8 @@
 //! resolution, current Company/branch/department scope, Commercial admission and
 //! the serializable owner command unit remain composition responsibilities.
 use crate::application::work_commands::{
-    MaintenanceCommandInputJson, NormalizedMaintenanceChange, NormalizedMaintenanceCreate,
+    MaintenanceCommandInputJson, MaintenanceWorkCommand, NormalizedMaintenanceChange,
+    NormalizedMaintenanceCreate,
 };
 use crate::adapters::work_wire::{normalize_maintenance_change, normalize_maintenance_create};
 use erpx_server_runtime::public::http_support::{
@@ -75,6 +76,16 @@ impl MaintenanceHttpCommand {
         match self {
             Self::Create { input, .. } => input.receipt_input(),
             Self::Change { input, .. } => input.receipt_input(),
+        }
+    }
+    /// Composition dispatch value for every work transition, including
+    /// issue-part. Creation returns `None` until its native composition exists.
+    pub fn change_command(&self) -> Option<MaintenanceWorkCommand> {
+        match self {
+            Self::Change { key, id, input } => {
+                Some(input.clone().into_command(key.clone(), id.clone()))
+            }
+            Self::Create { .. } => None,
         }
     }
 }
@@ -493,6 +504,58 @@ mod tests {
         assert!(decode_command(br#"{"id":"work"}"#, key()).is_err());
         assert!(decode_command(br#"{"assetId":"","assetVersion":0,"title":"x","priority":"urgent","ownerId":"","reason":""}"#, key()).is_err());
         assert!(decode_command(b"not-json", key()).is_err());
+    }
+
+    #[test]
+    fn every_work_action_selects_the_native_operation_and_change_command() {
+        for (body, action) in [
+            (
+                br#"{"id":"work","action":"schedule","expectedVersion":2,"ownerId":"user","scheduledAt":1700000000000,"reason":"Synthetic reason"}"#.as_slice(),
+                "schedule",
+            ),
+            (
+                br#"{"id":"work","action":"start","expectedVersion":2,"reason":"Synthetic reason"}"#.as_slice(),
+                "start",
+            ),
+            (
+                br#"{"id":"work","action":"block","expectedVersion":2,"reason":"Synthetic reason"}"#.as_slice(),
+                "block",
+            ),
+            (
+                br#"{"id":"work","action":"resume","expectedVersion":2,"reason":"Synthetic reason"}"#.as_slice(),
+                "resume",
+            ),
+            (
+                br#"{"id":"work","action":"complete","expectedVersion":2,"resultingCondition":"good","evidence":"Synthetic evidence","reason":"Synthetic reason"}"#.as_slice(),
+                "complete",
+            ),
+            (
+                br#"{"id":"work","action":"issue-part","expectedVersion":2,"warehouseId":"warehouse","productId":"product","quantityMilli":1000,"entryDate":"2026-11-06","reason":"Synthetic reason"}"#.as_slice(),
+                "issue-part",
+            ),
+            (
+                br#"{"id":"work","action":"cancel","expectedVersion":2,"reason":"Synthetic reason"}"#.as_slice(),
+                "cancel",
+            ),
+        ] {
+            let command = decode_command(body, key()).unwrap();
+            assert_eq!(decoded_operation(&command), format!("maintenance.{action}"));
+            let work = command.change_command().unwrap();
+            assert_eq!(work.key().as_str(), "maintenance-http-key");
+            assert_eq!(work.work_id().as_str(), "work");
+            assert_eq!(work.operation(), format!("maintenance.{action}"));
+            assert_eq!(work.input().action.action(), action);
+            assert_eq!(work.receipt_input(), command.receipt_input());
+            assert!(command.create_input().is_none());
+        }
+    }
+
+    #[test]
+    fn creation_has_no_native_change_command_until_its_composition_exists() {
+        let create = br#"{"assetId":"asset","assetVersion":1,"title":"Synthetic work","priority":"normal","ownerId":"user","scheduledAt":null,"reason":"Synthetic reason"}"#;
+        let command = decode_command(create, key()).unwrap();
+        assert!(command.change_command().is_none());
+        assert!(command.change_input().is_none());
     }
 
     #[test]

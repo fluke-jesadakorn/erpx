@@ -1,4 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 vi.mock('server-only', () => ({}));
 import {
   createNativePlatformAdminClient,
@@ -7,7 +9,7 @@ import {
   NativePlatformAdminError,
   type NativePlatformAdminActor,
 } from '../../../packages/feature-platform_administration/src/adapters/server/native-platform-administration';
-import { platformAdminActor, nativePlatformMigrate } from '../../../packages/feature-platform_administration/src/lib/native-platform-administration';
+import { platformAdminActor, nativePlatformAdminAvailable, nativePlatformAdministrationOrRetained, nativePlatformMigrate, nativePlatformOperationsForPresentation } from '../../../packages/feature-platform_administration/src/lib/native-platform-administration';
 
 const config = (overrides: Record<string, unknown> = {}) =>
   JSON.stringify({
@@ -315,8 +317,10 @@ describe('native Platform Administration transport', () => {
 
   it('fails closed when the native Platform configuration is absent or invalid', async () => {
     const previous = process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+    const previousLong = process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
     try {
       delete process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+      delete process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
       expect(
         await nativePlatformMigrate(
           work,
@@ -347,6 +351,96 @@ describe('native Platform Administration transport', () => {
     } finally {
       if (previous === undefined) delete process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
       else process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG = previous;
+      if (previousLong === undefined)
+        delete process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG = previousLong;
+    }
+  });
+
+  it('uses the retained path only while either configuration name is unset', async () => {
+    const short = process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+    const long = process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+    try {
+      delete process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+      delete process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+      expect(nativePlatformAdminAvailable()).toBe(false);
+      expect(
+        await nativePlatformOperationsForPresentation(work, platform, incoming()),
+      ).toBeUndefined();
+
+      process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG = '{}';
+      expect(nativePlatformAdminAvailable()).toBe(true);
+      await expect(
+        nativePlatformOperationsForPresentation(work, platform, incoming()),
+      ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_CONFIGURATION_INVALID' });
+
+      delete process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+      process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG = '{}';
+      expect(nativePlatformAdminAvailable()).toBe(true);
+      await expect(
+        nativePlatformOperationsForPresentation(work, platform, incoming()),
+      ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_CONFIGURATION_INVALID' });
+    } finally {
+      if (short === undefined) delete process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG = short;
+      if (long === undefined) delete process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG = long;
+    }
+  });
+
+  it('never replaces a configured native failure with retained data', async () => {
+    const retained = vi.fn(async () => 'retained');
+    expect(
+      await nativePlatformAdministrationOrRetained(async () => undefined, retained),
+    ).toBe('retained');
+    expect(retained).toHaveBeenCalledTimes(1);
+
+    retained.mockClear();
+    expect(
+      await nativePlatformAdministrationOrRetained(async () => 'native', retained),
+    ).toBe('native');
+    expect(retained).not.toHaveBeenCalled();
+
+    await expect(
+      nativePlatformAdministrationOrRetained(async () => {
+        throw new NativePlatformAdminError('NATIVE_PLATFORM_ADMIN_UNAVAILABLE');
+      }, retained),
+    ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_UNAVAILABLE' });
+    expect(retained).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a configured but unavailable native service without retaining data', async () => {
+    const server = createServer((_request, response) => {
+      response.writeHead(503, { 'content-type': 'application/json' });
+      response.end(
+        JSON.stringify({ error: { code: 'SERVICE_UNAVAILABLE', message: 'offline' } }),
+      );
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const short = process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+    const long = process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+    try {
+      delete process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+      process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG = config({
+        privateBaseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+        timeoutMs: 250,
+      });
+      const retained = vi.fn(async (): Promise<never> => {
+        throw new Error('retained path must not run');
+      });
+      await expect(
+        nativePlatformAdministrationOrRetained(
+          () => nativePlatformOperationsForPresentation(work, platform, incoming()),
+          retained,
+        ),
+      ).rejects.toMatchObject({ code: 'SERVICE_UNAVAILABLE', status: 503 });
+      expect(retained).not.toHaveBeenCalled();
+    } finally {
+      if (short === undefined) delete process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG = short;
+      if (long === undefined) delete process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG = long;
+      await new Promise<void>((resolve) => server.close(() => resolve()));
     }
   });
 
