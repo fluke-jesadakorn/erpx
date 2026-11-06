@@ -1654,6 +1654,9 @@ async fn assemble_checked(
                 .holdings
                 .iter()
                 .enumerate()
+                .filter(|(_, h)| {
+                    !matches!(h.registration.holding_id.as_str(), "h003" | "erpx")
+                })
                 .map(|(i, h)| {
                     erpx_server_platform_administration::public::platform_operations::PlatformHoldingDatabase {
                         identity: erpx_server_platform_administration::public::platform_operations::PlatformHoldingIdentity {
