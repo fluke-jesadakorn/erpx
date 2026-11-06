@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T06:15:35+07:00",
+  "updatedAt": "2026-11-07T06:18:10+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T06:15:35+07:00",
-    "sourceHead": "a9b709459",
+    "generatedAt": "2026-11-07T06:18:10+07:00",
+    "sourceHead": "3cd78147d",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7479,6 +7479,21 @@
           "Finance refund payments/journals"
         ],
         "evidence": "POS unit 12/12, POS Postgres 17/17 (cash refund approve: line returned/refunded/restored cost, refunded payment, refund payment succeeded, return stock move), composed HTTP+PG 3/3 (full journey ends with independent refund approval: refund completed by fixture-b, stock 4000->5000, refund/return/refund-payment journals balanced, Finance refund row), native transport 10/10, typecheck passes",
+        "counts": {
+          "owners": 3,
+          "verified": 30,
+          "partial": 89,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T06:18:10+07:00",
+        "commit": "3cd78147d",
+        "bundles": [
+          "refund approval authority fix"
+        ],
+        "evidence": "POS unit 13/13, POS Postgres 17/17, composed HTTP+PG 3/3; refund.approve now requires pos.approve before any read",
         "counts": {
           "owners": 3,
           "verified": 30,
