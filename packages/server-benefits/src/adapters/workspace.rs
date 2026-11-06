@@ -158,6 +158,22 @@ impl<'a> PgBenefitsWorkspaceRead<'a> {
             .collect()
     }
 
+    /// Distinct employee person IDs for the reviewer workspace name projection.
+    pub async fn election_person_ids(
+        &mut self,
+        company: &CompanyId,
+        limit: usize,
+    ) -> Result<Vec<String>, Error> {
+        self.ready().await?;
+        Ok(sqlx::query_scalar(
+            "SELECT DISTINCT person_id FROM benefit_elections WHERE company_id=$1 ORDER BY person_id LIMIT $2",
+        )
+        .bind(company.as_str())
+        .bind(limit as i64)
+        .fetch_all(&mut *self.connection)
+        .await?)
+    }
+
     pub async fn elections(
         &mut self,
         company: &CompanyId,

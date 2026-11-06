@@ -101,6 +101,7 @@ async fn benefits_people(
     connection: &mut PgConnection,
     company: &CompanyId,
     user_id: &str,
+    extra_person_ids: &[String],
 ) -> Result<(Option<BenefitsWorker>, Vec<(String, String)>, CurrentBenefitPerson), Error> {
     let person = inspect_benefit_person(connection, company.as_str(), user_id)
         .await
@@ -109,15 +110,18 @@ async fn benefits_people(
         person_id: employee.person_id.clone(),
         engagement_id: employee.engagement_id.clone(),
     });
-    let names = match &worker {
-        Some(worker) => inspect_benefit_person_names(
-            connection,
-            company.as_str(),
-            std::slice::from_ref(&worker.person_id),
-        )
-        .await
-        .map_err(business)?,
-        None => Vec::new(),
+    let mut person_ids = extra_person_ids.to_vec();
+    if let Some(worker) = &worker {
+        if !person_ids.iter().any(|id| id == &worker.person_id) {
+            person_ids.push(worker.person_id.clone());
+        }
+    }
+    let names = if person_ids.is_empty() {
+        Vec::new()
+    } else {
+        inspect_benefit_person_names(connection, company.as_str(), &person_ids)
+            .await
+            .map_err(business)?
     };
     Ok((worker, names, person))
 }
@@ -232,6 +236,29 @@ impl BenefitsConfiguration {
     }
 }
 
+fn benefits_work_context(current: &AuthorizedWorkContext) -> String {
+    use sha2::{Digest, Sha256};
+    let selected = current.selection();
+    let workspace = selected.workspace();
+    let assignment = selected.assignment();
+    let mut hash = Sha256::new();
+    for value in [
+        current.user_id().as_str(),
+        current.holding_id().as_str(),
+        workspace.company_id.as_str(),
+        workspace.branch_id.as_ref().map(|v| v.as_str()).unwrap_or(""),
+        workspace.department_id.as_ref().map(|v| v.as_str()).unwrap_or(""),
+        assignment.id.as_str(),
+        assignment.role.as_str(),
+    ] {
+        hash.update((value.len() as u64).to_be_bytes());
+        hash.update(value.as_bytes());
+    }
+    hash.update(selected.revision().to_be_bytes());
+    hash.update(assignment.version.to_be_bytes());
+    format!("{:x}", hash.finalize())
+}
+
 fn benefits_actor(current: &AuthorizedWorkContext) -> Result<BenefitsActor, BusinessError> {
     let selected = current.selection();
     let workspace = selected.workspace();
@@ -242,7 +269,7 @@ fn benefits_actor(current: &AuthorizedWorkContext) -> Result<BenefitsActor, Busi
         department_id: workspace.department_id.clone(),
         permissions: current.command_iam_metadata().permissions.clone(),
         modules: current.modules().to_vec(),
-        work_context: "0".repeat(64),
+        work_context: benefits_work_context(current),
         expires_at: current.expires_at(),
     })
 }
@@ -359,10 +386,25 @@ impl<C: Clock + Send + Sync + 'static> BenefitsService<C> {
                         current.require_permission("records.read")?;
                         let actor = benefits_actor(current)?;
                         let now = clock.now();
+                        let extra_person_ids = if !personal
+                            && actor
+                                .permissions
+                                .iter()
+                                .any(|permission| permission == "benefits.review")
+                        {
+                            let mut reviewer_read = PgBenefitsWorkspaceRead::new(connection);
+                            reviewer_read
+                                .election_person_ids(&company, 1001)
+                                .await
+                                .map_err(business)?
+                        } else {
+                            Vec::new()
+                        };
                         let (worker, names, person) = benefits_people(
                             connection,
                             &company,
                             current.user_id().as_str(),
+                            &extra_person_ids,
                         )
                         .await?;
                         let (entitlement, witness) =
@@ -445,6 +487,7 @@ impl<C: Clock + Send + Sync + 'static> BenefitsService<C> {
                             connection,
                             &company,
                             current.user_id().as_str(),
+                            &[],
                         )
                         .await?;
                         let (entitlement, witness) =
@@ -461,7 +504,7 @@ impl<C: Clock + Send + Sync + 'static> BenefitsService<C> {
                             role: assignment.role.clone(),
                             permissions: current.command_iam_metadata().permissions.clone(),
                             modules: current.modules().to_vec(),
-                            work_context: "0".repeat(64),
+                            work_context: benefits_work_context(current),
                             expires_at: current.expires_at(),
                         };
                         let mut repository = PgBenefitsCommand::new(connection, &actor);
