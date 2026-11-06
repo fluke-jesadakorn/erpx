@@ -6454,7 +6454,7 @@
   ],
   "executionPlan": {
     "generatedAt": "2026-11-06T20:11:14+07:00",
-    "sourceHead": "PENDING-pos-fix",
+    "sourceHead": "bc197ed49",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7165,7 +7165,7 @@
       },
       {
         "at": "2026-11-06T23:20:13+07:00",
-        "commit": "pending",
+        "commit": "bc197ed49",
         "bundles": [
           "POS merged-identity independence fix",
           "Marketing partial-state/bookkeeping correction"
