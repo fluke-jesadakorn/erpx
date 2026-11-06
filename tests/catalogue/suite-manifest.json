@@ -66531,6 +66531,63 @@
       }
     },
     {
+      "id": "maintenance.rust-maintenance-http-postgres.integration",
+      "lane": "integration",
+      "owner": "maintenance",
+      "modules": [
+        "maintenance"
+      ],
+      "files": [
+        "tests/integration/maintenance/rust-maintenance-http-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Composed native Maintenance HTTP over the real Account session and IAM proves a native block transition, idempotent replay and persisted readback while create stays explicitly retained."
+      },
+      "framework": "cargo",
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml",
+        "tests/support/finance/review-composition.rs",
+        "tests/support/rust-account-revocation.rs",
+        "tests/support/rust-account-credentials.rs",
+        "tests/support/rust-account.rs",
+        "tests/support/rust-postgres.rs",
+        "packages/server-maintenance/Cargo.toml"
+      ],
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "maintenance_http_postgres"
+        ],
+        "features": [
+          "existing-business"
+        ]
+      },
+      "apps": [
+        "assets"
+      ],
+      "packages": [
+        "@erpx/server-maintenance",
+        "@erpx/server-runtime",
+        "@erpx/server-shared",
+        "@erpx/server-identity_access",
+        "@erpx/server-commercial",
+        "@erpx/server-inventory",
+        "@erpx/server-finance",
+        "@erpx/server-workflow",
+        "@erpx/server-collaboration",
+        "@erpx/server-assets"
+      ]
+    },
+    {
       "id": "files.rust-preview-process.provider",
       "lane": "provider",
       "owner": "files",

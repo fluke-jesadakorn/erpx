@@ -517,3 +517,8 @@ required-features = ["private-field-api"]
 name = "quality_http_postgres"
 path = "../../tests/integration/quality/rust-quality-http-postgres.test.rs"
 required-features = ["existing-business"]
+
+[[test]]
+name = "maintenance_http_postgres"
+path = "../../tests/integration/maintenance/rust-maintenance-http-postgres.test.rs"
+required-features = ["existing-business"]

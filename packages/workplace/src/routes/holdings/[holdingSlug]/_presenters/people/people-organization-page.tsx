@@ -31,7 +31,7 @@ export async function PeopleOrganizationPage({ actor, search }: {
   // Organization-owned page facts come from the native workspace when it is
   // configured. A configured failure is closed by the route error boundary;
   // only an absent configuration keeps the retained Organization read.
-  const nativeOrganization = canManageStructure && retainedOrganization
+  const nativeOrganization = retainedOrganization
     ? await nativeOrganizationPage(
         actor,
         actor.holdingSlug,

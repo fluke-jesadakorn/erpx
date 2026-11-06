@@ -524,6 +524,11 @@ describe("Native organization page read", () => {
       "position-branch",
       "department-position",
     ]);
+    expect(page?.overview.positions.map((item) => item.id)).toEqual([
+      "position-branch",
+      "department-position",
+    ]);
+    expect(page?.overview.positions.some((item) => item.id === "other-branch")).toBe(false);
     expect(page?.access.people).toBe(pagePeople);
     const departmentPage = await nativeOrganizationPage(
       { ...nativeActor, branchId: "branch", departmentId: "department-1" },

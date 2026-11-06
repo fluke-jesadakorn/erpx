@@ -9,12 +9,12 @@ use crate::maintenance_transitions::{
 use erpx_server_commercial::public::purchases::PackageEnforcementMode;
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
-    account_inbound_http::parse_inbound_account_request,
+    account_inbound_http::{parse_inbound_account_request, unique_request_header},
     effective_authority::{
         AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
         WorkAuthorizationRequest,
     },
-    work_context::{HoldingWorkspaceRequest, WorkScopeKind},
+    work_context::{ExpectedWorkSelection, HoldingWorkspaceRequest, WorkScopeKind},
 };
 use erpx_server_maintenance::public::http::{
     MaintenanceHttpBackend, MaintenanceHttpCommandRequest, MaintenanceHttpFuture,
@@ -29,7 +29,7 @@ use erpx_server_maintenance::public::{
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
+use erpx_server_shared::public::{AssignmentId, BusinessError, Clock, CompanyId, FailureKind, HoldingId};
 use erpx_server_shared::public::{IdentifierSource, RecordId};
 use serde_json::Value;
 use sqlx::PgConnection;
@@ -519,6 +519,31 @@ impl<C: Clock + Send + Sync + 'static> MaintenanceBackend<C> {
             },
         ))
     }
+
+    fn command_context(
+        &self,
+        headers: &HeaderMap,
+    ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
+        let (proof, mut selection) = self.context(headers)?;
+        let revision = unique_request_header(headers, "x-erpx-context-revision")?
+            .ok_or_else(|| BusinessError::invalid("MAINTENANCE_CONTEXT_REQUIRED", "Use the current work revision."))?
+            .parse()
+            .map_err(|_| BusinessError::invalid("MAINTENANCE_CONTEXT_REQUIRED", "Use the current work revision."))?;
+        let assignment = unique_request_header(headers, "x-erpx-context-assignment")?
+            .ok_or_else(|| BusinessError::invalid("MAINTENANCE_CONTEXT_REQUIRED", "Choose the current assignment."))?
+            .to_owned();
+        let assignment_version = unique_request_header(headers, "x-erpx-context-assignment-version")?
+            .ok_or_else(|| BusinessError::invalid("MAINTENANCE_CONTEXT_REQUIRED", "Use the current assignment version."))?
+            .parse()
+            .map_err(|_| BusinessError::invalid("MAINTENANCE_CONTEXT_REQUIRED", "Use the current assignment version."))?;
+        selection.expected = Some(ExpectedWorkSelection {
+            revision,
+            assignment_id: AssignmentId::new(assignment)?,
+            assignment_version,
+        });
+        selection.mutation = true;
+        Ok((proof, selection))
+    }
 }
 
 impl<C: Clock + Send + Sync + 'static> MaintenanceHttpBackend for MaintenanceBackend<C> {
@@ -558,9 +583,14 @@ impl<C: Clock + Send + Sync + 'static> MaintenanceHttpBackend for MaintenanceBac
         request: MaintenanceHttpCommandRequest<'a>,
     ) -> MaintenanceHttpFuture<'a, MaintenanceHttpResponse> {
         Box::pin(async move {
-            let (_proof, _selection) = self.context(request.headers)?;
-            let _ = request.command;
-            Err(command_unavailable())
+            let (proof, selection) = self.command_context(request.headers)?;
+            let Some(command) = request.command.change_command() else {
+                return Err(command_unavailable());
+            };
+            self.service
+                .command(request.host, proof, selection, command)
+                .await
+                .map_err(business)
         })
     }
 }

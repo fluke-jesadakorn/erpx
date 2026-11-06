@@ -207,10 +207,17 @@ export async function nativeOrganizationPage(
     branchId: actor.branchId,
     departmentId: actor.departmentId,
   });
+  const positionIds = new Set(access.positions.map((position) => position.id));
+  const nodeIds = new Set(access.nodes.map((node) => node.id));
+  const scoped = {
+    ...native,
+    positions: native.positions.filter((position) => positionIds.has(position.id)),
+    nodes: native.nodes.filter((node) => nodeIds.has(String(node.id))),
+  };
   return {
     access,
     overview: {
-      ...nativeOrganizationOverview(native, { people: retained.people }),
+      ...nativeOrganizationOverview(scoped, { people: retained.people }),
       canManage: access.canManage,
     },
   };
