@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-06T23:21:34+07:00",
+  "updatedAt": "2026-11-06T23:24:14+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -6454,7 +6454,7 @@
   ],
   "executionPlan": {
     "generatedAt": "2026-11-06T20:11:14+07:00",
-    "sourceHead": "b8c4463e3",
+    "sourceHead": "964ace80d",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7090,8 +7090,8 @@
     "blockers": [
       {
         "id": "browser-cohort-unavailable",
-        "detail": "The default Docker socket is absent, but a reachable Colima Docker socket exists at ~/.colima/erpx-opensource-dev/docker.sock with the existing native field/count case volumes and toolchain images. Those volumes are bound to reviewed October releases and field/count fixtures; there is no generic native cohort release for the current HEAD, and the development gateway on 3100 runs without ERPX_NATIVE_* transport. Reusing an old case release would verify a stale source and is not acceptable. Additionally, the running development apps return 500 NATIVE_SESSION_CONFIGURATION_REQUIRED for authenticated Holding pages because ERPX_NATIVE_ACCOUNT_SESSION_CONFIG is unset; no native private API is listening. This is the direct reason no Holding page can currently be exercised.",
-        "unblock": "Provide or authorize a generic native cohort build for the current HEAD (leased DB clones + private API + Account native session + owned app/gateway), or authorize the existing dev-container native lease flow. Docker alone is insufficient because the current case volumes are source-bound to older releases."
+        "detail": "The keyed contributor lifecycle and Docker Colima socket are available, but host port 3443 is held by another ERPX workspace container (`erpx-dev-service-parts-q-1f71-arm64-workspace-1`, source 1f71a96, not this HEAD). The lifecycle correctly refuses to adopt or stop it. The existing 3100 development gateway has no ERPX_NATIVE_ACCOUNT_SESSION_CONFIG, so authenticated Holding pages return 500 NATIVE_SESSION_CONFIGURATION_REQUIRED. Without an owned HTTPS origin bound to current HEAD, no authenticated desktop/mobile journey can run.",
+        "unblock": "User authorization to stop/replace the other keyed workspace occupying 127.0.0.1:3443, or an approved alternate HTTPS origin/profile for a new keyed workspace bound to this HEAD. No staging/private production/public runtime change is implied."
       },
       {
         "id": "external-writer",
