@@ -6454,7 +6454,7 @@
   ],
   "executionPlan": {
     "generatedAt": "2026-11-06T20:11:14+07:00",
-    "sourceHead": "PENDING-marketing-mount",
+    "sourceHead": "66eba4534",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7181,7 +7181,7 @@
       },
       {
         "at": "2026-11-06T23:35:11+07:00",
-        "commit": "pending",
+        "commit": "66eba4534",
         "bundles": [
           "Marketing lead/asset HTTP composition mount + same-unit purchase gate"
         ],
