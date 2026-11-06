@@ -44,6 +44,7 @@ export type NativePosCommandReceipt = Readonly<{ id: string; version?: number }>
 export const NATIVE_POS_COMMANDS = new Set([
   'shift.open', 'shift.close', 'shift.review', 'cash.approve',
   'sale.create', 'sale.add', 'sale.update_line', 'sale.customer', 'sale.move_table', 'sale.remove',
+  'sale.discount',
   'sale.hold', 'sale.resume', 'sale.cancel',
   'refund.request', 'refund.reject',
 ]);

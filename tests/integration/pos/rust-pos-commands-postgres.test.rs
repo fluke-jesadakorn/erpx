@@ -1008,3 +1008,39 @@ fn sale_customer_move_table_and_remove_write_the_basket() {
         assert_eq!(totals, (0, 0, 0, 4));
     });
 }
+
+#[test]
+fn sale_discount_allocates_the_bill_discount_and_refreshes_totals() {
+    with_database(|pool| async move {
+        setup(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO pos_sales(id,company_id,branch_id,register_id,shift_id,number,currency,business_date,state,created_by,created_at,updated_at,accounts_json,service_mode,version) VALUES('sale-discount','company','branch','register','shift','POS-D','THB','2027-01-15','open','cashier',0,0,'{}','retail',1);\
+             INSERT INTO pos_fulfillments(id,company_id,branch_id,warehouse_id,product_id,quantity_milli,kind,station,recipe_json,accounts_json,currency,business_date,created_at,state) VALUES('discount-fulfilment','company','branch','warehouse','product',1000,'stock','Kitchen','[]','{}','THB','2027-01-15',0,'draft');\
+             INSERT INTO pos_lines(id,sale_id,fulfillment_id,product_id,name,quantity_milli,price_minor,tax_bps,tax_inclusive,discount_minor,subtotal_minor,tax_minor,modifiers_json) VALUES('discount-line','sale-discount','discount-fulfilment','product','Product',1000,1000,700,false,0,1000,70,'[]');"
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let discount = command(
+            PosOperation::SaleDiscount,
+            "sale-discount-key-1",
+            serde_json::json!({"id":"sale-discount","expectedVersion":1,"amountMinor":100}),
+        );
+        let result = run(&pool, actor("manager"), discount).await.unwrap();
+        assert_eq!(result.version, Some(2));
+        let line: (i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT discount_minor,bill_discount_minor,subtotal_minor,tax_minor FROM pos_lines WHERE id='discount-line'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(line, (100, 100, 900, 63));
+        let sale: (i64, i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT discount_minor,subtotal_minor,tax_minor,total_minor,version FROM pos_sales WHERE id='sale-discount'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(sale, (100, 900, 63, 963, 2));
+    });
+}

@@ -5,11 +5,13 @@
 //! cross-owner SQL is constructed here.
 #![allow(clippy::too_many_arguments)]
 use crate::domain::commands::{
-    CashApproveInput, PosActor, PosCashMovement, PosCatalogProduct, PosCatalogSnapshot, PosCommand,
+    CashApproveInput, PosActor, PosCashMovement, PosCatalogSnapshot, PosCommand,
     PosCommandInput, PosFulfillment, PosFulfillmentInsert, PosJournalLine, PosJournalRequest, PosLine,
-    PosLineDetail, PosLineInsert, PosOperation, PosReceipt, PosRefund, PosRegister, PosResult, PosSale, PosSettings,
+    PosLineDetail, PosLineDiscountRow, PosLineInsert, PosOperation, PosReceipt, PosRefund, PosRegister,
+    PosResult, PosSale, PosSettings,
     PosShift, RefundRejectInput, RefundRequestInput, SaleAddInput, SaleCreateInput, SaleCustomerInput,
-    SaleMoveTableInput, SaleRemoveInput, SaleUpdateLineInput, SaleVersionInput, ShiftCloseInput,
+    SaleDiscountInput, SaleMoveTableInput, SaleRemoveInput, SaleUpdateLineInput, SaleVersionInput,
+    ShiftCloseInput,
     ShiftOpenInput, ShiftReviewInput,
     accounting_review_required, conflict, day_closed, idempotency_conflict, independent_review,
     not_found, parse_receipt_result, period_closed, request_invalid, setup_required,
@@ -227,6 +229,18 @@ pub trait PosCommandRepository: Send {
         fulfillment_id: &'a str,
     ) -> PosFuture<'a, (), Self::Error>;
     fn delete_line<'a>(&'a mut self, line_id: &'a str) -> PosFuture<'a, (), Self::Error>;
+    fn sale_lines_discount<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+    ) -> PosFuture<'a, Vec<PosLineDiscountRow>, Self::Error>;
+    fn update_line_discount<'a>(
+        &'a mut self,
+        line_id: &'a str,
+        discount_minor: i64,
+        bill_discount_minor: i64,
+        subtotal_minor: i64,
+        tax_minor: i64,
+    ) -> PosFuture<'a, (), Self::Error>;
     fn prepared_day_close<'a>(
         &'a mut self,
         company: &'a CompanyId,
@@ -519,6 +533,9 @@ where
         }
         PosCommandInput::SaleRemove(input) => {
             sale_remove(actor, input, repository, now).await?
+        }
+        PosCommandInput::SaleDiscount(input) => {
+            sale_discount(actor, input, repository, now).await?
         }
         PosCommandInput::SaleCreate(input) => {
             sale_create(
@@ -1679,6 +1696,87 @@ where
         .delete_reservations(&line.fulfillment_id)
         .await?;
     repository.delete_line(&line.id).await?;
+    if !repository.refresh_sale(&sale.id, now).await? {
+        return Err(version_conflict().into());
+    }
+    Ok(PosResult {
+        id: sale.id,
+        version: Some(input.expected_version + 1),
+    })
+}
+
+async fn sale_discount<R>(
+    actor: &PosActor,
+    input: &SaleDiscountInput,
+    repository: &mut R,
+    now: TimestampMillis,
+) -> Result<PosResult, R::Error>
+where
+    R: PosCommandRepository,
+{
+    let sale = repository
+        .sale(&actor.company_id, &input.id)
+        .await?
+        .ok_or_else(not_found)?;
+    scope_sale(actor, &sale)?;
+    version_matches(sale.version, input.expected_version)?;
+    if !matches!(sale.state.as_str(), "open" | "held") {
+        return Err(conflict(
+            "POS_SALE_NOT_EDITABLE",
+            "Only an open or held bill can change.",
+        )
+        .into());
+    }
+    let lines = repository.sale_lines_discount(&sale.id).await?;
+    let weights = lines
+        .iter()
+        .map(|line| {
+            scaled(line.price_minor, line.quantity_milli, 1000)
+                .and_then(|amount| amount.checked_sub(line.discount_minor).ok_or_else(|| {
+                    request_invalid("POS_DISCOUNT_AMOUNT", "Review the bill discount.")
+                }))
+                .and_then(|amount| amount.checked_add(line.bill_discount_minor).ok_or_else(|| {
+                    request_invalid("POS_DISCOUNT_AMOUNT", "Review the bill discount.")
+                }))
+        })
+        .collect::<Result<Vec<_>, BusinessError>>()?;
+    let total = weights
+        .iter()
+        .try_fold(0i64, |total, weight| total.checked_add(*weight))
+        .ok_or_else(|| request_invalid("POS_DISCOUNT_AMOUNT", "Review the bill discount."))?;
+    if input.amount_minor > total {
+        return Err(request_invalid(
+            "POS_DISCOUNT_AMOUNT",
+            "The discount exceeds the bill amount.",
+        )
+        .into());
+    }
+    let mut previous = 0i64;
+    for (line, weight) in lines.iter().zip(weights.iter()) {
+        let extra = if *weight > 0 && input.amount_minor > 0 {
+            let end = previous + weight;
+            scaled(input.amount_minor, end, total)?
+                - scaled(input.amount_minor, previous, total)?
+        } else {
+            0
+        };
+        previous += weight;
+        let discount = line
+            .discount_minor
+            .checked_sub(line.bill_discount_minor)
+            .and_then(|base| base.checked_add(extra))
+            .ok_or_else(|| request_invalid("POS_DISCOUNT_AMOUNT", "Review the bill discount."))?;
+        let (subtotal, tax) = sale_amounts(
+            line.quantity_milli,
+            line.price_minor,
+            line.tax_bps,
+            line.tax_inclusive,
+            discount,
+        )?;
+        repository
+            .update_line_discount(&line.id, discount, extra, subtotal, tax)
+            .await?;
+    }
     if !repository.refresh_sale(&sale.id, now).await? {
         return Err(version_conflict().into());
     }

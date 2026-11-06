@@ -20,6 +20,7 @@ pub const OPERATION_SALE_UPDATE_LINE: &str = "sale.update_line";
 pub const OPERATION_SALE_CUSTOMER: &str = "sale.customer";
 pub const OPERATION_SALE_MOVE_TABLE: &str = "sale.move_table";
 pub const OPERATION_SALE_REMOVE: &str = "sale.remove";
+pub const OPERATION_SALE_DISCOUNT: &str = "sale.discount";
 pub const OPERATION_SALE_CANCEL: &str = "sale.cancel";
 pub const OPERATION_REFUND_REQUEST: &str = "refund.request";
 pub const OPERATION_REFUND_REJECT: &str = "refund.reject";
@@ -102,6 +103,7 @@ pub enum PosOperation {
     SaleCustomer,
     SaleMoveTable,
     SaleRemove,
+    SaleDiscount,
     SaleHold,
     SaleResume,
     SaleCancel,
@@ -122,6 +124,7 @@ impl PosOperation {
             OPERATION_SALE_CUSTOMER => Self::SaleCustomer,
             OPERATION_SALE_MOVE_TABLE => Self::SaleMoveTable,
             OPERATION_SALE_REMOVE => Self::SaleRemove,
+            OPERATION_SALE_DISCOUNT => Self::SaleDiscount,
             OPERATION_SALE_HOLD => Self::SaleHold,
             OPERATION_SALE_RESUME => Self::SaleResume,
             OPERATION_SALE_CANCEL => Self::SaleCancel,
@@ -142,6 +145,7 @@ impl PosOperation {
             Self::SaleCustomer => OPERATION_SALE_CUSTOMER,
             Self::SaleMoveTable => OPERATION_SALE_MOVE_TABLE,
             Self::SaleRemove => OPERATION_SALE_REMOVE,
+            Self::SaleDiscount => OPERATION_SALE_DISCOUNT,
             Self::SaleHold => OPERATION_SALE_HOLD,
             Self::SaleResume => OPERATION_SALE_RESUME,
             Self::SaleCancel => OPERATION_SALE_CANCEL,
@@ -224,6 +228,12 @@ pub struct SaleRemoveInput {
     pub line_id: String,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SaleDiscountInput {
+    pub id: String,
+    pub expected_version: i64,
+    pub amount_minor: i64,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SaleVersionInput {
     pub id: String,
     pub expected_version: i64,
@@ -262,6 +272,7 @@ pub enum PosCommandInput {
     SaleCustomer(SaleCustomerInput),
     SaleMoveTable(SaleMoveTableInput),
     SaleRemove(SaleRemoveInput),
+    SaleDiscount(SaleDiscountInput),
     SaleVersion(SaleVersionInput),
     RefundRequest(RefundRequestInput),
     RefundReject(RefundRejectInput),
@@ -396,6 +407,16 @@ pub struct PosLineInsert {
     pub tax_minor: i64,
     pub modifiers_json: String,
     pub note: String,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PosLineDiscountRow {
+    pub id: String,
+    pub quantity_milli: i64,
+    pub price_minor: i64,
+    pub tax_bps: i64,
+    pub tax_inclusive: bool,
+    pub discount_minor: i64,
+    pub bill_discount_minor: i64,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PosLineDetail {
@@ -1160,6 +1181,28 @@ impl PosCommand {
                         ("id", json_string(&id)),
                         ("expectedVersion", expected_version.to_string()),
                         ("lineId", json_string(&line_id)),
+                    ]),
+                )
+            }
+            PosOperation::SaleDiscount => {
+                object(
+                    value,
+                    &["id", "expectedVersion", "amountMinor"],
+                    &["id", "expectedVersion", "amountMinor"],
+                )?;
+                let id = text(value, "id")?;
+                let expected_version = version(integer(value, "expectedVersion")?)?;
+                let amount_minor = money(integer(value, "amountMinor")?)?;
+                (
+                    PosCommandInput::SaleDiscount(SaleDiscountInput {
+                        id: id.clone(),
+                        expected_version,
+                        amount_minor,
+                    }),
+                    canonical(&[
+                        ("id", json_string(&id)),
+                        ("expectedVersion", expected_version.to_string()),
+                        ("amountMinor", amount_minor.to_string()),
                     ]),
                 )
             }

@@ -3,7 +3,8 @@
 use erpx_server_pos::public::commands::{
     CashApproveInput, PosActor, PosCashMovement, PosCommand, PosCommandRepository, PosFinancePort,
     PosFulfillment, PosFulfillmentInsert, PosFuture, PosHospitalityPort, PosJournalRequest, PosLine,
-    PosLineDetail, PosLineInsert, PosOperation, PosOrganizationPort, PosReceipt, PosRefund,
+    PosLineDetail, PosLineDiscountRow, PosLineInsert, PosOperation, PosOrganizationPort, PosReceipt,
+    PosRefund,
     PosRegister, PosResult, PosSale, PosSettings, PosShift, execute_pos_command,
 };
 use erpx_server_shared::public::{
@@ -437,6 +438,12 @@ impl PosCommandRepository for Probe {
         Box::pin(async move { Ok(self.reject) })
     }
 
+    fn sale_lines_discount<'a>(&'a mut self, _: &'a str) -> PosFuture<'a, Vec<PosLineDiscountRow>> {
+        Box::pin(async { Ok(Vec::new()) })
+    }
+    fn update_line_discount<'a>(&'a mut self, _: &'a str, _: i64, _: i64, _: i64, _: i64) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
     fn set_sale_party<'a>(&'a mut self, _: &'a str, _: Option<&'a str>) -> PosFuture<'a, ()> {
         Box::pin(async { Ok(()) })
     }

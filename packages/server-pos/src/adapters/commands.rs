@@ -4,7 +4,8 @@
 use crate::application::commands::{PosCommandRepository, PosFuture};
 use crate::domain::commands::{
     CashApproveInput, PosActor, PosCashMovement, PosCommand, PosFulfillment, PosFulfillmentInsert,
-    PosLine, PosLineDetail, PosLineInsert, PosReceipt, PosRefund, PosRegister, PosSale, PosSettings,
+    PosLine, PosLineDetail, PosLineDiscountRow, PosLineInsert, PosReceipt, PosRefund, PosRegister,
+    PosSale, PosSettings,
     PosShift, RefundRequestInput, SaleCreateInput,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
@@ -910,6 +911,51 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
         Box::pin(async move {
             self.ready().await?;
             sqlx::query("DELETE FROM pos_lines WHERE id=$1")
+                .bind(line_id)
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(())
+        })
+    }
+    fn sale_lines_discount<'a>(&'a mut self, sale_id: &'a str) -> Fut<'a, Vec<PosLineDiscountRow>> {
+        Box::pin(async move {
+            self.ready().await?;
+            let rows = sqlx::query(
+                "SELECT id,quantity_milli,price_minor,tax_bps,tax_inclusive,discount_minor,bill_discount_minor FROM pos_lines WHERE sale_id=$1 ORDER BY id FOR UPDATE",
+            )
+            .bind(sale_id)
+            .fetch_all(&mut *self.connection)
+            .await?;
+            rows.into_iter()
+                .map(|row| {
+                    Ok(PosLineDiscountRow {
+                        id: row.try_get("id")?,
+                        quantity_milli: row.try_get("quantity_milli")?,
+                        price_minor: row.try_get("price_minor")?,
+                        tax_bps: row.try_get("tax_bps")?,
+                        tax_inclusive: row.try_get("tax_inclusive")?,
+                        discount_minor: row.try_get("discount_minor")?,
+                        bill_discount_minor: row.try_get("bill_discount_minor")?,
+                    })
+                })
+                .collect()
+        })
+    }
+    fn update_line_discount<'a>(
+        &'a mut self,
+        line_id: &'a str,
+        discount_minor: i64,
+        bill_discount_minor: i64,
+        subtotal_minor: i64,
+        tax_minor: i64,
+    ) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query("UPDATE pos_lines SET discount_minor=$1,bill_discount_minor=$2,subtotal_minor=$3,tax_minor=$4 WHERE id=$5")
+                .bind(discount_minor)
+                .bind(bill_discount_minor)
+                .bind(subtotal_minor)
+                .bind(tax_minor)
                 .bind(line_id)
                 .execute(&mut *self.connection)
                 .await?;
