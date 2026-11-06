@@ -26,6 +26,8 @@ pub type OperationsCommandFuture<'a, T, E> =
 pub struct OpenPlan {
     pub key: CommandKey,
     pub company_id: String,
+    pub branch_id: Option<String>,
+    pub department_id: Option<String>,
     pub actor_id: String,
     pub source: SourceRecord,
     pub source_reference_json: String,
@@ -261,6 +263,8 @@ where
         .open(OpenPlan {
             key,
             company_id: actor.company_id.clone(),
+            branch_id: scope.branch_id.clone(),
+            department_id: scope.department_id.clone(),
             actor_id: actor.user_id.clone(),
             source: source.clone(),
             source_reference_json: source_reference_json(&source)?,
