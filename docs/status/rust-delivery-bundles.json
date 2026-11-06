@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-06T22:59:08+07:00",
+  "updatedAt": "2026-11-06T23:01:37+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -6454,7 +6454,7 @@
   ],
   "executionPlan": {
     "generatedAt": "2026-11-06T20:11:14+07:00",
-    "sourceHead": "PENDING-wave2",
+    "sourceHead": "4cf4f1eaf",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7147,7 +7147,7 @@
       },
       {
         "at": "2026-11-06T22:59:08+07:00",
-        "commit": "pending",
+        "commit": "4cf4f1eaf",
         "bundles": [
           "benefits native commands",
           "POS native commands",
