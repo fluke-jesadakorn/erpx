@@ -83,6 +83,7 @@ for(const [source,path,label] of [['expenses','finance/documents/expenses','Empl
 add('finance/setup/expenses','finance/setup/expenses','Expense posting setup');
 views('finance/setup','finance/setup','step',[['checklist','Readiness'],['chart','Charts & accounts'],['profile','Company accounting policy'],['opening','Opening balances'],['books','Books & dimensions'],['tools','Company tools'],['policy','Go-live review'],['ai','AI preparation']]);
 add('pos','pos/approvals','Approvals',{tab:'history',queue:'approval'});
+add('pos','pos/receipts','Receipts',{tab:'history'});
 add('pos','pos/approvals/shifts','Cash shift reviews',{tab:'shifts',queue:'approval'});
 add('pos','pos/settings/startup','POS startup',{tab:'settings',setup:'startup'});
 add('pos','pos/settings/initial-stock','POS initial physical stock',{tab:'settings',setup:'initial-stock'});

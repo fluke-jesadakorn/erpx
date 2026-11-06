@@ -1644,7 +1644,7 @@ impl PosCommand {
             PosOperation::RefundApprove => {
                 object(
                     value,
-                    &["id", "expectedVersion", "reason"],
+                    &["id", "expectedVersion", "reason", "attachmentSetIds"],
                     &["id", "expectedVersion", "reason"],
                 )?;
                 let id = text(value, "id")?;
