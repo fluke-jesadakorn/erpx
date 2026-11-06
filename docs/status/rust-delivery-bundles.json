@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T04:29:14+07:00",
+  "updatedAt": "2026-11-07T04:36:45+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 91,
-    "workflowsVerified": 28,
-    "workflowsMerged": 28,
+    "workflowsPartial": 90,
+    "workflowsVerified": 29,
+    "workflowsMerged": 29,
     "ownersComplete": 3,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -4169,9 +4169,9 @@
       "kind": "module",
       "owner": "pos",
       "scope": "Register session",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "pos-native-cash-movement",
         "pos-native-cash-http",
@@ -4180,7 +4180,7 @@
         "pos-native-cash-approval"
       ],
       "sourceRef": "packages/server-pos/src/public/pos.ts",
-      "gap": "All register-session commands now execute natively in the configured runtime with browser evidence: shift open/close, independent shift review with variance, cash movement create and independent cash approval. The cash approval browser journey posted 200 {id, version:3} through the native command route and Finance posted the deterministic balanced journal-cash:3b7176d4-... (Dr bank 1100 1000 / Cr cash-transfer 1000) with the pos_postings receipt and approved_by usr_nisa. Remaining for closure: retire/fence the retained TypeScript shift/cash writer for these operations so no unconfigured fallback can write them. The separate POS bill/payment/void/refund commands belong to their own workflows."
+      "gap": "Closed. All register-session operations run on the native writer in the configured runtime with browser evidence: shift open/close, independent shift review with variance journal, cash movement create and independent cash approval with journal. The front and backoffice HTTP ingresses now forward these operations to the native client and return NATIVE_POS_COMMAND_REQUIRED when the native service is absent, so the retained TypeScript shift/cash function has no product caller (seeds/tests keep the direct fixture function only)."
     },
     {
       "id": "pos/feature-sales-baskets",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T04:29:14+07:00",
-    "sourceHead": "4c3e15866",
+    "generatedAt": "2026-11-07T04:36:45+07:00",
+    "sourceHead": "abadf2cd8",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6534,9 +6534,9 @@
       },
       "pos": {
         "workflows": 5,
-        "verified": 0,
-        "partial": 1,
-        "unstarted": 4,
+        "verified": 1,
+        "partial": 3,
+        "unstarted": 1,
         "phase": "partial",
         "businessMigrationComplete": false
       },
@@ -7092,9 +7092,9 @@
     },
     "blockers": [
       {
-        "id": "pos-register-session-legacy-writer",
-        "detail": "The register-session browser journeys (open, close, review with journal, cash create + independent approval with journal) pass on the native route. The retained TypeScript shift/cash writer still exists as the fallback when the native POS config is absent, so the workflow is not counted closed until that legacy writer is retired or fenced.",
-        "unblock": "Fence the retained TS shift/cash command writer for the native command set (or remove it) and update its remaining callers/tests, then re-run the browser register-session journeys."
+        "id": "pos-remaining-workflows-legacy-writer",
+        "detail": "Register-session is closed. The remaining POS workflows (sales baskets, payments/receipts, voids, refunds) still execute sale.add, sale.update_line, payment.create, sale.complete, sale.cancel-adjacent flows and startup/catalogue commands on the retained TypeScript POS writer; only sale.create/cancel, refund request/reject and the register-session commands are native.",
+        "unblock": "Migrate sale.add/sale.update_line/payment.create/sale.complete and the startup/catalogue commands, fence their TypeScript ingress, and run the bill/payment browser journeys."
       },
       {
         "id": "external-writer",
@@ -7108,8 +7108,8 @@
       }
     ],
     "nextActions": [
-      "Fence or retire the retained TypeScript shift/cash writer for shift.open/close/review and cash.create/approve, then re-run the register-session browser journeys and close the workflow.",
-      "Migrate sale.add, sale.complete, payment.create and POS startup/catalogue commands onto the native composition; those belong to the remaining POS workflows.",
+      "Migrate sale.add, sale.update_line, payment.create and sale.complete onto the native composition and fence their TS ingress, then run the browser bill/payment/void journeys.",
+      "Migrate the POS startup/catalogue commands onto the native composition and retire their TS ingress.",
       "Use the working authenticated cohort to attach browser evidence to the browser-ready partials; do not raise counts without it."
     ],
     "integrationLog": [
@@ -7290,6 +7290,23 @@
           "owners": 4,
           "verified": 28,
           "partial": 91,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T04:36:45+07:00",
+        "commit": "abadf2cd8",
+        "bundles": [
+          "POS register-session legacy writer fence",
+          "front native shift/cash ingress",
+          "independent cash approval browser journey"
+        ],
+        "evidence": "front browser shift.open 200 10a6cb24-..., shift.close 200 version 4, cash.create 200 3e51d10d-...; backoffice cash.approve 200 version 3, approved_by usr_nisa; finance_journals journal-cash:3e51d10d-... posted Dr 1100 700 / Cr cash-transfer 700; pos_postings cash:3e51d10d-...; typecheck passes",
+        "counts": {
+          "owners": 4,
+          "verified": 29,
+          "partial": 90,
           "unstarted": 87,
           "total": 206
         }
