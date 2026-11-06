@@ -30,8 +30,11 @@ try {
   // Native Service packages reject the retained legacy grant writer. This fixture
   // materializes the same current grant/audit pair directly in the owner tables.
   await db.transaction(async tx=>{
-   await tx.prepare("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at) VALUES(?,?,?,?,?,?,?,?,?,0)").bind('acme-co',packageId,1,'active',0,null,1,grant.reason,grant.evidence).run();
-   await tx.prepare("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) VALUES(?,?,?,?,?,NULL,jsonb_build_object('companyId',?, 'packageId',?, 'packageVersion',1, 'state','active', 'startsAt',0, 'endsAt',NULL, 'version',1, 'reason',?, 'evidence',?),0)").bind(`contributor_${packageId}_v1`,'acme-co',packageId,'contributor-synthetic-seed','fixture','acme-co',packageId,grant.reason,grant.evidence).run();
+   await tx.prepare("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at) VALUES(?,?,?,?,?,NULL::bigint,?,?,?,0)").bind('acme-co',packageId,1,'active',0,1,grant.reason,grant.evidence).run();
+   // The current-audit trigger compares this image to the live grant row, so it
+   // must be the exact owner event payload (jsonb comparison ignores key order).
+   const after=JSON.stringify({companyId:'acme-co',packageId,packageVersion:1,state:'active',startsAt:0,endsAt:null,version:1,reason:grant.reason,evidence:grant.evidence});
+   await tx.prepare("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) VALUES(?,?,?,?,?,NULL,?::jsonb,0)").bind(`contributor_${packageId}_v1`,'acme-co',packageId,'contributor-synthetic-seed','fixture',after).run();
   });
  }
  const definitions=[
