@@ -14,6 +14,12 @@ fn changed() -> Error {
     )
     .into()
 }
+
+/// Zod `string.length` counts JavaScript UTF-16 code units, not UTF-8 bytes.
+/// This bound mirrors the gateway's `workspaceKey.max(4096)` check.
+fn utf16_len(value: &str) -> usize {
+    value.encode_utf16().count()
+}
 async fn unit(c: &mut PgConnection) -> Result<Unit, Error> {
     if !c.is_in_transaction()
         || sqlx::query_scalar::<_, String>("SHOW transaction_isolation")
@@ -109,8 +115,9 @@ impl CurrentAccountWorkspacePreferences {
         now: i64,
     ) -> Result<Self, Error> {
         self.require_current(c).await?;
+        // Path length is a UTF-16 length check like the gateway's zod bound.
         if path.is_empty()
-            || path.len() > 4096
+            || utf16_len(path) > 4096
             || path.chars().any(char::is_control)
             || !(0..=9_007_199_254_740_991).contains(&now)
         {

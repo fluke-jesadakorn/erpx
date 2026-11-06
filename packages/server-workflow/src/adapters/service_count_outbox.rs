@@ -2,7 +2,35 @@
 //! ensures the legacy claimant excludes exactly the same Company scope.
 use sqlx::{Connection, PgConnection, Row};
 
-/// Privileged worker-process recovery, never an end-user authorization claim.
+/// Port of ECMAScript `String.prototype.trim` edge whitespace. Rust's
+/// `char::is_whitespace` differs in both directions (U+FEFF is trimmed by JS
+/// but not Unicode `White_Space`; U+0085 is `White_Space` but kept by JS).
+/// Mirrors the helper retained by `stock_count_flow`.
+fn js_trim(value: &str) -> &str {
+    value.trim_matches(|c: char| {
+        matches!(
+            c,
+            '\u{0009}'..='\u{000d}'
+                | '\u{0020}'
+                | '\u{00a0}'
+                | '\u{1680}'
+                | '\u{2000}'..='\u{200a}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202f}'
+                | '\u{205f}'
+                | '\u{3000}'
+                | '\u{feff}'
+        )
+    })
+}
+
+/// ECMAScript `.length` counts UTF-16 code units, not Rust chars or bytes.
+/// The trimmed text is what is persisted in the audit purpose, so both bounds
+/// apply to the trimmed UTF-16 length, matching `stock_count_flow`.
+fn valid_retry_reason(reason: &str) -> bool {
+    (3..=2000).contains(&js_trim(reason).encode_utf16().count())
+}
 pub struct DeadLetterRetry<'a> {
     pub event_id: &'a str,
     pub dead_letter_at: i64,
@@ -21,7 +49,7 @@ pub async fn retry_owned_dead_letter(
     eligible: &str,
     input: DeadLetterRetry<'_>,
 ) -> Result<bool, sqlx::Error> {
-    if input.reason.trim().chars().count() < 3 || input.reason.len() > 2000
+    if !valid_retry_reason(input.reason)
         || input.event_id.is_empty() || input.event_id.len() > 180
         || input.holding_id.is_empty() || input.audit_id.is_empty()
         || !(0..=9_007_199_254_740_991).contains(&input.now)
@@ -46,7 +74,7 @@ pub async fn retry_owned_dead_letter(
     let company: Option<String> = row.try_get("company_id")?;
     let version: i64 = row.try_get("aggregate_version")?;
     let purpose = serde_json::json!({
-        "reason": input.reason.trim(), "previousAttempts": attempts,
+        "reason": js_trim(input.reason), "previousAttempts": attempts,
         "previousError": error, "deadLetterAt": input.dead_letter_at,
     }).to_string();
     let authority = serde_json::json!({
@@ -162,4 +190,62 @@ pub async fn renew(
 ) -> Result<bool, sqlx::Error> {
     Ok(sqlx::query("WITH runtime_owner AS MATERIALIZED (SELECT set_config('erpx.outbox_runtime','native-rust',true)) UPDATE outbox_events SET claim_until=$1 FROM runtime_owner WHERE id=$2 AND lease_token=$3 AND processed_at IS NULL AND dead_letter_at IS NULL")
         .bind(now.saturating_add(90_000)).bind(&event.id).bind(&event.lease_token).execute(c).await?.rows_affected()==1)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{js_trim, valid_retry_reason};
+
+    /// Each case is verified against ECMAScript `String.prototype.trim` +
+    /// `.length` (UTF-16 code units) semantics, not Rust `str::trim` +
+    /// `chars().count()` + byte `len()`.
+    #[test]
+    fn retry_reason_minimum_uses_js_trimmed_utf16_length() {
+        assert!(valid_retry_reason("Retry after correcting native owner evidence"));
+        assert!(!valid_retry_reason("  ok  "));
+        assert!(valid_retry_reason("  abc  "));
+        assert!(!valid_retry_reason(" \t\r\n  "));
+        // U+FEFF is trimmed by JS but kept by Rust `trim`; two of them plus
+        // two letters fit the minimum only under JS-trim semantics.
+        assert!(!valid_retry_reason("\u{feff}\u{feff}ab"));
+        assert!(valid_retry_reason("\u{feff}abc\u{feff}"));
+        // U+0085 is Unicode White_Space (trimmed by Rust) but NOT trimmed by
+        // JS; it counts as content. Two of them plus two letters reach the
+        // minimum only under JS semantics (Rust trim would leave 2).
+        assert!(valid_retry_reason("\u{0085}\u{0085}ab"));
+        assert!(valid_retry_reason("\u{0085}ab"));
+        // JS line/space separators at the edges are trimmed away.
+        assert!(!valid_retry_reason("\u{2028}ab\u{2028}"));
+        assert!(valid_retry_reason("\u{00a0}abc\u{3000}"));
+        // U+200B (ZWSP) is content in both, not edge whitespace.
+        assert!(valid_retry_reason("\u{200b}ab"));
+    }
+
+    #[test]
+    fn retry_reason_maximum_uses_js_trimmed_utf16_length() {
+        // Surrogate pairs count as two UTF-16 units: two emoji reach the
+        // minimum, where `chars().count()` would see only two chars.
+        assert!(valid_retry_reason("😀😀"));
+        assert!(!valid_retry_reason("😀"));
+        // Thai is three UTF-8 bytes per char but one UTF-16 unit; the byte
+        // `len()` check formerly rejected 2000 Thai chars (6000 bytes).
+        let thai_2000 = "ก".repeat(2000);
+        assert!(valid_retry_reason(&thai_2000));
+        let thai_2001 = "ก".repeat(2001);
+        assert!(!valid_retry_reason(&thai_2001));
+        // The maximum applies to the trimmed text actually persisted: edge
+        // whitespace outside the UTF-16 budget does not fail validation.
+        assert!(valid_retry_reason(&format!("  {}  ", thai_2000)));
+        let emoji_1000 = "😀".repeat(1000);
+        assert!(valid_retry_reason(&emoji_1000));
+        let emoji_1001 = "😀".repeat(1001);
+        assert!(!valid_retry_reason(&emoji_1001));
+    }
+
+    #[test]
+    fn js_trim_returns_exactly_the_persisted_reason() {
+        assert_eq!(js_trim("\u{feff}  abc \u{0085}"), "abc \u{0085}");
+        assert_eq!(js_trim("\u{2028}\u{00a0}ok\u{2029}"), "ok");
+        assert_eq!(js_trim("abc"), "abc");
+    }
 }

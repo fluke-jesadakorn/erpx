@@ -13,13 +13,21 @@ fn slug(s: &str) -> bool {
         && s.bytes()
             .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
 }
+
+/// Zod `string.length` counts JavaScript UTF-16 code units, not UTF-8 bytes.
+/// The gateway bound mirrors `workspaceKey.max(4096)` in account-switcher.
+fn utf16_len(value: &str) -> usize {
+    value.encode_utf16().count()
+}
 /// Navigation protocol only. This returns untrusted selectors; Identity must
 /// resolve their current lineage and the captured role before saving anything.
 pub fn workspace_preference_scope(
     path: &str,
     holding_slug: &str,
 ) -> Result<WorkspacePreferenceScope, BusinessError> {
-    if !slug(holding_slug) || path.len() > 4096 {
+    // Slugs are ASCII-gated, so byte length equals UTF-16 length there. The
+    // stored path bound mirrors the gateway's UTF-16 length check.
+    if !slug(holding_slug) || utf16_len(path) > 4096 {
         return Err(invalid());
     }
     let prefix = format!("/holdings/{holding_slug}");

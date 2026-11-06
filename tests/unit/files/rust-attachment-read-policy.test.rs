@@ -372,3 +372,115 @@ fn drafts_owned_by_another_person_are_not_visible_as_status() {
         "ATTACHMENT_LINK_NOT_FOUND"
     );
 }
+
+#[test]
+fn filter_uses_javascript_trim_not_rust_trim() {
+    let feff = AttachmentListFilter::new(
+        "asset",
+        "record",
+        Some("\u{feff}manual\u{feff}".into()),
+        Some("\u{feff}record\u{feff}".into()),
+        None,
+    )
+    .unwrap();
+    assert_eq!(feff.purpose_key(), Some("manual"));
+    assert_eq!(feff.component_kind(), Some("record"));
+
+    let empty_after_trim = AttachmentListFilter::new(
+        "asset",
+        "record",
+        Some("\u{feff} \u{00a0}".into()),
+        None,
+        None,
+    )
+    .unwrap_err();
+    assert_eq!(empty_after_trim.code, "ATTACHMENT_POLICY_UNKNOWN");
+
+    // U+0085 (NEL) is White_Space for Rust trim but not JavaScript trim.
+    let nel = AttachmentListFilter::new(
+        "asset",
+        "record",
+        None,
+        Some("\u{0085}record\u{0085}".into()),
+        None,
+    )
+    .unwrap_err();
+    assert_eq!(nel.code, "ATTACHMENT_COMPONENT_KIND");
+}
+
+#[test]
+fn filter_bounds_use_utf8_byte_bounds() {
+    // Byte parity: 60 Thai = 180 bytes; 61 Thai = 183 bytes. Gateway
+    // identifier/text byte caps reject beyond.
+    assert!(AttachmentListFilter::new("asset", &"ก".repeat(60), None, None, None).is_ok());
+    assert!(AttachmentListFilter::new("asset", &"ก".repeat(61), None, None, None).is_err());
+    // Astral: 45 emoji = 180 bytes.
+    assert!(AttachmentListFilter::new("asset", &"😀".repeat(45), None, None, None).is_ok());
+    assert!(AttachmentListFilter::new("asset", &"😀".repeat(46), None, None, None).is_err());
+    assert!(AttachmentListFilter::new(&"ก".repeat(26), "record", None, None, None).is_ok());
+    assert!(AttachmentListFilter::new(&"ก".repeat(27), "record", None, None, None).is_err());
+    // purpose_key byte cap 80: 26 Thai = 78 bytes ok, 27 Thai = 81 bytes err
+    assert!(AttachmentListFilter::new("asset", "record", Some("ก".repeat(26)), None, None).is_ok());
+    assert!(
+        AttachmentListFilter::new("asset", "record", Some("ก".repeat(27)), None, None).is_err()
+    );
+}
+
+#[test]
+fn link_caption_and_component_ref_use_byte_bounds() {
+    let mut thai_name = link("l1", "draft");
+    thai_name.filename = "ก".repeat(85);
+    assert!(
+        validate_set(
+            &reader(),
+            &filter("asset"),
+            set("asset", vec![thai_name]),
+            5_000
+        )
+        .is_ok()
+    );
+
+    let mut over_name = link("l1", "draft");
+    over_name.filename = "ก".repeat(86);
+    assert!(
+        validate_set(
+            &reader(),
+            &filter("asset"),
+            set("asset", vec![over_name]),
+            5_000
+        )
+        .is_err()
+    );
+
+    let mut caption = link("l1", "draft");
+    caption.caption = Some("x".repeat(1000));
+    assert!(
+        validate_set(
+            &reader(),
+            &filter("asset"),
+            set("asset", vec![caption]),
+            5_000
+        )
+        .is_ok()
+    );
+
+    let mut over_caption = link("l1", "draft");
+    over_caption.caption = Some("😀".repeat(251));
+    assert!(
+        validate_set(
+            &reader(),
+            &filter("asset"),
+            set("asset", vec![over_caption]),
+            5_000
+        )
+        .is_err()
+    );
+
+    let mut component = set("asset", vec![]);
+    component.component_ref = Some("ก".repeat(60));
+    assert!(validate_set(&reader(), &filter("asset"), component, 5_000).is_ok());
+
+    let mut over_component = set("asset", vec![]);
+    over_component.component_ref = Some("ก".repeat(181));
+    assert!(validate_set(&reader(), &filter("asset"), over_component, 5_000).is_err());
+}

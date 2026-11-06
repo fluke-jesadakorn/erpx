@@ -71,6 +71,29 @@ fn changed() -> BusinessError {
         "The file metadata changed while it was being read.",
     )
 }
+/// ECMAScript `String.prototype.trim` whitespace: WhiteSpace plus
+/// LineTerminator. Rust's `str::trim` additionally strips U+0085 (White_Space
+/// in Unicode but not in JavaScript `trim`) and keeps U+FEFF, so the exact
+/// set is spelled out to match the retained TypeScript `.trim()` boundary.
+pub(crate) fn js_trim(value: &str) -> &str {
+    value.trim_matches(|character| {
+        matches!(
+            character,
+            '\u{0009}'..='\u{000D}'
+                | '\u{0020}'
+                | '\u{00A0}'
+                | '\u{1680}'
+                | '\u{2000}'..='\u{200A}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202F}'
+                | '\u{205F}'
+                | '\u{3000}'
+                | '\u{FEFF}'
+        )
+    })
+}
+
 fn bounded(value: &str, maximum: usize, _code: &'static str) -> bool {
     !value.is_empty() && value.len() <= maximum && !value.chars().any(char::is_control)
 }
@@ -194,8 +217,8 @@ impl AttachmentListFilter {
     ) -> Result<Self, BusinessError> {
         let target_type = target_type.into();
         let target_id = target_id.into();
-        let purpose_key = purpose_key.map(|value| value.trim().to_owned());
-        let component_kind = component_kind.map(|value| value.trim().to_owned());
+        let purpose_key = purpose_key.map(|value| js_trim(&value).to_owned());
+        let component_kind = component_kind.map(|value| js_trim(&value).to_owned());
         if !bounded(
             &target_type,
             MAX_TARGET_TYPE_BYTES,

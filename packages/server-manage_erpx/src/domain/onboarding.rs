@@ -103,9 +103,42 @@ impl CompanySlot {
     }
 }
 
+/// ECMAScript `String.prototype.trim` whitespace: WhiteSpace plus
+/// LineTerminator. Rust's `str::trim` additionally strips U+0085 NEL
+/// (Unicode White_Space, not JavaScript whitespace) and keeps U+FEFF,
+/// so the exact set is spelled out to match the retained Zod `trim()`
+/// boundary of the onboarding schema.
+pub(crate) fn js_trim(value: &str) -> &str {
+    value.trim_matches(|c: char| {
+        matches!(
+            c,
+            '\u{0009}'..='\u{000d}'
+                | '\u{0020}'
+                | '\u{00a0}'
+                | '\u{1680}'
+                | '\u{2000}'..='\u{200a}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202f}'
+                | '\u{205f}'
+                | '\u{3000}'
+                | '\u{feff}'
+        )
+    })
+}
+
+/// Zod string limits count JavaScript UTF-16 code units (`String.length`),
+/// not Unicode scalar values or UTF-8 bytes. Thai text (3 bytes, 1 unit)
+/// and astral text (surrogate pairs: 4 bytes, 2 units) must match the
+/// retained schema boundary.
+pub(crate) fn utf16_len(value: &str) -> usize {
+    value.encode_utf16().count()
+}
+
 fn valid_name(value: &str) -> bool {
-    !value.trim().is_empty()
-        && value.chars().count() <= NAME_MAXIMUM
+    let trimmed = js_trim(value);
+    !trimmed.is_empty()
+        && utf16_len(trimmed) <= NAME_MAXIMUM
         && value.len() <= 4096
         && !value.chars().any(char::is_control)
 }
@@ -191,6 +224,68 @@ mod tests {
         assert!(CompanySlot::new("acme".into(), "a".repeat(201), "Main".into(), "active").is_err());
         assert!(CompanySlot::new("acme".into(), "ก".repeat(100), "สาขา".into(), "active").is_ok());
         assert!(CompanySlot::new("acme".into(), "Acme".into(), "Main".into(), "available").is_ok());
+    }
+
+    #[test]
+    fn company_and_branch_names_count_js_utf16_units_after_ecma_trim() {
+        // Astral code points count as two UTF-16 units, as in the retained
+        // Zod schema: 100 emoji are 200 units and pass, 101 exceed the bound
+        // where a scalar count would accept them.
+        assert!(CompanySlot::new("acme".into(), "😀".repeat(100), "Main".into(), "active").is_ok());
+        assert!(
+            CompanySlot::new("acme".into(), "😀".repeat(101), "Main".into(), "active").is_err()
+        );
+        // Thai text counts one unit per code point regardless of UTF-8 width.
+        assert!(CompanySlot::new("acme".into(), "ก".repeat(200), "Main".into(), "active").is_ok());
+        assert!(CompanySlot::new("acme".into(), "ก".repeat(201), "Main".into(), "active").is_err());
+        // ECMAScript trim strips U+FEFF and trims before measuring, so a
+        // padded 200-unit name passes while a FEFF-only name is empty.
+        assert!(
+            CompanySlot::new(
+                "acme".into(),
+                format!("\u{feff}{}\u{feff}", "a".repeat(200)),
+                "Main".into(),
+                "active"
+            )
+            .is_ok()
+        );
+        assert!(
+            CompanySlot::new("acme".into(), "\u{feff}".into(), "Main".into(), "active").is_err()
+        );
+        assert!(
+            CompanySlot::new(
+                "acme".into(),
+                "\u{00a0}Acme\u{00a0}".into(),
+                "Main".into(),
+                "active"
+            )
+            .is_ok()
+        );
+        // JS trim does not strip NEL (U+0085): it remains counted and is a
+        // control character, so Rust must reject rather than trim and accept.
+        assert!(
+            CompanySlot::new(
+                "acme".into(),
+                format!("\u{0085}{}", "a".repeat(199)),
+                "Main".into(),
+                "active"
+            )
+            .is_err()
+        );
+        // Interior controls remain rejected.
+        assert!(
+            CompanySlot::new(
+                "acme".into(),
+                "Acme\u{0007}Co".into(),
+                "Main".into(),
+                "active"
+            )
+            .is_err()
+        );
+        // Branch names share the same boundary.
+        assert!(
+            CompanySlot::new("acme".into(), "Acme".into(), "😀".repeat(101), "active").is_err()
+        );
     }
 
     #[test]
