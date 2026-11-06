@@ -43,7 +43,9 @@ where
     R::Error: From<E::Error>,
 {
     actor.require_front_desk(now)?;
-    selection.validate()?;
+    let mut normalized = selection.clone();
+    normalized.normalize();
+    normalized.validate()?;
     entitlement
         .entitlement(&actor.company_id)
         .await
@@ -58,7 +60,7 @@ where
     if properties.len() > MAX_PROPERTIES {
         return Err(read_invalid().into());
     }
-    let selected = match selection.property_id.as_deref() {
+    let selected = match normalized.property_id.as_deref() {
         Some(id) => properties
             .iter()
             .find(|row| row.id == id)
@@ -75,7 +77,7 @@ where
             .front_desk(
                 &selected.id,
                 &selected.business_date,
-                selection,
+                &normalized,
                 actor.visibility(),
             )
             .await?,
@@ -111,7 +113,7 @@ where
         .filter(|id| visible.contains(id.as_str()))
         .cloned()
         .collect();
-    let selected_id = selection
+    let selected_id = normalized
         .selected_id
         .as_ref()
         .filter(|id| visible.contains(id.as_str()))
@@ -141,9 +143,9 @@ where
         ids,
         from: data.from,
         to: data.to,
-        page: selection.page,
-        q: selection.q.clone(),
-        status: selection.status.clone(),
+        page: normalized.page,
+        q: normalized.q.clone(),
+        status: normalized.status.clone(),
         building: String::new(),
         floor: String::new(),
         type_id: String::new(),

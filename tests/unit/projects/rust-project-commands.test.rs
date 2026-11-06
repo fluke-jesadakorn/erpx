@@ -634,6 +634,76 @@ async fn transition_command_enforces_state_prerequisites_and_successors() {
 }
 
 #[tokio::test]
+async fn command_text_counts_utf16_units_and_trims_only_js_whitespace() {
+    // Retained Zod schemas (`title`/`description`/`reason`) measure
+    // `String.length` (UTF-16 code units) after ECMAScript `trim()`: a single
+    // astral scalar is 2 units, U+FEFF is trimmed, U+0085 is not.
+    for title in ["😀".to_owned(), "😀".repeat(100), "ก".repeat(200)] {
+        let mut input = save_input();
+        input.title = title;
+        let mut repository = repo();
+        save_milestone(&actor(), &mut repository, "project", None, &input, "command-1", NOW)
+            .await
+            .unwrap();
+        assert_eq!(repository.saves, 1);
+    }
+    for title in [
+        "😀".repeat(101),
+        "ก".repeat(201),
+        "\u{feff}Delivery".to_owned(),
+        "Delivery\u{feff}".to_owned(),
+        " Delivery".to_owned(),
+    ] {
+        let mut input = save_input();
+        input.title = title;
+        let mut repository = repo();
+        let error = save_milestone(&actor(), &mut repository, "project", None, &input, "command-1", NOW)
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "PROJECT_MILESTONE_INVALID");
+        assert_eq!(repository.saves, 0);
+    }
+    // U+0085 is Unicode White_Space (Rust `trim` strips it) but JavaScript
+    // `trim` keeps it, so it is part of the retained title.
+    let mut input = save_input();
+    input.title = "\u{0085}Delivery".into();
+    let mut repository = repo();
+    save_milestone(&actor(), &mut repository, "project", None, &input, "command-1", NOW)
+        .await
+        .unwrap();
+
+    // Reason: "a" + one astral scalar is 3 UTF-16 units (passes minimum 3).
+    let mut input = save_input();
+    input.reason = "a😀".into();
+    let mut repository = repo();
+    save_milestone(&actor(), &mut repository, "project", None, &input, "command-1", NOW)
+        .await
+        .unwrap();
+    let mut input = save_input();
+    input.reason = "\u{feff}Milestone detail reviewed.".into();
+    let mut repository = repo();
+    let error = save_milestone(&actor(), &mut repository, "project", None, &input, "command-1", NOW)
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "PROJECT_MILESTONE_INVALID");
+
+    // Description: 5,000 astral scalars are exactly 10,000 UTF-16 units.
+    let mut input = save_input();
+    input.description = "😀".repeat(5_000);
+    let mut repository = repo();
+    save_milestone(&actor(), &mut repository, "project", None, &input, "command-1", NOW)
+        .await
+        .unwrap();
+    let mut input = save_input();
+    input.description = "😀".repeat(5_001);
+    let mut repository = repo();
+    let error = save_milestone(&actor(), &mut repository, "project", None, &input, "command-1", NOW)
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "PROJECT_MILESTONE_INVALID");
+}
+
+#[tokio::test]
 async fn replay_returns_retained_receipt_without_writes_and_rejects_conflicts() {
     let mut repository = repo();
     repository.stored = Some(StoredMilestoneReceipt {

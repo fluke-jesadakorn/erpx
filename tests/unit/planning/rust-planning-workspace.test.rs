@@ -466,3 +466,50 @@ fn stored_json_helpers_reject_malformed_owner_facts() {
         "PLANNING_SOURCE_INVALID"
     );
 }
+
+#[test]
+fn text_limits_count_utf16_units_with_js_trim_edges() {
+    // 32 non-BMP characters are 64 UTF-16 code units (the code limit) but
+    // 128 UTF-8 bytes, so this passes only with UTF-16 length parity.
+    let mut code_at_limit = workspace();
+    code_at_limit.resources[0].code = "😀".repeat(32);
+    assert!(validate_workspace(&actor(), code_at_limit).is_ok());
+
+    // 81 emoji exceed the 160-unit name limit even though code-point
+    // counting would accept them.
+    let mut name_over_limit = workspace();
+    name_over_limit.resources[0].name = "😀".repeat(81);
+    assert_eq!(
+        validate_workspace(&actor(), name_over_limit)
+            .unwrap_err()
+            .code,
+        "PLANNING_SOURCE_INVALID"
+    );
+
+    // U+FEFF is trimmed by ECMAScript trim but not by Rust trim; a value with
+    // a leading zero-width no-break space must fail the edge check.
+    let mut bom_prefix = workspace();
+    bom_prefix.resources[0].code = "\u{feff}CELL".to_owned();
+    assert_eq!(
+        validate_workspace(&actor(), bom_prefix).unwrap_err().code,
+        "PLANNING_SOURCE_INVALID"
+    );
+
+    // U+00A0 trailing whitespace still fails the JS edge check.
+    let mut nbsp_trailing = workspace();
+    nbsp_trailing.resources[0].name = "Assembly cell\u{00a0}".to_owned();
+    assert_eq!(
+        validate_workspace(&actor(), nbsp_trailing)
+            .unwrap_err()
+            .code,
+        "PLANNING_SOURCE_INVALID"
+    );
+
+    // Interior C0 control fails closed.
+    let mut control = workspace();
+    control.resources[0].name = "Assembly\u{0007}cell".to_owned();
+    assert_eq!(
+        validate_workspace(&actor(), control).unwrap_err().code,
+        "PLANNING_SOURCE_INVALID"
+    );
+}

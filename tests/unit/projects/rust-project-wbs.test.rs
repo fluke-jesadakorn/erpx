@@ -593,6 +593,56 @@ async fn completed_due_packages_are_not_overdue() {
     );
 }
 
+#[tokio::test]
+async fn stored_text_counts_utf16_units_and_trims_only_js_whitespace() {
+    // Stored project/milestone title and description originate from the
+    // retained Zod `trim()` schemas, which measure UTF-16 code units.
+    for title in ["😀".to_owned(), "😀".repeat(100)] {
+        let mut repository = Repo {
+            project: Some(project()),
+            milestones: vec![milestone("a", &title, None, 0, 1, "planned", &[], &[])],
+            calls: 0,
+        };
+        project_wbs(&actor(&["records.read"], &["projects"]), &mut repository, "project", NOW)
+            .await
+            .unwrap();
+    }
+    for title in ["😀".repeat(101), "\u{feff}Package A".to_owned()] {
+        let mut repository = Repo {
+            project: Some(project()),
+            milestones: vec![milestone("a", &title, None, 0, 1, "planned", &[], &[])],
+            calls: 0,
+        };
+        let error = project_wbs(&actor(&["records.read"], &["projects"]), &mut repository, "project", NOW)
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "PROJECT_WBS_SOURCE_INVALID");
+    }
+    let mut repository = Repo {
+        project: Some(project()),
+        milestones: vec![milestone("a", "\u{0085}Package A", None, 0, 1, "planned", &[], &[])],
+        calls: 0,
+    };
+    project_wbs(&actor(&["records.read"], &["projects"]), &mut repository, "project", NOW)
+        .await
+        .unwrap();
+
+    let mut repository = Repo {
+        project: Some(project()),
+        milestones: vec![milestone("a", "Package A", None, 0, 1, "planned", &[], &[])],
+        calls: 0,
+    };
+    repository.milestones[0].description = "😀".repeat(5_000);
+    project_wbs(&actor(&["records.read"], &["projects"]), &mut repository, "project", NOW)
+        .await
+        .unwrap();
+    repository.milestones[0].description = "😀".repeat(5_001);
+    let error = project_wbs(&actor(&["records.read"], &["projects"]), &mut repository, "project", NOW)
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "PROJECT_WBS_SOURCE_INVALID");
+}
+
 #[test]
 fn serialization_contains_only_declared_wbs_facts() {
     let value = serde_json::to_value(erpx_server_projects::public::project_wbs::ProjectWbs {

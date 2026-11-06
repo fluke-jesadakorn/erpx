@@ -7,7 +7,7 @@
 //! owner read applies the remaining Company, membership, module and visibility
 //! policy.
 use crate::domain::project_wbs::{
-    MilestoneRow, ProjectReadActor, ProjectRow, not_found, validate_milestones,
+    MilestoneRow, ProjectReadActor, ProjectRow, js_trim, not_found, validate_milestones,
 };
 use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, TimestampMillis};
 use serde::Serialize;
@@ -142,9 +142,9 @@ fn valid_identifier(value: &str) -> bool {
 }
 
 fn valid_title(value: &str) -> bool {
-    let trimmed = value.trim();
-    let length = value.chars().count();
-    (2..=200).contains(&length) && value == trimmed
+    // Zod counts UTF-16 code units and trims ECMAScript whitespace only.
+    let length = value.encode_utf16().count();
+    (2..=200).contains(&length) && value == js_trim(value)
 }
 
 fn valid_task_state(value: &str) -> bool {

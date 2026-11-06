@@ -6,7 +6,7 @@
 //! Company scope, purchase admission and the serializable owner unit remain
 //! composition responsibilities supplied through the backend trait.
 use crate::domain::project_commands::{
-    MilestoneAction, SaveMilestoneCommand, TransitionMilestoneCommand,
+    MilestoneAction, SaveMilestoneCommand, TransitionMilestoneCommand, js_trim,
 };
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State, StatusCode,
@@ -257,8 +257,10 @@ struct TransitionMilestoneBody {
 impl SaveMilestoneBody {
     fn command(self) -> Result<SaveMilestoneCommand, BusinessError> {
         Ok(SaveMilestoneCommand {
-            title: self.title.trim().to_owned(),
-            description: self.description.trim().to_owned(),
+            // Zod `.trim()` uses ECMAScript whitespace only (U+FEFF yes,
+            // U+0085 no); Rust `str::trim` differs on both.
+            title: js_trim(&self.title).to_owned(),
+            description: js_trim(&self.description).to_owned(),
             due_at: parse_timestamp(&self.due_at).ok_or_else(|| {
                 BusinessError::invalid(
                     "PROJECT_MILESTONE_INVALID",
@@ -271,11 +273,12 @@ impl SaveMilestoneBody {
             ordinal_position: self.ordinal_position,
             depends_on_milestone_ids: self.depends_on_milestone_ids,
             expected_version: self.expected_version.unwrap_or(1),
-            reason: self
-                .reason
-                .unwrap_or_else(|| "Milestone details reviewed by the project owner.".into())
-                .trim()
-                .to_owned(),
+            reason: js_trim(
+                self.reason
+                    .unwrap_or_else(|| "Milestone details reviewed by the project owner.".into())
+                    .as_str(),
+            )
+            .to_owned(),
         })
     }
 }
@@ -285,7 +288,7 @@ impl TransitionMilestoneBody {
         Ok(TransitionMilestoneCommand {
             action: MilestoneAction::parse(&self.action)?,
             expected_version: self.expected_version,
-            reason: self.reason.trim().to_owned(),
+            reason: js_trim(&self.reason).to_owned(),
         })
     }
 }

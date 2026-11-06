@@ -11,6 +11,41 @@ pub const MAX_STAFF: usize = 1_000;
 pub const PAGE_SIZE: usize = 50;
 pub const MAX_PAGE: u32 = 10_000;
 
+/// ECMAScript `String.prototype.trim` removes WhiteSpace and LineTerminator
+/// code points. Rust's `str::trim` uses the Unicode White_Space property and
+/// strips further characters such as U+0085 NEL. PMS selection text is
+/// retained through Zod `.trim()` boundaries, so trim this exact closed set.
+pub(crate) fn ecma_trim(value: &str) -> &str {
+    value.trim_matches(|c: char| {
+        matches!(
+            c,
+            '\u{0009}'
+                | '\u{000A}'
+                | '\u{000B}'
+                | '\u{000C}'
+                | '\u{000D}'
+                | '\u{0020}'
+                | '\u{00A0}'
+                | '\u{1680}'
+                | '\u{2000}'
+                ..='\u{200A}'
+                    | '\u{2028}'
+                    | '\u{2029}'
+                    | '\u{202F}'
+                    | '\u{205F}'
+                    | '\u{3000}'
+                    | '\u{FEFF}'
+        )
+    })
+}
+
+/// Zod string limits (`.length`) count UTF-16 code units, not Unicode
+/// scalar values (`chars().count()`) or UTF-8 bytes (`len()`). Astral
+/// characters such as emoji span two UTF-16 code units.
+pub(crate) fn utf16_len(value: &str) -> usize {
+    value.encode_utf16().count()
+}
+
 pub const PMS_PERMISSIONS: &[&str] = &[
     "pms.read",
     "pms.configure",
@@ -245,24 +280,32 @@ impl Default for PmsBoardSelection {
 }
 
 impl PmsBoardSelection {
+    /// Retained Zod `q`, `building` and `floor` use `.trim().max(...)`;
+    /// `typeId`/`property`/`selectedId` use `idField` (UTF-16 length only,
+    /// no trim). Measure the trimmed text in UTF-16 code units.
+    pub fn normalize(&mut self) {
+        self.q = ecma_trim(&self.q).to_owned();
+        self.building = ecma_trim(&self.building).to_owned();
+        self.floor = ecma_trim(&self.floor).to_owned();
+    }
     pub fn validate(&self) -> Result<(), BusinessError> {
         if !matches!(self.status.as_str(), "" | "dirty" | "clean" | "inspected")
-            || self.q.chars().count() > 200
-            || self.building.chars().count() > 120
-            || self.floor.chars().count() > 40
+            || utf16_len(ecma_trim(&self.q)) > 200
+            || utf16_len(ecma_trim(&self.building)) > 120
+            || utf16_len(ecma_trim(&self.floor)) > 40
             || self
                 .type_id
                 .as_ref()
-                .is_some_and(|value| value.chars().count() > 200)
+                .is_some_and(|value| utf16_len(value) > 200)
             || self.page > MAX_PAGE
             || self
                 .property_id
                 .as_ref()
-                .is_some_and(|value| value.is_empty() || value.len() > 200)
+                .is_some_and(|value| value.is_empty() || utf16_len(value) > 200)
             || self
                 .selected_id
                 .as_ref()
-                .is_some_and(|value| value.is_empty() || value.len() > 200)
+                .is_some_and(|value| value.is_empty() || utf16_len(value) > 200)
         {
             return Err(BusinessError::invalid(
                 "PMS_BOARD_REQUEST_INVALID",

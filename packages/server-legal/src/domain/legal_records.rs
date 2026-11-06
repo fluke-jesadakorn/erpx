@@ -51,6 +51,20 @@ const TRANSITIONS: [(&str, &[&str]); 11] = [
     ("cancelled", &["draft", "archived"]),
 ];
 
+/// JavaScript `.length` parity. JS strings count UTF-16 code units, not
+/// UTF-8 bytes, so Thai text (3 bytes, 1 unit) and astral text (surrogate
+/// pairs) must not be rejected earlier than the JS gateway allows.
+fn utf16_len(value: &str) -> usize {
+    value.encode_utf16().count()
+}
+
+/// JavaScript `String.prototype.trim()` parity for zod `.trim()` fields.
+/// Rust's `str::trim` additionally trims NEL (U+0085) and omits ZWNBSP
+/// (U+FEFF); JS trims FEFF and not NEL.
+fn js_trim(value: &str) -> &str {
+    value.trim_matches(|c: char| c == '\u{FEFF}' || (c.is_whitespace() && c != '\u{0085}'))
+}
+
 /// A constructible projection only. It never proves current IAM authority.
 #[derive(Clone, Debug)]
 pub struct LegalRecordsActor {
@@ -99,13 +113,13 @@ impl LegalRegisterQuery {
                 "Choose a current Legal record type.",
             ));
         }
-        if search.len() > SEARCH_LIMIT || search.chars().any(char::is_control) {
+        if utf16_len(search) > SEARCH_LIMIT || search.chars().any(char::is_control) {
             return Err(invalid(
                 "LEGAL_SEARCH_INVALID",
                 "Use a shorter Legal search.",
             ));
         }
-        if state.len() > STATE_LIMIT || state.chars().any(char::is_control) {
+        if utf16_len(state) > STATE_LIMIT || state.chars().any(char::is_control) {
             return Err(invalid(
                 "LEGAL_STATE_INVALID",
                 "Choose a current Legal state.",
@@ -484,7 +498,7 @@ pub fn parse_command(
                 invalid("LEGAL_DOCUMENT_NAME", "Name the Legal document version.")
             })?;
             if name.is_empty()
-                || name.len() > DOCUMENT_NAME_LIMIT
+                || utf16_len(name) > DOCUMENT_NAME_LIMIT
                 || name.chars().any(char::is_control)
             {
                 return Err(invalid(
@@ -542,9 +556,9 @@ fn reason(object: &serde_json::Map<String, Value>) -> Result<String, BusinessErr
     let reason = object
         .get("reason")
         .and_then(Value::as_str)
-        .map(str::trim)
+        .map(js_trim)
         .ok_or_else(|| invalid("LEGAL_REASON_REQUIRED", "Record the Legal reason."))?;
-    if reason.len() < REASON_MIN || reason.len() > REASON_MAX {
+    if utf16_len(reason) < REASON_MIN || utf16_len(reason) > REASON_MAX {
         return Err(invalid(
             "LEGAL_REASON_REQUIRED",
             "Record a Legal reason between 3 and 4000 characters.",
@@ -922,6 +936,33 @@ mod tests {
     }
 
     #[test]
+    fn register_query_counts_js_utf16_units_for_search_and_state() {
+        // 200 Thai scalars: 200 UTF-16 units (allowed), 600 UTF-8 bytes.
+        assert!(LegalRegisterQuery::parse(None, &"ก".repeat(200), "", 1, false).is_ok());
+        assert_eq!(
+            LegalRegisterQuery::parse(None, &"ก".repeat(201), "", 1, false)
+                .unwrap_err()
+                .code,
+            "LEGAL_SEARCH_INVALID"
+        );
+        // 100 astral scalars: 200 UTF-16 units, 400 bytes.
+        assert!(LegalRegisterQuery::parse(None, &"😀".repeat(100), "", 1, false).is_ok());
+        assert_eq!(
+            LegalRegisterQuery::parse(None, &"😀".repeat(101), "", 1, false)
+                .unwrap_err()
+                .code,
+            "LEGAL_SEARCH_INVALID"
+        );
+        assert!(LegalRegisterQuery::parse(None, "", &"ก".repeat(40), 1, false).is_ok());
+        assert_eq!(
+            LegalRegisterQuery::parse(None, "", &"ก".repeat(41), 1, false)
+                .unwrap_err()
+                .code,
+            "LEGAL_STATE_INVALID"
+        );
+    }
+
+    #[test]
     fn command_envelope_rejects_unknown_actions_and_versions() {
         assert_eq!(
             parse_envelope(&json!({"action":"delete","id":"item","expectedVersion":1}))
@@ -1003,6 +1044,55 @@ mod tests {
                 .code,
             "LEGAL_DOCUMENT_BODY"
         );
+    }
+
+    #[test]
+    fn document_name_counts_js_utf16_units() {
+        let utf16_name = "ก".repeat(200);
+        let raw = json!({"action":"document","id":"item","expectedVersion":1,"name":utf16_name,"body":"Signed text"});
+        let envelope = parse_envelope(&raw).unwrap();
+        assert!(parse_command(&raw, &envelope).is_ok());
+        let oversized = json!({"action":"document","id":"item","expectedVersion":1,"name":"ก".repeat(201),"body":"Signed text"});
+        let oversized_envelope = parse_envelope(&oversized).unwrap();
+        assert_eq!(
+            parse_command(&oversized, &oversized_envelope)
+                .unwrap_err()
+                .code,
+            "LEGAL_DOCUMENT_NAME"
+        );
+    }
+
+    #[test]
+    fn reason_uses_js_trim_and_utf16_length_parity() {
+        let reason_for = |reason: &str| {
+            let raw =
+                json!({"action":"hold.create","id":"item","expectedVersion":1,"reason":reason});
+            let envelope = parse_envelope(&raw).unwrap();
+            match parse_command(&raw, &envelope) {
+                Ok(LegalCommand::CreateHold { reason }) => Ok(reason),
+                Ok(_) => unreachable!("fixture uses hold.create"),
+                Err(error) => Err(error.code),
+            }
+        };
+        // JS trim strips ASCII spaces: "  abc  " -> "abc" (3 units) passes.
+        assert_eq!(reason_for("  abc  "), Ok("abc".to_owned()));
+        // 4000 Thai chars: 4000 UTF-16 units (allowed), 12000 bytes.
+        assert_eq!(reason_for(&"ก".repeat(4000)), Ok("ก".repeat(4000)));
+        assert_eq!(reason_for(&"ก".repeat(4001)), Err("LEGAL_REASON_REQUIRED"));
+        // JS trim strips ZWNBSP (U+FEFF): padding must not inflate length.
+        assert_eq!(
+            reason_for("\u{FEFF}ab\u{FEFF}"),
+            Err("LEGAL_REASON_REQUIRED")
+        );
+        // JS trim does not strip NEL (U+0085): those units count.
+        assert_eq!(
+            reason_for("\u{0085}ab\u{0085}"),
+            Ok("\u{0085}ab\u{0085}".to_owned())
+        );
+        // Astral text: 2 chars (4 UTF-16 units) passes the 3-unit minimum,
+        // while 1 char (2 units) fails.
+        assert_eq!(reason_for("😀😀"), Ok("😀😀".to_owned()));
+        assert_eq!(reason_for("😀"), Err("LEGAL_REASON_REQUIRED"));
     }
 
     #[test]

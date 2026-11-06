@@ -127,14 +127,40 @@ fn dependency_cycle() -> BusinessError {
     )
 }
 
+/// ECMAScript `String.prototype.trim` whitespace: White_Space plus
+/// Line_Terminator. Rust's `str::trim` additionally strips U+0085 (White_Space
+/// in Unicode but not in JavaScript `trim`) and keeps U+FEFF, so the exact
+/// set is spelled out to match the retained Zod `trim()` boundary.
+pub(crate) fn js_trim(value: &str) -> &str {
+    value.trim_matches(|c| {
+        matches!(c,
+            '\u{0009}'..='\u{000d}'
+                | '\u{0020}'
+                | '\u{00a0}'
+                | '\u{1680}'
+                | '\u{2000}'..='\u{200a}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202f}'
+                | '\u{205f}'
+                | '\u{3000}'
+                | '\u{feff}')
+    })
+}
+
+/// Zod string limits count UTF-16 code units (`String.length`), not Unicode
+/// scalar values.
+fn utf16_len(value: &str) -> usize {
+    value.encode_utf16().count()
+}
+
 fn valid_title(value: &str) -> bool {
-    let trimmed = value.trim();
-    let length = value.chars().count();
-    (2..=TITLE_LIMIT).contains(&length) && value == trimmed
+    let length = utf16_len(value);
+    (2..=TITLE_LIMIT).contains(&length) && value == js_trim(value)
 }
 
 fn valid_text(value: &str, limit: usize) -> bool {
-    value.chars().count() <= limit
+    utf16_len(value) <= limit
 }
 
 fn valid_identifier(value: &str) -> bool {

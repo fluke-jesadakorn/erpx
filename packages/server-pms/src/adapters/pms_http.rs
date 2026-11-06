@@ -6,12 +6,12 @@
 //! and the Commercial package entitlement remain composition responsibilities
 //! behind [`PmsHttpBackend`].
 use crate::domain::front_desk::PmsFrontDeskSelection;
-use crate::domain::room_board::{PmsBoardSection, PmsBoardSelection};
+use crate::domain::room_board::{PmsBoardSection, PmsBoardSelection, utf16_len};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
     StatusCode, body::to_bytes, header, routing::get, serde_json,
 };
-use erpx_server_shared::public::{BusinessError, FailureKind, RecordId};
+use erpx_server_shared::public::{BusinessError, FailureKind};
 use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
 
 const QUERY_LIMIT: usize = 4 * 1024;
@@ -181,12 +181,16 @@ fn percent_decode(value: &str) -> Result<String, BusinessError> {
 }
 
 fn id(value: &str, code: &'static str) -> Result<String, BusinessError> {
-    if value.is_empty() {
-        return Err(malformed());
+    // Retained `idField` measures UTF-16 code units (JS String.length), matching
+    // the domain `utf16_len` rule. `RecordId` is byte-capped and would reject
+    // non-ASCII ids the domain accepts.
+    if value.is_empty() || utf16_len(value) > 200 || value.chars().any(char::is_control) {
+        return Err(BusinessError::invalid(
+            code,
+            "Use a valid bounded identifier.",
+        ));
     }
-    RecordId::new(value.to_owned())
-        .map(String::from)
-        .map_err(|_| BusinessError::invalid(code, "Use a valid bounded identifier."))
+    Ok(value.to_owned())
 }
 
 fn selection(request: &Request) -> Result<PmsBoardSelection, BusinessError> {
@@ -235,6 +239,7 @@ fn selection(request: &Request) -> Result<PmsBoardSelection, BusinessError> {
             _ => return Err(malformed()),
         }
     }
+    parsed.normalize();
     parsed.validate()?;
     Ok(parsed)
 }
@@ -284,6 +289,7 @@ fn front_desk_selection(request: &Request) -> Result<PmsFrontDeskSelection, Busi
             _ => return Err(front_desk_malformed()),
         }
     }
+    parsed.normalize();
     parsed.validate()?;
     Ok(parsed)
 }

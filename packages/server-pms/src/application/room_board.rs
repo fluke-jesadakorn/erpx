@@ -67,7 +67,9 @@ where
 {
     actor.require_board(now)?;
     actor.require_section(selection.section)?;
-    selection.validate()?;
+    let mut normalized = selection.clone();
+    normalized.normalize();
+    normalized.validate()?;
     entitlement
         .entitlement(&actor.company_id)
         .await
@@ -82,7 +84,7 @@ where
     if properties.len() > MAX_PROPERTIES {
         return Err(read_invalid().into());
     }
-    let selected = match selection.property_id.as_deref() {
+    let selected = match normalized.property_id.as_deref() {
         Some(id) => properties
             .iter()
             .find(|row| row.id == id)
@@ -107,7 +109,7 @@ where
             .board(
                 &selected.id,
                 &selected.business_date,
-                selection,
+                &normalized,
                 actor.visibility(),
             )
             .await?,
@@ -130,24 +132,24 @@ where
         .filter(|id| visible.contains(id.as_str()))
         .cloned()
         .collect();
-    let selected_id = selection
+    let selected_id = normalized
         .selected_id
         .as_ref()
         .filter(|id| visible.contains(id.as_str()))
         .cloned();
     let list_meta = PmsListMeta {
         room_summary: Some(data.room_summary),
-        section: selection.section.as_str().to_owned(),
+        section: normalized.section.as_str().to_owned(),
         kind: "room".to_owned(),
         ids,
         from: data.from,
         to: data.to,
-        page: selection.page,
-        q: selection.q.clone(),
-        status: selection.status.clone(),
-        building: selection.building.clone(),
-        floor: selection.floor.clone(),
-        type_id: selection.type_id.clone().unwrap_or_default(),
+        page: normalized.page,
+        q: normalized.q.clone(),
+        status: normalized.status.clone(),
+        building: normalized.building.clone(),
+        floor: normalized.floor.clone(),
+        type_id: normalized.type_id.clone().unwrap_or_default(),
         has_next: data.has_next,
         selected_id,
     };

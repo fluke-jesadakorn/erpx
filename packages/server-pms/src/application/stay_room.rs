@@ -65,18 +65,20 @@ where
     R::Error: From<E::Error>,
 {
     actor.require_command(now)?;
-    command.validate()?;
+    let mut normalized = command.clone();
+    normalized.normalize();
+    normalized.validate()?;
     entitlement
         .entitlement(&actor.board.company_id)
         .await
         .map_err(R::Error::from)?
         .require_settle_existing()?;
-    let request_hash = stay_room_request_hash(actor, command)?;
-    if let Some(result) = repository.replay(key, &request_hash, command).await? {
-        if result.id != command.stay_id
-            || result.property_id != command.property_id
+    let request_hash = stay_room_request_hash(actor, &normalized)?;
+    if let Some(result) = repository.replay(key, &request_hash, &normalized).await? {
+        if result.id != normalized.stay_id
+            || result.property_id != normalized.property_id
             || result.version < 1
-            || result.version != command.expected_version + 1
+            || result.version != normalized.expected_version + 1
         {
             return Err(BusinessError::new(
                 erpx_server_shared::public::FailureKind::Conflict,
@@ -87,11 +89,11 @@ where
         }
         return Ok(result);
     }
-    let facts = repository.load(actor, command).await?;
-    if facts.stay.id != command.stay_id {
+    let facts = repository.load(actor, &normalized).await?;
+    if facts.stay.id != normalized.stay_id {
         return Err(record_not_found().into());
     }
-    let plan = plan_stay_room(actor, &facts, command, now)?;
+    let plan = plan_stay_room(actor, &facts, &normalized, now)?;
     repository
         .commit(actor, key, &request_hash, plan, now)
         .await

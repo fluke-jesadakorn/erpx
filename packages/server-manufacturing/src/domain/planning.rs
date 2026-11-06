@@ -259,10 +259,37 @@ fn identifier(value: &str) -> bool {
     RecordId::new(value).is_ok()
 }
 
+/// ECMAScript `String.prototype.trim` edge whitespace: White_Space plus
+/// Line_Terminator, including U+FEFF. Rust `str::trim` additionally strips
+/// U+0085 (White_Space in Unicode but not trimmed by the TypeScript
+/// `text` validator) and keeps U+FEFF, so the exact set is spelled out.
+fn js_trim(value: &str) -> &str {
+    value.trim_matches(|character| {
+        matches!(character,
+            '\u{0009}'..='\u{000d}'
+                | '\u{0020}'
+                | '\u{00a0}'
+                | '\u{1680}'
+                | '\u{2000}'..='\u{200a}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202f}'
+                | '\u{205f}'
+                | '\u{3000}'
+                | '\u{feff}')
+    })
+}
+
 fn text(value: &str, maximum: usize) -> bool {
-    !value.is_empty()
-        && value.len() <= maximum
-        && value.trim() == value
+    // TypeScript measures UTF-16 code units (`String.length`), not UTF-8
+    // bytes or code points: a non-BMP character counts 2.
+    let length = value.encode_utf16().count();
+    // `char::is_control` is intentionally the full superset (including C1
+    // controls) that the TypeScript transport permits; this native read
+    // fails closed there instead of accepting it.
+    length > 0
+        && length <= maximum
+        && js_trim(value) == value
         && !value.chars().any(char::is_control)
 }
 

@@ -514,6 +514,25 @@ async fn graph_cycles_and_orphan_parents_fail_closed() {
     assert_eq!(error.code, "PROJECT_PACKAGE_PARENT_INVALID");
 }
 
+#[tokio::test]
+async fn graph_task_titles_count_utf16_units_and_trim_only_js_whitespace() {
+    for title in ["😀".to_owned(), "😀".repeat(100), "\u{0085}Task bound".to_owned()] {
+        let mut repository = repo();
+        repository.tasks[0].title = title;
+        project_graph(&actor(&["records.read"], &["projects"], true), &mut repository, "project", NOW)
+            .await
+            .unwrap();
+    }
+    for title in ["😀".repeat(101), "\u{feff}Task bound".to_owned()] {
+        let mut repository = repo();
+        repository.tasks[0].title = title;
+        let error = project_graph(&actor(&["records.read"], &["projects"], true), &mut repository, "project", NOW)
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "PROJECT_GRAPH_SOURCE_INVALID");
+    }
+}
+
 #[test]
 fn graph_serialization_uses_bounded_camel_case_summary_fields() {
     let graph = erpx_server_projects::public::project_graph::ProjectGraph {

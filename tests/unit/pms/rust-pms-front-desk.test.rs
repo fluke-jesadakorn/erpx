@@ -283,6 +283,67 @@ fn selection_is_bounded_to_front_desk_queues_and_ninety_three_days() {
     }
 }
 
+#[test]
+fn front_desk_text_bounds_use_utf16_units_after_ecma_trim() {
+    let mut base = selection();
+    base.q = format!("{}😀", "a".repeat(198));
+    assert!(base.validate().is_ok(), "198 a + emoji is 200 UTF-16 units");
+    base.q = format!("{}😀", "a".repeat(199));
+    assert!(base.validate().is_err(), "199 a + emoji is 201 UTF-16 units");
+    let mut base = selection();
+    base.q = format!("  \u{00A0}{}{} ", "a".repeat(200), "\u{3000}");
+    assert!(
+        base.validate().is_ok(),
+        "ECMAScript whitespace around 200 units still passes"
+    );
+    base.normalize();
+    assert_eq!(base.q, "a".repeat(200));
+    let mut base = selection();
+    base.q = format!("{}{}", "\u{0085}", "a".repeat(200));
+    assert!(
+        base.validate().is_err(),
+        "U+0085 NEL is not in the ECMAScript trim set"
+    );
+    base.q = format!("{}{}", "\u{FEFF}", "a".repeat(200));
+    assert!(
+        base.validate().is_ok(),
+        "BOM (ZWNBSP) is trimmed by ECMAScript"
+    );
+    base.normalize();
+    assert_eq!(base.q, "a".repeat(200));
+    let mut base = selection();
+    base.property_id = Some("中".repeat(150));
+    assert!(
+        base.validate().is_ok(),
+        "150 CJK are 150 UTF-16 units but 450 UTF-8 bytes"
+    );
+    base.property_id = Some("😀".repeat(101));
+    assert!(base.validate().is_err());
+    base.property_id = None;
+    base.selected_id = Some("😀".repeat(101));
+    assert!(base.validate().is_err());
+    base.selected_id = Some("😀".repeat(100));
+    assert!(base.validate().is_ok());
+}
+
+#[tokio::test]
+async fn front_desk_normalizes_edge_whitespace_before_repo_and_metadata() {
+    let mut repo = Repo {
+        properties: vec![property_row("property")],
+        data: Some(data_fixture()),
+        seen: Arc::default(),
+    };
+    let mut packages = Packages::allowed();
+    let mut raw = selection();
+    raw.q = "  Synthetic  ".into();
+    let workspace = pms_front_desk(&actor(), &raw, &mut repo, &mut packages, 1_000)
+        .await
+        .unwrap();
+    let meta = workspace.snapshot.as_ref().unwrap().list_meta.as_ref().unwrap();
+    assert_eq!(meta.q, "Synthetic");
+    assert_eq!(raw.q, "  Synthetic  ");
+}
+
 #[tokio::test]
 async fn front_desk_keeps_guest_links_and_redacts_financial_facts_without_cashier() {
     let mut repo = Repo {

@@ -79,6 +79,56 @@ fn stay_room_command_validation_rejects_invalid_input() {
 }
 
 #[test]
+fn stay_room_reason_and_ids_use_utf16_units_after_ecma_trim() {
+    let base = || PmsStayRoomCommand {
+        operation: PmsStayRoomOperation::Assign,
+        property_id: "property".into(),
+        stay_id: "stay".into(),
+        room_id: "room".into(),
+        reason: "test".into(),
+        expected_version: 1,
+        expected_stay_version: None,
+    };
+    let mut command = base();
+    command.reason = format!("{}😀", "a".repeat(1998));
+    assert!(command.validate().is_ok(), "reason is textField .trim().max(2000)");
+    command.reason = format!("{}😀", "a".repeat(1999));
+    assert!(command.validate().is_err(), "1999 a + emoji is 2001 UTF-16 units");
+    let mut command = base();
+    command.reason = format!("  \u{00A0}{}{} ", "a".repeat(2000), "\u{3000}");
+    assert!(
+        command.validate().is_ok(),
+        "ECMAScript whitespace around 2000 units still passes"
+    );
+    let mut command = base();
+    command.reason = format!("{}{}", "\u{0085}", "a".repeat(2000));
+    assert!(
+        command.validate().is_err(),
+        "U+0085 NEL is not in the ECMAScript trim set"
+    );
+    let mut command = base();
+    command.reason = format!("{}{}", "\u{FEFF}", "a".repeat(2000));
+    assert!(
+        command.validate().is_ok(),
+        "BOM (ZWNBSP) is in the ECMAScript trim set"
+    );
+    let mut command = base();
+    command.property_id = "😀".repeat(101);
+    assert!(
+        command.validate().is_err(),
+        "ids are untrimmed idField: 101 emoji are 202 UTF-16 units"
+    );
+    command.property_id = "😀".repeat(100);
+    assert!(command.validate().is_ok());
+    let mut command = base();
+    command.property_id = "中".repeat(150);
+    assert!(
+        command.validate().is_ok(),
+        "150 CJK are 150 UTF-16 units but 450 UTF-8 bytes"
+    );
+}
+
+#[test]
 fn stay_room_actor_requires_command_context() {
     let mut a = stay_actor();
     assert!(a.require_command(0).is_ok());

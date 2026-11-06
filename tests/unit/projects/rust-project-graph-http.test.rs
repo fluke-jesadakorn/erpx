@@ -250,6 +250,61 @@ async fn actual_command_router_forwards_create_revise_and_transition() {
 }
 
 #[tokio::test]
+async fn command_router_trims_only_js_whitespace_from_command_text() {
+    // Zod `.trim()` strips U+FEFF but keeps U+0085; Rust `str::trim` does the
+    // opposite, so the adapter must use the ECMAScript set.
+    let seen = Arc::new(Mutex::new(Seen::default()));
+    let probe = Arc::new(CommandProbe {
+        seen: seen.clone(),
+        fail: false,
+    });
+    let router = project_milestone_commands_router(vec![ProjectCommandHttpTarget {
+        host: "acme.example.test".into(),
+        holding_slug: "acme".into(),
+        origin: "https://acme.example.test".into(),
+        backend: probe,
+    }])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+    let (status, _, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/projects/project/milestones",
+            r#"{"title":"\uFEFFDelivery\uFEFF","description":"\uFEFFBounded\uFEFF","dueAt":"2026-11-04T00:00:00Z","ownerUserId":"owner","reason":"\uFEFFMilestone created by the project owner.\uFEFF"}"#,
+            "",
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    {
+        let seen_guard = seen.lock().unwrap();
+        assert_eq!(seen_guard.saves.len(), 1);
+        assert!(seen_guard.saves[0].contains(":Delivery:"));
+        assert!(!seen_guard.saves[0].contains('\u{feff}'));
+    }
+    let (status, _, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/projects/project/milestones",
+            r#"{"title":"\u0085Delivery","dueAt":"2026-11-04T00:00:00Z","ownerUserId":"owner"}"#,
+            "",
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    {
+        let seen_guard = seen.lock().unwrap();
+        assert_eq!(seen_guard.saves.len(), 2);
+        assert!(seen_guard.saves[1].contains(":\u{0085}Delivery:"));
+    }
+    server.abort();
+}
+
+#[tokio::test]
 async fn command_router_rejects_missing_origin_key_media_type_and_bad_input() {
     let probe = Arc::new(CommandProbe {
         seen: Arc::new(Mutex::new(Seen::default())),

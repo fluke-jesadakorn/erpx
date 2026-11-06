@@ -6,7 +6,9 @@
 //! open tasks. They never read a client source label, a Finance balance or a
 //! People/Commercial HTTP projection. A command result is a property receipt
 //! version, never a permission or a current authorization proof.
-use super::room_board::{PmsPropertyRow, PmsRecord, not_found, parse_date, record_not_found};
+use super::room_board::{
+    PmsPropertyRow, PmsRecord, ecma_trim, not_found, parse_date, record_not_found, utf16_len,
+};
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use serde::{Deserialize, Serialize};
 
@@ -68,11 +70,17 @@ impl PmsStayRoomCommand {
         self.operation
     }
 
+    /// Retained Zod `reason` uses `.trim().max(2000)`. Normalize so the
+    /// trimmed canonical value is hashed, replayed, loaded and committed.
+    pub fn normalize(&mut self) {
+        self.reason = ecma_trim(&self.reason).to_owned();
+    }
+
     pub fn validate(&self) -> Result<(), BusinessError> {
         if !valid_id(&self.property_id)
             || !valid_id(&self.stay_id)
             || !valid_id(&self.room_id)
-            || self.reason.chars().count() > MAX_REASON
+            || utf16_len(ecma_trim(&self.reason)) > MAX_REASON
             || self.expected_version < 1
             || self
                 .expected_stay_version
@@ -86,7 +94,7 @@ impl PmsStayRoomCommand {
 
 fn valid_id(value: &str) -> bool {
     !value.is_empty()
-        && value.len() <= 200
+        && utf16_len(value) <= 200
         && !value.chars().any(char::is_control)
 }
 
@@ -133,10 +141,10 @@ impl PmsStayRoomActor {
     pub fn require_command(&self, now: i64) -> Result<(), BusinessError> {
         self.board.require_front_desk(now)?;
         if self.assignment_id.is_empty()
-            || self.assignment_id.len() > 200
+            || utf16_len(&self.assignment_id) > 200
             || self.assignment_id.chars().any(char::is_control)
             || self.role.is_empty()
-            || self.role.len() > 200
+            || utf16_len(&self.role) > 200
             || self.role.chars().any(char::is_control)
             || self.revision < 0
             || self.assignment_version < 1
