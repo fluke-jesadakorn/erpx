@@ -1044,3 +1044,56 @@ fn sale_discount_allocates_the_bill_discount_and_refreshes_totals() {
         assert_eq!(sale, (100, 900, 63, 963, 2));
     });
 }
+
+#[test]
+fn sale_merge_moves_the_lines_and_marks_the_source() {
+    with_database(|pool| async move {
+        setup(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO pos_sales(id,company_id,branch_id,register_id,shift_id,number,currency,business_date,state,created_by,created_at,updated_at,accounts_json,service_mode,version) VALUES\
+             ('sale-merge-a','company','branch','register','shift','POS-MA','THB','2027-01-15','open','cashier',0,0,'{}','retail',1),\
+             ('sale-merge-b','company','branch','register','shift','POS-MB','THB','2027-01-15','open','cashier',0,0,'{}','retail',1);\
+             INSERT INTO pos_fulfillments(id,company_id,branch_id,warehouse_id,product_id,quantity_milli,kind,station,recipe_json,accounts_json,currency,business_date,created_at,state) VALUES\
+             ('merge-fa','company','branch','warehouse','product',1000,'stock','Kitchen','[]','{}','THB','2027-01-15',0,'draft'),\
+             ('merge-fb','company','branch','warehouse','product',1000,'stock','Kitchen','[]','{}','THB','2027-01-15',0,'draft');\
+             INSERT INTO pos_lines(id,sale_id,fulfillment_id,product_id,name,quantity_milli,price_minor,tax_bps,tax_inclusive,discount_minor,subtotal_minor,tax_minor,modifiers_json) VALUES\
+             ('merge-la','sale-merge-a','merge-fa','product','Product',1000,1000,700,false,0,1000,70,'[]'),\
+             ('merge-lb','sale-merge-b','merge-fb','product','Product',1000,1000,700,false,0,1000,70,'[]');"
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let merge = command(
+            PosOperation::SaleMerge,
+            "sale-merge-key-1",
+            serde_json::json!({"id":"sale-merge-a","expectedVersion":1,"targetId":"sale-merge-b","targetVersion":1}),
+        );
+        let result = run(&pool, actor("manager"), merge).await.unwrap();
+        assert_eq!(result.id, "sale-merge-a");
+        assert_eq!(result.version, Some(2));
+        let source: (String, i64) = sqlx::query_as(
+            "SELECT state,version FROM pos_sales WHERE id='sale-merge-a'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(source, ("merged".into(), 2));
+        let target: (i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT subtotal_minor,tax_minor,total_minor,version FROM pos_sales WHERE id='sale-merge-b'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(target, (2000, 140, 2140, 2));
+        let lines: i64 = sqlx::query_scalar("SELECT count(*) FROM pos_lines WHERE sale_id='sale-merge-b'")
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+        assert_eq!(lines, 2);
+        let moved: i64 = sqlx::query_scalar("SELECT count(*) FROM pos_lines WHERE sale_id='sale-merge-a'")
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+        assert_eq!(moved, 0);
+    });
+}

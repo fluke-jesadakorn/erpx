@@ -21,6 +21,7 @@ pub const OPERATION_SALE_CUSTOMER: &str = "sale.customer";
 pub const OPERATION_SALE_MOVE_TABLE: &str = "sale.move_table";
 pub const OPERATION_SALE_REMOVE: &str = "sale.remove";
 pub const OPERATION_SALE_DISCOUNT: &str = "sale.discount";
+pub const OPERATION_SALE_MERGE: &str = "sale.merge";
 pub const OPERATION_SALE_CANCEL: &str = "sale.cancel";
 pub const OPERATION_REFUND_REQUEST: &str = "refund.request";
 pub const OPERATION_REFUND_REJECT: &str = "refund.reject";
@@ -104,6 +105,7 @@ pub enum PosOperation {
     SaleMoveTable,
     SaleRemove,
     SaleDiscount,
+    SaleMerge,
     SaleHold,
     SaleResume,
     SaleCancel,
@@ -125,6 +127,7 @@ impl PosOperation {
             OPERATION_SALE_MOVE_TABLE => Self::SaleMoveTable,
             OPERATION_SALE_REMOVE => Self::SaleRemove,
             OPERATION_SALE_DISCOUNT => Self::SaleDiscount,
+            OPERATION_SALE_MERGE => Self::SaleMerge,
             OPERATION_SALE_HOLD => Self::SaleHold,
             OPERATION_SALE_RESUME => Self::SaleResume,
             OPERATION_SALE_CANCEL => Self::SaleCancel,
@@ -146,6 +149,7 @@ impl PosOperation {
             Self::SaleMoveTable => OPERATION_SALE_MOVE_TABLE,
             Self::SaleRemove => OPERATION_SALE_REMOVE,
             Self::SaleDiscount => OPERATION_SALE_DISCOUNT,
+            Self::SaleMerge => OPERATION_SALE_MERGE,
             Self::SaleHold => OPERATION_SALE_HOLD,
             Self::SaleResume => OPERATION_SALE_RESUME,
             Self::SaleCancel => OPERATION_SALE_CANCEL,
@@ -234,6 +238,13 @@ pub struct SaleDiscountInput {
     pub amount_minor: i64,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SaleMergeInput {
+    pub id: String,
+    pub expected_version: i64,
+    pub target_id: String,
+    pub target_version: i64,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SaleVersionInput {
     pub id: String,
     pub expected_version: i64,
@@ -273,6 +284,7 @@ pub enum PosCommandInput {
     SaleMoveTable(SaleMoveTableInput),
     SaleRemove(SaleRemoveInput),
     SaleDiscount(SaleDiscountInput),
+    SaleMerge(SaleMergeInput),
     SaleVersion(SaleVersionInput),
     RefundRequest(RefundRequestInput),
     RefundReject(RefundRejectInput),
@@ -345,6 +357,7 @@ pub struct PosSale {
     pub register_id: String,
     pub shift_id: String,
     pub number: String,
+    pub party_id: Option<String>,
     pub currency: String,
     pub business_date: String,
     pub service_mode: String,
@@ -1203,6 +1216,31 @@ impl PosCommand {
                         ("id", json_string(&id)),
                         ("expectedVersion", expected_version.to_string()),
                         ("amountMinor", amount_minor.to_string()),
+                    ]),
+                )
+            }
+            PosOperation::SaleMerge => {
+                object(
+                    value,
+                    &["id", "expectedVersion", "targetId", "targetVersion"],
+                    &["id", "expectedVersion", "targetId", "targetVersion"],
+                )?;
+                let id = text(value, "id")?;
+                let expected_version = version(integer(value, "expectedVersion")?)?;
+                let target_id = text(value, "targetId")?;
+                let target_version = version(integer(value, "targetVersion")?)?;
+                (
+                    PosCommandInput::SaleMerge(SaleMergeInput {
+                        id: id.clone(),
+                        expected_version,
+                        target_id: target_id.clone(),
+                        target_version,
+                    }),
+                    canonical(&[
+                        ("id", json_string(&id)),
+                        ("expectedVersion", expected_version.to_string()),
+                        ("targetId", json_string(&target_id)),
+                        ("targetVersion", target_version.to_string()),
                     ]),
                 )
             }

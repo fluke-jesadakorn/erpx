@@ -75,6 +75,7 @@ fn sale(state: &str, version: i64) -> PosSale {
         register_id: "register".into(),
         shift_id: "shift".into(),
         number: "POS-1".into(),
+        party_id: None,
         currency: "THB".into(),
         business_date: "2026-11-06".into(),
         service_mode: "retail".into(),
@@ -438,6 +439,12 @@ impl PosCommandRepository for Probe {
         Box::pin(async move { Ok(self.reject) })
     }
 
+    fn move_lines<'a>(&'a mut self, _: &'a str, _: &'a str) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn mark_merged<'a>(&'a mut self, _: &'a str) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
     fn sale_lines_discount<'a>(&'a mut self, _: &'a str) -> PosFuture<'a, Vec<PosLineDiscountRow>> {
         Box::pin(async { Ok(Vec::new()) })
     }

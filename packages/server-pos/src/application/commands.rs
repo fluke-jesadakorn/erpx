@@ -10,8 +10,8 @@ use crate::domain::commands::{
     PosLineDetail, PosLineDiscountRow, PosLineInsert, PosOperation, PosReceipt, PosRefund, PosRegister,
     PosResult, PosSale, PosSettings,
     PosShift, RefundRejectInput, RefundRequestInput, SaleAddInput, SaleCreateInput, SaleCustomerInput,
-    SaleDiscountInput, SaleMoveTableInput, SaleRemoveInput, SaleUpdateLineInput, SaleVersionInput,
-    ShiftCloseInput,
+    SaleDiscountInput, SaleMergeInput, SaleMoveTableInput, SaleRemoveInput, SaleUpdateLineInput,
+    SaleVersionInput, ShiftCloseInput,
     ShiftOpenInput, ShiftReviewInput,
     accounting_review_required, conflict, day_closed, idempotency_conflict, independent_review,
     not_found, parse_receipt_result, period_closed, request_invalid, setup_required,
@@ -241,6 +241,12 @@ pub trait PosCommandRepository: Send {
         subtotal_minor: i64,
         tax_minor: i64,
     ) -> PosFuture<'a, (), Self::Error>;
+    fn move_lines<'a>(
+        &'a mut self,
+        target_id: &'a str,
+        source_id: &'a str,
+    ) -> PosFuture<'a, (), Self::Error>;
+    fn mark_merged<'a>(&'a mut self, sale_id: &'a str) -> PosFuture<'a, (), Self::Error>;
     fn prepared_day_close<'a>(
         &'a mut self,
         company: &'a CompanyId,
@@ -536,6 +542,9 @@ where
         }
         PosCommandInput::SaleDiscount(input) => {
             sale_discount(actor, input, repository, now).await?
+        }
+        PosCommandInput::SaleMerge(input) => {
+            sale_merge(actor, input, repository, now).await?
         }
         PosCommandInput::SaleCreate(input) => {
             sale_create(
@@ -1782,6 +1791,64 @@ where
     }
     Ok(PosResult {
         id: sale.id,
+        version: Some(input.expected_version + 1),
+    })
+}
+
+async fn sale_merge<R>(
+    actor: &PosActor,
+    input: &SaleMergeInput,
+    repository: &mut R,
+    now: TimestampMillis,
+) -> Result<PosResult, R::Error>
+where
+    R: PosCommandRepository,
+{
+    let source = repository
+        .sale(&actor.company_id, &input.id)
+        .await?
+        .ok_or_else(not_found)?;
+    scope_sale(actor, &source)?;
+    version_matches(source.version, input.expected_version)?;
+    if !matches!(source.state.as_str(), "open" | "held")
+        || repository.payment_started(&source.id).await?
+    {
+        return Err(conflict("POS_SALE_LOCKED", "This bill cannot be edited.").into());
+    }
+    if input.target_id == source.id {
+        return Err(request_invalid("POS_MERGE_INVALID", "Select a different bill.").into());
+    }
+    let target = repository
+        .sale(&actor.company_id, &input.target_id)
+        .await?
+        .ok_or_else(not_found)?;
+    scope_sale(actor, &target)?;
+    version_matches(target.version, input.target_version)?;
+    if !matches!(target.state.as_str(), "open" | "held")
+        || repository.payment_started(&target.id).await?
+    {
+        return Err(conflict("POS_SALE_LOCKED", "This bill cannot be edited.").into());
+    }
+    if target.register_id != source.register_id
+        || target.shift_id != source.shift_id
+        || target.party_id != source.party_id
+    {
+        return Err(request_invalid(
+            "POS_MERGE_INVALID",
+            "Bills must use the same sales point, cash session, and customer.",
+        )
+        .into());
+    }
+    repository.move_lines(&target.id, &source.id).await?;
+    repository.mark_merged(&source.id).await?;
+    if !repository.refresh_sale(&source.id, now).await? {
+        return Err(version_conflict().into());
+    }
+    if !repository.refresh_sale(&target.id, now).await? {
+        return Err(version_conflict().into());
+    }
+    Ok(PosResult {
+        id: source.id,
         version: Some(input.expected_version + 1),
     })
 }

@@ -514,7 +514,7 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
         Box::pin(async move {
             self.ready().await?;
             let row = sqlx::query(
-                "SELECT id,company_id,branch_id,register_id,shift_id,number,currency,business_date,service_mode,state,\
+                "SELECT id,company_id,branch_id,register_id,shift_id,number,party_id,currency,business_date,service_mode,state,\
                  subtotal_minor,tax_minor,discount_minor,total_minor,created_by,version,accounts_json \
                  FROM pos_sales WHERE id=$1 AND company_id=$2 FOR UPDATE",
             )
@@ -530,6 +530,7 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
                     register_id: row.try_get("register_id")?,
                     shift_id: row.try_get("shift_id")?,
                     number: row.try_get("number")?,
+                    party_id: row.try_get("party_id")?,
                     currency: row.try_get("currency")?,
                     business_date: row.try_get("business_date")?,
                     service_mode: row.try_get("service_mode")?,
@@ -957,6 +958,27 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
                 .bind(subtotal_minor)
                 .bind(tax_minor)
                 .bind(line_id)
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(())
+        })
+    }
+    fn move_lines<'a>(&'a mut self, target_id: &'a str, source_id: &'a str) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query("UPDATE pos_lines SET sale_id=$1 WHERE sale_id=$2")
+                .bind(target_id)
+                .bind(source_id)
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(())
+        })
+    }
+    fn mark_merged<'a>(&'a mut self, sale_id: &'a str) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query("UPDATE pos_sales SET state='merged',table_id=NULL WHERE id=$1")
+                .bind(sale_id)
                 .execute(&mut *self.connection)
                 .await?;
             Ok(())
