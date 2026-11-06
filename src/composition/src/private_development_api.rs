@@ -1741,6 +1741,7 @@ async fn assemble_checked(
         let mut planning_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut marketing_targets = Vec::new();
+        let mut marketing_lead_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut talent_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -2248,25 +2249,36 @@ async fn assemble_checked(
                     },
                 );
                 #[cfg(feature = "existing-business")]
-                marketing_targets.push(
-                    erpx_server_marketing::public::campaign_attribution_http::MarketingCampaignHttpTarget {
-                        host: holding.host.clone(),
-                        holding_slug: holding.registration.slug.clone(),
-                        origin: format!("https://{}", holding.host),
-                        backend: Arc::new(crate::marketing::MarketingBackend::new(
-                            config.policy.clone(),
-                            Arc::new(FinanceJournalReadScopeHeaders),
-                            Arc::new(crate::marketing::MarketingService::new(
-                                authorizer.clone(),
-                                crate::marketing::MarketingConfiguration::new(
-                                    holding.registration.holding_id.clone(),
-                                    company.clone(),
-                                ),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
+                {
+                    let marketing_backend = Arc::new(crate::marketing::MarketingBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::marketing::MarketingService::new(
+                            authorizer.clone(),
+                            crate::marketing::MarketingConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
                         )),
-                    },
-                );
+                    ));
+                    marketing_targets.push(
+                        erpx_server_marketing::public::campaign_attribution_http::MarketingCampaignHttpTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: format!("https://{}", holding.host),
+                            backend: marketing_backend.clone(),
+                        },
+                    );
+                    marketing_lead_targets.push(
+                        erpx_server_marketing::public::lead_candidate_http::MarketingLeadHttpTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: format!("https://{}", holding.host),
+                            backend: marketing_backend,
+                        },
+                    );
+                }
                 #[cfg(feature = "existing-business")]
                 talent_targets.push(
                     erpx_server_talent::public::requisition_http::TalentRequisitionHttpTarget {
@@ -3036,6 +3048,13 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_marketing::public::campaign_attribution_http::marketing_campaign_http_router(marketing_targets)
                     .map_err(|_| "PRIVATE_API_MARKETING_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !marketing_lead_targets.is_empty() {
+            router = router.merge(
+                erpx_server_marketing::public::lead_candidate_http::marketing_lead_http_router(marketing_lead_targets)
+                    .map_err(|_| "PRIVATE_API_MARKETING_LEAD_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]

@@ -54900,6 +54900,58 @@
       }
     },
     {
+      "id": "marketing.rust-marketing-lead-http-postgres.integration",
+      "lane": "integration",
+      "owner": "marketing",
+      "modules": [
+        "marketing"
+      ],
+      "files": [
+        "tests/integration/marketing/rust-marketing-lead-http-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Composed native Marketing lead/asset HTTP over the real Account session, current IAM and same-unit Commercial History; proves reads, purchase revision and a no-purchase denial."
+      },
+      "framework": "cargo",
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml",
+        "tests/support/finance/review-composition.rs",
+        "tests/support/rust-account-revocation.rs",
+        "tests/support/rust-account-credentials.rs",
+        "tests/support/rust-account.rs",
+        "tests/support/rust-postgres.rs",
+        "packages/server-marketing/Cargo.toml"
+      ],
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "marketing_lead_http_postgres"
+        ],
+        "features": [
+          "existing-business"
+        ]
+      },
+      "apps": [
+        "sales"
+      ],
+      "packages": [
+        "@erpx/server-marketing",
+        "@erpx/server-commercial",
+        "@erpx/server-identity_access",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
+    },
+    {
       "id": "marketing.native-marketing-campaign-transport.unit",
       "lane": "unit",
       "owner": "marketing",

@@ -213,8 +213,20 @@ function engagement(value: unknown): NativeMarketingLeadEngagement {
   return value as NativeMarketingLeadEngagement;
 }
 
+function purchase(value: unknown): NativeMarketingLeadDetail['purchase'] {
+  if (
+    !record(value) ||
+    value.newWork !== false ||
+    value.settleExisting !== false ||
+    value.history !== true ||
+    !text(value.revision, 200)
+  )
+    return failure('NATIVE_MARKETING_LEAD_RESPONSE_INVALID');
+  return { newWork: false, settleExisting: false, history: true, revision: value.revision };
+}
+
 function detail(value: unknown, actor: NativeMarketingLeadPageContext): NativeMarketingLeadDetail {
-  if (!exact(value, ['candidate', 'history']) || !Array.isArray(value.history) || value.history.length > 500)
+  if (!exact(value, ['candidate', 'history', 'purchase']) || !Array.isArray(value.history) || value.history.length > 500)
     return failure('NATIVE_MARKETING_LEAD_RESPONSE_INVALID');
   const current = candidate(value.candidate, actor);
   const history = value.history.map(engagement);
@@ -226,7 +238,7 @@ function detail(value: unknown, actor: NativeMarketingLeadPageContext): NativeMa
     history,
     canWrite: false,
     canHandoff: false,
-    purchase: { newWork: false, settleExisting: false, history: true, revision: 'native-lead-read' },
+    purchase: purchase(value.purchase),
   };
 }
 

@@ -522,3 +522,8 @@ required-features = ["existing-business"]
 name = "maintenance_http_postgres"
 path = "../../tests/integration/maintenance/rust-maintenance-http-postgres.test.rs"
 required-features = ["existing-business"]
+
+[[test]]
+name = "marketing_lead_http_postgres"
+path = "../../tests/integration/marketing/rust-marketing-lead-http-postgres.test.rs"
+required-features = ["existing-business"]
