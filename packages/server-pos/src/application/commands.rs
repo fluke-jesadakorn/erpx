@@ -789,7 +789,10 @@ where
     O: PosOrganizationPort,
 {
     match command.operation {
-        PosOperation::ShiftReview | PosOperation::CashApprove | PosOperation::RefundReject => {
+        PosOperation::ShiftReview
+        | PosOperation::CashApprove
+        | PosOperation::RefundApprove
+        | PosOperation::RefundReject => {
             actor.require_approve(now)?;
         }
         _ => actor.require_sell(now)?,

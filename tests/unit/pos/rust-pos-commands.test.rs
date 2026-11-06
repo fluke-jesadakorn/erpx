@@ -1379,3 +1379,31 @@ fn cash_approval_input_is_exact_and_denominations_must_match_the_count() {
         movement_id: "movement".into(),
     };
 }
+
+#[test]
+fn refund_approve_requires_the_approver_permission_before_any_read() {
+    let mut cashier = actor();
+    cashier.permissions = vec!["pos.sell".into()];
+    let mut probe = Probe::default();
+    let error = sqlx::test_block_on(execute_pos_command(
+        &cashier,
+        &command(
+            PosOperation::RefundApprove,
+            serde_json::json!({"id":"refund","expectedVersion":1,"reason":"Return accepted"}),
+        ),
+        &mut probe,
+        None,
+        None,
+        &mut Finance::default(),
+        &mut Inventory::default(),
+        &mut Hospitality::default(),
+        &mut Organization,
+        NOW,
+    ))
+    .unwrap_err();
+    assert!(matches!(
+        error.kind,
+        FailureKind::Forbidden | FailureKind::Conflict
+    ));
+    assert!(probe.calls.is_empty());
+}
