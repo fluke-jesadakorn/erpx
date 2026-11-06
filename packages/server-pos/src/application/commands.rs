@@ -2656,6 +2656,7 @@ where
                     )
                     .await?;
             }
+            if cost > 0 {
             finance
                 .post_journal(&PosJournalRequest {
                     company_id: actor.company_id.clone(),
@@ -2682,6 +2683,7 @@ where
                 })
                 .await
                 .map_err(R::Error::from)?;
+            }
         }
         repository
             .mark_fulfillment_delivered(&fulfillment.id, cost)
@@ -2702,23 +2704,28 @@ where
             source_key: format!("sale:{}", sale.id),
             source_id: sale.id.clone(),
             actor_id: actor.user_id.clone(),
-            lines: vec![
-                PosJournalLine {
-                    account_id: accounts.receivable.clone(),
-                    debit: sale.total_minor,
-                    credit: 0,
-                },
-                PosJournalLine {
-                    account_id: accounts.revenue.clone(),
-                    debit: 0,
-                    credit: sale.subtotal_minor,
-                },
-                PosJournalLine {
-                    account_id: accounts.output_tax.clone(),
-                    debit: 0,
-                    credit: sale.tax_minor,
-                },
-            ],
+            lines: {
+                let mut lines = vec![
+                    PosJournalLine {
+                        account_id: accounts.receivable.clone(),
+                        debit: sale.total_minor,
+                        credit: 0,
+                    },
+                    PosJournalLine {
+                        account_id: accounts.revenue.clone(),
+                        debit: 0,
+                        credit: sale.subtotal_minor,
+                    },
+                ];
+                if sale.tax_minor > 0 {
+                    lines.push(PosJournalLine {
+                        account_id: accounts.output_tax.clone(),
+                        debit: 0,
+                        credit: sale.tax_minor,
+                    });
+                }
+                lines
+            },
             now,
         })
         .await
