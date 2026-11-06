@@ -64,6 +64,19 @@ export type NativeQualityCancellation = Readonly<{
   createdAt: number;
 }>;
 
+export type NativeQualityCancellationPage = Readonly<{
+  items: readonly NativeQualityCancellation[];
+  nextBefore: number | null;
+  headVersion: number;
+  historyRevision: string;
+}>;
+
+export type NativeQualityCancellationCursor = Readonly<{
+  before: number;
+  head: number;
+  revision: string;
+}>;
+
 export type NativeQualityDisposition = Readonly<{
   id: string;
   holdId: string;
@@ -596,6 +609,35 @@ export function createNativeQualityReader(raw: string, transport: QualityTranspo
   }
 
   return {
+    cancellationHistory: async (
+      incoming: Pick<Headers, 'get'>,
+      slug: string,
+      id: string,
+      cursor?: NativeQualityCancellationCursor,
+    ): Promise<NativeQualityCancellationPage> => {
+      if (!identifier(id)) return fail('NATIVE_QUALITY_REQUEST_INVALID', 422);
+      if (cursor && (!safeInteger(cursor.before) || Object.is(cursor.before, -0) ||
+          !safeInteger(cursor.head) || cursor.head < 1 ||
+          !/^qch1:[0-9a-f]{64}$/.test(cursor.revision)))
+        return fail('NATIVE_QUALITY_REQUEST_INVALID', 422);
+      const query = cursor ? `?${new URLSearchParams({before: String(cursor.before), head: String(cursor.head), revision: cursor.revision})}` : '';
+      const value = await send('GET', incoming, slug, `/${encodeURIComponent(id)}/cancellations${query}`);
+      if (!Array.isArray(value.items) || value.items.length > 200 ||
+          !safeInteger(value.headVersion) || value.headVersion < 1 ||
+          !(value.nextBefore === null || (safeInteger(value.nextBefore) && !Object.is(value.nextBefore, -0))) ||
+          typeof value.historyRevision !== 'string' || !/^qch1:[0-9a-f]{64}$/.test(value.historyRevision))
+        return fail('NATIVE_QUALITY_RESPONSE_INVALID');
+      const items = value.items.map(cancellation);
+      const headVersion = value.headVersion;
+      if ((cursor && items.length === 0) || new Set(items.map(item => item.id)).size !== items.length ||
+          items.some((item, index) => item.holdId !== id || Object.is(item.version, -0) ||
+          (index > 0 && items[index - 1].version <= item.version)) ||
+          (cursor && (headVersion !== cursor.head || value.historyRevision !== cursor.revision ||
+            items.some(item => item.version >= cursor.before))) ||
+          (value.nextBefore !== null && (items.length === 0 || value.nextBefore !== items[items.length - 1].version)))
+        return fail('NATIVE_QUALITY_RESPONSE_INVALID');
+      return {items, nextBefore: value.nextBefore as number | null, headVersion, historyRevision: value.historyRevision};
+    },
     workspace: async (incoming: Pick<Headers, 'get'>, slug: string): Promise<NativeQualityWorkspace> => {
       const value = await send('GET', incoming, slug, '');
       if (

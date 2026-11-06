@@ -81589,6 +81589,97 @@
       }
     },
     {
+      "id": "quality.rust-quality-http-postgres.integration",
+      "lane": "integration",
+      "owner": "quality",
+      "modules": [
+        "quality"
+      ],
+      "files": [
+        "tests/integration/quality/rust-quality-http-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Composed native Quality HTTP over the real Account session, current IAM and PostgreSQL proves bounded workspace/detail-core/history reads, cursor freshness, Company isolation, independent cancellation and persisted readback."
+      },
+      "framework": "cargo",
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml",
+        "tests/support/finance/review-composition.rs",
+        "tests/support/rust-account-revocation.rs",
+        "tests/support/rust-account-credentials.rs",
+        "tests/support/rust-account.rs",
+        "tests/support/rust-postgres.rs"
+      ],
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "quality_http_postgres"
+        ],
+        "features": [
+          "existing-business"
+        ]
+      },
+      "apps": [
+        "supply"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-field_service",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-operations",
+        "@erpx/feature-organization",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-service",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-commercial",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-legal",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-platform_administration",
+        "@erpx/server-runtime",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/ui"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
       "id": "quality.native-quality-transport.unit",
       "lane": "unit",
       "owner": "quality",

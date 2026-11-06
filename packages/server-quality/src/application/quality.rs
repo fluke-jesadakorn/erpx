@@ -208,6 +208,18 @@ pub struct QualityDetailData {
     pub alerts: Vec<QualityAlert>,
 }
 
+/// Detail source facts excluding cancellation history, which is fetched via
+/// an explicit complete-history page contract rather than an empty array.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QualityDetailCoreData {
+    pub hold: QualityHold,
+    pub inspections: Vec<QualityInspection>,
+    pub measurements: Vec<QualityMeasurement>,
+    pub dispositions: Vec<QualityDisposition>,
+    pub spec_metrics: Vec<QualityMetric>,
+    pub alerts: Vec<QualityAlert>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct QualityHoldView {
     pub hold: QualityHold,
@@ -231,6 +243,52 @@ pub struct QualityDetail {
     pub dispositions: Vec<QualityDisposition>,
     pub spec_metrics: Vec<QualityMetric>,
     pub alerts: Vec<QualityAlert>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QualityDetailCore {
+    pub hold: QualityHoldView,
+    pub inspections: Vec<QualityInspection>,
+    pub measurements: Vec<QualityMeasurement>,
+    pub dispositions: Vec<QualityDisposition>,
+    pub spec_metrics: Vec<QualityMetric>,
+    pub alerts: Vec<QualityAlert>,
+}
+
+pub fn quality_detail_core_from_source(
+    actor: &QualityActor,
+    data: QualityDetailCoreData,
+) -> Result<QualityDetailCore, BusinessError> {
+    require_read(actor)?;
+    if data.hold.company_id != actor.company_id.as_str()
+        || actor
+            .branch_id
+            .as_ref()
+            .is_some_and(|branch| data.hold.branch_id != branch.as_str())
+    {
+        return Err(hold_not_found());
+    }
+    let facts = crate::domain::quality::QualityActorFacts {
+        user_id: actor.user_id.as_str().to_owned(),
+        can_hold: actor.can("quality.hold"),
+        can_inspect: actor.can("quality.inspect"),
+        can_release: actor.can("quality.release"),
+        company_scope: actor.branch_id.is_none(),
+    };
+    let decision = quality_decision(&data.hold.facts(), &facts);
+    let next_action = next_action(data.hold.status, data.hold.last_result, decision);
+    Ok(QualityDetailCore {
+        hold: QualityHoldView {
+            hold: data.hold,
+            decision,
+            next_action,
+        },
+        inspections: data.inspections,
+        measurements: data.measurements,
+        dispositions: data.dispositions,
+        spec_metrics: data.spec_metrics,
+        alerts: data.alerts,
+    })
 }
 
 pub trait QualityReadRepository: Send + Sync {
@@ -268,9 +326,18 @@ pub struct QualityCancellationReceipt {
 
 /// Normalize before constructing a Workflow request so its fingerprint and
 /// the owner effect both use the same retained command input.
-pub fn normalize_quality_cancellation(command: &QualityCancellationCommand) -> Result<QualityCancellationCommand, BusinessError> {
-    let reason = validate_reason(&command.reason, "QUALITY_CANCELLATION_REASON", "Enter a cancellation reason between 3 and 2000 characters.")?;
-    Ok(QualityCancellationCommand { reason, ..command.clone() })
+pub fn normalize_quality_cancellation(
+    command: &QualityCancellationCommand,
+) -> Result<QualityCancellationCommand, BusinessError> {
+    let reason = validate_reason(
+        &command.reason,
+        "QUALITY_CANCELLATION_REASON",
+        "Enter a cancellation reason between 3 and 2000 characters.",
+    )?;
+    Ok(QualityCancellationCommand {
+        reason,
+        ..command.clone()
+    })
 }
 
 pub trait QualityCancellationRepository: Send + Sync {

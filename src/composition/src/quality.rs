@@ -13,12 +13,17 @@ use erpx_server_identity_access::public::{
 };
 use erpx_server_quality::public::quality_http::{
     PgQualityCancellation, PgQualityRead, QualityHttpBackend, QualityHttpCommandRequest,
-    QualityHttpFuture, QualityHttpReadReply, QualityHttpReadRequest, QualityHttpTarget,
-    parse_cancellation, quality_router,
+    QualityHttpFuture, QualityHttpHistoryReply, QualityHttpHistoryRequest, QualityHttpReadReply,
+    QualityHttpReadRequest, QualityHttpTarget, parse_cancellation, parse_quality_history_query,
+    quality_router, read_quality_cancellation_history_page, read_quality_detail_core,
+};
+use erpx_server_quality::public::quality_http::{
+    apply_quality_cancellation, prepare_quality_cancellation,
 };
 use erpx_server_quality::public::quality_read::{
     QualityActor, QualityCancellationCommand, QualityCancellationReceipt, cancel_quality_hold,
-    quality_detail, quality_workspace,
+    normalize_quality_cancellation, quality_detail, quality_detail_core_from_source,
+    quality_workspace, validate_reason,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
@@ -36,10 +41,27 @@ fn scope() -> BusinessError {
         "Choose the current authorized Company workspace.",
     )
 }
+fn access_changed() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Forbidden,
+        "QUALITY_ACCESS_CHANGED",
+        "Choose a current authorized Quality assignment.",
+    )
+}
 
 fn not_found() -> BusinessError {
     BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.")
 }
+
+fn hold_not_found() -> BusinessError {
+    BusinessError::new(
+        FailureKind::NotFound,
+        "QUALITY_HOLD_NOT_FOUND",
+        "Quality hold not found.",
+    )
+}
+
+const QUALITY_HISTORY_PAGE_SIZE: usize = 100;
 
 fn unavailable() -> BusinessError {
     BusinessError::new(
@@ -70,8 +92,12 @@ struct QualitySources;
 impl HoldingWorkSourcePreparation for QualitySources {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
-            erpx_server_quality::public::quality_http::lock_quality_cancellation_writes(c).await.map_err(business)?;
-            erpx_server_quality::public::quality_http::lock_quality_read_sources(c).await.map_err(business)?;
+            erpx_server_quality::public::quality_http::lock_quality_cancellation_writes(c)
+                .await
+                .map_err(business)?;
+            erpx_server_quality::public::quality_http::lock_quality_read_sources(c)
+                .await
+                .map_err(business)?;
             Ok(())
         })
     }
@@ -262,6 +288,120 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
             .await
     }
 
+    /// Detail source facts that deliberately exclude cancellation history. The
+    /// caller must fetch the complete history through the paged contract rather
+    /// than treating a bounded detail array as the whole history.
+    async fn detail_core<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        id: String,
+    ) -> Result<erpx_server_quality::public::quality_read::QualityDetailCore, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                QualitySources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let id = id.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("quality.read")?;
+                        let actor = quality_actor(current)?;
+                        let Some(current) = read_quality_detail_core(
+                            connection,
+                            &actor.company_id,
+                            actor.branch_id.as_ref(),
+                            &id,
+                        )
+                        .await?
+                        else {
+                            return Err(hold_not_found().into());
+                        };
+                        Ok(quality_detail_core_from_source(
+                            &actor,
+                            current.data().clone(),
+                        )?)
+                    })
+                },
+            )
+            .await
+    }
+
+    /// One complete-history page in the same serializable Quality unit as the
+    /// read. The cursor is parsed only after Account/IAM authorization and is a
+    /// comparison input, never authority.
+    async fn history<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        id: String,
+        raw_query: Option<String>,
+    ) -> Result<QualityHttpHistoryReply, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                QualitySources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let id = id.clone();
+                    let raw_query = raw_query.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("quality.read")?;
+                        let cursor = parse_quality_history_query(raw_query.as_deref())?;
+                        let actor = quality_actor(current)?;
+                        let page = read_quality_cancellation_history_page(
+                            connection,
+                            &actor.company_id,
+                            actor.branch_id.as_ref(),
+                            &id,
+                            cursor.before,
+                            cursor.head,
+                            cursor.revision.as_deref(),
+                            QUALITY_HISTORY_PAGE_SIZE,
+                        )
+                        .await?;
+                        Ok(QualityHttpHistoryReply {
+                            items: page.rows().to_vec(),
+                            next_before: page.next_before(),
+                            head_version: page.head_version(),
+                            history_revision: page.history_revision().to_owned(),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
     pub async fn cancel<Input>(
         &self,
         host: &str,
@@ -296,13 +436,9 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
                         current.require_permission("quality.read")?;
                         let actor = quality_actor(current)?;
                         let mut repository = PgQualityCancellation { connection };
-                        let receipt = cancel_quality_hold(
-                            &actor,
-                            command,
-                            &mut repository,
-                            clock.as_ref(),
-                        )
-                        .await?;
+                        let receipt =
+                            cancel_quality_hold(&actor, command, &mut repository, clock.as_ref())
+                                .await?;
                         Ok(receipt)
                     })
                 },
@@ -382,6 +518,41 @@ impl<C: Clock + Send + Sync + 'static> QualityHttpBackend for QualityBackend<C> 
             let command = parse_cancellation(request.body, request.id, request.key.clone())?;
             self.service
                 .cancel(request.host, proof, move || Ok(selection), command)
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn history<'a>(
+        &'a self,
+        request: QualityHttpHistoryRequest<'a>,
+    ) -> QualityHttpFuture<'a, QualityHttpHistoryReply> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .history(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.id.to_owned(),
+                    request.raw_query.map(str::to_owned),
+                )
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn detail_core<'a>(
+        &'a self,
+        request: QualityHttpReadRequest<'a>,
+    ) -> QualityHttpFuture<'a, erpx_server_quality::public::quality_read::QualityDetailCore> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            let Some(id) = request.id else {
+                return Err(not_found());
+            };
+            self.service
+                .detail_core(request.host, proof, move || Ok(selection), id.to_owned())
                 .await
                 .map_err(business)
         })

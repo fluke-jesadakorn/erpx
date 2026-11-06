@@ -5,8 +5,8 @@
 //! composition/public-port concerns.
 use crate::application::quality::{
     QualityAlert, QualityCancellation, QualityCancellationCommand, QualityCancellationReceipt,
-    QualityCancellationRepository, QualityDetailData, QualityDisposition, QualityFuture,
-    QualityHold, QualityInspection, QualityMeasurement, QualityReadRepository,
+    QualityCancellationRepository, QualityDetailCoreData, QualityDetailData, QualityDisposition,
+    QualityFuture, QualityHold, QualityInspection, QualityMeasurement, QualityReadRepository,
     QualityWorkspaceData,
 };
 use crate::domain::quality::{
@@ -14,6 +14,8 @@ use crate::domain::quality::{
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, RecordId, UserId};
+use futures_util::TryStreamExt;
+use sha2::{Digest, Sha256};
 use sqlx::{Connection, PgConnection, Row};
 
 type Error = PgTransactionError<BusinessError>;
@@ -34,6 +36,7 @@ const MAX_INSPECTIONS: usize = 1000;
 const MAX_MEASUREMENTS: usize = 5000;
 const MAX_METRICS: usize = 1000;
 const MAX_CANCELLATIONS: usize = 200;
+const MAX_CANCELLATION_PAGE_BYTES: usize = 4 * 1024 * 1024;
 const MAX_DISPOSITIONS: usize = 200;
 const MAX_ALERTS: usize = 1000;
 
@@ -169,6 +172,19 @@ pub async fn lock_quality_cancellation_writes(c: &mut PgConnection) -> Result<()
     Ok(())
 }
 
+// This proves the writer-intent locks are held by this backend now. It does
+// not prove when they were acquired: composition must acquire them before
+// the transaction's first snapshot and in the surrounding owner lock order.
+async fn require_quality_cancellation_write_locks(c: &mut PgConnection) -> Result<(), Error> {
+    serializable(c).await?;
+    let held: bool = sqlx::query_scalar("SELECT count(DISTINCT relation)=2 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND granted AND mode IN ('ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock') AND relation IN ('inventory_quality_holds'::regclass,'inventory_quality_cancellations'::regclass)")
+        .fetch_one(c).await?;
+    if !held {
+        return Err(PersistenceError::new("QUALITY_CANCELLATION_WRITE_LOCKS_REQUIRED").into());
+    }
+    Ok(())
+}
+
 fn parse_status(value: &str) -> Result<HoldStatus, Error> {
     HoldStatus::parse(value).ok_or_else(|| invalid("A Quality hold status is invalid.").into())
 }
@@ -189,6 +205,18 @@ fn parse_action(value: &str) -> Result<CancellationAction, Error> {
 
 fn safe(value: i64) -> Result<i64, Error> {
     if (0..=crate::domain::quality::MAX_SAFE_INTEGER).contains(&value) {
+        Ok(value)
+    } else {
+        Err(invalid("A Quality integer is outside the safe range.").into())
+    }
+}
+
+// Legacy PostgreSQL INT8 decoding permits signed JavaScript-safe values.
+// Cancellation evidence has no positive-version or timestamp constraint.
+fn safe_signed(value: i64) -> Result<i64, Error> {
+    if (-crate::domain::quality::MAX_SAFE_INTEGER..=crate::domain::quality::MAX_SAFE_INTEGER)
+        .contains(&value)
+    {
         Ok(value)
     } else {
         Err(invalid("A Quality integer is outside the safe range.").into())
@@ -417,12 +445,265 @@ impl CurrentQualityDetail {
     }
 }
 
-async fn read_detail(
+async fn read_cancellation_events(
+    c: &mut PgConnection,
+    id: &str,
+    excluded: Option<&str>,
+) -> Result<Vec<QualityCancellation>, Error> {
+    let rows = sqlx::query(
+        "SELECT id,hold_id,version,action,reason,actor_id,created_at FROM inventory_quality_cancellations WHERE hold_id=$1 AND ($2::text IS NULL OR id<>$2) ORDER BY version DESC LIMIT 201",
+    )
+    .bind(id)
+    .bind(excluded)
+    .fetch_all(&mut *c)
+    .await?;
+    if rows.len() > MAX_CANCELLATIONS {
+        return Err(bounded("cancellations").into());
+    }
+    let cancellations = rows
+        .iter()
+        .map(|row| {
+            Ok(QualityCancellation {
+                id: row.try_get("id")?,
+                hold_id: row.try_get("hold_id")?,
+                version: safe_signed(row.try_get("version")?)?,
+                action: parse_action(&row.try_get::<String, _>("action")?)?,
+                reason: row.try_get("reason")?,
+                actor_id: row.try_get("actor_id")?,
+                created_at: safe_signed(row.try_get("created_at")?)?,
+            })
+        })
+        .collect::<Result<Vec<_>, Error>>()?;
+    Ok(cancellations)
+}
+
+/// A bounded page retained in one serializable Quality read unit. This is an
+/// owner fact, not an authorization decision. The caller must acquire Quality
+/// source locks before the first snapshot and keep every page in that unit.
+pub struct CurrentQualityCancellationHistoryPage {
+    unit: Unit,
+    company: CompanyId,
+    branch: Option<RecordId>,
+    hold: QualityHold,
+    before: Option<i64>,
+    limit: usize,
+    rows: Vec<QualityCancellation>,
+    next_before: Option<i64>,
+    revision: String,
+}
+
+impl CurrentQualityCancellationHistoryPage {
+    pub fn rows(&self) -> &[QualityCancellation] {
+        &self.rows
+    }
+    pub fn next_before(&self) -> Option<i64> {
+        self.next_before
+    }
+    pub fn head_version(&self) -> i64 {
+        self.hold.version
+    }
+    pub fn history_revision(&self) -> &str {
+        &self.revision
+    }
+
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        let current = read_quality_cancellation_history_page(
+            c,
+            &self.company,
+            self.branch.as_ref(),
+            self.hold.id.as_str(),
+            self.before,
+            Some(self.hold.version),
+            Some(&self.revision),
+            self.limit,
+        )
+        .await?;
+        if current.unit != self.unit
+            || current.hold != self.hold
+            || current.rows != self.rows
+            || current.next_before != self.next_before
+            || current.revision != self.revision
+        {
+            return Err(changed().into());
+        }
+        Ok(())
+    }
+}
+
+fn history_changed() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "QUALITY_HISTORY_CHANGED",
+        "Quality cancellation history changed; reload it.",
+    )
+}
+
+fn hash_frame(hash: &mut Sha256, bytes: &[u8]) {
+    hash.update((bytes.len() as u64).to_be_bytes());
+    hash.update(bytes);
+}
+
+// Stream fixed-size per-field digests in a fixed unique order. Each original
+// byte length and its 32-byte SHA-256 are framed independently; integers use
+// fixed-width big-endian encoding. Historical text is never concatenated or
+// transferred to the caller merely to calculate the revision.
+async fn cancellation_history_revision(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    hold: &QualityHold,
+    excluded: Option<&str>,
+) -> Result<String, Error> {
+    let mut hash = Sha256::new();
+    hash_frame(&mut hash, b"erpx-quality-cancellation-history-v1");
+    hash_frame(&mut hash, company.as_str().as_bytes());
+    hash_frame(&mut hash, hold.id.as_bytes());
+    hash.update(hold.version.to_be_bytes());
+    let mut rows = sqlx::query("SELECT octet_length(id) id_len,sha256(convert_to(id,'UTF8')) id_hash, octet_length(hold_id) hold_len,sha256(convert_to(hold_id,'UTF8')) hold_hash, version, action, octet_length(reason) reason_len,sha256(convert_to(reason,'UTF8')) reason_hash, octet_length(actor_id) actor_len,sha256(convert_to(actor_id,'UTF8')) actor_hash, created_at FROM inventory_quality_cancellations WHERE hold_id=$1 AND ($2::text IS NULL OR id<>$2) ORDER BY version DESC")
+        .bind(&hold.id).bind(excluded).fetch(&mut *c);
+    let mut count = 0_u64;
+    while let Some(row) = rows.try_next().await? {
+        let version = safe_signed(row.try_get("version")?)?;
+        let action: String = row.try_get("action")?;
+        parse_action(&action)?;
+        let created_at = safe_signed(row.try_get("created_at")?)?;
+        for (length, digest) in [("id_len", "id_hash"), ("hold_len", "hold_hash")] {
+            let length: i32 = row.try_get(length)?;
+            let digest: Vec<u8> = row.try_get(digest)?;
+            hash.update((length as u64).to_be_bytes());
+            hash_frame(&mut hash, &digest);
+        }
+        hash.update(version.to_be_bytes());
+        hash_frame(&mut hash, action.as_bytes());
+        for (length, digest) in [("reason_len", "reason_hash"), ("actor_len", "actor_hash")] {
+            let length: i32 = row.try_get(length)?;
+            let digest: Vec<u8> = row.try_get(digest)?;
+            hash.update((length as u64).to_be_bytes());
+            hash_frame(&mut hash, &digest);
+        }
+        hash.update(created_at.to_be_bytes());
+        count = count
+            .checked_add(1)
+            .ok_or_else(|| invalid("Quality cancellation history is too large."))?;
+    }
+    drop(rows);
+    hash.update(count.to_be_bytes());
+    Ok(format!("qch1:{:x}", hash.finalize()))
+}
+
+pub async fn read_quality_cancellation_history_page(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    branch: Option<&RecordId>,
+    hold_id: &str,
+    before: Option<i64>,
+    expected_head: Option<i64>,
+    expected_revision: Option<&str>,
+    limit: usize,
+) -> Result<CurrentQualityCancellationHistoryPage, Error> {
+    serializable(c).await?;
+    if !(1..=MAX_CANCELLATIONS).contains(&limit)
+        || before.is_some_and(|v| safe_signed(v).is_err())
+        || expected_head.is_some_and(|v| v < 1 || safe(v).is_err())
+        || expected_revision.is_some_and(|v| {
+            v.len() != 69
+                || !v.starts_with("qch1:")
+                || !v[5..]
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        })
+        || (expected_head.is_some() != expected_revision.is_some())
+        || (before.is_some() && expected_head.is_none())
+    {
+        return Err(invalid("The Quality cancellation history page is invalid.").into());
+    }
+    // Held-lock proof does not attest when locks were taken. Composition owns
+    // the earlier-than-snapshot guarantee and the cross-owner ordering.
+    let held: bool = sqlx::query_scalar("SELECT count(DISTINCT relation)=2 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND granted AND mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock') AND relation IN ('inventory_quality_holds'::regclass,'inventory_quality_cancellations'::regclass)")
+        .fetch_one(&mut *c).await?;
+    if !held {
+        return Err(PersistenceError::new("QUALITY_HISTORY_READ_LOCKS_REQUIRED").into());
+    }
+    let hold = read_holds(
+        c,
+        company.as_str(),
+        branch.map(RecordId::as_str),
+        Some(hold_id),
+    )
+    .await?
+    .pop()
+    .ok_or_else(hold_not_found)?;
+    let revision = cancellation_history_revision(c, company, &hold, None).await?;
+    if expected_head.is_some_and(|head| head != hold.version)
+        || expected_revision.is_some_and(|expected| expected != revision)
+    {
+        return Err(history_changed().into());
+    }
+    let mut raw = sqlx::query("SELECT CASE WHEN bytes*6+512 <= $4 THEN id END id, CASE WHEN bytes*6+512 <= $4 THEN hold_id END hold_id, version, action, CASE WHEN bytes*6+512 <= $4 THEN reason END reason, CASE WHEN bytes*6+512 <= $4 THEN actor_id END actor_id, created_at, bytes FROM (SELECT *, octet_length(id)::bigint+octet_length(hold_id)+octet_length(action)+octet_length(reason)+octet_length(actor_id) bytes FROM inventory_quality_cancellations WHERE hold_id=$1 AND ($2::bigint IS NULL OR version<$2) ORDER BY version DESC LIMIT $3) page ORDER BY version DESC")
+        .bind(hold_id).bind(before).bind((limit + 1) as i64).bind(MAX_CANCELLATION_PAGE_BYTES as i64).fetch(&mut *c);
+    let mut rows = Vec::new();
+    let mut bytes = 0_usize;
+    let mut has_more = false;
+    while let Some(row) = raw.try_next().await? {
+        if rows.len() == limit {
+            has_more = true;
+            break;
+        }
+        let raw_bytes: i64 = row.try_get("bytes")?;
+        let weight = usize::try_from(raw_bytes)
+            .ok()
+            .and_then(|n| n.checked_mul(6))
+            .and_then(|n| n.checked_add(512))
+            .ok_or_else(|| bounded("cancellation history row"))?;
+        if weight > MAX_CANCELLATION_PAGE_BYTES {
+            return Err(bounded("cancellation history row").into());
+        }
+        if bytes
+            .checked_add(weight)
+            .is_none_or(|n| n > MAX_CANCELLATION_PAGE_BYTES)
+        {
+            has_more = true;
+            break;
+        }
+        let required = |field: &str| -> Result<String, Error> {
+            row.try_get::<Option<String>, _>(field)?
+                .ok_or_else(|| bounded("cancellation history row").into())
+        };
+        rows.push(QualityCancellation {
+            id: required("id")?,
+            hold_id: required("hold_id")?,
+            version: safe_signed(row.try_get("version")?)?,
+            action: parse_action(&row.try_get::<String, _>("action")?)?,
+            reason: required("reason")?,
+            actor_id: required("actor_id")?,
+            created_at: safe_signed(row.try_get("created_at")?)?,
+        });
+        bytes += weight;
+    }
+    drop(raw);
+    let next_before = if has_more {
+        rows.last().map(|row| row.version)
+    } else {
+        None
+    };
+    Ok(CurrentQualityCancellationHistoryPage {
+        unit: unit(c).await?,
+        company: company.clone(),
+        branch: branch.cloned(),
+        hold,
+        before,
+        limit,
+        rows,
+        next_before,
+        revision,
+    })
+}
+
+async fn read_detail_core_data(
     c: &mut PgConnection,
     company: &str,
     branch: Option<&str>,
     id: &str,
-) -> Result<Option<QualityDetailData>, Error> {
+) -> Result<Option<QualityDetailCoreData>, Error> {
     let mut hold_rows = read_holds(c, company, branch, Some(id)).await?;
     let Some(hold) = hold_rows.pop() else {
         return Ok(None);
@@ -483,29 +764,6 @@ async fn read_detail(
             })
         })
         .collect::<Result<Vec<_>, Error>>()?;
-    let cancellation_rows = sqlx::query(
-        "SELECT id,hold_id,version,action,reason,actor_id,created_at FROM inventory_quality_cancellations WHERE hold_id=$1 ORDER BY version DESC LIMIT 201",
-    )
-    .bind(id)
-    .fetch_all(&mut *c)
-    .await?;
-    if cancellation_rows.len() > MAX_CANCELLATIONS {
-        return Err(bounded("cancellations").into());
-    }
-    let cancellations = cancellation_rows
-        .iter()
-        .map(|row| {
-            Ok(QualityCancellation {
-                id: row.try_get("id")?,
-                hold_id: row.try_get("hold_id")?,
-                version: safe(row.try_get("version")?)?,
-                action: parse_action(&row.try_get::<String, _>("action")?)?,
-                reason: row.try_get("reason")?,
-                actor_id: row.try_get("actor_id")?,
-                created_at: safe(row.try_get("created_at")?)?,
-            })
-        })
-        .collect::<Result<Vec<_>, Error>>()?;
     let disposition_rows = sqlx::query(
         "SELECT id,hold_id,count_id,action,actor_id,reviewed_version,reason,created_at FROM inventory_quality_disposition_events WHERE hold_id=$1 ORDER BY created_at,id LIMIT 201",
     )
@@ -530,14 +788,98 @@ async fn read_detail(
             })
         })
         .collect::<Result<Vec<_>, Error>>()?;
-    Ok(Some(QualityDetailData {
-        spec_metrics: read_specification_metrics(c, company, hold.spec_id.as_deref()).await?,
+    Ok(Some(QualityDetailCoreData {
+        // Legacy detail returns no metrics when the hold has no spec. The
+        // workspace separately uses None to request all Company metrics.
+        spec_metrics: match hold.spec_id.as_deref() {
+            Some(spec_id) => read_specification_metrics(c, company, Some(spec_id)).await?,
+            None => Vec::new(),
+        },
         alerts: read_alerts(c, company, Some(id)).await?,
         hold,
         inspections,
         measurements,
-        cancellations,
         dispositions,
+    }))
+}
+
+async fn read_detail(
+    c: &mut PgConnection,
+    company: &str,
+    branch: Option<&str>,
+    id: &str,
+) -> Result<Option<QualityDetailData>, Error> {
+    let Some(core) = read_detail_core_data(c, company, branch, id).await? else {
+        return Ok(None);
+    };
+    let cancellations = read_cancellation_events(c, id, None).await?;
+    Ok(Some(QualityDetailData {
+        hold: core.hold,
+        inspections: core.inspections,
+        measurements: core.measurements,
+        cancellations,
+        dispositions: core.dispositions,
+        spec_metrics: core.spec_metrics,
+        alerts: core.alerts,
+    }))
+}
+
+/// Scoped detail facts without cancellation history. This owner witness is
+/// retained in one unit; it does not grant authorization or purchase access.
+pub struct CurrentQualityDetailCore {
+    unit: Unit,
+    company: String,
+    branch: Option<String>,
+    id: String,
+    data: QualityDetailCoreData,
+}
+
+async fn require_quality_detail_core_locks(c: &mut PgConnection) -> Result<(), Error> {
+    serializable(c).await?;
+    let held: bool = sqlx::query_scalar("SELECT count(DISTINCT relation)=8 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND granted AND mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock') AND relation IN ('inventory_quality_holds'::regclass,'inventory_quality_inspections'::regclass,'inventory_quality_measurements'::regclass,'inventory_quality_specs'::regclass,'inventory_quality_spec_metrics'::regclass,'inventory_quality_cancellations'::regclass,'inventory_quality_disposition_events'::regclass,'inventory_quality_alerts'::regclass)")
+        .fetch_one(c).await?;
+    if !held {
+        return Err(PersistenceError::new("QUALITY_DETAIL_READ_LOCKS_REQUIRED").into());
+    }
+    Ok(())
+}
+
+impl CurrentQualityDetailCore {
+    pub fn data(&self) -> &QualityDetailCoreData {
+        &self.data
+    }
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        require_quality_detail_core_locks(c).await?;
+        if unit(c).await? != self.unit
+            || read_detail_core_data(c, &self.company, self.branch.as_deref(), &self.id)
+                .await?
+                .as_ref()
+                != Some(&self.data)
+        {
+            return Err(changed().into());
+        }
+        Ok(())
+    }
+}
+
+pub async fn read_quality_detail_core(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    branch: Option<&RecordId>,
+    id: &str,
+) -> Result<Option<CurrentQualityDetailCore>, Error> {
+    require_quality_detail_core_locks(c).await?;
+    let Some(data) =
+        read_detail_core_data(c, company.as_str(), branch.map(RecordId::as_str), id).await?
+    else {
+        return Ok(None);
+    };
+    Ok(Some(CurrentQualityDetailCore {
+        unit: unit(c).await?,
+        company: company.as_str().to_owned(),
+        branch: branch.map(|b| b.as_str().to_owned()),
+        id: id.to_owned(),
+        data,
     }))
 }
 
@@ -604,7 +946,7 @@ pub struct PgQualityCancellation<'a> {
 /// not an authorization or purchase proof; the caller must keep its current
 /// authority and purchase witnesses in the same serializable transaction.
 pub struct PreparedQualityCancellation {
-    source: CurrentQualityDetail,
+    source: CancellationSource,
     command: QualityCancellationCommand,
     company: CompanyId,
     branch: Option<RecordId>,
@@ -613,23 +955,94 @@ pub struct PreparedQualityCancellation {
     receipt: QualityCancellationReceipt,
 }
 
+// Cancellation depends on the exact scoped hold (including inspection count)
+// and its full prior cancellation evidence, not unrelated Company metrics or
+// alerts. The public detail read keeps its independent bounds.
+struct CancellationSource {
+    unit: Unit,
+    hold: QualityHold,
+    history_revision: String,
+}
+
+async fn cancellation_source(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    branch: Option<&RecordId>,
+    id: &RecordId,
+) -> Result<Option<CancellationSource>, Error> {
+    serializable(c).await?;
+    let Some(hold) = read_holds(
+        c,
+        company.as_str(),
+        branch.map(RecordId::as_str),
+        Some(id.as_str()),
+    )
+    .await?
+    .pop() else {
+        return Ok(None);
+    };
+    let history_revision = cancellation_history_revision(c, company, &hold, None).await?;
+    Ok(Some(CancellationSource {
+        unit: unit(c).await?,
+        hold,
+        history_revision,
+    }))
+}
+
 impl PreparedQualityCancellation {
-    pub fn receipt(&self) -> &QualityCancellationReceipt { &self.receipt }
+    pub fn receipt(&self) -> &QualityCancellationReceipt {
+        &self.receipt
+    }
+
+    pub fn hold_facts(&self) -> QualityHoldFacts {
+        self.source.hold.facts()
+    }
 
     pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
-        self.source.require_current(c).await
+        require_quality_cancellation_write_locks(c).await?;
+        let current = cancellation_source(
+            c,
+            &self.company,
+            self.branch.as_ref(),
+            &self.command.hold_id,
+        )
+        .await?
+        .ok_or_else(changed)?;
+        if current.unit != self.source.unit
+            || current.hold != self.source.hold
+            || current.history_revision != self.source.history_revision
+        {
+            return Err(changed().into());
+        }
+        Ok(())
     }
 
     /// Apply exactly once. Workflow must resolve an existing receipt before
     /// preparing this effect; an existing owner event is never a replay proof.
     pub async fn apply(&self, c: &mut PgConnection) -> Result<RetainedQualityCancellation, Error> {
         self.require_current(c).await?;
-        let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM inventory_quality_cancellations WHERE id=$1)")
-            .bind(&self.receipt.cancellation_id).fetch_one(&mut *c).await?;
-        if exists { return Err(cancellation_conflict().into()); }
-        let receipt = apply_quality_cancellation(c, &self.command, &self.company, self.branch.as_ref(), &self.actor, self.now).await?;
-        if receipt != self.receipt { return Err(changed().into()); }
-        let mut expected_hold = self.source.data.hold.clone();
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM inventory_quality_cancellations WHERE id=$1)",
+        )
+        .bind(&self.receipt.cancellation_id)
+        .fetch_one(&mut *c)
+        .await?;
+        if exists {
+            return Err(cancellation_conflict().into());
+        }
+        let receipt = apply_quality_cancellation(
+            c,
+            &self.command,
+            &self.company,
+            self.branch.as_ref(),
+            &self.actor,
+            self.now,
+        )
+        .await?;
+        if receipt != self.receipt {
+            return Err(changed().into());
+        }
+        let mut expected_hold = self.source.hold.clone();
         expected_hold.status = receipt.status;
         expected_hold.version = receipt.version;
         expected_hold.updated_at = self.now;
@@ -644,7 +1057,18 @@ impl PreparedQualityCancellation {
             }
             CancellationAction::Reject => {}
         }
-        let retained = RetainedQualityCancellation { unit: unit(c).await?, command: self.command.clone(), company: self.company.clone(), branch: self.branch.clone(), actor: self.actor.clone(), receipt, expected_hold, now: self.now };
+        let retained = RetainedQualityCancellation {
+            unit: unit(c).await?,
+            command: self.command.clone(),
+            company: self.company.clone(),
+            branch: self.branch.clone(),
+            actor: self.actor.clone(),
+            receipt,
+            expected_hold,
+            preimage_hold: self.source.hold.clone(),
+            previous_revision: self.source.history_revision.clone(),
+            now: self.now,
+        };
         retained.require_current(c).await?;
         Ok(retained)
     }
@@ -659,21 +1083,50 @@ pub struct RetainedQualityCancellation {
     actor: UserId,
     receipt: QualityCancellationReceipt,
     expected_hold: QualityHold,
+    preimage_hold: QualityHold,
+    previous_revision: String,
     now: i64,
 }
 
 impl RetainedQualityCancellation {
     pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
-        serializable(c).await?;
-        if unit(c).await? != self.unit { return Err(changed().into()); }
+        require_quality_cancellation_write_locks(c).await?;
+        if unit(c).await? != self.unit {
+            return Err(changed().into());
+        }
         let valid: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM inventory_quality_cancellations e JOIN inventory_quality_holds h ON h.id=e.hold_id WHERE e.id=$1 AND h.id=$2 AND h.company_id=$3 AND ($4::text IS NULL OR h.branch_id=$4) AND e.actor_id=$5 AND e.action=$6 AND e.reason=$7 AND e.version=$8 AND h.version=$8 AND h.status=$9 AND e.created_at=$10)")
             .bind(&self.receipt.cancellation_id).bind(self.command.hold_id.as_str()).bind(self.company.as_str())
             .bind(self.branch.as_ref().map(RecordId::as_str)).bind(self.actor.as_str())
             .bind(self.command.action.as_str()).bind(&self.command.reason).bind(self.receipt.version)
             .bind(self.receipt.status.as_str()).bind(self.now).fetch_one(&mut *c).await?;
-        if !valid { return Err(changed().into()); }
-        let hold = read_detail(c, self.company.as_str(), self.branch.as_ref().map(RecordId::as_str), self.command.hold_id.as_str()).await?.ok_or_else(changed)?.hold;
-        if hold != self.expected_hold { return Err(changed().into()); }
+        if !valid {
+            return Err(changed().into());
+        }
+        // Re-hash every prior event, excluding only the separately verified new
+        // event. The preimage hold seeds the same revision; the current hold
+        // itself is separately compared with its exact expected after-image.
+        let hold = read_holds(
+            c,
+            self.company.as_str(),
+            self.branch.as_ref().map(RecordId::as_str),
+            Some(self.command.hold_id.as_str()),
+        )
+        .await?
+        .pop()
+        .ok_or_else(changed)?;
+        if hold != self.expected_hold {
+            return Err(changed().into());
+        }
+        let revision = cancellation_history_revision(
+            c,
+            &self.company,
+            &self.preimage_hold,
+            Some(&self.receipt.cancellation_id),
+        )
+        .await?;
+        if revision != self.previous_revision {
+            return Err(changed().into());
+        }
         Ok(())
     }
 }
@@ -682,25 +1135,63 @@ impl RetainedQualityCancellation {
 /// The caller must validate current actor permission, purchase and Workflow
 /// replay independently before invoking this owner port.
 pub async fn prepare_quality_cancellation(
-    c: &mut PgConnection, command: &QualityCancellationCommand, company: &CompanyId,
-    branch: Option<&RecordId>, actor: &UserId, now: i64,
+    c: &mut PgConnection,
+    command: &QualityCancellationCommand,
+    company: &CompanyId,
+    branch: Option<&RecordId>,
+    actor: &UserId,
+    now: i64,
 ) -> Result<PreparedQualityCancellation, Error> {
+    require_quality_cancellation_write_locks(c).await?;
     let normalized = crate::application::quality::normalize_quality_cancellation(command)?;
     if normalized != *command {
-        return Err(BusinessError::invalid("QUALITY_CANCELLATION_REASON", "Normalize the cancellation reason before fingerprinting.").into());
+        return Err(BusinessError::invalid(
+            "QUALITY_CANCELLATION_REASON",
+            "Normalize the cancellation reason before fingerprinting.",
+        )
+        .into());
     }
-    let source = read_quality_detail(c, company, branch, command.hold_id.as_str()).await?.ok_or_else(hold_not_found)?;
-    let facts = source.data.hold.facts();
-    if matches!(command.action, CancellationAction::Approve | CancellationAction::Reject)
-        && (same_person(c, actor.as_str(), &facts.created_by, company.as_str()).await?
-            || same_person(c, actor.as_str(), facts.cancel_requested_by.as_deref().unwrap_or(""), company.as_str()).await?) {
+    let source = cancellation_source(c, company, branch, &command.hold_id)
+        .await?
+        .ok_or_else(hold_not_found)?;
+    let facts = source.hold.facts();
+    if matches!(
+        command.action,
+        CancellationAction::Approve | CancellationAction::Reject
+    ) && (same_person(c, actor.as_str(), &facts.created_by, company.as_str()).await?
+        || same_person(
+            c,
+            actor.as_str(),
+            facts.cancel_requested_by.as_deref().unwrap_or(""),
+            company.as_str(),
+        )
+        .await?)
+    {
         return Err(independent_required().into());
     }
-    let plan = crate::domain::quality::plan_cancellation(&facts, actor.as_str(), command.action, command.expected_version)?;
+    let plan = crate::domain::quality::plan_cancellation(
+        &facts,
+        actor.as_str(),
+        command.action,
+        command.expected_version,
+    )?;
     let id = command.hold_id.as_str().to_owned();
-    let receipt = QualityCancellationReceipt { id: id.clone(), hold_id: id,
-        cancellation_id: format!("quality-cancel-{}", command.command_key.as_str()), status: plan.target, version: plan.version };
-    Ok(PreparedQualityCancellation { source, command: command.clone(), company: company.clone(), branch: branch.cloned(), actor: actor.clone(), now, receipt })
+    let receipt = QualityCancellationReceipt {
+        id: id.clone(),
+        hold_id: id,
+        cancellation_id: format!("quality-cancel-{}", command.command_key.as_str()),
+        status: plan.target,
+        version: plan.version,
+    };
+    Ok(PreparedQualityCancellation {
+        source,
+        command: command.clone(),
+        company: company.clone(),
+        branch: branch.cloned(),
+        actor: actor.clone(),
+        now,
+        receipt,
+    })
 }
 
 impl QualityCancellationRepository for PgQualityCancellation<'_> {

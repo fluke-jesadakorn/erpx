@@ -3,6 +3,8 @@ import { headers } from 'next/headers';
 import {
   createNativeQualityReader,
   type NativeQualityDetail,
+  type NativeQualityCancellationCursor,
+  type NativeQualityCancellationPage,
   type NativeQualityReceipt,
   type NativeQualityWorkspace,
   type QualityTransport,
@@ -37,6 +39,17 @@ export async function nativeQualityDetail(
   const native = client(transport);
   if (!native) return undefined;
   return native.detail(await headers(), holdingSlug, id);
+}
+
+export async function nativeQualityCancellationHistory(
+  holdingSlug: string,
+  id: string,
+  cursor?: NativeQualityCancellationCursor,
+  transport?: QualityTransport,
+): Promise<NativeQualityCancellationPage | undefined> {
+  const native = client(transport);
+  if (!native) return undefined;
+  return native.cancellationHistory(await headers(), holdingSlug, id, cursor);
 }
 
 export async function nativeQualityCancel(

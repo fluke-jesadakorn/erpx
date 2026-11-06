@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-05T01:10:00+07:00",
+  "updatedAt": "2026-11-06T20:06:54+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -4763,7 +4763,7 @@
         "quality-http"
       ],
       "sourceRef": "packages/server-quality/src/public/quality.ts",
-      "gap": "Native cancellation with CAS, independence and persisted event/readback is PostgreSQL-qualified; composition mount complete; browser remains open."
+      "gap": "Native cancellation with CAS, independence, persisted event/readback is PostgreSQL-qualified. A composed Quality HTTP route now proves the real Account session and current IAM over PostgreSQL: bounded workspace/detail-core reads, a complete paged cancellation-history contract with cursor freshness (409), Company-context denial, independent request/approve/reject, unique event versions and persisted readback. Next.js history transport/page wiring and the owner route are implemented. Browser acceptance remains open; no workflow count changes. Blocker: this host has no Docker/native cohort and the running development gateway has no native Quality transport, so the authenticated desktop/mobile journey cannot be executed here."
     },
     {
       "id": "legal/contracts",

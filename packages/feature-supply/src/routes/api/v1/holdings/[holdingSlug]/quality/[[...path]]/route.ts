@@ -4,10 +4,25 @@ import {requestPublicOrigin} from "@erpx/server-manage_erpx/public/public-origin
 import {ApiError,errorResponse} from "@erpx/server-runtime/public/http";
 import {cancelQualityHold,qualityWorkspace,qualityDetail,createQualityHold,inspectQualityHold,releaseQualityHold,createQualityScrapDisposition,saveQualitySpec,transitionQualitySpec,qualityHoldSchema,qualityInspectionSchema,qualityReleaseSchema,qualityDispositionSchema,qualitySpecSchema,qualitySpecActionSchema} from "@erpx/server-quality/public/quality";
 import {acknowledgeQualityAlert} from "@erpx/server-quality/public/quality-alerts";
-import {nativeQualityAvailable,nativeQualityDetail,nativeQualityWorkspace} from "@erpx/feature-quality/public/native-quality";
+import {nativeQualityAvailable,nativeQualityCancellationHistory,nativeQualityDetail,nativeQualityWorkspace} from "@erpx/feature-quality/public/native-quality";
 import {ownedNativeQualityCancel} from "@erpx/feature-quality/public/native-quality";
 type Context={params:Promise<{holdingSlug:string;path?:string[]}>};
-export async function GET(_request:Request,context:Context){try{const {holdingSlug,path=[]}=await context.params,actor=await requireWorkContext(holdingSlug);if(path.length>1)throw new ApiError(404,'NOT_FOUND','Quality route not found.');
+function historyCursor(request:Request){
+  const url=new URL(request.url), query=url.searchParams, before=query.get('before'), head=query.get('head'), revision=query.get('revision');
+  if(new TextEncoder().encode(url.search.slice(1)).length>256)throw new ApiError(422,'QUALITY_HISTORY_CURSOR_INVALID','Reload Quality cancellation history.');
+  if([...query.keys()].some(key=>!['before','head','revision'].includes(key))||['before','head','revision'].some(key=>query.getAll(key).length>1))throw new ApiError(422,'QUALITY_HISTORY_CURSOR_INVALID','Reload Quality cancellation history.');
+  if(before===null&&head===null&&revision===null)return undefined;
+  if(before===null||head===null||revision===null||!/^(?:0|-?[1-9][0-9]*)$/.test(before)||!/^[1-9][0-9]*$/.test(head)||!Number.isSafeInteger(Number(before))||!Number.isSafeInteger(Number(head))||!/^qch1:[0-9a-f]{64}$/.test(revision))throw new ApiError(422,'QUALITY_HISTORY_CURSOR_INVALID','Reload Quality cancellation history.');
+  return {before:Number(before),head:Number(head),revision};
+}
+export async function GET(request:Request,context:Context){try{const {holdingSlug,path=[]}=await context.params,actor=await requireWorkContext(holdingSlug);if(path.length>2)throw new ApiError(404,'NOT_FOUND','Quality route not found.');
+  if(path.length===2){
+    if(path[1]!=='cancellations')throw new ApiError(404,'NOT_FOUND','Quality route not found.');
+    if(!nativeQualityAvailable())throw new ApiError(503,'NATIVE_QUALITY_UNAVAILABLE','The native Quality service is unavailable.');
+    const page=await nativeQualityCancellationHistory(holdingSlug,path[0],historyCursor(request));
+    if(!page)throw new ApiError(503,'NATIVE_QUALITY_UNAVAILABLE','The native Quality service is unavailable.');
+    return Response.json(canonicalDestinationLinks({data:page}),{headers:{'Cache-Control':'private, no-store'}});
+  }
   if(path.length){
     const data=await qualityDetail(actor,path[0]);
     if(!nativeQualityAvailable())return Response.json(canonicalDestinationLinks({data}),{headers:{'Cache-Control':'private, no-store'}});

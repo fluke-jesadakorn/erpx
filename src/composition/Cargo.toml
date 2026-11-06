@@ -512,3 +512,8 @@ required-features = ["private-field-api"]
 name = "period_close_postgres"
 path = "../../tests/integration/finance/rust-period-close-postgres.test.rs"
 required-features = ["private-field-api"]
+
+[[test]]
+name = "quality_http_postgres"
+path = "../../tests/integration/quality/rust-quality-http-postgres.test.rs"
+required-features = ["existing-business"]

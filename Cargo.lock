@@ -892,6 +892,7 @@ dependencies = [
  "erpx-server-runtime",
  "erpx-server-shared",
  "erpx-server-workflow",
+ "futures-util",
  "hex",
  "libvips",
  "nix",
@@ -1214,9 +1215,12 @@ version = "0.1.0"
 dependencies = [
  "erpx-server-runtime",
  "erpx-server-shared",
+ "futures-util",
  "serde_json",
+ "sha2 0.10.9",
  "sqlx",
  "tokio",
+ "url",
  "uuid",
 ]
 

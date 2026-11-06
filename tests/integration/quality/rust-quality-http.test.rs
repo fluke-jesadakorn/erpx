@@ -1,10 +1,10 @@
 //! Native Quality HTTP transport facts over a real loopback listener.
 use erpx_server_quality::public::quality_http::{
     QualityHttpBackend, QualityHttpCommandRequest, QualityHttpFuture, QualityHttpReadReply,
-    QualityHttpReadRequest, QualityHttpTarget, quality_router,
+    QualityHttpReadRequest, QualityHttpTarget, parse_quality_history_query, quality_router,
 };
 use erpx_server_quality::public::quality_read::{
-    CancellationAction, HoldStatus, QualityCancellationReceipt, QualityDecision, QualityDetail,
+    CancellationAction, HoldStatus, QualityCancellationReceipt, QualityDecision, QualityDetail, QualityDetailCore,
     QualityHold, QualityHoldView, QualityWorkspace,
 };
 use erpx_server_runtime::public::http_support::serde_json::{self, Value, json};
@@ -18,6 +18,31 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
 };
+
+#[test]
+fn history_cursor_requires_complete_canonical_unambiguous_input() {
+    let first = parse_quality_history_query(None).unwrap();
+    assert!(first.before.is_none() && first.head.is_none() && first.revision.is_none());
+    let revision = format!("qch1:{}", "a".repeat(64));
+    let encoded = format!("before=200&head=201&revision=qch1%3A{}", "a".repeat(64));
+    let cursor = parse_quality_history_query(Some(&encoded)).unwrap();
+    assert_eq!(cursor.before, Some(200));
+    assert_eq!(cursor.head, Some(201));
+    assert_eq!(cursor.revision.as_deref(), Some(revision.as_str()));
+    for value in ["0", "-1", "-9007199254740991", "9007199254740991"] {
+        let input = format!("before={value}&head=201&revision=qch1%3A{}", "a".repeat(64));
+        assert_eq!(parse_quality_history_query(Some(&input)).unwrap().before.unwrap().to_string(), value);
+    }
+    for invalid in [
+        "before=2", "before=01&head=2&revision=x", "before=0&head=2&revision=x",
+        "before=2&before=3&head=4&revision=x", "before=2&head=4&revision=x&other=1",
+    ] { assert!(parse_quality_history_query(Some(invalid)).is_err()); }
+    assert!(parse_quality_history_query(Some(&format!("before=2&head=3&revision=qch1%3A{}", "A".repeat(64)))).is_err());
+    for value in ["-0", "-01", "+1", "9007199254740992", "-9007199254740992"] {
+        let input = format!("before={value}&head=201&revision=qch1%3A{}", "a".repeat(64));
+        assert!(parse_quality_history_query(Some(&input)).is_err());
+    }
+}
 
 fn hold() -> QualityHold {
     QualityHold {
@@ -87,6 +112,15 @@ impl Backend {
 }
 
 impl QualityHttpBackend for Backend {
+    fn detail_core<'a>(&'a self, request: QualityHttpReadRequest<'a>) -> QualityHttpFuture<'a, QualityDetailCore> {
+        Box::pin(async move {
+            if request.id != Some("hold-a") { return Err(BusinessError::new(FailureKind::NotFound, "QUALITY_HOLD_NOT_FOUND", "Hold not found.")); }
+            Ok(QualityDetailCore {
+                hold: QualityHoldView { hold: hold(), decision: QualityDecision { can_inspect: false, can_release: true, can_cancel: false, can_review_cancellation: false, can_disposition: false }, next_action: "Approve release of the passing inspection" },
+                inspections: vec![], measurements: vec![], dispositions: vec![], spec_metrics: vec![], alerts: vec![],
+            })
+        })
+    }
     fn read<'a>(
         &'a self,
         request: QualityHttpReadRequest<'a>,
@@ -265,6 +299,16 @@ async fn reads_the_registered_holding_with_session_headers_and_bounded_headers()
     .await;
     assert_eq!(status, 404);
     assert_eq!(value["error"]["code"], "QUALITY_HOLD_NOT_FOUND");
+    let (status, value) = call(address, "GET", "/api/v1/holdings/acme/quality/hold-a/detail-core", &[], None).await;
+    assert_eq!(status, 200);
+    assert_eq!(value["data"]["hold"]["id"], "hold-a");
+    assert_eq!(value["data"]["cancellationHistory"], "paged");
+    assert!(value["data"].get("cancellations").is_none());
+    // Router does not parse the untrusted query or access history before the
+    // selected backend has a chance to authorize it. The default is unavailable.
+    let (status, value) = call(address, "GET", "/api/v1/holdings/acme/quality/hold-a/cancellations?before=bad", &[], None).await;
+    assert_eq!(status, 503);
+    assert_eq!(value["error"]["code"], "QUALITY_HISTORY_UNAVAILABLE");
     task.abort();
 }
 

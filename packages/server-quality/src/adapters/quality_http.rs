@@ -7,8 +7,8 @@
 //! backend, which must implement [`QualityHttpBackend`].
 use crate::application::quality::{
     QualityAlert, QualityCancellation, QualityCancellationCommand, QualityCancellationReceipt,
-    QualityDetail, QualityDisposition, QualityHold, QualityInspection, QualityMeasurement,
-    QualityWorkspace,
+    QualityDetail, QualityDetailCore, QualityDisposition, QualityHold, QualityInspection,
+    QualityMeasurement, QualityWorkspace,
 };
 use crate::domain::quality::{
     CancellationAction, MAX_SAFE_INTEGER, QualityDecision, QualityMetric, validate_reason,
@@ -45,6 +45,29 @@ pub struct QualityHttpCommandRequest<'a> {
     pub key: &'a CommandKey,
 }
 
+/// The query is intentionally left unparsed until after selected Account and
+/// Company authorization in the composition backend.
+pub struct QualityHttpHistoryRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub id: &'a str,
+    pub raw_query: Option<&'a str>,
+}
+
+pub struct QualityHistoryCursor {
+    pub before: Option<i64>,
+    pub head: Option<i64>,
+    pub revision: Option<String>,
+}
+
+pub struct QualityHttpHistoryReply {
+    pub items: Vec<QualityCancellation>,
+    pub next_before: Option<i64>,
+    pub head_version: i64,
+    pub history_revision: String,
+}
+
 pub enum QualityHttpReadReply {
     Workspace(Box<QualityWorkspace>),
     Detail(Box<QualityDetail>),
@@ -61,6 +84,30 @@ pub trait QualityHttpBackend: Send + Sync {
         &'a self,
         request: QualityHttpCommandRequest<'a>,
     ) -> QualityHttpFuture<'a, QualityCancellationReceipt>;
+    fn history<'a>(
+        &'a self,
+        _request: QualityHttpHistoryRequest<'a>,
+    ) -> QualityHttpFuture<'a, QualityHttpHistoryReply> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "QUALITY_HISTORY_UNAVAILABLE",
+                "Quality cancellation history is unavailable.",
+            ))
+        })
+    }
+    fn detail_core<'a>(
+        &'a self,
+        _request: QualityHttpReadRequest<'a>,
+    ) -> QualityHttpFuture<'a, QualityDetailCore> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "QUALITY_DETAIL_UNAVAILABLE",
+                "Quality detail is unavailable.",
+            ))
+        })
+    }
 }
 
 pub struct QualityHttpTarget {
@@ -141,6 +188,14 @@ pub fn quality_router(targets: Vec<QualityHttpTarget>) -> Result<Router, Busines
         .route(
             "/api/v1/holdings/{holding_slug}/quality/{id}/cancel",
             post(cancel),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/quality/{id}/cancellations",
+            get(read_history),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/quality/{id}/detail-core",
+            get(read_detail_core),
         )
         .with_state(Arc::new(QualityHttpState {
             targets: configured,
@@ -353,6 +408,18 @@ fn detail(value: &QualityDetail) -> Value {
     })
 }
 
+fn detail_core(value: &QualityDetailCore) -> Value {
+    json!({"data": {
+        "hold": hold_json(&value.hold.hold, value.hold.decision, value.hold.next_action),
+        "inspections": value.inspections.iter().map(inspection).collect::<Vec<_>>(),
+        "measurements": value.measurements.iter().map(measurement).collect::<Vec<_>>(),
+        "dispositions": value.dispositions.iter().map(disposition).collect::<Vec<_>>(),
+        "specMetrics": value.spec_metrics.iter().map(metric).collect::<Vec<_>>(),
+        "alerts": value.alerts.iter().map(alert).collect::<Vec<_>>(),
+        "cancellationHistory": "paged",
+    }})
+}
+
 fn receipt_json(value: &QualityCancellationReceipt) -> Value {
     json!({
         "data": {
@@ -412,6 +479,123 @@ async fn read_detail(
     match result {
         Ok(QualityHttpReadReply::Detail(data)) => bounded(detail(&data)),
         Ok(QualityHttpReadReply::Workspace(_)) => error_response(missing()),
+        Err(error) => error_response(error),
+    }
+}
+
+/// Parse only after selected Account/Company authorization. A cursor is a
+/// comparison input, never authority; duplicate or unknown keys are rejected.
+pub fn parse_quality_history_query(
+    raw: Option<&str>,
+) -> Result<QualityHistoryCursor, BusinessError> {
+    let invalid = || {
+        BusinessError::invalid(
+            "QUALITY_HISTORY_CURSOR_INVALID",
+            "Reload Quality cancellation history.",
+        )
+    };
+    let Some(raw) = raw.filter(|raw| !raw.is_empty()) else {
+        return Ok(QualityHistoryCursor {
+            before: None,
+            head: None,
+            revision: None,
+        });
+    };
+    if raw.len() > 256 {
+        return Err(invalid());
+    }
+    let mut values = BTreeMap::new();
+    for (key, value) in url::form_urlencoded::parse(raw.as_bytes()) {
+        if !matches!(key.as_ref(), "before" | "head" | "revision")
+            || values
+                .insert(key.into_owned(), value.into_owned())
+                .is_some()
+        {
+            return Err(invalid());
+        }
+    }
+    if values.len() != 3 {
+        return Err(invalid());
+    }
+    let number = |name: &str| -> Result<i64, BusinessError> {
+        let value = values.get(name).ok_or_else(invalid)?;
+        let number = value.parse::<i64>().map_err(|_| invalid())?;
+        if number.to_string() != *value
+            || !(-MAX_SAFE_INTEGER..=MAX_SAFE_INTEGER).contains(&number)
+            || (name == "head" && number < 1)
+        {
+            return Err(invalid());
+        }
+        Ok(number)
+    };
+    let revision = values.get("revision").ok_or_else(invalid)?;
+    if revision.len() != 69
+        || !revision.starts_with("qch1:")
+        || !revision[5..]
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    {
+        return Err(invalid());
+    }
+    Ok(QualityHistoryCursor {
+        before: Some(number("before")?),
+        head: Some(number("head")?),
+        revision: Some(revision.clone()),
+    })
+}
+
+async fn read_history(
+    State(state): State<Arc<QualityHttpState>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let target = target(&state, request.headers(), &slug)?;
+        let id = RecordId::new(id)?;
+        target
+            .backend
+            .history(QualityHttpHistoryRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: request.headers(),
+                id: id.as_str(),
+                raw_query: request.uri().query(),
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(page) => bounded(json!({"data": {
+            "items": page.items.iter().map(cancellation).collect::<Vec<_>>(),
+            "nextBefore": page.next_before,
+            "headVersion": page.head_version,
+            "historyRevision": page.history_revision,
+        }})),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn read_detail_core(
+    State(state): State<Arc<QualityHttpState>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let target = target(&state, request.headers(), &slug)?;
+        let id = RecordId::new(id)?;
+        target
+            .backend
+            .detail_core(QualityHttpReadRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: request.headers(),
+                id: Some(id.as_str()),
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(core) => bounded(detail_core(&core)),
         Err(error) => error_response(error),
     }
 }

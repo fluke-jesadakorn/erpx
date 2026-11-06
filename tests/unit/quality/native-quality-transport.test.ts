@@ -1,6 +1,8 @@
 import {describe,it,expect,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
 import {createNativeQualityReader} from '../../../packages/feature-quality/src/adapters/server/native-quality';
+import {qualityHistorySessionKey,mergeQualityHistory,beginQualityHistoryRequest,finishQualityHistoryRequest} from '../../../packages/feature-quality/src/lib/quality-cancellation-history';
+import {QualityCancellationHistory} from '../../../packages/feature-quality/src/components/quality-cancellation-history';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44991',
@@ -40,6 +42,58 @@ const receipt={id:'hold-a',holdId:'hold-a',cancellationId:'quality-cancel-http',
 const ok=(value:unknown)=>new Response(JSON.stringify(value),{status:200,headers:{'content-type':'application/json'}});
 
 describe('native Quality transport',()=>{
+ it('resets sessions by selected context and never treats an empty continuation as completion',()=>{
+  expect(qualityHistorySessionKey('hold-a','company-a:assignment-a:1')).not.toBe(qualityHistorySessionKey('hold-a','company-b:assignment-b:1'));
+  expect(qualityHistorySessionKey('hold-a','company-a:assignment-a:1')).not.toBe(qualityHistorySessionKey('hold-a','company-a:assignment-a:2'));
+  const revision=`qch1:${'a'.repeat(64)}`;
+  const item={id:'cancel-1',holdId:'hold-a',version:7,action:'request' as const,reason:'Incorrect scope',actorId:'maker',createdAt:1};
+  const current={items:[item],nextBefore:7,headVersion:9,historyRevision:revision};
+  const first=QualityCancellationHistory({holdId:'hold-a',endpoint:'/quality/hold-a/cancellations',initialPage:current,contextResetKey:'company-a:assignment-a:1'});
+  const switched=QualityCancellationHistory({holdId:'hold-a',endpoint:'/quality/hold-a/cancellations',initialPage:current,contextResetKey:'company-b:assignment-b:1'});
+  expect(first.key).not.toBe(switched.key);
+  const samePage=QualityCancellationHistory({holdId:'hold-a',endpoint:'/quality/hold-a/cancellations',initialPage:{...current,items:[...current.items]},contextResetKey:'company-a:assignment-a:1'});
+  expect(first.key).toBe(samePage.key);
+  const changedPage=QualityCancellationHistory({holdId:'hold-a',endpoint:'/quality/hold-a/cancellations',initialPage:{...current,historyRevision:`qch1:${'b'.repeat(64)}`},contextResetKey:'company-a:assignment-a:1'});
+  expect(first.key).not.toBe(changedPage.key);
+  const slot:{current:AbortController|null}={current:null}, a=new AbortController(), b=new AbortController();
+  expect(beginQualityHistoryRequest(slot,a)).toBe(true);
+  expect(beginQualityHistoryRequest(slot,b)).toBe(false);
+  finishQualityHistoryRequest(slot,b);expect(slot.current).toBe(a);
+  finishQualityHistoryRequest(slot,a);expect(beginQualityHistoryRequest(slot,b)).toBe(true);
+  expect(mergeQualityHistory(current,{...current,items:[],nextBefore:null})).toBeNull();
+  expect(mergeQualityHistory(current,{...current,items:[{...item,id:'cancel-2',version:5}],nextBefore:null,historyRevision:`qch1:${'b'.repeat(64)}`})).toBeNull();
+  expect(mergeQualityHistory(current,{...current,items:[{...item,version:5}],nextBefore:null})).toBeNull();
+  expect(mergeQualityHistory(current,{...current,items:[{...item,id:'cancel-2',version:5}],nextBefore:null})?.items.map(x=>x.version)).toEqual([7,5]);
+ });
+ it('preserves an authenticated history cursor and rejects inconsistent pages',async()=>{
+  const revision=`qch1:${'a'.repeat(64)}`;
+  const item={id:'cancel-1',holdId:'hold-a',version:7,action:'request',reason:'Incorrect scope',actorId:'maker',createdAt:1};
+  const transport=vi.fn().mockResolvedValue(ok({data:{items:[item],nextBefore:7,headVersion:9,historyRevision:revision}}));
+  const client=createNativeQualityReader(config(),transport);
+  await expect(client.cancellationHistory(incoming(),'acme','hold-a')).resolves.toMatchObject({items:[item],nextBefore:7,headVersion:9,historyRevision:revision});
+  const [method,url,headers]=transport.mock.calls[0];
+  expect(method).toBe('GET');expect(url.pathname).toBe('/api/v1/holdings/acme/quality/hold-a/cancellations');
+  expect(headers.get('cookie')).toBe('__Host-erpx-product=session');expect(headers.get('x-erpx-context-company')).toBe('company');
+  transport.mockResolvedValueOnce(ok({data:{items:[{...item,id:'cancel-2',version:5}],nextBefore:null,headVersion:9,historyRevision:revision}}));
+  await client.cancellationHistory(incoming(),'acme','hold-a',{before:7,head:9,revision});
+  expect(transport.mock.calls[1][1].searchParams.get('before')).toBe('7');
+  expect(transport.mock.calls[1][1].searchParams.get('revision')).toBe(revision);
+  transport.mockResolvedValueOnce(ok({data:{items:[item],nextBefore:null,headVersion:10,historyRevision:revision}}));
+  await expect(client.cancellationHistory(incoming(),'acme','hold-a',{before:7,head:9,revision})).rejects.toMatchObject({code:'NATIVE_QUALITY_RESPONSE_INVALID'});
+  transport.mockResolvedValueOnce(ok({data:{items:[],nextBefore:null,headVersion:9,historyRevision:revision}}));
+  await expect(client.cancellationHistory(incoming(),'acme','hold-a',{before:7,head:9,revision})).rejects.toMatchObject({code:'NATIVE_QUALITY_RESPONSE_INVALID'});
+  await expect(client.cancellationHistory(incoming(),'acme','hold-a',{before:-0,head:9,revision})).rejects.toMatchObject({code:'NATIVE_QUALITY_REQUEST_INVALID'});
+ });
+ it('retains signed historic versions independently of the current hold version',async()=>{
+  const revision=`qch1:${'a'.repeat(64)}`;
+  const item={id:'later',holdId:'hold-a',version:12,action:'request',reason:'Historic',actorId:'maker',createdAt:1};
+  const transport=vi.fn().mockResolvedValueOnce(ok({data:{items:[item,{...item,id:'zero',version:0}],nextBefore:0,headVersion:9,historyRevision:revision}}))
+   .mockResolvedValueOnce(ok({data:{items:[{...item,id:'negative',version:-3}],nextBefore:null,headVersion:9,historyRevision:revision}}));
+  const client=createNativeQualityReader(config(),transport);
+  await expect(client.cancellationHistory(incoming(),'acme','hold-a')).resolves.toMatchObject({nextBefore:0,items:[{version:12},{version:0}]});
+  await expect(client.cancellationHistory(incoming(),'acme','hold-a',{before:0,head:9,revision})).resolves.toMatchObject({items:[{version:-3}]});
+  expect(transport.mock.calls[1][1].searchParams.get('before')).toBe('0');
+ });
  it('forwards the configured Holding and current session to the workspace read',async()=>{
   const transport=vi.fn().mockResolvedValue(ok({data:workspace}));
   const client=createNativeQualityReader(config(),transport);

@@ -1801,12 +1801,14 @@
 @source "../../../../packages/feature-quality/src/adapters/server/native-quality-owned.ts";
 @source "../../../../packages/feature-quality/src/adapters/server/native-quality-page.ts";
 @source "../../../../packages/feature-quality/src/adapters/server/native-quality.ts";
+@source "../../../../packages/feature-quality/src/components/quality-cancellation-history.tsx";
 @source "../../../../packages/feature-quality/src/components/quality-console.tsx";
 @source "../../../../packages/feature-quality/src/components/quality-draft-boundary.tsx";
 @source "../../../../packages/feature-quality/src/components/quality-purchase-context.tsx";
 @source "../../../../packages/feature-quality/src/components/quality-tool.tsx";
 @source "../../../../packages/feature-quality/src/components/source-record-backdrop.tsx";
 @source "../../../../packages/feature-quality/src/components/use-quality-command.ts";
+@source "../../../../packages/feature-quality/src/lib/quality-cancellation-history.ts";
 @source "../../../../packages/feature-quality/src/lib/quality-command-attempt.ts";
 @source "../../../../packages/feature-quality/src/lib/quality-command-fetch.ts";
 @source "../../../../packages/feature-quality/src/lib/quality-purchase-controls.ts";
