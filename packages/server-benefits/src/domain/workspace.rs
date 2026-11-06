@@ -169,19 +169,48 @@ fn valid_identifier(value: &str) -> bool {
     RecordId::new(value).is_ok()
 }
 
-fn valid_text(value: &str, limit: usize) -> bool {
-    let length = value.chars().count();
-    length > 0 && length <= limit && value.trim() == value && !value.chars().any(char::is_control)
+/// ECMAScript `String.prototype.trim` whitespace: White_Space plus
+/// Line_Terminator. Rust's `str::trim` additionally strips U+0085 (White_Space
+/// in Unicode but not in the retained TypeScript `text` validator) and keeps
+/// U+FEFF, so the exact set is spelled out.
+fn js_trim(value: &str) -> &str {
+    value.trim_matches(|c| {
+        matches!(c,
+            '\u{0009}'..='\u{000d}'
+                | '\u{0020}'
+                | '\u{00a0}'
+                | '\u{1680}'
+                | '\u{2000}'..='\u{200a}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202f}'
+                | '\u{205f}'
+                | '\u{3000}'
+                | '\u{feff}')
+    })
 }
 
+/// The retained TypeScript `text` validator measures UTF-16 code units and
+/// rejects exactly U+0000-U+001F and U+007F; keep the same bounds. Callers
+/// enforce their own minimum lengths.
+fn valid_text(value: &str, limit: usize) -> bool {
+    let length = value.encode_utf16().count();
+    length <= limit
+        && !value
+            .chars()
+            .any(|c| (c as u32) <= 0x1f || c as u32 == 0x7f)
+        && js_trim(value) == value
+}
+
+/// The retained TypeScript `name` validator counts code points, matching
+/// `[...value].length >= 2`.
 fn valid_name(value: &str, limit: usize) -> bool {
-    valid_text(value, limit) && value.trim().chars().count() >= 2
+    valid_text(value, limit) && value.chars().count() >= 2
 }
 
 fn valid_code(value: &str, limit: usize) -> bool {
     let length = value.encode_utf16().count();
-    let trimmed = value.trim_matches(|c| matches!(c, '\u{0009}'..='\u{000d}' | '\u{0020}' | '\u{00a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}'));
-    length >= 2 && length <= limit && trimmed == value && !value.contains('\0')
+    length >= 2 && length <= limit && js_trim(value) == value && !value.contains('\0')
 }
 
 fn valid_currency(value: &str) -> bool {

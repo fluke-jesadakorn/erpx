@@ -79,6 +79,17 @@ describe('native Benefits workspace transport',()=>{
    await expect(client.workspace(incoming(),actor,input)).rejects.toMatchObject({code:'NATIVE_BENEFITS_RESPONSE_INVALID'});
   }
  });
+ it('preserves UTF-16 plan name bounds and exact JS trim identity',async()=>{
+  for(const name of ['ก'.repeat(160),'😀'.repeat(80),'a\u0085b','a\u2028b','\u0085ab']){
+   const value={...plan,name};
+   const client=createNativeBenefitsClient(nativeBenefitsConfiguration(config()),vi.fn().mockResolvedValue(ok(page({plans:[value]}))));
+   expect((await client.workspace(incoming(),actor,input)).plans[0].name).toBe(name);
+  }
+  for(const name of ['ก'.repeat(161),'😀'.repeat(81),'a\u0000b','a\u007fb','\ufeffab','ab\ufeff',' กา','กา ']){
+   const client=createNativeBenefitsClient(nativeBenefitsConfiguration(config()),vi.fn().mockResolvedValue(ok(page({plans:[{...plan,name}]}))));
+   await expect(client.workspace(incoming(),actor,input)).rejects.toMatchObject({code:'NATIVE_BENEFITS_RESPONSE_INVALID'});
+  }
+ });
  it('forwards the configured Holding, session, CAS and exact workspace route',async()=>{
   const transport=vi.fn().mockResolvedValue(ok(page()));
   const client=createNativeBenefitsClient(nativeBenefitsConfiguration(config()),transport);

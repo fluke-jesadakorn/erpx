@@ -402,3 +402,109 @@ async fn benefit_person_prelock_waits_for_engagement_writer_and_reads_committed_
         assert!(blocked.is_ok()); writer.commit().await.unwrap(); assert!(reader.await.unwrap());
     }).await;
 }
+
+#[tokio::test]
+async fn learning_person_preparation_rejects_untransactional_and_non_serializable_calls() {
+    use erpx_server_people_payroll::public::learning_person::{inspect_learning_person, lock_learning_person_source};
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let mut raw = pool.raw().acquire().await.unwrap();
+        assert!(matches!(lock_learning_person_source(&mut raw).await, Err(PgTransactionError::Persistence(ref e)) if e.code == "PEOPLE_LEARNING_TRANSACTION_REQUIRED"));
+        assert!(matches!(inspect_learning_person(&mut raw, "company", "person").await, Err(PgTransactionError::Persistence(ref e)) if e.code == "PEOPLE_LEARNING_TRANSACTION_REQUIRED"));
+        drop(raw);
+        let mut tx = pool.raw().begin().await.unwrap();
+        // PostgreSQL's default isolation is read committed; the transaction-bound unit rejects it.
+        // The pre-snapshot lock itself only requires an open transaction.
+        assert!(matches!(inspect_learning_person(&mut tx, "company", "person").await, Err(PgTransactionError::Persistence(ref e)) if e.code == "PEOPLE_LEARNING_SERIALIZABLE_REQUIRED"));
+        tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn learning_person_negative_witness_detects_a_new_matching_person() {
+    use erpx_server_people_payroll::public::learning_person::{inspect_learning_person, lock_learning_person_source};
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_learning_person_source(&mut tx).await.unwrap();
+        let current = inspect_learning_person(&mut tx, "company", "person-two").await.unwrap();
+        assert!(!current.is_active_unmerged());
+        current.require_current(&mut tx).await.unwrap();
+        // A foreign-Company witness stays negative when the subject appears only in `company`.
+        let foreign = inspect_learning_person(&mut tx, "foreign", "person-two").await.unwrap();
+        assert!(!foreign.is_active_unmerged());
+        sqlx::query("INSERT INTO hr_people(id,user_id,company_id,legal_name,email,phone,country_code,created_by,created_at,updated_at) VALUES('person-two','user-two','company','Fixture Two',NULL,NULL,'TH','user',0,0)").execute(&mut *tx).await.unwrap();
+        foreign.require_current(&mut tx).await.unwrap();
+        let error = current.require_current(&mut tx).await.unwrap_err();
+        assert!(matches!(error, PgTransactionError::Business(ref e) if e.kind == erpx_server_shared::public::FailureKind::Conflict && e.code == "PEOPLE_LEARNING_PERSON_CHANGED"));
+        tx.rollback().await.unwrap();
+        assert_eq!(sqlx::query_scalar::<_, i64>("SELECT count(*) FROM hr_people WHERE id='person-two'").fetch_one(pool.raw()).await.unwrap(), 0);
+    }).await;
+}
+
+#[tokio::test]
+async fn benefit_person_preparation_rejects_untransactional_and_non_serializable_calls() {
+    use erpx_server_people_payroll::public::benefit_person::{inspect_benefit_person, lock_benefit_people_sources};
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let mut raw = pool.raw().acquire().await.unwrap();
+        assert!(matches!(lock_benefit_people_sources(&mut raw).await, Err(PgTransactionError::Persistence(ref e)) if e.code == "PEOPLE_BENEFIT_TRANSACTION_REQUIRED"));
+        assert!(matches!(inspect_benefit_person(&mut raw, "company", "user").await, Err(PgTransactionError::Persistence(ref e)) if e.code == "PEOPLE_BENEFIT_TRANSACTION_REQUIRED"));
+        drop(raw);
+        // PostgreSQL's default isolation is read committed; the transaction-bound unit rejects it.
+        // The pre-snapshot lock itself only requires an open transaction.
+        let mut tx = pool.raw().begin().await.unwrap();
+        assert!(matches!(inspect_benefit_person(&mut tx, "company", "user").await, Err(PgTransactionError::Persistence(ref e)) if e.code == "PEOPLE_BENEFIT_SERIALIZABLE_REQUIRED"));
+        tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn benefit_person_negative_witness_detects_a_new_employee() {
+    use erpx_server_people_payroll::public::benefit_person::{inspect_benefit_person, lock_benefit_people_sources};
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_benefit_people_sources(&mut tx).await.unwrap();
+        let current = inspect_benefit_person(&mut tx, "company", "missing-user").await.unwrap();
+        assert!(current.selected().is_none());
+        current.require_current(&mut tx).await.unwrap();
+        sqlx::query("INSERT INTO hr_people(id,user_id,company_id,legal_name,email,phone,country_code,created_by,created_at,updated_at) VALUES('person-two','missing-user','company','Fixture Two',NULL,NULL,'TH','user',0,0)").execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO hr_engagements(id,person_id,company_id,branch_id,department_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at) VALUES('engagement-new','person-two','company','witness-branch','witness-department','employee','salaried','active','2026-02-01','Fixture','THB','user',0,0)").execute(&mut *tx).await.unwrap();
+        let error = current.require_current(&mut tx).await.unwrap_err();
+        assert!(matches!(error, PgTransactionError::Business(ref e) if e.kind == erpx_server_shared::public::FailureKind::Conflict && e.code == "PEOPLE_BENEFIT_PERSON_CHANGED"));
+        tx.rollback().await.unwrap();
+        assert_eq!(sqlx::query_scalar::<_, i64>("SELECT count(*) FROM hr_people WHERE id='person-two'").fetch_one(pool.raw()).await.unwrap(), 0);
+        assert_eq!(sqlx::query_scalar::<_, i64>("SELECT count(*) FROM hr_engagements WHERE id='engagement-new'").fetch_one(pool.raw()).await.unwrap(), 0);
+    }).await;
+}
+
+#[tokio::test]
+async fn benefit_person_require_current_detects_engagement_suspension_and_merge() {
+    use erpx_server_people_payroll::public::benefit_person::{inspect_benefit_person, lock_benefit_people_sources};
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_benefit_people_sources(&mut tx).await.unwrap();
+        let current = inspect_benefit_person(&mut tx, "company", "user").await.unwrap();
+        let selected = current.selected().unwrap().engagement_id.clone();
+        assert_eq!(selected, "engagement");
+        current.require_current(&mut tx).await.unwrap();
+        // Suspending the selected engagement changes the retained source image.
+        sqlx::query("UPDATE hr_engagements SET status='suspended' WHERE id='engagement'").execute(&mut *tx).await.unwrap();
+        let error = current.require_current(&mut tx).await.unwrap_err();
+        assert!(matches!(error, PgTransactionError::Business(ref e) if e.kind == erpx_server_shared::public::FailureKind::Conflict && e.code == "PEOPLE_BENEFIT_PERSON_CHANGED"));
+        sqlx::query("UPDATE hr_engagements SET status='active' WHERE id='engagement'").execute(&mut *tx).await.unwrap();
+        current.require_current(&mut tx).await.unwrap();
+        // Merging the person changes the retained source image even in the same transaction.
+        sqlx::query("UPDATE hr_people SET merged_into_id='foreign-person' WHERE id='person'").execute(&mut *tx).await.unwrap();
+        let error = current.require_current(&mut tx).await.unwrap_err();
+        assert!(matches!(error, PgTransactionError::Business(ref e) if e.kind == erpx_server_shared::public::FailureKind::Conflict && e.code == "PEOPLE_BENEFIT_PERSON_CHANGED"));
+        sqlx::query("UPDATE hr_people SET merged_into_id=NULL WHERE id='person'").execute(&mut *tx).await.unwrap();
+        current.require_current(&mut tx).await.unwrap();
+        tx.rollback().await.unwrap();
+    }).await;
+}

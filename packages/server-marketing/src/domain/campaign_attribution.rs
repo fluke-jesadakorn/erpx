@@ -99,9 +99,35 @@ fn valid_identifier(value: &str) -> bool {
     RecordId::new(value).is_ok()
 }
 
+/// Limits count UTF-16 code units, matching the native transport
+/// revalidation. Control rejection intentionally keeps the full
+/// `char::is_control` superset (including C1 controls), which the
+/// transport permits; the native read fails closed there instead.
 fn valid_text(value: &str, limit: usize) -> bool {
-    let length = value.chars().count();
+    let length = value.encode_utf16().count();
     length > 0 && length <= limit && !value.chars().any(char::is_control)
+}
+
+/// Exact ECMAScript `String.prototype.trim` edge set, including the zero-width
+/// no-break space. U+0085 (NEL) and U+00AD (soft hyphen) are not part of it,
+/// matching the native transport revalidation on the read path.
+fn is_edge_whitespace(character: char) -> bool {
+    matches!(character,
+        '\u{0009}'..='\u{000d}'
+            | '\u{0020}'
+            | '\u{00a0}'
+            | '\u{1680}'
+            | '\u{2000}'..='\u{200a}'
+            | '\u{2028}'
+            | '\u{2029}'
+            | '\u{202f}'
+            | '\u{205f}'
+            | '\u{3000}'
+            | '\u{feff}')
+}
+
+fn trim_edge_whitespace(value: &str) -> &str {
+    value.trim_matches(is_edge_whitespace)
 }
 
 fn valid_code(value: &str) -> bool {
@@ -112,14 +138,14 @@ fn valid_code(value: &str) -> bool {
 }
 
 fn valid_name(value: &str) -> bool {
-    let trimmed = value.trim_matches(|c| matches!(c, '\u{0009}'..='\u{000d}' | '\u{0020}' | '\u{00a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}'));
+    let trimmed = trim_edge_whitespace(value);
     !value.contains('\0')
         && value.encode_utf16().count() <= NAME_LIMIT
         && trimmed.encode_utf16().count() >= 2
 }
 
 fn valid_attribution_key(value: &str) -> bool {
-    valid_text(value, ATTRIBUTION_KEY_LIMIT) && value.trim() == value
+    valid_text(value, ATTRIBUTION_KEY_LIMIT) && trim_edge_whitespace(value) == value
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]

@@ -3,7 +3,7 @@
 //! revocation. No database or HTTP effect is reachable here.
 use erpx_server_learning::public::eligibility_facts::{
     EligibilityCertificateRow, EligibilityConsumptionRow, EligibilityQuery, EligibilityScope,
-    eligibility_facts_json,
+    MAX_ELIGIBILITY_CERTIFICATES, MAX_ELIGIBILITY_CONSUMPTIONS, eligibility_facts_json,
 };
 use erpx_server_learning::public::learning::{
     AssignmentAction, AssignmentChange, AssignmentRequest, AssignmentRow, Attendance,
@@ -1102,4 +1102,104 @@ fn eligibility_facts_require_current_source_dates_scope_and_consumption_evidence
             "LEARNING_REQUEST_INVALID"
         );
     }
+}
+
+#[test]
+fn eligibility_consumption_digest_requires_lowercase_sha256_hex() {
+    let scope = EligibilityScope::from_learning_actor(&learner());
+    let query = eligibility_query();
+    let consumption = |digest: &str| EligibilityConsumptionRow {
+        id: "learning-benefit-1".into(),
+        election_id: "election-1".into(),
+        source_assignment_version: 3,
+        eligibility_code: "equipment_operator".into(),
+        source_digest: digest.into(),
+        purpose: "Benefits eligibility at election creation".into(),
+        actor_id: "benefits-reviewer".into(),
+        command_id: "benefit-election-1".into(),
+        created_at: NOW,
+    };
+    for digest in [
+        "A".repeat(64),
+        format!("{}F", "a".repeat(63)),
+        format!("{}g", "a".repeat(63)),
+        format!("{}A", "a".repeat(63)),
+        "a".repeat(63),
+        "a".repeat(65),
+    ] {
+        let mut row = eligibility_row();
+        row.consumptions = vec![consumption(&digest)];
+        assert_eq!(
+            eligibility_facts_json(&scope, &query, vec![row])
+                .unwrap_err()
+                .code,
+            "LEARNING_SOURCE_INVALID",
+            "{digest}"
+        );
+    }
+    let mut row = eligibility_row();
+    row.consumptions = vec![consumption(&"f".repeat(64))];
+    assert!(eligibility_facts_json(&scope, &query, vec![row]).is_ok());
+}
+
+#[test]
+fn eligibility_facts_bound_certificate_and_consumption_rows() {
+    let scope = EligibilityScope::from_learning_actor(&learner());
+    let query = eligibility_query();
+    let certificates = |count: usize| {
+        (0..count)
+            .map(|index| {
+                let mut row = eligibility_row();
+                row.certificate.id = format!("learning-certificate-{index}");
+                row
+            })
+            .collect::<Vec<_>>()
+    };
+    let exact = eligibility_facts_json(
+        &scope,
+        &query,
+        certificates(MAX_ELIGIBILITY_CERTIFICATES),
+    )
+    .unwrap();
+    assert_eq!(
+        exact["certificates"].as_array().unwrap().len(),
+        MAX_ELIGIBILITY_CERTIFICATES
+    );
+    assert_eq!(
+        eligibility_facts_json(
+            &scope,
+            &query,
+            certificates(MAX_ELIGIBILITY_CERTIFICATES + 1)
+        )
+        .unwrap_err()
+        .code,
+        "LEARNING_SOURCE_INVALID"
+    );
+
+    let consumptions = |count: usize| {
+        (0..count)
+            .map(|index| EligibilityConsumptionRow {
+                id: format!("learning-benefit-{index}"),
+                election_id: format!("election-{index}"),
+                source_assignment_version: 3,
+                eligibility_code: "equipment_operator".into(),
+                source_digest: "a".repeat(64),
+                purpose: "Benefits eligibility at election creation".into(),
+                actor_id: "benefits-reviewer".into(),
+                command_id: format!("benefit-election-{index}"),
+                created_at: NOW,
+            })
+            .collect::<Vec<_>>()
+    };
+    let mut row = eligibility_row();
+    row.consumptions = consumptions(MAX_ELIGIBILITY_CONSUMPTIONS);
+    assert!(eligibility_facts_json(&scope, &query, vec![row]).is_ok());
+    let mut row = eligibility_row();
+    row.consumptions = consumptions(MAX_ELIGIBILITY_CONSUMPTIONS + 1);
+    assert_eq!(
+        eligibility_facts_json(&scope, &query, vec![row])
+            .unwrap_err()
+            .code,
+        "LEARNING_SOURCE_INVALID"
+    );
 }

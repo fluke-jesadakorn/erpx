@@ -507,6 +507,48 @@ async fn exact_campaign_limit_is_accepted() {
 }
 
 #[tokio::test]
+async fn attribution_keys_match_transport_utf16_and_edge_boundaries() {
+    let mut packages = allowed(false);
+    let accept = [
+        // Exactly 300 UTF-16 code units in astral pairs, the transport maximum.
+        "\u{1F600}".repeat(150),
+        // Interior zero-width no-break spaces are not edge content.
+        "AUT\u{FEFF}UMN".to_owned(),
+    ];
+    for campaign in accept {
+        let repo_row = attribution(&campaign, "web");
+        let mut repo = Repo::new(vec![], vec![repo_row]);
+        let report = run(&actor(), &mut repo, &mut packages).await.unwrap();
+        assert_eq!(report.attribution[0].campaign, campaign);
+    }
+    let reject = [
+        // 302 UTF-16 code units in astral pairs exceeds the 300-unit limit.
+        "\u{1F600}".repeat(151),
+        // Zero-width no-break space is trimmed by String.prototype.trim.
+        "\u{FEFF}AUTUMN".to_owned(),
+        "AUTUMN\u{FEFF}".to_owned(),
+        "\u{2000}AUTUMN".to_owned(),
+        "AUTUMN\u{3000}".to_owned(),
+        " AUTUMN".to_owned(),
+        "AUTUMN ".to_owned(),
+        "   ".to_owned(),
+        // C1 controls stay rejected even though the transport permits them.
+        "\u{85}AUTUMN".to_owned(),
+        "AUTUMN\u{85}".to_owned(),
+    ];
+    for campaign in reject {
+        let mut repo = Repo::new(vec![], vec![attribution(&campaign, "web")]);
+        assert_eq!(
+            run(&actor(), &mut repo, &mut packages)
+                .await
+                .unwrap_err()
+                .code,
+            "MARKETING_CAMPAIGN_SOURCE_INVALID"
+        );
+    }
+}
+
+#[tokio::test]
 async fn attribution_rows_reject_incoherent_counts_and_keys() {
     let cases = [
         MarketingAttributionRow {

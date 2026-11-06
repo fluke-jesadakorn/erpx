@@ -113,6 +113,8 @@ pub struct EligibilityConsumptionRow {
 
 impl EligibilityConsumptionRow {
     fn validate_source(&self, certificate: &CertificateRow) -> Result<(), BusinessError> {
+        // The Benefits writer stores Node/PostgreSQL sha256 hex, which is
+        // lowercase; the native client readback guard accepts only that form.
         if self.id.is_empty()
             || self.election_id.is_empty()
             || self.source_assignment_version != certificate.source_assignment_version
@@ -121,7 +123,7 @@ impl EligibilityConsumptionRow {
             || !self
                 .source_digest
                 .bytes()
-                .all(|byte| byte.is_ascii_hexdigit())
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
             || self.purpose.is_empty()
             || !valid_text(&self.purpose, MAX_REQUIRED_FOR)
             || self.actor_id.is_empty()

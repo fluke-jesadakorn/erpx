@@ -1115,11 +1115,61 @@ fn benefit_plan_eligibility_code_retains_exact_utf16_identity() {
         value.required_eligibility_code = Some(code);
         assert!(value.validate(&actor()).is_ok());
     }
-    for code in [format!("{}ก", "😀".repeat(60)), "ab\0c".into(), "\u{feff}ab".into()] {
+    for code in [
+        format!("{}ก", "😀".repeat(60)),
+        "ab\0c".into(),
+        "\u{feff}ab".into(),
+    ] {
         let mut value = plan("plan-code", 20);
         value.required_eligibility_code = Some(code);
         assert!(value.validate(&actor()).is_err());
     }
+}
+
+#[test]
+fn benefit_plan_name_retains_exact_utf16_and_js_trim_identity() {
+    // The retained TypeScript `text` validator measures UTF-16 code units and
+    // rejects exactly U+0000-U+001F and U+007F; names count code points.
+    for name in [
+        "ก".repeat(160),
+        "😀".repeat(80),
+        "a\u{0085}b".into(),
+        "a\u{2028}b".into(),
+        "\u{0085}ab".into(),
+    ] {
+        let mut value = plan("plan-name", 20);
+        value.name = name;
+        assert!(value.validate(&actor()).is_ok());
+    }
+    for name in [
+        "ก".repeat(161),
+        "😀".repeat(81),
+        "a\u{0000}b".into(),
+        "a\u{007f}b".into(),
+        "\u{feff}ab".into(),
+        "ab\u{feff}".into(),
+        " กา".into(),
+        "กา ".into(),
+    ] {
+        let mut value = plan("plan-name", 20);
+        value.name = name;
+        assert!(value.validate(&actor()).is_err());
+    }
+}
+
+#[test]
+fn benefit_name_bounds_apply_to_provider_dependent_and_relationship_rows() {
+    // Provider shares the 160 UTF-16 column bound; relationship uses 80.
+    let mut value = plan("plan-provider", 20);
+    value.provider = "😀".repeat(80);
+    assert!(value.validate(&actor()).is_ok());
+    value.provider = "😀".repeat(81);
+    assert!(value.validate(&actor()).is_err());
+    let mut row = dependent("dependent-one", "person-owner", 40);
+    row.relationship = "ก".repeat(80);
+    assert!(row.validate(&actor(), Some(&worker())).is_ok());
+    row.relationship = "ก".repeat(81);
+    assert!(row.validate(&actor(), Some(&worker())).is_err());
 }
 
 #[test]
