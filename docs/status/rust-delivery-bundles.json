@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T04:55:16+07:00",
+  "updatedAt": "2026-11-07T04:59:39+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -4192,7 +4192,7 @@
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-pos/src/public/pos.ts",
-      "gap": "Native sale.create/add/update_line/hold/resume/cancel are mounted and browser/composed verified. sale.add now reads the Commerce POS catalogue port, writes the POS fulfilment/line and refreshes the sale totals with a CAS version bump; a browser add persisted line/totals and the composed HTTP test proves add + replay. Remaining basket commands are still TypeScript-only: sale.remove, sale.discount, sale.customer, sale.move_table, sale.split and sale.merge."
+      "gap": "Native sale.create/add/update_line/customer/move_table/remove/hold/resume/cancel are mounted and tested. Customer rechecks the Finance party, move_table the register table, remove clears draft reservations and deletes the line before the CAS totals refresh. Remaining TypeScript-only basket commands: sale.discount, sale.split and sale.merge; payment.create/sale.complete still need the Inventory/Finance completion ports."
     },
     {
       "id": "pos/feature-payments-receipts",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T04:55:16+07:00",
-    "sourceHead": "19af28594",
+    "generatedAt": "2026-11-07T04:59:39+07:00",
+    "sourceHead": "87b9b7b2a",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7092,9 +7092,9 @@
     },
     "blockers": [
       {
-        "id": "pos-remaining-basket-and-payment-commands",
-        "detail": "sale.add and sale.update_line are native with the Commerce POS catalogue port. The remaining basket commands (sale.remove, sale.discount, sale.customer, sale.move_table, sale.split, sale.merge) and payment.create/sale.complete are still TypeScript-only; completion additionally needs Inventory stock/consumption and Finance invoice/journal ports.",
-        "unblock": "Port the remaining basket mutations and add the Inventory/Finance completion ports, then fence their TS ingress and run the bill/payment/void browser journeys."
+        "id": "pos-basket-discount-split-merge-and-completion",
+        "detail": "sale.customer, sale.move_table and sale.remove are now native with Postgres tests. The remaining basket writers are sale.discount (multi-line allocation), sale.split and sale.merge; payment.create/sale.complete additionally need Inventory stock/consumption and Finance invoice/journal ports.",
+        "unblock": "Port sale.discount/sale.split/sale.merge and add the Inventory/Finance completion ports, then fence their TS ingress and run the bill/payment/void browser journeys."
       },
       {
         "id": "external-writer",
@@ -7108,7 +7108,7 @@
       }
     ],
     "nextActions": [
-      "Port sale.remove, sale.discount, sale.customer, sale.move_table, sale.split and sale.merge onto the native basket writer and fence their TS ingress.",
+      "Port sale.discount, sale.split and sale.merge onto the native basket writer and fence their TS ingress.",
       "Add the Inventory stock/consumption and Finance invoice/journal ports for payment.create and sale.complete, then run the bill/payment/void browser journeys.",
       "Use the working authenticated cohort to attach browser evidence to the browser-ready partials; do not raise counts without it."
     ],
@@ -7350,6 +7350,21 @@
           "front/backoffice native basket ingress"
         ],
         "evidence": "POS unit 12/12; POS Postgres 8/8 including sale.add/update_line totals/versions; composed HTTP+PG 2/2 including native sale.add line/totals/replay; browser sale.add POST 200 {id:f618c7ba-...,version:2} with pos_lines subtotal 2500/tax 0 and pos_fulfillments warehouse service; typecheck passes",
+        "counts": {
+          "owners": 3,
+          "verified": 29,
+          "partial": 90,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T04:59:39+07:00",
+        "commit": "87b9b7b2a",
+        "bundles": [
+          "native sale.customer + sale.move_table + sale.remove"
+        ],
+        "evidence": "POS unit 12/12; POS Postgres 9/9 with the new sale_customer_move_table_and_remove case asserting party_id/table_id/deleted line/zero totals/version 4; typecheck passes",
         "counts": {
           "owners": 3,
           "verified": 29,
