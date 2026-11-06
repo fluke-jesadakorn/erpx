@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T03:14:35+07:00",
+  "updatedAt": "2026-11-07T04:21:20+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -4175,10 +4175,11 @@
       "evidenceFlows": [
         "pos-native-cash-movement",
         "pos-native-cash-http",
-        "pos-browser-register-session"
+        "pos-browser-register-session",
+        "pos-native-shift-review-journal"
       ],
       "sourceRef": "packages/server-pos/src/public/pos.ts",
-      "gap": "Browser register-session journey passed at the keyed contributor workspace: POS first-time setup created register b83df265 (retail, warehouse warehouses-ca68eb6a), accounting prepared by usr_mali and independently approved by usr_nisa (pos_settings v2), a service product was enabled in pos_catalog/pos_register_catalog, the November 2026 Finance period was opened, shift 1aba01bd opened with 100.00 USD, sale 889c7b59 completed for 25.00 USD with payment 66149df2 and paid invoice 8e14603e, and the shift closed at expected/counted 125.00 USD with zero variance. Finance posted three balanced POS journals (sale/receipt/allocate). Still open: sale.add, sale.complete, payment.create, catalogue and startup operations remain on the retained TypeScript POS writer (native set covers shift.open/close, sale.create/cancel, refund request/reject); shift.review and cash.approve remain blocked on the shared owner-transaction journal port."
+      "gap": "The shared Finance owner-transaction journal port is implemented and mounted. The browser reviewer (independent usr_nisa) reviewed a closed shift with a -5.00 variance through the native route; status 200 {id, version:3}, pos_shifts reviewed, and Finance posted the deterministic journal journal-shift:c767bce9-... with two balanced lines (Dr cash-difference 500 / Cr bank 1100 500) on the same serializable POS transaction, plus the pos_postings receipt. Remaining: browser cash movement creation + cash.approve, and cash.create plus the startup/catalogue/sale commands still use the retained TypeScript POS writer; only shift.open/close/review, cash.approve, sale.create/cancel and refund request/reject are on the native command set."
     },
     {
       "id": "pos/feature-sales-baskets",
@@ -6454,8 +6455,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T03:14:35+07:00",
-    "sourceHead": "12c3e3bd4",
+    "generatedAt": "2026-11-07T04:21:20+07:00",
+    "sourceHead": "c8856bf7f",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7090,9 +7091,9 @@
     },
     "blockers": [
       {
-        "id": "pos-shift-review-journal-port",
-        "detail": "POS accounting setup, register/catalogue, shift open/close and a completed sale with paid invoice now work end-to-end in the authenticated browser. shift.review and cash.approve still need the shared owner-transaction journal port, and sale.add/sale.complete/payment.create plus the startup/catalogue commands are still served by the retained TypeScript POS writer rather than the native composition.",
-        "unblock": "Add the shared Finance owner-transaction journal port and migrate the remaining POS command set, then re-run the shift review/approval browser journey."
+        "id": "pos-cash-approval-and-legacy-commands",
+        "detail": "Native shift review now posts a real balanced Finance journal on the shared POS serializable transaction and the browser review journey passes. cash.approve uses the same journal port but has not been exercised in the browser because cash.create is still the retained TypeScript writer; sale.add/sale.complete/payment.create and the POS startup/catalogue commands also remain on the retained writer.",
+        "unblock": "Exercise cash.create + cash.approve end-to-end, then migrate the remaining POS command set and retire the retained TypeScript writer for it."
       },
       {
         "id": "external-writer",
@@ -7106,8 +7107,8 @@
       }
     ],
     "nextActions": [
-      "Implement the shared owner-transaction journal port and finish native shift.review/cash.approve, then attach the review/approval browser readback.",
-      "Move sale.add, sale.complete, payment.create and POS startup/catalogue commands onto the native composition; retire the retained TypeScript POS writer for them.",
+      "Run the cash movement create + independent approval browser journey and attach the journal/readback evidence.",
+      "Migrate sale.add, sale.complete, payment.create and POS startup/catalogue commands onto the native composition; retire the retained TypeScript POS writer for them.",
       "Use the working authenticated cohort to attach browser evidence to the browser-ready partials; do not raise counts without it."
     ],
     "integrationLog": [
@@ -7252,6 +7253,23 @@
           "completed POS sale with paid invoice and balanced journals"
         ],
         "evidence": "fresh login; settings.bootstrap register b83df265; accounting.approve by usr_nisa (pos_settings v2); catalog.save service product; startup period November 2026; shift.open 200 1aba01bd; sale.create/add/payment.create/sale.complete 200 with invoice 8e14603e paid; shift.close 200 counted=expected=12500 variance 0; three balanced POS journals fbd53c0d/aae579ac/a72948e8",
+        "counts": {
+          "owners": 4,
+          "verified": 28,
+          "partial": 91,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T04:21:20+07:00",
+        "commit": "c8856bf7f",
+        "bundles": [
+          "Finance POS journal port",
+          "native private API POS mount",
+          "cash-shift review route/frontend"
+        ],
+        "evidence": "composed HTTP+PG test 2/2 (sale.create + shift.review with balanced journal and idempotent replay); browser review POST 200 through the native route; pos_shifts reviewed by usr_nisa; finance_journals journal-shift:c767bce9-... posted with 2 balanced lines; pos_postings receipt readback; typecheck passes",
         "counts": {
           "owners": 4,
           "verified": 28,
