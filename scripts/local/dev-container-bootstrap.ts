@@ -108,6 +108,7 @@ else {
   for (const step of ['local', 'identity', 'commerce', 'staff']) await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', step]);
 }
 await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'contributor-finance']);
+await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'contributor-pos']);
 await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'contributor-service']);
 await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'verify']);
 if (!nativeState) {

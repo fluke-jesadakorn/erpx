@@ -11,6 +11,7 @@ const steps={
  commerce:()=>import('../seed/seed-commerce'),
  staff:()=>import('../seed/seed-staff-work'),
  'contributor-finance':()=>import('../seed/contributor-finance-demo'),
+ 'contributor-pos':()=>import('../seed/contributor-pos-demo'),
  'contributor-service':()=>import('../seed/contributor-service-demo'),
  verify:()=>import('../seed/verify-seed-local'),
 } as const;
