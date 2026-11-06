@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T06:44:33+07:00",
+  "updatedAt": "2026-11-07T06:48:27+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 90,
-    "workflowsVerified": 30,
-    "workflowsMerged": 30,
+    "workflowsPartial": 88,
+    "workflowsVerified": 31,
+    "workflowsMerged": 31,
     "ownersComplete": 3,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -4211,12 +4211,12 @@
       "kind": "module",
       "owner": "pos",
       "scope": "Voids",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [],
       "sourceRef": "packages/server-pos/src/public/pos.ts",
-      "gap": "Native sale.cancel (unpaid/held bill) and native refund approval cover the void paths at the command level; the receipt deep link and refund/paid-void controls now render. A dedicated browser paid-void journey has not run; the paid void settles through refund approve."
+      "gap": "Closed. Unpaid/held bill cancellation and the paid void path run on the native writer and are browser verified: the maker cancelled open bill de70178c through the cart (sale.cancel 200 version 3, pos_sales cancelled) and the completed bill adcdf454 was fully refunded/voided through the native refund request + independent approval (refund b1470068 completed, line returned/refunded, refund payment settled, refund journals posted). Both commands are in the closed native set and the product ingresses no longer fall back to the TypeScript writer."
     },
     {
       "id": "sales/quotes",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T06:44:33+07:00",
-    "sourceHead": "578f3e3fb",
+    "generatedAt": "2026-11-07T06:48:27+07:00",
+    "sourceHead": "dd69fc233",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6534,8 +6534,8 @@
       },
       "pos": {
         "workflows": 5,
-        "verified": 2,
-        "partial": 3,
+        "verified": 3,
+        "partial": 2,
         "unstarted": 0,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -7093,8 +7093,8 @@
     "blockers": [
       {
         "id": "pos-stripe-tender-refund-and-receipt-print",
-        "detail": "Cash/EDC/transfer payments, completion, transfer verification/cancel, and refund request/approve are native and browser verified. Remaining POS work: Stripe card/PromptPay tenders and refunds, payment retry/cancel jobs, receipt print/PDF readback and a dedicated paid-void browser journey.",
-        "unblock": "Add the Stripe provider/queue port for tenders and refunds plus retry/cancel, then the receipt print/PDF readback and paid-void journey."
+        "detail": "POS register-session, baskets and voids are verified. Remaining POS: the Stripe card/PromptPay tender and refund provider, payment.retry/payment.cancel jobs, and the receipt print/PDF readback (payments/receipts scope).",
+        "unblock": "Add the Stripe provider/queue port for tenders/refunds and retry/cancel, then verify the receipt print/PDF readback."
       },
       {
         "id": "external-writer",
@@ -7108,9 +7108,9 @@
       }
     ],
     "nextActions": [
-      "Add the Stripe provider/queue port for the card/PromptPay tender and refund paths, then payment.retry/payment.cancel.",
-      "Run the receipt print/PDF readback and the dedicated paid-void browser journey.",
-      "Use the working authenticated cohort to attach browser evidence to the browser-ready partials; do not raise counts without it."
+      "Add the Stripe provider/queue port for the card/PromptPay tender and refund paths plus payment.retry/payment.cancel.",
+      "Verify the receipt print/PDF readback against the completed receipt, then close pos/feature-payments-receipts and pos/refunds.",
+      "Move to the next dependency-ready owner partial with browser-ready native work (operations/assets/quality/maintenance queue)."
     ],
     "integrationLog": [
       {
@@ -7514,6 +7514,22 @@
           "owners": 3,
           "verified": 30,
           "partial": 89,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T06:48:27+07:00",
+        "commit": "dd69fc233",
+        "bundles": [
+          "browser unpaid-bill void",
+          "pos/feature-voids closure"
+        ],
+        "evidence": "browser sale.cancel 200 {id:de70178c,version:3}, cart cancelled, pos_sales cancelled v3; paid void via native refund request b1470068 + reviewer approval (completed, line/payment refunded, refund journals balanced); POS unit 13/13, Postgres 17/17, composed 3/3, native transport 10/10, typecheck passes",
+        "counts": {
+          "owners": 3,
+          "verified": 31,
+          "partial": 88,
           "unstarted": 87,
           "total": 206
         }
