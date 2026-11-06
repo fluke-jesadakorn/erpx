@@ -671,6 +671,7 @@
 @source "../../../../packages/feature-sales/src/components/sales-pricing-console.tsx";
 @source "../../../../packages/feature-sales/src/components/use-pricing-command.ts";
 @source "../../../../packages/feature-sales/src/public/native-commerce-orders-page.ts";
+@source "../../../../packages/feature-sales/src/public/native-sales-documents.ts";
 @source "../../../../packages/feature-sales/src/public/native-sales-pricing.ts";
 @source "../../../../packages/feature-shared/src/components/features/feature-environment.tsx";
 @source "../../../../packages/feature-shared/src/components/features/feature-page.tsx";

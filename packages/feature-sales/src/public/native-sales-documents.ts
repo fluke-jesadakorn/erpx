@@ -33,6 +33,38 @@ type Context = Row & { modules: string[]; permissions: string[] };
 
 export type NativeSalesDocumentsKind = 'quote' | 'sales';
 
+export type NativeSalesDocumentTransitionAction =
+  | 'submit'
+  | 'approve'
+  | 'return'
+  | 'cancel'
+  | 'convert';
+
+const transitionActions = new Set<NativeSalesDocumentTransitionAction>([
+  'submit',
+  'approve',
+  'return',
+  'cancel',
+  'convert',
+]);
+
+/** Sales-owned selector for the existing Commerce public order port.
+ * Quotation actions keep Commerce's independent approval and fulfillment
+ * guards. Sales approval and confirmed sales cancellation stay retained behind
+ * their Finance/Inventory guards, so they are not selected here. */
+export function nativeSalesDocumentTransitionEligible(
+  kind: string,
+  state: string,
+  action: NativeSalesDocumentTransitionAction,
+): boolean {
+  if (!transitionActions.has(action)) return false;
+  if (kind === 'quote') return true;
+  return (
+    kind === 'sales' &&
+    (action === 'submit' || action === 'return' || (action === 'cancel' && state === 'draft'))
+  );
+}
+
 export type NativeSalesDocumentsReadInput = Readonly<{
   holdingSlug: string;
   kind: NativeSalesDocumentsKind;

@@ -1,8 +1,9 @@
-//! Marketing owner. The qualified native slice reads the Company-scoped
-//! campaign ledger and lead-capture attribution summary used by the retained
-//! Marketing workspace. Campaign creation/cost linking, assets, public forms,
-//! lead candidates and CRM handoff remain in the retained TypeScript owner
-//! until their native slices are implemented.
+//! Marketing owner. The native slice reads the Company-scoped campaign ledger,
+//! campaign/lead attribution summary, Marketing asset profiles and lead
+//! candidate detail/engagement history, and performs owner-local campaign
+//! create, candidate capture, engagement and CRM-port handoff commands. Assets'
+//! Files-owned readiness, Finance cost linking and the composition HTTP mount
+//! remain outside this crate.
 mod adapters;
 mod application;
 mod domain;

@@ -9,7 +9,7 @@ import { holdingResources } from "../../../../../../../../../../packages/server-
 import { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
 import {posCommand} from '@erpx/server-pos/public/pos-core';
 import {requirePosPurchased} from '@erpx/server-pos/public/purchase-boundary';
-import {nativePosCashActor,nativePosCashAvailable,nativePosCashConfiguration,createNativePosCashClient,nativePosCashFailure} from '@erpx/feature-pos/adapters/server/native-pos-cash';
+import {nativePosCashActor,nativePosCashAvailable,nativePosCommandScope,nativePosWorkflowOperation,nativePosCashConfiguration,createNativePosCashClient,nativePosCashFailure} from '@erpx/feature-pos/adapters/server/native-pos-cash';
 import {finishPosOAuth,oauthUrl} from '@erpx/server-pos/public/pos-stripe';
 import { posCustomers,posDayReport } from "@erpx/server-pos/public/pos-daily";
 import { posProductImage,uploadPosProductImage } from "@erpx/server-pos/public/pos-images";
@@ -28,6 +28,23 @@ export async function POST(request:Request,{params}:Context){
     await requirePosPurchased(db,actor,'pos.shifts','settle-existing');
     const native=createNativePosCashClient(nativePosCashConfiguration(process.env.ERPX_NATIVE_POS_CASH_CONFIG!));
     const data=await native.cash(request.headers,nativePosCashActor(actor),key,raw);
+    return Response.json(canonicalDestinationLinks({data}),{headers:{'Cache-Control':'private, no-store'}});
+   }catch(error){
+    const failure=nativePosCashFailure(error);
+    if(failure)throw new ApiError(failure.status,failure.code,failure.message);
+    throw error;
+   }
+  }
+  const nativeScope=nativePosCommandScope(operation);
+  if(nativePosCashAvailable()&&!nativeScope&&nativePosWorkflowOperation(operation))
+   throw new ApiError(503,'NATIVE_POS_COMMAND_UNAVAILABLE','This POS operation has no native port yet. Use an unconfigured retained environment or mount the owner port.');
+  if(nativeScope){
+   try{
+    // Retained package preflight; the composition backend must repeat every
+    // purchase scope and current authority check inside the native owner unit.
+    await requirePosPurchased(db,actor,nativeScope.capability,nativeScope.purpose);
+    const native=createNativePosCashClient(nativePosCashConfiguration(process.env.ERPX_NATIVE_POS_CASH_CONFIG!));
+    const data=await native.command(request.headers,nativePosCashActor(actor),operation,key,raw);
     return Response.json(canonicalDestinationLinks({data}),{headers:{'Cache-Control':'private, no-store'}});
    }catch(error){
     const failure=nativePosCashFailure(error);

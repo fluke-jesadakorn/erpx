@@ -113,6 +113,30 @@ describe('native Benefits workspace transport',()=>{
   expect(body).toBeUndefined();
  });
 
+ it('forwards a keyed command with exact origin, context, body and bounded receipt',async()=>{
+  const receipt={id:'benefit-plan-plan-command-1',status:'draft',version:1};
+  const transport=vi.fn().mockResolvedValue(ok({data:receipt,context}));
+  const client=createNativeBenefitsClient(nativeBenefitsConfiguration(config()),transport);
+  const body={entity:'plan',name:'Health Plus',provider:'Synthetic Provider',coverageType:'family',currency:'THB',employeeDeduction:'125.50',employerCost:'300.00',effectiveFrom:'2026-09-01'};
+  const result=await client.command(incoming({origin:'https://acme.example.com'}),actor,body,'plan-command-1');
+  expect(result).toEqual(receipt);
+  const [method,url,headers,sent]=transport.mock.calls[0];
+  expect(method).toBe('POST');
+  expect(url.toString()).toBe('http://127.0.0.1:44997/api/v1/holdings/acme/benefits');
+  expect(headers.get('origin')).toBe('https://acme.example.com');
+  expect(headers.get('idempotency-key')).toBe('plan-command-1');
+  expect(headers.get('content-type')).toBe('application/json');
+  expect(headers.get('x-erpx-context-company')).toBe('company');
+  expect(headers.get('x-erpx-context-assignment')).toBe('assignment');
+  expect(headers.get('x-erpx-context-revision')).toBe('7');
+  expect(headers.get('x-erpx-context-assignment-version')).toBe('3');
+  expect(JSON.parse(sent)).toEqual(body);
+  const invalid=createNativeBenefitsClient(nativeBenefitsConfiguration(config()),vi.fn().mockResolvedValue(ok({data:{...receipt,status:'unknown'},context})));
+  await expect(invalid.command(incoming({origin:'https://acme.example.com'}),actor,body,'plan-command-2')).rejects.toMatchObject({code:'NATIVE_BENEFITS_RESPONSE_INVALID'});
+  await expect(client.command(incoming(),actor,body,'plan-command-3')).rejects.toMatchObject({code:'NATIVE_BENEFITS_REQUEST_INVALID'});
+  await expect(client.command(incoming({origin:'https://evil.example.com'}),actor,body,'plan-command-4')).rejects.toMatchObject({code:'NATIVE_BENEFITS_REQUEST_INVALID'});
+ });
+
  it('forwards the personal view, selected branch and department workspace slugs',async()=>{
   const branchActor={...actor,branchId:'branch',departmentId:'department',
     scope:{kind:'department' as const,branchSlug:'north',departmentSlug:'ops'}};
@@ -224,16 +248,20 @@ describe('native Benefits workspace transport',()=>{
   const previous=process.env.ERPX_NATIVE_BENEFITS_CONFIG;
   delete process.env.ERPX_NATIVE_BENEFITS_CONFIG;
   expect(nativeBenefitsAvailable()).toBe(false);
-  const {nativeBenefitsWorkspace}=await import('../../../packages/feature-benefits/src/public/native-benefits-workspace-page');
+  const {nativeBenefitsWorkspace,nativeBenefitCommand}=await import('../../../packages/feature-benefits/src/public/native-benefits-workspace-page');
   await expect(nativeBenefitsWorkspace(actor as never)).resolves.toBeUndefined();
+  await expect(nativeBenefitCommand(actor as never,{entity:'plan'},'command-key-1',incoming())).resolves.toBeUndefined();
   if(previous!==undefined)process.env.ERPX_NATIVE_BENEFITS_CONFIG=previous;
  });
 
  it('does not fall back when a configured native Benefits selector is malformed',async()=>{
   const previous=process.env.ERPX_NATIVE_BENEFITS_CONFIG;
   process.env.ERPX_NATIVE_BENEFITS_CONFIG='{not-json';
-  const {nativeBenefitsWorkspace}=await import('../../../packages/feature-benefits/src/public/native-benefits-workspace-page');
+  const {nativeBenefitsWorkspace,nativeBenefitCommand}=await import('../../../packages/feature-benefits/src/public/native-benefits-workspace-page');
   await expect(nativeBenefitsWorkspace(actor as never)).rejects.toMatchObject({
+    status:503,code:'NATIVE_BENEFITS_UNAVAILABLE',
+  });
+  await expect(nativeBenefitCommand(actor as never,{entity:'plan'},'command-key-2',incoming())).rejects.toMatchObject({
     status:503,code:'NATIVE_BENEFITS_UNAVAILABLE',
   });
   if(previous===undefined)delete process.env.ERPX_NATIVE_BENEFITS_CONFIG;

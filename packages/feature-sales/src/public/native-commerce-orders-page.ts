@@ -16,6 +16,7 @@ import {
   type NativeCommerceOrdersPageContext,
   type NativeCommerceOrdersReadInput,
 } from '@erpx/feature-commerce/public/native-commerce-orders';
+import { nativeSalesDocumentTransitionEligible } from './native-sales-documents';
 
 export { nativeCommerceOrdersAvailable };
 export type {
@@ -143,13 +144,8 @@ export async function nativeCommerceOrderTransition(
     );
   }
   if (!facts) return undefined;
-  const eligible =
-    facts.kind === 'quote' ||
-    (facts.kind === 'sales' &&
-      (input.action === 'submit' ||
-        input.action === 'return' ||
-        (input.action === 'cancel' && facts.state === 'draft')));
-  if (!eligible) return undefined;
+  if (!nativeSalesDocumentTransitionEligible(facts.kind, facts.state, input.action))
+    return undefined;
   try {
     return await native.transition(await headers(), context, id, input, key, readInput(context));
   } catch (error) {

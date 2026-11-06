@@ -3151,6 +3151,129 @@
       }
     },
     {
+      "id": "benefits.rust-benefits-command.unit",
+      "lane": "unit",
+      "owner": "benefits",
+      "modules": [
+        "benefits"
+      ],
+      "files": [
+        "tests/unit/benefits/rust-benefits-command.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Benefits command policy, money, status and input cases."
+      },
+      "framework": "cargo",
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-benefits/Cargo.toml"
+      ],
+      "cargo": {
+        "package": "erpx-server-benefits",
+        "targets": [
+          "benefits_command"
+        ]
+      },
+      "apps": [
+        "people"
+      ],
+      "packages": [
+        "@erpx/server-benefits",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
+    },
+    {
+      "id": "benefits.rust-benefits-command-http.integration",
+      "lane": "integration",
+      "owner": "benefits",
+      "modules": [
+        "benefits"
+      ],
+      "files": [
+        "tests/integration/benefits/rust-benefits-command-http.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Benefits command HTTP target, origin, key and bounded-body mapping."
+      },
+      "framework": "cargo",
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-benefits/Cargo.toml"
+      ],
+      "cargo": {
+        "package": "erpx-server-benefits",
+        "targets": [
+          "benefits_command_http"
+        ]
+      },
+      "apps": [
+        "people"
+      ],
+      "packages": [
+        "@erpx/server-benefits",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
+    },
+    {
+      "id": "benefits.rust-benefits-command-postgres.integration",
+      "lane": "integration",
+      "owner": "benefits",
+      "modules": [
+        "benefits"
+      ],
+      "files": [
+        "tests/integration/benefits/rust-benefits-command-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Benefits commands over PostgreSQL with idempotency, version, independence and persisted readback."
+      },
+      "framework": "cargo",
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-benefits/Cargo.toml"
+      ],
+      "cargo": {
+        "package": "erpx-server-benefits",
+        "targets": [
+          "benefits_command_postgres"
+        ]
+      },
+      "apps": [
+        "people"
+      ],
+      "packages": [
+        "@erpx/server-benefits",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
+    },
+    {
       "id": "benefits.native-benefits-workspace-transport.unit",
       "lane": "unit",
       "owner": "benefits",
@@ -53288,6 +53411,90 @@
         ],
         "migratedSlots": []
       }
+    },
+    {
+      "id": "pos.rust-pos-commands.unit",
+      "lane": "unit",
+      "owner": "pos",
+      "modules": [
+        "pos"
+      ],
+      "files": [
+        "tests/unit/pos/rust-pos-commands.test.rs",
+        "tests/unit/pos/rust-pos-command-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native POS command policy, money, replay and HTTP mapping."
+      },
+      "framework": "cargo",
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-pos/Cargo.toml"
+      ],
+      "cargo": {
+        "package": "erpx-server-pos",
+        "targets": [
+          "pos_commands",
+          "pos_command_http"
+        ]
+      },
+      "apps": [
+        "pos"
+      ],
+      "packages": [
+        "@erpx/server-pos",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
+    },
+    {
+      "id": "pos.rust-pos-commands-postgres.integration",
+      "lane": "integration",
+      "owner": "pos",
+      "modules": [
+        "pos"
+      ],
+      "files": [
+        "tests/integration/pos/rust-pos-commands-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native POS commands over PostgreSQL with CAS, idempotency, independent review and persisted readback."
+      },
+      "framework": "cargo",
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-pos/Cargo.toml"
+      ],
+      "cargo": {
+        "package": "erpx-server-pos",
+        "targets": [
+          "pos_commands_postgres"
+        ]
+      },
+      "apps": [
+        "pos"
+      ],
+      "packages": [
+        "@erpx/server-pos",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
     },
     {
       "id": "pos.native-pos-cash-transport.unit",

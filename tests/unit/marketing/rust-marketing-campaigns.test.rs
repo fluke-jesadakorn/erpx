@@ -697,3 +697,152 @@ async fn purchase_control_shape_is_exact_camel_case() {
     map.insert("campaign".to_owned(), "AUTUMN".to_owned());
     assert_eq!(map["campaign"], "AUTUMN");
 }
+
+mod lead_candidate_facts {
+    use super::NOW;
+    use erpx_server_marketing::public::lead_candidate::{
+        MarketingCampaignCreateInput, MarketingLeadActionInput, MarketingLeadActor,
+        MarketingLeadCandidateInput, MarketingLeadCandidateRow, crm_request,
+    };
+    use erpx_server_shared::public::RecordId;
+    use std::collections::BTreeMap;
+
+    fn actor() -> MarketingLeadActor {
+        MarketingLeadActor {
+            user_id: "owner".into(),
+            company_id: "company".into(),
+            branch_id: Some(RecordId::new("branch").unwrap()),
+            department_id: None,
+            assignment_id: "assignment".into(),
+            role: Some("sales_manager".into()),
+            authority_revision: Some(1),
+            assignment_version: Some(1),
+            permissions: vec!["records.read".into(), "records.write".into()],
+            modules: vec!["marketing".into()],
+            expires_at: NOW.get() + 60_000,
+        }
+    }
+
+    fn candidate() -> MarketingLeadCandidateInput {
+        let mut attribution = BTreeMap::new();
+        attribution.insert("campaign".into(), "AUTUMN".into());
+        attribution.insert("campaignId".into(), "campaign-autumn".into());
+        attribution.insert("source".into(), "web".into());
+        MarketingLeadCandidateInput {
+            form_id: "form-company".into(),
+            form_version: 1,
+            branch_id: "branch".into(),
+            contact_name: " Named candidate ".into(),
+            contact_detail: "native@example.test".into(),
+            consent_evidence: "Signed web consent".into(),
+            attribution,
+            brief: "Requested a call".into(),
+        }
+    }
+
+    fn row() -> MarketingLeadCandidateRow {
+        MarketingLeadCandidateRow {
+            id: "marketing-candidate-1".into(),
+            company_id: "company".into(),
+            branch_id: "branch".into(),
+            department_id: None,
+            form_id: "form-company".into(),
+            form_version: 1,
+            form_name: "Lead form".into(),
+            contact_name: "Native candidate".into(),
+            contact_detail: "native@example.test".into(),
+            consent_evidence: "Signed web consent".into(),
+            attribution_json:
+                "{\"campaign\":\"AUTUMN\",\"campaignId\":\"campaign-autumn\",\"source\":\"web\"}"
+                    .into(),
+            brief: "Requested a call".into(),
+            status: "pending".into(),
+            crm_lead_id: None,
+            created_by: "owner".into(),
+            reviewed_by: None,
+            version: 1,
+            created_at: 100,
+            updated_at: 100,
+        }
+    }
+
+    #[test]
+    fn campaign_and_candidate_inputs_are_trimmed_and_bounded() {
+        let campaign = MarketingCampaignCreateInput {
+            code: " AUTUMN2 ".into(),
+            name: " Autumn follow-up ".into(),
+        };
+        campaign.validate().unwrap();
+        assert_eq!(campaign.code(), "AUTUMN2");
+        assert_eq!(campaign.name(), "Autumn follow-up");
+        assert!(
+            MarketingCampaignCreateInput {
+                code: "A".into(),
+                name: "Name".into()
+            }
+            .validate()
+            .is_err()
+        );
+        assert!(
+            MarketingCampaignCreateInput {
+                code: "AUTUMN2".into(),
+                name: " ".into()
+            }
+            .validate()
+            .is_err()
+        );
+
+        let candidate = candidate();
+        candidate.validate(&actor()).unwrap();
+        assert_eq!(
+            candidate.attribution_json().unwrap(),
+            "{\"campaign\":\"AUTUMN\",\"campaignId\":\"campaign-autumn\",\"source\":\"web\"}"
+        );
+        let mut wrong_branch = candidate.clone();
+        wrong_branch.branch_id = "other-branch".into();
+        assert_eq!(
+            wrong_branch.validate(&actor()).unwrap_err().code,
+            "MARKETING_BRANCH_SCOPE_INVALID"
+        );
+        let mut no_consent = candidate;
+        no_consent.consent_evidence = " ".into();
+        assert!(no_consent.validate(&actor()).is_err());
+        let mut too_many: BTreeMap<String, String> = BTreeMap::new();
+        for index in 0..51 {
+            too_many.insert(format!("key-{index}"), "value".into());
+        }
+        let mut oversized = row();
+        oversized.attribution_json = serde_json::to_string(&too_many).unwrap();
+        assert!(oversized.validate(&actor()).is_err());
+    }
+
+    #[test]
+    fn handoff_action_and_crm_request_preserve_reviewed_identity() {
+        let action = MarketingLeadActionInput {
+            action: "handoff".into(),
+            expected_version: 1,
+            reason: "Reviewed current candidate".into(),
+            event_type: None,
+            channel: None,
+            due_date: Some("2026-11-20".into()),
+        };
+        assert_eq!(
+            action.validate(NOW.get()).unwrap(),
+            erpx_server_marketing::public::lead_candidate::MarketingLeadAction::Handoff
+        );
+        let mut missing_detail = action.clone();
+        missing_detail.action = "record-engagement".into();
+        assert_eq!(
+            missing_detail.validate(NOW.get()).unwrap_err().code,
+            "ENGAGEMENT_DETAIL_REQUIRED"
+        );
+        let request = crm_request(&row(), None, NOW.get()).unwrap();
+        assert_eq!(request.branch_id, "branch");
+        assert_eq!(request.source_kind, "form");
+        assert_eq!(request.source_id, "marketing-candidate-1");
+        assert_eq!(request.campaign_id.as_deref(), Some("campaign-autumn"));
+        assert_eq!(request.due_date, "2027-01-22");
+        assert!(request.title.len() <= 160);
+        assert!(request.source.len() <= 2_000);
+    }
+}

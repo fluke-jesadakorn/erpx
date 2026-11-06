@@ -137,11 +137,17 @@ export type NativeBenefitsWorkspace = Readonly<{
   purchase?: NativeBenefitsPurchaseControls;
 }>;
 
+export type NativeBenefitCommandReceipt = Readonly<{
+  id: string;
+  status: string;
+  version: number;
+}>;
+
 export type NativeBenefitsTransport = (
-  method: 'GET',
+  method: 'GET' | 'POST',
   url: URL,
   headers: Headers,
-  body: undefined,
+  body: string | undefined,
   signal: AbortSignal,
 ) => Promise<Response>;
 
@@ -507,7 +513,7 @@ function configuration(raw: NativeBenefitsConfiguration) {
     raw.holdings.length > 64
   )
     return failure('NATIVE_BENEFITS_CONFIGURATION_INVALID');
-  const holdings = new Map<string, { holdingId: string; holdingSlug: string }>();
+  const holdings = new Map<string, { holdingId: string; holdingSlug: string; origin: string }>();
   for (const holding of raw.holdings) {
     let origin: URL;
     try {
@@ -530,6 +536,7 @@ function configuration(raw: NativeBenefitsConfiguration) {
     holdings.set(origin.host, {
       holdingId: holding.holdingId,
       holdingSlug: holding.holdingSlug,
+      origin: holding.origin,
     });
   }
   return { base, holdings, timeout: raw.timeoutMs };
@@ -538,12 +545,13 @@ function configuration(raw: NativeBenefitsConfiguration) {
 function transportCall(
   transport: NativeBenefitsTransport,
   base: URL,
-  holdings: Map<string, { holdingId: string; holdingSlug: string }>,
+  holdings: Map<string, { holdingId: string; holdingSlug: string; origin: string }>,
   incoming: Pick<Headers, 'get'>,
   input: NativeBenefitsReadInput,
   actor: NativeBenefitsPageContext,
   timeout: number,
   signal?: AbortSignal,
+  command?: Readonly<{ body: string; key: string; origin: string }>,
 ): Promise<Response> {
   const host = incoming.get('host');
   const holding = host ? holdings.get(host) : undefined;
@@ -584,13 +592,31 @@ function transportCall(
     headers.set('x-erpx-context-revision', String(input.expected.revision));
     headers.set('x-erpx-context-assignment-version', String(input.expected.assignmentVersion));
   }
+  if (command) {
+    if (
+      command.origin !== holding.origin ||
+      incoming.get('origin') !== holding.origin ||
+      new TextEncoder().encode(command.body).length > 64 * 1024 ||
+      !/^[A-Za-z0-9:_.-]{8,180}$/.test(command.key)
+    )
+      return Promise.reject(new NativeBenefitsError('NATIVE_BENEFITS_REQUEST_INVALID'));
+    headers.set('origin', command.origin);
+    headers.set('content-type', 'application/json');
+    headers.set('idempotency-key', command.key);
+  }
   const url = new URL(`/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/benefits`, base);
   const controller = new AbortController();
   const cancel = () => controller.abort();
   signal?.addEventListener('abort', cancel, { once: true });
   if (signal?.aborted) controller.abort();
   const timer = setTimeout(cancel, timeout);
-  return transport('GET', url, headers, undefined, controller.signal).finally(() => {
+  return transport(
+    command ? 'POST' : 'GET',
+    url,
+    headers,
+    command?.body,
+    controller.signal,
+  ).finally(() => {
     clearTimeout(timer);
     signal?.removeEventListener('abort', cancel);
   });
@@ -690,6 +716,37 @@ export function nativeBenefitsConfiguration(raw: string): NativeBenefitsConfigur
   return value as unknown as NativeBenefitsConfiguration;
 }
 
+function commandReceipt(value: unknown): NativeBenefitCommandReceipt {
+  if (
+    !exact(value, ['id', 'status', 'version']) ||
+    !identifier(value.id) ||
+    !text(value.status, 40) ||
+    ![
+      'draft',
+      'published',
+      'rejected',
+      'retired',
+      'open',
+      'closed',
+      'cancelled',
+      'pending',
+      'verified',
+      'removed',
+      'elected',
+      'submitted',
+      'acknowledged',
+      'released',
+    ].includes(value.status as string) ||
+    !integer(value.version, 1)
+  )
+    return failure('NATIVE_BENEFITS_RESPONSE_INVALID');
+  return {
+    id: value.id as string,
+    status: value.status as string,
+    version: value.version as number,
+  };
+}
+
 export function createNativeBenefitsClient(
   raw: NativeBenefitsConfiguration,
   transport: NativeBenefitsTransport = directHttp,
@@ -722,15 +779,59 @@ export function createNativeBenefitsClient(
     const parsedContext = context(value.context, actor, input);
     return pageData(value.data, actor, parsedContext);
   };
-  return { workspace };
+  const command = async (
+    incoming: Pick<Headers, 'get'>,
+    actor: NativeBenefitsPageContext,
+    body: unknown,
+    key: string,
+  ): Promise<NativeBenefitCommandReceipt> => {
+    if (!actor.authority || !actor.iam || !record(body) || Array.isArray(body))
+      return failure('NATIVE_BENEFITS_REQUEST_INVALID');
+    if (!identifier(actor.holdingSlug))
+      return failure('NATIVE_BENEFITS_REQUEST_INVALID');
+    const input: NativeBenefitsReadInput = {
+      holdingSlug: actor.holdingSlug,
+      personal: false,
+      expected: {
+        companyId: actor.companyId,
+        assignmentId: actor.assignmentId,
+        revision: actor.authority.revision,
+        assignmentVersion: actor.authority.assignmentVersion,
+      },
+    };
+    const response = await transportCall(
+      transport,
+      config.base,
+      config.holdings,
+      incoming,
+      input,
+      actor,
+      config.timeout,
+      undefined,
+      {
+        body: JSON.stringify(body),
+        key,
+        origin: incoming.get('origin') ?? '',
+      },
+    ).catch((error: unknown) => {
+      if (error instanceof NativeBenefitsError) throw error;
+      return failure('NATIVE_BENEFITS_UNAVAILABLE');
+    });
+    const value = await boundedJson(response);
+    if (!exact(value, ['data', 'context']))
+      return failure('NATIVE_BENEFITS_RESPONSE_INVALID');
+    context(value.context, actor, input);
+    return commandReceipt(value.data);
+  };
+  return { workspace, command };
 }
 
 /** Fresh bounded socket; bypasses patched fetch/HMR and ambient proxies. */
 export function directHttp(
-  method: 'GET',
+  method: 'GET' | 'POST',
   url: URL,
   headers: Headers,
-  body: undefined,
+  body: string | undefined,
   signal: AbortSignal,
 ): Promise<Response> {
   return new Promise((resolve, reject) => {
@@ -767,6 +868,7 @@ export function directHttp(
       agent.destroy();
       reject(error);
     });
+    if (body !== undefined) outgoing.write(body);
     outgoing.end();
   });
 }

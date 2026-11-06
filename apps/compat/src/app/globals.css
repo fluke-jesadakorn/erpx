@@ -1216,6 +1216,7 @@
 @source "../../../../packages/feature-marketing/src/components/public-form-draft-boundary.tsx";
 @source "../../../../packages/feature-marketing/src/components/public-marketing-form.tsx";
 @source "../../../../packages/feature-marketing/src/lib/public-form-command.ts";
+@source "../../../../packages/feature-marketing/src/public/native-marketing-lead.ts";
 @source "../../../../packages/feature-operations/src/adapters/server/native-operations.ts";
 @source "../../../../packages/feature-operations/src/components/operations-console.tsx";
 @source "../../../../packages/feature-operations/src/components/routine-command-feedback.tsx";

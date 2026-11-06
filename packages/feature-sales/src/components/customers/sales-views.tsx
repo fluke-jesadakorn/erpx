@@ -27,6 +27,7 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import { pricingWorkspace } from "@erpx/server-sales/public/sales-pricing";
 import { salesToday } from "@erpx/server-sales/public/sales-customers";
 import { nativeSalesDocuments } from "@erpx/feature-sales/public/native-sales-documents-page";
+import { nativeCommerceOrderPage } from "@erpx/feature-sales/public/native-commerce-orders-page";
 import { nativeCrmPipeline } from "@erpx/feature-sales/public/native-crm-pipeline-page";
 import { HubEmpty, HubPagination, HubSegments } from "@erpx/feature-sales/components/customers/hub-shell";
 import { HubCreate, HubCursor, HubFilters, HubTable, hubPage } from "@erpx/feature-sales/components/customers/hub-list";
@@ -65,12 +66,19 @@ export async function SalesDocumentsView({ actor, base, query }: { actor: WorkCo
   const purchase = await commercePurchaseControls(actor, {type:"kind",kind});
   // Only an unset native selector returns undefined; configured failures throw.
   const page = (await nativeSalesDocuments(actor, kind, {q:queryValue(query,"q"),cursor:queryValue(query,"cursor")||undefined,status}, purchase?.history)) ?? await commerceSalesDocuments(actor, {view:kind,q:queryValue(query,"q"),cursor:queryValue(query,"cursor")||undefined,status});
-  const editing = queryValue(query, "edit"), detail = editing ? await getOrder(actor, editing) : null;
-  if (detail && detail.order.kind !== kind) throw new ApiError(404, "ORDER_NOT_FOUND", "Sales document is not available in this view.");
+  const editing = queryValue(query, "edit");
+  // The existing native Commerce public order port owns the selected document
+  // facts and lines. `undefined` means its selector is unset, so only then is
+  // the retained owner read used; a configured failure is never replaced.
+  const nativeDetail = editing ? await nativeCommerceOrderPage(actor, editing) : undefined,
+    detail = editing && !nativeDetail ? await getOrder(actor, editing) : null;
+  const documentOrder = nativeDetail?.order ?? detail?.order ?? null,
+    documentLines = nativeDetail?.lines ?? detail?.lines;
+  if (documentOrder && documentOrder.kind !== kind) throw new ApiError(404, "ORDER_NOT_FOUND", "Sales document is not available in this view.");
   const readiness=await salesPostingDocumentReadiness(actor,kind),selected=query.new==="1"||!!editing;
   const options:SalesEditorOptions=selected&&readiness.ready&&hasPermission(actor,"commerce.sales")&&purchase?.newWork!==false?await salesEditorOptions(actor,kind):{products:[],parties:[],warehouses:[],nodes:[],priceLists:[],priceListItems:[],currency:""};
   const editorPurchase=readiness.ready?purchase:purchase?{...purchase,newWork:false}:{newWork:false,settleExisting:false,history:true,revision:"sales-posting-required",convertNewWork:false,stockNewWork:false,stockSettleExisting:false,financeSettleExisting:false,receivingSettleExisting:false};
-  const editorOrder=detail?Object.fromEntries(["id","version","party_id","price_list_id","warehouse_id","discount_reason","order_date","due_date","note"].map(field=>[field,detail.order[field]??null])):undefined,editorLines=detail?.lines.map(line=>Object.fromEntries(["product_id","quantity_milli","price_minor","tax_bps"].map(field=>[field,line[field]??null])));
+  const editorOrder=documentOrder?Object.fromEntries(["id","version","party_id","price_list_id","warehouse_id","discount_reason","order_date","due_date","note"].map(field=>[field,(documentOrder as Record<string,string|number|null>)[field]??null])) as Record<string,string|number|null>:undefined,editorLines=documentLines?.map(line=>Object.fromEntries(["product_id","quantity_milli","price_minor","tax_bps"].map(field=>[field,(line as Record<string,string|number|null>)[field]??null])) as Record<string,string|number|null>);
   return <CommerceEnvironment purchase={purchase}>
     {!readiness.ready&&<InlineNotice role="status">Prepare and independently approve service Sales posting defaults before preparing a quotation or order. <Link href={canonicalUiHref(`${base}/customers-sales/sales/settings/posting`)}>Prepare service Sales posting</Link>. Goods with stock and cost posting require separate goods setup.</InlineNotice>}
     <div className={styles.filterRow}><HubSegments base={base} hub="sales" query={query} name="type" selected={kind} label="Sales document type" values={[["quote", "Quotations"], ["sales", "Sales orders"]]} />{hasPermission(actor, "commerce.sales") && (selected||purchase?.newWork !== false&&readiness.ready) && <HubCreate base={base} hub="sales" query={query} label={editing ? "Edit draft" : kind === "quote" ? "New quotation" : "New sales order"}>{selected&&<CommercePurchaseProvider purchase={editorPurchase}><OrderEditor base={base} options={options} kind={kind} order={editorOrder} lines={editorLines} initialOpen initialPartyId={queryValue(query, "customerId")} /></CommercePurchaseProvider>}</HubCreate>}</div>

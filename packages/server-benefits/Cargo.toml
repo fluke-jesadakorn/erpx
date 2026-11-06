@@ -26,12 +26,24 @@ name = "benefits_workspace"
 path = "../../tests/unit/benefits/rust-benefits-workspace.test.rs"
 
 [[test]]
+name = "benefits_command"
+path = "../../tests/unit/benefits/rust-benefits-command.test.rs"
+
+[[test]]
 name = "benefits_workspace_http"
 path = "../../tests/integration/benefits/rust-benefits-workspace-http.test.rs"
 
 [[test]]
+name = "benefits_command_http"
+path = "../../tests/integration/benefits/rust-benefits-command-http.test.rs"
+
+[[test]]
 name = "benefits_workspace_postgres"
 path = "../../tests/integration/benefits/rust-benefits-workspace-postgres.test.rs"
+
+[[test]]
+name = "benefits_command_postgres"
+path = "../../tests/integration/benefits/rust-benefits-command-postgres.test.rs"
 
 [lints]
 workspace = true

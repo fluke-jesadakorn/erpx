@@ -156,6 +156,8 @@ test('renders the CustomerAccess request fields inline inside an existing query 
 const servicePostingPorts=vi.hoisted(()=>({
  list:vi.fn(),overview:vi.fn(),legacyPage:vi.fn(),readiness:vi.fn(),editor:vi.fn(),purchase:vi.fn(),order:vi.fn(),setup:vi.fn(),actor:vi.fn(),release:vi.fn(),charts:vi.fn(),accounts:vi.fn(),periods:vi.fn(),rates:vi.fn(),defaults:vi.fn(),decision:vi.fn(),flow:vi.fn(),queries:vi.fn(),calls:[] as {name:string;props:unknown}[]
 }));
+const nativeOrderPorts=vi.hoisted(()=>({detail:vi.fn()}));
+vi.mock("@erpx/feature-sales/public/native-commerce-orders-page",()=>({nativeCommerceOrderPage:nativeOrderPorts.detail}));
 vi.mock("@erpx/server-commerce/public/commerce",async()=>({commercePermissions:(await import('@erpx/server-commerce/domain/commerce')).commercePermissions,commerceSalesDocuments:servicePostingPorts.list,commerceOverview:servicePostingPorts.overview,commercePage:servicePostingPorts.legacyPage,getOrder:servicePostingPorts.order,workOrderRows:vi.fn()}));
 vi.mock("@erpx/server-commerce/public/sales-editor",()=>({salesEditorOptions:servicePostingPorts.editor}));
 vi.mock("@erpx/server-commerce/public/commerce-pages",()=>({commerceSalesDocuments:servicePostingPorts.list}));
@@ -167,14 +169,39 @@ import {SalesDocumentsView} from '@erpx/feature-sales/components/customers/sales
 const salesActor:import("@erpx/server-identity_access/public/authorization").WorkContext={companyId:'company',holdingId:'H001',holdingSlug:'acme',holdingName:'Acme',branchId:null,departmentId:null,userId:'seller',name:'Sales owner',email:'seller@example.invalid',role:'sales',assignmentId:'sales-role',scope:{kind:'holding',holdingId:'H001',holdingSlug:'acme',holdingName:'Acme',companyId:'company'},assignmentScope:'holding',inherited:false,modules:[],assignments:[],workspaces:[],iam:{roleRevision:1,identityVersion:1,permissions:['commerce.read','commerce.sales'],grantablePermissions:[],principalId:'principal',personId:null,freshUntil:null}};
 function serviceList(){
  servicePostingPorts.calls.length=0;servicePostingPorts.list.mockReset().mockResolvedValue({items:[],nextCursor:null,previousCursor:null,hasMore:false});servicePostingPorts.legacyPage.mockReset().mockRejectedValue(Object.assign(Error('Configure accounts before processing orders'),{code:'COMMERCE_SETUP_REQUIRED',status:409}));servicePostingPorts.overview.mockReset().mockRejectedValue(Error('Broad overview must not be loaded'));
- servicePostingPorts.readiness.mockReset().mockResolvedValue({ready:false,reason:'sales-defaults-required'});servicePostingPorts.editor.mockReset().mockResolvedValue({products:[],parties:[],warehouses:[],nodes:[],priceLists:[],priceListItems:[],currency:'THB'});servicePostingPorts.purchase.mockReset().mockResolvedValue({newWork:true,settleExisting:true,history:true,revision:'purchase'});servicePostingPorts.order.mockReset();
+ servicePostingPorts.readiness.mockReset().mockResolvedValue({ready:false,reason:'sales-defaults-required'});servicePostingPorts.editor.mockReset().mockResolvedValue({products:[],parties:[],warehouses:[],nodes:[],priceLists:[],priceListItems:[],currency:'THB'});servicePostingPorts.purchase.mockReset().mockResolvedValue({newWork:true,settleExisting:true,history:true,revision:'purchase'});servicePostingPorts.order.mockReset();nativeOrderPorts.detail.mockReset().mockResolvedValue(undefined);
 }
+const retainedEditOrder=()=>({order:{id:'order-1',kind:'quote',state:'draft',version:2,party_id:'retained-partner',party_name:'Actual customer',number:'QT-1',currency:'THB',order_date:'2026-11-01',due_date:'2026-11-08',note:'retained note'},lines:[{id:'retained-line',product_id:'product',quantity_milli:1000,price_minor:100,tax_bps:700,subtotal_minor:100,tax_minor:7}]});
+const nativeEditOrder=()=>({order:{id:'order-1',company_id:'company',branch_id:null,department_id:null,kind:'quote',number:'QT-1',party_id:'native-partner',warehouse_id:null,currency:'THB',order_date:'2026-11-01',due_date:'2026-11-08',note:'native note',state:'draft',subtotal_minor:200,tax_minor:14,source_id:null,version:3,created_by:'seller',approved_by:null,created_at:1,updated_at:2,price_list_id:'list-1',price_list_version:1,discount_reason:null,discount_approval_required:0,discount_approved_by:null,discount_approved_at:null},lines:[{id:'native-line',order_id:'order-1',product_id:'product',description:'Native line',quantity_milli:2000,fulfilled_milli:0,price_minor:100,tax_bps:700,subtotal_minor:200,tax_minor:14,ordinal:1,list_price_minor:null,discount_bps:0,item_type:'service',sku:'SKU',unit:'unit',tracking_mode:'none'}]});
 test('Sales-only empty document list renders before service defaults without broad Commerce setup or Finance reference reads',async()=>{
  serviceList();const html=renderToStaticMarkup(await SalesDocumentsView({actor:salesActor,base:'/holdings/acme',query:{view:'documents',type:'quote'}}));expect(html).toContain('No sales documents match');expect(html).toContain('/customers-sales/sales/settings/posting');expect(servicePostingPorts.legacyPage).not.toHaveBeenCalled();expect(servicePostingPorts.overview).not.toHaveBeenCalled();expect(servicePostingPorts.editor).not.toHaveBeenCalled();expect(servicePostingPorts.list).toHaveBeenCalledExactlyOnceWith(salesActor,{view:'quote',q:'',cursor:undefined,status:''});
 });
 test('explicit Sales editor keeps its original node blocked with empty references when same-owner readiness disappears',async()=>{
  serviceList();servicePostingPorts.readiness.mockResolvedValueOnce({ready:true,reason:null});await SalesDocumentsView({actor:salesActor,base:'/holdings/acme',query:{view:'documents',new:'1'}});const available=servicePostingPorts.editor.mock.calls.length;expect(available).toBe(1);
  const blocked=await SalesDocumentsView({actor:salesActor,base:'/holdings/acme',query:{view:'documents',new:'1'}});const nodes:unknown[]=[];const visit=(value:unknown)=>{if(Array.isArray(value)){value.forEach(visit);return;}if(isValidElement<{children?:unknown;initialOpen?:boolean}>(value)){nodes.push(value);visit(value.props.children);}};visit(blocked);expect(nodes.find(item=>isValidElement<{initialOpen?:boolean}>(item)&&item.props.initialOpen)).toMatchObject({props:{options:{products:[],parties:[],warehouses:[],nodes:[],priceLists:[],priceListItems:[],currency:''},initialOpen:true}});expect(servicePostingPorts.editor).toHaveBeenCalledTimes(1);expect(servicePostingPorts.overview).not.toHaveBeenCalled();
+});
+test('Sales edit draft uses native Commerce order facts and lines without the retained owner read',async()=>{
+ serviceList();servicePostingPorts.readiness.mockResolvedValueOnce({ready:true,reason:null});servicePostingPorts.order.mockResolvedValue(retainedEditOrder());nativeOrderPorts.detail.mockResolvedValue(nativeEditOrder());
+ const nodes:unknown[]=[];const visit=(value:unknown)=>{if(Array.isArray(value)){value.forEach(visit);return;}if(isValidElement<{children?:unknown;kind?:string;lines?:unknown}>(value)){nodes.push(value);visit(value.props.children);}};visit(await SalesDocumentsView({actor:salesActor,base:'/holdings/acme',query:{view:'documents',type:'quote',edit:'order-1'}}));
+ expect(nativeOrderPorts.detail).toHaveBeenCalledExactlyOnceWith(salesActor,'order-1');
+ expect(servicePostingPorts.order).not.toHaveBeenCalled();
+ const editor=nodes.find(value=>isValidElement<{kind?:string;lines?:unknown}>(value)&&value.props.kind==='quote'&&Array.isArray(value.props.lines)) as {props:Record<string,unknown>}|undefined;
+ expect(editor?.props).toMatchObject({kind:'quote',order:{id:'order-1',version:3,note:'native note',party_id:'native-partner',price_list_id:'list-1'},lines:[expect.objectContaining({product_id:'product',quantity_milli:2000,price_minor:100,tax_bps:700})]});
+});
+test('Sales edit draft keeps the retained order only when the native Commerce order selector is unset',async()=>{
+ serviceList();servicePostingPorts.readiness.mockResolvedValueOnce({ready:true,reason:null});servicePostingPorts.order.mockResolvedValue(retainedEditOrder());
+ const nodes:unknown[]=[];const visit=(value:unknown)=>{if(Array.isArray(value)){value.forEach(visit);return;}if(isValidElement<{children?:unknown;kind?:string;lines?:unknown}>(value)){nodes.push(value);visit(value.props.children);}};visit(await SalesDocumentsView({actor:salesActor,base:'/holdings/acme',query:{view:'documents',type:'quote',edit:'order-1'}}));
+ expect(nativeOrderPorts.detail).toHaveBeenCalledExactlyOnceWith(salesActor,'order-1');
+ expect(servicePostingPorts.order).toHaveBeenCalledExactlyOnceWith(salesActor,'order-1');
+ const editor=nodes.find(value=>isValidElement<{kind?:string;lines?:unknown}>(value)&&value.props.kind==='quote'&&Array.isArray(value.props.lines)) as {props:Record<string,unknown>}|undefined;
+ expect(editor?.props).toMatchObject({order:{version:2,note:'retained note',party_id:'retained-partner'},lines:[expect.objectContaining({product_id:'product',quantity_milli:1000,price_minor:100,tax_bps:700})]});
+});
+test('Sales edit draft closes a configured native Commerce order failure instead of using retained lines',async()=>{
+ serviceList();servicePostingPorts.readiness.mockResolvedValueOnce({ready:true,reason:null});servicePostingPorts.order.mockResolvedValue(retainedEditOrder());nativeOrderPorts.detail.mockRejectedValue(new ApiError(503,'NATIVE_COMMERCE_ORDER_UNAVAILABLE','The native Commerce order service is unavailable.'));
+ await expect(SalesDocumentsView({actor:salesActor,base:'/holdings/acme',query:{view:'documents',type:'quote',edit:'order-1'}})).rejects.toMatchObject({status:503,code:'NATIVE_COMMERCE_ORDER_UNAVAILABLE'});
+ expect(nativeOrderPorts.detail).toHaveBeenCalledOnce();
+ expect(servicePostingPorts.order).not.toHaveBeenCalled();
+ expect(servicePostingPorts.calls.find(call=>call.name==='OrderEditor')).toBeUndefined();
 });
 
 import {SalesPostingSetup,SalesPostingFields} from '@erpx/feature-sales/components/sales-posting-setup';

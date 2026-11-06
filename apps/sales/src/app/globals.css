@@ -199,6 +199,7 @@
 @source "../../../../packages/feature-manufacturing/src/lib/planning-review-command.ts";
 @source "../../../../packages/feature-manufacturing/src/lib/purchase-controls.ts";
 @source "../../../../packages/feature-marketing/src/components/marketing-console.tsx";
+@source "../../../../packages/feature-marketing/src/public/native-marketing-lead.ts";
 @source "../../../../packages/feature-organization/src/lib/gpo-rules.ts";
 @source "../../../../packages/feature-organization/src/lib/hierarchy.ts";
 @source "../../../../packages/feature-organization/src/lib/organization-domain.ts";

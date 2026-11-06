@@ -7,6 +7,7 @@ import {
   nativeBenefitsAvailable,
   nativeBenefitsConfiguration,
   NativeBenefitsError,
+  type NativeBenefitCommandReceipt,
   type NativeBenefitsPageContext,
   type NativeBenefitsReadInput,
 } from './native-benefits-workspace';
@@ -14,6 +15,7 @@ import { createNextNativeBenefitsWorkspaceReader } from '../adapters/server/next
 
 export { nativeBenefitsAvailable };
 export type {
+  NativeBenefitCommandReceipt,
   NativeBenefitDependent,
   NativeBenefitElection,
   NativeBenefitPlan,
@@ -92,6 +94,25 @@ export async function nativeBenefitsWorkspace(
     return await createNextNativeBenefitsWorkspaceReader(
       (incoming, readInput, signal) => native.workspace(incoming, pageContext, readInput, signal),
     )(input);
+  } catch (error) {
+    const failure = nativeBenefitsFailure(error);
+    if (failure) throw new ApiError(failure.status, failure.code, failure.message);
+    throw error;
+  }
+}
+
+/** Native command path. Unset configuration retains the TypeScript command;
+ * once configured, an invalid or failed native command is surfaced. */
+export async function nativeBenefitCommand(
+  actor: WorkContext,
+  body: unknown,
+  key: string,
+  incoming: Pick<Headers, 'get'>,
+): Promise<NativeBenefitCommandReceipt | undefined> {
+  try {
+    const native = client();
+    if (!native) return undefined;
+    return await native.command(incoming, nativeBenefitsPageContext(actor), body, key);
   } catch (error) {
     const failure = nativeBenefitsFailure(error);
     if (failure) throw new ApiError(failure.status, failure.code, failure.message);

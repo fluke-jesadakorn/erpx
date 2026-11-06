@@ -3,6 +3,7 @@ vi.mock('server-only',()=>({}));
 import {
   createNativeSalesDocumentsClient,
   nativeSalesDocumentsAvailable,
+  nativeSalesDocumentTransitionEligible,
   nativeSalesDocumentsConfiguration,
   NativeSalesDocumentsError,
   type NativeSalesDocumentsPageContext,
@@ -133,6 +134,20 @@ describe('native Sales document transport',()=>{
   expect(()=>nativeSalesDocumentsConfiguration(config({timeoutMs:249}))).not.toThrow();
   expect(()=>createNativeSalesDocumentsClient(nativeSalesDocumentsConfiguration(config({timeoutMs:249})),vi.fn())).toThrow();
 });
+
+ it('selects only transitions owned by the existing Commerce public order port',()=>{
+  for(const action of ['submit','approve','return','cancel','convert'] as const)
+   expect(nativeSalesDocumentTransitionEligible('quote','submitted',action)).toBe(true);
+  for(const state of ['draft','submitted','confirmed'])
+   for(const action of ['submit','return'] as const)
+    expect(nativeSalesDocumentTransitionEligible('sales',state,action)).toBe(true);
+  expect(nativeSalesDocumentTransitionEligible('sales','draft','cancel')).toBe(true);
+  expect(nativeSalesDocumentTransitionEligible('sales','confirmed','cancel')).toBe(false);
+  expect(nativeSalesDocumentTransitionEligible('sales','submitted','approve')).toBe(false);
+  expect(nativeSalesDocumentTransitionEligible('sales','confirmed','convert')).toBe(false);
+  expect(nativeSalesDocumentTransitionEligible('purchase','draft','submit')).toBe(false);
+  expect(nativeSalesDocumentTransitionEligible('quote','draft','delete' as never)).toBe(false);
+ });
 
  it('maps transport failures to the retained page/route status policy',async()=>{
   const {nativeSalesDocumentsFailure}=await import('../../../packages/feature-sales/src/public/native-sales-documents-page');

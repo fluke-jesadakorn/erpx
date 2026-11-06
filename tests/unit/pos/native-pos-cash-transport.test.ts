@@ -183,4 +183,75 @@ describe('native POS cash command transport',()=>{
     .toMatchObject({status:409,code:'POS_VERSION_CONFLICT'});
   expect(nativePosCashFailure(new Error('other'))).toBeUndefined();
  });
+
+ it('forwards a native POS command to its documented owner endpoint',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({
+    data:{id:'0f8fad5b-d9cb-469f-a165-70867728950e',version:2},
+    context,
+  }));
+  const client=createNativePosCashClient(nativePosCashConfiguration(config()),transport);
+  const commandBody=JSON.stringify({id:'0f8fad5b-d9cb-469f-a165-70867728950e',expectedVersion:1,attachmentSetIds:[]});
+  const result=await client.command(incoming(),actor,'sale.cancel','pos-command-0002',commandBody);
+  expect(result).toEqual({id:'0f8fad5b-d9cb-469f-a165-70867728950e',version:2});
+  const [method,url,headers,sent]=transport.mock.calls[0];
+  expect(method).toBe('POST');
+  expect(url.toString()).toBe('http://127.0.0.1:44994/api/v1/holdings/acme/pos/commands/sale.cancel');
+  expect(headers.get('idempotency-key')).toBe('pos-command-0002');
+  expect(headers.get('x-erpx-workspace-branch')).toBe('north');
+  expect(JSON.parse(sent)).toEqual(JSON.parse(commandBody));
+ });
+
+ it('selects the native command permission and rejects unsupported operations and malformed acknowledgements',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({
+    data:{id:'shift'},context,
+  }));
+  const client=createNativePosCashClient(nativePosCashConfiguration(config()),transport);
+  await expect(client.command(incoming(),actor,'shift.review','pos-command-0003','{}'))
+    .rejects.toMatchObject({code:'POS_PERMISSION_REQUIRED',status:403});
+  const reviewer={...actor,iam:{permissions:['pos.approve']}};
+  const reviewerClient=createNativePosCashClient(
+    nativePosCashConfiguration(config()),
+    vi.fn().mockResolvedValue(ok({
+      data:{id:'shift',version:2},
+      context:{...context,permissions:['pos.approve']},
+    })),
+  );
+  await expect(reviewerClient.command(incoming(),reviewer,'shift.review','pos-command-0003','{"id":"shift","expectedVersion":1,"reason":"Review"}'))
+    .resolves.toEqual({id:'shift',version:2});
+  await expect(client.command(incoming(),actor,'sale.split','pos-command-0003','{}'))
+    .rejects.toMatchObject({code:'NATIVE_POS_CASH_REQUEST_INVALID'});
+  await expect(client.command(incoming(),actor,'sale.cancel','pos-command-0003','{"id":"sale","expectedVersion":1}'))
+    .rejects.toMatchObject({code:'NATIVE_POS_CASH_RESPONSE_INVALID'});
+  expect(transport).toHaveBeenCalledTimes(1);
+ });
+
+ it('maps the closed native command set to retained package scopes',async()=>{
+  const {NATIVE_POS_COMMANDS,nativePosCommandAvailable,nativePosCommandCapability,nativePosCommandScope,nativePosWorkflowOperation} =
+    await import('../../../packages/feature-pos/src/adapters/server/native-pos-cash');
+  expect([...NATIVE_POS_COMMANDS]).toEqual([
+    'shift.open','shift.close','shift.review','cash.approve',
+    'sale.create','sale.hold','sale.resume','sale.cancel',
+    'refund.request','refund.reject',
+  ]);
+  expect(nativePosCommandCapability('shift.open')).toEqual({capability:'pos.shifts',purpose:'new-work'});
+  expect(nativePosCommandCapability('shift.close')).toEqual({capability:'pos.shifts',purpose:'settle-existing'});
+  expect(nativePosCommandCapability('cash.approve')).toEqual({capability:'pos.shifts',purpose:'settle-existing'});
+  expect(nativePosCommandCapability('sale.create')).toEqual({capability:'pos.sales',purpose:'new-work'});
+  expect(nativePosCommandCapability('sale.cancel')).toEqual({capability:'pos.sales',purpose:'settle-existing'});
+  expect(nativePosCommandCapability('refund.request')).toEqual({capability:'pos.refunds',purpose:'settle-existing'});
+  expect(nativePosCommandCapability('payment.create')).toBeUndefined();
+  expect(nativePosWorkflowOperation('payment.create')).toBe(true);
+  expect(nativePosWorkflowOperation('refund.approve')).toBe(true);
+  expect(nativePosWorkflowOperation('connection.oauth')).toBe(false);
+  expect(nativePosWorkflowOperation('settings.save')).toBe(false);
+  const previous=process.env.ERPX_NATIVE_POS_CASH_CONFIG;
+  delete process.env.ERPX_NATIVE_POS_CASH_CONFIG;
+  expect(nativePosCommandAvailable()).toBe(false);
+  expect(nativePosCommandScope('shift.open')).toBeUndefined();
+  process.env.ERPX_NATIVE_POS_CASH_CONFIG=config();
+  expect(nativePosCommandScope('shift.open')).toEqual({capability:'pos.shifts',purpose:'new-work'});
+  expect(nativePosCommandScope('payment.create')).toBeUndefined();
+  if(previous!==undefined)process.env.ERPX_NATIVE_POS_CASH_CONFIG=previous;
+  else delete process.env.ERPX_NATIVE_POS_CASH_CONFIG;
+ });
 });

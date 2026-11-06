@@ -9,6 +9,12 @@ import { marketingWorkspace } from "@erpx/server-marketing/public/marketing";
 import { MarketingConsole } from "@erpx/feature-marketing/components/marketing-console";
 import { nativeMarketingCampaignReport } from "@erpx/feature-sales/public/native-marketing-campaign-page";
 import {
+  nativeMarketingAssetProfiles,
+  nativeMarketingLeadFailure,
+} from "@erpx/feature-marketing/public/native-marketing-lead";
+import { ApiError } from "@erpx/server-runtime/public/http";
+import { headers } from "next/headers";
+import {
   marketingAnalytics,
   analyticsOptions,
   defaultAnalyticsRange,
@@ -42,6 +48,12 @@ export default async function Page({
     nativeCampaigns = await nativeMarketingCampaignReport(a).catch((e) =>
       pageError(e, holdingSlug),
     ),
+    nativeAssets = await nativeMarketingAssetProfiles(await headers(), a).catch((e) => {
+      const failure = nativeMarketingLeadFailure(e);
+      if (failure) throw new ApiError(failure.status, failure.code, failure.message);
+      return pageError(e, holdingSlug);
+    }),
+    assets = (nativeAssets?.assets ?? data.assets) as typeof data.assets,
     q = await searchParams,
     defaults = defaultAnalyticsRange(),
     raw = {
@@ -68,7 +80,7 @@ export default async function Page({
       ? campaigns.find((c) => String(c.id) === q.campaignId)
       : null,
     selectedAsset = q.assetId
-      ? data.assets.find((asset) => asset.kind === "content" && String(asset.id) === q.assetId)
+      ? assets.find((asset) => asset.kind === "content" && String(asset.id) === q.assetId)
       : null;
   return (
     <PageContent as="div" className="ui-page-content">
@@ -111,7 +123,7 @@ export default async function Page({
           <p>No lead candidates have been captured yet.</p>
         )}
       </Card>
-      <MarketingConsole base={base} data={data} />
+      <MarketingConsole base={base} data={{ ...data, assets }} />
       <AttachmentFeatureSurface>
         <Card as="section" appearance="standard" className="ui-panel">
           <h2>Campaign documents and public creative</h2>
@@ -178,7 +190,7 @@ export default async function Page({
             approved public derivative.
           </p>
           <div className="ui-form-actions">
-            {data.assets
+            {assets
               .filter((asset) => asset.kind === "content")
               .map((asset) => (
                 <UiActionLink appearance="standard"
@@ -233,7 +245,7 @@ export default async function Page({
       </AttachmentFeatureSurface>
       <Card as="section" appearance="standard" className="ui-panel">
         <h2>Active public forms</h2>
-        {data.assets
+        {assets
           .filter((x) => x.kind === "form" && x.status === "active")
           .map((x) => (
             <p key={String(x.id)}>
@@ -244,7 +256,7 @@ export default async function Page({
               </Link>
             </p>
           ))}
-        {!data.assets.some((x) => x.kind === "form" && x.status === "active") && (
+        {!assets.some((x) => x.kind === "form" && x.status === "active") && (
           <p>No active public forms.</p>
         )}
       </Card>

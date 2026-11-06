@@ -140,6 +140,28 @@ impl BenefitsEntitlement {
         Ok(())
     }
 
+    pub fn require_new_work(&self) -> Result<(), BusinessError> {
+        if !self.enforced || self.new_work {
+            return Ok(());
+        }
+        Err(BusinessError::new(
+            FailureKind::Forbidden,
+            "PACKAGE_DRAINING",
+            "This Benefits package accepts no new work. Settlement of existing work remains available.",
+        ))
+    }
+
+    pub fn require_settle_existing(&self) -> Result<(), BusinessError> {
+        if !self.enforced || self.settle_existing {
+            return Ok(());
+        }
+        Err(BusinessError::new(
+            FailureKind::Forbidden,
+            "PACKAGE_INACTIVE",
+            "This Benefits package is inactive. Retained history remains available.",
+        ))
+    }
+
     pub fn purchase(&self) -> Option<BenefitsPurchaseControls> {
         self.enforced.then(|| BenefitsPurchaseControls {
             new_work: self.new_work,
@@ -165,7 +187,7 @@ fn too_large() -> BusinessError {
     )
 }
 
-fn valid_identifier(value: &str) -> bool {
+pub(crate) fn valid_identifier(value: &str) -> bool {
     RecordId::new(value).is_ok()
 }
 
@@ -173,7 +195,7 @@ fn valid_identifier(value: &str) -> bool {
 /// Line_Terminator. Rust's `str::trim` additionally strips U+0085 (White_Space
 /// in Unicode but not in the retained TypeScript `text` validator) and keeps
 /// U+FEFF, so the exact set is spelled out.
-fn js_trim(value: &str) -> &str {
+pub(crate) fn js_trim(value: &str) -> &str {
     value.trim_matches(|c| {
         matches!(c,
             '\u{0009}'..='\u{000d}'
@@ -193,7 +215,7 @@ fn js_trim(value: &str) -> &str {
 /// The retained TypeScript `text` validator measures UTF-16 code units and
 /// rejects exactly U+0000-U+001F and U+007F; keep the same bounds. Callers
 /// enforce their own minimum lengths.
-fn valid_text(value: &str, limit: usize) -> bool {
+pub(crate) fn valid_text(value: &str, limit: usize) -> bool {
     let length = value.encode_utf16().count();
     length <= limit
         && !value
@@ -204,16 +226,16 @@ fn valid_text(value: &str, limit: usize) -> bool {
 
 /// The retained TypeScript `name` validator counts code points, matching
 /// `[...value].length >= 2`.
-fn valid_name(value: &str, limit: usize) -> bool {
+pub(crate) fn valid_name(value: &str, limit: usize) -> bool {
     valid_text(value, limit) && value.chars().count() >= 2
 }
 
-fn valid_code(value: &str, limit: usize) -> bool {
+pub(crate) fn valid_code(value: &str, limit: usize) -> bool {
     let length = value.encode_utf16().count();
     length >= 2 && length <= limit && js_trim(value) == value && !value.contains('\0')
 }
 
-fn valid_currency(value: &str) -> bool {
+pub(crate) fn valid_currency(value: &str) -> bool {
     value.len() == 3 && value.bytes().all(|byte| byte.is_ascii_uppercase())
 }
 
@@ -224,7 +246,7 @@ fn valid_work_context(value: &str) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
-fn valid_date(value: &str) -> bool {
+pub(crate) fn valid_date(value: &str) -> bool {
     if value.len() != 10 {
         return false;
     }
@@ -259,7 +281,7 @@ fn valid_date(value: &str) -> bool {
     (1..=days).contains(&day)
 }
 
-fn valid_effective_to(effective_from: &str, effective_to: Option<&str>) -> bool {
+pub(crate) fn valid_effective_to(effective_from: &str, effective_to: Option<&str>) -> bool {
     effective_to.is_none_or(|value| valid_date(value) && value >= effective_from)
 }
 

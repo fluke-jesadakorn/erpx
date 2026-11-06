@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-06T21:25:21+07:00",
+  "updatedAt": "2026-11-06T22:59:08+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,7 +19,7 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 85,
+    "workflowsPartial": 90,
     "workflowsVerified": 28,
     "workflowsMerged": 28,
     "ownersComplete": 3,
@@ -4157,12 +4157,12 @@
       "kind": "module",
       "owner": "pos",
       "scope": "Refunds",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-pos/src/public/pos.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native refund request/reject commands are implemented with line/tax/capacity and independent review guards; approval remains blocked on Inventory return/Finance settlement. Composition/UI/browser remain open."
     },
     {
       "id": "pos/feature-register-session",
@@ -4177,19 +4177,19 @@
         "pos-native-cash-http"
       ],
       "sourceRef": "packages/server-pos/src/public/pos.ts",
-      "gap": "Native cash movement create against an open register session is PostgreSQL/HTTP-qualified; shift close/review, sale/refund/payment lifecycles and composition mount complete; browser remains open."
+      "gap": "Native POS shift open/close/review and cash-approve commands are implemented with exact money, CAS, independence and persisted readback; owner HTTP and Next route cutover are wired. Composition port bindings and browser remain open."
     },
     {
       "id": "pos/feature-sales-baskets",
       "kind": "module",
       "owner": "pos",
       "scope": "Sales & baskets",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-pos/src/public/pos.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native sale create/hold/resume/unpaid-cancel commands are implemented; item add/edit/discount/remove remain blocked on a Commerce/Inventory catalog port. Composition/UI/browser remain open."
     },
     {
       "id": "pos/feature-payments-receipts",
@@ -4208,12 +4208,12 @@
       "kind": "module",
       "owner": "pos",
       "scope": "Voids",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-pos/src/public/pos.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native unpaid-bill cancellation is implemented and releases POS reservations/fulfilments; paid/completed void remains blocked on refund approval. Composition/UI/browser remain open."
     },
     {
       "id": "sales/quotes",
@@ -4229,7 +4229,7 @@
         "sales-native-price-lists"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Native price-list draft/update/activate/cancel and sales document list are qualified; quote/order draft create/update requires a Commerce public port, and approval/cancellation retain Finance/Inventory guards."
+      "gap": "Native price-list draft/update/activate/cancel and sales document list/edit-read plus eligible quote/order transitions are wired through the Commerce public order port. Draft create/update needs a Commerce public port; approval/cancellation retain Finance/Inventory guards; browser remains open."
     },
     {
       "id": "sales/orders",
@@ -4244,7 +4244,7 @@
         "sales-native-documents-http"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Native quotation/sales-order document list and HTTP/SSR are qualified; create/edit/transition/fulfillment/cancellation/revenue handoff and composition mount complete; browser remains open."
+      "gap": "Native quote/order list/edit-read and eligible transitions are wired through the Commerce public order port; draft create/update, fulfillment, confirmed cancellation and approval remain retained; browser remains open."
     },
     {
       "id": "sales/fulfillment",
@@ -5033,7 +5033,7 @@
         "marketing-native-campaign-http"
       ],
       "sourceRef": "packages/server-marketing/src/public/marketing.ts",
-      "gap": "Native campaign ledger and lead-capture attribution read/HTTP/SSR are qualified; campaign create/cost linking, assets/forms, engagement/handoff and composition mount complete; browser remains open."
+      "gap": "Native campaign create, asset draft, lead capture, engagement and CRM handoff commands are implemented with attribution, consent, idempotency and persisted readback; read HTTP and page GET are wired. Composition command mount, Files/Finance/CRM production ports and browser remain open."
     },
     {
       "id": "marketing/feature-engagement",
@@ -5045,7 +5045,7 @@
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-marketing/src/public/marketing.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native engagement event commands with version guards and history are implemented and owner-qualified; composition mount and browser remain open."
     },
     {
       "id": "manufacturing/orders",
@@ -5373,12 +5373,12 @@
       "kind": "module",
       "owner": "benefits",
       "scope": "Dependents",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-benefits/src/public/benefits.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native dependent verification and election selection commands are implemented with verified-dependent uniqueness and family-coverage guards; composition/UI/browser remain open."
     },
     {
       "id": "benefits/coverage",
@@ -5393,7 +5393,7 @@
         "benefits-native-workspace-http"
       ],
       "sourceRef": "packages/server-benefits/src/public/benefits.ts",
-      "gap": "Native benefits workspace read and HTTP/SSR are qualified; plan/window/dependent/election commands, provider payroll and composition mount complete; browser remains open."
+      "gap": "Native Benefits workspace read plus plan/window/dependent/election commands, owner HTTP ingress and Next route/page cutover are implemented and PostgreSQL-qualified. Composition backend mount, Files evidence, Learning eligibility and provider payroll remain open; browser remains open."
     },
     {
       "id": "benefits/feature-plans",
@@ -5408,19 +5408,19 @@
         "benefits-native-workspace-http"
       ],
       "sourceRef": "packages/server-benefits/src/public/benefits.ts",
-      "gap": "Native benefits workspace read and HTTP/SSR are qualified; plan/window/dependent/election commands, provider payroll and composition mount complete; browser remains open."
+      "gap": "Native plan/window/dependent/election commands are implemented with exact money, CAS, independence and persisted readback; owner HTTP and Next route/page cutover are wired. Composition mount and browser remain open."
     },
     {
       "id": "benefits/feature-enrollment-windows",
       "kind": "module",
       "owner": "benefits",
       "scope": "Enrollment windows",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-benefits/src/public/benefits.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native enrollment-window open/transition commands and election submit/acknowledge are implemented with status/date/CAS and independence guards; composition/UI/browser remain open."
     },
     {
       "id": "benefits/feature-provider-payroll",
@@ -6454,7 +6454,7 @@
   ],
   "executionPlan": {
     "generatedAt": "2026-11-06T20:11:14+07:00",
-    "sourceHead": "83717f7cb",
+    "sourceHead": "PENDING-wave2",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7142,6 +7142,24 @@
           "verified": 28,
           "partial": 85,
           "unstarted": 93,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-06T22:59:08+07:00",
+        "commit": "pending",
+        "bundles": [
+          "benefits native commands",
+          "POS native commands",
+          "marketing lead/engagement",
+          "sales page/transition wiring"
+        ],
+        "evidence": "owner Rust tests + 166 targeted vitest; composition/browser open",
+        "counts": {
+          "owners": 4,
+          "verified": 28,
+          "partial": 90,
+          "unstarted": 88,
           "total": 206
         }
       }

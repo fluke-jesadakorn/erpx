@@ -71,8 +71,8 @@ async fn provenance_source_locks_wait_for_actual_writer_in_both_orders() {
             sqlx::query("INSERT INTO marketing_engagement_events(id,candidate_id,version,event_type,channel,evidence,actor_id,created_at) VALUES('race-submission-2','candidate-2',1,'form_submit','web','evidence','owner',101)").execute(&mut *c).await.unwrap();
         });
         let writer_pid=recv_pid.await.unwrap();wait_for_blocker(&pool,writer_pid,reader_pid).await;
-        let after=source.attribution_with_provenance(&CompanyId::new("company").unwrap(),None,None,1001,CandidateProvenance::CapturedForm).await.unwrap();assert_eq!(after,before);drop(source);tx.commit().await.unwrap();writer.await.unwrap();
-        let mut fresh=reader.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *fresh).await.unwrap();lock_campaign_attribution_sources(&mut fresh).await.unwrap();let mut source=PgMarketingCampaignRead::new(&mut fresh);let rows=source.attribution_with_provenance(&CompanyId::new("company").unwrap(),None,None,1001,CandidateProvenance::CapturedForm).await.unwrap();assert_eq!(rows[0].captured,2);drop(source);fresh.rollback().await.unwrap();
+        let after=source.attribution_with_provenance(&CompanyId::new("company").unwrap(),None,None,1001,CandidateProvenance::CapturedForm).await.unwrap();assert_eq!(after,before);let _ = source;tx.commit().await.unwrap();writer.await.unwrap();
+        let mut fresh=reader.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *fresh).await.unwrap();lock_campaign_attribution_sources(&mut fresh).await.unwrap();let mut source=PgMarketingCampaignRead::new(&mut fresh);let rows=source.attribution_with_provenance(&CompanyId::new("company").unwrap(),None,None,1001,CandidateProvenance::CapturedForm).await.unwrap();assert_eq!(rows[0].captured,2);let _ = source;fresh.rollback().await.unwrap();
     }).await;
 }
 
@@ -713,4 +713,969 @@ async fn campaign_source_bounds_reject_excess_rows() {
             .unwrap();
     })
     .await;
+}
+
+mod lead_candidate_commands {
+    use super::fixture;
+    use super::setup;
+    use erpx_server_marketing::public::lead_candidate::{
+        MarketingCampaignCreateInput, MarketingCrmHandoffPort, MarketingCrmLeadRequest,
+        MarketingCrmLeadResult, MarketingLeadActionInput, MarketingLeadActor,
+        MarketingLeadCandidateInput, PgMarketingLead, asset_profiles, create_asset,
+        create_campaign, create_candidate, handoff_candidate, lead_candidates, lead_detail,
+        record_engagement,
+    };
+    use erpx_server_runtime::public::postgres::{
+        PgTransactionError, PgUnitOfWork, PgWorkFuture, TransactionOptions,
+    };
+    use erpx_server_shared::public::{BusinessError, RecordId, TimestampMillis};
+    use sqlx::PgConnection;
+    use std::collections::BTreeMap;
+    use std::sync::{Arc, Mutex};
+
+    const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
+
+    #[derive(Default)]
+    struct RecordingCrm {
+        calls: Arc<Mutex<Vec<MarketingCrmLeadRequest>>>,
+    }
+
+    impl MarketingCrmHandoffPort for RecordingCrm {
+        fn create_lead<'a>(
+            &'a mut self,
+            _c: &'a mut PgConnection,
+            request: &'a MarketingCrmLeadRequest,
+            _key: &'a str,
+            _now: i64,
+        ) -> PgWorkFuture<'a, MarketingCrmLeadResult, BusinessError> {
+            Box::pin(async move {
+                self.calls.lock().unwrap().push(request.clone());
+                Ok(MarketingCrmLeadResult {
+                    lead_id: "lead-crm-native-1".into(),
+                })
+            })
+        }
+    }
+
+    fn lead_actor(user: &str, assignment: &str) -> MarketingLeadActor {
+        MarketingLeadActor {
+            user_id: user.into(),
+            company_id: "company".into(),
+            branch_id: Some(RecordId::new("branch").unwrap()),
+            department_id: None,
+            assignment_id: assignment.into(),
+            role: Some("sales_manager".into()),
+            authority_revision: Some(1),
+            assignment_version: Some(1),
+            permissions: vec!["records.read".into(), "records.write".into()],
+            modules: vec!["marketing".into()],
+            expires_at: NOW.get() + 60_000,
+        }
+    }
+
+    fn candidate_input() -> MarketingLeadCandidateInput {
+        let mut attribution = BTreeMap::new();
+        attribution.insert("campaign".into(), "AUTUMN".into());
+        attribution.insert("source".into(), "web".into());
+        attribution.insert("campaignId".into(), "campaign-autumn".into());
+        MarketingLeadCandidateInput {
+            form_id: "form-company".into(),
+            form_version: 1,
+            branch_id: "branch".into(),
+            contact_name: "Native candidate".into(),
+            contact_detail: "native@example.test".into(),
+            consent_evidence: "Signed web consent".into(),
+            attribution,
+            brief: "Requested a call".into(),
+        }
+    }
+
+    fn action(action: &str, expected_version: i64) -> MarketingLeadActionInput {
+        MarketingLeadActionInput {
+            action: action.into(),
+            expected_version,
+            reason: "Reviewed current candidate".into(),
+            event_type: (action == "record-engagement").then(|| "email_open".into()),
+            channel: (action == "record-engagement").then(|| "email".into()),
+            due_date: (action == "handoff").then(|| "2026-11-20".into()),
+        }
+    }
+
+    async fn add_iam(pool: &erpx_server_runtime::public::postgres::DatabasePool) {
+        sqlx::raw_sql(
+            "INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status,hierarchy_revision) VALUES \
+             ('company','company','company','Company',NULL,'company',NULL,'active',1),\
+             ('branch','branch','branch','Branch','company','company','branch','active',1);\
+             INSERT INTO crm_leads(id,company_id,branch_id,title,contact_name,contact_detail,source,brief,owner_id,due_date,status,version,created_by,created_at,updated_at) VALUES \
+             ('lead-crm-native-1','company','branch','Marketing lead','Native candidate','native@example.test','Marketing','Requested a call','reviewer','2026-11-20','open',1,'reviewer',10,10);\
+             INSERT INTO iam_members(company_id,user_id,principal_id,status,login_policy,version) VALUES \
+             ('company','owner','local:owner','active','local',1),\
+             ('company','reviewer','local:reviewer','active','local',1),\
+             ('company','stale','local:stale','active','local',1);\
+             INSERT INTO assignments(id,user_id,role,modules_json,company_id,branch_id,valid_from,valid_until,revoked_at,scope_kind,scope_node_id,source) VALUES \
+             ('assignment-owner','owner','sales_manager','[\"marketing\"]','company','branch',0,9000000000000,NULL,'branch','branch','manual'),\
+             ('assignment-reviewer','reviewer','sales_manager','[\"marketing\"]','company','branch',0,9000000000000,NULL,'branch','branch','manual'),\
+             ('assignment-stale','stale','sales_manager','[\"marketing\"]','company','branch',0,9000000000000,1,'branch','branch','manual');\
+             INSERT INTO marketing_assets(id,company_id,kind,name,configuration_json,preview_json,status,created_by,reviewed_by,version,created_at,updated_at) VALUES \
+             ('form-files','company','form','Files form','{\"consentRequired\":true,\"contentAssetId\":\"content-1\",\"contentVersion\":1}','{}','active','owner','reviewer',1,10,10),\
+             ('form-inactive','company','form','Inactive form','{\"consentRequired\":true}','{}','draft','owner',NULL,1,10,10),\
+             ('content-1','company','content','Approved content','{}','{\"headline\":\"Headline\"}','active','owner','reviewer',1,10,10),\
+             ('domain-1','company','domain','Domain readiness','{}','{}','draft','owner',NULL,1,10,10),\
+             ('provider-1','company','provider','Provider readiness','{}','{}','draft','owner',NULL,1,10,10),\
+             ('content-foreign','foreign','content','Foreign content','{}','{}','active','owner','reviewer',1,10,10);",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn campaign_create_is_idempotent_and_rejects_duplicate_codes() {
+        fixture::with_database(3, |pool| async move {
+            setup(&pool).await;
+            add_iam(&pool).await;
+            let actor = lead_actor("owner", "assignment-owner");
+            let input = MarketingCampaignCreateInput {
+                code: "AUTUMN2".into(),
+                name: "Autumn follow-up".into(),
+            };
+            let receipt = PgUnitOfWork::new(pool.clone())
+                .run::<_, BusinessError, _>(TransactionOptions::default(), {
+                    let actor = actor.clone();
+                    let input = input.clone();
+                    move |c| {
+                        let actor = actor.clone();
+                        let input = input.clone();
+                        Box::pin(async move {
+                            let mut repository = PgMarketingLead;
+                            create_campaign(&actor, &input, "campaign-native-key", &mut repository, c, NOW)
+                                .await
+                        })
+                    }
+                })
+                .await
+                .unwrap();
+            assert_eq!(receipt.id, "campaign-campaign-native-key");
+            assert_eq!(receipt.code.as_deref(), Some("AUTUMN2"));
+            assert_eq!(receipt.name.as_deref(), Some("Autumn follow-up"));
+            assert_eq!(receipt.version, 1);
+            let row: (String, String, i64) = sqlx::query_as(
+                "SELECT code,name,version FROM marketing_campaigns WHERE id='campaign-campaign-native-key'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(row, ("AUTUMN2".into(), "Autumn follow-up".into(), 1));
+            let evidence: (i64, i64, i64) = sqlx::query_as(
+                "SELECT (SELECT count(*) FROM command_receipts WHERE command_id='campaign-native-key'),\
+                 (SELECT count(*) FROM audit_events WHERE command_id='campaign-native-key'),\
+                 (SELECT count(*) FROM outbox_events WHERE command_id='campaign-native-key')",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(evidence, (1, 1, 1));
+
+            let replay = PgUnitOfWork::new(pool.clone())
+                .run::<_, BusinessError, _>(TransactionOptions::default(), {
+                    let actor = actor.clone();
+                    let input = input.clone();
+                    move |c| {
+                        let actor = actor.clone();
+                        let input = input.clone();
+                        Box::pin(async move {
+                            let mut repository = PgMarketingLead;
+                            create_campaign(&actor, &input, "campaign-native-key", &mut repository, c, NOW)
+                                .await
+                        })
+                    }
+                })
+                .await
+                .unwrap();
+            assert_eq!(replay, receipt);
+            let duplicate = PgUnitOfWork::new(pool.clone())
+                .run::<_, BusinessError, _>(TransactionOptions::default(), {
+                    let actor = actor.clone();
+                    let input = input.clone();
+                    move |c| {
+                        let actor = actor.clone();
+                        let input = input.clone();
+                        Box::pin(async move {
+                            let mut repository = PgMarketingLead;
+                            create_campaign(&actor, &input, "campaign-other-key", &mut repository, c, NOW)
+                                .await
+                        })
+                    }
+                })
+                .await
+                .map_err(business)
+                .unwrap_err();
+            assert_eq!(duplicate.code, "MARKETING_CAMPAIGN_CODE_TAKEN");
+            let changed = MarketingCampaignCreateInput {
+                code: "AUTUMN2".into(),
+                name: "Different name".into(),
+            };
+            let conflict = PgUnitOfWork::new(pool.clone())
+                .run::<_, BusinessError, _>(TransactionOptions::default(), {
+                    let actor = actor.clone();
+                    let changed = changed.clone();
+                    move |c| {
+                        let actor = actor.clone();
+                        let changed = changed.clone();
+                        Box::pin(async move {
+                            let mut repository = PgMarketingLead;
+                            create_campaign(&actor, &changed, "campaign-native-key", &mut repository, c, NOW)
+                                .await
+                        })
+                    }
+                })
+                .await
+                .map_err(business)
+                .unwrap_err();
+            assert_eq!(conflict.code, "IDEMPOTENCY_CONFLICT");
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn candidate_create_enforces_form_assets_and_persists_attribution() {
+        fixture::with_database(3, |pool| async move {
+            setup(&pool).await;
+            add_iam(&pool).await;
+            let actor = lead_actor("owner", "assignment-owner");
+            let input = candidate_input();
+            let receipt = PgUnitOfWork::new(pool.clone())
+                .run::<_, BusinessError, _>(TransactionOptions::default(), {
+                    let actor = actor.clone();
+                    let input = input.clone();
+                    move |c| {
+                        let actor = actor.clone();
+                        let input = input.clone();
+                        Box::pin(async move {
+                            let mut repository = PgMarketingLead;
+                            create_candidate(&actor, &input, "candidate-native-key", &mut repository, c, NOW)
+                                .await
+                        })
+                    }
+                })
+                .await
+                .unwrap();
+            assert_eq!(receipt.id, "marketing-candidate-candidate-native-key");
+            assert_eq!(receipt.status, "pending");
+            assert_eq!(receipt.version, 1);
+            let row: (String, i64, String, String, String, i64) = sqlx::query_as(
+                "SELECT branch_id,form_version,contact_name,consent_evidence,attribution_json,version \
+                 FROM marketing_lead_candidates WHERE id='marketing-candidate-candidate-native-key'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(row.0, "branch");
+            assert_eq!(row.1, 1);
+            assert_eq!(row.2, "Native candidate");
+            assert_eq!(row.3, "Signed web consent");
+            assert_eq!(
+                row.4,
+                "{\"campaign\":\"AUTUMN\",\"campaignId\":\"campaign-autumn\",\"source\":\"web\"}"
+            );
+            assert_eq!(row.5, 1);
+            let event: (i64, String, String) = sqlx::query_as(
+                "SELECT version,event_type,channel FROM marketing_engagement_events \
+                 WHERE candidate_id='marketing-candidate-candidate-native-key'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(event, (1, "form_submit".into(), "web".into()));
+
+            let replay = PgUnitOfWork::new(pool.clone())
+                .run::<_, BusinessError, _>(TransactionOptions::default(), {
+                    let actor = actor.clone();
+                    let input = input.clone();
+                    move |c| {
+                        let actor = actor.clone();
+                        let input = input.clone();
+                        Box::pin(async move {
+                            let mut repository = PgMarketingLead;
+                            create_candidate(&actor, &input, "candidate-native-key", &mut repository, c, NOW)
+                                .await
+                        })
+                    }
+                })
+                .await
+                .unwrap();
+            assert_eq!(replay, receipt);
+
+            let mut files = candidate_input();
+            files.form_id = "form-files".into();
+            let boundary = PgUnitOfWork::new(pool.clone())
+                .run::<_, BusinessError, _>(TransactionOptions::default(), {
+                    let actor = actor.clone();
+                    let files = files.clone();
+                    move |c| {
+                        let actor = actor.clone();
+                        let files = files.clone();
+                        Box::pin(async move {
+                            let mut repository = PgMarketingLead;
+                            create_candidate(&actor, &files, "candidate-files", &mut repository, c, NOW)
+                                .await
+                        })
+                    }
+                })
+                .await
+                .map_err(business)
+                .unwrap_err();
+            assert_eq!(boundary.code, "MARKETING_FORM_READINESS_PORT_REQUIRED");
+
+            let mut inactive = candidate_input();
+            inactive.form_id = "form-inactive".into();
+            let inactive_error = PgUnitOfWork::new(pool.clone())
+                .run::<_, BusinessError, _>(TransactionOptions::default(), {
+                    let actor = actor.clone();
+                    let inactive = inactive.clone();
+                    move |c| {
+                        let actor = actor.clone();
+                        let inactive = inactive.clone();
+                        Box::pin(async move {
+                            let mut repository = PgMarketingLead;
+                            create_candidate(&actor, &inactive, "candidate-inactive", &mut repository, c, NOW)
+                                .await
+                        })
+                    }
+                })
+                .await
+                .map_err(business)
+                .unwrap_err();
+            assert_eq!(inactive_error.code, "MARKETING_FORM_NOT_READY");
+
+            let mut wrong_branch = candidate_input();
+            wrong_branch.branch_id = "other-branch".into();
+            let branch_error = PgUnitOfWork::new(pool.clone())
+                .run::<_, BusinessError, _>(TransactionOptions::default(), {
+                    let actor = actor.clone();
+                    let wrong_branch = wrong_branch.clone();
+                    move |c| {
+                        let actor = actor.clone();
+                        let wrong_branch = wrong_branch.clone();
+                        Box::pin(async move {
+                            let mut repository = PgMarketingLead;
+                            create_candidate(&actor, &wrong_branch, "candidate-branch", &mut repository, c, NOW)
+                                .await
+                        })
+                    }
+                })
+                .await
+                .map_err(business)
+                .unwrap_err();
+            assert_eq!(branch_error.code, "MARKETING_BRANCH_SCOPE_INVALID");
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn engagement_requires_expected_version_and_persists_history() {
+        fixture::with_database(3, |pool| async move {
+            setup(&pool).await;
+            add_iam(&pool).await;
+            let actor = lead_actor("owner", "assignment-owner");
+            let receipt = PgUnitOfWork::new(pool.clone())
+                .run::<_, BusinessError, _>(TransactionOptions::default(), {
+                    let actor = actor.clone();
+                    move |c| {
+                        let actor = actor.clone();
+                        Box::pin(async move {
+                            let mut repository = PgMarketingLead;
+                            record_engagement(
+                                &actor,
+                                "candidate-1",
+                                &action("record-engagement", 1),
+                                "engagement-native",
+                                &mut repository,
+                                c,
+                                NOW,
+                            )
+                            .await
+                        })
+                    }
+                })
+                .await
+                .unwrap();
+            assert_eq!(receipt.id, "candidate-1");
+            assert_eq!(receipt.status, "pending");
+            assert_eq!(receipt.version, 2);
+            let row: (i64, String) = sqlx::query_as(
+                "SELECT version,status FROM marketing_lead_candidates WHERE id='candidate-1'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(row, (2, "pending".into()));
+            let history: (i64, String, String, String) = sqlx::query_as(
+                "SELECT version,event_type,channel,evidence FROM marketing_engagement_events \
+                 WHERE candidate_id='candidate-1' AND version=2",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(
+                history,
+                (
+                    2,
+                    "email_open".into(),
+                    "email".into(),
+                    "Reviewed current candidate".into()
+                )
+            );
+            let stale = PgUnitOfWork::new(pool.clone())
+                .run::<_, BusinessError, _>(TransactionOptions::default(), {
+                    let actor = actor.clone();
+                    move |c| {
+                        let actor = actor.clone();
+                        Box::pin(async move {
+                            let mut repository = PgMarketingLead;
+                            record_engagement(
+                                &actor,
+                                "candidate-1",
+                                &action("record-engagement", 1),
+                                "engagement-stale",
+                                &mut repository,
+                                c,
+                                NOW,
+                            )
+                            .await
+                        })
+                    }
+                })
+                .await
+                .map_err(business)
+                .unwrap_err();
+            assert_eq!(stale.code, "MARKETING_CANDIDATE_CHANGED");
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn handoff_requires_independence_uses_crm_port_and_replays_once() {
+        fixture::with_database(3, |pool| async move {
+            setup(&pool).await;
+            add_iam(&pool).await;
+            let owner = lead_actor("owner", "assignment-owner");
+            let reviewer = lead_actor("reviewer", "assignment-reviewer");
+            let created = PgUnitOfWork::new(pool.clone())
+                .run::<_, BusinessError, _>(TransactionOptions::default(), {
+                    let owner = owner.clone();
+                    move |c| {
+                        let owner = owner.clone();
+                        Box::pin(async move {
+                            let mut repository = PgMarketingLead;
+                            create_candidate(
+                                &owner,
+                                &candidate_input(),
+                                "candidate-handoff",
+                                &mut repository,
+                                c,
+                                NOW,
+                            )
+                            .await
+                        })
+                    }
+                })
+                .await
+                .unwrap();
+            assert_eq!(created.version, 1);
+            let independent = PgUnitOfWork::new(pool.clone())
+                .run::<_, BusinessError, _>(TransactionOptions::default(), {
+                    let owner = owner.clone();
+                    move |c| {
+                        let owner = owner.clone();
+                        let mut crm = RecordingCrm::default();
+                        Box::pin(async move {
+                            let mut repository = PgMarketingLead;
+                            handoff_candidate(
+                                &owner,
+                                "marketing-candidate-candidate-handoff",
+                                &action("handoff", 1),
+                                "handoff-owner",
+                                &mut repository,
+                                &mut crm,
+                                c,
+                                NOW,
+                            )
+                            .await
+                        })
+                    }
+                })
+                .await
+                .map_err(business)
+                .unwrap_err();
+            assert_eq!(independent.code, "MARKETING_INDEPENDENT_REVIEW_REQUIRED");
+
+            let calls = Arc::new(Mutex::new(Vec::new()));
+            let handoff = PgUnitOfWork::new(pool.clone())
+                .run::<_, BusinessError, _>(TransactionOptions::default(), {
+                    let reviewer = reviewer.clone();
+                    let calls = calls.clone();
+                    move |c| {
+                        let reviewer = reviewer.clone();
+                        let calls = calls.clone();
+                        Box::pin(async move {
+                            let mut repository = PgMarketingLead;
+                            let mut crm = RecordingCrm { calls };
+                            handoff_candidate(
+                                &reviewer,
+                                "marketing-candidate-candidate-handoff",
+                                &action("handoff", 1),
+                                "handoff-reviewer",
+                                &mut repository,
+                                &mut crm,
+                                c,
+                                NOW,
+                            )
+                            .await
+                        })
+                    }
+                })
+                .await
+                .unwrap();
+            assert_eq!(handoff.id, "marketing-candidate-candidate-handoff");
+            assert_eq!(handoff.status, "handed_off");
+            assert_eq!(handoff.version, 2);
+            assert_eq!(handoff.crm_lead_id.as_deref(), Some("lead-crm-native-1"));
+            let row: (String, Option<String>, String, i64) = sqlx::query_as(
+                "SELECT status,crm_lead_id,reviewed_by,version FROM marketing_lead_candidates \
+                 WHERE id='marketing-candidate-candidate-handoff'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(
+                row,
+                (
+                    "handed_off".into(),
+                    Some("lead-crm-native-1".into()),
+                    "reviewer".into(),
+                    2
+                )
+            );
+            let event: (i64, String, String) = sqlx::query_as(
+                "SELECT version,event_type,channel FROM marketing_engagement_events \
+                 WHERE candidate_id='marketing-candidate-candidate-handoff' AND version=2",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(event, (2, "crm_handoff".into(), "internal".into()));
+            {
+                let recorded = calls.lock().unwrap();
+                assert_eq!(recorded.len(), 1);
+                assert_eq!(recorded[0].branch_id, "branch");
+                assert_eq!(recorded[0].source_kind, "form");
+                assert_eq!(
+                    recorded[0].source_id,
+                    "marketing-candidate-candidate-handoff"
+                );
+                assert_eq!(recorded[0].campaign_id.as_deref(), Some("campaign-autumn"));
+            }
+
+            let replay_calls = Arc::new(Mutex::new(Vec::new()));
+            let replay = PgUnitOfWork::new(pool.clone())
+                .run::<_, BusinessError, _>(TransactionOptions::default(), {
+                    let reviewer = reviewer.clone();
+                    let replay_calls = replay_calls.clone();
+                    move |c| {
+                        let reviewer = reviewer.clone();
+                        let replay_calls = replay_calls.clone();
+                        Box::pin(async move {
+                            let mut repository = PgMarketingLead;
+                            let mut crm = RecordingCrm {
+                                calls: replay_calls,
+                            };
+                            handoff_candidate(
+                                &reviewer,
+                                "marketing-candidate-candidate-handoff",
+                                &action("handoff", 1),
+                                "handoff-reviewer",
+                                &mut repository,
+                                &mut crm,
+                                c,
+                                NOW,
+                            )
+                            .await
+                        })
+                    }
+                })
+                .await
+                .unwrap();
+            assert_eq!(replay, handoff);
+            assert!(replay_calls.lock().unwrap().is_empty());
+            let receipt_count: i64 = sqlx::query_scalar(
+                "SELECT count(*) FROM command_receipts WHERE command_id='handoff-reviewer'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(receipt_count, 1);
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn handoff_late_failure_rolls_back_marketing_rows_and_retry_persists_once() {
+        fixture::with_database(3, |pool| async move {
+            setup(&pool).await;
+            add_iam(&pool).await;
+            let owner = lead_actor("owner", "assignment-owner");
+            let reviewer = lead_actor("reviewer", "assignment-reviewer");
+            PgUnitOfWork::new(pool.clone())
+                .run::<(), BusinessError, _>(TransactionOptions::default(), {
+                    let owner = owner.clone();
+                    move |c| {
+                        let owner = owner.clone();
+                        Box::pin(async move {
+                            let mut repository = PgMarketingLead;
+                            create_candidate(
+                                &owner,
+                                &candidate_input(),
+                                "candidate-rollback",
+                                &mut repository,
+                                c,
+                                NOW,
+                            )
+                            .await?;
+                            Ok(())
+                        })
+                    }
+                })
+                .await
+                .unwrap();
+            sqlx::raw_sql(
+                "CREATE FUNCTION fail_marketing_outbox() RETURNS trigger LANGUAGE plpgsql AS $$ \
+                 BEGIN IF NEW.command_id='handoff-rollback' THEN \
+                 RAISE EXCEPTION 'blocked marketing outbox'; END IF; RETURN NEW; END $$; \
+                 CREATE TRIGGER fail_marketing_outbox BEFORE INSERT ON outbox_events \
+                 FOR EACH ROW EXECUTE FUNCTION fail_marketing_outbox();",
+            )
+            .execute(pool.raw())
+            .await
+            .unwrap();
+            let calls = Arc::new(Mutex::new(Vec::new()));
+            let failed = PgUnitOfWork::new(pool.clone())
+                .run::<(), BusinessError, _>(TransactionOptions::default(), {
+                    let reviewer = reviewer.clone();
+                    let calls = calls.clone();
+                    move |c| {
+                        let reviewer = reviewer.clone();
+                        let calls = calls.clone();
+                        Box::pin(async move {
+                            let mut repository = PgMarketingLead;
+                            let mut crm = RecordingCrm { calls };
+                            handoff_candidate(
+                                &reviewer,
+                                "marketing-candidate-candidate-rollback",
+                                &action("handoff", 1),
+                                "handoff-rollback",
+                                &mut repository,
+                                &mut crm,
+                                c,
+                                NOW,
+                            )
+                            .await?;
+                            Ok(())
+                        })
+                    }
+                })
+                .await;
+            assert!(failed.is_err());
+            let row: (String, i64, i64, i64) = sqlx::query_as(
+                "SELECT status,(SELECT count(*) FROM marketing_engagement_events WHERE candidate_id='marketing-candidate-candidate-rollback'),\
+                 (SELECT count(*) FROM command_receipts WHERE command_id='handoff-rollback'),\
+                 (SELECT count(*) FROM audit_events WHERE command_id='handoff-rollback') \
+                 FROM marketing_lead_candidates WHERE id='marketing-candidate-candidate-rollback'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(row, ("pending".into(), 1, 0, 0));
+            sqlx::raw_sql(
+                "DROP TRIGGER fail_marketing_outbox ON outbox_events; \
+                 DROP FUNCTION fail_marketing_outbox();",
+            )
+            .execute(pool.raw())
+            .await
+            .unwrap();
+            let retry = PgUnitOfWork::new(pool.clone())
+                .run::<_, BusinessError, _>(TransactionOptions::default(), {
+                    let reviewer = reviewer.clone();
+                    move |c| {
+                        let reviewer = reviewer.clone();
+                        Box::pin(async move {
+                            let mut repository = PgMarketingLead;
+                            let mut crm = RecordingCrm::default();
+                            handoff_candidate(
+                                &reviewer,
+                                "marketing-candidate-candidate-rollback",
+                                &action("handoff", 1),
+                                "handoff-rollback",
+                                &mut repository,
+                                &mut crm,
+                                c,
+                                NOW,
+                            )
+                            .await
+                        })
+                    }
+                })
+                .await
+                .unwrap();
+            assert_eq!(retry.status, "handed_off");
+            assert_eq!(retry.version, 2);
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn reads_are_company_scoped_and_asset_profiles_keep_owner_boundaries() {
+        fixture::with_database(3, |pool| async move {
+            setup(&pool).await;
+            add_iam(&pool).await;
+            let actor = lead_actor("owner", "assignment-owner");
+            PgUnitOfWork::new(pool.clone())
+                .run::<(), BusinessError, _>(TransactionOptions::default(), {
+                    let actor = actor.clone();
+                    move |c| {
+                        let actor = actor.clone();
+                        Box::pin(async move {
+                            let mut repository = PgMarketingLead;
+                            let assets = asset_profiles(&actor, &mut repository, c, NOW).await?;
+                            let kinds = assets
+                                .assets
+                                .iter()
+                                .map(|asset| asset.kind.as_str())
+                                .collect::<std::collections::BTreeSet<_>>();
+                            assert!(kinds.contains("form"));
+                            assert!(kinds.contains("content"));
+                            assert!(kinds.contains("domain"));
+                            assert!(kinds.contains("provider"));
+                            assert!(
+                                assets
+                                    .assets
+                                    .iter()
+                                    .all(|asset| asset.company_id == "company")
+                            );
+                            let candidates =
+                                lead_candidates(&actor, &mut repository, c, NOW).await?;
+                            assert!(
+                                candidates
+                                    .iter()
+                                    .all(|candidate| candidate.company_id == "company")
+                            );
+                            assert!(
+                                candidates
+                                    .iter()
+                                    .all(|candidate| candidate.branch_id == "branch")
+                            );
+                            assert!(
+                                !candidates
+                                    .iter()
+                                    .any(|candidate| candidate.id == "candidate-5")
+                            );
+                            let detail =
+                                lead_detail(&actor, "candidate-1", &mut repository, c, NOW).await?;
+                            assert_eq!(detail.candidate.id, "candidate-1");
+                            assert_eq!(detail.candidate.form_name, "Lead form");
+                            let missing =
+                                lead_detail(&actor, "candidate-foreign", &mut repository, c, NOW)
+                                    .await;
+                            assert!(missing.is_err());
+                            Ok(())
+                        })
+                    }
+                })
+                .await
+                .unwrap();
+
+            let stale = lead_actor("stale", "assignment-stale");
+            let revoked = PgUnitOfWork::new(pool.clone())
+                .run::<_, BusinessError, _>(TransactionOptions::default(), {
+                    let stale = stale.clone();
+                    move |c| {
+                        let stale = stale.clone();
+                        Box::pin(async move {
+                            let mut repository = PgMarketingLead;
+                            create_campaign(
+                                &stale,
+                                &MarketingCampaignCreateInput {
+                                    code: "STALE".into(),
+                                    name: "Stale attempt".into(),
+                                },
+                                "campaign-stale",
+                                &mut repository,
+                                c,
+                                NOW,
+                            )
+                            .await
+                        })
+                    }
+                })
+                .await
+                .map_err(business)
+                .unwrap_err();
+            assert_eq!(revoked.code, "MARKETING_PERMISSION_REQUIRED");
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn command_requires_a_serializable_owner_transaction() {
+        fixture::with_database(2, |pool| async move {
+            setup(&pool).await;
+            add_iam(&pool).await;
+            let mut c = pool.raw().begin().await.unwrap();
+            let mut repository = PgMarketingLead;
+            let error = create_campaign(
+                &lead_actor("owner", "assignment-owner"),
+                &MarketingCampaignCreateInput {
+                    code: "SERIAL".into(),
+                    name: "Serializable check".into(),
+                },
+                "campaign-serial",
+                &mut repository,
+                &mut c,
+                NOW,
+            )
+            .await
+            .unwrap_err();
+            let PgTransactionError::Persistence(error) = error else {
+                panic!("expected serializable refusal");
+            };
+            assert_eq!(error.code, "MARKETING_SERIALIZABLE_REQUIRED");
+            c.rollback().await.unwrap();
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn asset_create_persists_profiles_and_enforces_form_consent() {
+        fixture::with_database(3, |pool| async move {
+            setup(&pool).await;
+            add_iam(&pool).await;
+            let actor = lead_actor("owner", "assignment-owner");
+            let content =
+                erpx_server_marketing::public::lead_candidate::MarketingAssetCreateInput {
+                    kind: "content".into(),
+                    name: "Approved content draft".into(),
+                    configuration_json: "{}".into(),
+                    preview_json: "{\"headline\":\"Draft\"}".into(),
+                };
+            let profile = PgUnitOfWork::new(pool.clone())
+                .run::<_, BusinessError, _>(TransactionOptions::default(), {
+                    let actor = actor.clone();
+                    let content = content.clone();
+                    move |c| {
+                        let actor = actor.clone();
+                        let content = content.clone();
+                        Box::pin(async move {
+                            let mut repository = PgMarketingLead;
+                            create_asset(&actor, &content, "asset-content", &mut repository, c, NOW)
+                                .await
+                        })
+                    }
+                })
+                .await
+                .unwrap();
+            assert_eq!(profile.id, "marketing-content-asset-content");
+            assert_eq!(profile.status, "draft");
+            assert_eq!(profile.version, 1);
+            let replay = PgUnitOfWork::new(pool.clone())
+                .run::<_, BusinessError, _>(TransactionOptions::default(), {
+                    let actor = actor.clone();
+                    let content = content.clone();
+                    move |c| {
+                        let actor = actor.clone();
+                        let content = content.clone();
+                        Box::pin(async move {
+                            let mut repository = PgMarketingLead;
+                            create_asset(&actor, &content, "asset-content", &mut repository, c, NOW)
+                                .await
+                        })
+                    }
+                })
+                .await
+                .unwrap();
+            assert_eq!(replay, profile);
+
+            let form = erpx_server_marketing::public::lead_candidate::MarketingAssetCreateInput {
+                kind: "form".into(),
+                name: "Consented form".into(),
+                configuration_json: "{\"consentRequired\":true}".into(),
+                preview_json: "{}".into(),
+            };
+            PgUnitOfWork::new(pool.clone())
+                .run::<(), BusinessError, _>(TransactionOptions::default(), {
+                    let actor = actor.clone();
+                    let form = form.clone();
+                    move |c| {
+                        let actor = actor.clone();
+                        let form = form.clone();
+                        Box::pin(async move {
+                            let mut repository = PgMarketingLead;
+                            create_asset(&actor, &form, "asset-form", &mut repository, c, NOW)
+                                .await?;
+                            Ok(())
+                        })
+                    }
+                })
+                .await
+                .unwrap();
+            let missing_consent =
+                erpx_server_marketing::public::lead_candidate::MarketingAssetCreateInput {
+                    kind: "form".into(),
+                    name: "No consent".into(),
+                    configuration_json: "{}".into(),
+                    preview_json: "{}".into(),
+                };
+            let denied = PgUnitOfWork::new(pool.clone())
+                .run::<_, BusinessError, _>(TransactionOptions::default(), {
+                    let actor = actor.clone();
+                    let missing_consent = missing_consent.clone();
+                    move |c| {
+                        let actor = actor.clone();
+                        let missing_consent = missing_consent.clone();
+                        Box::pin(async move {
+                            let mut repository = PgMarketingLead;
+                            create_asset(
+                                &actor,
+                                &missing_consent,
+                                "asset-form-invalid",
+                                &mut repository,
+                                c,
+                                NOW,
+                            )
+                            .await
+                        })
+                    }
+                })
+                .await
+                .map_err(business)
+                .unwrap_err();
+            assert_eq!(denied.code, "MARKETING_CONSENT_REQUIRED");
+            let assets: (i64, i64) = sqlx::query_as(
+                "SELECT (SELECT count(*) FROM marketing_assets \
+                   WHERE id IN ('marketing-content-asset-content','marketing-form-asset-form')),\
+                 (SELECT count(*) FROM command_receipts WHERE command_id='asset-content')",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(assets, (2, 1));
+        })
+        .await;
+    }
+
+    fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
+        match error {
+            PgTransactionError::Business(error) => error,
+            other => panic!("expected owner business failure, got {other:?}"),
+        }
+    }
 }

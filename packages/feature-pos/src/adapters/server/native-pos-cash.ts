@@ -37,6 +37,50 @@ export type NativePosCashBody = Readonly<{
 }>;
 
 export type NativePosCashReceipt = Readonly<{ id: string }>;
+export type NativePosCommandReceipt = Readonly<{ id: string; version?: number }>;
+
+/** Closed native command set. Operations outside this set remain on the
+ * retained TypeScript POS application until their public ports exist. */
+export const NATIVE_POS_COMMANDS = new Set([
+  'shift.open', 'shift.close', 'shift.review', 'cash.approve',
+  'sale.create', 'sale.hold', 'sale.resume', 'sale.cancel',
+  'refund.request', 'refund.reject',
+]);
+/** Operations in the five POS owner workflows. Once the native transport is
+ * configured, an operation here without a native implementation must close
+ * rather than silently use the retained TypeScript writer. */
+export const POS_NATIVE_WORKFLOW_OPERATIONS = new Set([
+  ...NATIVE_POS_COMMANDS,
+  'cash.create',
+  'sale.add', 'sale.update_line', 'sale.discount', 'sale.remove',
+  'sale.customer', 'sale.move_table', 'sale.complete', 'sale.approve_discount',
+  'payment.create', 'payment.verify_transfer', 'payment.cancel_transfer',
+  'payment.retry', 'payment.cancel',
+  'refund.approve',
+]);
+export function nativePosWorkflowOperation(operation: string): boolean {
+  return POS_NATIVE_WORKFLOW_OPERATIONS.has(operation);
+}
+export function nativePosCommandAvailable(): boolean {
+  return process.env.ERPX_NATIVE_POS_CASH_CONFIG !== undefined;
+}
+export function nativePosCommandCapability(operation: string): {
+  capability: 'pos.shifts' | 'pos.sales' | 'pos.refunds';
+  purpose: 'new-work' | 'settle-existing';
+} | undefined {
+  if (!NATIVE_POS_COMMANDS.has(operation)) return undefined;
+  if (operation.startsWith('shift.') || operation.startsWith('cash.'))
+    return { capability: 'pos.shifts', purpose: operation === 'shift.open' ? 'new-work' : 'settle-existing' };
+  if (operation.startsWith('refund.')) return { capability: 'pos.refunds', purpose: 'settle-existing' };
+  if (operation === 'sale.cancel') return { capability: 'pos.sales', purpose: 'settle-existing' };
+  return { capability: 'pos.sales', purpose: 'new-work' };
+}
+/** Selected only when the native configuration is present and the operation is
+ * in the closed native set. Unset configuration keeps the retained application;
+ * a configured native failure is surfaced by the caller and never falls back. */
+export function nativePosCommandScope(operation: string) {
+  return nativePosCommandAvailable() ? nativePosCommandCapability(operation) : undefined;
+}
 
 export type NativePosCashTransport = (
   method: 'POST',
@@ -399,6 +443,101 @@ export function nativePosCashConfiguration(raw: string): NativePosCashConfigurat
   return value as unknown as NativePosCashConfiguration;
 }
 
+function commandTransportCall(
+  transport: NativePosCashTransport,
+  config: ReturnType<typeof configuration>,
+  incoming: Pick<Headers, 'get'>,
+  actor: NativePosCashActor,
+  operation: string,
+  key: string,
+  rawBody: string,
+  timeout: number,
+  signal?: AbortSignal,
+): Promise<Response> {
+  const host = incoming.get('host');
+  const target = host ? config.holdings.get(host) : undefined;
+  if (
+    !target ||
+    target.holdingSlug !== actor.holdingSlug ||
+    target.holdingId !== actor.holdingId
+  )
+    return Promise.reject(new NativePosCashError('NATIVE_POS_CASH_AUTHORITY_INVALID'));
+  const origin = incoming.get('origin');
+  if (origin && origin !== target.origin)
+    return Promise.reject(new NativePosCashError('ORIGIN_FORBIDDEN', 403));
+  const headers = new Headers({
+    host: host!,
+    accept: 'application/json',
+    'cache-control': 'no-cache',
+    'content-type': 'application/json',
+    'idempotency-key': key,
+    'x-erpx-context-user': actor.userId,
+    'x-erpx-context-holding': actor.holdingId,
+    'x-erpx-context-company': actor.companyId,
+    'x-erpx-context-assignment': actor.assignmentId,
+    'x-erpx-context-revision': String(actor.authority?.revision ?? ''),
+    'x-erpx-context-assignment-version': String(actor.authority?.assignmentVersion ?? ''),
+  });
+  if (origin) headers.set('origin', origin);
+  const cookie = incoming.get('cookie');
+  if (cookie) {
+    if (new TextEncoder().encode(cookie).length > 8192)
+      return Promise.reject(new NativePosCashError('NATIVE_POS_CASH_COOKIE_LIMIT'));
+    headers.set('cookie', cookie);
+  }
+  if (actor.scope.kind === 'branch' || actor.scope.kind === 'department') {
+    const branch = actor.scope.branchSlug;
+    if (!branch || !/^[a-z0-9_-]+$/.test(branch))
+      return Promise.reject(new NativePosCashError('NATIVE_POS_CASH_REQUEST_INVALID'));
+    headers.set('x-erpx-workspace-branch', branch);
+  }
+  if (actor.scope.kind === 'department') {
+    const department = actor.scope.departmentSlug;
+    if (!department || !/^[a-z0-9_-]+$/.test(department))
+      return Promise.reject(new NativePosCashError('NATIVE_POS_CASH_REQUEST_INVALID'));
+    headers.set('x-erpx-workspace-department', department);
+  }
+  if (actor.branchId && actor.scope.kind === 'holding')
+    return Promise.reject(new NativePosCashError('NATIVE_POS_CASH_AUTHORITY_INVALID'));
+  if (actor.departmentId && actor.scope.kind !== 'department')
+    return Promise.reject(new NativePosCashError('NATIVE_POS_CASH_AUTHORITY_INVALID'));
+  if (new TextEncoder().encode(rawBody).length > 64 * 1024)
+    return Promise.reject(new NativePosCashError('NATIVE_POS_CASH_REQUEST_INVALID'));
+  const url = new URL(
+    `/api/v1/holdings/${encodeURIComponent(actor.holdingSlug)}/pos/commands/${encodeURIComponent(operation)}`,
+    config.base,
+  );
+  const controller = new AbortController();
+  const cancel = () => controller.abort();
+  signal?.addEventListener('abort', cancel, { once: true });
+  if (signal?.aborted) controller.abort();
+  const timer = setTimeout(cancel, timeout);
+  return transport('POST', url, headers, rawBody, controller.signal).finally(() => {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', cancel);
+  });
+}
+
+function commandReceipt(operation: string, value: unknown): NativePosCommandReceipt {
+  if (!record(value) || typeof value.id !== 'string' || !value.id || value.id.length > 200)
+    return failure('NATIVE_POS_CASH_RESPONSE_INVALID');
+  if (Object.keys(value).some((key) => key !== 'id' && key !== 'version'))
+    return failure('NATIVE_POS_CASH_RESPONSE_INVALID');
+  const generated = ['shift.open', 'sale.create', 'refund.request'].includes(operation);
+  if (generated && !uuidPattern.test(value.id))
+    return failure('NATIVE_POS_CASH_RESPONSE_INVALID');
+  if (value.version !== undefined && !integer(value.version, 1))
+    return failure('NATIVE_POS_CASH_RESPONSE_INVALID');
+  if (
+    ['sale.hold', 'sale.resume', 'sale.cancel'].includes(operation) &&
+    value.version === undefined
+  )
+    return failure('NATIVE_POS_CASH_RESPONSE_INVALID');
+  return value.version === undefined
+    ? { id: value.id }
+    : { id: value.id, version: value.version };
+}
+
 export function createNativePosCashClient(
   raw: NativePosCashConfiguration,
   transport: NativePosCashTransport = directHttp,
@@ -443,7 +582,60 @@ export function createNativePosCashClient(
     context(value.context, actor);
     return receipt(value.data);
   };
-  return { cash };
+  const command = async (
+    incoming: Pick<Headers, 'get'>,
+    actor: NativePosCashActor,
+    operation: string,
+    key: string,
+    rawBody: string,
+    signal?: AbortSignal,
+  ): Promise<NativePosCommandReceipt> => {
+    if (
+      !NATIVE_POS_COMMANDS.has(operation) ||
+      !actor.authority ||
+      !actor.iam ||
+      !keyPattern.test(key)
+    )
+      return failure('NATIVE_POS_CASH_REQUEST_INVALID');
+    const permission = ['shift.review', 'cash.approve', 'refund.reject'].includes(operation)
+      ? 'pos.approve'
+      : 'pos.sell';
+    if (!(actor.iam.permissions ?? []).includes(permission))
+      return failure(
+        'POS_PERMISSION_REQUIRED',
+        403,
+        'Your selected role does not grant this POS command.',
+      );
+    if (!actor.modules.includes('pos'))
+      return failure('POS_MODULE_FORBIDDEN', 403, 'Your current role cannot access POS.');
+    if (actor.departmentId)
+      return failure('POS_BRANCH_REQUIRED', 403, 'Select a Company or branch for POS.');
+    try {
+      JSON.parse(rawBody);
+    } catch {
+      return failure('NATIVE_POS_CASH_REQUEST_INVALID');
+    }
+    const response = await commandTransportCall(
+      transport,
+      config,
+      incoming,
+      actor,
+      operation,
+      key,
+      rawBody,
+      config.timeout,
+      signal,
+    ).catch((error: unknown) => {
+      if (error instanceof NativePosCashError) throw error;
+      return failure('NATIVE_POS_CASH_UNAVAILABLE');
+    });
+    const value = await boundedJson(response);
+    if (!exact(value, ['data', 'context']))
+      return failure('NATIVE_POS_CASH_RESPONSE_INVALID');
+    context(value.context, actor);
+    return commandReceipt(operation, value.data);
+  };
+  return { cash, command };
 }
 
 /** Retained WorkContext render input; the native owner still re-checks scope. */

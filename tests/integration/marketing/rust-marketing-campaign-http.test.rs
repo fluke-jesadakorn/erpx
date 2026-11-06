@@ -290,3 +290,233 @@ async fn actual_router_forwards_exact_target_and_maps_business_errors() {
 
     server.abort();
 }
+
+mod lead_http {
+    use super::{get, get_with_body, http};
+    use erpx_server_marketing::public::lead_candidate_http::{
+        MarketingLeadHttpBackend, MarketingLeadHttpFuture, MarketingLeadHttpReadRequest,
+        MarketingLeadHttpResponse, MarketingLeadHttpTarget, marketing_lead_http_router,
+    };
+    use erpx_server_runtime::public::http_support::serve;
+    use erpx_server_shared::public::{BusinessError, FailureKind};
+    use std::sync::{Arc, Mutex};
+
+    #[derive(Clone, Debug, Eq, PartialEq)]
+    struct Seen {
+        host: String,
+        holding: String,
+        candidate: Option<String>,
+    }
+
+    struct Probe {
+        seen: Arc<Mutex<Vec<Seen>>>,
+        fail: Option<BusinessError>,
+    }
+
+    impl MarketingLeadHttpBackend for Probe {
+        fn read<'a>(
+            &'a self,
+            request: MarketingLeadHttpReadRequest<'a>,
+        ) -> MarketingLeadHttpFuture<'a, MarketingLeadHttpResponse> {
+            Box::pin(async move {
+                self.seen.lock().unwrap().push(Seen {
+                    host: request.host.into(),
+                    holding: request.holding_slug.into(),
+                    candidate: request.candidate_id.map(str::to_owned),
+                });
+                if let Some(error) = self.fail.clone() {
+                    return Err(error);
+                }
+                Ok(MarketingLeadHttpResponse {
+                    data: if request.candidate_id.is_some() {
+                        serde_json::json!({
+                            "candidate": {
+                                "id": "candidate-1",
+                                "company_id": "company",
+                                "branch_id": "branch",
+                                "department_id": null,
+                                "form_id": "form-company",
+                                "form_version": 1,
+                                "form_name": "Lead form",
+                                "contact_name": "Synthetic one",
+                                "contact_detail": "Synthetic channel",
+                                "consent_evidence": "Synthetic consent",
+                                "attribution_json": "{\"campaign\":\"AUTUMN\",\"source\":\"web\"}",
+                                "brief": "Synthetic brief",
+                                "status": "pending",
+                                "crm_lead_id": null,
+                                "created_by": "owner",
+                                "reviewed_by": null,
+                                "version": 1,
+                                "created_at": 100,
+                                "updated_at": 100
+                            },
+                            "history": []
+                        })
+                    } else {
+                        serde_json::json!({"assets": []})
+                    },
+                    context: serde_json::json!({
+                        "userId": "user",
+                        "companyId": "company",
+                        "permissions": ["records.read"]
+                    }),
+                })
+            })
+        }
+    }
+
+    fn target(backend: Arc<dyn MarketingLeadHttpBackend>) -> MarketingLeadHttpTarget {
+        MarketingLeadHttpTarget {
+            host: "acme.example.test".into(),
+            holding_slug: "acme".into(),
+            origin: "https://acme.example.test".into(),
+            backend,
+        }
+    }
+
+    #[test]
+    fn configuration_requires_distinct_exact_targets() {
+        let backend: Arc<dyn MarketingLeadHttpBackend> = Arc::new(Probe {
+            seen: Arc::new(Mutex::new(Vec::new())),
+            fail: None,
+        });
+        assert!(marketing_lead_http_router(vec![target(backend.clone())]).is_ok());
+        assert!(
+            marketing_lead_http_router(vec![target(backend.clone()), target(backend.clone())])
+                .is_err()
+        );
+        assert!(
+            marketing_lead_http_router(vec![MarketingLeadHttpTarget {
+                origin: "http://acme.example.test".into(),
+                ..target(backend.clone())
+            }])
+            .is_err()
+        );
+        assert!(
+            marketing_lead_http_router(vec![MarketingLeadHttpTarget {
+                holding_slug: "Acme".into(),
+                ..target(backend)
+            }])
+            .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn router_forwards_exact_candidate_and_rejects_query_body_and_unknown_targets() {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let backend = Arc::new(Probe {
+            seen: seen.clone(),
+            fail: None,
+        });
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let router = marketing_lead_http_router(vec![target(backend)]).unwrap();
+        let server = tokio::spawn(async move {
+            let _ = serve(listener, router).await;
+        });
+        let (status, body, text) = http(
+            addr,
+            get(
+                "/api/v1/holdings/acme/marketing/leads/candidate-1",
+                "acme.example.test",
+            ),
+        )
+        .await;
+        assert_eq!(status, 200);
+        assert_eq!(body["data"]["candidate"]["id"], "candidate-1");
+        assert_eq!(body["context"]["companyId"], "company");
+        assert!(text.contains("private, no-store"));
+        assert!(text.contains("no-referrer"));
+        assert!(text.contains("nosniff"));
+        assert_eq!(
+            seen.lock().unwrap().as_slice(),
+            &[Seen {
+                host: "acme.example.test".into(),
+                holding: "acme".into(),
+                candidate: Some("candidate-1".into())
+            }]
+        );
+
+        let (status, body, _) = http(
+            addr,
+            get(
+                "/api/v1/holdings/acme/marketing/assets",
+                "acme.example.test",
+            ),
+        )
+        .await;
+        assert_eq!(status, 200);
+        assert_eq!(body["data"]["assets"], serde_json::json!([]));
+        assert_eq!(seen.lock().unwrap().last().unwrap().candidate, None);
+
+        let (status, body, _) = http(
+            addr,
+            get(
+                "/api/v1/holdings/acme/marketing/leads/candidate-1?query=1",
+                "acme.example.test",
+            ),
+        )
+        .await;
+        assert_eq!(status, 422);
+        assert_eq!(body["error"]["code"], "MARKETING_LEAD_REQUEST_INVALID");
+
+        let (status, body, _) = http(
+            addr,
+            get_with_body(
+                "/api/v1/holdings/acme/marketing/leads/candidate-1",
+                "acme.example.test",
+            ),
+        )
+        .await;
+        assert_eq!(status, 422);
+        assert_eq!(body["error"]["code"], "MARKETING_LEAD_REQUEST_INVALID");
+
+        let (status, body, _) = http(
+            addr,
+            get(
+                "/api/v1/holdings/acme/marketing/leads/candidate-1",
+                "other.example.test",
+            ),
+        )
+        .await;
+        assert_eq!(status, 404);
+        assert_eq!(body["error"]["code"], "NOT_FOUND");
+
+        assert_eq!(
+            seen.lock().unwrap().len(),
+            2,
+            "rejected transport requests must not reach the backend"
+        );
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn backend_denial_maps_to_the_exact_status() {
+        let backend = Arc::new(Probe {
+            seen: Arc::new(Mutex::new(Vec::new())),
+            fail: Some(BusinessError::new(
+                FailureKind::Conflict,
+                "MARKETING_CANDIDATE_CHANGED",
+                "The lead candidate changed.",
+            )),
+        });
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let router = marketing_lead_http_router(vec![target(backend)]).unwrap();
+        let server = tokio::spawn(async move {
+            let _ = serve(listener, router).await;
+        });
+        let (status, body, _) = http(
+            addr,
+            get(
+                "/api/v1/holdings/acme/marketing/leads/candidate-1",
+                "acme.example.test",
+            ),
+        )
+        .await;
+        assert_eq!(status, 409);
+        assert_eq!(body["error"]["code"], "MARKETING_CANDIDATE_CHANGED");
+        server.abort();
+    }
+}

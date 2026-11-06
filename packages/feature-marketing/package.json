@@ -7,7 +7,8 @@
     "./components/public-form-draft-boundary": "./src/components/public-form-draft-boundary.tsx",
     "./components/public-marketing-form": "./src/components/public-marketing-form.tsx",
     "./components/marketing-console": "./src/components/marketing-console.tsx",
-    "./lib/public-form-command": "./src/lib/public-form-command.ts"
+    "./lib/public-form-command": "./src/lib/public-form-command.ts",
+    "./public/native-marketing-lead": "./src/public/native-marketing-lead.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

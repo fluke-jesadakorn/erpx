@@ -131,6 +131,13 @@ fn get(path: &str, host: &str) -> String {
     format!("GET {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n")
 }
 
+fn post(path: &str, host: &str, body: &str) -> String {
+    format!(
+        "POST {path} HTTP/1.1\r\nHost: {host}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    )
+}
+
 #[tokio::test]
 async fn actual_router_forwards_exact_query_and_maps_business_errors() {
     let seen = Arc::new(Mutex::new(Vec::new()));
@@ -271,6 +278,49 @@ async fn actual_router_forwards_exact_query_and_maps_business_errors() {
     .await;
     assert_eq!(status, 404);
 
+    server.abort();
+}
+
+#[tokio::test]
+async fn sales_document_list_router_does_not_accept_unported_commands() {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let router = sales_documents_router(vec![SalesDocumentsHttpTarget {
+        host: "acme.example.test".into(),
+        holding_slug: "acme".into(),
+        origin: "https://acme.example.test".into(),
+        backend: Arc::new(Probe {
+            seen: seen.clone(),
+            fail: false,
+        }),
+    }])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+
+    let (status, _, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/sales/documents",
+            "acme.example.test",
+            "{\"action\":\"submit\"}",
+        ),
+    )
+    .await;
+    assert_eq!(status, 405);
+    let (status, _, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/sales/documents/order-1/transition",
+            "acme.example.test",
+            "{\"action\":\"submit\"}",
+        ),
+    )
+    .await;
+    assert_eq!(status, 404);
+    assert!(seen.lock().unwrap().is_empty());
     server.abort();
 }
 
