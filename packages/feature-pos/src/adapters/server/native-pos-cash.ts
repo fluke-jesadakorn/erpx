@@ -43,7 +43,7 @@ export type NativePosCommandReceipt = Readonly<{ id: string; version?: number }>
  * retained TypeScript POS application until their public ports exist. */
 export const NATIVE_POS_COMMANDS = new Set([
   'shift.open', 'shift.close', 'shift.review', 'cash.approve',
-  'sale.create', 'sale.hold', 'sale.resume', 'sale.cancel',
+  'sale.create', 'sale.add', 'sale.update_line', 'sale.hold', 'sale.resume', 'sale.cancel',
   'refund.request', 'refund.reject',
 ]);
 /** Operations in the five POS owner workflows. Once the native transport is

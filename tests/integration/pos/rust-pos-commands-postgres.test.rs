@@ -2,8 +2,9 @@
 //! PostgreSQL. Cross-owner Finance/Inventory/PMS effects are recording ports;
 //! these tests prove POS-owned persistence, CAS, idempotency and readback.
 use erpx_server_pos::public::commands::{
-    PgPosCommandRepository, PosActor, PosCommand, PosFinancePort, PosFuture, PosHospitalityPort,
-    PosJournalRequest, PosOperation, PosOrganizationPort, PosResult, execute_pos_command,
+    PgPosCommandRepository, PosActor, PosCatalogProduct, PosCatalogSnapshot, PosCommand,
+    PosFinancePort, PosFuture, PosHospitalityPort, PosJournalRequest, PosOperation,
+    PosOrganizationPort, PosResult, execute_pos_command,
 };
 use erpx_server_runtime::public::postgres::{
     DatabaseConfig, DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, PoolLimits,
@@ -136,16 +137,27 @@ async fn run(
     actor: PosActor,
     command: PosCommand,
 ) -> Result<PosResult, PgTransactionError<BusinessError>> {
+    run_with_catalog(pool, actor, command, None).await
+}
+
+async fn run_with_catalog(
+    pool: &DatabasePool,
+    actor: PosActor,
+    command: PosCommand,
+    catalog: Option<PosCatalogSnapshot>,
+) -> Result<PosResult, PgTransactionError<BusinessError>> {
     PgUnitOfWork::new(pool.clone())
         .run::<PosResult, BusinessError, _>(TransactionOptions::default(), move |connection| {
             let actor = actor.clone();
             let command = command.clone();
+            let catalog = catalog.clone();
             Box::pin(async move {
                 let mut repository = PgPosCommandRepository::new(connection);
                 execute_pos_command(
                     &actor,
                     &command,
                     &mut repository,
+                    catalog.as_ref(),
                     &mut Finance,
                     &mut Hospitality,
                     &mut Organization,
@@ -827,6 +839,7 @@ fn non_serializable_transaction_fails_closed() {
                     serde_json::json!({"registerId":"register","openingMinor":100000}),
                 ),
                 &mut repository,
+                None,
                 &mut Finance,
                 &mut Hospitality,
                 &mut Organization,
@@ -845,5 +858,87 @@ fn non_serializable_transaction_fails_closed() {
                 .await
                 .unwrap();
         })
+    });
+}
+
+fn service_catalog() -> PosCatalogProduct {
+    PosCatalogProduct {
+        id: "service".into(),
+        name: "Service".into(),
+        price_minor: 10_000,
+        tax_bps: 700,
+        tax_inclusive: false,
+        kind: "service".into(),
+        station: "Shop".into(),
+        recipe_json: "[]".into(),
+        modifiers_json: "[]".into(),
+        catalog_version: 1,
+    }
+}
+
+#[test]
+fn sale_add_and_update_line_write_the_line_totals_and_versions() {
+    with_database(|pool| async move {
+            setup(&pool).await;
+            sqlx::raw_sql(
+                "INSERT INTO commerce_products(id,company_id,sku,name,price_minor,tax_bps,status,version) VALUES('service','company','SVC','Service',10000,700,'active',1); INSERT INTO pos_sales(id,company_id,branch_id,register_id,shift_id,number,currency,business_date,state,subtotal_minor,tax_minor,total_minor,created_by,created_at,updated_at,accounts_json,service_mode,version) VALUES('sale-add','company','branch','register','shift','POS-ADD','THB','2027-01-15','open',0,0,0,'cashier',0,0,'{}','retail',1)",
+            )
+            .execute(pool.raw())
+            .await
+            .unwrap();
+            let snapshot = PosCatalogSnapshot {
+                register_id: "register".into(),
+                product: service_catalog(),
+            };
+            let add = command(
+                PosOperation::SaleAdd,
+                "sale-add-key-0001",
+                serde_json::json!({"id":"sale-add","expectedVersion":1,"productId":"service","quantityMilli":2000,"modifierIds":[],"discountMinor":0,"note":"First line"}),
+            );
+            let result = run_with_catalog(&pool, actor("manager"), add, Some(snapshot)).await.unwrap();
+            assert_eq!(result.id, "sale-add");
+            assert_eq!(result.version, Some(2));
+            let line: (String, i64, i64, i64) = sqlx::query_as(
+                "SELECT product_id,quantity_milli,subtotal_minor,tax_minor FROM pos_lines WHERE sale_id='sale-add'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(line, ("service".into(), 2000, 20_000, 1_400));
+            let sale: (i64, i64, i64, i64) = sqlx::query_as(
+                "SELECT subtotal_minor,tax_minor,total_minor,version FROM pos_sales WHERE id='sale-add'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(sale, (20_000, 1_400, 21_400, 2));
+            let line_id: String = sqlx::query_scalar(
+                "SELECT id FROM pos_lines WHERE sale_id='sale-add'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            let update = command(
+                PosOperation::SaleUpdateLine,
+                "sale-update-key-0001",
+                serde_json::json!({"id":"sale-add","expectedVersion":2,"lineId":line_id,"quantityMilli":3000,"discountMinor":0,"note":"Updated line"}),
+            );
+            let updated = run(&pool, actor("manager"), update).await.unwrap();
+            assert_eq!(updated.id, "sale-add");
+            assert_eq!(updated.version, Some(3));
+            let updated_line: (i64, i64, i64) = sqlx::query_as(
+                "SELECT quantity_milli,subtotal_minor,tax_minor FROM pos_lines WHERE sale_id='sale-add'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(updated_line, (3000, 30_000, 2_100));
+            let updated_sale: (i64, i64, i64, i64) = sqlx::query_as(
+                "SELECT subtotal_minor,tax_minor,total_minor,version FROM pos_sales WHERE id='sale-add'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(updated_sale, (30_000, 2_100, 32_100, 3));
     });
 }

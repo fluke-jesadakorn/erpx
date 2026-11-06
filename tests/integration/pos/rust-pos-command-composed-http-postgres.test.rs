@@ -44,15 +44,19 @@ fn request_with(
         .unwrap()
 }
 
-fn request(p: &review::Prepared, body: &str, key: &str) -> Request<Body> {
+fn request_op(p: &review::Prepared, path: &str, body: &str, key: &str) -> Request<Body> {
     request_with(
         &p.maker_token,
         "finance-fixture-a",
         "4",
-        "/api/v1/holdings/acme/pos/commands/sale.create",
+        path,
         body,
         key,
     )
+}
+
+fn request(p: &review::Prepared, body: &str, key: &str) -> Request<Body> {
+    request_op(p, "/api/v1/holdings/acme/pos/commands/sale.create", body, key)
 }
 
 fn review_request(p: &review::Prepared, body: &str, key: &str) -> Request<Body> {
@@ -101,6 +105,12 @@ async fn seed_pos(p: &review::Prepared) {
          VALUES('company',true,'THB','{\"chartId\":\"chart\",\"cash\":\"cash\",\"cashTransfer\":\"transfer\",\"cashDifference\":\"difference\"}','fixture-a','fixture-b',1) ON CONFLICT DO NOTHING;\
          INSERT INTO pos_registers(id,company_id,branch_id,warehouse_id,name,mode,active,version) \
          VALUES('register','company','branch','warehouse','Retail','retail',true,1) ON CONFLICT DO NOTHING;\
+         INSERT INTO commerce_products(id,company_id,sku,name,price_minor,tax_bps,status,version) \
+         VALUES('product','company','SALE-ADD','Sale add product',10000,700,'active',1) ON CONFLICT DO NOTHING;\
+         INSERT INTO pos_catalog(product_id,company_id,kind,station,recipe_json,modifiers_json,tax_inclusive,version,enabled) \
+         VALUES('product','company','service','Shop','[]','[]',false,1,true) ON CONFLICT DO NOTHING;\
+         INSERT INTO pos_register_catalog(register_id,product_id,enabled) \
+         VALUES('register','product',true) ON CONFLICT DO NOTHING;\
          INSERT INTO pos_shifts(id,register_id,company_id,branch_id,opened_by,opened_at,opening_minor,state,version,business_date) \
          VALUES('shift','register','company','branch','fixture-a',1800000000000,100000,'open',1,'2027-01-15') ON CONFLICT DO NOTHING;\
          INSERT INTO pos_shifts(id,register_id,company_id,branch_id,opened_by,opened_at,opening_minor,state,version,business_date,closed_by,closed_at,counted_minor,expected_minor,variance_minor) \
@@ -185,6 +195,60 @@ async fn pos_http_creates_a_retail_sale_with_real_organization_and_finance_sourc
             .await
             .unwrap();
         assert_eq!(count, 1);
+
+        let added = app
+            .clone()
+            .oneshot(request_op(
+                &p,
+                "/api/v1/holdings/acme/pos/commands/sale.add",
+                &format!(
+                    r#"{{"id":"{id}","expectedVersion":1,"productId":"product","quantityMilli":1000,"modifierIds":[],"discountMinor":0,"note":"Added line"}}"#
+                ),
+                "pos-http-sale-add-1",
+            ))
+            .await
+            .unwrap();
+        let status = added.status();
+        let added = json(added).await;
+        assert_eq!(status, StatusCode::OK, "{added}");
+        assert_eq!(added["data"]["id"], id);
+        assert_eq!(added["data"]["version"], 2);
+        let line: (i64, i64, i64) = sqlx::query_as(
+            "SELECT quantity_milli,subtotal_minor,tax_minor FROM pos_lines WHERE sale_id=$1",
+        )
+        .bind(&id)
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(line, (1000, 10_000, 700));
+        let totals: (i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT subtotal_minor,tax_minor,total_minor,version FROM pos_sales WHERE id=$1",
+        )
+        .bind(&id)
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(totals, (10_000, 700, 10_700, 2));
+
+        let replay = app
+            .clone()
+            .oneshot(request_op(
+                &p,
+                "/api/v1/holdings/acme/pos/commands/sale.add",
+                &format!(
+                    r#"{{"id":"{id}","expectedVersion":1,"productId":"product","quantityMilli":1000,"modifierIds":[],"discountMinor":0,"note":"Added line"}}"#
+                ),
+                "pos-http-sale-add-1",
+            ))
+            .await
+            .unwrap();
+        assert_eq!(replay.status(), StatusCode::OK);
+        let lines: i64 = sqlx::query_scalar("SELECT count(*) FROM pos_lines WHERE sale_id=$1")
+            .bind(&id)
+            .fetch_one(p.system.holdings[0].raw())
+            .await
+            .unwrap();
+        assert_eq!(lines, 1);
     })
     .await;
 }

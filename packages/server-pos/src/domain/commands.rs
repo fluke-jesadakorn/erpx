@@ -15,6 +15,8 @@ pub const OPERATION_CASH_APPROVE: &str = "cash.approve";
 pub const OPERATION_SALE_CREATE: &str = "sale.create";
 pub const OPERATION_SALE_HOLD: &str = "sale.hold";
 pub const OPERATION_SALE_RESUME: &str = "sale.resume";
+pub const OPERATION_SALE_ADD: &str = "sale.add";
+pub const OPERATION_SALE_UPDATE_LINE: &str = "sale.update_line";
 pub const OPERATION_SALE_CANCEL: &str = "sale.cancel";
 pub const OPERATION_REFUND_REQUEST: &str = "refund.request";
 pub const OPERATION_REFUND_REJECT: &str = "refund.reject";
@@ -92,6 +94,8 @@ pub enum PosOperation {
     ShiftReview,
     CashApprove,
     SaleCreate,
+    SaleAdd,
+    SaleUpdateLine,
     SaleHold,
     SaleResume,
     SaleCancel,
@@ -107,6 +111,8 @@ impl PosOperation {
             OPERATION_SHIFT_REVIEW => Self::ShiftReview,
             OPERATION_CASH_APPROVE => Self::CashApprove,
             OPERATION_SALE_CREATE => Self::SaleCreate,
+            OPERATION_SALE_ADD => Self::SaleAdd,
+            OPERATION_SALE_UPDATE_LINE => Self::SaleUpdateLine,
             OPERATION_SALE_HOLD => Self::SaleHold,
             OPERATION_SALE_RESUME => Self::SaleResume,
             OPERATION_SALE_CANCEL => Self::SaleCancel,
@@ -122,6 +128,8 @@ impl PosOperation {
             Self::ShiftReview => OPERATION_SHIFT_REVIEW,
             Self::CashApprove => OPERATION_CASH_APPROVE,
             Self::SaleCreate => OPERATION_SALE_CREATE,
+            Self::SaleAdd => OPERATION_SALE_ADD,
+            Self::SaleUpdateLine => OPERATION_SALE_UPDATE_LINE,
             Self::SaleHold => OPERATION_SALE_HOLD,
             Self::SaleResume => OPERATION_SALE_RESUME,
             Self::SaleCancel => OPERATION_SALE_CANCEL,
@@ -165,6 +173,27 @@ pub struct SaleCreateInput {
     pub currency: Option<String>,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SaleAddInput {
+    pub id: String,
+    pub expected_version: i64,
+    pub product_id: String,
+    pub quantity_milli: i64,
+    pub modifier_ids: Vec<String>,
+    pub discount_minor: i64,
+    pub note: String,
+    pub expected_price_minor: Option<i64>,
+    pub expected_catalog_version: Option<i64>,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SaleUpdateLineInput {
+    pub id: String,
+    pub expected_version: i64,
+    pub line_id: String,
+    pub quantity_milli: i64,
+    pub discount_minor: i64,
+    pub note: String,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SaleVersionInput {
     pub id: String,
     pub expected_version: i64,
@@ -198,6 +227,8 @@ pub enum PosCommandInput {
     ShiftReview(ShiftReviewInput),
     CashApprove(CashApproveInput),
     SaleCreate(SaleCreateInput),
+    SaleAdd(SaleAddInput),
+    SaleUpdateLine(SaleUpdateLineInput),
     SaleVersion(SaleVersionInput),
     RefundRequest(RefundRequestInput),
     RefundReject(RefundRejectInput),
@@ -232,6 +263,7 @@ pub struct PosRegister {
     pub id: String,
     pub company_id: String,
     pub branch_id: String,
+    pub warehouse_id: String,
     pub name: String,
     pub mode: String,
     pub active: bool,
@@ -271,6 +303,7 @@ pub struct PosSale {
     pub number: String,
     pub currency: String,
     pub business_date: String,
+    pub service_mode: String,
     pub state: String,
     pub subtotal_minor: i64,
     pub tax_minor: i64,
@@ -279,6 +312,69 @@ pub struct PosSale {
     pub created_by: String,
     pub version: i64,
     pub accounts_json: String,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PosCatalogSnapshot {
+    pub register_id: String,
+    pub product: PosCatalogProduct,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PosCatalogProduct {
+    pub id: String,
+    pub name: String,
+    pub price_minor: i64,
+    pub tax_bps: i64,
+    pub tax_inclusive: bool,
+    pub kind: String,
+    pub station: String,
+    pub recipe_json: String,
+    pub modifiers_json: String,
+    pub catalog_version: i64,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PosFulfillmentInsert {
+    pub id: String,
+    pub company_id: String,
+    pub branch_id: String,
+    pub warehouse_id: String,
+    pub product_id: String,
+    pub quantity_milli: i64,
+    pub kind: String,
+    pub station: String,
+    pub note: String,
+    pub recipe_json: String,
+    pub accounts_json: String,
+    pub currency: String,
+    pub business_date: String,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PosLineInsert {
+    pub id: String,
+    pub sale_id: String,
+    pub fulfillment_id: String,
+    pub product_id: String,
+    pub name: String,
+    pub quantity_milli: i64,
+    pub price_minor: i64,
+    pub tax_bps: i64,
+    pub tax_inclusive: bool,
+    pub discount_minor: i64,
+    pub subtotal_minor: i64,
+    pub tax_minor: i64,
+    pub modifiers_json: String,
+    pub note: String,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PosLineDetail {
+    pub id: String,
+    pub fulfillment_id: String,
+    pub price_minor: i64,
+    pub tax_bps: i64,
+    pub tax_inclusive: bool,
+    pub discount_minor: i64,
+    pub bill_discount_minor: i64,
+    pub note: String,
+    pub fulfillment_state: String,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PosLine {
@@ -560,6 +656,24 @@ fn canonical(values: &[(&str, String)]) -> String {
 fn json_string(value: &str) -> String {
     serde_json::to_string(value).unwrap()
 }
+fn optional_money(value: &serde_json::Value, key: &str) -> Result<Option<i64>, BusinessError> {
+    match value.get(key) {
+        None => Ok(None),
+        Some(value) => Ok(Some(money(value.as_i64().ok_or_else(|| {
+            request_invalid("POS_COMMAND_INVALID", "Review the POS money fields.")
+        })?)?)),
+    }
+}
+fn optional_note(value: &serde_json::Value, key: &str) -> Result<String, BusinessError> {
+    match value.get(key) {
+        None => Ok(String::new()),
+        Some(value) => Ok(value
+            .as_str()
+            .filter(|value| value.len() <= 500)
+            .ok_or_else(|| request_invalid("POS_COMMAND_INVALID", "Review the line note."))?
+            .to_owned()),
+    }
+}
 fn optional_json(value: Option<&str>) -> String {
     value.map_or_else(|| "null".into(), json_string)
 }
@@ -800,6 +914,142 @@ impl PosCommand {
                         ("partyId", optional_json(party_id.as_deref())),
                         ("serviceMode", json_string(&service_mode)),
                         ("currency", optional_json(currency.as_deref())),
+                    ]),
+                )
+            }
+            PosOperation::SaleAdd => {
+                object(
+                    value,
+                    &[
+                        "id",
+                        "expectedVersion",
+                        "productId",
+                        "quantityMilli",
+                        "modifierIds",
+                        "discountMinor",
+                        "note",
+                        "expectedPriceMinor",
+                        "expectedCatalogVersion",
+                    ],
+                    &["id", "expectedVersion", "productId", "quantityMilli"],
+                )?;
+                let id = text(value, "id")?;
+                let expected_version = version(integer(value, "expectedVersion")?)?;
+                let product_id = text(value, "productId")?;
+                let quantity_milli = integer(value, "quantityMilli")?;
+                if !(1..=999_999_999).contains(&quantity_milli) {
+                    return Err(request_invalid("POS_COMMAND_INVALID", "Review the line quantity."));
+                }
+                let modifier_ids = match value.get("modifierIds") {
+                    None => Vec::new(),
+                    Some(serde_json::Value::Array(entries)) => {
+                        let mut ids = Vec::new();
+                        for entry in entries {
+                            let id = entry
+                                .as_str()
+                                .filter(|value| !value.is_empty() && value.len() <= 128)
+                                .ok_or_else(|| {
+                                    request_invalid(
+                                        "POS_MODIFIER_INVALID",
+                                        "Review the selected product options.",
+                                    )
+                                })?;
+                            if !ids.iter().any(|current| current == id) {
+                                ids.push(id.to_owned());
+                            }
+                        }
+                        if ids.len() > 30 {
+                            return Err(request_invalid(
+                                "POS_MODIFIER_INVALID",
+                                "Review the selected product options.",
+                            ));
+                        }
+                        ids
+                    }
+                    _ => {
+                        return Err(request_invalid(
+                            "POS_MODIFIER_INVALID",
+                            "Review the selected product options.",
+                        ));
+                    }
+                };
+                let discount_minor = optional_money(value, "discountMinor")?.unwrap_or(0);
+                let note = optional_note(value, "note")?;
+                let expected_price_minor = optional_money(value, "expectedPriceMinor")?;
+                let expected_catalog_version = match value.get("expectedCatalogVersion") {
+                    None => None,
+                    Some(value) => Some(version(value.as_i64().ok_or_else(|| {
+                        request_invalid("POS_CATALOG_CHANGED", "Review the current catalogue.")
+                    })?)?),
+                };
+                (
+                    PosCommandInput::SaleAdd(SaleAddInput {
+                        id: id.clone(),
+                        expected_version,
+                        product_id: product_id.clone(),
+                        quantity_milli,
+                        modifier_ids: modifier_ids.clone(),
+                        discount_minor,
+                        note: note.clone(),
+                        expected_price_minor,
+                        expected_catalog_version,
+                    }),
+                    canonical(&[
+                        ("id", json_string(&id)),
+                        ("expectedVersion", expected_version.to_string()),
+                        ("productId", json_string(&product_id)),
+                        ("quantityMilli", quantity_milli.to_string()),
+                        (
+                            "modifierIds",
+                            format!(
+                                "[{}]",
+                                modifier_ids.iter().map(|id| json_string(id)).collect::<Vec<_>>().join(",")
+                            ),
+                        ),
+                        ("discountMinor", discount_minor.to_string()),
+                        ("note", json_string(&note)),
+                        (
+                            "expectedPriceMinor",
+                            optional_json(expected_price_minor.map(|v| v.to_string()).as_deref()),
+                        ),
+                        (
+                            "expectedCatalogVersion",
+                            optional_json(expected_catalog_version.map(|v| v.to_string()).as_deref()),
+                        ),
+                    ]),
+                )
+            }
+            PosOperation::SaleUpdateLine => {
+                object(
+                    value,
+                    &["id", "expectedVersion", "lineId", "quantityMilli", "discountMinor", "note"],
+                    &["id", "expectedVersion", "lineId", "quantityMilli", "discountMinor"],
+                )?;
+                let id = text(value, "id")?;
+                let expected_version = version(integer(value, "expectedVersion")?)?;
+                let line_id = text(value, "lineId")?;
+                let quantity_milli = integer(value, "quantityMilli")?;
+                if !(1..=999_999_999).contains(&quantity_milli) {
+                    return Err(request_invalid("POS_COMMAND_INVALID", "Review the line quantity."));
+                }
+                let discount_minor = money(integer(value, "discountMinor")?)?;
+                let note = optional_note(value, "note")?;
+                (
+                    PosCommandInput::SaleUpdateLine(SaleUpdateLineInput {
+                        id: id.clone(),
+                        expected_version,
+                        line_id: line_id.clone(),
+                        quantity_milli,
+                        discount_minor,
+                        note: note.clone(),
+                    }),
+                    canonical(&[
+                        ("id", json_string(&id)),
+                        ("expectedVersion", expected_version.to_string()),
+                        ("lineId", json_string(&line_id)),
+                        ("quantityMilli", quantity_milli.to_string()),
+                        ("discountMinor", discount_minor.to_string()),
+                        ("note", json_string(&note)),
                     ]),
                 )
             }

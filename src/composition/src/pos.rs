@@ -19,14 +19,15 @@ use erpx_server_pos::public::cash_movement_http::{
     CashMovementHttpResponse, CashMovementHttpTarget,
 };
 use erpx_server_pos::public::commands::{
-    PgPosCommandRepository, PosActor, PosCommand, PosCommandRepository, PosFinancePort,
-    PosFuture, PosHospitalityPort, PosJournalRequest, PosOrganizationPort, PosResult,
-    execute_pos_command,
+    PgPosCommandRepository, PosActor, PosCommand, PosCommandInput, PosCommandRepository,
+    PosCatalogProduct as PosCatalogSnapshotProduct, PosCatalogSnapshot, PosFinancePort, PosFuture,
+    PosHospitalityPort, PosJournalRequest, PosOrganizationPort, PosResult, execute_pos_command,
 };
 use erpx_server_pos::public::commands_http::{
     PosCommandHttpBackend, PosCommandHttpFuture, PosCommandHttpRequest, PosCommandHttpResponse,
     PosCommandHttpTarget,
 };
+use erpx_server_commerce::public::pos_catalog::{lock_pos_catalog, read_pos_catalog_product};
 use erpx_server_finance::public::FinanceActor;
 use erpx_server_finance::public::pos_journal::{
     PosJournalLine as FinancePosJournalLine, PosJournalPosting, post_pos_journal,
@@ -93,6 +94,7 @@ impl HoldingWorkSourcePreparation for PosCommandSources {
         Box::pin(async move {
             lock_pos_finance_sources(c).await.map_err(business)?;
             lock_pos_issuer_source(c).await.map_err(business)?;
+            lock_pos_catalog(c).await.map_err(business)?;
             Ok(())
         })
     }
@@ -421,6 +423,42 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
                             modules: current.modules().to_vec(),
                             expires_at: current.expires_at(),
                         };
+                        let catalog = match &command.input {
+                            PosCommandInput::SaleAdd(input) => {
+                                let mut snapshot = PgPosCommandRepository::new(connection);
+                                let sale = snapshot
+                                    .sale(&company, &input.id)
+                                    .await
+                                    .map_err(business)?;
+                                match sale {
+                                    Some(sale) => read_pos_catalog_product(
+                                        connection,
+                                        &company,
+                                        &sale.register_id,
+                                        &input.product_id,
+                                    )
+                                    .await
+                                    .map_err(business)?
+                                    .map(|product| PosCatalogSnapshot {
+                                        register_id: sale.register_id,
+                                        product: PosCatalogSnapshotProduct {
+                                            id: product.id,
+                                            name: product.name,
+                                            price_minor: product.price_minor,
+                                            tax_bps: product.tax_bps,
+                                            tax_inclusive: product.tax_inclusive,
+                                            kind: product.kind,
+                                            station: product.station,
+                                            recipe_json: product.recipe_json,
+                                            modifiers_json: product.modifiers_json,
+                                            catalog_version: product.catalog_version,
+                                        },
+                                    }),
+                                    None => None,
+                                }
+                            }
+                            _ => None,
+                        };
                         let mut repository = PgPosCommandRepository::new(connection);
                         let mut finance = PosFinanceQueue {
                             business_date,
@@ -434,6 +472,7 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
                             &actor,
                             &command,
                             &mut repository,
+                            catalog.as_ref(),
                             &mut finance,
                             &mut hospitality,
                             &mut organization,

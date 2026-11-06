@@ -2,9 +2,9 @@
 #![allow(clippy::field_reassign_with_default)]
 use erpx_server_pos::public::commands::{
     CashApproveInput, PosActor, PosCashMovement, PosCommand, PosCommandRepository, PosFinancePort,
-    PosFulfillment, PosFuture, PosHospitalityPort, PosJournalRequest, PosLine, PosOperation,
-    PosOrganizationPort, PosReceipt, PosRefund, PosRegister, PosResult, PosSale, PosSettings,
-    PosShift, execute_pos_command,
+    PosFulfillment, PosFulfillmentInsert, PosFuture, PosHospitalityPort, PosJournalRequest, PosLine,
+    PosLineDetail, PosLineInsert, PosOperation, PosOrganizationPort, PosReceipt, PosRefund,
+    PosRegister, PosResult, PosSale, PosSettings, PosShift, execute_pos_command,
 };
 use erpx_server_shared::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId,
@@ -42,6 +42,7 @@ fn register() -> PosRegister {
         id: "register".into(),
         company_id: "company".into(),
         branch_id: "branch".into(),
+        warehouse_id: "warehouse".into(),
         name: "Register".into(),
         mode: "retail".into(),
         active: true,
@@ -75,6 +76,7 @@ fn sale(state: &str, version: i64) -> PosSale {
         number: "POS-1".into(),
         currency: "THB".into(),
         business_date: "2026-11-06".into(),
+        service_mode: "retail".into(),
         state: state.into(),
         subtotal_minor: 10_000,
         tax_minor: 700,
@@ -434,6 +436,25 @@ impl PosCommandRepository for Probe {
         self.calls.push("reject-refund");
         Box::pin(async move { Ok(self.reject) })
     }
+
+    fn insert_fulfillment<'a>(&'a mut self, _: &'a PosFulfillmentInsert) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn insert_line<'a>(&'a mut self, _: &'a PosLineInsert) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn refresh_sale<'a>(&'a mut self, _: &'a str, _: TimestampMillis) -> PosFuture<'a, bool> {
+        Box::pin(async { Ok(true) })
+    }
+    fn sale_line<'a>(&'a mut self, _: &'a str, _: &'a str) -> PosFuture<'a, Option<PosLineDetail>> {
+        Box::pin(async { Ok(None) })
+    }
+    fn update_fulfillment<'a>(&'a mut self, _: &'a str, _: i64, _: &'a str) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn update_line<'a>(&'a mut self, _: &'a str, _: i64, _: i64, _: i64, _: i64, _: &'a str) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
 }
 
 #[derive(Default)]
@@ -506,6 +527,7 @@ fn run(
         &actor(),
         command,
         probe,
+        None,
         finance,
         hospitality,
         &mut Organization,
@@ -531,6 +553,7 @@ fn permission_module_expiry_and_department_precede_every_read() {
                 serde_json::json!({"registerId":"register","openingMinor":1000}),
             ),
             &mut probe,
+            None,
             &mut Finance::default(),
             &mut Hospitality::default(),
             &mut Organization,

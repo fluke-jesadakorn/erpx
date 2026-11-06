@@ -3,8 +3,9 @@
 //! hotel facts remain caller-supplied ports.
 use crate::application::commands::{PosCommandRepository, PosFuture};
 use crate::domain::commands::{
-    CashApproveInput, PosActor, PosCashMovement, PosCommand, PosFulfillment, PosLine, PosReceipt,
-    PosRefund, PosRegister, PosSale, PosSettings, PosShift, RefundRequestInput, SaleCreateInput,
+    CashApproveInput, PosActor, PosCashMovement, PosCommand, PosFulfillment, PosFulfillmentInsert,
+    PosLine, PosLineDetail, PosLineInsert, PosReceipt, PosRefund, PosRegister, PosSale, PosSettings,
+    PosShift, RefundRequestInput, SaleCreateInput,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
@@ -189,7 +190,7 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
         Box::pin(async move {
             self.ready().await?;
             let row = sqlx::query(
-                "SELECT id,company_id,branch_id,name,mode,active,property_id \
+                "SELECT id,company_id,branch_id,warehouse_id,name,mode,active,property_id \
                  FROM pos_registers WHERE id=$1 AND company_id=$2",
             )
             .bind(register_id)
@@ -201,6 +202,7 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
                     id: row.try_get("id")?,
                     company_id: row.try_get("company_id")?,
                     branch_id: row.try_get("branch_id")?,
+                    warehouse_id: row.try_get("warehouse_id")?,
                     name: row.try_get("name")?,
                     mode: row.try_get("mode")?,
                     active: row.try_get("active")?,
@@ -511,7 +513,7 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
         Box::pin(async move {
             self.ready().await?;
             let row = sqlx::query(
-                "SELECT id,company_id,branch_id,register_id,shift_id,number,currency,business_date,state,\
+                "SELECT id,company_id,branch_id,register_id,shift_id,number,currency,business_date,service_mode,state,\
                  subtotal_minor,tax_minor,discount_minor,total_minor,created_by,version,accounts_json \
                  FROM pos_sales WHERE id=$1 AND company_id=$2 FOR UPDATE",
             )
@@ -529,6 +531,7 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
                     number: row.try_get("number")?,
                     currency: row.try_get("currency")?,
                     business_date: row.try_get("business_date")?,
+                    service_mode: row.try_get("service_mode")?,
                     state: row.try_get("state")?,
                     subtotal_minor: row.try_get("subtotal_minor")?,
                     tax_minor: row.try_get("tax_minor")?,
@@ -732,6 +735,142 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
             .bind(issuer_json)
             .execute(&mut *self.connection)
             .await?;
+            Ok(())
+        })
+    }
+    fn insert_fulfillment<'a>(
+        &'a mut self,
+        fulfillment: &'a PosFulfillmentInsert,
+    ) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query(
+                "INSERT INTO pos_fulfillments(id,company_id,branch_id,warehouse_id,product_id,quantity_milli,kind,station,note,recipe_json,accounts_json,currency,business_date,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,(extract(epoch from clock_timestamp())*1000)::bigint)",
+            )
+            .bind(&fulfillment.id)
+            .bind(&fulfillment.company_id)
+            .bind(&fulfillment.branch_id)
+            .bind(&fulfillment.warehouse_id)
+            .bind(&fulfillment.product_id)
+            .bind(fulfillment.quantity_milli)
+            .bind(&fulfillment.kind)
+            .bind(&fulfillment.station)
+            .bind(&fulfillment.note)
+            .bind(&fulfillment.recipe_json)
+            .bind(&fulfillment.accounts_json)
+            .bind(&fulfillment.currency)
+            .bind(&fulfillment.business_date)
+            .bind(erpx_server_shared::public::TimestampMillis::new(0).get())
+            .execute(&mut *self.connection)
+            .await?;
+            Ok(())
+        })
+    }
+    fn insert_line<'a>(&'a mut self, line: &'a PosLineInsert) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query(
+                "INSERT INTO pos_lines(id,sale_id,fulfillment_id,product_id,name,quantity_milli,price_minor,tax_bps,tax_inclusive,discount_minor,subtotal_minor,tax_minor,modifiers_json,note) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)",
+            )
+            .bind(&line.id)
+            .bind(&line.sale_id)
+            .bind(&line.fulfillment_id)
+            .bind(&line.product_id)
+            .bind(&line.name)
+            .bind(line.quantity_milli)
+            .bind(line.price_minor)
+            .bind(line.tax_bps)
+            .bind(line.tax_inclusive)
+            .bind(line.discount_minor)
+            .bind(line.subtotal_minor)
+            .bind(line.tax_minor)
+            .bind(&line.modifiers_json)
+            .bind(&line.note)
+            .execute(&mut *self.connection)
+            .await?;
+            Ok(())
+        })
+    }
+    fn refresh_sale<'a>(&'a mut self, sale_id: &'a str, now: TimestampMillis) -> Fut<'a, bool> {
+        Box::pin(async move {
+            self.ready().await?;
+            let rows = sqlx::query(
+                "UPDATE pos_sales SET subtotal_minor=(SELECT COALESCE(SUM(subtotal_minor),0) FROM pos_lines WHERE sale_id=$1),tax_minor=(SELECT COALESCE(SUM(tax_minor),0) FROM pos_lines WHERE sale_id=$2),discount_minor=(SELECT COALESCE(SUM(discount_minor),0) FROM pos_lines WHERE sale_id=$3),total_minor=(SELECT COALESCE(SUM(subtotal_minor+tax_minor),0) FROM pos_lines WHERE sale_id=$4),version=version+1,updated_at=$5,discount_approved_by=NULL,discount_reason=NULL WHERE id=$6",
+            )
+            .bind(sale_id)
+            .bind(sale_id)
+            .bind(sale_id)
+            .bind(sale_id)
+            .bind(now.get())
+            .bind(sale_id)
+            .execute(&mut *self.connection)
+            .await?;
+            Ok(rows.rows_affected() == 1)
+        })
+    }
+    fn sale_line<'a>(&'a mut self, sale_id: &'a str, line_id: &'a str) -> Fut<'a, Option<PosLineDetail>> {
+        Box::pin(async move {
+            self.ready().await?;
+            let row = sqlx::query(
+                "SELECT l.id,l.fulfillment_id,l.price_minor,l.tax_bps,l.tax_inclusive,l.discount_minor,l.bill_discount_minor,l.note,f.state fulfillment_state FROM pos_lines l JOIN pos_fulfillments f ON f.id=l.fulfillment_id WHERE l.id=$1 AND l.sale_id=$2 FOR UPDATE OF l,f",
+            )
+            .bind(line_id)
+            .bind(sale_id)
+            .fetch_optional(&mut *self.connection)
+            .await?;
+            row.map(|row| {
+                Ok::<_, Error>(PosLineDetail {
+                    id: row.try_get("id")?,
+                    fulfillment_id: row.try_get("fulfillment_id")?,
+                    price_minor: row.try_get("price_minor")?,
+                    tax_bps: row.try_get("tax_bps")?,
+                    tax_inclusive: row.try_get("tax_inclusive")?,
+                    discount_minor: row.try_get("discount_minor")?,
+                    bill_discount_minor: row.try_get("bill_discount_minor")?,
+                    note: row.try_get("note")?,
+                    fulfillment_state: row.try_get("fulfillment_state")?,
+                })
+            })
+            .transpose()
+        })
+    }
+    fn update_fulfillment<'a>(
+        &'a mut self,
+        fulfillment_id: &'a str,
+        quantity_milli: i64,
+        note: &'a str,
+    ) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query("UPDATE pos_fulfillments SET quantity_milli=$1,note=$2,version=version+1 WHERE id=$3")
+                .bind(quantity_milli)
+                .bind(note)
+                .bind(fulfillment_id)
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(())
+        })
+    }
+    fn update_line<'a>(
+        &'a mut self,
+        line_id: &'a str,
+        quantity_milli: i64,
+        discount_minor: i64,
+        subtotal_minor: i64,
+        tax_minor: i64,
+        note: &'a str,
+    ) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query("UPDATE pos_lines SET quantity_milli=$1,discount_minor=$2,subtotal_minor=$3,tax_minor=$4,note=$5 WHERE id=$6")
+                .bind(quantity_milli)
+                .bind(discount_minor)
+                .bind(subtotal_minor)
+                .bind(tax_minor)
+                .bind(note)
+                .bind(line_id)
+                .execute(&mut *self.connection)
+                .await?;
             Ok(())
         })
     }

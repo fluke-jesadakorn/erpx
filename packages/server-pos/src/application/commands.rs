@@ -5,10 +5,11 @@
 //! cross-owner SQL is constructed here.
 #![allow(clippy::too_many_arguments)]
 use crate::domain::commands::{
-    CashApproveInput, PosActor, PosCashMovement, PosCommand, PosCommandInput, PosFulfillment,
-    PosJournalLine, PosJournalRequest, PosLine, PosOperation, PosReceipt, PosRefund, PosRegister,
-    PosResult, PosSale, PosSettings, PosShift, RefundRejectInput, RefundRequestInput,
-    SaleCreateInput, SaleVersionInput, ShiftCloseInput, ShiftOpenInput, ShiftReviewInput,
+    CashApproveInput, PosActor, PosCashMovement, PosCatalogProduct, PosCatalogSnapshot, PosCommand,
+    PosCommandInput, PosFulfillment, PosFulfillmentInsert, PosJournalLine, PosJournalRequest, PosLine,
+    PosLineDetail, PosLineInsert, PosOperation, PosReceipt, PosRefund, PosRegister, PosResult, PosSale, PosSettings,
+    PosShift, RefundRejectInput, RefundRequestInput, SaleAddInput, SaleCreateInput,
+    SaleUpdateLineInput, SaleVersionInput, ShiftCloseInput, ShiftOpenInput, ShiftReviewInput,
     accounting_review_required, conflict, day_closed, idempotency_conflict, independent_review,
     not_found, parse_receipt_result, period_closed, request_invalid, setup_required,
     source_invalid, valid_uuid, version_conflict,
@@ -179,6 +180,36 @@ pub trait PosCommandRepository: Send {
         actor: &'a PosActor,
         business_date: &'a str,
         now: TimestampMillis,
+    ) -> PosFuture<'a, (), Self::Error>;
+    fn insert_fulfillment<'a>(
+        &'a mut self,
+        fulfillment: &'a PosFulfillmentInsert,
+    ) -> PosFuture<'a, (), Self::Error>;
+    fn insert_line<'a>(&'a mut self, line: &'a PosLineInsert) -> PosFuture<'a, (), Self::Error>;
+    fn refresh_sale<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+        now: TimestampMillis,
+    ) -> PosFuture<'a, bool, Self::Error>;
+    fn sale_line<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+        line_id: &'a str,
+    ) -> PosFuture<'a, Option<PosLineDetail>, Self::Error>;
+    fn update_fulfillment<'a>(
+        &'a mut self,
+        fulfillment_id: &'a str,
+        quantity_milli: i64,
+        note: &'a str,
+    ) -> PosFuture<'a, (), Self::Error>;
+    fn update_line<'a>(
+        &'a mut self,
+        line_id: &'a str,
+        quantity_milli: i64,
+        discount_minor: i64,
+        subtotal_minor: i64,
+        tax_minor: i64,
+        note: &'a str,
     ) -> PosFuture<'a, (), Self::Error>;
     fn prepared_day_close<'a>(
         &'a mut self,
@@ -418,6 +449,7 @@ pub async fn execute_pos_command<R, F, H, O>(
     actor: &PosActor,
     command: &PosCommand,
     repository: &mut R,
+    catalog: Option<&PosCatalogSnapshot>,
     finance: &mut F,
     hospitality: &mut H,
     organization: &mut O,
@@ -456,6 +488,12 @@ where
         }
         PosCommandInput::CashApprove(input) => {
             cash_approve(actor, input, repository, finance, now).await?
+        }
+        PosCommandInput::SaleAdd(input) => {
+            sale_add(actor, input, catalog, repository, now).await?
+        }
+        PosCommandInput::SaleUpdateLine(input) => {
+            sale_update_line(actor, input, repository, now).await?
         }
         PosCommandInput::SaleCreate(input) => {
             sale_create(
@@ -1215,5 +1253,282 @@ where
     Ok(PosResult {
         id: refund.id,
         version: None,
+    })
+}
+
+fn sale_amounts(
+    quantity_milli: i64,
+    price_minor: i64,
+    tax_bps: i64,
+    tax_inclusive: bool,
+    discount_minor: i64,
+) -> Result<(i64, i64), BusinessError> {
+    let gross = scaled(price_minor, quantity_milli, 1000)?;
+    if discount_minor > gross {
+        return Err(request_invalid(
+            "POS_DISCOUNT_AMOUNT",
+            "The line discount exceeds the line amount.",
+        ));
+    }
+    let discounted = gross - discount_minor;
+    if tax_inclusive {
+        let subtotal = scaled(discounted, 10_000, 10_000 + tax_bps)?;
+        Ok((subtotal, discounted - subtotal))
+    } else {
+        let tax = scaled(discounted, tax_bps, 10_000)?;
+        Ok((discounted, tax))
+    }
+}
+
+struct SelectedModifier {
+    value: serde_json::Value,
+    price_minor: i64,
+}
+
+fn selected_modifiers(
+    modifiers_json: &str,
+    ids: &[String],
+) -> Result<Vec<SelectedModifier>, BusinessError> {
+    let invalid = || request_invalid("POS_MODIFIER_INVALID", "Review the selected product options.");
+    let value: serde_json::Value = serde_json::from_str(modifiers_json).map_err(|_| invalid())?;
+    let all = value.as_array().ok_or_else(invalid)?;
+    let mut selected = Vec::new();
+    for id in ids {
+        let modifier = all
+            .iter()
+            .find(|item| item.get("id").and_then(|value| value.as_str()) == Some(id.as_str()))
+            .ok_or_else(invalid)?;
+        let price_minor = modifier
+            .get("priceMinor")
+            .and_then(|value| value.as_i64())
+            .ok_or_else(invalid)?;
+        selected.push(SelectedModifier {
+            value: modifier.clone(),
+            price_minor,
+        });
+    }
+    Ok(selected)
+}
+
+fn recipe_parts(recipe_json: &str) -> Result<Vec<serde_json::Value>, BusinessError> {
+    let value: serde_json::Value = serde_json::from_str(recipe_json).map_err(|_| {
+        request_invalid("POS_PRODUCT_INVALID", "The product recipe is unavailable.")
+    })?;
+    value
+        .as_array()
+        .cloned()
+        .ok_or_else(|| request_invalid("POS_PRODUCT_INVALID", "The product recipe is unavailable."))
+}
+
+async fn sale_add<R>(
+    actor: &PosActor,
+    input: &SaleAddInput,
+    catalog: Option<&PosCatalogSnapshot>,
+    repository: &mut R,
+    now: TimestampMillis,
+) -> Result<PosResult, R::Error>
+where
+    R: PosCommandRepository,
+{
+    let sale = repository
+        .sale(&actor.company_id, &input.id)
+        .await?
+        .ok_or_else(not_found)?;
+    scope_sale(actor, &sale)?;
+    version_matches(sale.version, input.expected_version)?;
+    if !matches!(sale.state.as_str(), "open" | "held") {
+        return Err(conflict(
+            "POS_SALE_NOT_EDITABLE",
+            "Only an open or held bill can change.",
+        )
+        .into());
+    }
+    let snapshot = catalog.ok_or_else(|| {
+        request_invalid(
+            "POS_PRODUCT_INVALID",
+            "This product is not enabled for the sales point.",
+        )
+    })?;
+    if snapshot.register_id != sale.register_id || snapshot.product.id != input.product_id {
+        return Err(conflict(
+            "POS_CATALOG_CHANGED",
+            "The catalogue changed. Review the bill.",
+        )
+        .into());
+    }
+    let product = &snapshot.product;
+    if input
+        .expected_catalog_version
+        .is_some_and(|version| version != product.catalog_version)
+        || input
+            .expected_price_minor
+            .is_some_and(|price| price != product.price_minor)
+    {
+        return Err(conflict(
+            "POS_CATALOG_CHANGED",
+            "The catalogue price changed. Review the bill.",
+        )
+        .into());
+    }
+    let modifiers = selected_modifiers(&product.modifiers_json, &input.modifier_ids)?;
+    let price = modifiers
+        .iter()
+        .try_fold(product.price_minor, |total, modifier| {
+            total.checked_add(modifier.price_minor)
+        })
+        .ok_or_else(|| request_invalid("POS_COMMAND_INVALID", "Review the POS money fields."))?;
+    let (subtotal, tax) = sale_amounts(
+        input.quantity_milli,
+        price,
+        product.tax_bps,
+        product.tax_inclusive,
+        input.discount_minor,
+    )?;
+    if product.kind == "recipe" && sale.service_mode == "retail" {
+        return Err(request_invalid(
+            "POS_RESTAURANT_REQUIRED",
+            "Prepared menus require a restaurant sales point.",
+        )
+        .into());
+    }
+    let mut recipe = match product.kind.as_str() {
+        "stock" => vec![serde_json::json!({
+            "productId": input.product_id,
+            "quantityMilli": 1000,
+        })],
+        "recipe" => recipe_parts(&product.recipe_json)?,
+        _ => Vec::new(),
+    };
+    for modifier in &modifiers {
+        if let Some(ingredients) = modifier
+            .value
+            .get("ingredients")
+            .and_then(|value| value.as_array())
+        {
+            recipe.extend(ingredients.iter().cloned());
+        }
+    }
+    let register = repository
+        .register(&actor.company_id, &sale.register_id)
+        .await?
+        .ok_or_else(not_found)?;
+    let fulfillment_id = repository.new_id().await?;
+    let line_id = repository.new_id().await?;
+    if !valid_uuid(&fulfillment_id) || !valid_uuid(&line_id) {
+        return Err(source_invalid().into());
+    }
+    let recipe_json = serde_json::to_string(&recipe).map_err(|_| source_invalid())?;
+    let modifiers_json = serde_json::to_string(
+        &modifiers
+            .iter()
+            .map(|modifier| modifier.value.clone())
+            .collect::<Vec<_>>(),
+    )
+    .map_err(|_| source_invalid())?;
+    repository
+        .insert_fulfillment(&PosFulfillmentInsert {
+            id: fulfillment_id.clone(),
+            company_id: actor.company_id.as_str().to_owned(),
+            branch_id: sale.branch_id.clone(),
+            warehouse_id: register.warehouse_id.clone(),
+            product_id: input.product_id.clone(),
+            quantity_milli: input.quantity_milli,
+            kind: product.kind.clone(),
+            station: product.station.clone(),
+            note: input.note.clone(),
+            recipe_json,
+            accounts_json: sale.accounts_json.clone(),
+            currency: sale.currency.clone(),
+            business_date: sale.business_date.clone(),
+        })
+        .await?;
+    repository
+        .insert_line(&PosLineInsert {
+            id: line_id,
+            sale_id: sale.id.clone(),
+            fulfillment_id,
+            product_id: input.product_id.clone(),
+            name: product.name.clone(),
+            quantity_milli: input.quantity_milli,
+            price_minor: price,
+            tax_bps: product.tax_bps,
+            tax_inclusive: product.tax_inclusive,
+            discount_minor: input.discount_minor,
+            subtotal_minor: subtotal,
+            tax_minor: tax,
+            modifiers_json,
+            note: input.note.clone(),
+        })
+        .await?;
+    if !repository.refresh_sale(&sale.id, now).await? {
+        return Err(version_conflict().into());
+    }
+    Ok(PosResult {
+        id: sale.id,
+        version: Some(input.expected_version + 1),
+    })
+}
+
+async fn sale_update_line<R>(
+    actor: &PosActor,
+    input: &SaleUpdateLineInput,
+    repository: &mut R,
+    now: TimestampMillis,
+) -> Result<PosResult, R::Error>
+where
+    R: PosCommandRepository,
+{
+    let sale = repository
+        .sale(&actor.company_id, &input.id)
+        .await?
+        .ok_or_else(not_found)?;
+    scope_sale(actor, &sale)?;
+    version_matches(sale.version, input.expected_version)?;
+    if !matches!(sale.state.as_str(), "open" | "held") {
+        return Err(conflict(
+            "POS_SALE_NOT_EDITABLE",
+            "Only an open or held bill can change.",
+        )
+        .into());
+    }
+    let line = repository
+        .sale_line(&sale.id, &input.line_id)
+        .await?
+        .ok_or_else(|| request_invalid("POS_LINE_INVALID", "Line is not on this bill."))?;
+    if line.fulfillment_state != "draft" && input.quantity_milli != 0 {
+        return Err(conflict(
+            "POS_ITEM_IN_KITCHEN",
+            "A line already sent to the kitchen cannot change quantity.",
+        )
+        .into());
+    }
+    if line.fulfillment_state == "draft" {
+        repository
+            .update_fulfillment(&line.fulfillment_id, input.quantity_milli, &input.note)
+            .await?;
+    }
+    let (subtotal, tax) = sale_amounts(
+        input.quantity_milli,
+        line.price_minor,
+        line.tax_bps,
+        line.tax_inclusive,
+        input.discount_minor.saturating_add(line.bill_discount_minor),
+    )?;
+    repository
+        .update_line(
+            &line.id,
+            input.quantity_milli,
+            input.discount_minor,
+            subtotal,
+            tax,
+            &input.note,
+        )
+        .await?;
+    if !repository.refresh_sale(&sale.id, now).await? {
+        return Err(version_conflict().into());
+    }
+    Ok(PosResult {
+        id: sale.id,
+        version: Some(input.expected_version + 1),
     })
 }
