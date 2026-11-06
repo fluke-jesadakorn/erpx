@@ -1097,3 +1097,66 @@ fn sale_merge_moves_the_lines_and_marks_the_source() {
         assert_eq!(moved, 0);
     });
 }
+
+#[test]
+fn sale_split_creates_the_target_and_halves_the_fulfillment() {
+    with_database(|pool| async move {
+        setup(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO pos_sales(id,company_id,branch_id,register_id,shift_id,number,currency,business_date,state,created_by,created_at,updated_at,accounts_json,service_mode,version,issuer_json) VALUES\
+             ('sale-split','company','branch','register','shift','POS-S','THB','2027-01-15','open','cashier',0,0,'{}','retail',1,'{}');\
+             INSERT INTO pos_fulfillments(id,company_id,branch_id,warehouse_id,product_id,quantity_milli,kind,station,recipe_json,accounts_json,currency,business_date,created_at,state) VALUES\
+             ('split-fulfilment','company','branch','warehouse','product',2000,'stock','Kitchen','[]','{}','THB','2027-01-15',0,'draft');\
+             INSERT INTO pos_lines(id,sale_id,fulfillment_id,product_id,name,quantity_milli,price_minor,tax_bps,tax_inclusive,discount_minor,subtotal_minor,tax_minor,modifiers_json) VALUES\
+             ('split-line','sale-split','split-fulfilment','product','Product',2000,1000,700,false,0,2000,140,'[]');"
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let split = command(
+            PosOperation::SaleSplit,
+            "sale-split-key-1",
+            serde_json::json!({"id":"sale-split","expectedVersion":1,"lineId":"split-line","quantityMilli":1000}),
+        );
+        let result = run(&pool, actor("manager"), split).await.unwrap();
+        let target = result.id.clone();
+        assert_ne!(target, "sale-split");
+        let source: (i64, i64, i64) = sqlx::query_as(
+            "SELECT subtotal_minor,tax_minor,version FROM pos_sales WHERE id='sale-split'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(source, (1000, 70, 2));
+        let source_line: (i64, i64, i64) = sqlx::query_as(
+            "SELECT quantity_milli,subtotal_minor,tax_minor FROM pos_lines WHERE id='split-line'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(source_line, (1000, 1000, 70));
+        let target_sale: (i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT subtotal_minor,tax_minor,total_minor,version FROM pos_sales WHERE id=$1",
+        )
+        .bind(&target)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(target_sale, (1000, 70, 1070, 2));
+        let target_line: (i64, i64, i64) = sqlx::query_as(
+            "SELECT quantity_milli,subtotal_minor,tax_minor FROM pos_lines WHERE sale_id=$1",
+        )
+        .bind(&target)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(target_line, (1000, 1000, 70));
+        let fulfilments: Vec<i64> = sqlx::query_scalar(
+            "SELECT quantity_milli FROM pos_fulfillments WHERE product_id='product' AND company_id='company' ORDER BY quantity_milli",
+        )
+        .fetch_all(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(fulfilments, vec![1000, 1000]);
+    });
+}

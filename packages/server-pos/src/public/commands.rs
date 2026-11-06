@@ -7,9 +7,10 @@ pub use crate::application::commands::{
 pub use crate::domain::commands::{
     CashApproveInput, PosActor, PosCashMovement, PosCatalogProduct, PosCatalogSnapshot, PosCommand,
     PosCommandInput, PosFulfillment, PosFulfillmentInsert, PosJournalLine, PosJournalRequest, PosLine,
-    PosLineDetail, PosLineDiscountRow, PosLineInsert, PosOperation, PosReceipt, PosRefund, PosRegister, PosResult, PosSale,
+    PosFulfillmentSplitFacts, PosLineDetail, PosLineDiscountRow, PosLineInsert, PosLineSplitRow,
+    PosOperation, PosReceipt, PosRefund, PosRegister, PosResult, PosSale,
     PosSettings, PosShift, RefundLineInput, RefundRejectInput, RefundRequestInput, SaleAddInput,
-    SaleCreateInput, SaleCustomerInput, SaleMoveTableInput, SaleRemoveInput, SaleUpdateLineInput,
-    SaleVersionInput, ShiftCloseInput, ShiftOpenInput, ShiftReviewInput, parse_receipt_result,
-    valid_date, valid_uuid,
+    SaleCreateInput, SaleCustomerInput, SaleMoveTableInput, SaleRemoveInput, SaleSplitInput,
+    SaleUpdateLineInput, SaleVersionInput, ShiftCloseInput, ShiftOpenInput, ShiftReviewInput,
+    parse_receipt_result, valid_date, valid_uuid,
 };

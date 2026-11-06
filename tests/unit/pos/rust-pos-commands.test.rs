@@ -3,8 +3,8 @@
 use erpx_server_pos::public::commands::{
     CashApproveInput, PosActor, PosCashMovement, PosCommand, PosCommandRepository, PosFinancePort,
     PosFulfillment, PosFulfillmentInsert, PosFuture, PosHospitalityPort, PosJournalRequest, PosLine,
-    PosLineDetail, PosLineDiscountRow, PosLineInsert, PosOperation, PosOrganizationPort, PosReceipt,
-    PosRefund,
+    PosFulfillmentSplitFacts, PosLineDetail, PosLineDiscountRow, PosLineInsert, PosLineSplitRow,
+    PosOperation, PosOrganizationPort, PosReceipt, PosRefund,
     PosRegister, PosResult, PosSale, PosSettings, PosShift, execute_pos_command,
 };
 use erpx_server_shared::public::{
@@ -76,6 +76,7 @@ fn sale(state: &str, version: i64) -> PosSale {
         shift_id: "shift".into(),
         number: "POS-1".into(),
         party_id: None,
+        issuer_json: "{}".into(),
         currency: "THB".into(),
         business_date: "2026-11-06".into(),
         service_mode: "retail".into(),
@@ -439,6 +440,30 @@ impl PosCommandRepository for Probe {
         Box::pin(async move { Ok(self.reject) })
     }
 
+    fn sale_line_split<'a>(&'a mut self, _: &'a str, _: &'a str) -> PosFuture<'a, Option<PosLineSplitRow>> {
+        Box::pin(async { Ok(None) })
+    }
+    fn fulfillment_split<'a>(&'a mut self, _: &'a str) -> PosFuture<'a, Option<PosFulfillmentSplitFacts>> {
+        Box::pin(async { Ok(None) })
+    }
+    fn create_split_sale<'a>(&'a mut self, _: &'a str, _: &'a str, _: &'a str, _: &'a str, _: TimestampMillis) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn move_line_to_sale<'a>(&'a mut self, _: &'a str, _: &'a str) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn create_split_fulfillment<'a>(&'a mut self, _: &'a str, _: &'a str, _: i64, _: TimestampMillis) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn reduce_fulfillment<'a>(&'a mut self, _: &'a str, _: i64) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn create_split_line<'a>(&'a mut self, _: &'a str, _: &'a str, _: &'a str, _: &'a str, _: i64, _: i64, _: i64, _: i64, _: i64) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn reduce_line<'a>(&'a mut self, _: &'a str, _: i64, _: i64, _: i64, _: i64, _: i64) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
     fn move_lines<'a>(&'a mut self, _: &'a str, _: &'a str) -> PosFuture<'a, ()> {
         Box::pin(async { Ok(()) })
     }

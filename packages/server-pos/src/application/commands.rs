@@ -7,11 +7,11 @@
 use crate::domain::commands::{
     CashApproveInput, PosActor, PosCashMovement, PosCatalogSnapshot, PosCommand,
     PosCommandInput, PosFulfillment, PosFulfillmentInsert, PosJournalLine, PosJournalRequest, PosLine,
-    PosLineDetail, PosLineDiscountRow, PosLineInsert, PosOperation, PosReceipt, PosRefund, PosRegister,
-    PosResult, PosSale, PosSettings,
+    PosFulfillmentSplitFacts, PosLineDetail, PosLineDiscountRow, PosLineInsert, PosLineSplitRow,
+    PosOperation, PosReceipt, PosRefund, PosRegister, PosResult, PosSale, PosSettings,
     PosShift, RefundRejectInput, RefundRequestInput, SaleAddInput, SaleCreateInput, SaleCustomerInput,
-    SaleDiscountInput, SaleMergeInput, SaleMoveTableInput, SaleRemoveInput, SaleUpdateLineInput,
-    SaleVersionInput, ShiftCloseInput,
+    SaleDiscountInput, SaleMergeInput, SaleMoveTableInput, SaleRemoveInput, SaleSplitInput,
+    SaleUpdateLineInput, SaleVersionInput, ShiftCloseInput,
     ShiftOpenInput, ShiftReviewInput,
     accounting_review_required, conflict, day_closed, idempotency_conflict, independent_review,
     not_found, parse_receipt_result, period_closed, request_invalid, setup_required,
@@ -247,6 +247,61 @@ pub trait PosCommandRepository: Send {
         source_id: &'a str,
     ) -> PosFuture<'a, (), Self::Error>;
     fn mark_merged<'a>(&'a mut self, sale_id: &'a str) -> PosFuture<'a, (), Self::Error>;
+    fn sale_line_split<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+        line_id: &'a str,
+    ) -> PosFuture<'a, Option<PosLineSplitRow>, Self::Error>;
+    fn fulfillment_split<'a>(
+        &'a mut self,
+        fulfillment_id: &'a str,
+    ) -> PosFuture<'a, Option<PosFulfillmentSplitFacts>, Self::Error>;
+    fn create_split_sale<'a>(
+        &'a mut self,
+        target_id: &'a str,
+        source_id: &'a str,
+        number: &'a str,
+        user: &'a str,
+        now: TimestampMillis,
+    ) -> PosFuture<'a, (), Self::Error>;
+    fn move_line_to_sale<'a>(
+        &'a mut self,
+        target_id: &'a str,
+        line_id: &'a str,
+    ) -> PosFuture<'a, (), Self::Error>;
+    fn create_split_fulfillment<'a>(
+        &'a mut self,
+        new_id: &'a str,
+        source_id: &'a str,
+        quantity_milli: i64,
+        now: TimestampMillis,
+    ) -> PosFuture<'a, (), Self::Error>;
+    fn reduce_fulfillment<'a>(
+        &'a mut self,
+        source_id: &'a str,
+        quantity_milli: i64,
+    ) -> PosFuture<'a, (), Self::Error>;
+    fn create_split_line<'a>(
+        &'a mut self,
+        new_line_id: &'a str,
+        target_id: &'a str,
+        new_fulfillment_id: &'a str,
+        source_line_id: &'a str,
+        quantity_milli: i64,
+        discount_minor: i64,
+        bill_discount_minor: i64,
+        subtotal_minor: i64,
+        tax_minor: i64,
+    ) -> PosFuture<'a, (), Self::Error>;
+    fn reduce_line<'a>(
+        &'a mut self,
+        line_id: &'a str,
+        quantity_milli: i64,
+        subtotal_minor: i64,
+        tax_minor: i64,
+        discount_minor: i64,
+        bill_discount_minor: i64,
+    ) -> PosFuture<'a, (), Self::Error>;
     fn prepared_day_close<'a>(
         &'a mut self,
         company: &'a CompanyId,
@@ -545,6 +600,9 @@ where
         }
         PosCommandInput::SaleMerge(input) => {
             sale_merge(actor, input, repository, now).await?
+        }
+        PosCommandInput::SaleSplit(input) => {
+            sale_split(actor, input, repository, now).await?
         }
         PosCommandInput::SaleCreate(input) => {
             sale_create(
@@ -1371,6 +1429,16 @@ fn recipe_parts(recipe_json: &str) -> Result<Vec<serde_json::Value>, BusinessErr
         .ok_or_else(|| request_invalid("POS_PRODUCT_INVALID", "The product recipe is unavailable."))
 }
 
+fn portion_of(total: i64, previous: i64, quantity: i64, whole: i64) -> Result<i64, BusinessError> {
+    if previous < 0 || quantity <= 0 || previous + quantity > whole {
+        return Err(request_invalid("POS_SPLIT_INVALID", "Review the split quantity."));
+    }
+    let end = scaled(total, previous + quantity, whole)?;
+    let start = scaled(total, previous, whole)?;
+    end.checked_sub(start)
+        .ok_or_else(|| request_invalid("POS_SPLIT_INVALID", "Review the split quantity."))
+}
+
 async fn sale_add<R>(
     actor: &PosActor,
     input: &SaleAddInput,
@@ -1850,5 +1918,145 @@ where
     Ok(PosResult {
         id: source.id,
         version: Some(input.expected_version + 1),
+    })
+}
+
+async fn sale_split<R>(
+    actor: &PosActor,
+    input: &SaleSplitInput,
+    repository: &mut R,
+    now: TimestampMillis,
+) -> Result<PosResult, R::Error>
+where
+    R: PosCommandRepository,
+{
+    let sale = repository
+        .sale(&actor.company_id, &input.id)
+        .await?
+        .ok_or_else(not_found)?;
+    scope_sale(actor, &sale)?;
+    version_matches(sale.version, input.expected_version)?;
+    if !matches!(sale.state.as_str(), "open" | "held")
+        || repository.payment_started(&sale.id).await?
+    {
+        return Err(conflict("POS_SALE_LOCKED", "This bill cannot be edited.").into());
+    }
+    let line = repository
+        .sale_line_split(&sale.id, &input.line_id)
+        .await?
+        .ok_or_else(|| request_invalid("POS_SPLIT_INVALID", "Invalid split quantity."))?;
+    if input.quantity_milli > line.quantity_milli {
+        return Err(request_invalid("POS_SPLIT_INVALID", "Invalid split quantity.").into());
+    }
+    let facts = repository
+        .fulfillment_split(&line.fulfillment_id)
+        .await?
+        .ok_or_else(|| request_invalid("POS_SPLIT_INVALID", "Invalid split quantity."))?;
+    let target_id = repository.new_id().await?;
+    if !valid_uuid(&target_id) {
+        return Err(source_invalid().into());
+    }
+    let number = format!("POS-{}", target_id[..8].to_uppercase());
+    repository
+        .create_split_sale(
+            &target_id,
+            &sale.id,
+            &number,
+            actor.user_id.as_str(),
+            now,
+        )
+        .await?;
+    if input.quantity_milli == line.quantity_milli {
+        repository
+            .move_line_to_sale(&target_id, &line.id)
+            .await?;
+    } else {
+        let mut new_fulfillment_id = line.fulfillment_id.clone();
+        if facts.kind != "recipe" || facts.state == "draft" {
+            if facts.reserved {
+                return Err(conflict(
+                    "POS_SPLIT_RESERVED",
+                    "Reserved items cannot be split yet.",
+                )
+                .into());
+            }
+            let created = repository.new_id().await?;
+            if !valid_uuid(&created) {
+                return Err(source_invalid().into());
+            }
+            repository
+                .create_split_fulfillment(
+                    &created,
+                    &line.fulfillment_id,
+                    input.quantity_milli,
+                    now,
+                )
+                .await?;
+            repository
+                .reduce_fulfillment(&line.fulfillment_id, input.quantity_milli)
+                .await?;
+            new_fulfillment_id = created;
+        }
+        let subtotal = portion_of(
+            line.subtotal_minor,
+            0,
+            input.quantity_milli,
+            line.quantity_milli,
+        )?;
+        let tax = portion_of(
+            line.tax_minor,
+            0,
+            input.quantity_milli,
+            line.quantity_milli,
+        )?;
+        let discount = portion_of(
+            line.discount_minor,
+            0,
+            input.quantity_milli,
+            line.quantity_milli,
+        )?;
+        let bill_discount = portion_of(
+            line.bill_discount_minor,
+            0,
+            input.quantity_milli,
+            line.quantity_milli,
+        )?;
+        let new_line_id = repository.new_id().await?;
+        if !valid_uuid(&new_line_id) {
+            return Err(source_invalid().into());
+        }
+        repository
+            .create_split_line(
+                &new_line_id,
+                &target_id,
+                &new_fulfillment_id,
+                &line.id,
+                input.quantity_milli,
+                discount,
+                bill_discount,
+                subtotal,
+                tax,
+            )
+            .await?;
+        repository
+            .reduce_line(
+                &line.id,
+                input.quantity_milli,
+                subtotal,
+                tax,
+                discount,
+                bill_discount,
+            )
+            .await?;
+    }
+    if !repository.refresh_sale(&target_id, now).await? {
+        return Err(version_conflict().into());
+    }
+    if !repository.refresh_sale(&sale.id, now).await? {
+        return Err(version_conflict().into());
+    }
+    Ok(PosResult {
+        id: target_id,
+        version: None,
     })
 }

@@ -22,6 +22,7 @@ pub const OPERATION_SALE_MOVE_TABLE: &str = "sale.move_table";
 pub const OPERATION_SALE_REMOVE: &str = "sale.remove";
 pub const OPERATION_SALE_DISCOUNT: &str = "sale.discount";
 pub const OPERATION_SALE_MERGE: &str = "sale.merge";
+pub const OPERATION_SALE_SPLIT: &str = "sale.split";
 pub const OPERATION_SALE_CANCEL: &str = "sale.cancel";
 pub const OPERATION_REFUND_REQUEST: &str = "refund.request";
 pub const OPERATION_REFUND_REJECT: &str = "refund.reject";
@@ -106,6 +107,7 @@ pub enum PosOperation {
     SaleRemove,
     SaleDiscount,
     SaleMerge,
+    SaleSplit,
     SaleHold,
     SaleResume,
     SaleCancel,
@@ -128,6 +130,7 @@ impl PosOperation {
             OPERATION_SALE_REMOVE => Self::SaleRemove,
             OPERATION_SALE_DISCOUNT => Self::SaleDiscount,
             OPERATION_SALE_MERGE => Self::SaleMerge,
+            OPERATION_SALE_SPLIT => Self::SaleSplit,
             OPERATION_SALE_HOLD => Self::SaleHold,
             OPERATION_SALE_RESUME => Self::SaleResume,
             OPERATION_SALE_CANCEL => Self::SaleCancel,
@@ -150,6 +153,7 @@ impl PosOperation {
             Self::SaleRemove => OPERATION_SALE_REMOVE,
             Self::SaleDiscount => OPERATION_SALE_DISCOUNT,
             Self::SaleMerge => OPERATION_SALE_MERGE,
+            Self::SaleSplit => OPERATION_SALE_SPLIT,
             Self::SaleHold => OPERATION_SALE_HOLD,
             Self::SaleResume => OPERATION_SALE_RESUME,
             Self::SaleCancel => OPERATION_SALE_CANCEL,
@@ -245,6 +249,13 @@ pub struct SaleMergeInput {
     pub target_version: i64,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SaleSplitInput {
+    pub id: String,
+    pub expected_version: i64,
+    pub line_id: String,
+    pub quantity_milli: i64,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SaleVersionInput {
     pub id: String,
     pub expected_version: i64,
@@ -285,6 +296,7 @@ pub enum PosCommandInput {
     SaleRemove(SaleRemoveInput),
     SaleDiscount(SaleDiscountInput),
     SaleMerge(SaleMergeInput),
+    SaleSplit(SaleSplitInput),
     SaleVersion(SaleVersionInput),
     RefundRequest(RefundRequestInput),
     RefundReject(RefundRejectInput),
@@ -358,6 +370,7 @@ pub struct PosSale {
     pub shift_id: String,
     pub number: String,
     pub party_id: Option<String>,
+    pub issuer_json: String,
     pub currency: String,
     pub business_date: String,
     pub service_mode: String,
@@ -430,6 +443,22 @@ pub struct PosLineDiscountRow {
     pub tax_inclusive: bool,
     pub discount_minor: i64,
     pub bill_discount_minor: i64,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PosLineSplitRow {
+    pub id: String,
+    pub fulfillment_id: String,
+    pub quantity_milli: i64,
+    pub subtotal_minor: i64,
+    pub tax_minor: i64,
+    pub discount_minor: i64,
+    pub bill_discount_minor: i64,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PosFulfillmentSplitFacts {
+    pub kind: String,
+    pub state: String,
+    pub reserved: bool,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PosLineDetail {
@@ -1241,6 +1270,34 @@ impl PosCommand {
                         ("expectedVersion", expected_version.to_string()),
                         ("targetId", json_string(&target_id)),
                         ("targetVersion", target_version.to_string()),
+                    ]),
+                )
+            }
+            PosOperation::SaleSplit => {
+                object(
+                    value,
+                    &["id", "expectedVersion", "lineId", "quantityMilli"],
+                    &["id", "expectedVersion", "lineId", "quantityMilli"],
+                )?;
+                let id = text(value, "id")?;
+                let expected_version = version(integer(value, "expectedVersion")?)?;
+                let line_id = text(value, "lineId")?;
+                let quantity_milli = integer(value, "quantityMilli")?;
+                if !(1..=999_999_999).contains(&quantity_milli) {
+                    return Err(request_invalid("POS_SPLIT_INVALID", "Review the split quantity."));
+                }
+                (
+                    PosCommandInput::SaleSplit(SaleSplitInput {
+                        id: id.clone(),
+                        expected_version,
+                        line_id: line_id.clone(),
+                        quantity_milli,
+                    }),
+                    canonical(&[
+                        ("id", json_string(&id)),
+                        ("expectedVersion", expected_version.to_string()),
+                        ("lineId", json_string(&line_id)),
+                        ("quantityMilli", quantity_milli.to_string()),
                     ]),
                 )
             }
