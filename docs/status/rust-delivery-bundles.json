@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-06T20:56:58+07:00",
+  "updatedAt": "2026-11-06T21:25:21+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -3609,7 +3609,7 @@
         "organization-native-setup"
       ],
       "sourceRef": "packages/server-organization/src/public/organization.ts",
-      "gap": "Native node-tree read, staff-level install, saved template save/apply and HTTP ingress are qualified; the page GET, position save/archive and browser journey remain open."
+      "gap": "Native node-tree read, staff-level install, saved template save/apply, HTTP ingress and the People/Organization page GET (native workspace when ERPX_NATIVE_ORGANIZATION_CONFIG is set) are qualified. People-owned detail/appointment surfaces and the browser journey remain open."
     },
     {
       "id": "organization/sharing",
@@ -3623,7 +3623,7 @@
         "organization-native-setup"
       ],
       "sourceRef": "packages/server-organization/src/public/organization.ts",
-      "gap": "Native sharing reads and staff-level/template setup are qualified; the page GET and browser journey remain open."
+      "gap": "Native sharing reads, staff-level/template setup and the People/Organization page GET are qualified. People-owned detail/appointment surfaces and the browser journey remain open."
     },
     {
       "id": "organization/feature-node-lifecycle",
@@ -3637,7 +3637,7 @@
         "organization-native-setup"
       ],
       "sourceRef": "packages/server-organization/src/public/organization.ts",
-      "gap": "Native node lifecycle commands and staff-level/template setup are qualified; the page GET and browser journey remain open."
+      "gap": "Native node lifecycle commands, staff-level/template setup and the People/Organization page GET are qualified. People-owned detail/appointment surfaces and the browser journey remain open."
     },
     {
       "id": "organization/feature-business-units",
@@ -3651,7 +3651,7 @@
         "organization-native-setup"
       ],
       "sourceRef": "packages/server-organization/src/public/organization.ts",
-      "gap": "Native business-unit visibility and staff-level/template setup are qualified; the page GET and browser journey remain open."
+      "gap": "Native business-unit visibility, staff-level/template setup and the People/Organization page GET are qualified. People-owned detail/appointment surfaces and the browser journey remain open."
     },
     {
       "id": "platform_administration/provisioning",
@@ -3665,7 +3665,7 @@
         "platform-native-provisioning"
       ],
       "sourceRef": "packages/server-platform_administration/src/public/platform-operations.ts",
-      "gap": "Native provisioning read/activation and the control-plane operations summary are PostgreSQL/HTTP-qualified; the Next route cutover and host onboarding command remain open."
+      "gap": "Native provisioning read/activation and the control-plane operations summary are PostgreSQL/HTTP-qualified; the Next operations/provision/recover/migrate routes and management page select native when configured. Host onboarding command remains retained; browser remains open."
     },
     {
       "id": "platform_administration/feature-holdings",
@@ -3679,7 +3679,7 @@
         "platform-native-holdings"
       ],
       "sourceRef": "packages/server-platform_administration/src/public/platform-operations.ts",
-      "gap": "Native Holding provisioning/read activation is implemented; customer Holding migration commands and browser remain open."
+      "gap": "Native Holding provisioning/read activation is implemented and the management page/route cutover is wired. Customer Holding migration commands and the browser remain open."
     },
     {
       "id": "platform_administration/feature-connectors",
@@ -3746,7 +3746,7 @@
         "platform-native-migration-run"
       ],
       "sourceRef": "packages/server-platform_administration/src/public/platform-operations.ts",
-      "gap": "Native migration-run reads and the run command (Holding-write migrations, persisted running/succeeded/failed receipts, replay/conflict/isolation) are PostgreSQL/HTTP-qualified; composition mount complete; browser remains open."
+      "gap": "Native migration-run reads and the run command are PostgreSQL/HTTP-qualified; the Next route/page cutover is wired. Browser remains open."
     },
     {
       "id": "platform_administration/feature-temporary-access",
@@ -4479,7 +4479,7 @@
         "maintenance-native-http"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Native maintenance/plan reads, HTTP transport and SSR presenters are implemented; create remains TypeScript and the shared composition mount complete; browser remains open."
+      "gap": "Native Maintenance reads/HTTP/SSR and schedule/start/block/resume/complete/issue-part/cancel transitions are composed (real Account session + IAM + PostgreSQL); a composed HTTP test proves block, replay and persisted readback. Create remains retained; browser remains open."
     },
     {
       "id": "maintenance/downtime",
@@ -4494,7 +4494,7 @@
         "maintenance-native-http"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Native work detail/history reads are implemented; downtime writes remain TypeScript."
+      "gap": "Native work detail/history reads and start/complete transitions are composed; dedicated downtime writes remain retained; browser remains open."
     },
     {
       "id": "maintenance/feature-blocked-work",
@@ -4509,7 +4509,7 @@
         "maintenance-native-http"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Native read/SSR slice is implemented; block/resume writes remain on the retained TypeScript transition composition."
+      "gap": "Native block/resume transitions are composed and HTTP-tested over PostgreSQL. Create remains retained; browser remains open."
     },
     {
       "id": "maintenance/feature-completion",
@@ -4524,7 +4524,7 @@
         "maintenance-native-http"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Native read/SSR slice is implemented; completion writes remain on the retained TypeScript transition composition."
+      "gap": "Native completion transitions are composed and HTTP-tested over PostgreSQL. Create remains retained; browser remains open."
     },
     {
       "id": "maintenance/feature-maintenance-history",
@@ -4539,7 +4539,7 @@
         "maintenance-native-http"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Native work/plan detail history reads are implemented; browser acceptance and composition mounting complete; browser remains open."
+      "gap": "Native work/plan detail history reads and transition composition are qualified. Browser remains open."
     },
     {
       "id": "operations/feature-exception-queue",
@@ -6454,7 +6454,7 @@
   ],
   "executionPlan": {
     "generatedAt": "2026-11-06T20:11:14+07:00",
-    "sourceHead": "0c3551ad3",
+    "sourceHead": "83717f7cb",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7120,6 +7120,23 @@
           "maintenance native transitions"
         ],
         "evidence": "Rust owner/composed tests + 119 targeted vitest + scoped tsc/eslint; browser still blocked",
+        "counts": {
+          "owners": 4,
+          "verified": 28,
+          "partial": 85,
+          "unstarted": 93,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-06T21:25:21+07:00",
+        "commit": "83717f7cb",
+        "bundles": [
+          "maintenance HTTP backend + composed test",
+          "organization overview scoping",
+          "Commerce->Inventory receipt owner seam (partial)"
+        ],
+        "evidence": "Maintenance composed HTTP+PG 1/1, organization 63 unit, receipt 175 Commerce/Inventory tests; browser blocked",
         "counts": {
           "owners": 4,
           "verified": 28,
