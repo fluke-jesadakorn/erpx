@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-06T20:48:41+07:00",
+  "updatedAt": "2026-11-06T20:56:58+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -4763,7 +4763,7 @@
         "quality-http"
       ],
       "sourceRef": "packages/server-quality/src/public/quality.ts",
-      "gap": "Native cancellation with CAS, independence and persisted event/readback is PostgreSQL-qualified. A composed Quality HTTP route proves the real Account session, current IAM and same-unit Commercial History right over PostgreSQL: bounded workspace/detail-core reads, paged cancellation history with stale-head/revision 409, independent request/approve with self-approval denial, unique event versions and fresh persisted readback. The owner-level suite additionally covers reject, complete page traversal, replay and rollback. The Next page/route now use the detail-core endpoint (so 200+ event holds are not blocked by the bounded retained array) and render only the native paged history. Company-context denial is proven as a workspace denial (WORK_ROLE_REQUIRED), not through the history route. Browser acceptance remains open; no workflow count changes. Blocker: no generic native cohort release exists for HEAD. A reachable Colima Docker socket has only October field/count case volumes, and the development gateway has no native Quality transport; reusing an old release would verify stale source."
+      "gap": "Native cancellation with CAS, independence and persisted event/readback is PostgreSQL-qualified. A composed Quality HTTP route tests the real Account session, current IAM and a same-unit Commercial History check for hard-coded supply.quality over PostgreSQL; this does not establish source-specific receipt or return entitlements, trusted enforcement mode, complete lineage revalidation, concurrent grant fencing, or expiry at final revalidation. The check applies to detail-core and history, not workspace or cancellation: bounded workspace/detail-core reads, paged cancellation history with stale-head/revision 409, independent request/approve with self-approval denial, unique event versions and fresh persisted readback. The owner-level suite additionally covers reject, page traversal, replay and rollback; a single historical row over the 4 MiB page budget remains unavailable. Cancellation composition still lacks the Workflow receipt, notification/outbox and source-specific settlement proof required for production parity. The Next page/route now use the detail-core endpoint (so 200+ event holds are not blocked by the bounded retained array) and render only the native paged history. Company-context denial is proven as a workspace denial (WORK_ROLE_REQUIRED), not through the history route. Browser acceptance remains open; no workflow count changes. Blocker: no generic native cohort release exists for HEAD. A reachable Colima Docker socket has only October field/count case volumes, and the development gateway has no native Quality transport; reusing an old release would verify stale source."
     },
     {
       "id": "legal/contracts",
@@ -6454,7 +6454,7 @@
   ],
   "executionPlan": {
     "generatedAt": "2026-11-06T20:11:14+07:00",
-    "sourceHead": "c34c47c0369285be00dafd389333422287045b68",
+    "sourceHead": "0c3551ad3",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7090,7 +7090,7 @@
     "blockers": [
       {
         "id": "browser-cohort-unavailable",
-        "detail": "The default Docker socket is absent, but a reachable Colima Docker socket exists at ~/.colima/erpx-opensource-dev/docker.sock with the existing native field/count case volumes and toolchain images. Those volumes are bound to reviewed October releases and field/count fixtures; there is no generic native cohort release for the current HEAD, and the development gateway on 3100 runs without ERPX_NATIVE_* transport. Reusing an old case release would verify a stale source and is not acceptable.",
+        "detail": "The default Docker socket is absent, but a reachable Colima Docker socket exists at ~/.colima/erpx-opensource-dev/docker.sock with the existing native field/count case volumes and toolchain images. Those volumes are bound to reviewed October releases and field/count fixtures; there is no generic native cohort release for the current HEAD, and the development gateway on 3100 runs without ERPX_NATIVE_* transport. Reusing an old case release would verify a stale source and is not acceptable. Additionally, the running development apps return 500 NATIVE_SESSION_CONFIGURATION_REQUIRED for authenticated Holding pages because ERPX_NATIVE_ACCOUNT_SESSION_CONFIG is unset; no native private API is listening. This is the direct reason no Holding page can currently be exercised.",
         "unblock": "Provide or authorize a generic native cohort build for the current HEAD (leased DB clones + private API + Account native session + owned app/gateway), or authorize the existing dev-container native lease flow. Docker alone is insufficient because the current case volumes are source-bound to older releases."
       },
       {
@@ -7108,6 +7108,26 @@
       "Freeze and review the four owner slices currently in flight; integrate their public ports through the lead-owned composition writer.",
       "When a browser cohort is available, prioritize operations (6), assets (5), organization (4), quality (4), planning (5) in that order because their code is already mounted.",
       "Keep the quality cancellation-history composed API evidence attached to the pushed SHA; do not convert partial counts to verified until browser acceptance exists."
+    ],
+    "integrationLog": [
+      {
+        "at": "2026-11-06T20:56:58+07:00",
+        "commit": "0c3551ad3",
+        "bundles": [
+          "quality cancellation history hardening",
+          "organization page GET",
+          "platform administration cutover",
+          "maintenance native transitions"
+        ],
+        "evidence": "Rust owner/composed tests + 119 targeted vitest + scoped tsc/eslint; browser still blocked",
+        "counts": {
+          "owners": 4,
+          "verified": 28,
+          "partial": 85,
+          "unstarted": 93,
+          "total": 206
+        }
+      }
     ]
   }
 }
