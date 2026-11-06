@@ -10,6 +10,9 @@ use axum::{
 use erpx_server_benefits::public::command_http::{
     BenefitsCommandHttpTarget, benefits_command_http_router,
 };
+use erpx_server_benefits::public::workspace_http::{
+    BenefitsWorkspaceHttpTarget, benefits_workspace_http_router,
+};
 use erpx_server_shared::public::Clock;
 use erpx_service::benefits::{
     BenefitsBackend, BenefitsConfiguration, BenefitsService,
@@ -36,6 +39,20 @@ fn request(p: &review::Prepared, body: &str, key: &str) -> Request<Body> {
         .header("x-erpx-context-assignment-version", "4")
         .header("content-type", "application/json")
         .body(Body::from(body.to_owned()))
+        .unwrap()
+}
+
+fn read_request(p: &review::Prepared) -> Request<Body> {
+    Request::builder()
+        .method("GET")
+        .uri("/api/v1/holdings/acme/benefits")
+        .header("host", "acme.example.test")
+        .header("cookie", cookie(p))
+        .header("x-erpx-context-company", "company")
+        .header("x-erpx-context-assignment", "finance-fixture-a")
+        .header("x-erpx-context-revision", "7")
+        .header("x-erpx-context-assignment-version", "4")
+        .body(Body::empty())
         .unwrap()
 }
 
@@ -83,18 +100,27 @@ fn router(p: &review::Prepared) -> axum::Router {
         ),
         p.system.scenario.clock.clone(),
     );
-    let backend = BenefitsBackend::new(
+    let backend = Arc::new(BenefitsBackend::new(
         Arc::new(review::account::fixture::account::policy()),
         Arc::new(FieldServiceReadScopeHeaders),
         Arc::new(service),
-    );
+    ));
     benefits_command_http_router(vec![BenefitsCommandHttpTarget {
         host: "acme.example.test".into(),
         holding_slug: "acme".into(),
         origin: "https://acme.example.test".into(),
-        backend: Arc::new(backend),
+        backend: backend.clone(),
     }])
     .unwrap()
+    .merge(
+        benefits_workspace_http_router(vec![BenefitsWorkspaceHttpTarget {
+            host: "acme.example.test".into(),
+            holding_slug: "acme".into(),
+            origin: "https://acme.example.test".into(),
+            backend,
+        }])
+        .unwrap(),
+    )
 }
 
 const PLAN: &str = r#"{"entity":"plan","name":"Health Plus","provider":"Synthetic Provider","coverageType":"family","currency":"thb","employeeDeduction":"125.50","employerCost":"300.00","effectiveFrom":"2026-09-01","effectiveTo":null}"#;
@@ -168,6 +194,41 @@ async fn benefits_command_http_denies_without_a_current_purchase() {
             .await
             .unwrap();
         assert_eq!(count, 0);
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn benefits_workspace_resolves_names_for_other_employee_elections() {
+    review::account::with_system(|system| async move {
+        let p = review::setup_with_finance(system, false).await;
+        grant_benefits_packages(&p).await;
+        sqlx::raw_sql(
+            "INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,status,version,created_by,created_at,updated_at) VALUES \
+             ('person-a','fixture-a','company','Employee One','TH','active',1,'fixture-a',10,10),\
+             ('person-b','other','company','Employee Two','TH','active',1,'fixture-a',10,10) ON CONFLICT DO NOTHING;\
+             INSERT INTO hr_engagements(id,person_id,company_id,branch_id,department_id,worker_type,employment_type,status,start_date,job_title,currency,version,created_by,created_at,updated_at) VALUES \
+             ('engagement-a','person-a','company','branch',NULL,'employee','salaried','active','2024-01-01','Engineer','THB',1,'fixture-a',10,10),\
+             ('engagement-b','person-b','company','branch',NULL,'employee','salaried','active','2024-01-01','Designer','THB',1,'fixture-a',10,10) ON CONFLICT DO NOTHING;\
+             INSERT INTO benefit_plans(id,company_id,name,provider,coverage_type,currency,employee_deduction_minor,employer_cost_minor,effective_from,effective_to,status,created_by,reviewed_by,version,created_at,updated_at) VALUES \
+             ('plan-ws','company','Health Plus','Synthetic Provider','family','THB',12550,30000,'2026-09-01',NULL,'published','fixture-a','fixture-b',1,10,10) ON CONFLICT DO NOTHING;\
+             INSERT INTO benefit_enrollment_windows(id,company_id,name,opens_on,closes_on,effective_on,status,created_by,reviewed_by,version,created_at,updated_at) VALUES \
+             ('window-ws','company','Open enrollment','2026-09-01','2026-10-31','2026-11-01','open','fixture-a','fixture-b',1,10,10) ON CONFLICT DO NOTHING;\
+             INSERT INTO benefit_elections(id,company_id,person_id,engagement_id,plan_id,plan_version,window_id,window_version,coverage_type,dependent_ids_json,currency,employee_deduction_minor,employer_cost_minor,effective_from,effective_to,status,created_by,submitted_by,provider_reference,acknowledged_by,released_by,version,created_at,updated_at) VALUES \
+             ('election-a','company','person-a','engagement-a','plan-ws',1,'window-ws',1,'family','[]','THB',12550,30000,'2026-11-01',NULL,'elected','fixture-a',NULL,NULL,NULL,NULL,1,10,10),\
+             ('election-b','company','person-b','engagement-b','plan-ws',1,'window-ws',1,'family','[]','THB',12550,30000,'2026-11-01',NULL,'elected','fixture-a',NULL,NULL,NULL,NULL,1,10,10) ON CONFLICT DO NOTHING",
+        )
+        .execute(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        let app = router(&p);
+        let read = app.oneshot(read_request(&p)).await.unwrap();
+        let status = read.status();
+        let read = json(read).await;
+        assert_eq!(status, StatusCode::OK, "{read}");
+        let text = serde_json::to_string(&read).unwrap();
+        assert!(text.contains("Employee One"), "{text}");
+        assert!(text.contains("Employee Two"), "{text}");
     })
     .await;
 }
