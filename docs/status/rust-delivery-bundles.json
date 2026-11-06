@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T04:36:45+07:00",
+  "updatedAt": "2026-11-07T04:41:22+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T04:36:45+07:00",
-    "sourceHead": "abadf2cd8",
+    "generatedAt": "2026-11-07T04:41:22+07:00",
+    "sourceHead": "493f51809",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7092,9 +7092,9 @@
     },
     "blockers": [
       {
-        "id": "pos-remaining-workflows-legacy-writer",
-        "detail": "Register-session is closed. The remaining POS workflows (sales baskets, payments/receipts, voids, refunds) still execute sale.add, sale.update_line, payment.create, sale.complete, sale.cancel-adjacent flows and startup/catalogue commands on the retained TypeScript POS writer; only sale.create/cancel, refund request/reject and the register-session commands are native.",
-        "unblock": "Migrate sale.add/sale.update_line/payment.create/sale.complete and the startup/catalogue commands, fence their TypeScript ingress, and run the bill/payment browser journeys."
+        "id": "pos-sale-commands-owner-ports",
+        "detail": "The Rust POS command surface covers shift open/close/review, cash create/approve, sale.create/hold/resume/cancel and refund request/reject only. sale.add, sale.update_line, payment.create and sale.complete are still TypeScript-only: sale.add needs a Commerce owner public POS catalogue read (commerce_products plus pos_catalog/pos_register_catalog) and line/fulfilment writes; completion and payments additionally need Inventory stock/consumption and Finance invoice/journal owner ports. A partial Rust slice was analysed and reverted rather than committed as unavailable WIP.",
+        "unblock": "Add the Commerce POS catalogue and Inventory/Finance completion ports, implement the four commands with composed HTTP+PostgreSQL tests, fence the TS ingress, then run the bill/payment/void browser journeys."
       },
       {
         "id": "external-writer",
@@ -7108,8 +7108,8 @@
       }
     ],
     "nextActions": [
-      "Migrate sale.add, sale.update_line, payment.create and sale.complete onto the native composition and fence their TS ingress, then run the browser bill/payment/void journeys.",
-      "Migrate the POS startup/catalogue commands onto the native composition and retire their TS ingress.",
+      "Add the Commerce POS catalogue public port, then implement native sale.add and sale.update_line with composed tests and fence their TS ingress.",
+      "Add the Inventory stock/consumption and Finance invoice/journal ports for payment.create and sale.complete, then run the bill/payment/void browser journeys.",
       "Use the working authenticated cohort to attach browser evidence to the browser-ready partials; do not raise counts without it."
     ],
     "integrationLog": [
@@ -7305,6 +7305,21 @@
         "evidence": "front browser shift.open 200 10a6cb24-..., shift.close 200 version 4, cash.create 200 3e51d10d-...; backoffice cash.approve 200 version 3, approved_by usr_nisa; finance_journals journal-cash:3e51d10d-... posted Dr 1100 700 / Cr cash-transfer 700; pos_postings cash:3e51d10d-...; typecheck passes",
         "counts": {
           "owners": 4,
+          "verified": 29,
+          "partial": 90,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T04:41:22+07:00",
+        "commit": "493f51809",
+        "bundles": [
+          "POS sale-command dependency analysis"
+        ],
+        "evidence": "Rust PosOperation/PosCommandInput has no sale.add/update_line/payment.create/complete variants; the TS sale.add path requires commerce_products + pos_catalog/pos_register_catalog reads and pos_fulfillments/pos_lines writes; the partial Rust slice was reverted and erpx-server-pos checks clean",
+        "counts": {
+          "owners": 3,
           "verified": 29,
           "partial": 90,
           "unstarted": 87,
