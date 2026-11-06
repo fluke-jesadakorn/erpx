@@ -23,6 +23,7 @@ pub const OPERATION_SALE_REMOVE: &str = "sale.remove";
 pub const OPERATION_SALE_DISCOUNT: &str = "sale.discount";
 pub const OPERATION_SALE_MERGE: &str = "sale.merge";
 pub const OPERATION_SALE_SPLIT: &str = "sale.split";
+pub const OPERATION_PAYMENT_CREATE: &str = "payment.create";
 pub const OPERATION_SALE_CANCEL: &str = "sale.cancel";
 pub const OPERATION_REFUND_REQUEST: &str = "refund.request";
 pub const OPERATION_REFUND_REJECT: &str = "refund.reject";
@@ -108,6 +109,7 @@ pub enum PosOperation {
     SaleDiscount,
     SaleMerge,
     SaleSplit,
+    PaymentCreate,
     SaleHold,
     SaleResume,
     SaleCancel,
@@ -131,6 +133,7 @@ impl PosOperation {
             OPERATION_SALE_DISCOUNT => Self::SaleDiscount,
             OPERATION_SALE_MERGE => Self::SaleMerge,
             OPERATION_SALE_SPLIT => Self::SaleSplit,
+            OPERATION_PAYMENT_CREATE => Self::PaymentCreate,
             OPERATION_SALE_HOLD => Self::SaleHold,
             OPERATION_SALE_RESUME => Self::SaleResume,
             OPERATION_SALE_CANCEL => Self::SaleCancel,
@@ -154,6 +157,7 @@ impl PosOperation {
             Self::SaleDiscount => OPERATION_SALE_DISCOUNT,
             Self::SaleMerge => OPERATION_SALE_MERGE,
             Self::SaleSplit => OPERATION_SALE_SPLIT,
+            Self::PaymentCreate => OPERATION_PAYMENT_CREATE,
             Self::SaleHold => OPERATION_SALE_HOLD,
             Self::SaleResume => OPERATION_SALE_RESUME,
             Self::SaleCancel => OPERATION_SALE_CANCEL,
@@ -256,6 +260,15 @@ pub struct SaleSplitInput {
     pub quantity_milli: i64,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PaymentCreateInput {
+    pub id: String,
+    pub expected_version: i64,
+    pub method: String,
+    pub amount_minor: i64,
+    pub tendered_minor: i64,
+    pub reference: String,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SaleVersionInput {
     pub id: String,
     pub expected_version: i64,
@@ -297,6 +310,7 @@ pub enum PosCommandInput {
     SaleDiscount(SaleDiscountInput),
     SaleMerge(SaleMergeInput),
     SaleSplit(SaleSplitInput),
+    PaymentCreate(PaymentCreateInput),
     SaleVersion(SaleVersionInput),
     RefundRequest(RefundRequestInput),
     RefundReject(RefundRejectInput),
@@ -323,6 +337,7 @@ impl PosCommand {
 pub struct PosSettings {
     pub enabled: bool,
     pub currency: String,
+    pub cashier_discount_bps: i64,
     pub accounts_json: String,
     pub accounting_approved_by: Option<String>,
 }
@@ -382,6 +397,53 @@ pub struct PosSale {
     pub created_by: String,
     pub version: i64,
     pub accounts_json: String,
+    pub discount_approved_by: Option<String>,
+    pub invoice_id: Option<String>,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PosPaymentInsert {
+    pub id: String,
+    pub sale_id: String,
+    pub company_id: String,
+    pub method: String,
+    pub amount_minor: i64,
+    pub tendered_minor: i64,
+    pub reference: String,
+    pub created_by: String,
+    pub now: TimestampMillis,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PosReceiptRequest {
+    pub pos_payment_id: String,
+    pub finance_payment_id: String,
+    pub company_id: CompanyId,
+    pub party_id: Option<String>,
+    pub number: String,
+    pub payment_date: String,
+    pub currency: String,
+    pub amount_minor: i64,
+    pub account_id: String,
+    pub journal_id: String,
+    pub actor_id: UserId,
+    pub now: TimestampMillis,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PosStockRow {
+    pub warehouse_id: String,
+    pub product_id: String,
+    pub quantity_milli: i64,
+    pub reserved_milli: i64,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PosFulfillmentStock {
+    pub id: String,
+    pub warehouse_id: String,
+    pub product_id: String,
+    pub quantity_milli: i64,
+    pub kind: String,
+    pub recipe_json: String,
+    pub state: String,
+    pub reserved: bool,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PosCatalogSnapshot {
@@ -1298,6 +1360,48 @@ impl PosCommand {
                         ("expectedVersion", expected_version.to_string()),
                         ("lineId", json_string(&line_id)),
                         ("quantityMilli", quantity_milli.to_string()),
+                    ]),
+                )
+            }
+            PosOperation::PaymentCreate => {
+                object(
+                    value,
+                    &["id", "expectedVersion", "method", "amountMinor", "tenderedMinor", "reference", "payerEmail"],
+                    &["id", "expectedVersion", "method", "amountMinor", "tenderedMinor"],
+                )?;
+                let id = text(value, "id")?;
+                let expected_version = version(integer(value, "expectedVersion")?)?;
+                let method = text(value, "method")?;
+                if !["cash", "transfer", "edc", "stripe_card", "stripe_promptpay"].contains(&method.as_str()) {
+                    return Err(request_invalid("POS_COMMAND_INVALID", "Review the payment method."));
+                }
+                let amount_minor = money(integer(value, "amountMinor")?)?;
+                if amount_minor == 0 {
+                    return Err(request_invalid("POS_PAYMENT_AMOUNT", "Review the payment amount."));
+                }
+                let tendered_minor = money(integer(value, "tenderedMinor")?)?;
+                let reference = value
+                    .get("reference")
+                    .and_then(|value| value.as_str())
+                    .filter(|value| value.len() <= 150)
+                    .unwrap_or("")
+                    .to_owned();
+                (
+                    PosCommandInput::PaymentCreate(PaymentCreateInput {
+                        id: id.clone(),
+                        expected_version,
+                        method: method.clone(),
+                        amount_minor,
+                        tendered_minor,
+                        reference: reference.clone(),
+                    }),
+                    canonical(&[
+                        ("id", json_string(&id)),
+                        ("expectedVersion", expected_version.to_string()),
+                        ("method", json_string(&method)),
+                        ("amountMinor", amount_minor.to_string()),
+                        ("tenderedMinor", tendered_minor.to_string()),
+                        ("reference", json_string(&reference)),
                     ]),
                 )
             }

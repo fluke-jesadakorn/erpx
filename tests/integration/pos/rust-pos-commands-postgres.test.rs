@@ -4,7 +4,7 @@
 use erpx_server_pos::public::commands::{
     PgPosCommandRepository, PosActor, PosCatalogProduct, PosCatalogSnapshot, PosCommand,
     PosFinancePort, PosFuture, PosHospitalityPort, PosJournalRequest, PosOperation,
-    PosOrganizationPort, PosResult, execute_pos_command,
+    PosOrganizationPort, PosReceiptRequest, PosResult, PosStockRow, execute_pos_command,
 };
 use erpx_server_runtime::public::postgres::{
     DatabaseConfig, DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, PoolLimits,
@@ -43,6 +43,9 @@ impl PosFinancePort for Finance {
     }
     fn party_exists<'a>(&'a mut self, _: &'a CompanyId, _: &'a str) -> PosFuture<'a, bool> {
         Box::pin(async { Ok(true) })
+    }
+    fn record_receipt<'a>(&'a mut self, _: &'a PosReceiptRequest) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
     }
 }
 struct Hospitality;
@@ -114,7 +117,7 @@ async fn setup(pool: &DatabasePool) {
          ('journal-shift','company','chart','period','J-SHIFT','2027-01-15','THB','pos','shift','POS-GL-SHIFT','posted','owner',0,0),\
          ('journal-cash','company','chart','period','J-CASH','2027-01-15','THB','pos','cash','POS-GL-CASH','posted','owner',0,0);\
          INSERT INTO pos_settings(company_id,enabled,currency,accounts_json,accounting_prepared_by,accounting_approved_by,version) VALUES \
-         ('company',true,'THB','{\"chartId\":\"chart\",\"cash\":\"cash\",\"cashTransfer\":\"transfer\",\"cashDifference\":\"difference\"}','owner','finance',1);\
+         ('company',true,'THB','{\"chartId\":\"chart\",\"cash\":\"cash\",\"cashTransfer\":\"transfer\",\"cashDifference\":\"difference\",\"edc\":\"edc\",\"receivable\":\"receivable\",\"advance\":\"advance\",\"bank\":\"bank\"}','owner','finance',1);\
          INSERT INTO pos_registers(id,company_id,branch_id,warehouse_id,name,mode,active,version) VALUES \
          ('register','company','branch','warehouse','Retail','retail',true,1);\
          INSERT INTO pos_shifts(id,register_id,company_id,branch_id,opened_by,opened_at,opening_minor,state,version,business_date) VALUES \
@@ -146,11 +149,22 @@ async fn run_with_catalog(
     command: PosCommand,
     catalog: Option<PosCatalogSnapshot>,
 ) -> Result<PosResult, PgTransactionError<BusinessError>> {
+    run_with_snapshots(pool, actor, command, catalog, None).await
+}
+
+async fn run_with_snapshots(
+    pool: &DatabasePool,
+    actor: PosActor,
+    command: PosCommand,
+    catalog: Option<PosCatalogSnapshot>,
+    stock: Option<Vec<PosStockRow>>,
+) -> Result<PosResult, PgTransactionError<BusinessError>> {
     PgUnitOfWork::new(pool.clone())
         .run::<PosResult, BusinessError, _>(TransactionOptions::default(), move |connection| {
             let actor = actor.clone();
             let command = command.clone();
             let catalog = catalog.clone();
+            let stock = stock.clone();
             Box::pin(async move {
                 let mut repository = PgPosCommandRepository::new(connection);
                 execute_pos_command(
@@ -158,6 +172,7 @@ async fn run_with_catalog(
                     &command,
                     &mut repository,
                     catalog.as_ref(),
+                    stock.as_deref(),
                     &mut Finance,
                     &mut Hospitality,
                     &mut Organization,
@@ -840,6 +855,7 @@ fn non_serializable_transaction_fails_closed() {
                 ),
                 &mut repository,
                 None,
+                None,
                 &mut Finance,
                 &mut Hospitality,
                 &mut Organization,
@@ -1158,5 +1174,41 @@ fn sale_split_creates_the_target_and_halves_the_fulfillment() {
         .await
         .unwrap();
         assert_eq!(fulfilments, vec![1000, 1000]);
+    });
+}
+
+#[test]
+fn payment_create_reserves_settles_cash_and_marks_the_sale_pending() {
+    with_database(|pool| async move {
+        setup(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO pos_sales(id,company_id,branch_id,register_id,shift_id,number,currency,business_date,state,subtotal_minor,tax_minor,discount_minor,total_minor,created_by,created_at,updated_at,accounts_json,service_mode,version) VALUES('sale-pay','company','branch','register','shift','POS-P','THB','2027-01-15','open',9300,700,0,10000,'cashier',0,0,'{}','retail',1);\
+             INSERT INTO pos_fulfillments(id,company_id,branch_id,warehouse_id,product_id,quantity_milli,kind,station,recipe_json,accounts_json,currency,business_date,created_at,state) VALUES('pay-fulfilment','company','branch','warehouse','product',1000,'service','Shop','[]','{}','THB','2027-01-15',0,'draft');\
+             INSERT INTO pos_lines(id,sale_id,fulfillment_id,product_id,name,quantity_milli,price_minor,tax_bps,tax_inclusive,discount_minor,subtotal_minor,tax_minor,modifiers_json) VALUES('pay-line','sale-pay','pay-fulfilment','product','Service',1000,10000,700,false,0,9300,700,'[]');"
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let payment = command(
+            PosOperation::PaymentCreate,
+            "payment-create-key-1",
+            serde_json::json!({"id":"sale-pay","expectedVersion":1,"method":"cash","amountMinor":10000,"tenderedMinor":10000,"reference":""}),
+        );
+        let result = run(&pool, actor("cashier"), payment).await.unwrap();
+        assert_eq!(result.version, Some(2));
+        let payment_row: (String, i64, i64, String, String) = sqlx::query_as(
+            "SELECT state,amount_minor,tendered_minor,method,created_by FROM pos_payments WHERE sale_id='sale-pay'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(payment_row, ("succeeded".into(), 10000, 10000, "cash".into(), "cashier".into()));
+        let sale: (String, i64) = sqlx::query_as(
+            "SELECT state,version FROM pos_sales WHERE id='sale-pay'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(sale, ("payment_pending".into(), 2));
     });
 }

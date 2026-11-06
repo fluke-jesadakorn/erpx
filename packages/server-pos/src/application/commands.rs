@@ -5,11 +5,12 @@
 //! cross-owner SQL is constructed here.
 #![allow(clippy::too_many_arguments)]
 use crate::domain::commands::{
-    CashApproveInput, PosActor, PosCashMovement, PosCatalogSnapshot, PosCommand,
-    PosCommandInput, PosFulfillment, PosFulfillmentInsert, PosJournalLine, PosJournalRequest, PosLine,
-    PosFulfillmentSplitFacts, PosLineDetail, PosLineDiscountRow, PosLineInsert, PosLineSplitRow,
-    PosOperation, PosReceipt, PosRefund, PosRegister, PosResult, PosSale, PosSettings,
-    PosShift, RefundRejectInput, RefundRequestInput, SaleAddInput, SaleCreateInput, SaleCustomerInput,
+    CashApproveInput, PaymentCreateInput, PosActor, PosCashMovement, PosCatalogSnapshot, PosCommand,
+    PosCommandInput, PosFulfillment, PosFulfillmentInsert, PosFulfillmentSplitFacts,
+    PosFulfillmentStock, PosJournalLine, PosJournalRequest, PosLine, PosLineDetail,
+    PosLineDiscountRow, PosLineInsert, PosLineSplitRow, PosOperation, PosPaymentInsert, PosReceipt,
+    PosReceiptRequest, PosRefund, PosRegister, PosResult, PosSale, PosSettings, PosShift, PosStockRow,
+    RefundRejectInput, RefundRequestInput, SaleAddInput, SaleCreateInput, SaleCustomerInput,
     SaleDiscountInput, SaleMergeInput, SaleMoveTableInput, SaleRemoveInput, SaleSplitInput,
     SaleUpdateLineInput, SaleVersionInput, ShiftCloseInput,
     ShiftOpenInput, ShiftReviewInput,
@@ -302,6 +303,42 @@ pub trait PosCommandRepository: Send {
         discount_minor: i64,
         bill_discount_minor: i64,
     ) -> PosFuture<'a, (), Self::Error>;
+    fn payment_reserved<'a>(&'a mut self, sale_id: &'a str) -> PosFuture<'a, i64, Self::Error>;
+    fn sale_gross<'a>(&'a mut self, sale_id: &'a str) -> PosFuture<'a, i64, Self::Error>;
+    fn sale_fulfillment_stock<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+    ) -> PosFuture<'a, Vec<PosFulfillmentStock>, Self::Error>;
+    fn insert_payment<'a>(
+        &'a mut self,
+        payment: &'a PosPaymentInsert,
+    ) -> PosFuture<'a, (), Self::Error>;
+    fn settle_payment<'a>(
+        &'a mut self,
+        payment_id: &'a str,
+        now: TimestampMillis,
+    ) -> PosFuture<'a, (), Self::Error>;
+    fn attach_finance_payment<'a>(
+        &'a mut self,
+        payment_id: &'a str,
+        finance_payment_id: &'a str,
+    ) -> PosFuture<'a, (), Self::Error>;
+    fn reserve_stock<'a>(
+        &'a mut self,
+        fulfillment_id: &'a str,
+        warehouse_id: &'a str,
+        product_id: &'a str,
+        quantity_milli: i64,
+    ) -> PosFuture<'a, (), Self::Error>;
+    fn mark_fulfillment_reserved<'a>(
+        &'a mut self,
+        fulfillment_id: &'a str,
+    ) -> PosFuture<'a, (), Self::Error>;
+    fn bump_payment_pending<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+        now: TimestampMillis,
+    ) -> PosFuture<'a, bool, Self::Error>;
     fn prepared_day_close<'a>(
         &'a mut self,
         company: &'a CompanyId,
@@ -345,6 +382,12 @@ pub trait PosFinancePort: Send {
         company: &'a CompanyId,
         party_id: &'a str,
     ) -> PosFuture<'a, bool>;
+    /// Record the Finance receipt row for a settled POS payment. The journal
+    /// itself is posted separately on the same owner transaction.
+    fn record_receipt<'a>(
+        &'a mut self,
+        request: &'a PosReceiptRequest,
+    ) -> PosFuture<'a, ()>;
 }
 pub trait PosHospitalityPort: Send {
     fn hotel_day_open<'a>(
@@ -365,6 +408,13 @@ struct Accounts {
     cash: String,
     cash_transfer: String,
     cash_difference: String,
+}
+struct PaymentAccounts {
+    chart_id: String,
+    cash: String,
+    edc: String,
+    receivable: String,
+    advance: String,
 }
 fn accounts(settings: &PosSettings) -> Result<Accounts, BusinessError> {
     let value: serde_json::Value = serde_json::from_str(&settings.accounts_json).map_err(|_| {
@@ -402,6 +452,34 @@ fn accounts(settings: &PosSettings) -> Result<Accounts, BusinessError> {
                 "Configured POS cash-difference account is invalid.",
             )
         })?,
+    })
+}
+fn payment_accounts(settings: &PosSettings) -> Result<PaymentAccounts, BusinessError> {
+    let value: serde_json::Value = serde_json::from_str(&settings.accounts_json).map_err(|_| {
+        request_invalid(
+            "POS_ACCOUNT_INVALID",
+            "Configured POS accounts are invalid.",
+        )
+    })?;
+    let text = |name: &str| {
+        value
+            .get(name)
+            .and_then(serde_json::Value::as_str)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+            .ok_or_else(|| {
+                request_invalid(
+                    "POS_ACCOUNT_INVALID",
+                    "Configured POS accounts are incomplete.",
+                )
+            })
+    };
+    Ok(PaymentAccounts {
+        chart_id: text("chartId")?,
+        cash: text("cash")?,
+        edc: text("edc")?,
+        receivable: text("receivable")?,
+        advance: text("advance")?,
     })
 }
 
@@ -541,6 +619,7 @@ pub async fn execute_pos_command<R, F, H, O>(
     command: &PosCommand,
     repository: &mut R,
     catalog: Option<&PosCatalogSnapshot>,
+    stock: Option<&[PosStockRow]>,
     finance: &mut F,
     hospitality: &mut H,
     organization: &mut O,
@@ -603,6 +682,9 @@ where
         }
         PosCommandInput::SaleSplit(input) => {
             sale_split(actor, input, repository, now).await?
+        }
+        PosCommandInput::PaymentCreate(input) => {
+            payment_create(actor, input, stock, repository, finance, now).await?
         }
         PosCommandInput::SaleCreate(input) => {
             sale_create(
@@ -2058,5 +2140,271 @@ where
     Ok(PosResult {
         id: target_id,
         version: None,
+    })
+}
+
+fn ingredients(recipe_json: &str, quantity_milli: i64) -> Result<Vec<(String, i64)>, BusinessError> {
+    let invalid = || {
+        request_invalid(
+            "POS_PRODUCT_INVALID",
+            "The product ingredient recipe is unavailable.",
+        )
+    };
+    let value: serde_json::Value = serde_json::from_str(recipe_json).map_err(|_| invalid())?;
+    let parts = value.as_array().ok_or_else(invalid)?;
+    parts
+        .iter()
+        .map(|part| {
+            let product_id = part
+                .get("productId")
+                .and_then(|value| value.as_str())
+                .filter(|value| !value.is_empty() && value.len() <= 128)
+                .ok_or_else(invalid)?
+                .to_owned();
+            let base = part
+                .get("quantityMilli")
+                .and_then(|value| value.as_i64())
+                .filter(|value| *value > 0)
+                .ok_or_else(invalid)?;
+            let quantity = scaled(base, quantity_milli, 1000)?;
+            if quantity <= 0 {
+                return Err(invalid());
+            }
+            Ok((product_id, quantity))
+        })
+        .collect()
+}
+
+async fn payment_create<R, F>(
+    actor: &PosActor,
+    input: &PaymentCreateInput,
+    stock: Option<&[PosStockRow]>,
+    repository: &mut R,
+    finance: &mut F,
+    now: TimestampMillis,
+) -> Result<PosResult, R::Error>
+where
+    R: PosCommandRepository,
+    F: PosFinancePort,
+{
+    if !["cash", "transfer", "edc"].contains(&input.method.as_str()) {
+        return Err(BusinessError::new(
+            erpx_server_shared::public::FailureKind::Unavailable,
+            "POS_TENDER_UNAVAILABLE",
+            "This tender needs a provider that is not mounted yet.",
+        )
+        .into());
+    }
+    let sale = repository
+        .sale(&actor.company_id, &input.id)
+        .await?
+        .ok_or_else(not_found)?;
+    scope_sale(actor, &sale)?;
+    version_matches(sale.version, input.expected_version)?;
+    if !matches!(sale.state.as_str(), "open" | "held" | "payment_pending") {
+        return Err(conflict("POS_SALE_LOCKED", "Bill is not ready for payment.").into());
+    }
+    let settings = repository
+        .settings(&actor.company_id)
+        .await?
+        .ok_or_else(setup_required)?;
+    if settings
+        .accounting_approved_by
+        .as_deref()
+        .is_none_or(str::is_empty)
+    {
+        return Err(accounting_review_required().into());
+    }
+    if !settings.enabled {
+        return Err(conflict("POS_DISABLED", "New transactions are temporarily paused.").into());
+    }
+    finance
+        .open_period(&actor.company_id, &sale.business_date)
+        .await
+        .map_err(R::Error::from)?;
+    let shift = repository
+        .shift(&actor.company_id, &sale.shift_id)
+        .await?
+        .ok_or_else(|| conflict("POS_SHIFT_CLOSED", "Cash session is closed."))?;
+    if shift.state != "open" {
+        return Err(conflict("POS_SHIFT_CLOSED", "Cash session is closed.").into());
+    }
+    let gross = repository.sale_gross(&sale.id).await?;
+    if sale.discount_minor > scaled(gross, settings.cashier_discount_bps, 10_000)?
+        && sale.discount_approved_by.is_none()
+    {
+        return Err(conflict(
+            "POS_DISCOUNT_APPROVAL",
+            "This discount must be approved before payment.",
+        )
+        .into());
+    }
+    let reserved = repository.payment_reserved(&sale.id).await?;
+    let outstanding = sale
+        .total_minor
+        .checked_sub(reserved)
+        .ok_or_else(|| {
+            request_invalid("POS_PAYMENT_AMOUNT", "Review the payment amount.")
+        })?;
+    if input.amount_minor > outstanding
+        || input.tendered_minor < input.amount_minor
+        || (input.method != "cash" && input.tendered_minor != input.amount_minor)
+    {
+        return Err(request_invalid(
+            "POS_PAYMENT_AMOUNT",
+            "Review the payment or tendered amount.",
+        )
+        .into());
+    }
+    if ["transfer", "edc"].contains(&input.method.as_str())
+        && input.reference.trim().chars().count() < 2
+    {
+        return Err(request_invalid(
+            "POS_REFERENCE_REQUIRED",
+            "Enter the payment reference.",
+        )
+        .into());
+    }
+    let fulfillments = repository.sale_fulfillment_stock(&sale.id).await?;
+    let mut availability: std::collections::HashMap<(String, String), i64> =
+        std::collections::HashMap::new();
+    for row in stock.unwrap_or(&[]) {
+        availability.insert(
+            (row.warehouse_id.clone(), row.product_id.clone()),
+            row.quantity_milli.saturating_sub(row.reserved_milli),
+        );
+    }
+    let mut reserved_fulfillments = Vec::new();
+    for fulfillment in &fulfillments {
+        if fulfillment.state == "cancelled" {
+            return Err(conflict(
+                "POS_ITEM_CANCELLED",
+                "Remove cancelled items before taking payment.",
+            )
+            .into());
+        }
+        if fulfillment.reserved {
+            continue;
+        }
+        for (product_id, quantity) in
+            ingredients(&fulfillment.recipe_json, fulfillment.quantity_milli)?
+        {
+            let key = (fulfillment.warehouse_id.clone(), product_id.clone());
+            let available = availability.get(&key).copied().ok_or_else(|| {
+                conflict(
+                    "POS_STOCK_UNAVAILABLE",
+                    "Insufficient product or ingredients for this item.",
+                )
+            })?;
+            if available < quantity {
+                return Err(conflict(
+                    "POS_STOCK_UNAVAILABLE",
+                    "Insufficient product or ingredients for this item.",
+                )
+                .into());
+            }
+            availability.insert(key, available - quantity);
+            repository
+                .reserve_stock(
+                    &fulfillment.id,
+                    &fulfillment.warehouse_id,
+                    &product_id,
+                    quantity,
+                )
+                .await?;
+        }
+        reserved_fulfillments.push(fulfillment.id.clone());
+    }
+    for fulfillment_id in reserved_fulfillments {
+        repository
+            .mark_fulfillment_reserved(&fulfillment_id)
+            .await?;
+    }
+    let payment_id = repository.new_id().await?;
+    if !valid_uuid(&payment_id) {
+        return Err(source_invalid().into());
+    }
+    repository
+        .insert_payment(&PosPaymentInsert {
+            id: payment_id.clone(),
+            sale_id: sale.id.clone(),
+            company_id: actor.company_id.as_str().to_owned(),
+            method: input.method.clone(),
+            amount_minor: input.amount_minor,
+            tendered_minor: input.tendered_minor,
+            reference: input.reference.trim().to_owned(),
+            created_by: actor.user_id.as_str().to_owned(),
+            now,
+        })
+        .await?;
+    if input.method != "transfer" {
+        let accounts = payment_accounts(&settings)?;
+        let account = if input.method == "cash" {
+            accounts.cash.clone()
+        } else {
+            accounts.edc.clone()
+        };
+        let credit = if sale.invoice_id.is_some() {
+            accounts.receivable.clone()
+        } else {
+            accounts.advance.clone()
+        };
+        let finance_payment_id = repository.new_id().await?;
+        if !valid_uuid(&finance_payment_id) {
+            return Err(source_invalid().into());
+        }
+        let source_key = format!("receipt:{payment_id}");
+        let journal_id = format!("journal-{source_key}");
+        finance
+            .record_receipt(&PosReceiptRequest {
+                pos_payment_id: payment_id.clone(),
+                finance_payment_id: finance_payment_id.clone(),
+                company_id: actor.company_id.clone(),
+                party_id: sale.party_id.clone(),
+                number: format!("POS-R-{payment_id}"),
+                payment_date: sale.business_date.clone(),
+                currency: sale.currency.clone(),
+                amount_minor: input.amount_minor,
+                account_id: account.clone(),
+                journal_id: journal_id.clone(),
+                actor_id: actor.user_id.clone(),
+                now,
+            })
+            .await
+            .map_err(R::Error::from)?;
+        finance
+            .post_journal(&PosJournalRequest {
+                company_id: actor.company_id.clone(),
+                branch_id: actor.branch_id.clone(),
+                chart_id: accounts.chart_id,
+                currency: sale.currency.clone(),
+                business_date: sale.business_date.clone(),
+                source_key,
+                source_id: sale.id.clone(),
+                actor_id: actor.user_id.clone(),
+                lines: vec![
+                    PosJournalLine {
+                        account_id: account,
+                        debit: input.amount_minor,
+                        credit: 0,
+                    },
+                    PosJournalLine {
+                        account_id: credit,
+                        debit: 0,
+                        credit: input.amount_minor,
+                    },
+                ],
+                now,
+            })
+            .await
+            .map_err(R::Error::from)?;
+        repository.settle_payment(&payment_id, now).await?;
+    }
+    if !repository.bump_payment_pending(&sale.id, now).await? {
+        return Err(version_conflict().into());
+    }
+    Ok(PosResult {
+        id: payment_id,
+        version: Some(sale.version + 1),
     })
 }

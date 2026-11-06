@@ -100,9 +100,9 @@ async fn seed_pos(p: &review::Prepared) {
          INSERT INTO finance_periods(id,company_id,name,start_date,end_date,created_at) \
          VALUES('period-2027','company','2027','2027-01-01','2027-12-31',0) ON CONFLICT DO NOTHING;\
          INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,created_at,updated_at) \
-         VALUES('cash','company','chart','100','Cash','asset',0,0),('difference','company','chart','590','Cash difference','expense',0,0) ON CONFLICT DO NOTHING;\
+         VALUES('cash','company','chart','100','Cash','asset',0,0),('difference','company','chart','590','Cash difference','expense',0,0),('advance','company','chart','210','POS customer advances','liability',0,0) ON CONFLICT DO NOTHING;\
          INSERT INTO pos_settings(company_id,enabled,currency,accounts_json,accounting_prepared_by,accounting_approved_by,version) \
-         VALUES('company',true,'THB','{\"chartId\":\"chart\",\"cash\":\"cash\",\"cashTransfer\":\"transfer\",\"cashDifference\":\"difference\"}','fixture-a','fixture-b',1) ON CONFLICT DO NOTHING;\
+         VALUES('company',true,'THB','{\"chartId\":\"chart\",\"cash\":\"cash\",\"cashTransfer\":\"transfer\",\"cashDifference\":\"difference\",\"edc\":\"edc\",\"receivable\":\"receivable\",\"advance\":\"advance\",\"bank\":\"bank\"}','fixture-a','fixture-b',1) ON CONFLICT DO NOTHING;\
          INSERT INTO pos_registers(id,company_id,branch_id,warehouse_id,name,mode,active,version) \
          VALUES('register','company','branch','warehouse','Retail','retail',true,1) ON CONFLICT DO NOTHING;\
          INSERT INTO commerce_products(id,company_id,sku,name,price_minor,tax_bps,status,version) \
@@ -249,6 +249,61 @@ async fn pos_http_creates_a_retail_sale_with_real_organization_and_finance_sourc
             .await
             .unwrap();
         assert_eq!(lines, 1);
+
+        let paid = app
+            .clone()
+            .oneshot(request_op(
+                &p,
+                "/api/v1/holdings/acme/pos/commands/payment.create",
+                &format!(
+                    r#"{{"id":"{id}","expectedVersion":2,"method":"cash","amountMinor":10700,"tenderedMinor":10700,"reference":""}}"#
+                ),
+                "pos-http-payment-1",
+            ))
+            .await
+            .unwrap();
+        let status = paid.status();
+        let paid = json(paid).await;
+        assert_eq!(status, StatusCode::OK, "{paid}");
+        let payment_id = paid["data"]["id"].as_str().unwrap().to_owned();
+        let payment: (String, i64, Option<String>) = sqlx::query_as(
+            "SELECT state,amount_minor,finance_payment_id FROM pos_payments WHERE id=$1 AND company_id='company'",
+        )
+        .bind(&payment_id)
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(payment.0, "succeeded");
+        assert_eq!(payment.1, 10_700);
+        assert!(payment.2.is_some());
+        let receipt: (String, i64, String) = sqlx::query_as(
+            "SELECT status,amount_minor,journal_id FROM finance_payments WHERE id=$1",
+        )
+        .bind(payment.2.clone().unwrap())
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(receipt.0, "settled");
+        assert_eq!(receipt.1, 10_700);
+        assert_eq!(receipt.2, format!("journal-receipt:{payment_id}"));
+        let journal: (String, i64, i64) = sqlx::query_as(
+            "SELECT status,COALESCE(SUM(debit_minor),0)::bigint,COALESCE(SUM(credit_minor),0)::bigint FROM finance_journals j JOIN finance_journal_lines l ON l.journal_id=j.id WHERE j.id=$1 GROUP BY j.status",
+        )
+        .bind(format!("journal-receipt:{payment_id}"))
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(journal.0, "posted");
+        assert_eq!(journal.1, 10_700);
+        assert_eq!(journal.2, 10_700);
+        let sale_state: (String, i64) = sqlx::query_as(
+            "SELECT state,version FROM pos_sales WHERE id=$1",
+        )
+        .bind(&id)
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(sale_state, ("payment_pending".into(), 3));
     })
     .await;
 }

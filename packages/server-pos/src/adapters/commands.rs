@@ -5,7 +5,8 @@ use crate::application::commands::{PosCommandRepository, PosFuture};
 use crate::domain::commands::{
     CashApproveInput, PosActor, PosCashMovement, PosCommand, PosFulfillment, PosFulfillmentInsert,
     PosFulfillmentSplitFacts, PosLine, PosLineDetail, PosLineDiscountRow, PosLineInsert,
-    PosLineSplitRow, PosReceipt, PosRefund, PosRegister, PosSale, PosSettings,
+    PosFulfillmentStock, PosLineSplitRow, PosPaymentInsert, PosReceipt, PosRefund, PosRegister,
+    PosSale, PosSettings,
     PosShift, RefundRequestInput, SaleCreateInput,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
@@ -166,7 +167,7 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
         Box::pin(async move {
             self.ready().await?;
             let row = sqlx::query(
-                "SELECT enabled,currency,accounts_json,accounting_approved_by \
+                "SELECT enabled,currency,cashier_discount_bps,accounts_json,accounting_approved_by \
                  FROM pos_settings WHERE company_id=$1",
             )
             .bind(company.as_str())
@@ -176,6 +177,7 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
                 Ok::<_, Error>(PosSettings {
                     enabled: row.try_get("enabled")?,
                     currency: row.try_get("currency")?,
+                    cashier_discount_bps: row.try_get("cashier_discount_bps")?,
                     accounts_json: row.try_get("accounts_json")?,
                     accounting_approved_by: row.try_get("accounting_approved_by")?,
                 })
@@ -515,7 +517,7 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
             self.ready().await?;
             let row = sqlx::query(
                 "SELECT id,company_id,branch_id,register_id,shift_id,number,party_id,issuer_json,currency,business_date,service_mode,state,\
-                 subtotal_minor,tax_minor,discount_minor,total_minor,created_by,version,accounts_json \
+                 subtotal_minor,tax_minor,discount_minor,total_minor,created_by,version,accounts_json,discount_approved_by,invoice_id \
                  FROM pos_sales WHERE id=$1 AND company_id=$2 FOR UPDATE",
             )
             .bind(sale_id)
@@ -543,6 +545,8 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
                     created_by: row.try_get("created_by")?,
                     version: row.try_get("version")?,
                     accounts_json: row.try_get("accounts_json")?,
+                    discount_approved_by: row.try_get("discount_approved_by")?,
+                    invoice_id: row.try_get("invoice_id")?,
                 })
             })
             .transpose()
@@ -1144,6 +1148,131 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
                 .execute(&mut *self.connection)
                 .await?;
             Ok(())
+        })
+    }
+    fn payment_reserved<'a>(&'a mut self, sale_id: &'a str) -> Fut<'a, i64> {
+        Box::pin(async move {
+            self.ready().await?;
+            Ok(sqlx::query_scalar(
+                "SELECT COALESCE(SUM(amount_minor-refunded_minor),0)::bigint FROM pos_payments WHERE sale_id=$1 AND state IN ('requested','pending','succeeded','exception')",
+            )
+            .bind(sale_id)
+            .fetch_one(&mut *self.connection)
+            .await?)
+        })
+    }
+    fn sale_gross<'a>(&'a mut self, sale_id: &'a str) -> Fut<'a, i64> {
+        Box::pin(async move {
+            self.ready().await?;
+            Ok(sqlx::query_scalar(
+                "SELECT COALESCE(SUM(subtotal_minor+tax_minor+discount_minor),0)::bigint FROM pos_lines WHERE sale_id=$1",
+            )
+            .bind(sale_id)
+            .fetch_one(&mut *self.connection)
+            .await?)
+        })
+    }
+    fn sale_fulfillment_stock<'a>(&'a mut self, sale_id: &'a str) -> Fut<'a, Vec<PosFulfillmentStock>> {
+        Box::pin(async move {
+            self.ready().await?;
+            let rows = sqlx::query(
+                "SELECT f.id,f.warehouse_id,f.product_id,f.quantity_milli,f.kind,f.recipe_json,f.state,f.reserved FROM pos_fulfillments f WHERE f.id IN (SELECT fulfillment_id FROM pos_lines WHERE sale_id=$1) FOR UPDATE OF f",
+            )
+            .bind(sale_id)
+            .fetch_all(&mut *self.connection)
+            .await?;
+            rows.into_iter()
+                .map(|row| {
+                    Ok(PosFulfillmentStock {
+                        id: row.try_get("id")?,
+                        warehouse_id: row.try_get("warehouse_id")?,
+                        product_id: row.try_get("product_id")?,
+                        quantity_milli: row.try_get("quantity_milli")?,
+                        kind: row.try_get("kind")?,
+                        recipe_json: row.try_get("recipe_json")?,
+                        state: row.try_get("state")?,
+                        reserved: row.try_get("reserved")?,
+                    })
+                })
+                .collect()
+        })
+    }
+    fn insert_payment<'a>(&'a mut self, payment: &'a PosPaymentInsert) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            let state = if payment.method == "transfer" { "pending" } else { "requested" };
+            sqlx::query(
+                "INSERT INTO pos_payments(id,sale_id,company_id,method,amount_minor,tendered_minor,reference,state,created_by,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)",
+            )
+            .bind(&payment.id)
+            .bind(&payment.sale_id)
+            .bind(&payment.company_id)
+            .bind(&payment.method)
+            .bind(payment.amount_minor)
+            .bind(payment.tendered_minor)
+            .bind(&payment.reference)
+            .bind(state)
+            .bind(&payment.created_by)
+            .bind(payment.now.get())
+            .execute(&mut *self.connection)
+            .await?;
+            Ok(())
+        })
+    }
+    fn settle_payment<'a>(&'a mut self, payment_id: &'a str, now: TimestampMillis) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query("UPDATE pos_payments SET state='succeeded',version=version+1,updated_at=$1 WHERE id=$2")
+                .bind(now.get())
+                .bind(payment_id)
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(())
+        })
+    }
+    fn attach_finance_payment<'a>(&'a mut self, payment_id: &'a str, finance_payment_id: &'a str) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query("UPDATE pos_payments SET finance_payment_id=$1 WHERE id=$2")
+                .bind(finance_payment_id)
+                .bind(payment_id)
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(())
+        })
+    }
+    fn reserve_stock<'a>(&'a mut self, fulfillment_id: &'a str, warehouse_id: &'a str, product_id: &'a str, quantity_milli: i64) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query("INSERT INTO pos_reservations(fulfillment_id,warehouse_id,product_id,quantity_milli) VALUES($1,$2,$3,$4)")
+                .bind(fulfillment_id)
+                .bind(warehouse_id)
+                .bind(product_id)
+                .bind(quantity_milli)
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(())
+        })
+    }
+    fn mark_fulfillment_reserved<'a>(&'a mut self, fulfillment_id: &'a str) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query("UPDATE pos_fulfillments SET reserved=true WHERE id=$1")
+                .bind(fulfillment_id)
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(())
+        })
+    }
+    fn bump_payment_pending<'a>(&'a mut self, sale_id: &'a str, now: TimestampMillis) -> Fut<'a, bool> {
+        Box::pin(async move {
+            self.ready().await?;
+            let rows = sqlx::query("UPDATE pos_sales SET state='payment_pending',version=version+1,updated_at=$1 WHERE id=$2")
+                .bind(now.get())
+                .bind(sale_id)
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(rows.rows_affected() == 1)
         })
     }
     fn prepared_day_close<'a>(

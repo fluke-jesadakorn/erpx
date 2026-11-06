@@ -3,8 +3,9 @@
 use erpx_server_pos::public::commands::{
     CashApproveInput, PosActor, PosCashMovement, PosCommand, PosCommandRepository, PosFinancePort,
     PosFulfillment, PosFulfillmentInsert, PosFuture, PosHospitalityPort, PosJournalRequest, PosLine,
-    PosFulfillmentSplitFacts, PosLineDetail, PosLineDiscountRow, PosLineInsert, PosLineSplitRow,
-    PosOperation, PosOrganizationPort, PosReceipt, PosRefund,
+    PosFulfillmentSplitFacts, PosFulfillmentStock, PosLineDetail, PosLineDiscountRow, PosLineInsert,
+    PosLineSplitRow, PosOperation, PosOrganizationPort, PosPaymentInsert, PosReceipt,
+    PosReceiptRequest, PosRefund, PosStockRow,
     PosRegister, PosResult, PosSale, PosSettings, PosShift, execute_pos_command,
 };
 use erpx_server_shared::public::{
@@ -32,6 +33,7 @@ fn settings() -> PosSettings {
     PosSettings {
         enabled: true,
         currency: "THB".into(),
+        cashier_discount_bps: 0,
         accounts_json:
             r#"{"chartId":"chart","cash":"cash","cashTransfer":"transfer","cashDifference":"difference"}"#
                 .into(),
@@ -88,6 +90,8 @@ fn sale(state: &str, version: i64) -> PosSale {
         created_by: "cashier".into(),
         version,
         accounts_json: settings().accounts_json,
+        discount_approved_by: None,
+        invoice_id: None,
     }
 }
 fn line(id: &str, quantity: i64, subtotal: i64, tax: i64) -> PosLine {
@@ -440,6 +444,33 @@ impl PosCommandRepository for Probe {
         Box::pin(async move { Ok(self.reject) })
     }
 
+    fn payment_reserved<'a>(&'a mut self, _: &'a str) -> PosFuture<'a, i64> {
+        Box::pin(async { Ok(0) })
+    }
+    fn sale_gross<'a>(&'a mut self, _: &'a str) -> PosFuture<'a, i64> {
+        Box::pin(async { Ok(0) })
+    }
+    fn sale_fulfillment_stock<'a>(&'a mut self, _: &'a str) -> PosFuture<'a, Vec<PosFulfillmentStock>> {
+        Box::pin(async { Ok(Vec::new()) })
+    }
+    fn insert_payment<'a>(&'a mut self, _: &'a PosPaymentInsert) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn settle_payment<'a>(&'a mut self, _: &'a str, _: TimestampMillis) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn attach_finance_payment<'a>(&'a mut self, _: &'a str, _: &'a str) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn reserve_stock<'a>(&'a mut self, _: &'a str, _: &'a str, _: &'a str, _: i64) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn mark_fulfillment_reserved<'a>(&'a mut self, _: &'a str) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn bump_payment_pending<'a>(&'a mut self, _: &'a str, _: TimestampMillis) -> PosFuture<'a, bool> {
+        Box::pin(async { Ok(true) })
+    }
     fn sale_line_split<'a>(&'a mut self, _: &'a str, _: &'a str) -> PosFuture<'a, Option<PosLineSplitRow>> {
         Box::pin(async { Ok(None) })
     }
@@ -533,6 +564,10 @@ impl PosFinancePort for Finance {
         self.calls.push("party".into());
         Box::pin(async move { Ok(self.party) })
     }
+    fn record_receipt<'a>(&'a mut self, request: &'a PosReceiptRequest) -> PosFuture<'a, ()> {
+        self.calls.push(format!("receipt:{}", request.amount_minor));
+        Box::pin(async { Ok(()) })
+    }
 }
 #[derive(Default)]
 struct Hospitality {
@@ -579,6 +614,7 @@ fn run(
         command,
         probe,
         None,
+        None,
         finance,
         hospitality,
         &mut Organization,
@@ -604,6 +640,7 @@ fn permission_module_expiry_and_department_precede_every_read() {
                 serde_json::json!({"registerId":"register","openingMinor":1000}),
             ),
             &mut probe,
+            None,
             None,
             &mut Finance::default(),
             &mut Hospitality::default(),

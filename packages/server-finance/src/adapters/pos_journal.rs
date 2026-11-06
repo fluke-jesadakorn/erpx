@@ -217,3 +217,64 @@ pub async fn post_pos_journal<C: Clock + Sync>(
     }
     Ok(plan.journal_id().to_owned())
 }
+
+/// Exact Finance receipt facts supplied by the authorized POS payment command.
+#[derive(Clone, Debug)]
+pub struct PosReceiptRecord {
+    pub finance_payment_id: String,
+    pub company_id: String,
+    pub party_id: Option<String>,
+    pub payment_number: String,
+    pub payment_date: String,
+    pub currency: String,
+    pub amount_minor: i64,
+    pub account_id: String,
+    pub journal_id: String,
+    pub actor_id: String,
+    pub now: i64,
+}
+
+/// Write the settled receipt row on the caller's open Finance transaction. The
+/// journal keeps the deterministic id and is posted separately by
+/// `post_pos_journal`; the payment row remains the owner receipt evidence.
+pub async fn insert_pos_receipt(
+    c: &mut PgConnection,
+    receipt: &PosReceiptRecord,
+) -> Result<(), Error> {
+    if !c.is_in_transaction() {
+        return Err(
+            erpx_server_runtime::public::postgres::PersistenceError::new(
+                "POS_FINANCE_TRANSACTION_REQUIRED",
+            )
+            .into(),
+        );
+    }
+    if receipt.amount_minor <= 0
+        || receipt.company_id.is_empty()
+        || receipt.payment_number.is_empty()
+        || receipt.journal_id.is_empty()
+    {
+        return Err(invalid(
+            "POS_FINANCE_RECEIPT_INVALID",
+            "The POS receipt facts are invalid.",
+        ));
+    }
+    sqlx::query(
+        "INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,bank_account,status,journal_id,created_by,approved_by,created_at,updated_at) \
+         VALUES($1,$2,$3,'receipt',$4,$5,$6,$7,0,$8,'settled',$9,$10,$10,$11,$11)",
+    )
+    .bind(&receipt.finance_payment_id)
+    .bind(&receipt.company_id)
+    .bind(&receipt.party_id)
+    .bind(&receipt.payment_number)
+    .bind(&receipt.payment_date)
+    .bind(&receipt.currency)
+    .bind(receipt.amount_minor)
+    .bind(&receipt.account_id)
+    .bind(&receipt.journal_id)
+    .bind(&receipt.actor_id)
+    .bind(receipt.now)
+    .execute(&mut *c)
+    .await?;
+    Ok(())
+}
