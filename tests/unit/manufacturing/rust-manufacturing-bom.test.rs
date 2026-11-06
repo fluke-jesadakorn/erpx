@@ -441,16 +441,24 @@ fn bounded_register_limits_are_enforced() {
 }
 
 #[test]
-fn text_limits_count_utf16_units_with_js_trim_edges() {
-    // 41 non-BMP characters are 82 UTF-16 code units (within the 160-unit
-    // name limit) but 164 UTF-8 bytes, so this passes only with UTF-16
-    // length parity.
+fn text_limits_use_chars_min_and_bytes_max_with_js_trim_edges() {
+    // 40 non-BMP characters are 40 chars (>=2) and 160 bytes (== max),
+    // so this passes the dual metric.
     let mut name_at_limit = specification();
-    name_at_limit.name = "😀".repeat(41);
+    name_at_limit.name = "😀".repeat(40);
     assert!(validate_register(&actor(), vec![name_at_limit]).is_ok());
 
-    // 81 emoji exceed the 160-unit name limit even though code-point
-    // counting would accept them.
+    // 41 emoji are 164 bytes, exceeding the 160-byte cap.
+    let mut name_over_bytes = specification();
+    name_over_bytes.name = "😀".repeat(41);
+    assert_eq!(
+        validate_register(&actor(), vec![name_over_bytes])
+            .unwrap_err()
+            .code,
+        "MANUFACTURING_BOM_SOURCE_INVALID"
+    );
+
+    // 81 emoji also exceed the 160-byte cap.
     let mut name_over_limit = specification();
     name_over_limit.name = "😀".repeat(81);
     assert_eq!(

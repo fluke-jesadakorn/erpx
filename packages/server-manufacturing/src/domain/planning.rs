@@ -281,14 +281,15 @@ fn js_trim(value: &str) -> &str {
 }
 
 fn text(value: &str, maximum: usize) -> bool {
-    // TypeScript measures UTF-16 code units (`String.length`), not UTF-8
-    // bytes or code points: a non-BMP character counts 2.
-    let length = value.encode_utf16().count();
+    // TS `trimmed(1, max)`: `[...value].length >= 1` (code points) and
+    // `TextEncoder` byte length `<= maximum`, plus trim edges.
+    let chars = value.chars().count();
+    let bytes = value.len();
     // `char::is_control` is intentionally the full superset (including C1
     // controls) that the TypeScript transport permits; this native read
     // fails closed there instead of accepting it.
-    length > 0
-        && length <= maximum
+    chars >= 1
+        && bytes <= maximum
         && js_trim(value) == value
         && !value.chars().any(char::is_control)
 }

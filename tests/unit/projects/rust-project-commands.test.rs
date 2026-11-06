@@ -634,11 +634,11 @@ async fn transition_command_enforces_state_prerequisites_and_successors() {
 }
 
 #[tokio::test]
-async fn command_text_counts_utf16_units_and_trims_only_js_whitespace() {
+async fn command_text_counts_chars_and_trims_only_js_whitespace() {
     // Retained Zod schemas (`title`/`description`/`reason`) measure
-    // `String.length` (UTF-16 code units) after ECMAScript `trim()`: a single
-    // astral scalar is 2 units, U+FEFF is trimmed, U+0085 is not.
-    for title in ["😀".to_owned(), "😀".repeat(100), "ก".repeat(200)] {
+    // Unicode scalars after ECMAScript `trim()`: a single
+    // astral scalar is 1 char, U+FEFF is trimmed, U+0085 is not.
+    for title in ["😀😀".to_owned(), "😀".repeat(200), "ก".repeat(200)] {
         let mut input = save_input();
         input.title = title;
         let mut repository = repo();
@@ -648,7 +648,7 @@ async fn command_text_counts_utf16_units_and_trims_only_js_whitespace() {
         assert_eq!(repository.saves, 1);
     }
     for title in [
-        "😀".repeat(101),
+        "😀".repeat(201),
         "ก".repeat(201),
         "\u{feff}Delivery".to_owned(),
         "Delivery\u{feff}".to_owned(),
@@ -672,9 +672,9 @@ async fn command_text_counts_utf16_units_and_trims_only_js_whitespace() {
         .await
         .unwrap();
 
-    // Reason: "a" + one astral scalar is 3 UTF-16 units (passes minimum 3).
+    // Reason: "ab" + one astral scalar is 3 chars (passes minimum 3).
     let mut input = save_input();
-    input.reason = "a😀".into();
+    input.reason = "ab😀".into();
     let mut repository = repo();
     save_milestone(&actor(), &mut repository, "project", None, &input, "command-1", NOW)
         .await
@@ -687,15 +687,15 @@ async fn command_text_counts_utf16_units_and_trims_only_js_whitespace() {
         .unwrap_err();
     assert_eq!(error.code, "PROJECT_MILESTONE_INVALID");
 
-    // Description: 5,000 astral scalars are exactly 10,000 UTF-16 units.
+    // Description: 10,000 astral scalars are exactly 10,000 chars.
     let mut input = save_input();
-    input.description = "😀".repeat(5_000);
+    input.description = "😀".repeat(10_000);
     let mut repository = repo();
     save_milestone(&actor(), &mut repository, "project", None, &input, "command-1", NOW)
         .await
         .unwrap();
     let mut input = save_input();
-    input.description = "😀".repeat(5_001);
+    input.description = "😀".repeat(10_001);
     let mut repository = repo();
     let error = save_milestone(&actor(), &mut repository, "project", None, &input, "command-1", NOW)
         .await

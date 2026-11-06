@@ -156,15 +156,26 @@ fn js_trim(value: &str) -> &str {
     })
 }
 
-fn text(value: &str, minimum: usize, maximum: usize) -> bool {
-    // TypeScript measures UTF-16 code units (`String.length`), not UTF-8
-    // bytes or code points: a non-BMP character counts 2.
-    let length = value.encode_utf16().count();
+fn text_trimmed(value: &str, minimum: usize, maximum: usize) -> bool {
+    // TS `trimmed(min, max)`: `[...value].length >= minimum` (code points)
+    // and `TextEncoder` byte length `<= maximum`, plus trim edges.
+    let chars = value.chars().count();
+    let bytes = value.len();
     // `char::is_control` is intentionally the full superset (including C1
     // controls) that the TypeScript transport permits; this native read
     // fails closed there instead of accepting it.
-    length >= minimum
-        && length <= maximum
+    chars >= minimum
+        && bytes <= maximum
+        && js_trim(value) == value
+        && !value.chars().any(char::is_control)
+}
+
+fn text_bare(value: &str, minimum: usize, maximum: usize) -> bool {
+    // TS bare `text(max)`: `TextEncoder` byte length in `[minimum, maximum]`,
+    // plus trim edges (no char-min).
+    let bytes = value.len();
+    bytes >= minimum
+        && bytes <= maximum
         && js_trim(value) == value
         && !value.chars().any(char::is_control)
 }
@@ -195,15 +206,15 @@ fn valid_line(line: &BomLine, specification: &BomSpecification) -> bool {
         && line
             .substitution_group
             .as_deref()
-            .is_none_or(|value| text(value, 1, 80))
+            .is_none_or(|value| text_bare(value, 1, 80))
 }
 
 fn valid_operation(operation: &BomOperation, specification: &BomSpecification) -> bool {
     identifier(&operation.id)
         && operation.specification_id == specification.id
         && identifier(&operation.resource_id)
-        && text(&operation.resource_name, 2, 160)
-        && text(&operation.name, 2, 160)
+        && text_trimmed(&operation.resource_name, 2, 160)
+        && text_trimmed(&operation.name, 2, 160)
         && nonnegative(operation.setup_minutes)
         && positive(operation.run_minutes_per_batch)
         && nonnegative(operation.ordinal)
@@ -212,7 +223,7 @@ fn valid_operation(operation: &BomOperation, specification: &BomSpecification) -
 fn valid_specification(specification: &BomSpecification, company: &CompanyId) -> bool {
     identifier(&specification.id)
         && specification.company_id == company.as_str()
-        && text(&specification.name, 2, 160)
+        && text_trimmed(&specification.name, 2, 160)
         && valid_mode(&specification.mode)
         && identifier(&specification.output_product_id)
         && positive(specification.batch_quantity_milli)

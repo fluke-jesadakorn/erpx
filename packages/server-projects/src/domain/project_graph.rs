@@ -142,8 +142,8 @@ fn valid_identifier(value: &str) -> bool {
 }
 
 fn valid_title(value: &str) -> bool {
-    // Zod counts UTF-16 code units and trims ECMAScript whitespace only.
-    let length = value.encode_utf16().count();
+    // Zod 4.6.7 counts Unicode scalars and trims ECMAScript whitespace only.
+    let length = value.chars().count();
     (2..=200).contains(&length) && value == js_trim(value)
 }
 

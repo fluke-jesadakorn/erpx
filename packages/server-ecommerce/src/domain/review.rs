@@ -6,9 +6,9 @@
 //! Company-scoped owner row.
 use super::actor::EcommerceActor;
 use super::command::{
-    EcommerceReceipt, command_identity, idempotency_conflict, js_trim, parse_receipt_result,
-    readback_invalid, request_invalid, source_invalid, utf16_len, valid_hash, valid_identifier,
-    valid_text,
+    EcommerceReceipt, chars_len, command_identity, cp_text, idempotency_conflict, js_trim,
+    parse_receipt_result, readback_invalid, request_invalid, source_invalid, valid_hash,
+    valid_identifier,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, RecordId};
 use serde::Serialize;
@@ -150,8 +150,8 @@ impl ReviewCommand {
             return Err(request_invalid());
         }
         let reason = js_trim(&self.reason);
-        let reason_len = utf16_len(reason);
-        if !(REASON_MIN..=REASON_MAX).contains(&reason_len) || !valid_text(reason, REASON_MAX) {
+        let reason_len = chars_len(reason);
+        if !(REASON_MIN..=REASON_MAX).contains(&reason_len) || !cp_text(reason, REASON_MAX) {
             return Err(request_invalid());
         }
         let (expected_status, next_status) = match self.action {

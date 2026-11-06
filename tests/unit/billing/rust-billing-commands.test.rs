@@ -678,8 +678,8 @@ fn fails_closed_on_readback_audit_and_receipt_loss() {
 }
 
 #[test]
-fn reason_counts_js_utf16_units_not_utf8_bytes_or_scalars() {
-    // 1000 Thai scalars: 1000 UTF-16 units (allowed), 3000 bytes.
+fn reason_counts_code_points_not_utf8_bytes_or_utf16_units() {
+    // 1000 Thai scalars: 1000 code points (allowed), 3000 bytes.
     let mut thai = record();
     thai.reason = "ก".repeat(1000);
     let mut probe = Probe::default();
@@ -697,19 +697,41 @@ fn reason_counts_js_utf16_units_not_utf8_bytes_or_scalars() {
     );
     assert!(probe.calls.is_empty());
 
-    // 500 astral scalars: 1000 UTF-16 units, 2000 bytes.
+    // 1000 astral scalars: 1000 code points, 4000 bytes.
     let mut astral = record();
-    astral.reason = "😀".repeat(500);
+    astral.reason = "😀".repeat(1000);
     let mut probe = Probe::default();
     run_with(BillingCostCommand::Record(astral), &admin(), &mut probe).unwrap();
 
-    // Two astral scalars count 4 UTF-16 units, so they pass the 3-unit
-    // minimum where a scalar count would reject them.
+    let mut over_astral = record();
+    over_astral.reason = "😀".repeat(1001);
+    let mut probe = Probe::default();
+    assert_eq!(
+        run_with(BillingCostCommand::Record(over_astral), &admin(), &mut probe)
+            .unwrap_err()
+            .code,
+        "BILLING_REQUEST_INVALID"
+    );
+    assert!(probe.calls.is_empty());
+
+    // Two astral scalars are 2 code points, so they fail the 3-point
+    // minimum; three pass.
     let mut short_astral = record();
     short_astral.reason = "😀😀".into();
     let mut probe = Probe::default();
+    assert_eq!(
+        run_with(BillingCostCommand::Record(short_astral), &admin(), &mut probe)
+            .unwrap_err()
+            .code,
+        "BILLING_REQUEST_INVALID"
+    );
+    assert!(probe.calls.is_empty());
+
+    let mut min_astral = record();
+    min_astral.reason = "😀😀😀".into();
+    let mut probe = Probe::default();
     run_with(
-        BillingCostCommand::Record(short_astral),
+        BillingCostCommand::Record(min_astral),
         &admin(),
         &mut probe,
     )
@@ -717,8 +739,8 @@ fn reason_counts_js_utf16_units_not_utf8_bytes_or_scalars() {
 }
 
 #[test]
-fn note_counts_js_utf16_units_not_utf8_bytes() {
-    // 2000 Thai scalars: 2000 UTF-16 units (allowed), 6000 bytes.
+fn note_counts_code_points_not_utf8_bytes() {
+    // 2000 Thai scalars: 2000 code points (allowed), 6000 bytes.
     let mut thai = record();
     thai.note = "ก".repeat(2000);
     let mut probe = Probe {
@@ -741,7 +763,7 @@ fn note_counts_js_utf16_units_not_utf8_bytes() {
     );
     assert!(probe.calls.is_empty());
 
-    // 1000 astral scalars: 2000 UTF-16 units, 4000 bytes.
+    // 1000 astral scalars: 1000 code points, 4000 bytes.
     let mut astral = record();
     astral.note = "😀".repeat(1000);
     let mut probe = Probe {

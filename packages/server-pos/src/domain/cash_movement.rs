@@ -191,13 +191,12 @@ pub(crate) fn idempotency_conflict() -> BusinessError {
     )
 }
 
-/// Zod `string.length` counts JavaScript UTF-16 code units, not UTF-8 bytes
-/// or Unicode scalar values. Thai text (3 bytes, 1 unit) and astral text
-/// (surrogate pairs: 4 bytes, 2 units) must be measured the way the
-/// retained TypeScript gateway (`z.string().trim().min(3).max(1000)`)
-/// measures them.
-pub(crate) fn utf16_len(value: &str) -> usize {
-    value.encode_utf16().count()
+/// Zod string limits count Unicode scalar values (code points), not UTF-8
+/// bytes or UTF-16 code units. Thai text (3 bytes, 1 code point) and astral
+/// text (4 bytes, 1 code point) must be measured the way the retained
+/// TypeScript gateway (`z.string().trim().min(3).max(1000)`) measures them.
+pub(crate) fn cp_len(value: &str) -> usize {
+    value.chars().count()
 }
 
 /// JavaScript `String.prototype.trim()` parity for Zod `.trim()` fields.
@@ -218,7 +217,7 @@ impl CreateCashMovement {
             return Err(request_invalid());
         }
         let reason = js_trim(&self.reason);
-        let reason_len = utf16_len(reason);
+        let reason_len = cp_len(reason);
         if !(REASON_MIN..=REASON_MAX).contains(&reason_len) {
             return Err(request_invalid());
         }

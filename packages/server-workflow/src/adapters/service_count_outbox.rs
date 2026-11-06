@@ -25,11 +25,11 @@ fn js_trim(value: &str) -> &str {
     })
 }
 
-/// ECMAScript `.length` counts UTF-16 code units, not Rust chars or bytes.
+/// Zod reason limits count Unicode scalar values (code points).
 /// The trimmed text is what is persisted in the audit purpose, so both bounds
-/// apply to the trimmed UTF-16 length, matching `stock_count_flow`.
+/// apply to the trimmed code-point length, matching `stock_count_flow`.
 fn valid_retry_reason(reason: &str) -> bool {
-    (3..=2000).contains(&js_trim(reason).encode_utf16().count())
+    (3..=2000).contains(&js_trim(reason).chars().count())
 }
 pub struct DeadLetterRetry<'a> {
     pub event_id: &'a str,
@@ -197,8 +197,7 @@ mod tests {
     use super::{js_trim, valid_retry_reason};
 
     /// Each case is verified against ECMAScript `String.prototype.trim` +
-    /// `.length` (UTF-16 code units) semantics, not Rust `str::trim` +
-    /// `chars().count()` + byte `len()`.
+    /// Zod code-point length semantics, not Rust `str::trim` + byte `len()`.
     #[test]
     fn retry_reason_minimum_uses_js_trimmed_utf16_length() {
         assert!(valid_retry_reason("Retry after correcting native owner evidence"));
@@ -223,23 +222,28 @@ mod tests {
 
     #[test]
     fn retry_reason_maximum_uses_js_trimmed_utf16_length() {
-        // Surrogate pairs count as two UTF-16 units: two emoji reach the
-        // minimum, where `chars().count()` would see only two chars.
-        assert!(valid_retry_reason("😀😀"));
+        // Astral code points count as one code point each: two emoji no longer
+        // reach the minimum, where UTF-16 length would have counted four.
+        assert!(!valid_retry_reason("😀😀"));
+        assert!(valid_retry_reason("😀😀😀"));
         assert!(!valid_retry_reason("😀"));
-        // Thai is three UTF-8 bytes per char but one UTF-16 unit; the byte
+        // Thai is three UTF-8 bytes per char but one code point; the byte
         // `len()` check formerly rejected 2000 Thai chars (6000 bytes).
         let thai_2000 = "ก".repeat(2000);
         assert!(valid_retry_reason(&thai_2000));
         let thai_2001 = "ก".repeat(2001);
         assert!(!valid_retry_reason(&thai_2001));
         // The maximum applies to the trimmed text actually persisted: edge
-        // whitespace outside the UTF-16 budget does not fail validation.
+        // whitespace outside the code-point budget does not fail validation.
         assert!(valid_retry_reason(&format!("  {}  ", thai_2000)));
-        let emoji_1000 = "😀".repeat(1000);
-        assert!(valid_retry_reason(&emoji_1000));
-        let emoji_1001 = "😀".repeat(1001);
-        assert!(!valid_retry_reason(&emoji_1001));
+        // 1000/1001 emoji still pass under the 2000 code-point ceiling
+        // (they failed only when UTF-16 length counted them as 2000/2002).
+        assert!(valid_retry_reason(&"😀".repeat(1000)));
+        assert!(valid_retry_reason(&"😀".repeat(1001)));
+        let emoji_2000 = "😀".repeat(2000);
+        assert!(valid_retry_reason(&emoji_2000));
+        let emoji_2001 = "😀".repeat(2001);
+        assert!(!valid_retry_reason(&emoji_2001));
     }
 
     #[test]

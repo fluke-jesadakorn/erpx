@@ -35,7 +35,7 @@ impl ServiceStockMasterIntent {
     }
     pub fn valid(&self) -> bool {
         fn sized(s: &str, min: usize, max: usize) -> bool {
-            let n = s.encode_utf16().count();
+            let n = s.chars().count();
             n >= min && n <= max
         }
         let valid = match &self.master {

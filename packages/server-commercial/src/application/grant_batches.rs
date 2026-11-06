@@ -37,7 +37,7 @@ pub fn normalize_lifecycle_batch(mut input: GrantBatch) -> Result<GrantBatch, Bu
         )
     };
     let bounded = |s: &str, min, max| {
-        let n = s.encode_utf16().count();
+        let n = s.chars().count();
         n >= min && n <= max
     };
     if !bounded(&input.company_id, 1, 100)

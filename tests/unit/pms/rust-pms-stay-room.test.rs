@@ -79,7 +79,7 @@ fn stay_room_command_validation_rejects_invalid_input() {
 }
 
 #[test]
-fn stay_room_reason_and_ids_use_utf16_units_after_ecma_trim() {
+fn stay_room_reason_and_ids_use_chars_after_ecma_trim() {
     let base = || PmsStayRoomCommand {
         operation: PmsStayRoomOperation::Assign,
         property_id: "property".into(),
@@ -93,12 +93,14 @@ fn stay_room_reason_and_ids_use_utf16_units_after_ecma_trim() {
     command.reason = format!("{}😀", "a".repeat(1998));
     assert!(command.validate().is_ok(), "reason is textField .trim().max(2000)");
     command.reason = format!("{}😀", "a".repeat(1999));
-    assert!(command.validate().is_err(), "1999 a + emoji is 2001 UTF-16 units");
+    assert!(command.validate().is_ok(), "1999 a + emoji is 2000 chars");
+    command.reason = format!("{}😀", "a".repeat(2000));
+    assert!(command.validate().is_err(), "2000 a + emoji is 2001 chars");
     let mut command = base();
     command.reason = format!("  \u{00A0}{}{} ", "a".repeat(2000), "\u{3000}");
     assert!(
         command.validate().is_ok(),
-        "ECMAScript whitespace around 2000 units still passes"
+        "ECMAScript whitespace around 2000 chars still passes"
     );
     let mut command = base();
     command.reason = format!("{}{}", "\u{0085}", "a".repeat(2000));
@@ -113,18 +115,18 @@ fn stay_room_reason_and_ids_use_utf16_units_after_ecma_trim() {
         "BOM (ZWNBSP) is in the ECMAScript trim set"
     );
     let mut command = base();
-    command.property_id = "😀".repeat(101);
+    command.property_id = "😀".repeat(201);
     assert!(
         command.validate().is_err(),
-        "ids are untrimmed idField: 101 emoji are 202 UTF-16 units"
+        "ids are untrimmed idField: 201 emoji are 201 chars"
     );
-    command.property_id = "😀".repeat(100);
+    command.property_id = "😀".repeat(200);
     assert!(command.validate().is_ok());
     let mut command = base();
     command.property_id = "中".repeat(150);
     assert!(
         command.validate().is_ok(),
-        "150 CJK are 150 UTF-16 units but 450 UTF-8 bytes"
+        "150 CJK are 150 chars but 450 UTF-8 bytes"
     );
 }
 

@@ -454,14 +454,23 @@ pub(crate) fn valid_content(value: &str, max: usize) -> bool {
     value.encode_utf16().count() <= max && !value.contains('\0')
 }
 
+// Zod 4.6.7 counts code points; request/command lengths use this.
+fn cp_len(s: &str) -> usize {
+    s.chars().count()
+}
+
+fn valid_content_cp(s: &str, max: usize) -> bool {
+    cp_len(s) <= max && !s.contains('\0')
+}
+
 pub(crate) fn trim_js(value: &str) -> &str {
     value.trim_matches(|c| matches!(c, '\u{0009}'..='\u{000d}' | '\u{0020}' | '\u{00a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}'))
 }
 
 pub fn normalize_reason(value: &str) -> Result<String, BusinessError> {
     let reason = trim_js(value);
-    let length = reason.encode_utf16().count();
-    if !(3..=MAX_REASON).contains(&length) || !valid_content(reason, MAX_REASON) {
+    let length = cp_len(reason);
+    if !(3..=MAX_REASON).contains(&length) || !valid_content_cp(reason, MAX_REASON) {
         return Err(request_invalid());
     }
     Ok(reason.to_owned())
@@ -473,8 +482,8 @@ fn normalize_evidence(value: &str) -> Result<String, BusinessError> {
 
 fn normalize_code(value: &str) -> Result<Option<String>, BusinessError> {
     let code = trim_js(value);
-    if !(2..=MAX_REQUIRED_FOR).contains(&code.encode_utf16().count())
-        || !valid_content(code, MAX_REQUIRED_FOR)
+    if !(2..=MAX_REQUIRED_FOR).contains(&cp_len(code))
+        || !valid_content_cp(code, MAX_REQUIRED_FOR)
     {
         return Err(request_invalid());
     }
@@ -551,12 +560,12 @@ impl CourseRequest {
         let title = trim_js(&self.title);
         let description = trim_js(&self.description);
         let provider = trim_js(&self.provider);
-        if !(3..=MAX_TITLE).contains(&title.encode_utf16().count())
-            || !valid_content(title, MAX_TITLE)
-            || !(3..=MAX_DESCRIPTION).contains(&description.encode_utf16().count())
-            || !valid_content(description, MAX_DESCRIPTION)
-            || !(2..=MAX_PROVIDER).contains(&provider.encode_utf16().count())
-            || !valid_content(provider, MAX_PROVIDER)
+        if !(3..=MAX_TITLE).contains(&cp_len(title))
+            || !valid_content_cp(title, MAX_TITLE)
+            || !(3..=MAX_DESCRIPTION).contains(&cp_len(description))
+            || !valid_content_cp(description, MAX_DESCRIPTION)
+            || !(2..=MAX_PROVIDER).contains(&cp_len(provider))
+            || !valid_content_cp(provider, MAX_PROVIDER)
             || !(1..=9_007_199_254_740_991).contains(&self.duration_minutes)
         {
             return Err(request_invalid());
@@ -671,8 +680,8 @@ impl CertificateRevocation {
     pub fn validate(&self) -> Result<ValidatedRevocation, BusinessError> {
         let reason = trim_js(&self.reason);
         if self.expected_assignment_version < 1
-            || !(8..=2_000).contains(&reason.encode_utf16().count())
-            || !valid_content(reason, 2_000)
+            || !(8..=2_000).contains(&cp_len(reason))
+            || !valid_content_cp(reason, 2_000)
         {
             return Err(request_invalid());
         }

@@ -6,7 +6,7 @@
 //! and the Commercial package entitlement remain composition responsibilities
 //! behind [`PmsHttpBackend`].
 use crate::domain::front_desk::PmsFrontDeskSelection;
-use crate::domain::room_board::{PmsBoardSection, PmsBoardSelection, utf16_len};
+use crate::domain::room_board::{PmsBoardSection, PmsBoardSelection, cp_len};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
     StatusCode, body::to_bytes, header, routing::get, serde_json,
@@ -181,10 +181,10 @@ fn percent_decode(value: &str) -> Result<String, BusinessError> {
 }
 
 fn id(value: &str, code: &'static str) -> Result<String, BusinessError> {
-    // Retained `idField` measures UTF-16 code units (JS String.length), matching
-    // the domain `utf16_len` rule. `RecordId` is byte-capped and would reject
+    // Retained `idField` measures Unicode scalars (Zod 4.6.7), matching
+    // the domain `cp_len` rule. `RecordId` is byte-capped and would reject
     // non-ASCII ids the domain accepts.
-    if value.is_empty() || utf16_len(value) > 200 || value.chars().any(char::is_control) {
+    if value.is_empty() || cp_len(value) > 200 || value.chars().any(char::is_control) {
         return Err(BusinessError::invalid(
             code,
             "Use a valid bounded identifier.",

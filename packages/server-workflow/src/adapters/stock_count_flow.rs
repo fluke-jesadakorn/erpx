@@ -433,8 +433,8 @@ impl StockCountFlowAssignmentWitness {
     }
     pub fn prepare_with_default(basis: StockCountFlowBasis, view: &StockCountFlowView, input: StockCountFlowAssignmentRequest<'_>, save_default: bool) -> Result<Self, Error> {
         validate_view(&basis, view)?;
-        if js_trim(input.reason).encode_utf16().count() < 3
-            || js_trim(input.reason).encode_utf16().count() > 2000
+        if cp_len(js_trim(input.reason)) < 3
+            || cp_len(js_trim(input.reason)) > 2000
             || input.command.is_empty()
             || input.event.is_empty()
         {
@@ -575,4 +575,9 @@ impl StockCountFlowAssignmentWitness {
 
 fn js_trim(value: &str) -> &str {
     value.trim_matches(|c:char|matches!(c,'\u{0009}'..='\u{000d}'|'\u{0020}'|'\u{00a0}'|'\u{1680}'|'\u{2000}'..='\u{200a}'|'\u{2028}'|'\u{2029}'|'\u{202f}'|'\u{205f}'|'\u{3000}'|'\u{feff}'))
+}
+
+/// Zod reason limits count Unicode scalar values (code points).
+fn cp_len(value: &str) -> usize {
+    value.chars().count()
 }

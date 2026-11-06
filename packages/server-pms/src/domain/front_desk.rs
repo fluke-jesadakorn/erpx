@@ -3,7 +3,7 @@
 //! capability. Cross-owner staff labels and package entitlement arrive through
 //! public owner ports supplied by composition.
 use super::room_board::{
-    MAX_PAGE, MAX_RECORDS, PAGE_SIZE, PmsPropertyRow, PmsRecord, ecma_trim, parse_date, utf16_len,
+    MAX_PAGE, MAX_RECORDS, PAGE_SIZE, PmsPropertyRow, PmsRecord, cp_len, ecma_trim, parse_date,
     validate_record,
 };
 use erpx_server_shared::public::{BusinessError, FailureKind};
@@ -39,22 +39,22 @@ pub struct PmsFrontDeskSelection {
 
 impl PmsFrontDeskSelection {
     /// Retained Zod `q` uses `.trim().max(200)`; ids use `idField`
-    /// (UTF-16 length only, no trim).
+    /// (char length only, no trim).
     pub fn normalize(&mut self) {
         self.q = ecma_trim(&self.q).to_owned();
     }
     pub fn validate(&self) -> Result<(), BusinessError> {
         if !FRONT_DESK_STATUSES.contains(&self.status.as_str())
-            || utf16_len(ecma_trim(&self.q)) > 200
+            || cp_len(ecma_trim(&self.q)) > 200
             || self.page > MAX_PAGE
             || self
                 .property_id
                 .as_ref()
-                .is_some_and(|value| value.is_empty() || utf16_len(value) > 200)
+                .is_some_and(|value| value.is_empty() || cp_len(value) > 200)
             || self
                 .selected_id
                 .as_ref()
-                .is_some_and(|value| value.is_empty() || utf16_len(value) > 200)
+                .is_some_and(|value| value.is_empty() || cp_len(value) > 200)
         {
             return Err(invalid());
         }

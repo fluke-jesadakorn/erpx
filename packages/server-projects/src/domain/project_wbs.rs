@@ -148,19 +148,19 @@ pub(crate) fn js_trim(value: &str) -> &str {
     })
 }
 
-/// Zod string limits count UTF-16 code units (`String.length`), not Unicode
-/// scalar values.
-fn utf16_len(value: &str) -> usize {
-    value.encode_utf16().count()
+/// Zod 4.6.7 string limits count Unicode scalars (`chars().count()`),
+/// not UTF-16 code units.
+fn cp_len(value: &str) -> usize {
+    value.chars().count()
 }
 
 fn valid_title(value: &str) -> bool {
-    let length = utf16_len(value);
+    let length = cp_len(value);
     (2..=TITLE_LIMIT).contains(&length) && value == js_trim(value)
 }
 
 fn valid_text(value: &str, limit: usize) -> bool {
-    utf16_len(value) <= limit
+    cp_len(value) <= limit
 }
 
 fn valid_identifier(value: &str) -> bool {

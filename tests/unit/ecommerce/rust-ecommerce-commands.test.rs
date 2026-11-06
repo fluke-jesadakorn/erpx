@@ -844,7 +844,7 @@ fn review_rejects_stale_source_cas_loss_and_bad_readback() {
 }
 
 #[test]
-fn channel_name_uses_js_trim_and_utf16_length_parity() {
+fn channel_name_uses_js_trim_and_code_point_length_parity() {
     let validate = |name: String| {
         CreateChannel {
             name,
@@ -854,14 +854,18 @@ fn channel_name_uses_js_trim_and_utf16_length_parity() {
         .map(|validated| validated.name)
         .map_err(|error| error.code)
     };
-    // 160 Thai scalars: 160 UTF-16 units (allowed), 480 UTF-8 bytes.
+    // 160 Thai scalars: 160 code points (allowed), 480 UTF-8 bytes.
     assert_eq!(validate("ก".repeat(160)), Ok("ก".repeat(160)));
     assert_eq!(validate("ก".repeat(161)), Err("ECOMMERCE_REQUEST_INVALID"));
-    // One astral scalar is 2 UTF-16 units, so it meets the JS minimum of 2.
-    assert_eq!(validate("😀".to_owned()), Ok("😀".to_owned()));
-    // 80 astral scalars: 160 UTF-16 units; 81 would be 162.
-    assert!(validate("😀".repeat(80)).is_ok());
-    assert!(validate("😀".repeat(81)).is_err());
+    // One astral scalar is one code point, so it fails the JS minimum of 2.
+    assert_eq!(
+        validate("😀".to_owned()),
+        Err("ECOMMERCE_REQUEST_INVALID")
+    );
+    assert_eq!(validate("😀😀".to_owned()), Ok("😀😀".to_owned()));
+    // 160 astral scalars: 160 code points; 161 exceed the maximum.
+    assert!(validate("😀".repeat(160)).is_ok());
+    assert!(validate("😀".repeat(161)).is_err());
     // JS trim strips ZWNBSP (U+FEFF); Rust trim does not.
     assert_eq!(
         validate("\u{FEFF}ab\u{FEFF}".to_owned()),
@@ -875,7 +879,7 @@ fn channel_name_uses_js_trim_and_utf16_length_parity() {
 }
 
 #[test]
-fn review_reason_uses_js_trim_and_utf16_length_parity() {
+fn review_reason_uses_js_trim_and_code_point_length_parity() {
     let validate = |reason: String| {
         ReviewCommand {
             reason,
@@ -885,13 +889,16 @@ fn review_reason_uses_js_trim_and_utf16_length_parity() {
         .map(|validated| validated.reason)
         .map_err(|error| error.code)
     };
-    // 2000 Thai scalars: 2000 UTF-16 units (allowed), 6000 UTF-8 bytes.
+    // 2000 Thai scalars: 2000 code points (allowed), 6000 UTF-8 bytes.
     assert_eq!(validate("ก".repeat(2000)), Ok("ก".repeat(2000)));
     assert_eq!(validate("ก".repeat(2001)), Err("ECOMMERCE_REQUEST_INVALID"));
-    // Astral text: 2 scalars are 4 UTF-16 units (pass the 3-unit minimum),
-    // while 1 scalar is 2 units and must fail.
-    assert_eq!(validate("😀😀".to_owned()), Ok("😀😀".to_owned()));
+    // Astral text counts code points: 2 scalars fail the 3-point minimum,
+    // while 1 scalar must also fail; 3 scalars pass.
+    assert!(validate("😀😀".to_owned()).is_err());
     assert!(validate("😀".to_owned()).is_err());
+    assert_eq!(validate("😀😀😀".to_owned()), Ok("😀😀😀".to_owned()));
+    assert!(validate("😀".repeat(2000)).is_ok());
+    assert!(validate("😀".repeat(2001)).is_err());
     // JS trim strips ZWNBSP padding before the length check.
     assert_eq!(
         validate("\u{FEFF}abc\u{FEFF}".to_owned()),

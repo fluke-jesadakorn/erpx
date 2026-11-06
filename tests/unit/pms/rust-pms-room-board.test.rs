@@ -316,23 +316,25 @@ fn selection_is_bounded_and_date_ranges_stay_within_ninety_three_days() {
 }
 
 #[test]
-fn selection_text_bounds_use_utf16_units_after_ecma_trim() {
+fn selection_text_bounds_use_chars_after_ecma_trim() {
     let mut base = selection();
     base.q = format!("{}😀", "a".repeat(198));
-    assert!(base.validate().is_ok(), "198 a + emoji is 200 UTF-16 units");
+    assert!(base.validate().is_ok(), "198 a + emoji is 199 chars");
     base.q = format!("{}😀", "a".repeat(199));
-    assert!(base.validate().is_err(), "199 a + emoji is 201 UTF-16 units");
+    assert!(base.validate().is_ok(), "199 a + emoji is 200 chars");
+    base.q = format!("{}😀", "a".repeat(200));
+    assert!(base.validate().is_err(), "200 a + emoji is 201 chars");
     let mut base = selection();
-    base.q = "😀".repeat(101);
+    base.q = "😀".repeat(201);
     assert!(
         base.validate().is_err(),
-        "101 emoji are 101 scalars but 202 UTF-16 units"
+        "201 emoji are 201 chars"
     );
     let mut base = selection();
     base.q = format!("  \u{00A0}{}{} ", "a".repeat(200), "\u{3000}");
     assert!(
         base.validate().is_ok(),
-        "ECMAScript whitespace around 200 units still passes"
+        "ECMAScript whitespace around 200 chars still passes"
     );
     base.normalize();
     assert_eq!(base.q, "a".repeat(200));
@@ -350,35 +352,35 @@ fn selection_text_bounds_use_utf16_units_after_ecma_trim() {
     base.normalize();
     assert_eq!(base.q, "a".repeat(200));
     let mut base = selection();
+    base.building = format!("{}😀", "a".repeat(120));
+    assert!(base.validate().is_err(), "building is 120 chars max");
     base.building = format!("{}😀", "a".repeat(119));
-    assert!(base.validate().is_err(), "building is 120 UTF-16 units max");
-    base.building = format!("{}😀", "a".repeat(118));
     assert!(base.validate().is_ok());
     let mut base = selection();
+    base.floor = format!("{}😀", "a".repeat(40));
+    assert!(base.validate().is_err(), "floor is 40 chars max");
     base.floor = format!("{}😀", "a".repeat(39));
-    assert!(base.validate().is_err(), "floor is 40 UTF-16 units max");
-    base.floor = format!("{}😀", "a".repeat(38));
     assert!(base.validate().is_ok());
     let mut base = selection();
-    base.type_id = Some("😀".repeat(101));
+    base.type_id = Some("😀".repeat(201));
     assert!(
         base.validate().is_err(),
-        "typeId is an untrimmed idField: 101 emoji are 202 UTF-16 units"
+        "typeId is an untrimmed idField: 201 emoji are 201 chars"
     );
-    base.type_id = Some("😀".repeat(100));
+    base.type_id = Some("😀".repeat(200));
     assert!(base.validate().is_ok());
     let mut base = selection();
     base.property_id = Some("中".repeat(150));
     assert!(
         base.validate().is_ok(),
-        "150 CJK are 150 UTF-16 units but 450 UTF-8 bytes"
+        "150 CJK are 150 chars but 450 UTF-8 bytes"
     );
-    base.property_id = Some("😀".repeat(101));
+    base.property_id = Some("😀".repeat(201));
     assert!(base.validate().is_err());
     base.property_id = None;
-    base.selected_id = Some("😀".repeat(101));
+    base.selected_id = Some("😀".repeat(201));
     assert!(base.validate().is_err());
-    base.selected_id = Some("😀".repeat(100));
+    base.selected_id = Some("😀".repeat(200));
     assert!(base.validate().is_ok());
 }
 

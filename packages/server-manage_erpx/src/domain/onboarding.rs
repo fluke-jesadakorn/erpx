@@ -127,18 +127,19 @@ pub(crate) fn js_trim(value: &str) -> &str {
     })
 }
 
-/// Zod string limits count JavaScript UTF-16 code units (`String.length`),
-/// not Unicode scalar values or UTF-8 bytes. Thai text (3 bytes, 1 unit)
-/// and astral text (surrogate pairs: 4 bytes, 2 units) must match the
-/// retained schema boundary.
-pub(crate) fn utf16_len(value: &str) -> usize {
-    value.encode_utf16().count()
+/// Zod string limits count Unicode scalar values (code points), not UTF-8
+/// bytes or UTF-16 code units. Thai text (3 bytes, 1 code point) and astral
+/// text (4 bytes, 1 code point) must match the retained schema boundary.
+/// Metric-only drift note: the ceiling stays 200 code points, so astral text
+/// that previously exhausted the 200-unit UTF-16 budget now has more room.
+pub(crate) fn cp_len(value: &str) -> usize {
+    value.chars().count()
 }
 
 fn valid_name(value: &str) -> bool {
     let trimmed = js_trim(value);
     !trimmed.is_empty()
-        && utf16_len(trimmed) <= NAME_MAXIMUM
+        && cp_len(trimmed) <= NAME_MAXIMUM
         && value.len() <= 4096
         && !value.chars().any(char::is_control)
 }
@@ -228,18 +229,18 @@ mod tests {
 
     #[test]
     fn company_and_branch_names_count_js_utf16_units_after_ecma_trim() {
-        // Astral code points count as two UTF-16 units, as in the retained
-        // Zod schema: 100 emoji are 200 units and pass, 101 exceed the bound
-        // where a scalar count would accept them.
-        assert!(CompanySlot::new("acme".into(), "😀".repeat(100), "Main".into(), "active").is_ok());
+        // Astral code points count as one code point, as in the retained
+        // Zod schema: 200 emoji are 200 code points and pass, 201 exceed the
+        // bound where a UTF-16 count would reject them.
+        assert!(CompanySlot::new("acme".into(), "😀".repeat(200), "Main".into(), "active").is_ok());
         assert!(
-            CompanySlot::new("acme".into(), "😀".repeat(101), "Main".into(), "active").is_err()
+            CompanySlot::new("acme".into(), "😀".repeat(201), "Main".into(), "active").is_err()
         );
-        // Thai text counts one unit per code point regardless of UTF-8 width.
+        // Thai text counts one code point per code point regardless of UTF-8 width.
         assert!(CompanySlot::new("acme".into(), "ก".repeat(200), "Main".into(), "active").is_ok());
         assert!(CompanySlot::new("acme".into(), "ก".repeat(201), "Main".into(), "active").is_err());
         // ECMAScript trim strips U+FEFF and trims before measuring, so a
-        // padded 200-unit name passes while a FEFF-only name is empty.
+        // padded 200-code-point name passes while a FEFF-only name is empty.
         assert!(
             CompanySlot::new(
                 "acme".into(),
@@ -284,7 +285,7 @@ mod tests {
         );
         // Branch names share the same boundary.
         assert!(
-            CompanySlot::new("acme".into(), "Acme".into(), "😀".repeat(101), "active").is_err()
+            CompanySlot::new("acme".into(), "Acme".into(), "😀".repeat(201), "active").is_err()
         );
     }
 

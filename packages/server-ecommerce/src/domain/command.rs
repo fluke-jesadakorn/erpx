@@ -106,10 +106,26 @@ pub(crate) fn js_trim(value: &str) -> &str {
     })
 }
 
-/// Zod string limits count UTF-16 code units (`String.length`), not UTF-8
-/// bytes or Unicode scalar values. Thai text (3 bytes, 1 unit) and astral
-/// text (surrogate pairs) must be measured the way the retained TypeScript
-/// gateway measures them.
+/// Zod v4 string limits count Unicode scalar values (code points).
+/// Command input (channel `name`, review `reason`) uses [`valid_cp_text`].
+pub(crate) fn chars_len(value: &str) -> usize {
+    value.chars().count()
+}
+
+/// Code-point text check for Zod command paths only.
+pub fn valid_cp_text(value: &str, limit: usize) -> bool {
+    !value.is_empty() && chars_len(value) <= limit && !value.chars().any(char::is_control)
+}
+
+/// Backwards-compatible alias for [`valid_cp_text`], used by the Zod
+/// channel/review command paths.
+pub fn cp_text(value: &str, limit: usize) -> bool {
+    valid_cp_text(value, limit)
+}
+
+/// UTF-16 code-unit length, retained for transport/source rows (catalog
+/// name/reviewer/title and receipt `status`). Do not use for Zod command
+/// input; command paths use [`chars_len`].
 pub(crate) fn utf16_len(value: &str) -> usize {
     value.encode_utf16().count()
 }

@@ -468,15 +468,24 @@ fn stored_json_helpers_reject_malformed_owner_facts() {
 }
 
 #[test]
-fn text_limits_count_utf16_units_with_js_trim_edges() {
-    // 32 non-BMP characters are 64 UTF-16 code units (the code limit) but
-    // 128 UTF-8 bytes, so this passes only with UTF-16 length parity.
+fn text_limits_use_chars_min_and_bytes_max_with_js_trim_edges() {
+    // 16 non-BMP characters are 16 chars (>=1) and 64 bytes (== max),
+    // so this passes the dual metric.
     let mut code_at_limit = workspace();
-    code_at_limit.resources[0].code = "😀".repeat(32);
+    code_at_limit.resources[0].code = "😀".repeat(16);
     assert!(validate_workspace(&actor(), code_at_limit).is_ok());
 
-    // 81 emoji exceed the 160-unit name limit even though code-point
-    // counting would accept them.
+    // 17 emoji are 68 bytes, exceeding the 64-byte code cap.
+    let mut code_over_bytes = workspace();
+    code_over_bytes.resources[0].code = "😀".repeat(17);
+    assert_eq!(
+        validate_workspace(&actor(), code_over_bytes)
+            .unwrap_err()
+            .code,
+        "PLANNING_SOURCE_INVALID"
+    );
+
+    // 81 emoji also exceed the 160-byte name cap.
     let mut name_over_limit = workspace();
     name_over_limit.resources[0].name = "😀".repeat(81);
     assert_eq!(

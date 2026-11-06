@@ -594,10 +594,10 @@ async fn completed_due_packages_are_not_overdue() {
 }
 
 #[tokio::test]
-async fn stored_text_counts_utf16_units_and_trims_only_js_whitespace() {
+async fn stored_text_counts_chars_and_trims_only_js_whitespace() {
     // Stored project/milestone title and description originate from the
-    // retained Zod `trim()` schemas, which measure UTF-16 code units.
-    for title in ["😀".to_owned(), "😀".repeat(100)] {
+    // retained Zod `trim()` schemas, which measure Unicode scalars.
+    for title in ["😀😀".to_owned(), "😀".repeat(200)] {
         let mut repository = Repo {
             project: Some(project()),
             milestones: vec![milestone("a", &title, None, 0, 1, "planned", &[], &[])],
@@ -607,7 +607,7 @@ async fn stored_text_counts_utf16_units_and_trims_only_js_whitespace() {
             .await
             .unwrap();
     }
-    for title in ["😀".repeat(101), "\u{feff}Package A".to_owned()] {
+    for title in ["😀".repeat(201), "\u{feff}Package A".to_owned()] {
         let mut repository = Repo {
             project: Some(project()),
             milestones: vec![milestone("a", &title, None, 0, 1, "planned", &[], &[])],
@@ -632,11 +632,11 @@ async fn stored_text_counts_utf16_units_and_trims_only_js_whitespace() {
         milestones: vec![milestone("a", "Package A", None, 0, 1, "planned", &[], &[])],
         calls: 0,
     };
-    repository.milestones[0].description = "😀".repeat(5_000);
+    repository.milestones[0].description = "😀".repeat(10_000);
     project_wbs(&actor(&["records.read"], &["projects"]), &mut repository, "project", NOW)
         .await
         .unwrap();
-    repository.milestones[0].description = "😀".repeat(5_001);
+    repository.milestones[0].description = "😀".repeat(10_001);
     let error = project_wbs(&actor(&["records.read"], &["projects"]), &mut repository, "project", NOW)
         .await
         .unwrap_err();

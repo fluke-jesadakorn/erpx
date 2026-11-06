@@ -387,7 +387,7 @@ fn bad_command_receipts_and_invalid_configuration_fail_closed() {
 }
 
 #[test]
-fn channel_command_forwards_js_trimmed_name_at_utf16_boundary() {
+fn channel_command_forwards_js_trimmed_name_at_code_point_boundary() {
     sqlx::test_block_on(async {
         let probe = Arc::new(Probe::default());
         let state = EcommerceHttpState::new(vec![target(probe.clone())]).unwrap();
@@ -406,7 +406,7 @@ fn channel_command_forwards_js_trimmed_name_at_utf16_boundary() {
             ]
         );
 
-        // 160 Thai scalars are 160 UTF-16 units (allowed, 480 UTF-8 bytes).
+        // 160 Thai scalars are 160 code points (allowed, 480 UTF-8 bytes).
         let thai_name = "ก".repeat(160);
         let thai_body =
             format!("{{\"name\":\"{thai_name}\",\"channelType\":\"web\",\"configuration\":{{}}}}")
@@ -424,7 +424,7 @@ fn channel_command_forwards_js_trimmed_name_at_utf16_boundary() {
             )]
         );
 
-        // 161 Thai scalars exceed the 160 UTF-16-unit Zod maximum.
+        // 161 Thai scalars exceed the 160-code-point Zod maximum.
         let oversized = format!(
             "{{\"name\":\"{}\",\"channelType\":\"web\",\"configuration\":{{}}}}",
             "ก".repeat(161)

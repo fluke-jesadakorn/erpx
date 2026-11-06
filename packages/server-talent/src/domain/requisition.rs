@@ -262,15 +262,24 @@ pub(crate) fn js_trim(value: &str) -> &str {
     })
 }
 
-/// Zod string limits count UTF-16 code units (`String.length`), not Unicode
-/// scalar values or UTF-8 bytes, so Thai text (3 bytes, 1 unit) and astral
-/// text (surrogate pairs) match the retained schema boundary.
+/// Zod v4 string limits count Unicode scalar values (code points), not
+/// UTF-16 code units or UTF-8 bytes. Command input (`jobTitle`,
+/// `description`, change `reason`) uses this; persisted source rows stay
+/// measured in UTF-16 units, which anchor to bytes via the
+/// native-talent-requisition trimmed read contract and must not weaken to
+/// code points.
+pub(crate) fn chars_len(value: &str) -> usize {
+    value.chars().count()
+}
+
+/// UTF-16 code-unit length, retained only for persisted source rows
+/// (`validate_source`, `validate_events`). Command paths use [`chars_len`].
 pub(crate) fn utf16_len(value: &str) -> usize {
     value.encode_utf16().count()
 }
 
 fn valid_text(value: &str, max: usize) -> bool {
-    utf16_len(value) <= max && !value.chars().any(char::is_control)
+    chars_len(value) <= max && !value.chars().any(char::is_control)
 }
 
 fn valid_date(value: &str) -> bool {
@@ -310,7 +319,7 @@ pub fn normalize_text(
     maximum: usize,
 ) -> Result<String, BusinessError> {
     let text = js_trim(value);
-    let length = utf16_len(text);
+    let length = chars_len(text);
     if length < minimum || length > maximum || !valid_text(text, maximum) {
         return Err(request_invalid());
     }

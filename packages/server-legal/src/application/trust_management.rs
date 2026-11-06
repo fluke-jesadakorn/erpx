@@ -142,8 +142,8 @@ pub async fn prepare_legal_trust_command<Ports: LegalTrustCommandPorts>(
             content,
         } => {
             let name = name.trim();
-            if !(3..=200).contains(&name.encode_utf16().count())
-                || !(20..=2_000_000).contains(&content.encode_utf16().count())
+            if !(3..=200).contains(&name.chars().count())
+                || !(20..=2_000_000).contains(&content.chars().count())
             {
                 return Err(invalid(
                     "LEGAL_INVALID",

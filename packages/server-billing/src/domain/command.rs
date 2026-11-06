@@ -202,11 +202,11 @@ pub fn valid_hash(value: &str) -> bool {
     value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
-/// Zod `string.length` counts JavaScript UTF-16 code units, not UTF-8 bytes.
-/// Thai text (3 bytes, 1 unit) and astral text (surrogate pairs: 4 bytes,
-/// 2 units) must be accepted exactly as the TypeScript gateway allows.
-fn utf16_len(value: &str) -> usize {
-    value.encode_utf16().count()
+/// Zod v4 string limits count Unicode scalar values (code points).
+/// Command `reason`/`note` use this; workspace read validation keeps its
+/// own UTF-16 length helpers in `workspace.rs` for transport rows.
+fn chars_len(value: &str) -> usize {
+    value.chars().count()
 }
 
 /// JavaScript `String.prototype.trim()` parity for zod `.trim()` fields.
@@ -224,7 +224,7 @@ fn multiline_control(character: char) -> bool {
 
 fn valid_reason(value: &str) -> bool {
     let trimmed = js_trim(value);
-    (3..=REASON_LIMIT).contains(&utf16_len(trimmed)) && !trimmed.chars().any(multiline_control)
+    (3..=REASON_LIMIT).contains(&chars_len(trimmed)) && !trimmed.chars().any(multiline_control)
 }
 
 fn valid_category(value: &str) -> bool {
@@ -234,7 +234,7 @@ fn valid_category(value: &str) -> bool {
 fn valid_note(value: &str) -> bool {
     let trimmed = js_trim(value);
     !trimmed.is_empty()
-        && utf16_len(trimmed) <= NOTE_LIMIT
+        && chars_len(trimmed) <= NOTE_LIMIT
         && !trimmed.chars().any(multiline_control)
 }
 

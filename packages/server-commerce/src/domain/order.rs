@@ -482,20 +482,26 @@ pub(crate) fn js_trim(value: &str) -> &str {
     })
 }
 
-/// Zod string limits count UTF-16 code units (`String.length`), not UTF-8
-/// bytes or Unicode scalar values. Thai text (3 bytes, 1 unit) and astral
-/// text (surrogate pairs) must be measured the way the retained TypeScript
-/// gateway measures them.
+/// Plain JavaScript `String.prototype.length` counts UTF-16 code units,
+/// retained only for the integer discount-minimum check.
 pub(crate) fn utf16_len(value: &str) -> usize {
     value.encode_utf16().count()
 }
 
+/// Zod string limits count Unicode scalar values (code points), not UTF-8
+/// bytes or UTF-16 code units. Thai text (3 bytes, 1 code point) and astral
+/// text (1 code point) must be measured the way the retained TypeScript
+/// gateway measures them.
+pub(crate) fn cp_len(value: &str) -> usize {
+    value.chars().count()
+}
+
 fn valid_text(value: &str, limit: usize) -> bool {
-    !value.is_empty() && utf16_len(value) <= limit && !value.chars().any(char::is_control)
+    !value.is_empty() && cp_len(value) <= limit && !value.chars().any(char::is_control)
 }
 
 fn valid_note(value: &str, limit: usize) -> bool {
-    utf16_len(value) <= limit
+    cp_len(value) <= limit
         && !value
             .chars()
             .any(|character| character.is_control() && !matches!(character, '\n' | '\r' | '\t'))
@@ -740,7 +746,7 @@ impl TransitionCommand {
         }
         if let Some(reason) = &self.reason {
             let trimmed = js_trim(reason);
-            if utf16_len(trimmed) > REASON_LIMIT || !valid_note(trimmed, REASON_LIMIT) {
+            if cp_len(trimmed) > REASON_LIMIT || !valid_note(trimmed, REASON_LIMIT) {
                 return Err(request_invalid());
             }
         }
@@ -867,7 +873,7 @@ pub fn authorize_transition(
             }
             if order.discount_approval_required == 1 {
                 let reason = reason.filter(|value| {
-                    utf16_len(value) >= DISCOUNT_REASON_MIN && utf16_len(value) <= REASON_LIMIT
+                    utf16_len(value) >= DISCOUNT_REASON_MIN && cp_len(value) <= REASON_LIMIT
                 });
                 if reason.is_none() {
                     return Err(discount_reason_required());
@@ -1127,12 +1133,12 @@ mod tests {
         assert_eq!(js_trim("\u{2000}x\u{2028}"), "x");
         assert_eq!(js_trim("\u{0085}abc\u{0085}"), "\u{0085}abc\u{0085}");
         assert_eq!(js_trim("a\u{200B}"), "a\u{200B}");
-        assert_eq!(utf16_len("😀"), 2);
-        assert_eq!(utf16_len("ก"), 1);
+        assert_eq!(cp_len("😀"), 1);
+        assert_eq!(cp_len("ก"), 1);
         assert!(valid_note(&"ก".repeat(1_000), REASON_LIMIT));
         assert!(!valid_note(&"ก".repeat(1_001), REASON_LIMIT));
-        assert!(valid_note(&"😀".repeat(500), REASON_LIMIT));
-        assert!(!valid_note(&"😀".repeat(501), REASON_LIMIT));
+        assert!(valid_note(&"😀".repeat(1_000), REASON_LIMIT));
+        assert!(!valid_note(&"😀".repeat(1_001), REASON_LIMIT));
     }
 
     #[test]

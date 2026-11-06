@@ -15,10 +15,10 @@ fn changed() -> Error {
     .into()
 }
 
-/// Zod `string.length` counts JavaScript UTF-16 code units, not UTF-8 bytes.
+/// Zod `string.max` counts Unicode scalar values (code points), not UTF-8 bytes.
 /// This bound mirrors the gateway's `workspaceKey.max(4096)` check.
-fn utf16_len(value: &str) -> usize {
-    value.encode_utf16().count()
+fn cp_len(value: &str) -> usize {
+    value.chars().count()
 }
 async fn unit(c: &mut PgConnection) -> Result<Unit, Error> {
     if !c.is_in_transaction()
@@ -115,9 +115,9 @@ impl CurrentAccountWorkspacePreferences {
         now: i64,
     ) -> Result<Self, Error> {
         self.require_current(c).await?;
-        // Path length is a UTF-16 length check like the gateway's zod bound.
+        // Path length is a code-point length check like the gateway's zod bound.
         if path.is_empty()
-            || utf16_len(path) > 4096
+            || cp_len(path) > 4096
             || path.chars().any(char::is_control)
             || !(0..=9_007_199_254_740_991).contains(&now)
         {

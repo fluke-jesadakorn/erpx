@@ -284,17 +284,19 @@ fn selection_is_bounded_to_front_desk_queues_and_ninety_three_days() {
 }
 
 #[test]
-fn front_desk_text_bounds_use_utf16_units_after_ecma_trim() {
+fn front_desk_text_bounds_use_chars_after_ecma_trim() {
     let mut base = selection();
     base.q = format!("{}😀", "a".repeat(198));
-    assert!(base.validate().is_ok(), "198 a + emoji is 200 UTF-16 units");
+    assert!(base.validate().is_ok(), "198 a + emoji is 199 chars");
     base.q = format!("{}😀", "a".repeat(199));
-    assert!(base.validate().is_err(), "199 a + emoji is 201 UTF-16 units");
+    assert!(base.validate().is_ok(), "199 a + emoji is 200 chars");
+    base.q = format!("{}😀", "a".repeat(200));
+    assert!(base.validate().is_err(), "200 a + emoji is 201 chars");
     let mut base = selection();
     base.q = format!("  \u{00A0}{}{} ", "a".repeat(200), "\u{3000}");
     assert!(
         base.validate().is_ok(),
-        "ECMAScript whitespace around 200 units still passes"
+        "ECMAScript whitespace around 200 chars still passes"
     );
     base.normalize();
     assert_eq!(base.q, "a".repeat(200));
@@ -315,14 +317,14 @@ fn front_desk_text_bounds_use_utf16_units_after_ecma_trim() {
     base.property_id = Some("中".repeat(150));
     assert!(
         base.validate().is_ok(),
-        "150 CJK are 150 UTF-16 units but 450 UTF-8 bytes"
+        "150 CJK are 150 chars but 450 UTF-8 bytes"
     );
-    base.property_id = Some("😀".repeat(101));
+    base.property_id = Some("😀".repeat(201));
     assert!(base.validate().is_err());
     base.property_id = None;
-    base.selected_id = Some("😀".repeat(101));
+    base.selected_id = Some("😀".repeat(201));
     assert!(base.validate().is_err());
-    base.selected_id = Some("😀".repeat(100));
+    base.selected_id = Some("😀".repeat(200));
     assert!(base.validate().is_ok());
 }
 

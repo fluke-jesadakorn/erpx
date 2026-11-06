@@ -236,7 +236,7 @@ fn calendar_dates_and_utc_defaults_are_bounded() {
 }
 
 #[test]
-fn course_text_limits_count_utf16_units_for_input_and_readback() {
+fn course_text_limits_count_code_points_for_request_and_utf16_for_readback() {
     let input = CourseRequest {
         title: "ก".repeat(160),
         description: "คำอธิบาย".into(),
@@ -247,13 +247,23 @@ fn course_text_limits_count_utf16_units_for_input_and_readback() {
     let valid = input.validate().unwrap();
     assert_eq!(valid.title, "ก".repeat(160));
     let mut persisted = course("draft", Some("ช่าง"));
-    persisted.title = valid.title;
-    persisted.description = valid.description;
-    persisted.provider = valid.provider;
+    persisted.title = valid.title.clone();
+    persisted.description = valid.description.clone();
+    persisted.provider = valid.provider.clone();
     persisted.validate_source().unwrap();
-    assert!(CourseRequest { title: "😀".repeat(80), ..input.clone() }.validate().is_ok());
-    assert!(CourseRequest { title: format!("{}ก", "😀".repeat(80)), ..input.clone() }.validate().is_err());
-    assert!(CourseRequest { title: "ก".repeat(161), ..input }.validate().is_err());
+    assert!(CourseRequest { title: "😀".repeat(160), ..input.clone() }.validate().is_ok());
+    assert!(CourseRequest { title: "😀".repeat(161), ..input.clone() }.validate().is_err());
+    assert!(CourseRequest { title: "ก".repeat(161), ..input.clone() }.validate().is_err());
+    assert!(CourseRequest { title: "🙂x".into(), ..input.clone() }.validate().is_err());
+    let mut utf16_row = course("draft", Some("ช่าง"));
+    utf16_row.title = "😀".repeat(80);
+    utf16_row.description = valid.description.clone();
+    utf16_row.provider = valid.provider.clone();
+    utf16_row.validate_source().unwrap();
+    utf16_row.title.push('ก');
+    assert!(utf16_row.validate_source().is_err());
+    utf16_row.title = "😀".repeat(160);
+    assert!(utf16_row.validate_source().is_err());
 }
 
 #[test]
@@ -262,9 +272,14 @@ fn learning_field_boundaries_and_js_whitespace_are_preserved() {
     let valid = base.validate().unwrap();
     assert_eq!(valid.title, "หลักสูตร");
     assert!(CourseRequest { description: "ก".repeat(3_001), ..base.clone() }.validate().is_err());
-    assert!(CourseRequest { provider: format!("{}ก", "😀".repeat(80)), ..base.clone() }.validate().is_err());
-    assert!(CourseRequest { required_for: Some(format!("{}ก", "😀".repeat(60))), ..base.clone() }.validate().is_err());
+    assert!(CourseRequest { description: "😀".repeat(3_000), ..base.clone() }.validate().is_ok());
+    assert!(CourseRequest { description: "😀".repeat(3_001), ..base.clone() }.validate().is_err());
+    assert!(CourseRequest { provider: "😀".repeat(160), ..base.clone() }.validate().is_ok());
+    assert!(CourseRequest { provider: "😀".repeat(161), ..base.clone() }.validate().is_err());
+    assert!(CourseRequest { required_for: Some("😀".repeat(120)), ..base.clone() }.validate().is_ok());
+    assert!(CourseRequest { required_for: Some("😀".repeat(121)), ..base.clone() }.validate().is_err());
     assert!(CourseRequest { duration_minutes: 9_007_199_254_740_992, ..base.clone() }.validate().is_err());
+    assert!(CourseRequest { title: "🙂x".into(), ..base.clone() }.validate().is_err());
     let mut row = course("draft", Some(&"😀".repeat(60)));
     row.title = "😀".repeat(80);
     row.description = valid.description;
@@ -275,9 +290,13 @@ fn learning_field_boundaries_and_js_whitespace_are_preserved() {
     assert!(row.validate_source().is_err());
     assert!(erpx_server_learning::public::learning::normalize_reason(&"ก".repeat(3_000)).is_ok());
     assert!(erpx_server_learning::public::learning::normalize_reason(&"ก".repeat(3_001)).is_err());
+    assert!(erpx_server_learning::public::learning::normalize_reason(&"😀".repeat(3_000)).is_ok());
+    assert!(erpx_server_learning::public::learning::normalize_reason(&"😀".repeat(3_001)).is_err());
+    assert!(erpx_server_learning::public::learning::normalize_reason("🙂x").is_err());
     let revoke = CertificateRevocation { expected_assignment_version: 1, reason: format!("\u{feff}{}\u{feff}", "😀".repeat(1_000)) };
     assert_eq!(revoke.validate().unwrap().reason, "😀".repeat(1_000));
-    assert!(CertificateRevocation { reason: format!("{}ก", "😀".repeat(1_000)), ..revoke }.validate().is_err());
+    assert!(CertificateRevocation { reason: "😀".repeat(2_000), ..revoke.clone() }.validate().is_ok());
+    assert!(CertificateRevocation { reason: "😀".repeat(2_001), ..revoke }.validate().is_err());
     assert_eq!(CourseRequest { title: "\u{0085}abc".into(), ..base.clone() }.validate().unwrap().title, "\u{0085}abc");
     assert!(CourseRequest { title: "ab\0c".into(), ..base }.validate().is_err());
 }

@@ -482,8 +482,8 @@ fn receipt_identity_is_company_assignment_and_input_bound() {
 }
 
 #[test]
-fn reason_counts_js_utf16_units_not_utf8_bytes_or_scalars() {
-    // 1000 Thai scalars: 1000 UTF-16 units (allowed), 3000 bytes.
+fn reason_counts_code_points_not_utf8_bytes_or_utf16_units() {
+    // 1000 Thai scalars: 1000 code points (allowed), 3000 bytes.
     let mut thai = command();
     thai.reason = "ก".repeat(1000);
     assert_eq!(thai.validate().unwrap().reason, "ก".repeat(1000));
@@ -502,17 +502,17 @@ fn reason_counts_js_utf16_units_not_utf8_bytes_or_scalars() {
     );
     assert!(probe.calls.is_empty());
 
-    // 500 astral scalars: 1000 UTF-16 units, 2000 bytes (allowed).
+    // 1000 astral scalars: 1000 code points (allowed), 4000 bytes.
     let mut astral = command();
-    astral.reason = "😀".repeat(500);
-    assert_eq!(astral.validate().unwrap().reason, "😀".repeat(500));
+    astral.reason = "😀".repeat(1000);
+    assert_eq!(astral.validate().unwrap().reason, "😀".repeat(1000));
     let mut probe = Probe::default();
     probe.readback.as_mut().unwrap().reason = astral.reason.clone();
     run(&mut probe, &actor(), &astral).unwrap();
 
-    // 501 astral scalars: 1002 UTF-16 units -> over the max as Zod measures.
+    // 1001 astral scalars: 1001 code points -> over the max as Zod measures.
     let mut over_astral = command();
-    over_astral.reason = "😀".repeat(501);
+    over_astral.reason = "😀".repeat(1001);
     let mut probe = Probe::default();
     assert_eq!(
         run(&mut probe, &actor(), &over_astral).unwrap_err().code,
@@ -520,13 +520,22 @@ fn reason_counts_js_utf16_units_not_utf8_bytes_or_scalars() {
     );
     assert!(probe.calls.is_empty());
 
-    // Two astral scalars count 4 UTF-16 units, so they pass the 3-unit
-    // minimum where a scalar count (2) would reject them.
+    // Three astral scalars are 3 code points and pass the minimum;
+    // two are 2 code points and fail it.
+    let mut three_astral = command();
+    three_astral.reason = "😀😀😀".into();
+    assert_eq!(three_astral.validate().unwrap().reason, "😀😀😀");
+
     let mut short_astral = command();
     short_astral.reason = "😀😀".into();
-    assert_eq!(short_astral.validate().unwrap().reason, "😀😀");
+    let mut probe = Probe::default();
+    assert_eq!(
+        run(&mut probe, &actor(), &short_astral).unwrap_err().code,
+        "POS_CASH_REQUEST_INVALID"
+    );
+    assert!(probe.calls.is_empty());
 
-    // One astral scalar is 2 UTF-16 units, below the 3-unit minimum.
+    // One astral scalar is 1 code point, below the 3-code-point minimum.
     let mut single_astral = command();
     single_astral.reason = "😀".into();
     let mut probe = Probe::default();

@@ -39,11 +39,10 @@ pub(crate) fn ecma_trim(value: &str) -> &str {
     })
 }
 
-/// Zod string limits (`.length`) count UTF-16 code units, not Unicode
-/// scalar values (`chars().count()`) or UTF-8 bytes (`len()`). Astral
-/// characters such as emoji span two UTF-16 code units.
-pub(crate) fn utf16_len(value: &str) -> usize {
-    value.encode_utf16().count()
+/// Zod 4.6.7 string limits count Unicode scalars (`chars().count()`),
+/// not UTF-16 code units (`String.length`) or UTF-8 bytes (`len()`).
+pub(crate) fn cp_len(value: &str) -> usize {
+    value.chars().count()
 }
 
 pub const PMS_PERMISSIONS: &[&str] = &[
@@ -281,8 +280,8 @@ impl Default for PmsBoardSelection {
 
 impl PmsBoardSelection {
     /// Retained Zod `q`, `building` and `floor` use `.trim().max(...)`;
-    /// `typeId`/`property`/`selectedId` use `idField` (UTF-16 length only,
-    /// no trim). Measure the trimmed text in UTF-16 code units.
+    /// `typeId`/`property`/`selectedId` use `idField` (char length only,
+    /// no trim). Measure the trimmed text in Unicode scalars.
     pub fn normalize(&mut self) {
         self.q = ecma_trim(&self.q).to_owned();
         self.building = ecma_trim(&self.building).to_owned();
@@ -290,22 +289,22 @@ impl PmsBoardSelection {
     }
     pub fn validate(&self) -> Result<(), BusinessError> {
         if !matches!(self.status.as_str(), "" | "dirty" | "clean" | "inspected")
-            || utf16_len(ecma_trim(&self.q)) > 200
-            || utf16_len(ecma_trim(&self.building)) > 120
-            || utf16_len(ecma_trim(&self.floor)) > 40
+            || cp_len(ecma_trim(&self.q)) > 200
+            || cp_len(ecma_trim(&self.building)) > 120
+            || cp_len(ecma_trim(&self.floor)) > 40
             || self
                 .type_id
                 .as_ref()
-                .is_some_and(|value| utf16_len(value) > 200)
+                .is_some_and(|value| cp_len(value) > 200)
             || self.page > MAX_PAGE
             || self
                 .property_id
                 .as_ref()
-                .is_some_and(|value| value.is_empty() || utf16_len(value) > 200)
+                .is_some_and(|value| value.is_empty() || cp_len(value) > 200)
             || self
                 .selected_id
                 .as_ref()
-                .is_some_and(|value| value.is_empty() || utf16_len(value) > 200)
+                .is_some_and(|value| value.is_empty() || cp_len(value) > 200)
         {
             return Err(BusinessError::invalid(
                 "PMS_BOARD_REQUEST_INVALID",

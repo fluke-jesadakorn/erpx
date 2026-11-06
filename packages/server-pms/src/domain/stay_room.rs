@@ -7,7 +7,7 @@
 //! People/Commercial HTTP projection. A command result is a property receipt
 //! version, never a permission or a current authorization proof.
 use super::room_board::{
-    PmsPropertyRow, PmsRecord, ecma_trim, not_found, parse_date, record_not_found, utf16_len,
+    PmsPropertyRow, PmsRecord, cp_len, ecma_trim, not_found, parse_date, record_not_found,
 };
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use serde::{Deserialize, Serialize};
@@ -80,7 +80,7 @@ impl PmsStayRoomCommand {
         if !valid_id(&self.property_id)
             || !valid_id(&self.stay_id)
             || !valid_id(&self.room_id)
-            || utf16_len(ecma_trim(&self.reason)) > MAX_REASON
+            || cp_len(ecma_trim(&self.reason)) > MAX_REASON
             || self.expected_version < 1
             || self
                 .expected_stay_version
@@ -94,7 +94,7 @@ impl PmsStayRoomCommand {
 
 fn valid_id(value: &str) -> bool {
     !value.is_empty()
-        && utf16_len(value) <= 200
+        && cp_len(value) <= 200
         && !value.chars().any(char::is_control)
 }
 
@@ -141,10 +141,10 @@ impl PmsStayRoomActor {
     pub fn require_command(&self, now: i64) -> Result<(), BusinessError> {
         self.board.require_front_desk(now)?;
         if self.assignment_id.is_empty()
-            || utf16_len(&self.assignment_id) > 200
+            || cp_len(&self.assignment_id) > 200
             || self.assignment_id.chars().any(char::is_control)
             || self.role.is_empty()
-            || utf16_len(&self.role) > 200
+            || cp_len(&self.role) > 200
             || self.role.chars().any(char::is_control)
             || self.revision < 0
             || self.assignment_version < 1
