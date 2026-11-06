@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T06:48:27+07:00",
+  "updatedAt": "2026-11-07T06:49:57+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -4204,7 +4204,7 @@
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-pos/src/public/pos.ts",
-      "gap": "payment.create, payment.verify_transfer, payment.cancel_transfer and sale.complete are native. Transfer verification requires an independent Account reviewer and validates the imported Finance bank transaction (account, reference, date, currency, amount, version, match state) before settling the receipt journal and marking the bank transaction matched. Browser history readback shows the completed receipt; Remaining: Stripe tenders, payment.retry/payment.cancel (provider jobs), receipt print/PDF readback and refunds of settled payments."
+      "gap": "payment.create, payment.verify_transfer, payment.cancel_transfer and sale.complete are native and browser verified. Receipt print/PDF readback is verified: the completed receipt renders under print media (POS-20261107-ADCDF454, USD 25.00) and a print-to-PDF artifact was generated (700,204 bytes). Remaining: Stripe card/PromptPay tenders and payment.retry/payment.cancel, which require the provider configuration (the keyed POS app has no POS_STRIPE_* environment)."
     },
     {
       "id": "pos/feature-voids",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T06:48:27+07:00",
-    "sourceHead": "dd69fc233",
+    "generatedAt": "2026-11-07T06:49:57+07:00",
+    "sourceHead": "aaad2b219",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7092,9 +7092,9 @@
     },
     "blockers": [
       {
-        "id": "pos-stripe-tender-refund-and-receipt-print",
-        "detail": "POS register-session, baskets and voids are verified. Remaining POS: the Stripe card/PromptPay tender and refund provider, payment.retry/payment.cancel jobs, and the receipt print/PDF readback (payments/receipts scope).",
-        "unblock": "Add the Stripe provider/queue port for tenders/refunds and retry/cancel, then verify the receipt print/PDF readback."
+        "id": "pos-stripe-provider-configuration",
+        "detail": "The POS Next app in the keyed workspace has no POS_STRIPE_TEST_* or POS_STRIPE_LIVE_* environment (0 keys), and no Connect account/webhook origin is mounted for a native Rust provider port. Stripe tenders, Stripe refunds and payment.retry/payment.cancel cannot be exercised end-to-end without that provider configuration; a mock provider is not accepted as closure evidence.",
+        "unblock": "Provide the test-mode Stripe/Connect configuration (test secret, webhook secret, client id and a reachable webhook origin) for the isolated keyed workspace, or explicitly defer Stripe scope."
       },
       {
         "id": "external-writer",
@@ -7108,9 +7108,9 @@
       }
     ],
     "nextActions": [
-      "Add the Stripe provider/queue port for the card/PromptPay tender and refund paths plus payment.retry/payment.cancel.",
-      "Verify the receipt print/PDF readback against the completed receipt, then close pos/feature-payments-receipts and pos/refunds.",
-      "Move to the next dependency-ready owner partial with browser-ready native work (operations/assets/quality/maintenance queue)."
+      "Await the Stripe/Connect test configuration to implement and verify the native card/PromptPay tender, refund and retry/cancel provider path.",
+      "Continue with the next dependency-ready non-Stripe owner partial (operations/assets/quality/maintenance) while Stripe configuration is pending.",
+      "Keep counts honest: POS payments/receipts and refunds stay partial until the Stripe path is verified."
     ],
     "integrationLog": [
       {
@@ -7526,6 +7526,21 @@
           "pos/feature-voids closure"
         ],
         "evidence": "browser sale.cancel 200 {id:de70178c,version:3}, cart cancelled, pos_sales cancelled v3; paid void via native refund request b1470068 + reviewer approval (completed, line/payment refunded, refund journals balanced); POS unit 13/13, Postgres 17/17, composed 3/3, native transport 10/10, typecheck passes",
+        "counts": {
+          "owners": 3,
+          "verified": 31,
+          "partial": 88,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T06:49:57+07:00",
+        "commit": "aaad2b219",
+        "bundles": [
+          "receipt print/PDF readback"
+        ],
+        "evidence": "print-media readback of the completed receipt (POS-20261107-ADCDF454, USD 25.00) and generated PDF /tmp/erpx-pos-receipt.pdf 700204 bytes; Stripe env probe: 0 POS_STRIPE_* keys in the keyed POS app",
         "counts": {
           "owners": 3,
           "verified": 31,
