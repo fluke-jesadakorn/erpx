@@ -82812,6 +82812,61 @@
       }
     },
     {
+      "id": "records.rust-employee-request-source-postgres.integration",
+      "lane": "integration",
+      "owner": "shared.records",
+      "modules": [
+        "manage_erpx"
+      ],
+      "files": [
+        "tests/integration/shared.records/rust-employee-request-source-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native employee-request source retains Company isolation, serializable transaction guards and persisted readback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-records",
+        "targets": [
+          "employee_request_source_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-records/Cargo.toml"
+      ],
+      "apps": [
+        "admin"
+      ],
+      "packages": [
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
       "id": "records.native-record-context-transport.unit",
       "lane": "unit",
       "owner": "shared.records",
