@@ -119,7 +119,8 @@ const sameSet = (left: readonly string[], right: readonly string[]) => {
 };
 const codePattern = /^[A-Za-z0-9_-]{2,60}$/;
 const trimName = (value: unknown): value is string =>
-  text(value, 160) && [...value.trim()].length >= 2;
+  typeof value === 'string' && value.length <= 160 &&
+  !value.includes('\u0000') && value.trim().length >= 2;
 const attributionKey = (value: unknown): value is string =>
   text(value, 300) && value.length > 0 && value === value.trim();
 

@@ -242,3 +242,163 @@ async fn operational_workforce_reference_preserves_real_old_snapshot_tuple_seria
         tx.rollback().await.unwrap();
     }).await;
 }
+
+#[tokio::test]
+async fn learning_person_witness_is_scoped_transaction_bound_and_rechecks_only_person_predicate() {
+    use erpx_server_people_payroll::public::learning_person::{inspect_learning_person, lock_learning_person_source};
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        let mut c = pool.raw().acquire().await.unwrap();
+        assert!(inspect_learning_person(&mut c, "company", "person").await.is_err());
+        drop(c);
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        // A failed inspection takes a snapshot, so do not reuse it to test preparation.
+        assert!(inspect_learning_person(&mut tx, "company", "person").await.is_err());
+        tx.rollback().await.unwrap();
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_learning_person_source(&mut tx).await.unwrap();
+        let current = inspect_learning_person(&mut tx, "company", "person").await.unwrap();
+        assert!(current.is_active_unmerged());
+        assert!(!inspect_learning_person(&mut tx, "foreign", "person").await.unwrap().is_active_unmerged());
+        assert!(!inspect_learning_person(&mut tx, "company", "missing").await.unwrap().is_active_unmerged());
+        // No engagement is needed, and unrelated Person fields are irrelevant.
+        sqlx::query("UPDATE hr_engagements SET status='suspended' WHERE id='engagement'").execute(&mut *tx).await.unwrap();
+        sqlx::query("UPDATE hr_people SET legal_name='Changed' WHERE id='person'").execute(&mut *tx).await.unwrap();
+        current.require_current(&mut tx).await.unwrap();
+        sqlx::query("UPDATE hr_people SET status='inactive' WHERE id='person'").execute(&mut *tx).await.unwrap();
+        assert!(current.require_current(&mut tx).await.is_err());
+        sqlx::query("UPDATE hr_people SET status='active',merged_into_id='foreign-person' WHERE id='person'").execute(&mut *tx).await.unwrap();
+        assert!(current.require_current(&mut tx).await.is_err());
+        tx.rollback().await.unwrap();
+        assert_eq!(sqlx::query_scalar::<_, String>("SELECT status FROM hr_people WHERE id='person'").fetch_one(pool.raw()).await.unwrap(), "active");
+        let mut other = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+        lock_learning_person_source(&mut other).await.unwrap();
+        assert!(current.require_current(&mut other).await.is_err());
+        other.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn learning_person_source_lock_waits_in_both_orders_and_reads_committed_change() {
+    use erpx_server_people_payroll::public::learning_person::{inspect_learning_person, lock_learning_person_source};
+    use sqlx::Connection;
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        let mut writer = pool.raw().begin().await.unwrap();
+        let writer_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();
+        sqlx::query("UPDATE hr_people SET status='inactive' WHERE id='person'").execute(&mut *writer).await.unwrap();
+        let reader_pool = pool.clone();
+        let (reader_pid_send, reader_pid_recv) = tokio::sync::oneshot::channel();
+        let reader = tokio::spawn(async move {
+            let mut connection = reader_pool.raw().acquire().await.unwrap();
+            let pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *connection).await.unwrap();
+            let mut tx = connection.begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+            reader_pid_send.send(pid).unwrap();
+            lock_learning_person_source(&mut tx).await.unwrap();
+            let active = inspect_learning_person(&mut tx, "company", "person").await.unwrap().is_active_unmerged();
+            tx.rollback().await.unwrap(); active
+        });
+        let reader_pid = reader_pid_recv.await.unwrap();
+        let blocked = tokio::time::timeout(Duration::from_secs(3), async {
+            loop {
+                let found: bool = sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(writer_pid).bind(reader_pid).fetch_one(pool.raw()).await.unwrap();
+                if found { break; } tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        }).await;
+        assert!(blocked.is_ok()); writer.commit().await.unwrap(); assert!(!reader.await.unwrap());
+        let mut reader = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *reader).await.unwrap();
+        lock_learning_person_source(&mut reader).await.unwrap();
+        let source = inspect_learning_person(&mut reader, "company", "person").await.unwrap();
+        assert!(!source.is_active_unmerged());
+        let reader_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *reader).await.unwrap();
+        let writer_pool = pool.clone();
+        let (writer_pid_send, writer_pid_recv) = tokio::sync::oneshot::channel();
+        let writer = tokio::spawn(async move {
+            let mut connection = writer_pool.raw().acquire().await.unwrap();
+            let pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *connection).await.unwrap();
+            writer_pid_send.send(pid).unwrap();
+            sqlx::query("UPDATE hr_people SET status='active' WHERE id='person'").execute(&mut *connection).await.unwrap()
+        });
+        let writer_pid = writer_pid_recv.await.unwrap();
+        let blocked = tokio::time::timeout(Duration::from_secs(3), async {
+            loop {
+                let found: bool = sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(reader_pid).bind(writer_pid).fetch_one(pool.raw()).await.unwrap();
+                if found { break; } tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        }).await;
+        assert!(blocked.is_ok()); source.require_current(&mut reader).await.unwrap(); reader.rollback().await.unwrap();
+        assert_eq!(writer.await.unwrap().rows_affected(), 1);
+    }).await;
+}
+
+#[tokio::test]
+async fn benefit_person_retains_unordered_selection_and_full_people_source() {
+    use erpx_server_people_payroll::public::benefit_person::{inspect_benefit_person, lock_benefit_people_sources};
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        sqlx::query("INSERT INTO hr_engagements(id,person_id,company_id,branch_id,department_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at) VALUES('engagement-two','person','company','second-branch','second-department','employee','salaried','active','2200-01-01','Other','THB','user',0,0)").execute(pool.raw()).await.unwrap();
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        assert!(inspect_benefit_person(&mut tx,"company","user").await.is_err());
+        tx.rollback().await.unwrap();
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_benefit_people_sources(&mut tx).await.unwrap();
+        let current = inspect_benefit_person(&mut tx,"company","user").await.unwrap();
+        let selected = current.selected().unwrap();
+        assert_eq!(selected.person_id, "person");
+        assert!(["engagement", "engagement-two"].contains(&selected.engagement_id.as_str()));
+        if selected.engagement_id == "engagement-two" { assert_eq!(selected.branch_id.as_deref(), Some("second-branch")); assert_eq!(selected.department_id.as_deref(), Some("second-department")); }
+        else { assert_eq!(selected.branch_id, None); assert_eq!(selected.department_id, None); }
+        assert!(inspect_benefit_person(&mut tx,"foreign","user").await.unwrap().selected().is_none());
+        assert!(inspect_benefit_person(&mut tx,"company","missing").await.unwrap().selected().is_none());
+        current.require_current(&mut tx).await.unwrap();
+        // Any retained engagement image change matters, including an ended one.
+        sqlx::query("UPDATE hr_engagements SET job_title='Not in retained image' WHERE id='ended'").execute(&mut *tx).await.unwrap();
+        current.require_current(&mut tx).await.unwrap();
+        sqlx::query("UPDATE hr_engagements SET branch_id='changed' WHERE id='ended'").execute(&mut *tx).await.unwrap();
+        assert!(current.require_current(&mut tx).await.is_err());
+        tx.rollback().await.unwrap();
+        let mut other = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+        lock_benefit_people_sources(&mut other).await.unwrap();
+        assert!(current.require_current(&mut other).await.is_err());
+        let source = inspect_benefit_person(&mut other,"company","user").await.unwrap();
+        sqlx::query("UPDATE hr_people SET status='inactive' WHERE id='person'").execute(&mut *other).await.unwrap();
+        assert!(source.require_current(&mut other).await.is_err());
+        other.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn benefit_person_prelock_waits_for_engagement_writer_and_reads_committed_change() {
+    use erpx_server_people_payroll::public::benefit_person::{inspect_benefit_person, lock_benefit_people_sources};
+    use sqlx::Connection;
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        let mut writer = pool.raw().begin().await.unwrap();
+        let writer_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();
+        sqlx::query("UPDATE hr_engagements SET status='suspended' WHERE id='engagement'").execute(&mut *writer).await.unwrap();
+        let (send,recv) = tokio::sync::oneshot::channel(); let read_pool = pool.clone();
+        let reader = tokio::spawn(async move {
+            let mut connection=read_pool.raw().acquire().await.unwrap();
+            let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *connection).await.unwrap();
+            let mut tx=connection.begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+            send.send(pid).unwrap(); lock_benefit_people_sources(&mut tx).await.unwrap();
+            let none=inspect_benefit_person(&mut tx,"company","user").await.unwrap().selected().is_none();
+            tx.rollback().await.unwrap(); none
+        });
+        let reader_pid=recv.await.unwrap();
+        let blocked=tokio::time::timeout(Duration::from_secs(3),async { loop {
+            let found:bool=sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(writer_pid).bind(reader_pid).fetch_one(pool.raw()).await.unwrap();
+            if found {break;} tokio::time::sleep(Duration::from_millis(10)).await;
+        }}).await;
+        assert!(blocked.is_ok()); writer.commit().await.unwrap(); assert!(reader.await.unwrap());
+    }).await;
+}

@@ -421,6 +421,39 @@ fn actor_branch(actor: LearningActor, branch: &str, department: Option<&str>) ->
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn eligibility_code_survives_real_owner_handoff_and_consumer_read() {
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        for (index, code) in ["ช".repeat(120), "😀".repeat(60), "a\nb\u{0085}c".into()].into_iter().enumerate() {
+            let course_key = format!("learning-code-course-{index}");
+            let input = CourseRequest { required_for: Some(code.clone()), ..course_input() };
+            let course = run_create_course(&pool, author(), &course_key, input).await.unwrap();
+            let course_id = course["id"].as_str().unwrap();
+            run_change_course(&pool, reviewer(), course_id, &format!("learning-code-publish-{index}"), change(CourseAction::Publish, 1)).await.unwrap();
+            let assignment = run_create_assignment(&pool, reviewer(), &format!("learning-code-assign-{index}"), assignment_input(course_id, "learner")).await.unwrap();
+            let id = assignment["id"].as_str().unwrap();
+            run_change_assignment(&pool, learner(), id, &format!("learning-code-start-{index}"), action(AssignmentAction::Start, 1)).await.unwrap();
+            run_change_assignment(&pool, learner(), id, &format!("learning-code-complete-{index}"), complete(2)).await.unwrap();
+            let (handoff_code,certificate_code): (String,String) = sqlx::query_as("SELECT h.eligibility_code,c.eligibility_code FROM learning_eligibility_handoffs h JOIN learning_certificates c ON c.handoff_id=h.id WHERE h.assignment_id=$1").bind(id).fetch_one(pool.raw()).await.unwrap();
+            assert_eq!(handoff_code, code);
+            assert_eq!(certificate_code, code);
+            let before: (i64,i64,i64,i64,i64,i64) = sqlx::query_as("SELECT (SELECT count(*) FROM learning_eligibility_handoffs),(SELECT count(*) FROM learning_certificates),(SELECT count(*) FROM learning_benefit_consumption_receipts),(SELECT count(*) FROM command_receipts),(SELECT count(*) FROM audit_events),(SELECT count(*) FROM outbox_events)").fetch_one(pool.raw()).await.unwrap();
+            let facts = run_consumer_eligibility(&pool, "company", None, None, "person-learner", &code, "2026-11-04").await.unwrap();
+            assert_eq!(facts["eligible"], true);
+            assert_eq!(facts["eligibility_code"], code);
+            let other = run_consumer_eligibility(&pool, "company", None, None, "person-learner", "different", "2026-11-04").await.unwrap_err();
+            assert_eq!(other.kind, erpx_server_shared::public::FailureKind::NotFound);
+            assert_eq!(other.code, "LEARNING_ELIGIBILITY_NOT_FOUND");
+            let foreign = run_consumer_eligibility(&pool, "foreign", None, None, "person-learner", &code, "2026-11-04").await.unwrap_err();
+            assert_eq!(foreign.kind, erpx_server_shared::public::FailureKind::NotFound);
+            assert_eq!(foreign.code, "LEARNING_ELIGIBILITY_NOT_FOUND");
+            let after: (i64,i64,i64,i64,i64,i64) = sqlx::query_as("SELECT (SELECT count(*) FROM learning_eligibility_handoffs),(SELECT count(*) FROM learning_certificates),(SELECT count(*) FROM learning_benefit_consumption_receipts),(SELECT count(*) FROM command_receipts),(SELECT count(*) FROM audit_events),(SELECT count(*) FROM outbox_events)").fetch_one(pool.raw()).await.unwrap();
+            assert_eq!(after, before);
+        }
+    }).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn course_unicode_and_safe_duration_round_trip_through_postgres() {
     fixture::with_database(4, |pool| async move {
         setup(&pool).await;
@@ -1757,4 +1790,101 @@ async fn eligibility_handoff_facts_are_current_scoped_and_consumption_preserving
         drop(raw);
     })
     .await;
+}
+
+// Synthetic source rows exercise the physical migrated c.* shape only; this is
+// not evidence of a People authorization or a Benefits consumption transaction.
+#[tokio::test(flavor = "multi_thread")]
+async fn certificate_digest_matches_node_postgres_stringify_oracle() {
+    use erpx_server_workflow::public::commands::CommandJson;
+    use serde::Serialize;
+    use sha2::{Digest, Sha256};
+
+    #[derive(Serialize)]
+    struct Certificate {
+        id: String,
+        handoff_id: String,
+        company_id: String,
+        person_id: String,
+        assignment_id: String,
+        source_assignment_version: i64,
+        eligibility_code: String,
+        valid_from: String,
+        expires_on: Option<String>,
+        completion_kind: String,
+        evidence_ref: String,
+        issued_by: String,
+        created_at: i64,
+    }
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        let database: String = sqlx::query_scalar("SELECT current_database()")
+            .fetch_one(pool.raw()).await.unwrap();
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        for (index, number, expires) in [(0, 1_i64, None), (1, 9_007_199_254_740_991_i64, Some("2201-01-01")), (2, 9_007_199_254_740_993_i64, None), (3, 1_i64, None)] {
+            let assignment = run_create_assignment(&pool, reviewer(), &format!("learning-oracle-assignment-{index}"), assignment_input("course-required", "learner")).await.unwrap();
+            let assignment_id = assignment["id"].as_str().unwrap();
+            let handoff = format!("oracle-handoff-{index}");
+            let id = format!("oracle-certificate-{index}");
+            let code = "ไทย😀\n\"\\\u{0085}";
+            sqlx::query("INSERT INTO learning_eligibility_handoffs(id,assignment_id,company_id,person_id,eligibility_code,source_assignment_version,status,created_at) VALUES($1,$2,'company','person-learner',$3,$4,'open',$4)")
+                .bind(&handoff).bind(assignment_id).bind(code).bind(number).execute(pool.raw()).await.unwrap();
+            let evidence = if index == 3 { "x".repeat(2 * 1024 * 1024) } else { "หลักฐาน😀\t\"\\".into() };
+            sqlx::query("INSERT INTO learning_certificates(id,handoff_id,company_id,person_id,assignment_id,source_assignment_version,eligibility_code,valid_from,expires_on,completion_kind,evidence_ref,issued_by,created_at) VALUES($1,$2,'company','person-learner',$3,$4,$5,'2026-01-01',$6,'completed',$7,'reviewer',$4)")
+                .bind(&id).bind(&handoff).bind(assignment_id).bind(number).bind(code).bind(expires).bind(&evidence).execute(pool.raw()).await.unwrap();
+            let row = sqlx::query("SELECT c.* FROM learning_certificates c WHERE c.id=$1").bind(&id).fetch_one(pool.raw()).await.unwrap();
+            let certificate = Certificate {
+                id: row.get("id"), handoff_id: row.get("handoff_id"), company_id: row.get("company_id"),
+                person_id: row.get("person_id"), assignment_id: row.get("assignment_id"),
+                source_assignment_version: row.get("source_assignment_version"), eligibility_code: row.get("eligibility_code"),
+                valid_from: row.get("valid_from"), expires_on: row.get("expires_on"), completion_kind: row.get("completion_kind"),
+                evidence_ref: row.get("evidence_ref"), issued_by: row.get("issued_by"), created_at: row.get("created_at"),
+            };
+            // Import the real runtime module to register its pg type parsers.
+            // The leased database and ID are argv; credentials stay in the inherited environment.
+            let script = r#"
+import '@erpx/server-runtime/adapters/runtime/postgres';
+import pg from 'pg';
+import { createHash } from 'node:crypto';
+const url = new URL(process.env.ERPX_TEST_ADMIN_URL);
+url.pathname = '/' + process.argv[1];
+const client = new pg.Client({ connectionString: url.toString() });
+try {
+  await client.connect();
+  const result = await client.query('SELECT c.* FROM learning_certificates c WHERE c.id=$1', [process.argv[2]]);
+  if (result.rows.length !== 1) throw new Error('ORACLE_ROW_COUNT');
+  const json = JSON.stringify(result.rows[0]);
+  console.log(JSON.stringify({ json: Buffer.byteLength(json) > 2 * 1024 * 1024 ? null : json, bytes: Buffer.byteLength(json), digest: createHash('sha256').update(json, 'utf8').digest('hex'), fields: result.fields.map(field => field.name) }));
+} catch (error) {
+  if (!(error instanceof RangeError) || error.message !== 'DATABASE_NUMBER_OUT_OF_RANGE') throw error;
+  console.log(JSON.stringify({ error: error.message }));
+} finally { await client.end(); }
+"#;
+            let output = std::process::Command::new(std::env::var("ERPX_NODE_BIN").expect("pinned Node required"))
+                .current_dir(&root).args(["--import", "tsx", "--input-type=module", "--eval", script, &database, &id])
+                .output().expect("Node PostgreSQL oracle failed to start");
+            assert!(output.status.success(), "Node PostgreSQL oracle failed: {}", String::from_utf8_lossy(&output.stderr));
+            let oracle: Value = serde_json::from_slice(&output.stdout).unwrap();
+            if index == 2 {
+                assert_eq!(oracle["error"], "DATABASE_NUMBER_OUT_OF_RANGE");
+                // CommandJson alone rounds an unsafe integer; callers must reject
+                // both bigint fields before invoking it. No consumption port is
+                // implemented here, so this is not a production guard assertion.
+                let unguarded = CommandJson::from_serializable(&certificate).unwrap();
+                assert!(unguarded.as_str().contains("9007199254740992"));
+                continue;
+            }
+            assert_eq!(oracle["fields"], serde_json::json!(["id","handoff_id","company_id","person_id","assignment_id","source_assignment_version","eligibility_code","valid_from","expires_on","completion_kind","evidence_ref","issued_by","created_at"]));
+            if index == 3 {
+                assert!(oracle["bytes"].as_u64().unwrap() > 2 * 1024 * 1024);
+                assert!(oracle["digest"].as_str().is_some_and(|digest| digest.len() == 64));
+                assert!(CommandJson::from_serializable(&certificate).is_err());
+                continue;
+            }
+            let encoded = CommandJson::from_serializable(&certificate).unwrap();
+            let digest = format!("{:x}", Sha256::digest(encoded.as_str().as_bytes()));
+            assert_eq!(oracle["json"].as_str().unwrap(), encoded.as_str());
+            assert_eq!(oracle["digest"].as_str().unwrap(), digest);
+        }
+    }).await;
 }

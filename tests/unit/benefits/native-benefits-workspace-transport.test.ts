@@ -68,6 +68,17 @@ const input={holdingSlug:'acme',personal:false,
 const ok=(value:unknown)=>new Response(JSON.stringify(value),{status:200,headers:{'content-type':'application/json'}});
 
 describe('native Benefits workspace transport',()=>{
+ it('preserves UTF-16 eligibility code identity and rejects invalid bounds',async()=>{
+  for(const code of ['ช'.repeat(120),'😀'.repeat(60),'a\nb\u0085c']){
+   const value={...plan,required_eligibility_code:code};
+   const client=createNativeBenefitsClient(nativeBenefitsConfiguration(config()),vi.fn().mockResolvedValue(ok(page({plans:[value]}))));
+   expect((await client.workspace(incoming(),actor,input)).plans[0].required_eligibility_code).toBe(code);
+  }
+  for(const code of [`${'😀'.repeat(60)}ก`,'ab\u0000c','\ufeffab']){
+   const client=createNativeBenefitsClient(nativeBenefitsConfiguration(config()),vi.fn().mockResolvedValue(ok(page({plans:[{...plan,required_eligibility_code:code}]}))));
+   await expect(client.workspace(incoming(),actor,input)).rejects.toMatchObject({code:'NATIVE_BENEFITS_RESPONSE_INVALID'});
+  }
+ });
  it('forwards the configured Holding, session, CAS and exact workspace route',async()=>{
   const transport=vi.fn().mockResolvedValue(ok(page()));
   const client=createNativeBenefitsClient(nativeBenefitsConfiguration(config()),transport);

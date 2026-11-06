@@ -6,7 +6,7 @@
 //! Benefits rows; the certificate and handoff remain the direct owner facts.
 use crate::domain::learning::{
     CertificateRow, HandoffRow, LearningActor, MAX_REQUIRED_FOR, request_invalid, source_invalid,
-    valid_date, valid_text,
+    valid_content, valid_date, valid_text, trim_js,
 };
 use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, RecordId};
 use serde::Deserialize;
@@ -87,9 +87,9 @@ pub struct EligibilityQuery {
 impl EligibilityQuery {
     pub fn validate(&self) -> Result<Self, BusinessError> {
         if RecordId::new(self.person_id.clone()).is_err()
-            || !valid_text(&self.eligibility_code, MAX_REQUIRED_FOR)
-            || self.eligibility_code.trim() != self.eligibility_code
-            || !(1..=MAX_REQUIRED_FOR).contains(&self.eligibility_code.chars().count())
+            || !valid_content(&self.eligibility_code, MAX_REQUIRED_FOR)
+            || trim_js(&self.eligibility_code) != self.eligibility_code
+            || !(1..=MAX_REQUIRED_FOR).contains(&self.eligibility_code.encode_utf16().count())
             || !valid_date(&self.effective_date)
         {
             return Err(request_invalid());

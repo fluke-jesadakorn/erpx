@@ -106,6 +106,19 @@ describe('native Marketing campaign transport',()=>{
   });
  });
 
+ it('preserves valid campaign content and checks UTF-16 boundaries',async()=>{
+  for(const name of ['Line\nbreak','😀'.repeat(80),'\u0085A']) {
+   const client=createNativeMarketingCampaignClient(nativeMarketingCampaignConfiguration(config()),
+    vi.fn().mockResolvedValue(ok(page([{...campaign,name}],[]))));
+   expect((await client.report(incoming(),actor,input)).campaigns[0].name).toBe(name);
+  }
+  for(const name of ['😀'.repeat(81),'\ufeffA\ufeff','A\u0000B']) {
+   const client=createNativeMarketingCampaignClient(nativeMarketingCampaignConfiguration(config()),
+    vi.fn().mockResolvedValue(ok(page([{...campaign,name}],[]))));
+   await expect(client.report(incoming(),actor,input)).rejects.toMatchObject({code:'NATIVE_MARKETING_CAMPAIGN_RESPONSE_INVALID'});
+  }
+ });
+
  it('rejects campaign, attribution, purchase, page and context mismatches',async()=>{
   const client=(value:unknown)=>createNativeMarketingCampaignClient(
     nativeMarketingCampaignConfiguration(config()),

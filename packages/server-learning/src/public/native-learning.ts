@@ -289,7 +289,7 @@ const course = (value: unknown): value is NativeLearningCourse =>
   content(value.description, 3, 3_000) &&
   content(value.provider, 2, 160) &&
   integer(value.duration_minutes, 1) &&
-  (value.required_for === null || trimmed(value.required_for, 2, 120)) &&
+  (value.required_for === null || content(value.required_for, 2, 120)) &&
   typeof value.status === 'string' &&
   courseStatuses.has(value.status) &&
   identifier(value.created_by) &&
@@ -349,7 +349,7 @@ const assignment = (value: unknown): value is NativeLearningAssignment =>
   integer(value.updated_at) &&
   value.updated_at >= value.created_at &&
   content(value.course_title, 1, 160) &&
-  (value.required_for === null || trimmed(value.required_for, 2, 120)) &&
+  (value.required_for === null || content(value.required_for, 2, 120)) &&
   (value.learner_name === null || trimmed(value.learner_name, 1, 300)) &&
   (value.learner_eligible === 0 || value.learner_eligible === 1);
 
@@ -388,7 +388,7 @@ const handoff = (value: unknown): value is NativeLearningHandoff =>
   identifier(value.assignment_id) &&
   identifier(value.company_id) &&
   identifier(value.person_id) &&
-  trimmed(value.eligibility_code, 1, 120) &&
+  content(value.eligibility_code, 1, 120) &&
   integer(value.source_assignment_version, 1) &&
   value.status === 'open' &&
   integer(value.created_at);
@@ -416,7 +416,7 @@ const certificate = (value: unknown): value is NativeLearningCertificate =>
   identifier(value.person_id) &&
   identifier(value.assignment_id) &&
   integer(value.source_assignment_version, 1) &&
-  trimmed(value.eligibility_code, 1, 120) &&
+  content(value.eligibility_code, 1, 120) &&
   date(value.valid_from) &&
   optionalDate(value.expires_on) &&
   (value.expires_on === null || (value.expires_on as string) >= (value.valid_from as string)) &&
@@ -441,7 +441,7 @@ const eligibilityConsumption = (value: unknown): value is NativeLearningEligibil
   identifier(value.id) &&
   identifier(value.election_id) &&
   integer(value.source_assignment_version, 1) &&
-  trimmed(value.eligibility_code, 1, 120) &&
+  content(value.eligibility_code, 1, 120) &&
   digest(value.source_digest) &&
   trimmed(value.purpose, 1, 120) &&
   identifier(value.actor_id) &&
@@ -1171,7 +1171,7 @@ export function createNativeLearningClient(
         !identifier(personId) ||
         personId.includes('/') ||
         personId.includes('\\') ||
-        !trimmed(eligibilityCode, 1, 120) ||
+        !content(eligibilityCode, 1, 120) ||
         !date(effectiveDate)
       )
         return Promise.reject(new NativeLearningError('NATIVE_LEARNING_REQUEST_INVALID'));

@@ -6,8 +6,9 @@
 //! application enforces the current actor policy, current package history
 //! entitlement and every bounded campaign/attribution row before presentation.
 use crate::domain::campaign_attribution::{
-    ATTRIBUTION_LIMIT, CAMPAIGN_LIMIT, MarketingAttributionRow, MarketingCampaignActor,
-    MarketingCampaignEntitlement, MarketingCampaignReport, MarketingCampaignRow, validate_report,
+    ATTRIBUTION_LIMIT, CAMPAIGN_LIMIT, CandidateProvenance, MarketingAttributionMode,
+    MarketingAttributionRow, MarketingCampaignActor, MarketingCampaignEntitlement,
+    MarketingCampaignReport, MarketingCampaignRow, validate_report,
 };
 use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
 use std::future::Future;
@@ -31,6 +32,28 @@ pub trait MarketingCampaignRepository: Send {
         department_id: Option<&'a str>,
         limit: usize,
     ) -> MarketingCampaignFuture<'a, Vec<MarketingAttributionRow>, Self::Error>;
+
+    fn attribution_scoped<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        branch_id: Option<&'a str>,
+        department_id: Option<&'a str>,
+        limit: usize,
+        provenance: CandidateProvenance,
+    ) -> MarketingCampaignFuture<'a, Vec<MarketingAttributionRow>, Self::Error> {
+        if provenance == CandidateProvenance::All {
+            self.attribution(company, branch_id, department_id, limit)
+        } else {
+            Box::pin(async {
+                Err(BusinessError::new(
+                    erpx_server_shared::public::FailureKind::Unavailable,
+                    "MARKETING_PROVENANCE_UNAVAILABLE",
+                    "Marketing source provenance is unavailable.",
+                )
+                .into())
+            })
+        }
+    }
 }
 
 /// Current Commercial package boundary. Disabled enforcement is the retained
@@ -44,11 +67,14 @@ pub trait MarketingCampaignEntitlementPort {
     ) -> MarketingCampaignFuture<'a, MarketingCampaignEntitlement, Self::Error>;
 }
 
+/// The caller must derive `mode` from trusted runtime configuration and retain
+/// source locks, purchase and selected authority in the same transaction.
 pub async fn marketing_campaign_report<R, E>(
     actor: &MarketingCampaignActor,
     repository: &mut R,
     entitlement: &mut E,
     now: TimestampMillis,
+    mode: MarketingAttributionMode,
 ) -> Result<MarketingCampaignReport, R::Error>
 where
     R: MarketingCampaignRepository,
@@ -60,19 +86,44 @@ where
         .entitlement(actor.company_id.as_str())
         .await
         .map_err(R::Error::from)?;
+    if entitlement.enforced != (mode == MarketingAttributionMode::Enforced) {
+        return Err(BusinessError::new(
+            erpx_server_shared::public::FailureKind::Unavailable,
+            "MARKETING_PURCHASE_MODE_MISMATCH",
+            "Marketing purchase configuration is unavailable.",
+        )
+        .into());
+    }
     entitlement.require_history()?;
     let campaigns = repository
         .campaigns(&actor.company_id, CAMPAIGN_LIMIT + 1)
         .await?;
     let attribution = repository
-        .attribution(
+        .attribution_scoped(
             &actor.company_id,
             actor.branch_id.as_ref().map(|value| value.as_str()),
             actor.department_id.as_ref().map(|value| value.as_str()),
             ATTRIBUTION_LIMIT + 1,
+            match mode {
+                MarketingAttributionMode::Disabled => CandidateProvenance::All,
+                MarketingAttributionMode::Shadow | MarketingAttributionMode::Enforced => {
+                    CandidateProvenance::CapturedForm
+                }
+            },
         )
         .await?;
     let mut report = validate_report(actor, campaigns, attribution)?;
-    report.purchase = entitlement.purchase();
+    report.purchase = match mode {
+        MarketingAttributionMode::Disabled => None,
+        MarketingAttributionMode::Shadow => Some(
+            crate::domain::campaign_attribution::MarketingCampaignPurchaseControls {
+                new_work: true,
+                settle_existing: true,
+                history: true,
+                revision: entitlement.revision.clone(),
+            },
+        ),
+        MarketingAttributionMode::Enforced => entitlement.purchase(),
+    };
     Ok(report)
 }

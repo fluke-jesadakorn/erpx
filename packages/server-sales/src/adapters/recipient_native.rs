@@ -1,4 +1,34 @@
-//! The existing Sales recipient predicate composed from Identity and People.
+//! Sales-owned recipient reference composed from Identity authority facts and
+//! People workforce facts.
+//!
+//! Lock semantics:
+//! - `prepare_sales_recipient_sources` delegates to Identity's
+//!   `lock_sales_recipient_sources`. It must run first in a SERIALIZABLE
+//!   transaction; Identity locks assignments, roles, organization sources,
+//!   People authority sources (`hr_people`, `hr_engagements`, ...), and policy
+//!   sources before the first snapshot.
+//! - The returned preparation exposes `connection()` so composition can acquire
+//!   any additional owner locks (for example CRM leads) before `bind()`. `bind()`
+//!   captures the immutable transaction/unit token; no read or snapshot may
+//!   happen before it.
+//! - `inspect_sales_recipient` re-verifies that same unit token, reads the
+//!   Identity predicate, then reads People using a timestamp taken from
+//!   `current_timestamp` (transaction start), preserving the TypeScript
+//!   `current_timestamp` engagement-date rule even if the unit crosses UTC
+//!   midnight.
+//!
+//! People workforce_reference reuse:
+//! - Sales reuses `erpx_server_people_payroll::public::workforce_reference::
+//!   inspect_workforce_reference_raw` instead of defining its own employment
+//!   SQL. Only the required eligibility predicate is transferred; no contact,
+//!   salary, or profile data leaves People.
+//! - Because Identity's source lock already covers `hr_people` and
+//!   `hr_engagements`, Sales does not call a separate People lock function.
+//! - `CurrentSalesRecipient::require_current` re-checks both the Identity unit/
+//!   eligibility and the People transaction/eligibility using the stored
+//!   transaction timestamp.
+//!
+//! This is a scoped recipient reference, not a selected actor or command grant.
 //! The business owner retains its actual source and command authorization.
 use erpx_server_identity_access::public::sales_recipient::{
     CurrentSalesRecipient as IdentityRecipient, SalesRecipientLockPreparation,

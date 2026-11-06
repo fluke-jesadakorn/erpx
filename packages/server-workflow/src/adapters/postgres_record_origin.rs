@@ -71,8 +71,13 @@ impl PgRecordOrigin {
 }
 
 /// Utility command only: call with all source preparation before the first
-/// SERIALIZABLE snapshot. ROW SHARE preserves normal receipt writers. A positive
-/// row is separately held FOR SHARE; a missing row can never prove provenance.
+/// SERIALIZABLE snapshot. ROW SHARE preserves normal receipt writers and does
+/// not take a global table lock. A positive row is separately held FOR SHARE.
+/// Approved customer-return lookup must reconstruct its candidate command key
+/// from joined evidence and then call the exact-key retained origin below; it
+/// must not scan command_receipts for a unique matching row, because a
+/// concurrent matching insert can be invisible to this snapshot under ROW SHARE.
+/// A missing row can never prove provenance.
 pub async fn lock_record_origin_sources(connection: &mut PgConnection) -> Result<(), Error> {
     if !connection.is_in_transaction() {
         return Err(PersistenceError::new("WORKFLOW_OWNER_TRANSACTION_REQUIRED").into());
@@ -263,6 +268,12 @@ fn validate(request: &RecordOriginRequest) -> Result<(), BusinessError> {
     }
     Ok(())
 }
+fn valid_request_hash(hash: &str) -> bool {
+    hash.len() == 64
+        && hash
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
 fn invalid_origin() -> BusinessError {
     BusinessError::new(
         FailureKind::Conflict,
@@ -306,17 +317,23 @@ pub async fn read_raw_record_origin(
     request: RawRecordOriginRequest,
 ) -> Result<Option<PgRawRecordOrigin>, Error> {
     require_unit(c).await?;
-    let row: Option<(String,i32,String,String)> = sqlx::query_as("SELECT encode(sha256(convert_to(to_jsonb(r)::text,'UTF8')),'hex'),pg_backend_pid(),pg_current_xact_id()::text,current_database()||'/'||pg_postmaster_start_time()::text FROM command_receipts r WHERE r.command_id=$1 AND r.operation=$2 AND r.record_id=$3 AND r.actor_id=$4 AND r.authority_json::jsonb->>'companyId'=$5 FOR SHARE OF r")
+    // Exact-key provenance only. A corrupt or legacy receipt with an invalid
+    // request hash is an explicit denial, not an absent or positive proof.
+    let row: Option<(String,String,i32,String,String)> = sqlx::query_as("SELECT encode(sha256(convert_to(to_jsonb(r)::text,'UTF8')),'hex'),r.request_hash,pg_backend_pid(),pg_current_xact_id()::text,current_database()||'/'||pg_postmaster_start_time()::text FROM command_receipts r WHERE r.command_id=$1 AND r.operation=$2 AND r.record_id=$3 AND r.actor_id=$4 AND r.authority_json::jsonb->>'companyId'=$5 FOR SHARE OF r")
         .bind(&request.command_key).bind(&request.operation).bind(&request.record_id).bind(&request.creator_user_id).bind(request.company_id.as_str()).fetch_optional(c).await?;
-    Ok(row.map(
-        |(image, backend_pid, transaction_id, database_identity)| PgRawRecordOrigin {
-            request,
-            image,
-            backend_pid,
-            transaction_id,
-            database_identity,
-        },
-    ))
+    let Some((image, request_hash, backend_pid, transaction_id, database_identity)) = row else {
+        return Ok(None);
+    };
+    if !valid_request_hash(&request_hash) {
+        return Err(invalid_origin().into());
+    }
+    Ok(Some(PgRawRecordOrigin {
+        request,
+        image,
+        backend_pid,
+        transaction_id,
+        database_identity,
+    }))
 }
 /// Read the actual bounded result and sealed full receipt row together. This
 /// carries historical evidence only and never constructs current authority.
@@ -343,12 +360,15 @@ pub async fn read_raw_record_origin_result_with_limit(
         )
         .into());
     }
-    let row:Option<(String,Option<String>,bool,i32,String,String)>=sqlx::query_as("SELECT encode(sha256(convert_to(to_jsonb(r)::text,'UTF8')),'hex'),CASE WHEN octet_length(result_json)<=$6 THEN result_json END,COALESCE(octet_length(result_json),0)>$6,pg_backend_pid(),pg_current_xact_id()::text,current_database()||'/'||pg_postmaster_start_time()::text FROM command_receipts r WHERE r.command_id=$1 AND r.operation=$2 AND r.record_id=$3 AND r.actor_id=$4 AND r.authority_json::jsonb->>'companyId'=$5 AND r.request_hash~'^[0-9a-f]{64}$' FOR SHARE OF r")
+    let row:Option<(String,String,Option<String>,bool,i32,String,String)>=sqlx::query_as("SELECT encode(sha256(convert_to(to_jsonb(r)::text,'UTF8')),'hex'),r.request_hash,CASE WHEN octet_length(result_json)<=$6 THEN result_json END,COALESCE(octet_length(result_json),0)>$6,pg_backend_pid(),pg_current_xact_id()::text,current_database()||'/'||pg_postmaster_start_time()::text FROM command_receipts r WHERE r.command_id=$1 AND r.operation=$2 AND r.record_id=$3 AND r.actor_id=$4 AND r.authority_json::jsonb->>'companyId'=$5 FOR SHARE OF r")
         .bind(&request.command_key).bind(&request.operation).bind(&request.record_id).bind(&request.creator_user_id).bind(request.company_id.as_str()).bind(i64::try_from(limit_bytes).unwrap_or(i64::MAX)).fetch_optional(c).await?;
-    let Some((image, result, oversized, backend_pid, transaction_id, database_identity)) = row
+    let Some((image, request_hash, result, oversized, backend_pid, transaction_id, database_identity)) = row
     else {
         return Ok(None);
     };
+    if !valid_request_hash(&request_hash) {
+        return Err(invalid_origin().into());
+    }
     if oversized {
         return Err(BusinessError::new(
             FailureKind::Unavailable,

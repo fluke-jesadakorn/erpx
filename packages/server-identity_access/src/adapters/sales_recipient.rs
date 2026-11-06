@@ -62,6 +62,11 @@ impl CurrentSalesRecipient {
 }
 
 /// Call before the first snapshot in the owning transaction.
+///
+/// This locks every Identity, organization, People and policy source used by the
+/// recipient predicate. Composition may acquire additional owner locks through
+/// the returned preparation's `connection()` before `bind()`; `bind()` must
+/// occur before any snapshot or read.
 pub async fn lock_sales_recipient_sources(
     c: &mut PgConnection,
 ) -> Result<SalesRecipientLockPreparation<'_>, Error> {

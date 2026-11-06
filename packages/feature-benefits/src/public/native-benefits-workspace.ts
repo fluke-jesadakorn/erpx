@@ -185,7 +185,8 @@ const identifier = (value: unknown): value is string =>
 const name = (value: unknown, max = NAME_LIMIT): value is string =>
   text(value, max) && [...value].length >= 2;
 const code = (value: unknown, max = ELIGIBILITY_LIMIT): value is string =>
-  text(value, max) && [...value].length >= 2;
+  typeof value === 'string' && value.length >= 2 && value.length <= max &&
+  value.trim() === value && !value.includes('\u0000');
 const integer = (value: unknown, min = 0): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= min;
 const currency = (value: unknown): value is string =>

@@ -10,13 +10,26 @@ use crate::application::campaign_attribution::{
     MarketingCampaignFuture, MarketingCampaignRepository,
 };
 use crate::domain::campaign_attribution::{
-    MarketingAttributionRow, MarketingCampaignRow, source_invalid,
+    CandidateProvenance, MarketingAttributionRow, MarketingCampaignRow, source_invalid,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, CompanyId};
 use sqlx::{Connection, PgConnection, Row};
 
 type Error = PgTransactionError<BusinessError>;
+
+/// Lock the Marketing-owned source set before the first Holding snapshot.
+/// Composition owns ordering with Commercial, Identity and other owners.
+pub async fn lock_campaign_attribution_sources(c: &mut PgConnection) -> Result<(), Error> {
+    if !c.is_in_transaction() {
+        return Err(PersistenceError::new("MARKETING_CAMPAIGN_READ_TRANSACTION_REQUIRED").into());
+    }
+    // Match the retained Marketing writer's owner-table order so a writer
+    // holding assets cannot wait on campaigns already held by this reader.
+    sqlx::query("LOCK TABLE marketing_assets,marketing_asset_events,marketing_lead_candidates,marketing_engagement_events,marketing_campaigns IN SHARE MODE")
+        .execute(c).await?;
+    Ok(())
+}
 
 pub struct PgMarketingCampaignRead<'a> {
     connection: &'a mut PgConnection,
@@ -80,16 +93,45 @@ impl<'a> PgMarketingCampaignRead<'a> {
         department_id: Option<&str>,
         limit: usize,
     ) -> Result<Vec<MarketingAttributionRow>, Error> {
+        self.attribution_with_provenance(
+            company,
+            branch_id,
+            department_id,
+            limit,
+            CandidateProvenance::All,
+        )
+        .await
+    }
+
+    /// Apply the retained form/submission provenance predicate on this same
+    /// transaction. The trusted caller must acquire all source locks first.
+    pub async fn attribution_with_provenance(
+        &mut self,
+        company: &CompanyId,
+        branch_id: Option<&str>,
+        department_id: Option<&str>,
+        limit: usize,
+        provenance: CandidateProvenance,
+    ) -> Result<Vec<MarketingAttributionRow>, Error> {
         self.ready().await?;
+        if provenance == CandidateProvenance::CapturedForm {
+            let held: bool = sqlx::query_scalar("SELECT count(DISTINCT relation)=5 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND granted AND mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock') AND relation IN ('marketing_campaigns'::regclass,'marketing_assets'::regclass,'marketing_asset_events'::regclass,'marketing_lead_candidates'::regclass,'marketing_engagement_events'::regclass)")
+                .fetch_one(&mut *self.connection).await?;
+            if !held {
+                return Err(PersistenceError::new("MARKETING_PROVENANCE_LOCKS_REQUIRED").into());
+            }
+        }
         let invalid: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM marketing_lead_candidates \
-             WHERE company_id=$1 AND ($2::text IS NULL OR branch_id=$2) \
-             AND ($3::text IS NULL OR department_id=$3) \
-             AND NOT erpx_json_valid(attribution_json))",
+            "SELECT EXISTS(SELECT 1 FROM marketing_lead_candidates candidate \
+             WHERE candidate.company_id=$1 AND ($2::text IS NULL OR candidate.branch_id=$2) \
+             AND ($3::text IS NULL OR candidate.department_id=$3) \
+             AND (NOT $4 OR EXISTS(SELECT 1 FROM marketing_assets form JOIN marketing_asset_events captured ON captured.asset_id=form.id AND captured.version=candidate.form_version AND captured.action='activate' AND captured.status='active' JOIN marketing_engagement_events submission ON submission.candidate_id=candidate.id AND submission.version=1 AND submission.event_type='form_submit' WHERE form.id=candidate.form_id AND form.company_id=candidate.company_id AND form.kind='form' AND form.version>=candidate.form_version AND length(trim(candidate.consent_evidence))>=3)) \
+             AND NOT erpx_json_valid(candidate.attribution_json))",
         )
         .bind(company.as_str())
         .bind(branch_id)
         .bind(department_id)
+        .bind(provenance == CandidateProvenance::CapturedForm)
         .fetch_one(&mut *self.connection)
         .await?;
         if invalid {
@@ -103,9 +145,10 @@ impl<'a> PgMarketingCampaignRead<'a> {
              COUNT(*) FILTER (WHERE status='pending')::bigint AS pending,\
              COUNT(*) FILTER (WHERE status='handed_off')::bigint AS handed_off,\
              COUNT(*) FILTER (WHERE status='rejected')::bigint AS rejected \
-             FROM marketing_lead_candidates WHERE company_id=$1 \
+             FROM marketing_lead_candidates candidate WHERE company_id=$1 \
              AND ($2::text IS NULL OR branch_id=$2) \
              AND ($3::text IS NULL OR department_id=$3) \
+             AND (NOT $5 OR EXISTS(SELECT 1 FROM marketing_assets form JOIN marketing_asset_events captured ON captured.asset_id=form.id AND captured.version=candidate.form_version AND captured.action='activate' AND captured.status='active' JOIN marketing_engagement_events submission ON submission.candidate_id=candidate.id AND submission.version=1 AND submission.event_type='form_submit' WHERE form.id=candidate.form_id AND form.company_id=candidate.company_id AND form.kind='form' AND form.version>=candidate.form_version AND length(trim(candidate.consent_evidence))>=3)) \
              GROUP BY 1,2) grouped \
              ORDER BY captured DESC,campaign COLLATE \"C\",source COLLATE \"C\" LIMIT $4",
         )
@@ -113,6 +156,7 @@ impl<'a> PgMarketingCampaignRead<'a> {
         .bind(branch_id)
         .bind(department_id)
         .bind(limit as i64)
+        .bind(provenance == CandidateProvenance::CapturedForm)
         .fetch_all(&mut *self.connection)
         .await?;
         rows.into_iter()
@@ -150,6 +194,20 @@ impl MarketingCampaignRepository for PgMarketingCampaignRead<'_> {
     ) -> MarketingCampaignFuture<'a, Vec<MarketingAttributionRow>, Self::Error> {
         Box::pin(async move {
             PgMarketingCampaignRead::attribution(self, company, branch_id, department_id, limit)
+                .await
+        })
+    }
+
+    fn attribution_scoped<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        branch_id: Option<&'a str>,
+        department_id: Option<&'a str>,
+        limit: usize,
+        provenance: CandidateProvenance,
+    ) -> MarketingCampaignFuture<'a, Vec<MarketingAttributionRow>, Self::Error> {
+        Box::pin(async move {
+            self.attribution_with_provenance(company, branch_id, department_id, limit, provenance)
                 .await
         })
     }

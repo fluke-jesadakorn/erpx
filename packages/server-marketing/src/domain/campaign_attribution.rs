@@ -19,6 +19,21 @@ const NAME_LIMIT: usize = 160;
 const ATTRIBUTION_KEY_LIMIT: usize = 300;
 pub const UNSPECIFIED: &str = "Unspecified";
 
+/// Trusted runtime configuration for candidate provenance, independent of the
+/// entitlement presentation. This is not a request or authorization field.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MarketingAttributionMode {
+    Disabled,
+    Shadow,
+    Enforced,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CandidateProvenance {
+    All,
+    CapturedForm,
+}
+
 #[derive(Clone, Debug)]
 pub struct MarketingCampaignActor {
     pub user_id: String,
@@ -97,7 +112,10 @@ fn valid_code(value: &str) -> bool {
 }
 
 fn valid_name(value: &str) -> bool {
-    valid_text(value, NAME_LIMIT) && value.trim().chars().count() >= 2
+    let trimmed = value.trim_matches(|c| matches!(c, '\u{0009}'..='\u{000d}' | '\u{0020}' | '\u{00a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}'));
+    !value.contains('\0')
+        && value.encode_utf16().count() <= NAME_LIMIT
+        && trimmed.encode_utf16().count() >= 2
 }
 
 fn valid_attribution_key(value: &str) -> bool {

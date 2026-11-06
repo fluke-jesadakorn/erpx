@@ -2,9 +2,10 @@
 //! tests. These are owner unit facts, not HTTP, PostgreSQL, command or browser
 //! proof.
 use erpx_server_marketing::public::campaign_attribution::{
-    ATTRIBUTION_LIMIT, CAMPAIGN_LIMIT, MarketingAttributionRow, MarketingCampaignActor,
-    MarketingCampaignEntitlement, MarketingCampaignEntitlementPort, MarketingCampaignFuture,
-    MarketingCampaignRepository, MarketingCampaignRow, marketing_campaign_report,
+    ATTRIBUTION_LIMIT, CAMPAIGN_LIMIT, CandidateProvenance, MarketingAttributionMode,
+    MarketingAttributionRow, MarketingCampaignActor, MarketingCampaignEntitlement,
+    MarketingCampaignEntitlementPort, MarketingCampaignFuture, MarketingCampaignRepository,
+    MarketingCampaignRow, marketing_campaign_report,
 };
 use erpx_server_shared::public::{
     BusinessError, CompanyId, FailureKind, RecordId, TimestampMillis,
@@ -12,6 +13,75 @@ use erpx_server_shared::public::{
 use std::collections::BTreeMap;
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
+
+#[tokio::test]
+async fn scoped_report_fails_closed_when_repository_cannot_filter_provenance() {
+    for mode in [
+        MarketingAttributionMode::Shadow,
+        MarketingAttributionMode::Enforced,
+    ] {
+        let mut repo = DefaultScopeRepo(Repo::new(vec![], vec![attribution("AUTUMN", "web")]));
+        let mut packages = allowed(mode == MarketingAttributionMode::Enforced);
+        let error = marketing_campaign_report(&actor(), &mut repo, &mut packages, NOW, mode)
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "MARKETING_PROVENANCE_UNAVAILABLE");
+        assert_eq!(repo.0.attribution_calls, 0);
+    }
+    let mut repo = Repo::new(vec![], vec![attribution("AUTUMN", "web")]);
+    let mut packages = allowed(false);
+    assert_eq!(
+        marketing_campaign_report(
+            &actor(),
+            &mut repo,
+            &mut packages,
+            NOW,
+            MarketingAttributionMode::Disabled
+        )
+        .await
+        .unwrap()
+        .attribution
+        .len(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn report_rejects_inconsistent_mode_and_preserves_shadow_controls() {
+    for (mode, enforced) in [
+        (MarketingAttributionMode::Disabled, true),
+        (MarketingAttributionMode::Shadow, true),
+        (MarketingAttributionMode::Enforced, false),
+    ] {
+        let mut repo = Repo::new(vec![], vec![]);
+        let mut packages = allowed(enforced);
+        let error = marketing_campaign_report(&actor(), &mut repo, &mut packages, NOW, mode)
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "MARKETING_PURCHASE_MODE_MISMATCH");
+        assert_eq!(repo.campaign_calls, 0);
+        assert_eq!(repo.attribution_calls, 0);
+    }
+    let mut repo = Repo::new(vec![], vec![]);
+    let mut packages = allowed(false);
+    packages.entitlement.history_allowed = false;
+    packages.entitlement.new_work = false;
+    packages.entitlement.settle_existing = false;
+    let report = marketing_campaign_report(
+        &actor(),
+        &mut repo,
+        &mut packages,
+        NOW,
+        MarketingAttributionMode::Shadow,
+    )
+    .await
+    .unwrap();
+    let purchase = report.purchase.unwrap();
+    assert!(purchase.history);
+    assert!(purchase.new_work);
+    assert!(purchase.settle_existing);
+    assert_eq!(purchase.revision, "7");
+}
 
 fn actor() -> MarketingCampaignActor {
     MarketingCampaignActor {
@@ -118,6 +188,39 @@ impl MarketingCampaignRepository for Repo {
             Ok(self.attribution.clone())
         })
     }
+
+    fn attribution_scoped<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        branch_id: Option<&'a str>,
+        department_id: Option<&'a str>,
+        limit: usize,
+        provenance: CandidateProvenance,
+    ) -> MarketingCampaignFuture<'a, Vec<MarketingAttributionRow>, Self::Error> {
+        let _ = provenance;
+        self.attribution(company, branch_id, department_id, limit)
+    }
+}
+
+struct DefaultScopeRepo(Repo);
+impl MarketingCampaignRepository for DefaultScopeRepo {
+    type Error = BusinessError;
+    fn campaigns<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        limit: usize,
+    ) -> MarketingCampaignFuture<'a, Vec<MarketingCampaignRow>, Self::Error> {
+        self.0.campaigns(company, limit)
+    }
+    fn attribution<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        branch_id: Option<&'a str>,
+        department_id: Option<&'a str>,
+        limit: usize,
+    ) -> MarketingCampaignFuture<'a, Vec<MarketingAttributionRow>, Self::Error> {
+        self.0.attribution(company, branch_id, department_id, limit)
+    }
 }
 
 struct Packages {
@@ -158,7 +261,12 @@ async fn run(
     erpx_server_marketing::public::campaign_attribution::MarketingCampaignReport,
     BusinessError,
 > {
-    marketing_campaign_report(actor, repo, packages, NOW).await
+    let mode = if packages.entitlement.enforced {
+        MarketingAttributionMode::Enforced
+    } else {
+        MarketingAttributionMode::Disabled
+    };
+    marketing_campaign_report(actor, repo, packages, NOW, mode).await
 }
 
 #[tokio::test]
@@ -353,6 +461,38 @@ async fn campaign_rows_reject_duplicates_descending_order_and_excess() {
             .code,
         "MARKETING_CAMPAIGN_TOO_LARGE"
     );
+}
+
+#[tokio::test]
+async fn campaign_names_match_zod_utf16_and_content_boundaries() {
+    let mut packages = allowed(false);
+    for name in [
+        "Line\nbreak".to_owned(),
+        "😀".repeat(80),
+        "\u{85}A".to_owned(),
+    ] {
+        let mut row = campaign("campaign-1", "AUTUMN");
+        row.name = name.clone();
+        let mut repo = Repo::new(vec![row], vec![]);
+        let report = run(&actor(), &mut repo, &mut packages).await.unwrap();
+        assert_eq!(report.campaigns[0].name, name);
+    }
+    for name in [
+        "😀".repeat(81),
+        "\u{feff}A\u{feff}".to_owned(),
+        "A\0B".to_owned(),
+    ] {
+        let mut row = campaign("campaign-1", "AUTUMN");
+        row.name = name;
+        let mut repo = Repo::new(vec![row], vec![]);
+        assert_eq!(
+            run(&actor(), &mut repo, &mut packages)
+                .await
+                .unwrap_err()
+                .code,
+            "MARKETING_CAMPAIGN_SOURCE_INVALID"
+        );
+    }
 }
 
 #[tokio::test]

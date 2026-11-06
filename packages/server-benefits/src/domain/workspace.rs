@@ -179,8 +179,9 @@ fn valid_name(value: &str, limit: usize) -> bool {
 }
 
 fn valid_code(value: &str, limit: usize) -> bool {
-    let length = value.chars().count();
-    length >= 2 && length <= limit && value.trim() == value && !value.chars().any(char::is_control)
+    let length = value.encode_utf16().count();
+    let trimmed = value.trim_matches(|c| matches!(c, '\u{0009}'..='\u{000d}' | '\u{0020}' | '\u{00a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}'));
+    length >= 2 && length <= limit && trimmed == value && !value.contains('\0')
 }
 
 fn valid_currency(value: &str) -> bool {

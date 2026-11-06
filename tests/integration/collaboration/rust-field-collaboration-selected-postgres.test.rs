@@ -1158,6 +1158,73 @@ async fn selected_native_service_startup_customer_agreement_needs_no_finance_led
 }
 
 #[tokio::test]
+async fn native_service_package_obligations_cover_both_catalogue_packages_without_writes(){
+ facts::account::with_system(|system|async move{
+  use erpx_service::field_service_package_settlement::*;
+  use erpx_server_assets::public::field_service_workspace::read_service_asset_settlement;
+  let p=facts::setup_workspace(system).await;
+  let company=CompanyId::new("company").unwrap();
+  let now=p.review.system.scenario.clock.now().get();
+  let actor=erpx_server_finance::public::FinanceActor{
+   holding_id:HoldingId::new("h001").unwrap(),company_id:company.clone(),
+   user_id:erpx_server_shared::public::UserId::new("fixture-a").unwrap(),
+   assignment_id:erpx_server_shared::public::AssignmentId::new("field-fixture-a").unwrap(),
+  };
+  let mut tx=p.pool().raw().begin().await.unwrap();
+  sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+  lock_field_package_obligation_sources(&mut tx).await.unwrap();
+  let images=async |c:&mut sqlx::PgConnection|->String{
+   sqlx::query_scalar("SELECT jsonb_build_object(\
+    'assignments',(SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY id),'[]'::jsonb) FROM assignments t WHERE company_id=$1),\
+    'grants',(SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY package_id),'[]'::jsonb) FROM company_package_grants t WHERE company_id=$1),\
+    'grantEvents',(SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY id),'[]'::jsonb) FROM company_package_grant_events t WHERE company_id=$1),\
+    'changes',(SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY id),'[]'::jsonb) FROM company_package_change_sets t WHERE company_id=$1),\
+    'history',(SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY package_id,package_version),'[]'::jsonb) FROM company_package_history_rights t WHERE company_id=$1),\
+    'receipts',(SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY command_id),'[]'::jsonb) FROM command_receipts t),\
+    'audit',(SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY id),'[]'::jsonb) FROM audit_events t),\
+    'outbox',(SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY id),'[]'::jsonb) FROM outbox_events t))::text")
+    .bind(company.as_str()).fetch_one(&mut *c).await.unwrap()
+  };
+  let before=images(&mut tx).await;
+  for package in ["service","service-parts-assets"]{
+   let field=Box::pin(read_field_package_obligations(&mut tx,&company,package,1,now)).await.unwrap();
+   let support=read_service_support_package_obligations(&mut tx,&company,&field).await.unwrap();
+   let inventory=read_service_inventory_package_obligations(&mut tx,&company,&field).await.unwrap();
+   let assets=read_service_asset_settlement(&mut tx,&company,&field.asset_sources()).await.unwrap();
+   let finance=Box::pin(read_service_finance_package_obligations(&mut tx,&actor,&field)).await.unwrap();
+   let references=field.inventory_references();
+   assert!(references.orders.iter().any(|o|o.id=="issue-order"&&o.company_id==company.as_str()));
+   assert!(references.reservations.iter().any(|r|r.id=="reserved-part"&&r.order_id=="issue-order"&&r.quantity_milli==3000));
+   assert!(assets.facts().is_empty());
+   if package=="service" {assert!(field.observation().outstanding>0);assert_eq!(support.observation().outstanding,0);}
+   if package=="service-parts-assets" {assert_eq!(inventory.observation().outstanding,1);}
+   let observations=[field.observation(),support.observation(),inventory.observation(),finance.observation()];
+   assert_eq!(observations.iter().map(|o|o.module_id).collect::<Vec<_>>(),["field_service","support","inventory","finance"]);
+   for observation in observations {
+    assert_eq!(observation.company_id,company.as_str());
+    assert_eq!(observation.package_id,package);
+    assert_eq!(observation.observed_at,now);
+    assert!(!observation.revision.is_empty());
+    assert!(i64::try_from(observation.outstanding).is_ok());
+   }
+   // Assets supplies an owner witness and actual facts, not an observation.
+   let _total=[field.observation().outstanding,support.observation().outstanding,inventory.observation().outstanding,assets.facts().len(),finance.observation().outstanding]
+    .into_iter().try_fold(0i64,|sum,n|i64::try_from(n).ok().and_then(|n|sum.checked_add(n))).unwrap();
+   field.require_current(&mut tx).await.unwrap();
+   support.require_current(&mut tx,&field).await.unwrap();
+   inventory.require_current(&mut tx,&field).await.unwrap();
+   assets.require_current(&mut tx).await.unwrap();
+   finance.require_current(&mut tx,&field).await.unwrap();
+  }
+  assert_eq!(images(&mut tx).await,before);
+  tx.commit().await.unwrap();
+  let mut after_tx=p.pool().raw().begin().await.unwrap();
+  assert_eq!(images(&mut after_tx).await,before);
+  after_tx.rollback().await.unwrap();
+ }).await;
+}
+
+#[tokio::test]
 async fn native_service_package_obligations_preserve_raw_history_scope_and_unit(){
  facts::account::with_system(|system|async move{
   use erpx_service::field_service_package_settlement::*;

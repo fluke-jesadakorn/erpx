@@ -450,7 +450,7 @@ impl<C: Clock + Send + Sync + 'static> OperationsService<C> {
             .await
     }
 
-    pub async fn command<Input>(
+    async fn command<Input>(
         &self,
         host: &str,
         proof: DeviceProof,

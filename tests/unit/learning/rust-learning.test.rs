@@ -856,6 +856,25 @@ fn completion_rows_require_terminal_reason_and_handoff_rows_require_open_status(
 }
 
 #[test]
+fn eligibility_code_keeps_utf16_and_control_identity_across_handoff() {
+    let scope = EligibilityScope::new("company", Some("branch"), Some("department")).unwrap();
+    for code in ["ช".repeat(120), "😀".repeat(60), "a\nb\u{0085}c".into()] {
+        let query = EligibilityQuery { eligibility_code: code.clone(), ..eligibility_query() };
+        let mut row = eligibility_row();
+        row.certificate.eligibility_code = code.clone();
+        row.handoff.eligibility_code = code.clone();
+        let value = eligibility_facts_json(&scope, &query, vec![row.clone()]).unwrap();
+        assert_eq!(value["eligible"], true);
+        assert_eq!(value["eligibility_code"], code);
+        row.handoff.eligibility_code.push('x');
+        assert!(eligibility_facts_json(&scope, &query, vec![row]).is_err());
+    }
+    for code in [format!("{}ก", "😀".repeat(60)), "ab\0c".into(), "\u{feff}ab".into()] {
+        assert!(EligibilityQuery { eligibility_code: code, ..eligibility_query() }.validate().is_err());
+    }
+}
+
+#[test]
 fn eligibility_facts_require_current_source_dates_scope_and_consumption_evidence() {
     let query = eligibility_query();
     let consumer_scope =

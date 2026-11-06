@@ -450,11 +450,11 @@ pub(crate) fn valid_text(value: &str, max: usize) -> bool {
 
 // PostgreSQL text cannot represent NUL. Other content controls are accepted
 // by the existing Zod schemas and must survive owner readback.
-fn valid_content(value: &str, max: usize) -> bool {
+pub(crate) fn valid_content(value: &str, max: usize) -> bool {
     value.encode_utf16().count() <= max && !value.contains('\0')
 }
 
-fn trim_js(value: &str) -> &str {
+pub(crate) fn trim_js(value: &str) -> &str {
     value.trim_matches(|c| matches!(c, '\u{0009}'..='\u{000d}' | '\u{0020}' | '\u{00a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}'))
 }
 
@@ -474,7 +474,7 @@ fn normalize_evidence(value: &str) -> Result<String, BusinessError> {
 fn normalize_code(value: &str) -> Result<Option<String>, BusinessError> {
     let code = trim_js(value);
     if !(2..=MAX_REQUIRED_FOR).contains(&code.encode_utf16().count())
-        || !valid_text(code, MAX_REQUIRED_FOR)
+        || !valid_content(code, MAX_REQUIRED_FOR)
     {
         return Err(request_invalid());
     }
@@ -716,7 +716,7 @@ impl CourseRow {
             || !(1..=9_007_199_254_740_991).contains(&self.duration_minutes)
             || self.required_for.as_deref().is_some_and(|value| {
                 !(2..=MAX_REQUIRED_FOR).contains(&value.encode_utf16().count())
-                    || !valid_text(value, MAX_REQUIRED_FOR)
+                    || !valid_content(value, MAX_REQUIRED_FOR)
             })
             || !valid_status
             || self.created_by.is_empty()
@@ -818,7 +818,7 @@ impl AssignmentRow {
             || self.course_title.is_empty()
             || self.required_for.as_deref().is_some_and(|value| {
                 !(2..=MAX_REQUIRED_FOR).contains(&value.encode_utf16().count())
-                    || !valid_text(value, MAX_REQUIRED_FOR)
+                    || !valid_content(value, MAX_REQUIRED_FOR)
             })
             || completion && self.completion_reason.is_none()
         {
@@ -952,7 +952,7 @@ impl HandoffRow {
             || self.company_id.is_empty()
             || self.person_id.is_empty()
             || self.eligibility_code.is_empty()
-            || self.eligibility_code.len() > MAX_REQUIRED_FOR
+            || !valid_content(&self.eligibility_code, MAX_REQUIRED_FOR)
             || self.source_assignment_version < 1
             || self.status != "open"
             || self.created_at < 0
@@ -1006,6 +1006,7 @@ impl CertificateRow {
             || self.assignment_id.is_empty()
             || self.source_assignment_version < 1
             || self.eligibility_code.is_empty()
+            || !valid_content(&self.eligibility_code, MAX_REQUIRED_FOR)
             || !valid_date(&self.valid_from)
             || self
                 .expires_on

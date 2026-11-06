@@ -1109,6 +1109,20 @@ async fn disabled_enforcement_omits_purchase_controls() {
     assert!(wire["purchase"].is_null());
 }
 #[test]
+fn benefit_plan_eligibility_code_retains_exact_utf16_identity() {
+    for code in ["ช".repeat(120), "😀".repeat(60), "a\nb\u{0085}c".into()] {
+        let mut value = plan("plan-code", 20);
+        value.required_eligibility_code = Some(code);
+        assert!(value.validate(&actor()).is_ok());
+    }
+    for code in [format!("{}ก", "😀".repeat(60)), "ab\0c".into(), "\u{feff}ab".into()] {
+        let mut value = plan("plan-code", 20);
+        value.required_eligibility_code = Some(code);
+        assert!(value.validate(&actor()).is_err());
+    }
+}
+
+#[test]
 fn exact_row_defaults_are_well_formed() {
     let actor = actor();
     assert!(plan("plan-family", 20).validate(&actor).is_ok());

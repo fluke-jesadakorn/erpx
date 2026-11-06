@@ -13,8 +13,7 @@ use erpx_server_identity_access::public::{
 };
 use erpx_server_marketing::public::campaign_attribution::{
     MarketingCampaignActor, MarketingCampaignEntitlement, MarketingCampaignEntitlementPort,
-    MarketingCampaignFuture, MarketingCampaignReport, PgMarketingCampaignRead,
-    marketing_campaign_report,
+    MarketingCampaignFuture,
 };
 use erpx_server_marketing::public::campaign_attribution_http::{
     MarketingCampaignHttpBackend, MarketingCampaignHttpFuture, MarketingCampaignHttpReadRequest,
@@ -74,15 +73,10 @@ impl MarketingCampaignEntitlementPort for MarketingEntitlementImpl {
         &'a mut self,
         _company_id: &'a str,
     ) -> MarketingCampaignFuture<'a, MarketingCampaignEntitlement, Self::Error> {
-        Box::pin(async {
-            Ok(MarketingCampaignEntitlement {
-                enforced: false,
-                history_allowed: false,
-                new_work: false,
-                settle_existing: false,
-                revision: String::new(),
-            })
-        })
+        // The selected composition has not yet bound trusted Commercial
+        // enforcement and purchase facts. Do not treat their absence as the
+        // disabled mode: that could expose data while enforcement is active.
+        Box::pin(async { Err(unavailable()) })
     }
 }
 
@@ -204,7 +198,6 @@ impl<C: Clock + Send + Sync + 'static> MarketingService<C> {
     {
         let holding = self.configuration.holding.clone();
         let company = self.configuration.company.clone();
-        let clock = self.clock.clone();
         self.authorizer
             .execute_with_sources_deferred(
                 host,
@@ -212,10 +205,9 @@ impl<C: Clock + Send + Sync + 'static> MarketingService<C> {
                 self.input(input),
                 Self::access(),
                 MarketingSources,
-                move |connection, current| {
+                move |_connection, current| {
                     let holding = holding.clone();
                     let company = company.clone();
-                    let clock = clock.clone();
                     Box::pin(async move {
                         if current.holding_id() != &holding
                             || current.selection().workspace().company_id != company
@@ -223,17 +215,9 @@ impl<C: Clock + Send + Sync + 'static> MarketingService<C> {
                             return Err(scope().into());
                         }
                         current.require_permission("records.read")?;
-                        let actor = marketing_actor(current)?;
-                        let mut repository = PgMarketingCampaignRead::new(connection);
-                        let mut entitlement = MarketingEntitlementImpl;
-                        let now = clock.now();
-                        let report: MarketingCampaignReport =
-                            marketing_campaign_report(&actor, &mut repository, &mut entitlement, now).await?;
-                        let data = serde_json::to_value(report).map_err(|_| unavailable())?;
-                        Ok(MarketingCampaignHttpResponse {
-                            data,
-                            context: context(current),
-                        })
+                        // No trusted Commerce mode or same-unit purchase
+                        // witness has been bound to this composition yet.
+                        Err(unavailable().into())
                     })
                 },
             )

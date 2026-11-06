@@ -155,6 +155,22 @@ describe('native Learning transport',()=>{
   }
  });
 
+ it('preserves exact Unicode and embedded controls in eligibility handoff transport',async()=>{
+  for(const code of ['ช'.repeat(120),'😀'.repeat(60),'a\nb\u0085c']){
+   const evidence={...eligibilityCertificate,eligibility_code:code,consumptions:[]};
+   const facts={...eligibilityFacts,eligibility_code:code,certificates:[evidence]};
+   const transport=vi.fn().mockResolvedValue(ok({data:facts,context}));
+   const client=createNativeLearningClient(nativeLearningConfiguration(config()),transport);
+   expect((await client.eligibilityFacts(incoming(),actor,'person-learner',code,'2026-11-04',input)).eligibility_code).toBe(code);
+  }
+  const transport=vi.fn();
+  const client=createNativeLearningClient(nativeLearningConfiguration(config()),transport);
+  for(const code of [' ab','ab ','\ufeffab','ab\ufeff']){
+   await expect(client.eligibilityFacts(incoming(),actor,'person-learner',code,'2026-11-04',input)).rejects.toMatchObject({code:'NATIVE_LEARNING_REQUEST_INVALID'});
+  }
+  expect(transport).not.toHaveBeenCalled();
+ });
+
  it('reads bounded eligibility handoff facts for one person and effective date',async()=>{
   const transport=vi.fn().mockResolvedValue(ok({data:eligibilityFacts,context}));
   const learning=createNativeLearningClient(nativeLearningConfiguration(config()),transport);

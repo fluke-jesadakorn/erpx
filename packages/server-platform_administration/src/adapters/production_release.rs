@@ -88,7 +88,7 @@ pub async fn lock_production_release_sources(connection: &mut PgConnection) -> R
         .await?;
     lock_release_reviewer_sources(&mut *connection).await?;
     lock_business_acceptance_sources(&mut *connection).await?;
-    lock_permission_catalog_sources(connection).await
+    lock_permission_catalog_sources(&mut *connection).await
 }
 pub struct ProductionReleaseInspection {
     pub accepted: bool,
