@@ -165,7 +165,6 @@ function configuration(raw: NativePosCashConfiguration) {
     if (
       origin.protocol !== 'https:' ||
       holding.origin !== origin.origin ||
-      origin.port ||
       origin.username ||
       origin.password ||
       !identifier(holding.holdingId) ||

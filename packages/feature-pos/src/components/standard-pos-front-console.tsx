@@ -81,6 +81,7 @@ function useFrontPosDailyState({
   money,
   can,
   approvalHref,
+  shiftApprovalHref,
   erpBase,
   api,
   recovery,
@@ -101,6 +102,7 @@ function useFrontPosDailyState({
   money: (value: number, recordCurrency?: string | null, date?: string) => string;
   can: (permission: string) => boolean;
   approvalHref: string;
+  shiftApprovalHref: string;
   erpBase: string;
   api: string;
   recovery: ReactNode;
@@ -140,7 +142,7 @@ function useFrontPosDailyState({
     setRegisterId(s(row, "register_id"));
     window.history.pushState(null,"",posReceiptHref(window.location.href,s(row,"id")));
   };
-  return {data, tab, setTab, busy, error, notice, send, refresh, registerId, setSelected, setRegisterId, money, can, approvalHref, erpBase, api, recovery, loading, online, language, tr, kitchenStation, setKitchenStation, sale, activeRegisterId, register, openingDraft, setOpeningDraft, ready, tabs, pick};
+  return {data, tab, setTab, busy, error, notice, send, refresh, registerId, setSelected, setRegisterId, money, can, approvalHref, shiftApprovalHref, erpBase, api, recovery, loading, online, language, tr, kitchenStation, setKitchenStation, sale, activeRegisterId, register, openingDraft, setOpeningDraft, ready, tabs, pick};
 }
 export type StandardFrontPosDailyContext = ReturnType<typeof useFrontPosDailyState>;
 function FrontPosDaily(props: {
@@ -158,6 +160,7 @@ function FrontPosDaily(props: {
   money: (value: number, recordCurrency?: string | null, date?: string) => string;
   can: (permission: string) => boolean;
   approvalHref: string;
+  shiftApprovalHref: string;
   erpBase: string;
   api: string;
   recovery: ReactNode;
@@ -335,7 +338,8 @@ export function StandardFrontPosConsole({
         can={can}
         api={api}
         recovery={receiptDrawer ? null : recovery}
-        approvalHref={canonicalUiHref(`${erpBase}/pos?tab=history&queue=approval`)}
+        approvalHref={canonicalUiHref(`${erpBase}/pos/approvals?tab=history`)}
+        shiftApprovalHref={canonicalUiHref(`${erpBase}/pos/approvals/shifts`)}
         erpBase={erpBase}
       /></>
     );

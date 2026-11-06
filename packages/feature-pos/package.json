@@ -75,7 +75,8 @@
     "./routes/api/v1/holdings/[holdingSlug]/pos/route": "./src/routes/api/v1/holdings/[holdingSlug]/pos/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/pos/startup/[...path]/route": "./src/routes/api/v1/holdings/[holdingSlug]/pos/startup/[...path]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/pos/startup/route": "./src/routes/api/v1/holdings/[holdingSlug]/pos/startup/route.ts",
-    "./routes/api/pos/stripe/webhook/route": "./src/routes/api/pos/stripe/webhook/route.ts"
+    "./routes/api/pos/stripe/webhook/route": "./src/routes/api/pos/stripe/webhook/route.ts",
+    "./routes/holdings/[holdingSlug]/pos/approvals/shifts/page": "./src/routes/holdings/[holdingSlug]/pos/approvals/shifts/page.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
