@@ -9,7 +9,9 @@ use erpx_server_identity_access::public::{
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
 use erpx_server_operations::public::field_exceptions::Exception;
-use erpx_server_operations::public::field_policy::{OpenException as FieldOpenException, QueuePolicy};
+use erpx_server_operations::public::field_policy::{
+    OpenException as FieldOpenException, QueuePolicy,
+};
 use erpx_server_operations::public::operations_commands::{
     ChangePlan, CommandActor, CommandReceipt, OpenPlan, OperationsCommandFuture,
     OperationsCommandRepository, OperationsCommandSources, PolicyDraftPlan, PolicyReviewPlan,
@@ -17,21 +19,20 @@ use erpx_server_operations::public::operations_commands::{
     review_operations_policy,
 };
 use erpx_server_operations::public::operations_http::{
-    OperationsHttpBackend, OperationsHttpCommand, OperationsHttpCommandRequest, OperationsHttpFuture,
-    OperationsHttpResponse, OperationsHttpReadKind, OperationsHttpReadRequest, OperationsHttpTarget,
+    OperationsHttpBackend, OperationsHttpCommand, OperationsHttpCommandRequest,
+    OperationsHttpFuture, OperationsHttpReadKind, OperationsHttpReadRequest,
+    OperationsHttpResponse, OperationsHttpTarget,
 };
 use erpx_server_operations::public::queue_read::{
-    OperationsPeopleDirectory, OperationsReadActor, OperationsSourceVisibility,
-    PersonOption, QueueException, SourceView, operations_detail, operations_workspace,
+    OperationsPeopleDirectory, OperationsReadActor, OperationsSourceVisibility, PersonOption,
+    QueueException, SourceView, operations_detail, operations_workspace,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
-use erpx_server_runtime::public::postgres::{
-    PersistenceError, PgTransactionError, PgWorkFuture,
-};
-use erpx_server_shared::public::{
-    BusinessError, Clock, CompanyId, CommandKey, FailureKind, HoldingId,
-};
+use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::record_source_contract::{SourceRecord, SourceReference};
+use erpx_server_shared::public::{
+    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
+};
 use serde_json::Value;
 use sqlx::{Connection, PgConnection};
 use std::sync::Arc;
@@ -221,8 +222,14 @@ fn read_actor(current: &AuthorizedWorkContext) -> Result<OperationsReadActor, Bu
     Ok(OperationsReadActor {
         user_id: current.user_id().as_str().to_owned(),
         company_id: workspace.company_id.as_str().to_owned(),
-        branch_id: workspace.branch_id.as_ref().map(|value| value.as_str().to_owned()),
-        department_id: workspace.department_id.as_ref().map(|value| value.as_str().to_owned()),
+        branch_id: workspace
+            .branch_id
+            .as_ref()
+            .map(|value| value.as_str().to_owned()),
+        department_id: workspace
+            .department_id
+            .as_ref()
+            .map(|value| value.as_str().to_owned()),
         permissions: current.command_iam_metadata().permissions.clone(),
         modules: current.modules().to_vec(),
         expires_at: current.expires_at(),
@@ -236,8 +243,14 @@ fn command_actor(current: &AuthorizedWorkContext) -> Result<CommandActor, Busine
     Ok(CommandActor {
         user_id: current.user_id().as_str().to_owned(),
         company_id: workspace.company_id.as_str().to_owned(),
-        branch_id: workspace.branch_id.as_ref().map(|value| value.as_str().to_owned()),
-        department_id: workspace.department_id.as_ref().map(|value| value.as_str().to_owned()),
+        branch_id: workspace
+            .branch_id
+            .as_ref()
+            .map(|value| value.as_str().to_owned()),
+        department_id: workspace
+            .department_id
+            .as_ref()
+            .map(|value| value.as_str().to_owned()),
         assignment_scope: match assignment.scope_kind {
             WorkScopeKind::Holding => "holding".into(),
             WorkScopeKind::Branch => "branch".into(),
@@ -649,18 +662,50 @@ impl<'a> OperationsCommandRepository for PgOperationsCommandRepository<'a> {
         let connection = &mut *self.connection;
         Box::pin(async move {
             serializable_checked(connection).await?;
-            let row: Option<(String, String, String, Option<String>)> = sqlx::query_as(
-                "SELECT operation, record_id, request_hash, result_json FROM command_receipts WHERE command_id=$1",
+            erpx_server_operations::public::queue_read::lock_operations_read_sources(connection)
+                .await
+                .map_err(|_| unavailable())?;
+            let row: Option<(String, String, String, Option<String>, String, Option<String>)> = sqlx::query_as(
+                "SELECT operation, record_id, request_hash, result_json, actor_id, authority_json FROM command_receipts WHERE command_id=$1",
             )
             .bind(key)
             .fetch_optional(&mut *connection)
             .await?;
-            Ok(row.map(|(operation, record_id, request_hash, result_json)| StoredReceipt {
-                operation,
-                record_id,
-                request_fingerprint: request_hash,
-                result_json,
-            }))
+            Ok(row.map(
+                |(operation, record_id, request_hash, result_json, actor_id, authority_json)| {
+                    let (company_id, branch_id, department_id) = authority_json
+                        .as_deref()
+                        .and_then(|raw| serde_json::from_str::<serde_json::Value>(raw).ok())
+                        .map(|value| {
+                            (
+                                value
+                                    .get("companyId")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_string(),
+                                value
+                                    .get("branchId")
+                                    .and_then(|v| v.as_str())
+                                    .map(str::to_string),
+                                value
+                                    .get("departmentId")
+                                    .and_then(|v| v.as_str())
+                                    .map(str::to_string),
+                            )
+                        })
+                        .unwrap_or_else(|| (String::new(), None, None));
+                    StoredReceipt {
+                        operation,
+                        record_id,
+                        request_fingerprint: request_hash,
+                        result_json,
+                        company_id,
+                        branch_id,
+                        department_id,
+                        actor_id,
+                    }
+                },
+            ))
         })
     }
 
@@ -789,8 +834,14 @@ impl<'a> OperationsCommandRepository for PgOperationsCommandRepository<'a> {
         let connection = &mut *self.connection;
         Box::pin(async move {
             serializable_checked(connection).await?;
-            let company = CompanyId::new(&plan.company_id)
-                .map_err(|_| BusinessError::invalid("OPERATIONS_INPUT_INVALID", "Invalid company."))?;
+            erpx_server_operations::public::field_exceptions::lock_field_exception_sources(
+                connection,
+            )
+            .await
+            .map_err(|_| unavailable())?;
+            let company = CompanyId::new(&plan.company_id).map_err(|_| {
+                BusinessError::invalid("OPERATIONS_INPUT_INVALID", "Invalid company.")
+            })?;
             let input = FieldOpenException {
                 source_id: plan.input.source.id.clone(),
                 source_version: plan.input.source.version,
@@ -803,21 +854,28 @@ impl<'a> OperationsCommandRepository for PgOperationsCommandRepository<'a> {
             };
             let source_json: Value =
                 serde_json::from_str(&plan.source_reference_json).unwrap_or(Value::Null);
-            let _retained = erpx_server_operations::public::field_exceptions::open_operations_exception(
-                connection,
-                &company,
-                &plan.key,
-                &plan.actor_id,
-                &input,
-                &plan.source,
-                &source_json,
-                &plan.policy,
-                plan.now,
-            )
-            .await?;
+            let _retained =
+                erpx_server_operations::public::field_exceptions::open_operations_exception(
+                    connection,
+                    &company,
+                    &plan.key,
+                    &plan.actor_id,
+                    &input,
+                    &plan.source,
+                    &source_json,
+                    &plan.policy,
+                    plan.now,
+                )
+                .await?;
             let receipt = CommandReceipt::new(&plan.record_id, "open", 1);
+            let authority_json = serde_json::json!({
+                "companyId": plan.company_id,
+                "branchId": plan.branch_id,
+                "departmentId": plan.department_id,
+            })
+            .to_string();
             sqlx::query(
-                "INSERT INTO command_receipts(command_id, operation, actor_id, request_hash, record_id, result_json, created_at) VALUES($1,$2,$3,$4,$5,$6,$7)",
+                "INSERT INTO command_receipts(command_id, operation, actor_id, request_hash, record_id, result_json, created_at, authority_json) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
             )
             .bind(plan.key.as_str())
             .bind("operations.exception.open")
@@ -826,6 +884,7 @@ impl<'a> OperationsCommandRepository for PgOperationsCommandRepository<'a> {
             .bind(&plan.record_id)
             .bind(serde_json::to_string(&receipt).map_err(|_| unavailable())?)
             .bind(plan.now)
+            .bind(&authority_json)
             .execute(&mut *connection)
             .await?;
             Ok(receipt)
@@ -839,6 +898,11 @@ impl<'a> OperationsCommandRepository for PgOperationsCommandRepository<'a> {
         let connection = &mut *self.connection;
         Box::pin(async move {
             serializable_checked(connection).await?;
+            erpx_server_operations::public::field_exceptions::lock_field_exception_sources(
+                connection,
+            )
+            .await
+            .map_err(|_| unavailable())?;
             let n = sqlx::query(
                 "UPDATE operations_exceptions SET status=$1, owner_id=$2, priority=$3, escalation_owner_id=$4, resolution=$5, resolved_by=$6, reviewed_by=$7, version=$8, updated_at=$9 WHERE id=$10 AND company_id=$11 AND version=$12 AND status=$13",
             )
@@ -882,9 +946,19 @@ impl<'a> OperationsCommandRepository for PgOperationsCommandRepository<'a> {
             .bind(plan.now)
             .execute(&mut *connection)
             .await?;
-            let receipt = CommandReceipt::new(&plan.row.id, &plan.transition.status, plan.transition.version);
+            let receipt = CommandReceipt::new(
+                &plan.row.id,
+                &plan.transition.status,
+                plan.transition.version,
+            );
+            let authority_json = serde_json::json!({
+                "companyId": plan.company_id,
+                "branchId": plan.row.branch_id,
+                "departmentId": plan.row.department_id,
+            })
+            .to_string();
             sqlx::query(
-                "INSERT INTO command_receipts(command_id, operation, actor_id, request_hash, record_id, result_json, created_at) VALUES($1,$2,$3,$4,$5,$6,$7)",
+                "INSERT INTO command_receipts(command_id, operation, actor_id, request_hash, record_id, result_json, created_at, authority_json) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
             )
             .bind(plan.key.as_str())
             .bind(format!("operations.exception.{}", plan.input.action))
@@ -893,6 +967,7 @@ impl<'a> OperationsCommandRepository for PgOperationsCommandRepository<'a> {
             .bind(&plan.row.id)
             .bind(serde_json::to_string(&receipt).map_err(|_| unavailable())?)
             .bind(plan.now)
+            .bind(&authority_json)
             .execute(&mut *connection)
             .await?;
             Ok(receipt)
@@ -906,6 +981,11 @@ impl<'a> OperationsCommandRepository for PgOperationsCommandRepository<'a> {
         let connection = &mut *self.connection;
         Box::pin(async move {
             serializable_checked(connection).await?;
+            erpx_server_operations::public::field_exceptions::lock_field_exception_sources(
+                connection,
+            )
+            .await
+            .map_err(|_| unavailable())?;
             let revision: i64 = sqlx::query_scalar(
                 "SELECT COALESCE(MAX(revision), 0) + 1 FROM operations_queue_policies WHERE company_id=$1 AND area=$2",
             )
@@ -913,8 +993,8 @@ impl<'a> OperationsCommandRepository for PgOperationsCommandRepository<'a> {
             .bind(&plan.input.area)
             .fetch_one(&mut *connection)
             .await?;
-            let source_kinds_json = serde_json::to_string(&plan.input.source_kinds)
-                .map_err(|_| unavailable())?;
+            let source_kinds_json =
+                serde_json::to_string(&plan.input.source_kinds).map_err(|_| unavailable())?;
             let id = plan.record_id.clone();
             sqlx::query(
                 "INSERT INTO operations_queue_policies(id, company_id, area, name, revision, source_kinds_json, target_minutes, status, created_by, version, created_at, updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,'draft',$8,1,$9,$9)",
@@ -931,8 +1011,14 @@ impl<'a> OperationsCommandRepository for PgOperationsCommandRepository<'a> {
             .execute(&mut *connection)
             .await?;
             let receipt = CommandReceipt::new(&id, "draft", 1);
+            let authority_json = serde_json::json!({
+                "companyId": plan.company_id,
+                "branchId": serde_json::Value::Null,
+                "departmentId": serde_json::Value::Null,
+            })
+            .to_string();
             sqlx::query(
-                "INSERT INTO command_receipts(command_id, operation, actor_id, request_hash, record_id, result_json, created_at) VALUES($1,$2,$3,$4,$5,$6,$7)",
+                "INSERT INTO command_receipts(command_id, operation, actor_id, request_hash, record_id, result_json, created_at, authority_json) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
             )
             .bind(plan.key.as_str())
             .bind("operations.policy.draft")
@@ -941,6 +1027,7 @@ impl<'a> OperationsCommandRepository for PgOperationsCommandRepository<'a> {
             .bind(&id)
             .bind(serde_json::to_string(&receipt).map_err(|_| unavailable())?)
             .bind(plan.now)
+            .bind(&authority_json)
             .execute(&mut *connection)
             .await?;
             Ok(receipt)
@@ -954,6 +1041,11 @@ impl<'a> OperationsCommandRepository for PgOperationsCommandRepository<'a> {
         let connection = &mut *self.connection;
         Box::pin(async move {
             serializable_checked(connection).await?;
+            erpx_server_operations::public::field_exceptions::lock_field_exception_sources(
+                connection,
+            )
+            .await
+            .map_err(|_| unavailable())?;
             let status = plan.action.status();
             let n = sqlx::query(
                 "UPDATE operations_queue_policies SET status=$1, reviewed_by=$2, version=$3, updated_at=$4 WHERE id=$5 AND company_id=$6 AND version=$7",
@@ -972,8 +1064,14 @@ impl<'a> OperationsCommandRepository for PgOperationsCommandRepository<'a> {
                 return Err(changed().into());
             }
             let receipt = CommandReceipt::new(&plan.record_id, status, plan.next_version);
+            let authority_json = serde_json::json!({
+                "companyId": plan.company_id,
+                "branchId": serde_json::Value::Null,
+                "departmentId": serde_json::Value::Null,
+            })
+            .to_string();
             sqlx::query(
-                "INSERT INTO command_receipts(command_id, operation, actor_id, request_hash, record_id, result_json, created_at) VALUES($1,$2,$3,$4,$5,$6,$7)",
+                "INSERT INTO command_receipts(command_id, operation, actor_id, request_hash, record_id, result_json, created_at, authority_json) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
             )
             .bind(plan.key.as_str())
             .bind(format!("operations.policy.{}", plan.action.as_str()))
@@ -982,6 +1080,7 @@ impl<'a> OperationsCommandRepository for PgOperationsCommandRepository<'a> {
             .bind(&plan.record_id)
             .bind(serde_json::to_string(&receipt).map_err(|_| unavailable())?)
             .bind(plan.now)
+            .bind(&authority_json)
             .execute(&mut *connection)
             .await?;
             Ok(receipt)
