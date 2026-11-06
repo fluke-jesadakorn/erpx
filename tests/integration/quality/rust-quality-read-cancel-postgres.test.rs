@@ -23,6 +23,34 @@ use erpx_server_shared::public::{
 struct FixtureCount;
 struct FixtureCountWitness { request: erpx_server_quality::public::purchase_lineage::CountLineageRequest, tx: String }
 
+#[test]
+fn different_parent_id_decompositions_cannot_share_both_lineage_suffixes() {
+    // Both parents can produce the same child ID, but their Count suffixes
+    // require incompatible source-ID suffixes (`-remaining-` vs `:remaining:`).
+    let child_a=format!("{}-remaining-{}","p","a-remaining-b");
+    let child_b=format!("{}-remaining-{}","p-remaining-a","b");
+    assert_eq!(child_a,child_b);
+    let source_a=format!("{}:remaining:{}","origin","a-remaining-b");
+    assert!(!source_a.ends_with(":remaining:b"));
+}
+impl erpx_server_quality::public::purchase_lineage::QualityLineageCountPort for FixtureCount {
+    type Witness = FixtureCountWitness;
+    fn inspect<'a>(&'a mut self,c:&'a mut sqlx::PgConnection,r:erpx_server_quality::public::purchase_lineage::CountLineageRequest)->erpx_server_runtime::public::postgres::PgWorkFuture<'a,Option<Self::Witness>,BusinessError> {
+        Box::pin(async move {
+            let valid:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM inventory_counts WHERE id=$1 AND company_id=$2 AND branch_id=$3 AND warehouse_id=$4 AND quality_hold_id=$5 AND status='posted')").bind(&r.count_id).bind(r.company_id.as_str()).bind(&r.branch_id).bind(&r.warehouse_id).bind(&r.hold_id).fetch_one(&mut *c).await?;
+            let tx:String=sqlx::query_scalar("SELECT pg_current_xact_id()::text").fetch_one(c).await?;
+            Ok(valid.then_some(FixtureCountWitness{request:r,tx}))
+        })
+    }
+    fn require_current<'a>(&'a mut self,c:&'a mut sqlx::PgConnection,w:&'a Self::Witness)->erpx_server_runtime::public::postgres::PgWorkFuture<'a,(),BusinessError> {
+        Box::pin(async move {
+            let tx:String=sqlx::query_scalar("SELECT pg_current_xact_id()::text").fetch_one(&mut *c).await?;
+            if tx!=w.tx || self.inspect(c,w.request.clone()).await?.is_none() { return Err(BusinessError::invalid("COUNT_CHANGED","Count changed.").into()); }
+            Ok(())
+        })
+    }
+}
+
 #[tokio::test]
 async fn purchase_lineage_follows_only_posted_reciprocal_count_and_disposition() {
     use erpx_server_quality::public::purchase_lineage::{QualityLineageRequest,inspect_quality_purchase_lineage,lock_quality_purchase_lineage};
