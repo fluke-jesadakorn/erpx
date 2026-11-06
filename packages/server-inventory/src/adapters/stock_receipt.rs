@@ -80,9 +80,11 @@ pub async fn lock_stock_receipt_sources(c: &mut PgConnection) -> Result<(), Erro
     )
     .execute(&mut *c)
     .await?;
-    sqlx::query("LOCK TABLE commerce_products,commerce_warehouses,finance_parties IN SHARE MODE")
-        .execute(&mut *c)
-        .await?;
+    sqlx::query(
+        "LOCK TABLE commerce_products,commerce_warehouses,commerce_settings,finance_charts,         finance_parties IN SHARE MODE",
+    )
+    .execute(&mut *c)
+    .await?;
     Ok(())
 }
 
@@ -1022,4 +1024,171 @@ async fn replay(
         replayed: true,
         lines: applied,
     })
+}
+
+/// Verify the exact Inventory evidence retained by [`apply_stock_receipt`] in
+/// the caller's transaction. The Commerce command calls this after updating
+/// its order and before returning; a missing or changed stock move, lot
+/// balance, allocation or quality hold fails the whole unit.
+pub async fn require_stock_receipt_applied(
+    c: &mut PgConnection,
+    plan: &StockReceiptPlan,
+    applied: &StockReceiptAppliedReceipt,
+) -> Result<(), Error> {
+    serializable(c).await?;
+    if applied.fulfillment_id.is_empty()
+        || applied.order_id != plan.order_id
+        || applied.lines.len() != plan.lines.len()
+    {
+        return Err(changed());
+    }
+    for (index, line) in plan.lines.iter().enumerate() {
+        let applied_line = &applied.lines[index];
+        if applied_line.line_id != line.line_id
+            || applied_line.quantity_milli != line.quantity_milli
+            || applied_line.value_minor != line.stock_value_minor
+            || applied_line.allocations.len() != line.allocations.len()
+        {
+            return Err(changed());
+        }
+        let move_id = stock_move_id(&applied.fulfillment_id, index);
+        let move_row: Option<(String, String, i64, i64)> = sqlx::query_as(
+            "SELECT warehouse_id,product_id,quantity_milli,value_minor \
+             FROM commerce_stock_moves WHERE id=$1 AND fulfillment_id=$2",
+        )
+        .bind(&move_id)
+        .bind(&applied.fulfillment_id)
+        .fetch_optional(&mut *c)
+        .await?;
+        let Some((warehouse_id, product_id, quantity_milli, value_minor)) = move_row else {
+            return Err(changed());
+        };
+        if warehouse_id != plan.warehouse_id
+            || product_id != line.product_id
+            || quantity_milli != line.quantity_milli
+            || value_minor != line.stock_value_minor
+        {
+            return Err(changed());
+        }
+        let stock: Option<(i64, i64, i64)> =
+            current_stock(c, &plan.warehouse_id, &line.product_id).await?;
+        let Some((_, _, stock_version)) = stock else {
+            return Err(changed());
+        };
+        if stock_version < applied_line.stock_version {
+            return Err(changed());
+        }
+        for (allocation_index, allocation) in line.allocations.iter().enumerate() {
+            let applied_allocation = &applied_line.allocations[allocation_index];
+            let allocation_id =
+                allocation_id(&applied.fulfillment_id, index, allocation.allocation_index);
+            let fulfillment_line_id = fulfillment_line_id(&applied.fulfillment_id, index);
+            if applied_allocation.id != allocation_id {
+                return Err(changed());
+            }
+            let row: Option<(String, i64, i64, String, Option<String>)> = sqlx::query_as(
+                "SELECT lot_id,quantity_milli,value_minor,disposition,quality_hold_id \
+                 FROM inventory_fulfillment_lot_allocations \
+                 WHERE id=$1 AND fulfillment_line_id=$2",
+            )
+            .bind(&allocation_id)
+            .bind(&fulfillment_line_id)
+            .fetch_optional(&mut *c)
+            .await?;
+            let Some((lot_id, quantity_milli, value_minor, disposition, quality_hold_id)) = row
+            else {
+                return Err(changed());
+            };
+            let expected_disposition = match allocation.disposition {
+                ReceiptDisposition::Available => "available",
+                ReceiptDisposition::Quarantine => "quarantine",
+            };
+            if lot_id != applied_allocation.lot_id
+                || quantity_milli != allocation.quantity_milli
+                || value_minor != allocation.value_minor
+                || disposition != expected_disposition
+            {
+                return Err(changed());
+            }
+            let lot_move_id =
+                lot_move_id(&applied.fulfillment_id, index, allocation.allocation_index);
+            let lot_move: Option<(String, i64, i64, String)> = sqlx::query_as(
+                "SELECT lot_id,quantity_milli,value_minor,source_id FROM inventory_lot_moves \
+                 WHERE id=$1 AND warehouse_id=$2 AND source_type='goods_receipt'",
+            )
+            .bind(&lot_move_id)
+            .bind(&plan.warehouse_id)
+            .fetch_optional(&mut *c)
+            .await?;
+            let Some((move_lot_id, move_quantity, move_value, source_id)) = lot_move else {
+                return Err(changed());
+            };
+            if move_lot_id != lot_id
+                || move_quantity != allocation.quantity_milli
+                || move_value != allocation.value_minor
+                || source_id != fulfillment_line_id
+            {
+                return Err(changed());
+            }
+            let lot: Option<(Option<String>, Option<String>, String)> = sqlx::query_as(
+                "SELECT lot_code,serial_number,status FROM inventory_lots \
+                 WHERE id=$1 AND company_id=$2 AND product_id=$3 AND tracking_mode=$4",
+            )
+            .bind(&lot_id)
+            .bind(&plan.company_id)
+            .bind(&line.product_id)
+            .bind(&line.tracking_mode)
+            .fetch_optional(&mut *c)
+            .await?;
+            let Some((lot_code, serial_number, status)) = lot else {
+                return Err(changed());
+            };
+            if status != "active"
+                || lot_code.as_deref() != allocation.lot_code.as_deref()
+                || serial_number.as_deref() != allocation.serial_number.as_deref()
+            {
+                return Err(changed());
+            }
+            let balance: Option<(i64, i64, i64)> = sqlx::query_as(
+                "SELECT quantity_milli,value_minor,version FROM inventory_lot_balances \
+                 WHERE lot_id=$1 AND warehouse_id=$2",
+            )
+            .bind(&lot_id)
+            .bind(&plan.warehouse_id)
+            .fetch_optional(&mut *c)
+            .await?;
+            let Some((balance_quantity, balance_value, balance_version)) = balance else {
+                return Err(changed());
+            };
+            if balance_quantity < allocation.quantity_milli
+                || balance_value < allocation.value_minor
+                || balance_version < applied_allocation.balance_version
+            {
+                return Err(changed());
+            }
+            if allocation.disposition == ReceiptDisposition::Quarantine {
+                let hold_id = quality_hold_id.ok_or_else(changed)?;
+                let hold: bool = sqlx::query_scalar(
+                    "SELECT EXISTS(SELECT 1 FROM inventory_quality_holds \
+                     WHERE id=$1 AND lot_id=$2 AND warehouse_id=$3 \
+                     AND source_type='goods_receipt' AND source_id=$4 \
+                     AND status NOT IN ('released','cancelled','disposed') \
+                     AND held_quantity_milli>=$5)",
+                )
+                .bind(&hold_id)
+                .bind(&lot_id)
+                .bind(&plan.warehouse_id)
+                .bind(&allocation_id)
+                .bind(allocation.quantity_milli)
+                .fetch_one(&mut *c)
+                .await?;
+                if !hold {
+                    return Err(changed());
+                }
+            } else if quality_hold_id.is_some() {
+                return Err(changed());
+            }
+        }
+    }
+    Ok(())
 }

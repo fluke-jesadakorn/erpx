@@ -1080,3 +1080,267 @@ fn discount_reason_and_long_reason_use_utf16_js_trim_parity() {
     );
     assert!(over.calls.is_empty());
 }
+
+mod purchase_receipt {
+    //! Portable Commerce purchase-receipt facts: valuation rounding, request
+    //! validation, idempotency replay and persisted receipt shape.
+    use erpx_server_commerce::public::order::{CommerceOrderActor, OrderCommandReceipt};
+    use erpx_server_commerce::public::receipt::{
+        CommerceReceipt, CommerceReceiptLine, ReceiptAllocationCommand, ReceiptCommand,
+        ReceiptDisposition, ReceiptFulfillmentLinePlan, ReceiptLineCommand, ReceiptOrder,
+        ReceiptOrderLine, expected_fulfilled_lines, expected_order_state, line_value,
+        prior_receipt,
+    };
+    use erpx_server_shared::public::{
+        AssignmentId, CommandKey, CompanyId, HoldingId, RecordId, UserId,
+    };
+
+    fn actor() -> CommerceOrderActor {
+        CommerceOrderActor {
+            user_id: UserId::new("receiver").unwrap(),
+            holding_id: HoldingId::new("holding").unwrap(),
+            company_id: CompanyId::new("company").unwrap(),
+            branch_id: Some(RecordId::new("branch").unwrap()),
+            department_id: None,
+            assignment_id: AssignmentId::new("assignment").unwrap(),
+            role: Some("warehouse_manager".into()),
+            authority_revision: Some(1),
+            assignment_version: Some(1),
+            permissions: vec!["commerce.read".into(), "inventory.prepare".into()],
+            modules: vec!["inventory".into()],
+            expires_at: 2_000_000_000_000,
+        }
+    }
+
+    fn order(currency: &str, base_currency: &str) -> ReceiptOrder {
+        ReceiptOrder {
+            id: "order-1".into(),
+            state: "confirmed".into(),
+            version: 3,
+            warehouse_id: "warehouse".into(),
+            branch_id: "branch".into(),
+            department_id: None,
+            currency: currency.into(),
+            base_currency: base_currency.into(),
+            order_date: "2026-11-01".into(),
+            lines: vec![ReceiptOrderLine {
+                id: "line-1".into(),
+                product_id: "product".into(),
+                item_type: "stock".into(),
+                description: "Product".into(),
+                quantity_milli: 3_000,
+                fulfilled_milli: 0,
+                price_minor: 3_333,
+                tax_bps: 700,
+                subtotal_minor: 10_000,
+                tax_minor: 700,
+                prior_subtotal_minor: 0,
+                prior_tax_minor: 0,
+                tracking_mode: "lot".into(),
+            }],
+        }
+    }
+
+    fn line(allocations: Vec<ReceiptAllocationCommand>) -> ReceiptLineCommand {
+        ReceiptLineCommand {
+            line_id: "line-1".into(),
+            quantity_milli: 1_000,
+            allocations,
+        }
+    }
+
+    fn allocation(identity: &str) -> ReceiptAllocationCommand {
+        ReceiptAllocationCommand {
+            lot_code: Some(identity.into()),
+            serial_number: None,
+            quantity_milli: 1_000,
+            disposition: ReceiptDisposition::Available,
+            quarantine_reason: None,
+            quarantine_due_date: None,
+            manufactured_date: None,
+            expiry_date: None,
+        }
+    }
+
+    fn command(allocations: Vec<ReceiptAllocationCommand>) -> ReceiptCommand {
+        ReceiptCommand {
+            key: CommandKey::new("receipt-one").unwrap(),
+            order_id: RecordId::new("order-1").unwrap(),
+            expected_version: 3,
+            date: "2026-11-04".into(),
+            lines: vec![line(allocations)],
+        }
+    }
+
+    fn receipt() -> CommerceReceipt {
+        CommerceReceipt {
+            order_id: "order-1".into(),
+            fulfillment_id: "delivery-receipt-one".into(),
+            state: "partially_fulfilled".into(),
+            version: 4,
+            total_value_minor: 3_333,
+            lines: vec![CommerceReceiptLine {
+                line_id: "line-1".into(),
+                quantity_milli: 1_000,
+                value_minor: 3_333,
+            }],
+        }
+    }
+
+    #[test]
+    fn partial_and_full_receipt_values_are_half_up_and_use_the_remaining_subtotal() {
+        let order = order("THB", "THB");
+        let partial = line_value(&order, &order.lines[0], 1_000).unwrap();
+        assert_eq!((partial.subtotal_minor, partial.tax_minor), (3_333, 233));
+        let full = line_value(&order, &order.lines[0], 3_000).unwrap();
+        assert_eq!((full.subtotal_minor, full.tax_minor), (10_000, 700));
+        let mut continuing = order.clone();
+        continuing.lines[0].fulfilled_milli = 2_000;
+        continuing.lines[0].prior_subtotal_minor = 6_667;
+        continuing.lines[0].prior_tax_minor = 467;
+        let final_part = line_value(&continuing, &continuing.lines[0], 1_000).unwrap();
+        assert_eq!(
+            (final_part.subtotal_minor, final_part.tax_minor),
+            (3_333, 233)
+        );
+    }
+
+    #[test]
+    fn foreign_currency_fails_closed_until_finance_valuation_is_mounted() {
+        let order = order("USD", "THB");
+        let error = line_value(&order, &order.lines[0], 1_000).unwrap_err();
+        assert_eq!(error.code, "RECEIPT_FX_GUARD_REQUIRED");
+    }
+
+    #[test]
+    fn over_receipt_and_invalid_identity_are_refused_before_any_write() {
+        let order = order("THB", "THB");
+        let error = line_value(&order, &order.lines[0], 3_001).unwrap_err();
+        assert_eq!(error.code, "OVER_FULFILLMENT");
+        let duplicate = command(vec![
+            allocation("L-A"),
+            ReceiptAllocationCommand {
+                lot_code: Some(" L-A ".into()),
+                ..allocation("L-B")
+            },
+        ]);
+        assert_eq!(
+            duplicate.validate().unwrap_err().code,
+            "LOT_ALLOCATION_DUPLICATE"
+        );
+        let mut quarantine = allocation("L-B");
+        quarantine.disposition = ReceiptDisposition::Quarantine;
+        assert_eq!(
+            command(vec![quarantine]).validate().unwrap_err().code,
+            "QUARANTINE_EVIDENCE_REQUIRED"
+        );
+        assert!(command(vec![allocation("L-A")]).validate().is_ok());
+    }
+
+    #[test]
+    fn result_json_round_trips_and_changed_replay_conflicts() {
+        let receipt = receipt();
+        let json = receipt.to_result_json().unwrap();
+        assert_eq!(CommerceReceipt::from_result_json(&json).unwrap(), receipt);
+        let prior = OrderCommandReceipt {
+            request_hash: "hash-one".into(),
+            result_json: json,
+            operation: Some("commerce.order.fulfill".into()),
+            actor_id: Some("receiver".into()),
+            record_id: Some("order-1".into()),
+            authority_json: None,
+        };
+        assert_eq!(
+            prior_receipt(Some(prior.clone()), "hash-one", "order-1")
+                .unwrap()
+                .unwrap(),
+            receipt
+        );
+        assert_eq!(
+            prior_receipt(Some(prior), "hash-two", "order-1")
+                .unwrap_err()
+                .code,
+            "IDEMPOTENCY_CONFLICT"
+        );
+    }
+
+    #[test]
+    fn state_and_fulfilled_lines_follow_only_the_selected_lines() {
+        let mut order = order("THB", "THB");
+        order.lines.push(ReceiptOrderLine {
+            id: "line-2".into(),
+            product_id: "product-2".into(),
+            item_type: "stock".into(),
+            description: "Second".into(),
+            quantity_milli: 1_000,
+            fulfilled_milli: 0,
+            price_minor: 1_000,
+            tax_bps: 0,
+            subtotal_minor: 1_000,
+            tax_minor: 0,
+            prior_subtotal_minor: 0,
+            prior_tax_minor: 0,
+            tracking_mode: "none".into(),
+        });
+        let first = receipt();
+        assert_eq!(expected_order_state(&order, &first), "partially_fulfilled");
+        let fulfillment = vec![ReceiptFulfillmentLinePlan {
+            index: 0,
+            order_line_id: "line-1".into(),
+            quantity_milli: 1_000,
+            value_minor: 3_333,
+            subtotal_minor: 3_333,
+            tax_minor: 233,
+            stock_currency: "THB".into(),
+        }];
+        assert_eq!(
+            expected_fulfilled_lines(&order, &fulfillment),
+            vec![1_000, 0]
+        );
+        let complete = CommerceReceipt {
+            lines: vec![
+                CommerceReceiptLine {
+                    line_id: "line-1".into(),
+                    quantity_milli: 3_000,
+                    value_minor: 10_000,
+                },
+                CommerceReceiptLine {
+                    line_id: "line-2".into(),
+                    quantity_milli: 1_000,
+                    value_minor: 1_000,
+                },
+            ],
+            ..first
+        };
+        assert_eq!(expected_order_state(&order, &complete), "fulfilled");
+    }
+
+    #[test]
+    fn order_validation_keeps_current_company_scope_and_receivable_state() {
+        let order = order("THB", "THB");
+        assert!(order.validate(&actor()).is_ok());
+        let foreign = CommerceOrderActor {
+            company_id: CompanyId::new("foreign").unwrap(),
+            ..actor()
+        };
+        // Company identity is enforced by the repository scope; the order shape
+        // itself still rejects an out-of-scope branch or department.
+        let other_branch = CommerceOrderActor {
+            branch_id: Some(RecordId::new("other-branch").unwrap()),
+            ..actor()
+        };
+        assert_eq!(
+            order.validate(&other_branch).unwrap_err().code,
+            "COMMERCE_RECEIPT_SOURCE_INVALID"
+        );
+        let mut service = order.clone();
+        service.lines[0].item_type = "service".into();
+        assert!(service.validate(&actor()).is_ok());
+        let mut invalid = order;
+        invalid.state = "draft".into();
+        assert_eq!(
+            invalid.validate(&foreign).unwrap_err().code,
+            "COMMERCE_RECEIPT_SOURCE_INVALID"
+        );
+    }
+}

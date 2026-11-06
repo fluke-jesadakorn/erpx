@@ -3,14 +3,13 @@
 //! transaction; it does not own the fulfillment, Finance journal or receipt.
 pub use crate::adapters::stock_receipt::{
     StockReceiptQualityPort, apply_stock_receipt, lock_stock_receipt_sources,
-    read_stock_receipt_source,
+    read_stock_receipt_source, require_stock_receipt_applied,
 };
 pub use crate::domain::stock_receipt::{
-    MAX_ALLOCATIONS, MAX_LINES, MAX_LOT_CODE, MAX_LOTS_PER_LINE, MAX_SERIAL,
-    ReceiptDisposition, StockReceiptAllocationInput,
-    StockReceiptAllocationPlan, StockReceiptAppliedAllocation, StockReceiptAppliedLine,
-    StockReceiptAppliedReceipt, StockReceiptInput, StockReceiptLine, StockReceiptLineInput,
-    StockReceiptLinePlan, StockReceiptLot, StockReceiptOrder, StockReceiptPlan,
-    StockReceiptQualityRequest, StockReceiptSource, StockReceiptStock, prepare_stock_receipt,
-    quality_request, validate_stock_receipt_plan,
+    MAX_ALLOCATIONS, MAX_LINES, MAX_LOT_CODE, MAX_LOTS_PER_LINE, MAX_SERIAL, ReceiptDisposition,
+    StockReceiptAllocationInput, StockReceiptAllocationPlan, StockReceiptAppliedAllocation,
+    StockReceiptAppliedLine, StockReceiptAppliedReceipt, StockReceiptInput, StockReceiptLine,
+    StockReceiptLineInput, StockReceiptLinePlan, StockReceiptLot, StockReceiptOrder,
+    StockReceiptPlan, StockReceiptQualityRequest, StockReceiptSource, StockReceiptStock,
+    prepare_stock_receipt, quality_request, validate_stock_receipt_plan,
 };

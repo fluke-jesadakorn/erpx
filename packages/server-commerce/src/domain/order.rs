@@ -45,12 +45,12 @@ impl CommerceOrderActor {
         self.permissions.iter().any(|value| value == permission)
     }
 
-    fn has_module(&self) -> bool {
-        self.modules.iter().any(|value| value == "sales")
+    fn has_named_module(&self, module: &str) -> bool {
+        self.modules.iter().any(|value| value == module)
     }
 
-    fn require_context(&self, now: TimestampMillis) -> Result<(), BusinessError> {
-        if !self.has_module() {
+    fn require_context(&self, module: &str, now: TimestampMillis) -> Result<(), BusinessError> {
+        if !self.has_named_module(module) {
             return Err(module_forbidden());
         }
         if now.get() >= self.expires_at {
@@ -60,7 +60,7 @@ impl CommerceOrderActor {
     }
 
     pub fn require_read(&self, now: TimestampMillis) -> Result<(), BusinessError> {
-        self.require_context(now)?;
+        self.require_context("sales", now)?;
         if !self.has("commerce.read") {
             return Err(permission_required());
         }
@@ -68,9 +68,24 @@ impl CommerceOrderActor {
     }
 
     pub fn require_write(&self, now: TimestampMillis) -> Result<(), BusinessError> {
-        self.require_context(now)?;
+        self.require_context("sales", now)?;
         if !self.has("commerce.sales") {
             return Err(permission_required());
+        }
+        Ok(())
+    }
+
+    /// Purchase goods receipt is an Inventory stock action even though this
+    /// command owns the Commerce fulfillment. Department-scoped assignments
+    /// cannot carry `inventory.prepare`; the caller must select a holding or
+    /// branch workspace.
+    pub fn require_receipt(&self, now: TimestampMillis) -> Result<(), BusinessError> {
+        self.require_context("inventory", now)?;
+        if self.department_id.is_some()
+            || !self.has("inventory.prepare")
+            || !self.has("commerce.read")
+        {
+            return Err(receipt_permission_required());
         }
         Ok(())
     }
@@ -343,6 +358,14 @@ pub fn permission_required() -> BusinessError {
     )
 }
 
+pub fn receipt_permission_required() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Forbidden,
+        "COMMERCE_RECEIPT_PERMISSION_REQUIRED",
+        "Your selected role does not grant the Inventory preparation permission for goods receipt.",
+    )
+}
+
 pub fn approval_required() -> BusinessError {
     BusinessError::new(
         FailureKind::Forbidden,
@@ -511,7 +534,7 @@ fn valid_currency(value: &str) -> bool {
     value.len() == 3 && value.bytes().all(|byte| byte.is_ascii_uppercase())
 }
 
-fn valid_date(value: &str) -> bool {
+pub(crate) fn valid_date(value: &str) -> bool {
     let bytes = value.as_bytes();
     if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-' {
         return false;

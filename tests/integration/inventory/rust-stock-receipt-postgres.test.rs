@@ -22,23 +22,52 @@ type Error = PgTransactionError<BusinessError>;
 struct ActualCancellationStockSource {
     facts: erpx_server_inventory::public::quality_cancellation_stock::QualityCancellationStockFacts,
     prepared: erpx_server_quality::public::quality_http::PreparedQualityCancellation,
-    after: std::sync::OnceLock<erpx_server_quality::public::quality_http::RetainedQualityCancellation>,
+    after:
+        std::sync::OnceLock<erpx_server_quality::public::quality_http::RetainedQualityCancellation>,
 }
-impl erpx_server_inventory::public::quality_cancellation_stock::PgQualityCancellationStockSource for ActualCancellationStockSource {
-    fn facts(&self)->&erpx_server_inventory::public::quality_cancellation_stock::QualityCancellationStockFacts { &self.facts }
-    async fn require_before(&self,c:&mut PgConnection)->Result<(),Error> { self.prepared.require_current(c).await }
-    async fn require_after(&self,c:&mut PgConnection)->Result<(),Error> {
-        self.after.get().ok_or_else(|| BusinessError::invalid("TEST_SOURCE_REQUIRED","Actual Quality afterimage required."))?.require_current(c).await
+impl erpx_server_inventory::public::quality_cancellation_stock::PgQualityCancellationStockSource
+    for ActualCancellationStockSource
+{
+    fn facts(
+        &self,
+    ) -> &erpx_server_inventory::public::quality_cancellation_stock::QualityCancellationStockFacts
+    {
+        &self.facts
+    }
+    async fn require_before(&self, c: &mut PgConnection) -> Result<(), Error> {
+        self.prepared.require_current(c).await
+    }
+    async fn require_after(&self, c: &mut PgConnection) -> Result<(), Error> {
+        self.after
+            .get()
+            .ok_or_else(|| {
+                BusinessError::invalid(
+                    "TEST_SOURCE_REQUIRED",
+                    "Actual Quality afterimage required.",
+                )
+            })?
+            .require_current(c)
+            .await
     }
 }
 
 #[tokio::test]
 async fn quality_cancellation_stock_writer_first_retries_after_real_contention() {
-    use erpx_server_inventory::public::quality_cancellation_stock::{QualityCancellationStockAction,QualityCancellationStockFacts,lock_quality_cancellation_stock_sources,prepare_quality_cancellation_stock};
-    use erpx_server_quality::public::quality_http::{prepare_quality_cancellation,lock_quality_cancellation_writes,lock_quality_read_sources};
-    use erpx_server_quality::public::quality_read::{CancellationAction,QualityCancellationCommand};
-    use erpx_server_shared::public::{CommandKey,CompanyId,RecordId,UserId};
-    use std::sync::{Arc,atomic::{AtomicUsize,Ordering}};
+    use erpx_server_inventory::public::quality_cancellation_stock::{
+        QualityCancellationStockAction, QualityCancellationStockFacts,
+        lock_quality_cancellation_stock_sources, prepare_quality_cancellation_stock,
+    };
+    use erpx_server_quality::public::quality_http::{
+        lock_quality_cancellation_writes, lock_quality_read_sources, prepare_quality_cancellation,
+    };
+    use erpx_server_quality::public::quality_read::{
+        CancellationAction, QualityCancellationCommand,
+    };
+    use erpx_server_shared::public::{CommandKey, CompanyId, RecordId, UserId};
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
     fixture::with_database(3,|pool|async move {
         facts::setup(&pool,"none",true).await;
         sqlx::query("INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,status,created_by,created_at,updated_at) VALUES('race-hold','company','branch','warehouse','product','Review','2026-11-10','held','maker',0,0)").execute(pool.raw()).await.unwrap();
@@ -81,10 +110,17 @@ async fn quality_cancellation_stock_writer_first_retries_after_real_contention()
 
 #[tokio::test]
 async fn quality_cancellation_stock_owner_first_blocks_writer_and_rollback_restores_effect() {
-    use erpx_server_inventory::public::quality_cancellation_stock::{QualityCancellationStockAction,QualityCancellationStockFacts,lock_quality_cancellation_stock_sources,prepare_quality_cancellation_stock};
-    use erpx_server_quality::public::quality_http::{prepare_quality_cancellation,lock_quality_cancellation_writes,lock_quality_read_sources};
-    use erpx_server_quality::public::quality_read::{CancellationAction,QualityCancellationCommand};
-    use erpx_server_shared::public::{CommandKey,CompanyId,RecordId,UserId};
+    use erpx_server_inventory::public::quality_cancellation_stock::{
+        QualityCancellationStockAction, QualityCancellationStockFacts,
+        lock_quality_cancellation_stock_sources, prepare_quality_cancellation_stock,
+    };
+    use erpx_server_quality::public::quality_http::{
+        lock_quality_cancellation_writes, lock_quality_read_sources, prepare_quality_cancellation,
+    };
+    use erpx_server_quality::public::quality_read::{
+        CancellationAction, QualityCancellationCommand,
+    };
+    use erpx_server_shared::public::{CommandKey, CompanyId, RecordId, UserId};
     fixture::with_database(3,|pool|async move {
         facts::setup(&pool,"none",true).await;
         sqlx::query("INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,status,created_by,created_at,updated_at) VALUES('race-hold','company','branch','warehouse','product','Review','2026-11-10','held','maker',0,0)").execute(pool.raw()).await.unwrap();
@@ -126,17 +162,39 @@ async fn quality_hold_requires_its_stock_row_in_migrated_schema() {
 
 #[tokio::test]
 async fn quality_cancellation_stock_afterimage_tracks_real_owner_triggers_and_rollback() {
-    use erpx_server_inventory::public::quality_cancellation_stock::{PgQualityCancellationStockSource,QualityCancellationStockAction,QualityCancellationStockFacts,lock_quality_cancellation_stock_sources,prepare_quality_cancellation_stock};
-    use erpx_server_quality::public::quality_http::{PreparedQualityCancellation,RetainedQualityCancellation,prepare_quality_cancellation,lock_quality_cancellation_writes,lock_quality_read_sources};
-    use erpx_server_quality::public::quality_read::{CancellationAction,QualityCancellationCommand};
-    use erpx_server_shared::public::{CommandKey,CompanyId,RecordId,UserId};
+    use erpx_server_inventory::public::quality_cancellation_stock::{
+        PgQualityCancellationStockSource, QualityCancellationStockAction,
+        QualityCancellationStockFacts, lock_quality_cancellation_stock_sources,
+        prepare_quality_cancellation_stock,
+    };
+    use erpx_server_quality::public::quality_http::{
+        PreparedQualityCancellation, RetainedQualityCancellation, lock_quality_cancellation_writes,
+        lock_quality_read_sources, prepare_quality_cancellation,
+    };
+    use erpx_server_quality::public::quality_read::{
+        CancellationAction, QualityCancellationCommand,
+    };
+    use erpx_server_shared::public::{CommandKey, CompanyId, RecordId, UserId};
     use std::sync::OnceLock;
-    struct ActualSource { facts:QualityCancellationStockFacts, prepared:PreparedQualityCancellation, after:OnceLock<RetainedQualityCancellation> }
+    struct ActualSource {
+        facts: QualityCancellationStockFacts,
+        prepared: PreparedQualityCancellation,
+        after: OnceLock<RetainedQualityCancellation>,
+    }
     impl PgQualityCancellationStockSource for ActualSource {
-        fn facts(&self)->&QualityCancellationStockFacts {&self.facts}
-        async fn require_before(&self,c:&mut PgConnection)->Result<(),Error> {self.prepared.require_current(c).await}
-        async fn require_after(&self,c:&mut PgConnection)->Result<(),Error> {
-            let after=self.after.get().ok_or_else(|| BusinessError::invalid("TEST_SOURCE_REQUIRED","Actual Quality afterimage required."))?;
+        fn facts(&self) -> &QualityCancellationStockFacts {
+            &self.facts
+        }
+        async fn require_before(&self, c: &mut PgConnection) -> Result<(), Error> {
+            self.prepared.require_current(c).await
+        }
+        async fn require_after(&self, c: &mut PgConnection) -> Result<(), Error> {
+            let after = self.after.get().ok_or_else(|| {
+                BusinessError::invalid(
+                    "TEST_SOURCE_REQUIRED",
+                    "Actual Quality afterimage required.",
+                )
+            })?;
             after.require_current(c).await
         }
     }
@@ -188,7 +246,9 @@ async fn quality_cancellation_stock_afterimage_tracks_real_owner_triggers_and_ro
 
 #[tokio::test]
 async fn quality_stock_witness_reads_version_and_denies_missing_rows() {
-    use erpx_server_inventory::public::quality_stock_source::{inspect_quality_stock,lock_quality_stock_sources};
+    use erpx_server_inventory::public::quality_stock_source::{
+        inspect_quality_stock, lock_quality_stock_sources,
+    };
     fixture::with_database(2,|pool|async move {
         facts::setup(&pool,"lot",true).await;
         let mut tx=pool.raw().begin().await.unwrap();
@@ -211,7 +271,9 @@ async fn quality_stock_witness_reads_version_and_denies_missing_rows() {
 
 #[tokio::test]
 async fn quality_stock_source_waits_for_writer_before_snapshot() {
-    use erpx_server_inventory::public::quality_stock_source::{inspect_quality_stock,lock_quality_stock_sources};
+    use erpx_server_inventory::public::quality_stock_source::{
+        inspect_quality_stock, lock_quality_stock_sources,
+    };
     fixture::with_database(3,|pool|async move {
         facts::setup(&pool,"lot",true).await;
         let mut writer=pool.raw().begin().await.unwrap();
@@ -237,18 +299,51 @@ async fn quality_stock_source_waits_for_writer_before_snapshot() {
 
 #[tokio::test]
 async fn quality_receipt_lineage_intersects_actual_inventory_and_commerce_sources() {
-    use erpx_server_quality::public::purchase_lineage::{CountLineageRequest,QualityLineageCountPort,QualityLineageRequest,inspect_quality_purchase_lineage,lock_quality_purchase_lineage};
-    use erpx_server_inventory::public::quality_disposition_count::{CurrentQualityDispositionCount,QualityDispositionCountRequest,inspect_quality_disposition_count,lock_quality_disposition_count_sources};
-    use erpx_server_inventory::public::quality_fulfillment_allocation::{QualityFulfillmentAllocationRequest,inspect_quality_fulfillment_allocations,lock_quality_fulfillment_allocations};
-    use erpx_server_commerce::public::quality_receipt_origin::{inspect_quality_receipt_commerce,lock_quality_receipt_commerce};
-    use erpx_server_shared::public::{CompanyId,RecordId};
+    use erpx_server_commerce::public::quality_receipt_origin::{
+        inspect_quality_receipt_commerce, lock_quality_receipt_commerce,
+    };
+    use erpx_server_inventory::public::quality_disposition_count::{
+        CurrentQualityDispositionCount, QualityDispositionCountRequest,
+        inspect_quality_disposition_count, lock_quality_disposition_count_sources,
+    };
+    use erpx_server_inventory::public::quality_fulfillment_allocation::{
+        QualityFulfillmentAllocationRequest, inspect_quality_fulfillment_allocations,
+        lock_quality_fulfillment_allocations,
+    };
+    use erpx_server_quality::public::purchase_lineage::{
+        CountLineageRequest, QualityLineageCountPort, QualityLineageRequest,
+        inspect_quality_purchase_lineage, lock_quality_purchase_lineage,
+    };
+    use erpx_server_shared::public::{CompanyId, RecordId};
     struct InventoryCounts;
     impl QualityLineageCountPort for InventoryCounts {
-        type Witness=CurrentQualityDispositionCount;
-        fn inspect<'a>(&'a mut self,c:&'a mut PgConnection,r:CountLineageRequest)->PgWorkFuture<'a,Option<Self::Witness>,BusinessError> {
-            Box::pin(async move { inspect_quality_disposition_count(c,QualityDispositionCountRequest {company_id:r.company_id,branch_id:r.branch_id,warehouse_id:r.warehouse_id,count_id:r.count_id,hold_id:r.hold_id}).await })
+        type Witness = CurrentQualityDispositionCount;
+        fn inspect<'a>(
+            &'a mut self,
+            c: &'a mut PgConnection,
+            r: CountLineageRequest,
+        ) -> PgWorkFuture<'a, Option<Self::Witness>, BusinessError> {
+            Box::pin(async move {
+                inspect_quality_disposition_count(
+                    c,
+                    QualityDispositionCountRequest {
+                        company_id: r.company_id,
+                        branch_id: r.branch_id,
+                        warehouse_id: r.warehouse_id,
+                        count_id: r.count_id,
+                        hold_id: r.hold_id,
+                    },
+                )
+                .await
+            })
         }
-        fn require_current<'a>(&'a mut self,c:&'a mut PgConnection,w:&'a Self::Witness)->PgWorkFuture<'a,(),BusinessError> { Box::pin(async move {w.require_current(c).await}) }
+        fn require_current<'a>(
+            &'a mut self,
+            c: &'a mut PgConnection,
+            w: &'a Self::Witness,
+        ) -> PgWorkFuture<'a, (), BusinessError> {
+            Box::pin(async move { w.require_current(c).await })
+        }
     }
     fixture::with_database(2,|pool|async move {
         facts::setup(&pool,"lot",true).await;
@@ -294,11 +389,13 @@ async fn quality_receipt_lineage_intersects_actual_inventory_and_commerce_source
 
 #[tokio::test]
 async fn quality_receipt_preparation_waits_for_commerce_writer_before_snapshot() {
-    use erpx_server_quality::public::purchase_lineage::lock_quality_purchase_lineage;
+    use erpx_server_commerce::public::quality_receipt_origin::{
+        inspect_quality_receipt_commerce, lock_quality_receipt_commerce,
+    };
     use erpx_server_inventory::public::quality_disposition_count::lock_quality_disposition_count_sources;
     use erpx_server_inventory::public::quality_fulfillment_allocation::lock_quality_fulfillment_allocations;
-    use erpx_server_commerce::public::quality_receipt_origin::{inspect_quality_receipt_commerce,lock_quality_receipt_commerce};
-    use erpx_server_shared::public::{CompanyId,RecordId};
+    use erpx_server_quality::public::purchase_lineage::lock_quality_purchase_lineage;
+    use erpx_server_shared::public::{CompanyId, RecordId};
     fixture::with_database(3,|pool|async move {
         facts::setup(&pool,"lot",true).await;
         let mut writer=pool.raw().begin().await.unwrap();
@@ -333,19 +430,55 @@ async fn quality_receipt_preparation_waits_for_commerce_writer_before_snapshot()
 
 #[tokio::test]
 async fn quality_return_origins_join_workflow_and_inventory_witnesses() {
-    use erpx_server_quality::public::purchase_lineage::{CountLineageRequest,QualityLineageCountPort,QualityLineageRequest,inspect_quality_purchase_lineage,lock_quality_purchase_lineage};
-    use erpx_server_inventory::public::quality_disposition_count::{CurrentQualityDispositionCount,QualityDispositionCountRequest,inspect_quality_disposition_count,lock_quality_disposition_count_sources};
-    use erpx_server_inventory::public::quality_fulfillment_allocation::{QualityFulfillmentAllocationRequest,inspect_quality_fulfillment_allocations,lock_quality_fulfillment_allocations};
-    use erpx_server_commerce::public::quality_return_origin::{QualityReturnSelector,inspect_quality_return_commerce,lock_quality_return_commerce};
-    use erpx_server_workflow::public::record_origin::{RawRecordOriginRequest,read_raw_record_origin,verify_raw_record_origin,lock_record_origin_sources};
-    use erpx_server_shared::public::{CompanyId,RecordId};
+    use erpx_server_commerce::public::quality_return_origin::{
+        QualityReturnSelector, inspect_quality_return_commerce, lock_quality_return_commerce,
+    };
+    use erpx_server_inventory::public::quality_disposition_count::{
+        CurrentQualityDispositionCount, QualityDispositionCountRequest,
+        inspect_quality_disposition_count, lock_quality_disposition_count_sources,
+    };
+    use erpx_server_inventory::public::quality_fulfillment_allocation::{
+        QualityFulfillmentAllocationRequest, inspect_quality_fulfillment_allocations,
+        lock_quality_fulfillment_allocations,
+    };
+    use erpx_server_quality::public::purchase_lineage::{
+        CountLineageRequest, QualityLineageCountPort, QualityLineageRequest,
+        inspect_quality_purchase_lineage, lock_quality_purchase_lineage,
+    };
+    use erpx_server_shared::public::{CompanyId, RecordId};
+    use erpx_server_workflow::public::record_origin::{
+        RawRecordOriginRequest, lock_record_origin_sources, read_raw_record_origin,
+        verify_raw_record_origin,
+    };
     struct InventoryCounts;
     impl QualityLineageCountPort for InventoryCounts {
-        type Witness=CurrentQualityDispositionCount;
-        fn inspect<'a>(&'a mut self,c:&'a mut PgConnection,r:CountLineageRequest)->PgWorkFuture<'a,Option<Self::Witness>,BusinessError> {
-            Box::pin(async move { inspect_quality_disposition_count(c,QualityDispositionCountRequest {company_id:r.company_id,branch_id:r.branch_id,warehouse_id:r.warehouse_id,count_id:r.count_id,hold_id:r.hold_id}).await })
+        type Witness = CurrentQualityDispositionCount;
+        fn inspect<'a>(
+            &'a mut self,
+            c: &'a mut PgConnection,
+            r: CountLineageRequest,
+        ) -> PgWorkFuture<'a, Option<Self::Witness>, BusinessError> {
+            Box::pin(async move {
+                inspect_quality_disposition_count(
+                    c,
+                    QualityDispositionCountRequest {
+                        company_id: r.company_id,
+                        branch_id: r.branch_id,
+                        warehouse_id: r.warehouse_id,
+                        count_id: r.count_id,
+                        hold_id: r.hold_id,
+                    },
+                )
+                .await
+            })
         }
-        fn require_current<'a>(&'a mut self,c:&'a mut PgConnection,w:&'a Self::Witness)->PgWorkFuture<'a,(),BusinessError> { Box::pin(async move {w.require_current(c).await}) }
+        fn require_current<'a>(
+            &'a mut self,
+            c: &'a mut PgConnection,
+            w: &'a Self::Witness,
+        ) -> PgWorkFuture<'a, (), BusinessError> {
+            Box::pin(async move { w.require_current(c).await })
+        }
     }
     fixture::with_database(2,|pool|async move {
         facts::setup(&pool,"lot",true).await;
@@ -406,7 +539,10 @@ async fn quality_return_origins_join_workflow_and_inventory_witnesses() {
 
 #[tokio::test]
 async fn quality_allocation_witness_retains_receipt_and_return_identity() {
-    use erpx_server_inventory::public::quality_fulfillment_allocation::{QualityFulfillmentAllocationRequest,inspect_quality_fulfillment_allocations,lock_quality_fulfillment_allocations};
+    use erpx_server_inventory::public::quality_fulfillment_allocation::{
+        QualityFulfillmentAllocationRequest, inspect_quality_fulfillment_allocations,
+        lock_quality_fulfillment_allocations,
+    };
     fixture::with_database(2,|pool|async move {
         facts::setup(&pool,"lot",true).await;
         sqlx::raw_sql("INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,created_by,created_at,updated_at,lot_id,held_quantity_milli,source_type,source_id,quantity_scope) VALUES('hold','company','branch','warehouse','product','Review','2026-11-10','maker',0,0,'lot-existing',1000,'goods_receipt','allocation','partial'); INSERT INTO inventory_fulfillment_lot_allocations(id,fulfillment_line_id,lot_id,quantity_milli,value_minor,disposition,quality_hold_id) VALUES('allocation','delivery-key-0','lot-existing',1000,2500,'quarantine','hold')").execute(pool.raw()).await.unwrap();
@@ -441,7 +577,10 @@ async fn quality_allocation_witness_retains_receipt_and_return_identity() {
 
 #[tokio::test]
 async fn quality_allocation_absence_is_guarded_against_concurrent_insert() {
-    use erpx_server_inventory::public::quality_fulfillment_allocation::{QualityFulfillmentAllocationRequest,inspect_quality_fulfillment_allocations,lock_quality_fulfillment_allocations};
+    use erpx_server_inventory::public::quality_fulfillment_allocation::{
+        QualityFulfillmentAllocationRequest, inspect_quality_fulfillment_allocations,
+        lock_quality_fulfillment_allocations,
+    };
     fixture::with_database(3,|pool|async move {
         facts::setup(&pool,"lot",true).await;
         sqlx::query("INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,created_by,created_at,updated_at,lot_id,held_quantity_milli,source_type,source_id,quantity_scope) VALUES('hold','company','branch','warehouse','product','Review','2026-11-10','maker',0,0,'lot-existing',1000,'goods_receipt','allocation','partial')").execute(pool.raw()).await.unwrap();
@@ -472,7 +611,10 @@ async fn quality_allocation_absence_is_guarded_against_concurrent_insert() {
 
 #[tokio::test]
 async fn quality_allocation_witness_retains_more_than_one_thousand_matches() {
-    use erpx_server_inventory::public::quality_fulfillment_allocation::{QualityFulfillmentAllocationRequest,inspect_quality_fulfillment_allocations,lock_quality_fulfillment_allocations};
+    use erpx_server_inventory::public::quality_fulfillment_allocation::{
+        QualityFulfillmentAllocationRequest, inspect_quality_fulfillment_allocations,
+        lock_quality_fulfillment_allocations,
+    };
     fixture::with_database(2,|pool|async move {
         facts::setup(&pool,"lot",true).await;
         sqlx::raw_sql("INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,created_by,created_at,updated_at,quantity_scope) VALUES('many-hold','company','branch','warehouse','product','Review','2026-11-10','maker',0,0,'partial'); INSERT INTO inventory_lots(id,company_id,product_id,tracking_mode,lot_code,created_by,created_at) SELECT 'bulk-lot-'||n,'company','product','lot','B-'||n,'maker',0 FROM generate_series(1,1001) n; INSERT INTO inventory_fulfillment_lot_allocations(id,fulfillment_line_id,lot_id,quantity_milli,value_minor,disposition,quality_hold_id) SELECT 'bulk-allocation-'||n,'delivery-key-0','bulk-lot-'||n,1,0,'quarantine','many-hold' FROM generate_series(1,1001) n").execute(pool.raw()).await.unwrap();
@@ -1415,4 +1557,701 @@ async fn receipt_source_is_company_and_branch_scoped() {
             .unwrap();
     })
     .await;
+}
+
+mod commerce_receipt {
+    //! Commerce purchase goods receipt through the Inventory stock-receipt seam on
+    //! migrated PostgreSQL: same-transaction fulfillment/stock/lot evidence,
+    //! current IAM, idempotent replay, source/version guards, rollback and
+    //! persisted readback.
+    #![allow(dead_code)]
+    use super::fixture;
+
+    use erpx_server_commerce::public::order::CommerceOrderActor;
+    use erpx_server_commerce::public::receipt::{
+        CommerceReceipt, PgCommerceReceipt, ReceiptAllocationCommand, ReceiptCommand,
+        ReceiptDisposition, ReceiptLineCommand, receive_purchase_order,
+    };
+    use erpx_server_inventory::public::commerce_receipt::InventoryStockReceipt;
+    use erpx_server_inventory::public::stock_receipt::{
+        StockReceiptQualityPort, StockReceiptQualityRequest,
+    };
+    use erpx_server_runtime::public::postgres::{
+        DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, PgWorkFuture,
+        TransactionOptions, load_migrations, migrate_database,
+    };
+    use erpx_server_shared::public::{
+        AssignmentId, BusinessError, CommandKey, CompanyId, HoldingId, RecordId, TimestampMillis,
+        UserId,
+    };
+    use sqlx::PgConnection;
+
+    const NOW: i64 = 1_800_000_000_000;
+
+    struct TestQuality;
+
+    impl StockReceiptQualityPort for TestQuality {
+        fn create_quality_hold<'a>(
+            &'a mut self,
+            c: &'a mut PgConnection,
+            request: StockReceiptQualityRequest,
+        ) -> PgWorkFuture<'a, String, BusinessError> {
+            Box::pin(async move {
+                let id = format!("quality-{}", request.allocation_id);
+                sqlx::query(
+                "INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,\
+                 product_id,reason,due_date,status,created_by,created_at,updated_at,lot_id,\
+                 held_quantity_milli,source_type,source_id,quantity_scope) \
+                 VALUES($1,$2,$3,$4,$5,$6,$7,'held','inspector',0,0,$8,$9,'goods_receipt',$10,'partial')",
+            )
+            .bind(&id)
+            .bind(&request.company_id)
+            .bind(&request.branch_id)
+            .bind(&request.warehouse_id)
+            .bind(&request.product_id)
+            .bind(&request.reason)
+            .bind(&request.due_date)
+            .bind(&request.lot_id)
+            .bind(request.quantity_milli)
+            .bind(&request.allocation_id)
+            .execute(&mut *c)
+            .await?;
+                Ok(id)
+            })
+        }
+    }
+
+    fn actor() -> CommerceOrderActor {
+        CommerceOrderActor {
+            user_id: UserId::new("receiver").unwrap(),
+            holding_id: HoldingId::new("holding").unwrap(),
+            company_id: CompanyId::new("company").unwrap(),
+            branch_id: Some(RecordId::new("branch").unwrap()),
+            department_id: None,
+            assignment_id: AssignmentId::new("assignment-receiver").unwrap(),
+            role: Some("warehouse_manager".into()),
+            authority_revision: Some(1),
+            assignment_version: Some(1),
+            permissions: vec!["commerce.read".into(), "inventory.prepare".into()],
+            modules: vec!["inventory".into()],
+            expires_at: NOW + 60_000,
+        }
+    }
+
+    fn command(
+        key: &str,
+        expected_version: i64,
+        line_id: &str,
+        quantity_milli: i64,
+        allocations: Vec<ReceiptAllocationCommand>,
+    ) -> ReceiptCommand {
+        ReceiptCommand {
+            key: CommandKey::new(key).unwrap(),
+            order_id: RecordId::new("order-1").unwrap(),
+            expected_version,
+            date: "2026-11-04".into(),
+            lines: vec![ReceiptLineCommand {
+                line_id: line_id.into(),
+                quantity_milli,
+                allocations,
+            }],
+        }
+    }
+
+    fn allocation(
+        lot: Option<&str>,
+        serial: Option<&str>,
+        quantity_milli: i64,
+        disposition: ReceiptDisposition,
+    ) -> ReceiptAllocationCommand {
+        ReceiptAllocationCommand {
+            lot_code: lot.map(Into::into),
+            serial_number: serial.map(Into::into),
+            quantity_milli,
+            disposition,
+            quarantine_reason: (disposition == ReceiptDisposition::Quarantine)
+                .then(|| "Packaging inspection".into()),
+            quarantine_due_date: (disposition == ReceiptDisposition::Quarantine)
+                .then(|| "2026-11-10".into()),
+            manufactured_date: None,
+            expiry_date: None,
+        }
+    }
+
+    fn lot_allocation() -> ReceiptCommand {
+        command(
+            "receipt-one",
+            3,
+            "line-1",
+            2_000,
+            vec![
+                allocation(Some("L-A"), None, 1_000, ReceiptDisposition::Available),
+                allocation(Some("L-B"), None, 1_000, ReceiptDisposition::Quarantine),
+            ],
+        )
+    }
+
+    async fn run(
+        pool: &DatabasePool,
+        actor: CommerceOrderActor,
+        command: ReceiptCommand,
+    ) -> Result<CommerceReceipt, PgTransactionError<BusinessError>> {
+        PgUnitOfWork::new(pool.clone())
+            .run::<_, BusinessError, _>(TransactionOptions::default(), move |c| {
+                let actor = actor.clone();
+                let command = command.clone();
+                Box::pin(async move {
+                    let mut repository = PgCommerceReceipt;
+                    let mut stock = InventoryStockReceipt::new(TestQuality);
+                    receive_purchase_order(
+                        &actor,
+                        &command,
+                        &mut repository,
+                        &mut stock,
+                        c,
+                        TimestampMillis::new(NOW),
+                    )
+                    .await
+                })
+            })
+            .await
+    }
+
+    fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
+        match error {
+            PgTransactionError::Business(error) => error,
+            other => panic!("expected an owner business failure, got {other:?}"),
+        }
+    }
+
+    async fn denied(
+        pool: &DatabasePool,
+        actor: CommerceOrderActor,
+        command: ReceiptCommand,
+        code: &str,
+    ) {
+        let error = run(pool, actor, command)
+            .await
+            .map_err(business)
+            .unwrap_err();
+        assert_eq!(error.code, code, "{error:?}");
+    }
+
+    async fn setup(pool: &DatabasePool) {
+        let root =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let files = load_migrations(root, MigrationTrack::HoldingWrite)
+            .await
+            .unwrap();
+        migrate_database(pool, MigrationTrack::HoldingWrite, &files)
+            .await
+            .unwrap();
+        sqlx::raw_sql(
+        "INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status,hierarchy_revision) VALUES \
+         ('company','company','company','Company',NULL,'company',NULL,'active',1),\
+         ('foreign','company','foreign','Foreign company',NULL,'foreign',NULL,'active',1),\
+         ('branch','branch','branch','Branch',NULL,'company',NULL,'active',1),\
+         ('other-branch','branch','other-branch','Other branch',NULL,'company',NULL,'active',1);\
+         INSERT INTO iam_members(company_id,user_id,principal_id,status,login_policy,version) VALUES \
+         ('company','receiver','local:receiver','active','local',1),\
+         ('company','stale','local:stale','active','local',1),\
+         ('company','other-branch','local:other-branch','active','local',1),\
+         ('foreign','foreign-user','local:foreign-user','active','local',1);\
+         INSERT INTO assignments(id,user_id,role,modules_json,company_id,branch_id,valid_from,valid_until,revoked_at,scope_kind,scope_node_id,source) VALUES \
+         ('assignment-receiver','receiver','warehouse_manager','[]','company','branch',0,9000000000000,NULL,'branch','branch','manual'),\
+         ('assignment-stale','stale','sales_operator','[]','company','branch',0,9000000000000,NULL,'branch','branch','manual'),\
+         ('assignment-other-branch','other-branch','warehouse_manager','[]','company','other-branch',0,9000000000000,NULL,'branch','other-branch','manual'),\
+         ('assignment-foreign','foreign-user','warehouse_manager','[]','foreign',NULL,0,9000000000000,NULL,'holding',NULL,'manual');\
+         INSERT INTO finance_charts(id,company_id,name,base_currency,status,version,created_by,created_at,updated_at) VALUES \
+         ('chart','company','Primary','THB','active',1,'maker',0,0);\
+         INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,status,version,created_at,updated_at) VALUES \
+         ('receivable','chart','company','1100','Receivable','asset','active',1,0,0),\
+         ('payable','chart','company','2100','Payable','liability','active',1,0,0),\
+         ('revenue','chart','company','4100','Revenue','revenue','active',1,0,0),\
+         ('inventory','chart','company','1200','Inventory','asset','active',1,0,0),\
+         ('clearing','chart','company','2200','Clearing','liability','active',1,0,0),\
+         ('cogs','chart','company','5100','Cost of sales','expense','active',1,0,0),\
+         ('input-tax','chart','company','1300','Input tax','asset','active',1,0,0),\
+         ('output-tax','chart','company','2300','Output tax','liability','active',1,0,0),\
+         ('cash','chart','company','1000','Cash','asset','active',1,0,0);\
+         INSERT INTO commerce_settings(company_id,chart_id,currency,receivable_account_id,payable_account_id,revenue_account_id,inventory_account_id,clearing_account_id,cogs_account_id,input_tax_account_id,output_tax_account_id,cash_account_id) VALUES \
+         ('company','chart','THB','receivable','payable','revenue','inventory','clearing','cogs','input-tax','output-tax','cash');\
+         INSERT INTO finance_parties(id,company_id,kind,code,name,currency,created_at,updated_at) VALUES \
+         ('supplier','company','supplier','SUP-1','Supplier','THB',0,0);\
+         INSERT INTO commerce_warehouses(id,company_id,branch_id,code,name,status,version) VALUES \
+         ('warehouse','company','branch','W1','Main warehouse','active',1);\
+         INSERT INTO commerce_products(id,company_id,sku,name,price_minor,tracking_mode,item_type,status,version) VALUES \
+         ('product','company','P1','Received product',2500,'lot','stock','active',1),\
+         ('serial-product','company','P2','Serial product',1000,'serial','stock','active',1),\
+         ('service-product','company','S1','Supplier service',1000,'none','service','active',1);\
+         INSERT INTO commerce_orders(id,company_id,branch_id,kind,number,party_id,warehouse_id,currency,order_date,due_date,subtotal_minor,tax_minor,state,version,created_by,created_at,updated_at) VALUES \
+         ('order-1','company','branch','purchase','PO-1','supplier','warehouse','THB','2026-11-01','2026-11-10',13500,0,'confirmed',3,'maker',0,0),\
+         ('serial-order','company','branch','purchase','PO-2','supplier','warehouse','THB','2026-11-01','2026-11-10',2000,0,'confirmed',1,'maker',0,0);\
+         INSERT INTO commerce_order_lines(id,order_id,product_id,description,quantity_milli,fulfilled_milli,price_minor,tax_bps,subtotal_minor,tax_minor,ordinal,item_type) VALUES \
+         ('line-1','order-1','product','Received product',5000,0,2500,0,12500,0,1,'stock'),\
+         ('line-service','order-1','service-product','Supplier service',1000,0,1000,0,1000,0,2,'service'),\
+         ('line-serial','serial-order','serial-product','Serial product',2000,0,1000,0,2000,0,1,'stock');\
+         INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor,version) VALUES \
+         ('warehouse','product',1000,1000,1);\
+         INSERT INTO inventory_lots(id,company_id,product_id,tracking_mode,lot_code,serial_number,created_by,created_at) VALUES \
+         ('lot-existing','company','product','lot','L-A',NULL,'maker',0),\
+         ('serial-existing','company','serial-product','serial',NULL,'SN-1','maker',0);\
+         INSERT INTO inventory_lot_balances(lot_id,warehouse_id,quantity_milli,value_minor,version) VALUES \
+         ('lot-existing','warehouse',1000,1000,1);",
+    )
+    .execute(pool.raw())
+    .await
+    .unwrap();
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn receipt_writes_fulfillment_and_inventory_evidence_in_one_unit() {
+        fixture::with_database(4, |pool| async move {
+            setup(&pool).await;
+            let receipt = run(&pool, actor(), lot_allocation()).await.unwrap();
+            assert_eq!(receipt.order_id, "order-1");
+            assert_eq!(receipt.fulfillment_id, "delivery-receipt-one");
+            assert_eq!(receipt.state, "partially_fulfilled");
+            assert_eq!(receipt.version, 4);
+            assert_eq!(receipt.total_value_minor, 5_000);
+            assert_eq!(receipt.lines.len(), 1);
+            assert_eq!(receipt.lines[0].line_id, "line-1");
+            assert_eq!(receipt.lines[0].value_minor, 5_000);
+
+            let order: (String, i64) =
+                sqlx::query_as("SELECT state,version FROM commerce_orders WHERE id='order-1'")
+                    .fetch_one(pool.raw())
+                    .await
+                    .unwrap();
+            assert_eq!(order, ("partially_fulfilled".into(), 4));
+            let fulfilled: i64 = sqlx::query_scalar(
+                "SELECT fulfilled_milli FROM commerce_order_lines WHERE id='line-1'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(fulfilled, 2_000);
+            let service: i64 = sqlx::query_scalar(
+                "SELECT fulfilled_milli FROM commerce_order_lines WHERE id='line-service'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(service, 0);
+
+            let fulfillment: (String, String, String, String) = sqlx::query_as(
+                "SELECT order_id,fulfillment_date,completion_kind,created_by \
+             FROM commerce_fulfillments WHERE id='delivery-receipt-one'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(
+                fulfillment,
+                (
+                    "order-1".into(),
+                    "2026-11-04".into(),
+                    "goods".into(),
+                    "receiver".into()
+                )
+            );
+            let line: (i64, i64, i64, Option<String>) = sqlx::query_as(
+                "SELECT quantity_milli,value_minor,subtotal_minor,stock_currency \
+             FROM commerce_fulfillment_lines WHERE id='delivery-receipt-one-0'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(line, (2_000, 5_000, 5_000, Some("THB".into())));
+
+            let stock: (i64, i64, i64) = sqlx::query_as(
+                "SELECT quantity_milli,value_minor,version FROM commerce_stock \
+             WHERE warehouse_id='warehouse' AND product_id='product'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(stock, (3_000, 6_000, 3));
+            let stock_move: (i64, i64) = sqlx::query_as(
+                "SELECT quantity_milli,value_minor FROM commerce_stock_moves \
+             WHERE id='delivery-receipt-one-0' AND fulfillment_id='delivery-receipt-one'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(stock_move, (2_000, 5_000));
+
+            let lots: Vec<(String, i64, i64)> = sqlx::query_as(
+                "SELECT l.lot_code,b.quantity_milli,b.value_minor FROM inventory_lots l \
+             JOIN inventory_lot_balances b ON b.lot_id=l.id AND b.warehouse_id='warehouse' \
+             WHERE l.product_id='product' ORDER BY l.lot_code",
+            )
+            .fetch_all(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(
+                lots,
+                vec![("L-A".into(), 2_000, 3_500), ("L-B".into(), 1_000, 2_500)]
+            );
+            let allocations: Vec<(String, String, i64, Option<String>)> = sqlx::query_as(
+                "SELECT l.lot_code,a.disposition,a.quantity_milli,a.quality_hold_id \
+             FROM inventory_fulfillment_lot_allocations a \
+             JOIN inventory_lots l ON l.id=a.lot_id \
+             WHERE a.fulfillment_line_id='delivery-receipt-one-0' ORDER BY a.id",
+            )
+            .fetch_all(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(
+                allocations,
+                vec![
+                    ("L-A".into(), "available".into(), 1_000, None),
+                    (
+                        "L-B".into(),
+                        "quarantine".into(),
+                        1_000,
+                        Some("quality-lot-allocation-delivery-receipt-one-0-1".into())
+                    )
+                ]
+            );
+            let hold: (String, i64) = sqlx::query_as(
+                "SELECT source_type,held_quantity_milli FROM inventory_quality_holds \
+             WHERE id='quality-lot-allocation-delivery-receipt-one-0-1'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(hold, ("goods_receipt".into(), 1_000));
+
+            let evidence: (i64, i64, i64, i64, i64) = sqlx::query_as(
+                "SELECT (SELECT count(*) FROM command_receipts WHERE command_id='receipt-one'),\
+             (SELECT count(*) FROM audit_events WHERE command_id='receipt-one'),\
+             (SELECT count(*) FROM outbox_events WHERE command_id='receipt-one'),\
+             (SELECT count(*) FROM inventory_lot_moves WHERE source_type='goods_receipt'),\
+             (SELECT count(*) FROM inventory_fulfillment_lot_allocations)",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(evidence, (1, 1, 1, 2, 2));
+
+            let replay = run(&pool, actor(), lot_allocation()).await.unwrap();
+            assert_eq!(replay, receipt);
+            let after_replay: (i64, i64, i64) = sqlx::query_as(
+                "SELECT (SELECT count(*) FROM commerce_fulfillments),\
+             (SELECT count(*) FROM commerce_stock_moves),\
+             (SELECT count(*) FROM command_receipts WHERE command_id='receipt-one')",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(after_replay, (1, 1, 1));
+
+            let changed = command(
+                "receipt-one",
+                3,
+                "line-1",
+                1_000,
+                vec![allocation(
+                    Some("L-A"),
+                    None,
+                    1_000,
+                    ReceiptDisposition::Available,
+                )],
+            );
+            denied(&pool, actor(), changed, "IDEMPOTENCY_CONFLICT").await;
+
+            let partial = command(
+                "receipt-two",
+                4,
+                "line-1",
+                1_000,
+                vec![allocation(
+                    Some("L-A"),
+                    None,
+                    1_000,
+                    ReceiptDisposition::Available,
+                )],
+            );
+            let second = run(&pool, actor(), partial).await.unwrap();
+            assert_eq!(second.state, "partially_fulfilled");
+            assert_eq!(second.version, 5);
+            assert_eq!(second.total_value_minor, 2_500);
+            let stock: (i64, i64, i64) = sqlx::query_as(
+                "SELECT quantity_milli,value_minor,version FROM commerce_stock \
+             WHERE warehouse_id='warehouse' AND product_id='product'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(stock, (4_000, 8_500, 4));
+            let allocations: i64 =
+                sqlx::query_scalar("SELECT count(*) FROM inventory_fulfillment_lot_allocations")
+                    .fetch_one(pool.raw())
+                    .await
+                    .unwrap();
+            assert_eq!(allocations, 3);
+        })
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn receipt_refuses_stale_scope_service_and_over_receipt() {
+        fixture::with_database(3, |pool| async move {
+            setup(&pool).await;
+            denied(
+                &pool,
+                actor(),
+                command(
+                    "stale-version",
+                    2,
+                    "line-1",
+                    1_000,
+                    vec![allocation(
+                        Some("L-A"),
+                        None,
+                        1_000,
+                        ReceiptDisposition::Available,
+                    )],
+                ),
+                "COMMERCE_ORDER_CHANGED",
+            )
+            .await;
+            denied(
+                &pool,
+                CommerceOrderActor {
+                    company_id: CompanyId::new("foreign").unwrap(),
+                    branch_id: None,
+                    user_id: UserId::new("foreign-user").unwrap(),
+                    assignment_id: AssignmentId::new("assignment-foreign").unwrap(),
+                    role: Some("warehouse_manager".into()),
+                    ..actor()
+                },
+                lot_allocation(),
+                "ORDER_NOT_FOUND",
+            )
+            .await;
+            denied(
+                &pool,
+                CommerceOrderActor {
+                    branch_id: Some(RecordId::new("other-branch").unwrap()),
+                    user_id: UserId::new("other-branch").unwrap(),
+                    assignment_id: AssignmentId::new("assignment-other-branch").unwrap(),
+                    ..actor()
+                },
+                lot_allocation(),
+                "ORDER_NOT_FOUND",
+            )
+            .await;
+            let mut service = lot_allocation();
+            service.lines[0].line_id = "line-service".into();
+            service.lines[0].allocations.clear();
+            service.lines[0].quantity_milli = 1_000;
+            denied(&pool, actor(), service, "STOCK_RECEIPT_LINE_INVALID").await;
+            denied(
+                &pool,
+                actor(),
+                command(
+                    "over-receipt",
+                    3,
+                    "line-1",
+                    6_000,
+                    vec![allocation(
+                        Some("L-A"),
+                        None,
+                        6_000,
+                        ReceiptDisposition::Available,
+                    )],
+                ),
+                "OVER_FULFILLMENT",
+            )
+            .await;
+            sqlx::query("UPDATE commerce_orders SET currency='USD' WHERE id='order-1'")
+                .execute(pool.raw())
+                .await
+                .unwrap();
+            denied(
+                &pool,
+                actor(),
+                lot_allocation(),
+                "RECEIPT_FX_GUARD_REQUIRED",
+            )
+            .await;
+            sqlx::query("UPDATE commerce_orders SET currency='THB' WHERE id='order-1'")
+                .execute(pool.raw())
+                .await
+                .unwrap();
+
+            let mut serial = command(
+                "duplicate-serial",
+                1,
+                "line-serial",
+                1_000,
+                vec![allocation(
+                    None,
+                    Some("SN-1"),
+                    1_000,
+                    ReceiptDisposition::Available,
+                )],
+            );
+            serial.order_id = RecordId::new("serial-order").unwrap();
+            denied(&pool, actor(), serial, "SERIAL_ALREADY_RECEIVED").await;
+
+            let evidence: (i64, i64, i64, i64, i64) = sqlx::query_as(
+                "SELECT (SELECT count(*) FROM commerce_fulfillments),\
+             (SELECT count(*) FROM commerce_stock_moves),\
+             (SELECT count(*) FROM commerce_stock WHERE product_id='serial-product'),\
+             (SELECT count(*) FROM command_receipts),\
+             (SELECT count(*) FROM inventory_quality_holds)",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(evidence, (0, 0, 0, 0, 0));
+        })
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn receipt_requires_current_inventory_authority() {
+        fixture::with_database(3, |pool| async move {
+            setup(&pool).await;
+            denied(
+                &pool,
+                CommerceOrderActor {
+                    user_id: UserId::new("stale").unwrap(),
+                    assignment_id: AssignmentId::new("assignment-stale").unwrap(),
+                    role: Some("sales_operator".into()),
+                    ..actor()
+                },
+                lot_allocation(),
+                "COMMERCE_PERMISSION_REQUIRED",
+            )
+            .await;
+            denied(
+                &pool,
+                CommerceOrderActor {
+                    expires_at: NOW - 1,
+                    ..actor()
+                },
+                lot_allocation(),
+                "WORK_CONTEXT_CHANGED",
+            )
+            .await;
+            denied(
+                &pool,
+                CommerceOrderActor {
+                    department_id: Some(RecordId::new("department").unwrap()),
+                    ..actor()
+                },
+                lot_allocation(),
+                "COMMERCE_RECEIPT_PERMISSION_REQUIRED",
+            )
+            .await;
+            let evidence: (i64, i64) = sqlx::query_as(
+                "SELECT (SELECT count(*) FROM commerce_fulfillments),\
+             (SELECT count(*) FROM command_receipts)",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(evidence, (0, 0));
+        })
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn late_outbox_failure_rolls_back_every_receipt_rows_and_exact_retry_persists_once() {
+        fixture::with_database(4, |pool| async move {
+            setup(&pool).await;
+            sqlx::raw_sql(
+                "CREATE FUNCTION fail_receipt_outbox() RETURNS trigger LANGUAGE plpgsql AS $$ \
+             BEGIN IF NEW.command_id='receipt-rollback' THEN \
+             RAISE EXCEPTION 'blocked receipt outbox'; END IF; RETURN NEW; END $$; \
+             CREATE TRIGGER fail_receipt_outbox BEFORE INSERT ON outbox_events \
+             FOR EACH ROW EXECUTE FUNCTION fail_receipt_outbox();",
+            )
+            .execute(pool.raw())
+            .await
+            .unwrap();
+            let mut rollback = lot_allocation();
+            rollback.key = CommandKey::new("receipt-rollback").unwrap();
+            assert!(run(&pool, actor(), rollback).await.is_err());
+            let evidence: (i64, i64, i64, i64, i64, i64, i64, i64) = sqlx::query_as(
+                "SELECT (SELECT quantity_milli FROM commerce_stock WHERE product_id='product'),\
+             (SELECT version FROM commerce_stock WHERE product_id='product'),\
+             (SELECT count(*) FROM commerce_fulfillments),\
+             (SELECT count(*) FROM commerce_fulfillment_lines),\
+             (SELECT count(*) FROM commerce_stock_moves),\
+             (SELECT count(*) FROM inventory_lot_moves),\
+             (SELECT count(*) FROM inventory_quality_holds),\
+             (SELECT count(*) FROM command_receipts)",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(evidence, (1_000, 1, 0, 0, 0, 0, 0, 0));
+            let lots: i64 = sqlx::query_scalar(
+                "SELECT count(*) FROM inventory_lots WHERE product_id='product'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(lots, 1);
+            sqlx::raw_sql(
+                "DROP TRIGGER fail_receipt_outbox ON outbox_events; \
+             DROP FUNCTION fail_receipt_outbox();",
+            )
+            .execute(pool.raw())
+            .await
+            .unwrap();
+            let mut retry = lot_allocation();
+            retry.key = CommandKey::new("receipt-rollback").unwrap();
+            let receipt = run(&pool, actor(), retry).await.unwrap();
+            assert_eq!(receipt.fulfillment_id, "delivery-receipt-rollback");
+            let counts: (i64, i64, i64, i64) = sqlx::query_as(
+                "SELECT (SELECT count(*) FROM commerce_fulfillments),\
+             (SELECT count(*) FROM commerce_stock_moves),\
+             (SELECT count(*) FROM command_receipts WHERE command_id='receipt-rollback'),\
+             (SELECT count(*) FROM outbox_events WHERE command_id='receipt-rollback')",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(counts, (1, 1, 1, 1));
+        })
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn receipt_requires_a_serializable_owner_transaction() {
+        fixture::with_database(2, |pool| async move {
+            setup(&pool).await;
+            let mut c = pool.raw().begin().await.unwrap();
+            let mut repository = PgCommerceReceipt;
+            let mut stock = InventoryStockReceipt::new(TestQuality);
+            let error = receive_purchase_order(
+                &actor(),
+                &lot_allocation(),
+                &mut repository,
+                &mut stock,
+                &mut c,
+                TimestampMillis::new(NOW),
+            )
+            .await
+            .unwrap_err();
+            let PgTransactionError::Persistence(error) = error else {
+                panic!("expected a serializable transaction refusal");
+            };
+            assert_eq!(error.code, "COMMERCE_RECEIPT_SERIALIZABLE_REQUIRED");
+            c.rollback().await.unwrap();
+            let row: (String, i64) =
+                sqlx::query_as("SELECT state,version FROM commerce_orders WHERE id='order-1'")
+                    .fetch_one(pool.raw())
+                    .await
+                    .unwrap();
+            assert_eq!(row, ("confirmed".into(), 3));
+        })
+        .await;
+    }
 }
