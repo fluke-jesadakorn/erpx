@@ -1732,7 +1732,7 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut legal_targets = Vec::new();
         let mut benefits_targets = Vec::new();
-        let mut benefits_command_targets = Vec::new();
+        let mut benefits_command_targets: Vec<erpx_server_benefits::public::command_http::BenefitsCommandHttpTarget> = Vec::new();
         let mut pms_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut maintenance_targets = Vec::new();
@@ -1742,6 +1742,7 @@ async fn assemble_checked(
         let mut planning_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut marketing_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut marketing_lead_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut talent_targets = Vec::new();
