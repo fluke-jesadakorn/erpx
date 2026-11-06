@@ -8,9 +8,10 @@ use crate::domain::commands::{
     CashApproveInput, PaymentCreateInput, PosActor, PosCashMovement, PosCatalogSnapshot, PosCommand,
     PosCommandInput, PosFulfillment, PosFulfillmentInsert, PosFulfillmentSplitFacts,
     PosFulfillmentStock, PosJournalLine, PosJournalRequest, PosLine, PosLineDetail,
-    PosConsumptionPart, PosInvoiceRequest, PosLineDiscountRow, PosLineInsert, PosLineSplitRow,
-    PosOperation, PosPaymentInsert, PosReceipt, PosReceiptRequest, PosRefund, PosRegister, PosResult,
-    PosSale, PosSettings, PosShift, PosStockRow,
+    PaymentCancelTransferInput, PaymentVerifyTransferInput, PosBankTransaction, PosConsumptionPart,
+    PosInvoiceRequest, PosLineDiscountRow, PosLineInsert, PosLineSplitRow, PosOperation, PosPayment,
+    PosPaymentInsert, PosReceipt, PosReceiptRequest, PosRefund, PosRegister, PosResult, PosSale,
+    PosSettings, PosShift, PosStockRow,
     RefundRejectInput, RefundRequestInput, SaleAddInput, SaleCreateInput, SaleCustomerInput,
     SaleDiscountInput, SaleMergeInput, SaleMoveTableInput, SaleRemoveInput, SaleSplitInput,
     SaleUpdateLineInput, SaleVersionInput, ShiftCloseInput,
@@ -375,6 +376,22 @@ pub trait PosCommandRepository: Send {
         sale_id: &'a str,
         invoice_id: &'a str,
     ) -> PosFuture<'a, (), Self::Error>;
+    fn payment<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        payment_id: &'a str,
+    ) -> PosFuture<'a, Option<PosPayment>, Self::Error>;
+    fn cancel_payment<'a>(
+        &'a mut self,
+        payment_id: &'a str,
+        now: TimestampMillis,
+    ) -> PosFuture<'a, (), Self::Error>;
+    fn reopen_sale<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+        state: &'a str,
+        now: TimestampMillis,
+    ) -> PosFuture<'a, bool, Self::Error>;
     fn prepared_day_close<'a>(
         &'a mut self,
         company: &'a CompanyId,
@@ -429,6 +446,18 @@ pub trait PosFinancePort: Send {
         &'a mut self,
         request: &'a PosInvoiceRequest,
     ) -> PosFuture<'a, ()>;
+    /// Read the current imported bank transaction for transfer verification.
+    fn bank_transaction<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        id: &'a str,
+    ) -> PosFuture<'a, Option<PosBankTransaction>>;
+    /// Mark the verified bank transaction as matched to the Finance payment.
+    fn attach_bank_payment<'a>(
+        &'a mut self,
+        bank_transaction_id: &'a str,
+        finance_payment_id: &'a str,
+    ) -> PosFuture<'a, ()>;
 }
 pub trait PosInventoryPort: Send {
     /// Queue the precise Inventory consumption facts and return the snapshot
@@ -461,6 +490,7 @@ struct Accounts {
 struct PaymentAccounts {
     chart_id: String,
     cash: String,
+    bank: String,
     edc: String,
     receivable: String,
     advance: String,
@@ -526,6 +556,7 @@ fn payment_accounts(settings: &PosSettings) -> Result<PaymentAccounts, BusinessE
     Ok(PaymentAccounts {
         chart_id: text("chartId")?,
         cash: text("cash")?,
+        bank: text("bank")?,
         edc: text("edc")?,
         receivable: text("receivable")?,
         advance: text("advance")?,
@@ -736,6 +767,12 @@ where
         }
         PosCommandInput::PaymentCreate(input) => {
             payment_create(actor, input, stock, repository, finance, now).await?
+        }
+        PosCommandInput::PaymentVerifyTransfer(input) => {
+            payment_verify_transfer(actor, input, repository, finance, now).await?
+        }
+        PosCommandInput::PaymentCancelTransfer(input) => {
+            payment_cancel_transfer(actor, input, repository, now).await?
         }
         PosCommandInput::SaleComplete(input) => {
             sale_complete(actor, input, stock, repository, finance, inventory, now).await?
@@ -2798,4 +2835,190 @@ fn settings_chart_id(settings: &PosSettings) -> Result<String, BusinessError> {
         .filter(|value| !value.is_empty())
         .map(str::to_owned)
         .ok_or_else(|| request_invalid("POS_ACCOUNT_INVALID", "Configured POS chart is invalid."))
+}
+
+async fn payment_verify_transfer<R, F>(
+    actor: &PosActor,
+    input: &PaymentVerifyTransferInput,
+    repository: &mut R,
+    finance: &mut F,
+    now: TimestampMillis,
+) -> Result<PosResult, R::Error>
+where
+    R: PosCommandRepository,
+    F: PosFinancePort,
+{
+    let payment = repository
+        .payment(&actor.company_id, &input.id)
+        .await?
+        .ok_or_else(not_found)?;
+    version_matches(payment.version, input.expected_version)?;
+    if payment.method != "transfer" || payment.state != "pending" {
+        return Err(conflict(
+            "POS_TRANSFER_STATE",
+            "Only a pending bank transfer can be verified.",
+        )
+        .into());
+    }
+    let sale = repository
+        .sale(&actor.company_id, &payment.sale_id)
+        .await?
+        .ok_or_else(not_found)?;
+    scope_sale(actor, &sale)?;
+    if matches!(sale.state.as_str(), "cancelled" | "merged") {
+        return Err(conflict(
+            "POS_PAYMENT_EXCEPTION",
+            "Payment for a cancelled bill requires review.",
+        )
+        .into());
+    }
+    if repository
+        .same_person(
+            &actor.company_id,
+            actor.user_id.as_str(),
+            &payment.created_by,
+        )
+        .await?
+    {
+        return Err(independent_review().into());
+    }
+    let settings = repository
+        .settings(&actor.company_id)
+        .await?
+        .ok_or_else(setup_required)?;
+    let accounts = payment_accounts(&settings)?;
+    finance
+        .open_period(&actor.company_id, &sale.business_date)
+        .await
+        .map_err(R::Error::from)?;
+    let bank = finance
+        .bank_transaction(&actor.company_id, &input.bank_transaction_id)
+        .await
+        .map_err(R::Error::from)?
+        .ok_or_else(|| {
+            request_invalid(
+                "POS_BANK_EVIDENCE_MISMATCH",
+                "Match the exact imported bank transaction.",
+            )
+        })?;
+    if bank.version != input.bank_version
+        || !matches!(bank.match_status.as_str(), "unmatched" | "proposed")
+        || bank.bank_account != accounts.bank
+        || bank.currency != sale.currency
+        || bank.amount_minor != payment.amount_minor
+        || bank.external_id.trim() != payment.reference.trim()
+        || bank.transaction_date < sale.business_date
+    {
+        return Err(request_invalid(
+            "POS_BANK_EVIDENCE_MISMATCH",
+            "Match the exact imported bank account, reference, date, currency, and amount.",
+        )
+        .into());
+    }
+    let finance_payment_id = repository.new_id().await?;
+    if !valid_uuid(&finance_payment_id) {
+        return Err(source_invalid().into());
+    }
+    let credit = if sale.invoice_id.is_some() {
+        accounts.receivable.clone()
+    } else {
+        accounts.advance.clone()
+    };
+    let source_key = format!("receipt:{}", payment.id);
+    let journal_id = format!("journal-{source_key}");
+    finance
+        .record_receipt(&PosReceiptRequest {
+            pos_payment_id: payment.id.clone(),
+            finance_payment_id: finance_payment_id.clone(),
+            company_id: actor.company_id.clone(),
+            party_id: sale.party_id.clone(),
+            number: format!("POS-R-{}", payment.id),
+            payment_date: bank.transaction_date.clone(),
+            currency: sale.currency.clone(),
+            amount_minor: payment.amount_minor,
+            account_id: accounts.bank.clone(),
+            journal_id,
+            actor_id: actor.user_id.clone(),
+            now,
+        })
+        .await
+        .map_err(R::Error::from)?;
+    finance
+        .post_journal(&PosJournalRequest {
+            company_id: actor.company_id.clone(),
+            branch_id: actor.branch_id.clone(),
+            chart_id: accounts.chart_id,
+            currency: sale.currency.clone(),
+            business_date: sale.business_date.clone(),
+            source_key,
+            source_id: sale.id.clone(),
+            actor_id: actor.user_id.clone(),
+            lines: vec![
+                PosJournalLine {
+                    account_id: accounts.bank,
+                    debit: payment.amount_minor,
+                    credit: 0,
+                },
+                PosJournalLine {
+                    account_id: credit,
+                    debit: 0,
+                    credit: payment.amount_minor,
+                },
+            ],
+            now,
+        })
+        .await
+        .map_err(R::Error::from)?;
+    repository
+        .settle_payment(&payment.id, now)
+        .await?;
+    finance
+        .attach_bank_payment(&bank.id, &finance_payment_id)
+        .await
+        .map_err(R::Error::from)?;
+    if !repository.bump_payment_pending(&sale.id, now).await? {
+        return Err(version_conflict().into());
+    }
+    Ok(PosResult {
+        id: payment.id,
+        version: Some(payment.version + 1),
+    })
+}
+
+async fn payment_cancel_transfer<R>(
+    actor: &PosActor,
+    input: &PaymentCancelTransferInput,
+    repository: &mut R,
+    now: TimestampMillis,
+) -> Result<PosResult, R::Error>
+where
+    R: PosCommandRepository,
+{
+    let payment = repository
+        .payment(&actor.company_id, &input.id)
+        .await?
+        .ok_or_else(not_found)?;
+    version_matches(payment.version, input.expected_version)?;
+    if payment.method != "transfer" || payment.state != "pending" {
+        return Err(conflict(
+            "POS_TRANSFER_STATE",
+            "Only a pending bank transfer can be cancelled.",
+        )
+        .into());
+    }
+    let sale = repository
+        .sale(&actor.company_id, &payment.sale_id)
+        .await?
+        .ok_or_else(not_found)?;
+    scope_sale(actor, &sale)?;
+    repository.cancel_payment(&payment.id, now).await?;
+    let paid = repository.sale_paid_total(&sale.id).await?;
+    let state = if paid > 0 { "payment_pending" } else { "open" };
+    if !repository.reopen_sale(&sale.id, state, now).await? {
+        return Err(version_conflict().into());
+    }
+    Ok(PosResult {
+        id: payment.id,
+        version: Some(payment.version + 1),
+    })
 }

@@ -20,10 +20,10 @@ use erpx_server_pos::public::cash_movement_http::{
 };
 use erpx_server_pos::public::commands::{
     PgPosCommandRepository, PosActor, PosCommand, PosCommandInput, PosCommandRepository,
-    PosCatalogProduct as PosCatalogSnapshotProduct, PosCatalogSnapshot, PosConsumptionPart,
-    PosFinancePort, PosFuture, PosHospitalityPort, PosInventoryPort, PosInvoiceRequest,
-    PosJournalRequest, PosOrganizationPort, PosReceiptRequest, PosResult, PosStockRow,
-    execute_pos_command,
+    PosBankTransaction as PosDomainBankTransaction, PosCatalogProduct as PosCatalogSnapshotProduct,
+    PosCatalogSnapshot, PosConsumptionPart, PosFinancePort, PosFuture, PosHospitalityPort,
+    PosInventoryPort, PosInvoiceRequest, PosJournalRequest, PosOrganizationPort, PosReceiptRequest,
+    PosResult, PosStockRow, execute_pos_command,
 };
 use erpx_server_pos::public::commands_http::{
     PosCommandHttpBackend, PosCommandHttpFuture, PosCommandHttpRequest, PosCommandHttpResponse,
@@ -42,7 +42,8 @@ use erpx_server_finance::public::pos_journal::{
     insert_pos_invoice, insert_pos_receipt, post_pos_journal,
 };
 use erpx_server_finance::public::pos_sources::{
-    finance_party_exists, lock_pos_finance_sources, read_open_period_for_date,
+    PosBankTransaction as PosBankSnapshot, attach_pos_bank_payment, finance_party_exists,
+    lock_pos_finance_sources, read_open_period_for_date, read_pos_bank_transaction,
 };
 use erpx_server_organization::public::pos_issuer::{
     lock_pos_issuer_source, read_company_display_name,
@@ -117,6 +118,8 @@ struct PosFinanceQueue {
     journals: Vec<PosJournalRequest>,
     receipts: Vec<PosReceiptRequest>,
     invoices: Vec<PosInvoiceRequest>,
+    bank: Option<PosBankSnapshot>,
+    bank_matches: Vec<(String, String)>,
 }
 #[derive(Default)]
 struct PosInventoryQueue {
@@ -192,6 +195,41 @@ impl PosFinancePort for PosFinanceQueue {
     ) -> PosFuture<'a, ()> {
         Box::pin(async move {
             self.invoices.push(request.clone());
+            Ok(())
+        })
+    }
+
+    fn bank_transaction<'a>(
+        &'a mut self,
+        _: &'a CompanyId,
+        id: &'a str,
+    ) -> PosFuture<'a, Option<PosDomainBankTransaction>> {
+        Box::pin(async move {
+            Ok(self
+                .bank
+                .as_ref()
+                .filter(|bank| bank.id == id)
+                .map(|bank| PosDomainBankTransaction {
+                    id: bank.id.clone(),
+                    version: bank.version,
+                    match_status: bank.match_status.clone(),
+                    bank_account: bank.bank_account.clone(),
+                    currency: bank.currency.clone(),
+                    amount_minor: bank.amount_minor,
+                    external_id: bank.external_id.clone(),
+                    transaction_date: bank.transaction_date.clone(),
+                }))
+        })
+    }
+
+    fn attach_bank_payment<'a>(
+        &'a mut self,
+        bank_transaction_id: &'a str,
+        finance_payment_id: &'a str,
+    ) -> PosFuture<'a, ()> {
+        Box::pin(async move {
+            self.bank_matches
+                .push((bank_transaction_id.to_owned(), finance_payment_id.to_owned()));
             Ok(())
         })
     }
@@ -543,6 +581,18 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
                             }
                             _ => None,
                         };
+                        let bank = match &command.input {
+                            PosCommandInput::PaymentVerifyTransfer(input) => {
+                                read_pos_bank_transaction(
+                                    connection,
+                                    company.as_str(),
+                                    &input.bank_transaction_id,
+                                )
+                                .await
+                                .map_err(business)?
+                            }
+                            _ => None,
+                        };
                         let mut repository = PgPosCommandRepository::new(connection);
                         let mut finance = PosFinanceQueue {
                             business_date,
@@ -551,6 +601,8 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
                             journals: Vec::new(),
                             receipts: Vec::new(),
                             invoices: Vec::new(),
+                            bank,
+                            bank_matches: Vec::new(),
                         };
                         let mut inventory = PosInventoryQueue::default();
                         let mut hospitality = PosHospitalitySnapshot;
@@ -671,6 +723,15 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
                                 .attach_invoice(&invoice.sale_id, &invoice.invoice_id)
                                 .await
                                 .map_err(business)?;
+                        }
+                        for (bank_transaction_id, finance_payment_id) in finance.bank_matches {
+                            attach_pos_bank_payment(
+                                connection,
+                                &bank_transaction_id,
+                                &finance_payment_id,
+                            )
+                            .await
+                            .map_err(business)?;
                         }
                         Ok(PosCommandHttpResponse {
                             data: result.to_wire(),

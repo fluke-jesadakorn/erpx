@@ -2,8 +2,8 @@
 //! PostgreSQL. Cross-owner Finance/Inventory/PMS effects are recording ports;
 //! these tests prove POS-owned persistence, CAS, idempotency and readback.
 use erpx_server_pos::public::commands::{
-    PgPosCommandRepository, PosActor, PosCatalogProduct, PosCatalogSnapshot, PosCommand,
-    PosConsumptionPart, PosFinancePort, PosFuture, PosHospitalityPort, PosInventoryPort,
+    PgPosCommandRepository, PosActor, PosBankTransaction, PosCatalogProduct, PosCatalogSnapshot,
+    PosCommand, PosConsumptionPart, PosFinancePort, PosFuture, PosHospitalityPort, PosInventoryPort,
     PosInvoiceRequest, PosJournalRequest, PosOperation, PosOrganizationPort, PosReceiptRequest,
     PosResult, PosStockRow, execute_pos_command,
 };
@@ -51,6 +51,27 @@ impl PosFinancePort for Finance {
     fn record_invoice<'a>(&'a mut self, _: &'a PosInvoiceRequest) -> PosFuture<'a, ()> {
         Box::pin(async { Ok(()) })
     }
+    fn bank_transaction<'a>(
+        &'a mut self,
+        _: &'a CompanyId,
+        id: &'a str,
+    ) -> PosFuture<'a, Option<PosBankTransaction>> {
+        let bank = BANK.with(|bank| bank.borrow().clone()).filter(|bank| bank.id == id);
+        Box::pin(async move { Ok(bank) })
+    }
+    fn attach_bank_payment<'a>(
+        &'a mut self,
+        _: &'a str,
+        _: &'a str,
+    ) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+}
+thread_local! {
+    static BANK: std::cell::RefCell<Option<PosBankTransaction>> = const { std::cell::RefCell::new(None) };
+}
+fn set_bank(bank: Option<PosBankTransaction>) {
+    BANK.with(|value| *value.borrow_mut() = bank);
 }
 #[derive(Clone)]
 struct Inventory;
@@ -1302,5 +1323,89 @@ fn sale_complete_consumes_stock_and_marks_the_bill_completed() {
         assert_eq!(moves.0, -1000);
         assert_eq!(moves.1, -1000);
         assert_eq!(moves.2, "POS-complete-fulfilment");
+    });
+}
+
+#[test]
+fn payment_verify_transfer_matches_bank_evidence_and_settles() {
+    with_database(|pool| async move {
+        setup(&pool).await;
+        set_bank(Some(PosBankTransaction {
+            id: "bank".into(),
+            version: 1,
+            match_status: "unmatched".into(),
+            bank_account: "bank".into(),
+            currency: "THB".into(),
+            amount_minor: 10000,
+            external_id: "REF-1".into(),
+            transaction_date: "2027-01-15".into(),
+        }));
+        sqlx::raw_sql(
+            "INSERT INTO pos_sales(id,company_id,branch_id,register_id,shift_id,number,currency,business_date,state,subtotal_minor,tax_minor,discount_minor,total_minor,created_by,created_at,updated_at,accounts_json,service_mode,version) VALUES('sale-transfer','company','branch','register','shift','POS-T','THB','2027-01-15','payment_pending',10000,0,0,10000,'cashier',0,0,'{}','retail',1);\
+             INSERT INTO pos_payments(id,sale_id,company_id,method,amount_minor,tendered_minor,reference,state,created_by,created_at,updated_at,version) VALUES('transfer-payment','sale-transfer','company','transfer',10000,10000,'REF-1','pending','cashier',0,0,1);"
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let verify = command(
+            PosOperation::PaymentVerifyTransfer,
+            "payment-verify-key-1",
+            serde_json::json!({"id":"transfer-payment","expectedVersion":1,"bankTransactionId":"bank","bankVersion":1}),
+        );
+        let result = run(&pool, actor("manager"), verify).await.unwrap();
+        assert_eq!(result.id, "transfer-payment");
+        assert_eq!(result.version, Some(2));
+        let payment: (String, i64, Option<String>) = sqlx::query_as(
+            "SELECT state,version,finance_payment_id FROM pos_payments WHERE id='transfer-payment'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(payment.0, "succeeded");
+        assert_eq!(payment.1, 2);
+        assert!(payment.2.is_none(), "the fixture Finance fake does not attach");
+        let sale: (String, i64) = sqlx::query_as(
+            "SELECT state,version FROM pos_sales WHERE id='sale-transfer'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(sale, ("payment_pending".into(), 2));
+    });
+}
+
+#[test]
+fn payment_cancel_transfer_cancels_and_reopens_or_keeps_the_bill_pending() {
+    with_database(|pool| async move {
+        setup(&pool).await;
+        set_bank(None);
+        sqlx::raw_sql(
+            "INSERT INTO pos_sales(id,company_id,branch_id,register_id,shift_id,number,currency,business_date,state,subtotal_minor,tax_minor,discount_minor,total_minor,created_by,created_at,updated_at,accounts_json,service_mode,version) VALUES('sale-cancel-transfer','company','branch','register','shift','POS-TC','THB','2027-01-15','payment_pending',10000,0,0,10000,'cashier',0,0,'{}','retail',1);\
+             INSERT INTO pos_payments(id,sale_id,company_id,method,amount_minor,tendered_minor,reference,state,created_by,created_at,updated_at,version) VALUES('cancel-payment','sale-cancel-transfer','company','transfer',10000,10000,'REF-2','pending','cashier',0,0,1);"
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let cancel = command(
+            PosOperation::PaymentCancelTransfer,
+            "payment-cancel-key-1",
+            serde_json::json!({"id":"cancel-payment","expectedVersion":1}),
+        );
+        let result = run(&pool, actor("manager"), cancel).await.unwrap();
+        assert_eq!(result.version, Some(2));
+        let payment: (String, i64) = sqlx::query_as(
+            "SELECT state,version FROM pos_payments WHERE id='cancel-payment'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(payment, ("cancelled".into(), 2));
+        let sale: (String, i64) = sqlx::query_as(
+            "SELECT state,version FROM pos_sales WHERE id='sale-cancel-transfer'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(sale, ("open".into(), 2));
     });
 }

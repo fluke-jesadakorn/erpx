@@ -24,6 +24,8 @@ pub const OPERATION_SALE_DISCOUNT: &str = "sale.discount";
 pub const OPERATION_SALE_MERGE: &str = "sale.merge";
 pub const OPERATION_SALE_SPLIT: &str = "sale.split";
 pub const OPERATION_PAYMENT_CREATE: &str = "payment.create";
+pub const OPERATION_PAYMENT_VERIFY_TRANSFER: &str = "payment.verify_transfer";
+pub const OPERATION_PAYMENT_CANCEL_TRANSFER: &str = "payment.cancel_transfer";
 pub const OPERATION_SALE_COMPLETE: &str = "sale.complete";
 pub const OPERATION_SALE_CANCEL: &str = "sale.cancel";
 pub const OPERATION_REFUND_REQUEST: &str = "refund.request";
@@ -111,6 +113,8 @@ pub enum PosOperation {
     SaleMerge,
     SaleSplit,
     PaymentCreate,
+    PaymentVerifyTransfer,
+    PaymentCancelTransfer,
     SaleComplete,
     SaleHold,
     SaleResume,
@@ -136,6 +140,8 @@ impl PosOperation {
             OPERATION_SALE_MERGE => Self::SaleMerge,
             OPERATION_SALE_SPLIT => Self::SaleSplit,
             OPERATION_PAYMENT_CREATE => Self::PaymentCreate,
+            OPERATION_PAYMENT_VERIFY_TRANSFER => Self::PaymentVerifyTransfer,
+            OPERATION_PAYMENT_CANCEL_TRANSFER => Self::PaymentCancelTransfer,
             OPERATION_SALE_COMPLETE => Self::SaleComplete,
             OPERATION_SALE_HOLD => Self::SaleHold,
             OPERATION_SALE_RESUME => Self::SaleResume,
@@ -161,6 +167,8 @@ impl PosOperation {
             Self::SaleMerge => OPERATION_SALE_MERGE,
             Self::SaleSplit => OPERATION_SALE_SPLIT,
             Self::PaymentCreate => OPERATION_PAYMENT_CREATE,
+            Self::PaymentVerifyTransfer => OPERATION_PAYMENT_VERIFY_TRANSFER,
+            Self::PaymentCancelTransfer => OPERATION_PAYMENT_CANCEL_TRANSFER,
             Self::SaleComplete => OPERATION_SALE_COMPLETE,
             Self::SaleHold => OPERATION_SALE_HOLD,
             Self::SaleResume => OPERATION_SALE_RESUME,
@@ -273,6 +281,18 @@ pub struct PaymentCreateInput {
     pub reference: String,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PaymentVerifyTransferInput {
+    pub id: String,
+    pub expected_version: i64,
+    pub bank_transaction_id: String,
+    pub bank_version: i64,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PaymentCancelTransferInput {
+    pub id: String,
+    pub expected_version: i64,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SaleVersionInput {
     pub id: String,
     pub expected_version: i64,
@@ -315,6 +335,8 @@ pub enum PosCommandInput {
     SaleMerge(SaleMergeInput),
     SaleSplit(SaleSplitInput),
     PaymentCreate(PaymentCreateInput),
+    PaymentVerifyTransfer(PaymentVerifyTransferInput),
+    PaymentCancelTransfer(PaymentCancelTransferInput),
     SaleComplete(SaleVersionInput),
     SaleVersion(SaleVersionInput),
     RefundRequest(RefundRequestInput),
@@ -439,6 +461,29 @@ pub struct PosStockRow {
     pub quantity_milli: i64,
     pub reserved_milli: i64,
     pub value_minor: i64,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PosPayment {
+    pub id: String,
+    pub sale_id: String,
+    pub method: String,
+    pub state: String,
+    pub amount_minor: i64,
+    pub reference: String,
+    pub created_by: String,
+    pub version: i64,
+    pub finance_payment_id: Option<String>,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PosBankTransaction {
+    pub id: String,
+    pub version: i64,
+    pub match_status: String,
+    pub bank_account: String,
+    pub currency: String,
+    pub amount_minor: i64,
+    pub external_id: String,
+    pub transaction_date: String,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PosConsumptionPart {
@@ -1435,6 +1480,50 @@ impl PosCommand {
                         ("amountMinor", amount_minor.to_string()),
                         ("tenderedMinor", tendered_minor.to_string()),
                         ("reference", json_string(&reference)),
+                    ]),
+                )
+            }
+            PosOperation::PaymentVerifyTransfer => {
+                object(
+                    value,
+                    &["id", "expectedVersion", "bankTransactionId", "bankVersion"],
+                    &["id", "expectedVersion", "bankTransactionId", "bankVersion"],
+                )?;
+                let id = text(value, "id")?;
+                let expected_version = version(integer(value, "expectedVersion")?)?;
+                let bank_transaction_id = text(value, "bankTransactionId")?;
+                let bank_version = version(integer(value, "bankVersion")?)?;
+                (
+                    PosCommandInput::PaymentVerifyTransfer(PaymentVerifyTransferInput {
+                        id: id.clone(),
+                        expected_version,
+                        bank_transaction_id: bank_transaction_id.clone(),
+                        bank_version,
+                    }),
+                    canonical(&[
+                        ("id", json_string(&id)),
+                        ("expectedVersion", expected_version.to_string()),
+                        ("bankTransactionId", json_string(&bank_transaction_id)),
+                        ("bankVersion", bank_version.to_string()),
+                    ]),
+                )
+            }
+            PosOperation::PaymentCancelTransfer => {
+                object(
+                    value,
+                    &["id", "expectedVersion"],
+                    &["id", "expectedVersion"],
+                )?;
+                let id = text(value, "id")?;
+                let expected_version = version(integer(value, "expectedVersion")?)?;
+                (
+                    PosCommandInput::PaymentCancelTransfer(PaymentCancelTransferInput {
+                        id: id.clone(),
+                        expected_version,
+                    }),
+                    canonical(&[
+                        ("id", json_string(&id)),
+                        ("expectedVersion", expected_version.to_string()),
                     ]),
                 )
             }

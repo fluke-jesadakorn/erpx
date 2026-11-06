@@ -100,7 +100,7 @@ async fn seed_pos(p: &review::Prepared) {
          INSERT INTO finance_periods(id,company_id,name,start_date,end_date,created_at) \
          VALUES('period-2027','company','2027','2027-01-01','2027-12-31',0) ON CONFLICT DO NOTHING;\
          INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,created_at,updated_at) \
-         VALUES('cash','company','chart','100','Cash','asset',0,0),('difference','company','chart','590','Cash difference','expense',0,0),('advance','company','chart','210','POS customer advances','liability',0,0),('receivable','company','chart','120','Trade receivables','asset',0,0),('revenue','company','chart','401','Product revenue','revenue',0,0),('outputTax','company','chart','220','Output tax payable','liability',0,0),('cogs','company','chart','500','Cost of goods sold','expense',0,0),('inventory','company','chart','130','Inventory','asset',0,0) ON CONFLICT DO NOTHING;\
+         VALUES('cash','company','chart','100','Cash','asset',0,0),('difference','company','chart','590','Cash difference','expense',0,0),('advance','company','chart','210','POS customer advances','liability',0,0),('receivable','company','chart','120','Trade receivables','asset',0,0),('revenue','company','chart','401','Product revenue','revenue',0,0),('outputTax','company','chart','220','Output tax payable','liability',0,0),('cogs','company','chart','500','Cost of goods sold','expense',0,0),('inventory','company','chart','130','Inventory','asset',0,0),('bank','company','chart','110','Operating bank','asset',0,0) ON CONFLICT DO NOTHING;\
          INSERT INTO pos_settings(company_id,enabled,currency,accounts_json,accounting_prepared_by,accounting_approved_by,version) \
          VALUES('company',true,'THB','{\"chartId\":\"chart\",\"cash\":\"cash\",\"cashTransfer\":\"transfer\",\"cashDifference\":\"difference\",\"edc\":\"edc\",\"receivable\":\"receivable\",\"advance\":\"advance\",\"bank\":\"bank\",\"revenue\":\"revenue\",\"outputTax\":\"outputTax\",\"cogs\":\"cogs\",\"inventory\":\"inventory\"}','fixture-a','fixture-b',1) ON CONFLICT DO NOTHING;\
          INSERT INTO pos_registers(id,company_id,branch_id,warehouse_id,name,mode,active,version) \
@@ -478,6 +478,201 @@ async fn pos_http_reviews_a_closed_shift_and_posts_a_balanced_native_journal() {
         .await
         .unwrap();
         assert_eq!(journals, 1);
+    })
+    .await;
+}
+
+/// A pending bank transfer is verified against the imported Finance bank
+/// transaction by an independent Account role: exact bank account, reference,
+/// date, currency and amount, then the receipt journal and match are persisted.
+#[tokio::test]
+async fn pos_http_verifies_and_cancels_a_bank_transfer() {
+    review::account::with_system(|system| async move {
+        let p = review::setup_with_finance(system, false).await;
+        grant_pos(&p).await;
+        seed_pos(&p).await;
+        let app = router(&p);
+
+        sqlx::raw_sql(
+            "INSERT INTO finance_bank_statements(id,company_id,bank_account,statement_number,statement_date,status,source_hash,imported_by,created_at) \
+             VALUES('statement','company','bank','S1','2027-01-15','imported','hash-1','fixture',0);\
+             INSERT INTO finance_bank_transactions(id,statement_id,company_id,transaction_date,external_id,amount_minor,currency) \
+             VALUES('bank-tx','statement','company','2027-01-15','BANK-REF-1',10700,'THB');",
+        )
+        .execute(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+
+        let created = app
+            .clone()
+            .oneshot(request(
+                &p,
+                r#"{"shiftId":"shift","tableId":null,"guests":1,"partyId":null,"serviceMode":"retail","currency":"THB"}"#,
+                "pos-transfer-sale-1",
+            ))
+            .await
+            .unwrap();
+        let status = created.status();
+        let created = json(created).await;
+        assert_eq!(status, StatusCode::OK, "{created}");
+        let sale_id = created["data"]["id"].as_str().unwrap().to_owned();
+        let added = app
+            .clone()
+            .oneshot(request_op(
+                &p,
+                "/api/v1/holdings/acme/pos/commands/sale.add",
+                &format!(
+                    r#"{{"id":"{sale_id}","expectedVersion":1,"productId":"product","quantityMilli":1000,"modifierIds":[],"discountMinor":0,"note":"Transfer line"}}"#
+                ),
+                "pos-transfer-add-1",
+            ))
+            .await
+            .unwrap();
+        assert_eq!(json(added).await["data"]["version"], 2);
+        let paid = app
+            .clone()
+            .oneshot(request_op(
+                &p,
+                "/api/v1/holdings/acme/pos/commands/payment.create",
+                &format!(
+                    r#"{{"id":"{sale_id}","expectedVersion":2,"method":"transfer","amountMinor":10700,"tenderedMinor":10700,"reference":"BANK-REF-1"}}"#
+                ),
+                "pos-transfer-payment-1",
+            ))
+            .await
+            .unwrap();
+        let status = paid.status();
+        let paid = json(paid).await;
+        assert_eq!(status, StatusCode::OK, "{paid}");
+        let payment_id = paid["data"]["id"].as_str().unwrap().to_owned();
+        let pending: (String, i64) = sqlx::query_as(
+            "SELECT state,version FROM pos_payments WHERE id=$1",
+        )
+        .bind(&payment_id)
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(pending, ("pending".into(), 1));
+
+        let verified = app
+            .clone()
+            .oneshot(request_with(
+                &p.reviewer_token,
+                "finance-fixture-b",
+                "3",
+                "/api/v1/holdings/acme/pos/commands/payment.verify_transfer",
+                &format!(
+                    r#"{{"id":"{payment_id}","expectedVersion":1,"bankTransactionId":"bank-tx","bankVersion":1}}"#
+                ),
+                "pos-transfer-verify-1",
+            ))
+            .await
+            .unwrap();
+        let status = verified.status();
+        let verified = json(verified).await;
+        assert_eq!(status, StatusCode::OK, "{verified}");
+        let payment: (String, Option<String>) = sqlx::query_as(
+            "SELECT state,finance_payment_id FROM pos_payments WHERE id=$1",
+        )
+        .bind(&payment_id)
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(payment.0, "succeeded");
+        let receipt: (String, i64, String) = sqlx::query_as(
+            "SELECT status,amount_minor,journal_id FROM finance_payments WHERE id=$1",
+        )
+        .bind(payment.1.clone().expect("receipt") )
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(receipt.0, "settled");
+        assert_eq!(receipt.1, 10_700);
+        assert_eq!(receipt.2, format!("journal-receipt:{payment_id}"));
+        let journal: (String, i64, i64) = sqlx::query_as(
+            "SELECT status,COALESCE(SUM(debit_minor),0)::bigint,COALESCE(SUM(credit_minor),0)::bigint FROM finance_journals j JOIN finance_journal_lines l ON l.journal_id=j.id WHERE j.id=$1 GROUP BY j.status",
+        )
+        .bind(format!("journal-receipt:{payment_id}"))
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(journal, ("posted".into(), 10_700, 10_700));
+        let bank: (String, String) = sqlx::query_as(
+            "SELECT match_status,matched_id FROM finance_bank_transactions WHERE id='bank-tx'",
+        )
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(bank.0, "matched");
+        assert_eq!(bank.1, *payment.1.as_ref().unwrap());
+
+        let created = app
+            .clone()
+            .oneshot(request(
+                &p,
+                r#"{"shiftId":"shift","tableId":null,"guests":1,"partyId":null,"serviceMode":"retail","currency":"THB"}"#,
+                "pos-transfer-sale-2",
+            ))
+            .await
+            .unwrap();
+        let created = json(created).await;
+        let cancel_sale = created["data"]["id"].as_str().unwrap().to_owned();
+        let added = app
+            .clone()
+            .oneshot(request_op(
+                &p,
+                "/api/v1/holdings/acme/pos/commands/sale.add",
+                &format!(
+                    r#"{{"id":"{cancel_sale}","expectedVersion":1,"productId":"product","quantityMilli":1000,"modifierIds":[],"discountMinor":0,"note":"Cancel line"}}"#
+                ),
+                "pos-cancel-add-1",
+            ))
+            .await
+            .unwrap();
+        assert_eq!(json(added).await["data"]["version"], 2);
+        let paid = app
+            .clone()
+            .oneshot(request_op(
+                &p,
+                "/api/v1/holdings/acme/pos/commands/payment.create",
+                &format!(
+                    r#"{{"id":"{cancel_sale}","expectedVersion":2,"method":"transfer","amountMinor":10700,"tenderedMinor":10700,"reference":"BANK-REF-2"}}"#
+                ),
+                "pos-transfer-payment-2",
+            ))
+            .await
+            .unwrap();
+        let paid = json(paid).await;
+        let cancel_payment = paid["data"]["id"].as_str().unwrap().to_owned();
+        let cancelled = app
+            .clone()
+            .oneshot(request_op(
+                &p,
+                "/api/v1/holdings/acme/pos/commands/payment.cancel_transfer",
+                &format!(r#"{{"id":"{cancel_payment}","expectedVersion":1}}"#),
+                "pos-transfer-cancel-1",
+            ))
+            .await
+            .unwrap();
+        let status = cancelled.status();
+        let cancelled = json(cancelled).await;
+        assert_eq!(status, StatusCode::OK, "{cancelled}");
+        let payment: (String, i64) = sqlx::query_as(
+            "SELECT state,version FROM pos_payments WHERE id=$1",
+        )
+        .bind(&cancel_payment)
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(payment, ("cancelled".into(), 2));
+        let sale: (String, i64) = sqlx::query_as(
+            "SELECT state,version FROM pos_sales WHERE id=$1",
+        )
+        .bind(&cancel_sale)
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(sale, ("open".into(), 4));
     })
     .await;
 }

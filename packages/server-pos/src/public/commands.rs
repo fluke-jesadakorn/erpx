@@ -7,8 +7,9 @@ pub use crate::application::commands::{
 pub use crate::domain::commands::{
     CashApproveInput, PosActor, PosCashMovement, PosCatalogProduct, PosCatalogSnapshot, PosCommand,
     PosCommandInput, PosFulfillment, PosFulfillmentInsert, PosJournalLine, PosJournalRequest, PosLine,
-    PosConsumptionPart, PosFulfillmentSplitFacts, PosFulfillmentStock, PosInvoiceRequest,
-    PosLineDetail, PosLineDiscountRow, PosLineInsert, PosLineSplitRow,
+    PaymentCancelTransferInput, PaymentVerifyTransferInput, PosBankTransaction, PosConsumptionPart,
+    PosFulfillmentSplitFacts, PosFulfillmentStock, PosInvoiceRequest, PosLineDetail, PosLineDiscountRow,
+    PosLineInsert, PosLineSplitRow, PosPayment,
     PosOperation, PosReceipt, PosRefund, PosRegister, PosResult, PosSale,
     PosPaymentInsert, PosReceiptRequest, PosSettings, PosShift, PosStockRow, RefundLineInput,
     RefundRejectInput, RefundRequestInput, SaleAddInput,

@@ -3,9 +3,10 @@
 use erpx_server_pos::public::commands::{
     CashApproveInput, PosActor, PosCashMovement, PosCommand, PosCommandRepository, PosFinancePort,
     PosFulfillment, PosFulfillmentInsert, PosFuture, PosHospitalityPort, PosJournalRequest, PosLine,
-    PosConsumptionPart, PosFulfillmentSplitFacts, PosFulfillmentStock, PosInventoryPort,
-    PosInvoiceRequest, PosLineDetail, PosLineDiscountRow, PosLineInsert, PosLineSplitRow, PosOperation,
-    PosOrganizationPort, PosPaymentInsert, PosReceipt, PosReceiptRequest, PosRefund, PosStockRow,
+    PosBankTransaction, PosConsumptionPart, PosFulfillmentSplitFacts, PosFulfillmentStock,
+    PosInventoryPort, PosInvoiceRequest, PosLineDetail, PosLineDiscountRow, PosLineInsert,
+    PosLineSplitRow, PosOperation, PosOrganizationPort, PosPayment, PosPaymentInsert, PosReceipt,
+    PosReceiptRequest, PosRefund, PosStockRow,
     PosRegister, PosResult, PosSale, PosSettings, PosShift, execute_pos_command,
 };
 use erpx_server_shared::public::{
@@ -444,6 +445,15 @@ impl PosCommandRepository for Probe {
         Box::pin(async move { Ok(self.reject) })
     }
 
+    fn payment<'a>(&'a mut self, _: &'a CompanyId, _: &'a str) -> PosFuture<'a, Option<PosPayment>> {
+        Box::pin(async { Ok(None) })
+    }
+    fn cancel_payment<'a>(&'a mut self, _: &'a str, _: TimestampMillis) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn reopen_sale<'a>(&'a mut self, _: &'a str, _: &'a str, _: TimestampMillis) -> PosFuture<'a, bool> {
+        Box::pin(async { Ok(true) })
+    }
     fn sale_paid_total<'a>(&'a mut self, _: &'a str) -> PosFuture<'a, i64> {
         Box::pin(async { Ok(0) })
     }
@@ -604,6 +614,16 @@ impl PosFinancePort for Finance {
     }
     fn record_invoice<'a>(&'a mut self, request: &'a PosInvoiceRequest) -> PosFuture<'a, ()> {
         self.calls.push(format!("invoice:{}", request.total_minor));
+        Box::pin(async { Ok(()) })
+    }
+    fn bank_transaction<'a>(
+        &'a mut self,
+        _: &'a CompanyId,
+        _: &'a str,
+    ) -> PosFuture<'a, Option<PosBankTransaction>> {
+        Box::pin(async { Ok(None) })
+    }
+    fn attach_bank_payment<'a>(&'a mut self, _: &'a str, _: &'a str) -> PosFuture<'a, ()> {
         Box::pin(async { Ok(()) })
     }
 }

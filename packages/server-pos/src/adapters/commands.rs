@@ -5,8 +5,8 @@ use crate::application::commands::{PosCommandRepository, PosFuture};
 use crate::domain::commands::{
     CashApproveInput, PosActor, PosCashMovement, PosCommand, PosFulfillment, PosFulfillmentInsert,
     PosFulfillmentSplitFacts, PosLine, PosLineDetail, PosLineDiscountRow, PosLineInsert,
-    PosFulfillmentStock, PosLineSplitRow, PosPaymentInsert, PosReceipt, PosRefund, PosRegister,
-    PosSale, PosSettings,
+    PosFulfillmentStock, PosLineSplitRow, PosPayment, PosPaymentInsert, PosReceipt, PosRefund,
+    PosRegister, PosSale, PosSettings,
     PosShift, RefundRequestInput, SaleCreateInput,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
@@ -1372,6 +1372,59 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
                 .execute(&mut *self.connection)
                 .await?;
             Ok(())
+        })
+    }
+    fn payment<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        payment_id: &'a str,
+    ) -> Fut<'a, Option<PosPayment>> {
+        Box::pin(async move {
+            self.ready().await?;
+            let row = sqlx::query(
+                "SELECT id,sale_id,method,state,amount_minor,reference,created_by,version,finance_payment_id FROM pos_payments WHERE id=$1 AND company_id=$2 FOR UPDATE",
+            )
+            .bind(payment_id)
+            .bind(company.as_str())
+            .fetch_optional(&mut *self.connection)
+            .await?;
+            row.map(|row| {
+                Ok::<_, Error>(PosPayment {
+                    id: row.try_get("id")?,
+                    sale_id: row.try_get("sale_id")?,
+                    method: row.try_get("method")?,
+                    state: row.try_get("state")?,
+                    amount_minor: row.try_get("amount_minor")?,
+                    reference: row.try_get("reference")?,
+                    created_by: row.try_get("created_by")?,
+                    version: row.try_get("version")?,
+                    finance_payment_id: row.try_get("finance_payment_id")?,
+                })
+            })
+            .transpose()
+        })
+    }
+    fn cancel_payment<'a>(&'a mut self, payment_id: &'a str, now: TimestampMillis) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query("UPDATE pos_payments SET state='cancelled',version=version+1,updated_at=$1 WHERE id=$2")
+                .bind(now.get())
+                .bind(payment_id)
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(())
+        })
+    }
+    fn reopen_sale<'a>(&'a mut self, sale_id: &'a str, state: &'a str, now: TimestampMillis) -> Fut<'a, bool> {
+        Box::pin(async move {
+            self.ready().await?;
+            let rows = sqlx::query("UPDATE pos_sales SET state=$1,version=version+1,updated_at=$2 WHERE id=$3")
+                .bind(state)
+                .bind(now.get())
+                .bind(sale_id)
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(rows.rows_affected() == 1)
         })
     }
     fn prepared_day_close<'a>(
