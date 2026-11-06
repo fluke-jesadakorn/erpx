@@ -17,3 +17,4 @@ pub mod service_parts_posting;
 pub mod service_initial_count_masters;
 pub mod service_stock_masters;
 pub mod receipt;
+pub mod pos_catalog;
