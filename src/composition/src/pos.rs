@@ -27,6 +27,10 @@ use erpx_server_pos::public::commands_http::{
     PosCommandHttpBackend, PosCommandHttpFuture, PosCommandHttpRequest, PosCommandHttpResponse,
     PosCommandHttpTarget,
 };
+use erpx_server_finance::public::FinanceActor;
+use erpx_server_finance::public::pos_journal::{
+    PosJournalLine as FinancePosJournalLine, PosJournalPosting, post_pos_journal,
+};
 use erpx_server_finance::public::pos_sources::{
     finance_party_exists, lock_pos_finance_sources, read_open_period_for_date,
 };
@@ -94,13 +98,14 @@ impl HoldingWorkSourcePreparation for PosCommandSources {
     }
 }
 
-struct PosFinanceSnapshot {
+struct PosFinanceQueue {
     business_date: String,
     period_open: bool,
     party_exists: bool,
+    journals: Vec<PosJournalRequest>,
 }
 
-impl PosFinancePort for PosFinanceSnapshot {
+impl PosFinancePort for PosFinanceQueue {
     fn open_period<'a>(&'a mut self, _: &'a CompanyId, date: &'a str) -> PosFuture<'a, ()> {
         Box::pin(async move {
             if date == self.business_date && self.period_open {
@@ -115,16 +120,20 @@ impl PosFinancePort for PosFinanceSnapshot {
         })
     }
 
+    /// Reserve the deterministic Finance journal identity from the POS posting
+    /// source key. The actual owner write runs on the same serializable
+    /// transaction after the POS command has inserted its posting receipt.
     fn post_journal<'a>(
         &'a mut self,
-        _: &'a PosJournalRequest,
+        request: &'a PosJournalRequest,
     ) -> PosFuture<'a, Option<String>> {
-        Box::pin(async {
-            Err(BusinessError::new(
-                FailureKind::Unavailable,
-                "POS_FINANCE_JOURNAL_PORT_REQUIRED",
-                "The POS journal port needs the shared owner transaction contract.",
-            ))
+        Box::pin(async move {
+            // The Finance owner resolves the open period for the journal's
+            // own business date inside the same transaction; this port only
+            // reserves the deterministic journal identity and exact draft.
+            let journal_id = format!("journal-{}", request.source_key);
+            self.journals.push(request.clone());
+            Ok(Some(journal_id))
         })
     }
 
@@ -413,10 +422,11 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
                             expires_at: current.expires_at(),
                         };
                         let mut repository = PgPosCommandRepository::new(connection);
-                        let mut finance = PosFinanceSnapshot {
+                        let mut finance = PosFinanceQueue {
                             business_date,
                             period_open,
                             party_exists: party,
+                            journals: Vec::new(),
                         };
                         let mut hospitality = PosHospitalitySnapshot;
                         let mut organization = PosOrganizationSnapshot(issuer);
@@ -430,6 +440,37 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
                             now,
                         )
                         .await?;
+                        drop(repository);
+                        let finance_actor = FinanceActor {
+                            user_id: actor.user_id.clone(),
+                            holding_id: actor.holding_id.clone(),
+                            company_id: actor.company_id.clone(),
+                            assignment_id: actor.assignment_id.clone(),
+                        };
+                        for request in finance.journals {
+                            let posting = PosJournalPosting {
+                                journal_id: format!("journal-{}", request.source_key),
+                                actor: finance_actor.clone(),
+                                chart_id: request.chart_id,
+                                currency: request.currency,
+                                business_date: request.business_date,
+                                memo: format!("POS {}", request.source_key),
+                                source_key: request.source_key,
+                                source_id: request.source_id,
+                                lines: request
+                                    .lines
+                                    .into_iter()
+                                    .map(|line| FinancePosJournalLine {
+                                        account_id: line.account_id,
+                                        debit_minor: line.debit,
+                                        credit_minor: line.credit,
+                                    })
+                                    .collect(),
+                            };
+                            post_pos_journal(connection, clock.as_ref(), &posting)
+                                .await
+                                .map_err(business)?;
+                        }
                         Ok(PosCommandHttpResponse {
                             data: result.to_wire(),
                             context: context(current),

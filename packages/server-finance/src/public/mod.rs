@@ -125,3 +125,4 @@ pub mod bank_workspace;
 pub mod period_close;
 
 pub mod pos_sources;
+pub mod pos_journal;
