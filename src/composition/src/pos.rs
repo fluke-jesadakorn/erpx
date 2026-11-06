@@ -22,8 +22,9 @@ use erpx_server_pos::public::commands::{
     PgPosCommandRepository, PosActor, PosCommand, PosCommandInput, PosCommandRepository,
     PosBankTransaction as PosDomainBankTransaction, PosCatalogProduct as PosCatalogSnapshotProduct,
     PosCatalogSnapshot, PosConsumptionPart, PosFinancePort, PosFuture, PosHospitalityPort,
-    PosInventoryPort, PosInvoiceRequest, PosJournalRequest, PosOrganizationPort, PosReceiptRequest,
-    PosResult, PosStockRow, execute_pos_command,
+    PosInventoryPort, PosInvoiceRequest, PosJournalRequest, PosOrganizationPort,
+    PosRefundPaymentRequest, PosReceiptRequest, PosResult, PosReturnPart, PosStockRow,
+    execute_pos_command,
 };
 use erpx_server_pos::public::commands_http::{
     PosCommandHttpBackend, PosCommandHttpFuture, PosCommandHttpRequest, PosCommandHttpResponse,
@@ -34,12 +35,12 @@ use erpx_server_inventory::public::availability_read::{
     lock_availability_sources, read_availability,
 };
 use erpx_server_inventory::public::pos_consumption::{
-    PosConsumptionPart as InventoryConsumptionPart, consume_pos_parts,
+    PosConsumptionPart as InventoryConsumptionPart, consume_pos_parts, return_pos_parts,
 };
 use erpx_server_finance::public::FinanceActor;
 use erpx_server_finance::public::pos_journal::{
     PosInvoiceRecord, PosJournalLine as FinancePosJournalLine, PosJournalPosting, PosReceiptRecord,
-    insert_pos_invoice, insert_pos_receipt, post_pos_journal,
+    insert_pos_invoice, insert_pos_receipt, insert_pos_refund_payment, post_pos_journal,
 };
 use erpx_server_finance::public::pos_sources::{
     PosBankTransaction as PosBankSnapshot, attach_pos_bank_payment, finance_party_exists,
@@ -118,12 +119,14 @@ struct PosFinanceQueue {
     journals: Vec<PosJournalRequest>,
     receipts: Vec<PosReceiptRequest>,
     invoices: Vec<PosInvoiceRequest>,
+    refund_payments: Vec<PosRefundPaymentRequest>,
     bank: Option<PosBankSnapshot>,
     bank_matches: Vec<(String, String)>,
 }
 #[derive(Default)]
 struct PosInventoryQueue {
     parts: Vec<PosConsumptionPart>,
+    returns: Vec<PosReturnPart>,
 }
 
 impl PosInventoryPort for PosInventoryQueue {
@@ -137,6 +140,16 @@ impl PosInventoryPort for PosInventoryQueue {
                 .iter()
                 .map(|part| part.expected_value_minor)
                 .sum())
+        })
+    }
+
+    fn queue_return<'a>(
+        &'a mut self,
+        parts: &'a [PosReturnPart],
+    ) -> PosFuture<'a, ()> {
+        Box::pin(async move {
+            self.returns.extend_from_slice(parts);
+            Ok(())
         })
     }
 }
@@ -233,9 +246,21 @@ impl PosFinancePort for PosFinanceQueue {
             Ok(())
         })
     }
+
+    fn record_refund_payment<'a>(
+        &'a mut self,
+        request: &'a PosRefundPaymentRequest,
+    ) -> PosFuture<'a, ()> {
+        Box::pin(async move {
+            self.refund_payments.push(request.clone());
+            Ok(())
+        })
+    }
 }
 
-struct PosHospitalitySnapshot;
+struct PosHospitalitySnapshot {
+    hotel: bool,
+}
 
 impl PosHospitalityPort for PosHospitalitySnapshot {
     fn hotel_day_open<'a>(
@@ -245,22 +270,28 @@ impl PosHospitalityPort for PosHospitalitySnapshot {
         _: &'a str,
         _: &'a str,
     ) -> PosFuture<'a, bool> {
-        Box::pin(async {
-            Err(BusinessError::new(
-                FailureKind::Unavailable,
-                "POS_HOSPITALITY_PORT_REQUIRED",
-                "The PMS hospitality port is not mounted.",
-            ))
+        Box::pin(async move {
+            if self.hotel {
+                return Err(BusinessError::new(
+                    FailureKind::Unavailable,
+                    "POS_HOSPITALITY_PORT_REQUIRED",
+                    "The PMS hospitality port is not mounted.",
+                ));
+            }
+            Ok(true)
         })
     }
 
     fn room_charge_exists<'a>(&'a mut self, _: &'a str) -> PosFuture<'a, bool> {
-        Box::pin(async {
-            Err(BusinessError::new(
-                FailureKind::Unavailable,
-                "POS_HOSPITALITY_PORT_REQUIRED",
-                "The PMS hospitality port is not mounted.",
-            ))
+        Box::pin(async move {
+            if self.hotel {
+                return Err(BusinessError::new(
+                    FailureKind::Unavailable,
+                    "POS_HOSPITALITY_PORT_REQUIRED",
+                    "The PMS hospitality port is not mounted.",
+                ));
+            }
+            Ok(false)
         })
     }
 }
@@ -593,6 +624,10 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
                             }
                             _ => None,
                         };
+                        let hotel = PgPosCommandRepository::new(connection)
+                            .company_hotel_registers(&company)
+                            .await
+                            .map_err(business)?;
                         let mut repository = PgPosCommandRepository::new(connection);
                         let mut finance = PosFinanceQueue {
                             business_date,
@@ -601,11 +636,12 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
                             journals: Vec::new(),
                             receipts: Vec::new(),
                             invoices: Vec::new(),
+                            refund_payments: Vec::new(),
                             bank,
                             bank_matches: Vec::new(),
                         };
                         let mut inventory = PosInventoryQueue::default();
-                        let mut hospitality = PosHospitalitySnapshot;
+                        let mut hospitality = PosHospitalitySnapshot { hotel };
                         let mut organization = PosOrganizationSnapshot(issuer);
                         let result: PosResult = execute_pos_command(
                             &actor,
@@ -626,6 +662,24 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
                                 connection,
                                 &inventory
                                     .parts
+                                    .iter()
+                                    .map(|part| InventoryConsumptionPart {
+                                        fulfillment_id: part.fulfillment_id.clone(),
+                                        warehouse_id: part.warehouse_id.clone(),
+                                        product_id: part.product_id.clone(),
+                                        quantity_milli: part.quantity_milli,
+                                        expected_value_minor: part.expected_value_minor,
+                                    })
+                                    .collect::<Vec<_>>(),
+                            )
+                            .await
+                            .map_err(business)?;
+                        }
+                        if !inventory.returns.is_empty() {
+                            return_pos_parts(
+                                connection,
+                                &inventory
+                                    .returns
                                     .iter()
                                     .map(|part| InventoryConsumptionPart {
                                         fulfillment_id: part.fulfillment_id.clone(),
@@ -723,6 +777,26 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
                                 .attach_invoice(&invoice.sale_id, &invoice.invoice_id)
                                 .await
                                 .map_err(business)?;
+                        }
+                        for refund_payment in finance.refund_payments {
+                            insert_pos_refund_payment(
+                                connection,
+                                &PosReceiptRecord {
+                                    finance_payment_id: refund_payment.finance_payment_id,
+                                    company_id: refund_payment.company_id.as_str().to_owned(),
+                                    party_id: refund_payment.party_id,
+                                    payment_number: refund_payment.number,
+                                    payment_date: refund_payment.payment_date,
+                                    currency: refund_payment.currency,
+                                    amount_minor: refund_payment.amount_minor,
+                                    account_id: refund_payment.account_id,
+                                    journal_id: refund_payment.journal_id,
+                                    actor_id: refund_payment.actor_id.as_str().to_owned(),
+                                    now: refund_payment.now.get(),
+                                },
+                            )
+                            .await
+                            .map_err(business)?;
                         }
                         for (bank_transaction_id, finance_payment_id) in finance.bank_matches {
                             attach_pos_bank_payment(

@@ -3,10 +3,11 @@
 use erpx_server_pos::public::commands::{
     CashApproveInput, PosActor, PosCashMovement, PosCommand, PosCommandRepository, PosFinancePort,
     PosFulfillment, PosFulfillmentInsert, PosFuture, PosHospitalityPort, PosJournalRequest, PosLine,
-    PosBankTransaction, PosConsumptionPart, PosFulfillmentSplitFacts, PosFulfillmentStock,
-    PosInventoryPort, PosInvoiceRequest, PosLineDetail, PosLineDiscountRow, PosLineInsert,
-    PosLineSplitRow, PosOperation, PosOrganizationPort, PosPayment, PosPaymentInsert, PosReceipt,
-    PosReceiptRequest, PosRefund, PosStockRow,
+    PosBankTransaction, PosConsumptionPart, PosFulfillmentReturnFacts, PosFulfillmentSplitFacts,
+    PosFulfillmentStock, PosInventoryPort, PosInvoiceRequest, PosLineDetail, PosLineDiscountRow,
+    PosLineInsert, PosLineSplitRow, PosOperation, PosOrganizationPort, PosPayment, PosPaymentInsert,
+    PosPaymentRefundRow, PosReceipt, PosReceiptRequest, PosRefund, PosRefundDetail, PosRefundLineRow,
+    PosRefundPaymentRequest, PosReturnPart, PosStockRow,
     PosRegister, PosResult, PosSale, PosSettings, PosShift, execute_pos_command,
 };
 use erpx_server_shared::public::{
@@ -445,6 +446,50 @@ impl PosCommandRepository for Probe {
         Box::pin(async move { Ok(self.reject) })
     }
 
+    fn refund_detail<'a>(&'a mut self, _: &'a CompanyId, _: &'a str) -> PosFuture<'a, Option<PosRefundDetail>> {
+        Box::pin(async { Ok(None) })
+    }
+    fn sale_succeeded_payments<'a>(&'a mut self, _: &'a str) -> PosFuture<'a, Vec<PosPaymentRefundRow>> {
+        Box::pin(async { Ok(Vec::new()) })
+    }
+    fn refund_line<'a>(&'a mut self, _: &'a str, _: &'a str) -> PosFuture<'a, Option<PosRefundLineRow>> {
+        Box::pin(async { Ok(None) })
+    }
+    fn fulfillment_return_facts<'a>(&'a mut self, _: &'a str) -> PosFuture<'a, Option<PosFulfillmentReturnFacts>> {
+        Box::pin(async { Ok(None) })
+    }
+    fn update_line_return<'a>(&'a mut self, _: &'a str, _: i64, _: i64, _: i64, _: i64) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn insert_stock_return<'a>(
+        &'a mut self,
+        _: &'a str,
+        _: &'a str,
+        _: &'a str,
+        _: &'a str,
+        _: &'a str,
+        _: i64,
+        _: i64,
+        _: &'a str,
+        _: &'a str,
+        _: &'a str,
+        _: TimestampMillis,
+    ) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn insert_refund_payment<'a>(&'a mut self, _: &'a str, _: &'a str, _: &'a str, _: i64) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn bump_payment_refunded<'a>(&'a mut self, _: &'a str, _: i64, _: TimestampMillis) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn complete_refund<'a>(&'a mut self, _: &'a str, _: &'a str, _: TimestampMillis) -> PosFuture<'a, bool> {
+        Box::pin(async { Ok(true) })
+    }
+    fn company_hotel_registers<'a>(&'a mut self, _: &'a CompanyId) -> PosFuture<'a, bool> {
+        Box::pin(async { Ok(false) })
+    }
     fn payment<'a>(&'a mut self, _: &'a CompanyId, _: &'a str) -> PosFuture<'a, Option<PosPayment>> {
         Box::pin(async { Ok(None) })
     }
@@ -626,6 +671,10 @@ impl PosFinancePort for Finance {
     fn attach_bank_payment<'a>(&'a mut self, _: &'a str, _: &'a str) -> PosFuture<'a, ()> {
         Box::pin(async { Ok(()) })
     }
+    fn record_refund_payment<'a>(&'a mut self, request: &'a PosRefundPaymentRequest) -> PosFuture<'a, ()> {
+        self.calls.push(format!("refund-payment:{}", request.amount_minor));
+        Box::pin(async { Ok(()) })
+    }
 }
 #[derive(Default)]
 struct Inventory {
@@ -638,6 +687,10 @@ impl PosInventoryPort for Inventory {
     ) -> PosFuture<'a, i64> {
         self.calls.push(format!("consume:{}", parts.len()));
         Box::pin(async move { Ok(parts.iter().map(|part| part.expected_value_minor).sum()) })
+    }
+    fn queue_return<'a>(&'a mut self, parts: &'a [PosReturnPart]) -> PosFuture<'a, ()> {
+        self.calls.push(format!("return:{}", parts.len()));
+        Box::pin(async { Ok(()) })
     }
 }
 #[derive(Default)]

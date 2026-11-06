@@ -4,8 +4,8 @@
 use erpx_server_pos::public::commands::{
     PgPosCommandRepository, PosActor, PosBankTransaction, PosCatalogProduct, PosCatalogSnapshot,
     PosCommand, PosConsumptionPart, PosFinancePort, PosFuture, PosHospitalityPort, PosInventoryPort,
-    PosInvoiceRequest, PosJournalRequest, PosOperation, PosOrganizationPort, PosReceiptRequest,
-    PosResult, PosStockRow, execute_pos_command,
+    PosInvoiceRequest, PosJournalRequest, PosOperation, PosOrganizationPort, PosRefundPaymentRequest,
+    PosReceiptRequest, PosResult, PosReturnPart, PosStockRow, execute_pos_command,
 };
 use erpx_server_runtime::public::postgres::{
     DatabaseConfig, DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, PoolLimits,
@@ -66,6 +66,9 @@ impl PosFinancePort for Finance {
     ) -> PosFuture<'a, ()> {
         Box::pin(async { Ok(()) })
     }
+    fn record_refund_payment<'a>(&'a mut self, _: &'a PosRefundPaymentRequest) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
 }
 thread_local! {
     static BANK: std::cell::RefCell<Option<PosBankTransaction>> = const { std::cell::RefCell::new(None) };
@@ -81,6 +84,9 @@ impl PosInventoryPort for Inventory {
         parts: &'a [PosConsumptionPart],
     ) -> PosFuture<'a, i64> {
         Box::pin(async move { Ok(parts.iter().map(|part| part.expected_value_minor).sum()) })
+    }
+    fn queue_return<'a>(&'a mut self, _: &'a [PosReturnPart]) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
     }
 }
 struct Hospitality;
@@ -152,7 +158,7 @@ async fn setup(pool: &DatabasePool) {
          ('journal-shift','company','chart','period','J-SHIFT','2027-01-15','THB','pos','shift','POS-GL-SHIFT','posted','owner',0,0),\
          ('journal-cash','company','chart','period','J-CASH','2027-01-15','THB','pos','cash','POS-GL-CASH','posted','owner',0,0);\
          INSERT INTO pos_settings(company_id,enabled,currency,accounts_json,accounting_prepared_by,accounting_approved_by,version) VALUES \
-         ('company',true,'THB','{\"chartId\":\"chart\",\"cash\":\"cash\",\"cashTransfer\":\"transfer\",\"cashDifference\":\"difference\",\"edc\":\"edc\",\"receivable\":\"receivable\",\"advance\":\"advance\",\"bank\":\"bank\",\"revenue\":\"revenue\",\"outputTax\":\"outputTax\",\"cogs\":\"cogs\",\"inventory\":\"inventory\"}','owner','finance',1);\
+         ('company',true,'THB','{\"chartId\":\"chart\",\"cash\":\"cash\",\"cashTransfer\":\"transfer\",\"cashDifference\":\"difference\",\"edc\":\"edc\",\"receivable\":\"receivable\",\"advance\":\"advance\",\"bank\":\"bank\",\"revenue\":\"revenue\",\"outputTax\":\"outputTax\",\"cogs\":\"cogs\",\"inventory\":\"inventory\",\"refund\":\"refund\"}','owner','finance',1);\
          INSERT INTO pos_registers(id,company_id,branch_id,warehouse_id,name,mode,active,version) VALUES \
          ('register','company','branch','warehouse','Retail','retail',true,1);\
          INSERT INTO pos_shifts(id,register_id,company_id,branch_id,opened_by,opened_at,opening_minor,state,version,business_date) VALUES \
@@ -1407,5 +1413,65 @@ fn payment_cancel_transfer_cancels_and_reopens_or_keeps_the_bill_pending() {
         .await
         .unwrap();
         assert_eq!(sale, ("open".into(), 2));
+    });
+}
+
+#[test]
+fn refund_approve_returns_stock_and_settles_the_cash_refund() {
+    with_database(|pool| async move {
+        setup(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO pos_sales(id,company_id,branch_id,register_id,shift_id,number,currency,business_date,state,subtotal_minor,tax_minor,discount_minor,total_minor,created_by,created_at,updated_at,accounts_json,service_mode,version) VALUES('sale-refund','company','branch','register','shift','POS-R','THB','2027-01-15','completed',10000,0,0,10000,'cashier',0,0,'{}','retail',5);\
+             INSERT INTO pos_payments(id,sale_id,company_id,method,amount_minor,tendered_minor,state,created_by,created_at,updated_at) VALUES('refund-payment','sale-refund','company','cash',10000,10000,'succeeded','cashier',0,0);\
+             INSERT INTO pos_fulfillments(id,company_id,branch_id,warehouse_id,product_id,quantity_milli,kind,station,recipe_json,accounts_json,currency,business_date,created_at,state,cost_minor) VALUES('refund-fulfilment','company','branch','warehouse','product',1000,'stock','Shop','[]','{}','THB','2027-01-15',0,'delivered',1000);\
+             INSERT INTO pos_lines(id,sale_id,fulfillment_id,product_id,name,quantity_milli,price_minor,tax_bps,tax_inclusive,discount_minor,subtotal_minor,tax_minor,modifiers_json) VALUES('refund-line','sale-refund','refund-fulfilment','product','Product',1000,10000,0,false,0,10000,0,'[]');\
+             INSERT INTO pos_refunds(id,sale_id,company_id,branch_id,payout_shift_id,kind,reason,lines_json,amount_minor,tax_minor,state,requested_by,created_at,accounting_date,version) VALUES('refund-request','sale-refund','company','branch','shift','sale','Customer return','[{\"lineId\":\"refund-line\",\"quantityMilli\":1000,\"restock\":true,\"subtotalMinor\":10000,\"taxMinor\":0,\"previousReturned\":0}]',10000,0,'requested','cashier',0,'2027-01-15',1);"
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let approve = command(
+            PosOperation::RefundApprove,
+            "refund-approve-key-1",
+            serde_json::json!({"id":"refund-request","expectedVersion":1,"reason":"Return accepted"}),
+        );
+        let result = run(&pool, actor("manager"), approve).await.unwrap();
+        assert_eq!(result.id, "refund-request");
+        assert_eq!(result.version, Some(2));
+        let refund: (String, String, i64) = sqlx::query_as(
+            "SELECT state,approved_by,version FROM pos_refunds WHERE id='refund-request'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(refund, ("completed".into(), "manager".into(), 2));
+        let line: (i64, i64, i64) = sqlx::query_as(
+            "SELECT returned_milli,refunded_minor,returned_cost_minor FROM pos_lines WHERE id='refund-line'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(line, (1000, 10000, 1000));
+        let payment: i64 = sqlx::query_scalar(
+            "SELECT refunded_minor FROM pos_payments WHERE id='refund-payment'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(payment, 10000);
+        let refund_payment: (i64, String) = sqlx::query_as(
+            "SELECT amount_minor,state FROM pos_refund_payments WHERE refund_id='refund-request'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(refund_payment, (10000, "succeeded".into()));
+        let stock_move: (String, i64, i64) = sqlx::query_as(
+            "SELECT kind,quantity_milli,value_minor FROM pos_stock_moves WHERE fulfillment_id='refund-fulfilment' AND source_id='refund-request'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(stock_move, ("return".into(), 1000, 1000));
     });
 }

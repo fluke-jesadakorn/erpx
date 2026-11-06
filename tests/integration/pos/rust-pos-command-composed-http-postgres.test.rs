@@ -100,9 +100,9 @@ async fn seed_pos(p: &review::Prepared) {
          INSERT INTO finance_periods(id,company_id,name,start_date,end_date,created_at) \
          VALUES('period-2027','company','2027','2027-01-01','2027-12-31',0) ON CONFLICT DO NOTHING;\
          INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,created_at,updated_at) \
-         VALUES('cash','company','chart','100','Cash','asset',0,0),('difference','company','chart','590','Cash difference','expense',0,0),('advance','company','chart','210','POS customer advances','liability',0,0),('receivable','company','chart','120','Trade receivables','asset',0,0),('revenue','company','chart','401','Product revenue','revenue',0,0),('outputTax','company','chart','220','Output tax payable','liability',0,0),('cogs','company','chart','500','Cost of goods sold','expense',0,0),('inventory','company','chart','130','Inventory','asset',0,0),('bank','company','chart','110','Operating bank','asset',0,0) ON CONFLICT DO NOTHING;\
+         VALUES('cash','company','chart','100','Cash','asset',0,0),('difference','company','chart','590','Cash difference','expense',0,0),('advance','company','chart','210','POS customer advances','liability',0,0),('receivable','company','chart','120','Trade receivables','asset',0,0),('revenue','company','chart','401','Product revenue','revenue',0,0),('outputTax','company','chart','220','Output tax payable','liability',0,0),('cogs','company','chart','500','Cost of goods sold','expense',0,0),('inventory','company','chart','130','Inventory','asset',0,0),('bank','company','chart','110','Operating bank','asset',0,0),('refund','company','chart','230','POS customer refunds payable','liability',0,0) ON CONFLICT DO NOTHING;\
          INSERT INTO pos_settings(company_id,enabled,currency,accounts_json,accounting_prepared_by,accounting_approved_by,version) \
-         VALUES('company',true,'THB','{\"chartId\":\"chart\",\"cash\":\"cash\",\"cashTransfer\":\"transfer\",\"cashDifference\":\"difference\",\"edc\":\"edc\",\"receivable\":\"receivable\",\"advance\":\"advance\",\"bank\":\"bank\",\"revenue\":\"revenue\",\"outputTax\":\"outputTax\",\"cogs\":\"cogs\",\"inventory\":\"inventory\"}','fixture-a','fixture-b',1) ON CONFLICT DO NOTHING;\
+         VALUES('company',true,'THB','{\"chartId\":\"chart\",\"cash\":\"cash\",\"cashTransfer\":\"transfer\",\"cashDifference\":\"difference\",\"edc\":\"edc\",\"receivable\":\"receivable\",\"advance\":\"advance\",\"bank\":\"bank\",\"revenue\":\"revenue\",\"outputTax\":\"outputTax\",\"cogs\":\"cogs\",\"inventory\":\"inventory\",\"refund\":\"refund\"}','fixture-a','fixture-b',1) ON CONFLICT DO NOTHING;\
          INSERT INTO pos_registers(id,company_id,branch_id,warehouse_id,name,mode,active,version) \
          VALUES('register','company','branch','warehouse','Retail','retail',true,1) ON CONFLICT DO NOTHING;\
          INSERT INTO commerce_products(id,company_id,sku,name,price_minor,tax_bps,status,version) \
@@ -385,6 +385,105 @@ async fn pos_http_creates_a_retail_sale_with_real_organization_and_finance_sourc
         .await
         .unwrap();
         assert_eq!(stock, (4_000, 4_000));
+
+        let line_id: String =
+            sqlx::query_scalar("SELECT id FROM pos_lines WHERE sale_id=$1")
+                .bind(&id)
+                .fetch_one(p.system.holdings[0].raw())
+                .await
+                .unwrap();
+        let requested = app
+            .clone()
+            .oneshot(request_op(
+                &p,
+                "/api/v1/holdings/acme/pos/commands/refund.request",
+                &format!(
+                    r#"{{"id":"{id}","expectedVersion":4,"reason":"Customer return","payoutShiftId":"shift","lines":[{{"lineId":"{line_id}","quantityMilli":1000,"restock":true}}]}}"#
+                ),
+                "pos-http-refund-1",
+            ))
+            .await
+            .unwrap();
+        let status = requested.status();
+        let requested = json(requested).await;
+        assert_eq!(status, StatusCode::OK, "{requested}");
+        let refund_id = requested["data"]["id"].as_str().unwrap().to_owned();
+        let approved = app
+            .clone()
+            .oneshot(request_with(
+                &p.reviewer_token,
+                "finance-fixture-b",
+                "3",
+                "/api/v1/holdings/acme/pos/commands/refund.approve",
+                &format!(
+                    r#"{{"id":"{refund_id}","expectedVersion":1,"reason":"Return accepted"}}"#
+                ),
+                "pos-http-refund-approve-1",
+            ))
+            .await
+            .unwrap();
+        let status = approved.status();
+        let approved = json(approved).await;
+        assert_eq!(status, StatusCode::OK, "{approved}");
+        let refund: (String, String, i64) = sqlx::query_as(
+            "SELECT state,approved_by,version FROM pos_refunds WHERE id=$1",
+        )
+        .bind(&refund_id)
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(refund, ("completed".into(), "fixture-b".into(), 2));
+        let line: (i64, i64, i64) = sqlx::query_as(
+            "SELECT returned_milli,refunded_minor,returned_cost_minor FROM pos_lines WHERE id=$1",
+        )
+        .bind(&line_id)
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(line, (1_000, 10_700, 1_000));
+        let payment: i64 =
+            sqlx::query_scalar("SELECT refunded_minor FROM pos_payments WHERE id=$1")
+                .bind(&payment_id)
+                .fetch_one(p.system.holdings[0].raw())
+                .await
+                .unwrap();
+        assert_eq!(payment, 10_700);
+        let refund_payment: (i64, String) = sqlx::query_as(
+            "SELECT amount_minor,state FROM pos_refund_payments WHERE refund_id=$1",
+        )
+        .bind(&refund_id)
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(refund_payment, (10_700, "succeeded".into()));
+        let stock: (i64, i64) = sqlx::query_as(
+            "SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='product'",
+        )
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(stock, (5_000, 5_000));
+        for journal in [
+            format!("journal-refund:{refund_id}"),
+            format!("journal-return:{refund_id}:{line_id}"),
+        ] {
+            let row: (String, i64, i64) = sqlx::query_as(
+                "SELECT status,COALESCE(SUM(debit_minor),0)::bigint,COALESCE(SUM(credit_minor),0)::bigint FROM finance_journals j JOIN finance_journal_lines l ON l.journal_id=j.id WHERE j.id=$1 GROUP BY j.status",
+            )
+            .bind(&journal)
+            .fetch_one(p.system.holdings[0].raw())
+            .await
+            .unwrap();
+            assert_eq!(row.0, "posted", "{journal}");
+            assert_eq!(row.1, row.2, "{journal}");
+        }
+        let refund_finance: (i64, String) = sqlx::query_as(
+            "SELECT amount_minor,kind FROM finance_payments WHERE payment_number LIKE 'POS-REF-%' AND company_id='company'",
+        )
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(refund_finance, (10_700, "refund".into()));
     })
     .await;
 }

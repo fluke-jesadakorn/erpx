@@ -369,3 +369,47 @@ pub async fn insert_pos_invoice(
     .await?;
     Ok(())
 }
+
+/// Write the settled refund payment row on the caller's open Finance
+/// transaction. The refund journal must already be posted.
+pub async fn insert_pos_refund_payment(
+    c: &mut PgConnection,
+    receipt: &PosReceiptRecord,
+) -> Result<(), Error> {
+    if !c.is_in_transaction() {
+        return Err(
+            erpx_server_runtime::public::postgres::PersistenceError::new(
+                "POS_FINANCE_TRANSACTION_REQUIRED",
+            )
+            .into(),
+        );
+    }
+    if receipt.amount_minor <= 0
+        || receipt.company_id.is_empty()
+        || receipt.payment_number.is_empty()
+        || receipt.journal_id.is_empty()
+    {
+        return Err(invalid(
+            "POS_FINANCE_REFUND_INVALID",
+            "The POS refund payment facts are invalid.",
+        ));
+    }
+    sqlx::query(
+        "INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,bank_account,status,journal_id,created_by,approved_by,created_at,updated_at) \
+         VALUES($1,$2,$3,'refund',$4,$5,$6,$7,0,$8,'settled',$9,$10,$10,$11,$11)",
+    )
+    .bind(&receipt.finance_payment_id)
+    .bind(&receipt.company_id)
+    .bind(&receipt.party_id)
+    .bind(&receipt.payment_number)
+    .bind(&receipt.payment_date)
+    .bind(&receipt.currency)
+    .bind(receipt.amount_minor)
+    .bind(&receipt.account_id)
+    .bind(&receipt.journal_id)
+    .bind(&receipt.actor_id)
+    .bind(receipt.now)
+    .execute(&mut *c)
+    .await?;
+    Ok(())
+}

@@ -106,3 +106,44 @@ pub async fn consume_pos_parts(
     }
     Ok(total)
 }
+
+/// Return restocked POS items to Inventory on the caller's open serializable
+/// transaction. The caller already captured the restored value from the sale.
+pub async fn return_pos_parts(
+    c: &mut PgConnection,
+    parts: &[PosConsumptionPart],
+) -> Result<(), Error> {
+    if !c.is_in_transaction()
+        || sqlx::query_scalar::<_, String>("SHOW transaction_isolation")
+            .fetch_one(&mut *c)
+            .await?
+            != "serializable"
+    {
+        return Err(PersistenceError::new("POS_INVENTORY_TRANSACTION_REQUIRED").into());
+    }
+    for part in parts {
+        if part.quantity_milli <= 0
+            || part.expected_value_minor < 0
+            || part.warehouse_id.is_empty()
+            || part.product_id.is_empty()
+        {
+            return Err(conflict("POS_STOCK_INVALID", "Review the stock return."));
+        }
+        let rows = sqlx::query(
+            "UPDATE commerce_stock SET quantity_milli=quantity_milli+$1,value_minor=value_minor+$2,version=version+1 WHERE warehouse_id=$3 AND product_id=$4",
+        )
+        .bind(part.quantity_milli)
+        .bind(part.expected_value_minor)
+        .bind(&part.warehouse_id)
+        .bind(&part.product_id)
+        .execute(&mut *c)
+        .await?;
+        if rows.rows_affected() != 1 {
+            return Err(conflict(
+                "POS_STOCK_UNAVAILABLE",
+                "The returned stock row is unavailable.",
+            ));
+        }
+    }
+    Ok(())
+}

@@ -9,10 +9,12 @@ use crate::domain::commands::{
     PosCommandInput, PosFulfillment, PosFulfillmentInsert, PosFulfillmentSplitFacts,
     PosFulfillmentStock, PosJournalLine, PosJournalRequest, PosLine, PosLineDetail,
     PaymentCancelTransferInput, PaymentVerifyTransferInput, PosBankTransaction, PosConsumptionPart,
-    PosInvoiceRequest, PosLineDiscountRow, PosLineInsert, PosLineSplitRow, PosOperation, PosPayment,
-    PosPaymentInsert, PosReceipt, PosReceiptRequest, PosRefund, PosRegister, PosResult, PosSale,
-    PosSettings, PosShift, PosStockRow,
-    RefundRejectInput, RefundRequestInput, SaleAddInput, SaleCreateInput, SaleCustomerInput,
+    PosFulfillmentReturnFacts, PosInvoiceRequest, PosLineDiscountRow, PosLineInsert, PosLineSplitRow,
+    PosOperation, PosPayment, PosPaymentInsert, PosPaymentRefundRow, PosReceipt, PosReceiptRequest,
+    PosRefund, PosRefundDetail, PosRefundLineRow, PosRefundPaymentRequest, PosRegister, PosResult,
+    PosReturnPart, PosSale, PosSettings, PosShift, PosStockRow,
+    RefundApproveInput, RefundRejectInput, RefundRequestInput, SaleAddInput, SaleCreateInput,
+    SaleCustomerInput,
     SaleDiscountInput, SaleMergeInput, SaleMoveTableInput, SaleRemoveInput, SaleSplitInput,
     SaleUpdateLineInput, SaleVersionInput, ShiftCloseInput,
     ShiftOpenInput, ShiftReviewInput,
@@ -392,6 +394,69 @@ pub trait PosCommandRepository: Send {
         state: &'a str,
         now: TimestampMillis,
     ) -> PosFuture<'a, bool, Self::Error>;
+    fn refund_detail<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        refund_id: &'a str,
+    ) -> PosFuture<'a, Option<PosRefundDetail>, Self::Error>;
+    fn sale_succeeded_payments<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+    ) -> PosFuture<'a, Vec<PosPaymentRefundRow>, Self::Error>;
+    fn refund_line<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+        line_id: &'a str,
+    ) -> PosFuture<'a, Option<PosRefundLineRow>, Self::Error>;
+    fn fulfillment_return_facts<'a>(
+        &'a mut self,
+        fulfillment_id: &'a str,
+    ) -> PosFuture<'a, Option<PosFulfillmentReturnFacts>, Self::Error>;
+    fn update_line_return<'a>(
+        &'a mut self,
+        line_id: &'a str,
+        quantity_milli: i64,
+        value_minor: i64,
+        tax_minor: i64,
+        cost_minor: i64,
+    ) -> PosFuture<'a, (), Self::Error>;
+    fn insert_stock_return<'a>(
+        &'a mut self,
+        id: &'a str,
+        company_id: &'a str,
+        fulfillment_id: &'a str,
+        warehouse_id: &'a str,
+        product_id: &'a str,
+        quantity_milli: i64,
+        value_minor: i64,
+        movement_date: &'a str,
+        source_id: &'a str,
+        source_number: &'a str,
+        now: TimestampMillis,
+    ) -> PosFuture<'a, (), Self::Error>;
+    fn insert_refund_payment<'a>(
+        &'a mut self,
+        id: &'a str,
+        refund_id: &'a str,
+        payment_id: &'a str,
+        amount_minor: i64,
+    ) -> PosFuture<'a, (), Self::Error>;
+    fn bump_payment_refunded<'a>(
+        &'a mut self,
+        payment_id: &'a str,
+        amount_minor: i64,
+        now: TimestampMillis,
+    ) -> PosFuture<'a, (), Self::Error>;
+    fn complete_refund<'a>(
+        &'a mut self,
+        refund_id: &'a str,
+        actor_id: &'a str,
+        now: TimestampMillis,
+    ) -> PosFuture<'a, bool, Self::Error>;
+    fn company_hotel_registers<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+    ) -> PosFuture<'a, bool, Self::Error>;
     fn prepared_day_close<'a>(
         &'a mut self,
         company: &'a CompanyId,
@@ -458,6 +523,11 @@ pub trait PosFinancePort: Send {
         bank_transaction_id: &'a str,
         finance_payment_id: &'a str,
     ) -> PosFuture<'a, ()>;
+    /// Record the settled refund payment row for an approved POS refund.
+    fn record_refund_payment<'a>(
+        &'a mut self,
+        request: &'a PosRefundPaymentRequest,
+    ) -> PosFuture<'a, ()>;
 }
 pub trait PosInventoryPort: Send {
     /// Queue the precise Inventory consumption facts and return the snapshot
@@ -466,6 +536,11 @@ pub trait PosInventoryPort: Send {
         &'a mut self,
         parts: &'a [PosConsumptionPart],
     ) -> PosFuture<'a, i64>;
+    /// Queue the exact Inventory return facts for a restocked refund line.
+    fn queue_return<'a>(
+        &'a mut self,
+        parts: &'a [PosReturnPart],
+    ) -> PosFuture<'a, ()>;
 }
 pub trait PosHospitalityPort: Send {
     fn hotel_day_open<'a>(
@@ -794,6 +869,9 @@ where
         }
         PosCommandInput::RefundRequest(input) => {
             refund_request(actor, input, repository, hospitality, now).await?
+        }
+        PosCommandInput::RefundApprove(input) => {
+            refund_approve(actor, input, repository, finance, inventory, now).await?
         }
         PosCommandInput::RefundReject(input) => refund_reject(actor, input, repository).await?,
     };
@@ -3020,5 +3098,445 @@ where
     Ok(PosResult {
         id: payment.id,
         version: Some(payment.version + 1),
+    })
+}
+
+struct RefundAccounts {
+    chart_id: String,
+    cash: String,
+    bank: String,
+    edc: String,
+    revenue: String,
+    advance: String,
+    output_tax: String,
+    refund: String,
+    inventory: String,
+    cogs: String,
+}
+fn refund_accounts(settings: &PosSettings) -> Result<RefundAccounts, BusinessError> {
+    let value: serde_json::Value = serde_json::from_str(&settings.accounts_json).map_err(|_| {
+        request_invalid("POS_ACCOUNT_INVALID", "Configured POS accounts are invalid.")
+    })?;
+    let text = |name: &str| {
+        value
+            .get(name)
+            .and_then(serde_json::Value::as_str)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+            .ok_or_else(|| {
+                request_invalid(
+                    "POS_ACCOUNT_INVALID",
+                    "Configured POS accounts are incomplete.",
+                )
+            })
+    };
+    Ok(RefundAccounts {
+        chart_id: text("chartId")?,
+        cash: text("cash")?,
+        bank: text("bank")?,
+        edc: text("edc")?,
+        revenue: text("revenue")?,
+        advance: text("advance")?,
+        output_tax: text("outputTax")?,
+        refund: text("refund")?,
+        inventory: text("inventory")?,
+        cogs: text("cogs")?,
+    })
+}
+
+struct RefundPart {
+    line_id: String,
+    quantity_milli: i64,
+    restock: bool,
+    subtotal_minor: i64,
+    tax_minor: i64,
+    previous_returned: i64,
+}
+fn refund_parts(lines_json: &str) -> Result<Vec<RefundPart>, BusinessError> {
+    let invalid = || request_invalid("POS_REFUND_CHANGED", "This refund changed. Create a new request.");
+    let value: serde_json::Value = serde_json::from_str(lines_json).map_err(|_| invalid())?;
+    let parts = value.as_array().ok_or_else(invalid)?;
+    parts
+        .iter()
+        .map(|part| {
+            let line_id = part
+                .get("lineId")
+                .and_then(|value| value.as_str())
+                .filter(|value| !value.is_empty() && value.len() <= 200)
+                .ok_or_else(invalid)?
+                .to_owned();
+            let quantity_milli = part
+                .get("quantityMilli")
+                .and_then(|value| value.as_i64())
+                .filter(|value| *value > 0)
+                .ok_or_else(invalid)?;
+            let subtotal_minor = part
+                .get("subtotalMinor")
+                .and_then(|value| value.as_i64())
+                .filter(|value| *value >= 0)
+                .ok_or_else(invalid)?;
+            let tax_minor = part
+                .get("taxMinor")
+                .and_then(|value| value.as_i64())
+                .filter(|value| *value >= 0)
+                .ok_or_else(invalid)?;
+            let previous_returned = part
+                .get("previousReturned")
+                .and_then(|value| value.as_i64())
+                .filter(|value| *value >= 0)
+                .ok_or_else(invalid)?;
+            Ok(RefundPart {
+                line_id,
+                quantity_milli,
+                restock: part
+                    .get("restock")
+                    .and_then(|value| value.as_bool())
+                    .unwrap_or(false),
+                subtotal_minor,
+                tax_minor,
+                previous_returned,
+            })
+        })
+        .collect()
+}
+
+async fn refund_approve<R, F, I>(
+    actor: &PosActor,
+    input: &RefundApproveInput,
+    repository: &mut R,
+    finance: &mut F,
+    inventory: &mut I,
+    now: TimestampMillis,
+) -> Result<PosResult, R::Error>
+where
+    R: PosCommandRepository,
+    F: PosFinancePort,
+    I: PosInventoryPort,
+{
+    let refund = repository
+        .refund_detail(&actor.company_id, &input.id)
+        .await?
+        .ok_or_else(not_found)?;
+    version_matches(refund.version, input.expected_version)?;
+    if refund.state != "requested" {
+        return Err(conflict(
+            "POS_REFUND_CHANGED",
+            "This refund already changed. Refresh the queue.",
+        )
+        .into());
+    }
+    let sale = repository
+        .sale(&actor.company_id, &refund.sale_id)
+        .await?
+        .ok_or_else(not_found)?;
+    scope_sale(actor, &sale)?;
+    if repository
+        .same_person(
+            &actor.company_id,
+            actor.user_id.as_str(),
+            &refund.requested_by,
+        )
+        .await?
+    {
+        return Err(independent_review().into());
+    }
+    if (refund.kind == "sale" && sale.state != "completed")
+        || (refund.kind == "advance" && sale.state == "completed")
+    {
+        return Err(conflict("POS_REFUND_CHANGED", "Bill status changed.").into());
+    }
+    let settings = repository
+        .settings(&actor.company_id)
+        .await?
+        .ok_or_else(setup_required)?;
+    let accounts = refund_accounts(&settings)?;
+    finance
+        .open_period(&actor.company_id, &refund.accounting_date)
+        .await
+        .map_err(R::Error::from)?;
+    let payments = repository.sale_succeeded_payments(&sale.id).await?;
+    let available = payments
+        .iter()
+        .try_fold(0i64, |total, payment| {
+            total.checked_add(payment.amount_minor - payment.refunded_minor)
+        })
+        .ok_or_else(|| request_invalid("POS_REFUND_EXCEEDED", "Refund exceeds the remaining payment amount."))?;
+    if available < refund.amount_minor {
+        return Err(request_invalid(
+            "POS_REFUND_EXCEEDED",
+            "Refund exceeds the remaining payment amount.",
+        )
+        .into());
+    }
+    if refund.kind == "sale" {
+        for part in refund_parts(&refund.lines_json)? {
+            let line = repository
+                .refund_line(&sale.id, &part.line_id)
+                .await?
+                .ok_or_else(|| {
+                    request_invalid(
+                        "POS_REFUND_CHANGED",
+                        "This item changed. Create a new refund request.",
+                    )
+                })?;
+            if line.returned_milli != part.previous_returned
+                || part.quantity_milli + line.returned_milli > line.quantity_milli
+            {
+                return Err(request_invalid(
+                    "POS_REFUND_CHANGED",
+                    "This item has already been refunded. Create a new request.",
+                )
+                .into());
+            }
+            let mut restored_cost = 0i64;
+            if part.restock {
+                let fulfillment = repository
+                    .fulfillment_return_facts(&line.fulfillment_id)
+                    .await?
+                    .ok_or_else(|| {
+                        request_invalid(
+                            "POS_RETURN_NOT_STOCK",
+                            "Only delivered items can be returned to inventory.",
+                        )
+                    })?;
+                if fulfillment.kind != "stock" || fulfillment.state != "delivered" {
+                    return Err(request_invalid(
+                        "POS_RETURN_NOT_STOCK",
+                        "Only delivered items can be returned to inventory.",
+                    )
+                    .into());
+                }
+                restored_cost = portion(
+                    fulfillment.cost_minor,
+                    line.returned_milli,
+                    part.quantity_milli,
+                    fulfillment.quantity_milli,
+                )?;
+                if restored_cost > 0 {
+                    inventory
+                        .queue_return(&[PosReturnPart {
+                            fulfillment_id: fulfillment.fulfillment_id.clone(),
+                            warehouse_id: fulfillment.warehouse_id.clone(),
+                            product_id: fulfillment.product_id.clone(),
+                            quantity_milli: part.quantity_milli,
+                            expected_value_minor: restored_cost,
+                        }])
+                        .await
+                        .map_err(R::Error::from)?;
+                    let move_id = repository.new_id().await?;
+                    if !valid_uuid(&move_id) {
+                        return Err(source_invalid().into());
+                    }
+                    repository
+                        .insert_stock_return(
+                            &move_id,
+                            actor.company_id.as_str(),
+                            &line.fulfillment_id,
+                            &fulfillment.warehouse_id,
+                            &fulfillment.product_id,
+                            part.quantity_milli,
+                            restored_cost,
+                            &refund.accounting_date,
+                            &refund.id,
+                            &sale.number,
+                            now,
+                        )
+                        .await?;
+                    finance
+                        .post_journal(&PosJournalRequest {
+                            company_id: actor.company_id.clone(),
+                            branch_id: actor.branch_id.clone(),
+                            chart_id: accounts.chart_id.clone(),
+                            currency: sale.currency.clone(),
+                            business_date: refund.accounting_date.clone(),
+                            source_key: format!("return:{}:{}", refund.id, line.id),
+                            source_id: refund.id.clone(),
+                            actor_id: actor.user_id.clone(),
+                            lines: vec![
+                                PosJournalLine {
+                                    account_id: accounts.inventory.clone(),
+                                    debit: restored_cost,
+                                    credit: 0,
+                                },
+                                PosJournalLine {
+                                    account_id: accounts.cogs.clone(),
+                                    debit: 0,
+                                    credit: restored_cost,
+                                },
+                            ],
+                            now,
+                        })
+                        .await
+                        .map_err(R::Error::from)?;
+                }
+            }
+            repository
+                .update_line_return(
+                    &line.id,
+                    part.quantity_milli,
+                    part.subtotal_minor + part.tax_minor,
+                    part.tax_minor,
+                    restored_cost,
+                )
+                .await?;
+        }
+    }
+    let credit = if refund.kind == "advance" {
+        accounts.advance.clone()
+    } else {
+        accounts.revenue.clone()
+    };
+    let mut refund_lines = vec![PosJournalLine {
+        account_id: credit,
+        debit: refund.amount_minor - refund.tax_minor,
+        credit: 0,
+    }];
+    if refund.tax_minor > 0 {
+        refund_lines.push(PosJournalLine {
+            account_id: accounts.output_tax.clone(),
+            debit: refund.tax_minor,
+            credit: 0,
+        });
+    }
+    refund_lines.push(PosJournalLine {
+        account_id: accounts.refund.clone(),
+        debit: 0,
+        credit: refund.amount_minor,
+    });
+    finance
+        .post_journal(&PosJournalRequest {
+            company_id: actor.company_id.clone(),
+            branch_id: actor.branch_id.clone(),
+            chart_id: accounts.chart_id.clone(),
+            currency: sale.currency.clone(),
+            business_date: refund.accounting_date.clone(),
+            source_key: format!("refund:{}", refund.id),
+            source_id: refund.id.clone(),
+            actor_id: actor.user_id.clone(),
+            lines: refund_lines,
+            now,
+        })
+        .await
+        .map_err(R::Error::from)?;
+    if payments.iter().any(|payment| payment.method == "cash") {
+        let Some(shift_id) = refund.payout_shift_id.as_deref() else {
+            return Err(conflict(
+                "POS_REFUND_SHIFT_REQUIRED",
+                "Specify an open cash session for the cash refund payout.",
+            )
+            .into());
+        };
+        let shift = repository.shift(&actor.company_id, shift_id).await?;
+        if shift.is_none_or(|shift| shift.state != "open") {
+            return Err(conflict(
+                "POS_REFUND_SHIFT_REQUIRED",
+                "Specify an open cash session for the cash refund payout.",
+            )
+            .into());
+        }
+    }
+    let mut remaining = refund.amount_minor;
+    for payment in &payments {
+        let available = payment.amount_minor - payment.refunded_minor;
+        let amount = remaining.min(available);
+        if amount <= 0 {
+            continue;
+        }
+        if payment.method.starts_with("stripe_") {
+            return Err(BusinessError::new(
+                erpx_server_shared::public::FailureKind::Unavailable,
+                "POS_REFUND_PROVIDER_UNAVAILABLE",
+                "This refund needs a provider that is not mounted yet.",
+            )
+            .into());
+        }
+        let account = match payment.method.as_str() {
+            "cash" => accounts.cash.clone(),
+            "transfer" => accounts.bank.clone(),
+            "edc" => accounts.edc.clone(),
+            _ => {
+                return Err(request_invalid(
+                    "POS_REFUND_METHOD",
+                    "This payment cannot be refunded yet.",
+                )
+                .into())
+            }
+        };
+        let refund_payment_id = repository.new_id().await?;
+        if !valid_uuid(&refund_payment_id) {
+            return Err(source_invalid().into());
+        }
+        repository
+            .insert_refund_payment(&refund_payment_id, &refund.id, &payment.id, amount)
+            .await?;
+        repository
+            .bump_payment_refunded(&payment.id, amount, now)
+            .await?;
+        let finance_payment_id = repository.new_id().await?;
+        if !valid_uuid(&finance_payment_id) {
+            return Err(source_invalid().into());
+        }
+        let source_key = format!("refund-payment:{refund_payment_id}");
+        let journal_id = format!("journal-{source_key}");
+        finance
+            .record_refund_payment(&PosRefundPaymentRequest {
+                finance_payment_id,
+                company_id: actor.company_id.clone(),
+                party_id: sale.party_id.clone(),
+                number: format!("POS-REF-{refund_payment_id}"),
+                payment_date: refund.accounting_date.clone(),
+                currency: sale.currency.clone(),
+                amount_minor: amount,
+                account_id: account.clone(),
+                journal_id,
+                actor_id: actor.user_id.clone(),
+                now,
+            })
+            .await
+            .map_err(R::Error::from)?;
+        finance
+            .post_journal(&PosJournalRequest {
+                company_id: actor.company_id.clone(),
+                branch_id: actor.branch_id.clone(),
+                chart_id: accounts.chart_id.clone(),
+                currency: sale.currency.clone(),
+                business_date: refund.accounting_date.clone(),
+                source_key,
+                source_id: refund.id.clone(),
+                actor_id: actor.user_id.clone(),
+                lines: vec![
+                    PosJournalLine {
+                        account_id: accounts.refund.clone(),
+                        debit: amount,
+                        credit: 0,
+                    },
+                    PosJournalLine {
+                        account_id: account,
+                        debit: 0,
+                        credit: amount,
+                    },
+                ],
+                now,
+            })
+            .await
+            .map_err(R::Error::from)?;
+        remaining -= amount;
+    }
+    if remaining > 0 {
+        return Err(request_invalid(
+            "POS_REFUND_EXCEEDED",
+            "Refund exceeds the remaining payment amount.",
+        )
+        .into());
+    }
+    if !repository
+        .complete_refund(&refund.id, actor.user_id.as_str(), now)
+        .await?
+    {
+        return Err(version_conflict().into());
+    }
+    Ok(PosResult {
+        id: refund.id,
+        version: Some(refund.version + 1),
     })
 }

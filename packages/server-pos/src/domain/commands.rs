@@ -29,6 +29,7 @@ pub const OPERATION_PAYMENT_CANCEL_TRANSFER: &str = "payment.cancel_transfer";
 pub const OPERATION_SALE_COMPLETE: &str = "sale.complete";
 pub const OPERATION_SALE_CANCEL: &str = "sale.cancel";
 pub const OPERATION_REFUND_REQUEST: &str = "refund.request";
+pub const OPERATION_REFUND_APPROVE: &str = "refund.approve";
 pub const OPERATION_REFUND_REJECT: &str = "refund.reject";
 
 const AMOUNT_LIMIT: i64 = 99_999_999_999;
@@ -120,6 +121,7 @@ pub enum PosOperation {
     SaleResume,
     SaleCancel,
     RefundRequest,
+    RefundApprove,
     RefundReject,
 }
 
@@ -147,6 +149,7 @@ impl PosOperation {
             OPERATION_SALE_RESUME => Self::SaleResume,
             OPERATION_SALE_CANCEL => Self::SaleCancel,
             OPERATION_REFUND_REQUEST => Self::RefundRequest,
+            OPERATION_REFUND_APPROVE => Self::RefundApprove,
             OPERATION_REFUND_REJECT => Self::RefundReject,
             _ => return None,
         })
@@ -174,6 +177,7 @@ impl PosOperation {
             Self::SaleResume => OPERATION_SALE_RESUME,
             Self::SaleCancel => OPERATION_SALE_CANCEL,
             Self::RefundRequest => OPERATION_REFUND_REQUEST,
+            Self::RefundApprove => OPERATION_REFUND_APPROVE,
             Self::RefundReject => OPERATION_REFUND_REJECT,
         }
     }
@@ -313,6 +317,12 @@ pub struct RefundRequestInput {
     pub payout_shift_id: Option<String>,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RefundApproveInput {
+    pub id: String,
+    pub expected_version: i64,
+    pub reason: String,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RefundRejectInput {
     pub id: String,
     pub expected_version: i64,
@@ -340,6 +350,7 @@ pub enum PosCommandInput {
     SaleComplete(SaleVersionInput),
     SaleVersion(SaleVersionInput),
     RefundRequest(RefundRequestInput),
+    RefundApprove(RefundApproveInput),
     RefundReject(RefundRejectInput),
 }
 
@@ -484,6 +495,70 @@ pub struct PosBankTransaction {
     pub amount_minor: i64,
     pub external_id: String,
     pub transaction_date: String,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PosRefundDetail {
+    pub id: String,
+    pub sale_id: String,
+    pub company_id: String,
+    pub branch_id: String,
+    pub kind: String,
+    pub state: String,
+    pub lines_json: String,
+    pub amount_minor: i64,
+    pub tax_minor: i64,
+    pub accounting_date: String,
+    pub requested_by: String,
+    pub payout_shift_id: Option<String>,
+    pub version: i64,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PosPaymentRefundRow {
+    pub id: String,
+    pub method: String,
+    pub amount_minor: i64,
+    pub refunded_minor: i64,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PosRefundLineRow {
+    pub id: String,
+    pub fulfillment_id: String,
+    pub quantity_milli: i64,
+    pub returned_milli: i64,
+    pub subtotal_minor: i64,
+    pub tax_minor: i64,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PosFulfillmentReturnFacts {
+    pub fulfillment_id: String,
+    pub kind: String,
+    pub state: String,
+    pub quantity_milli: i64,
+    pub cost_minor: i64,
+    pub warehouse_id: String,
+    pub product_id: String,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PosReturnPart {
+    pub fulfillment_id: String,
+    pub warehouse_id: String,
+    pub product_id: String,
+    pub quantity_milli: i64,
+    pub expected_value_minor: i64,
+}
+#[derive(Clone, Debug)]
+pub struct PosRefundPaymentRequest {
+    pub finance_payment_id: String,
+    pub company_id: CompanyId,
+    pub party_id: Option<String>,
+    pub number: String,
+    pub payment_date: String,
+    pub currency: String,
+    pub amount_minor: i64,
+    pub account_id: String,
+    pub journal_id: String,
+    pub actor_id: UserId,
+    pub now: TimestampMillis,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PosConsumptionPart {
@@ -1563,6 +1638,28 @@ impl PosCommand {
                     canonical(&[
                         ("id", json_string(&id)),
                         ("expectedVersion", expected_version.to_string()),
+                    ]),
+                )
+            }
+            PosOperation::RefundApprove => {
+                object(
+                    value,
+                    &["id", "expectedVersion", "reason"],
+                    &["id", "expectedVersion", "reason"],
+                )?;
+                let id = text(value, "id")?;
+                let expected_version = version(integer(value, "expectedVersion")?)?;
+                let reason = reason(&text(value, "reason")?)?;
+                (
+                    PosCommandInput::RefundApprove(RefundApproveInput {
+                        id: id.clone(),
+                        expected_version,
+                        reason: reason.clone(),
+                    }),
+                    canonical(&[
+                        ("id", json_string(&id)),
+                        ("expectedVersion", expected_version.to_string()),
+                        ("reason", json_string(&reason)),
                     ]),
                 )
             }

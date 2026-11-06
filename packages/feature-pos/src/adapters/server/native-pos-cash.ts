@@ -47,7 +47,7 @@ export const NATIVE_POS_COMMANDS = new Set([
   'sale.discount', 'sale.merge', 'sale.split', 'payment.create', 'payment.verify_transfer',
   'payment.cancel_transfer', 'sale.complete',
   'sale.hold', 'sale.resume', 'sale.cancel',
-  'refund.request', 'refund.reject',
+  'refund.request', 'refund.approve', 'refund.reject',
 ]);
 /** Operations in the five POS owner workflows. Once the native transport is
  * configured, an operation here without a native implementation must close

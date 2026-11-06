@@ -5,8 +5,9 @@ use crate::application::commands::{PosCommandRepository, PosFuture};
 use crate::domain::commands::{
     CashApproveInput, PosActor, PosCashMovement, PosCommand, PosFulfillment, PosFulfillmentInsert,
     PosFulfillmentSplitFacts, PosLine, PosLineDetail, PosLineDiscountRow, PosLineInsert,
-    PosFulfillmentStock, PosLineSplitRow, PosPayment, PosPaymentInsert, PosReceipt, PosRefund,
-    PosRegister, PosSale, PosSettings,
+    PosFulfillmentReturnFacts, PosFulfillmentStock, PosLineSplitRow, PosPayment, PosPaymentInsert,
+    PosPaymentRefundRow, PosReceipt, PosRefund, PosRefundDetail, PosRefundLineRow, PosRegister,
+    PosSale, PosSettings,
     PosShift, RefundRequestInput, SaleCreateInput,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
@@ -1425,6 +1426,211 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
                 .execute(&mut *self.connection)
                 .await?;
             Ok(rows.rows_affected() == 1)
+        })
+    }
+    fn refund_detail<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        refund_id: &'a str,
+    ) -> Fut<'a, Option<PosRefundDetail>> {
+        Box::pin(async move {
+            self.ready().await?;
+            let row = sqlx::query(
+                "SELECT id,sale_id,company_id,branch_id,kind,state,lines_json,amount_minor,tax_minor,accounting_date,requested_by,payout_shift_id,version FROM pos_refunds WHERE id=$1 AND company_id=$2 FOR UPDATE",
+            )
+            .bind(refund_id)
+            .bind(company.as_str())
+            .fetch_optional(&mut *self.connection)
+            .await?;
+            row.map(|row| {
+                Ok::<_, Error>(PosRefundDetail {
+                    id: row.try_get("id")?,
+                    sale_id: row.try_get("sale_id")?,
+                    company_id: row.try_get("company_id")?,
+                    branch_id: row.try_get("branch_id")?,
+                    kind: row.try_get("kind")?,
+                    state: row.try_get("state")?,
+                    lines_json: row.try_get("lines_json")?,
+                    amount_minor: row.try_get("amount_minor")?,
+                    tax_minor: row.try_get("tax_minor")?,
+                    accounting_date: row.try_get("accounting_date")?,
+                    requested_by: row.try_get("requested_by")?,
+                    payout_shift_id: row.try_get("payout_shift_id")?,
+                    version: row.try_get("version")?,
+                })
+            })
+            .transpose()
+        })
+    }
+    fn sale_succeeded_payments<'a>(&'a mut self, sale_id: &'a str) -> Fut<'a, Vec<PosPaymentRefundRow>> {
+        Box::pin(async move {
+            self.ready().await?;
+            let rows = sqlx::query(
+                "SELECT id,method,amount_minor,refunded_minor FROM pos_payments WHERE sale_id=$1 AND state='succeeded' ORDER BY created_at DESC,id FOR UPDATE",
+            )
+            .bind(sale_id)
+            .fetch_all(&mut *self.connection)
+            .await?;
+            rows.into_iter()
+                .map(|row| {
+                    Ok(PosPaymentRefundRow {
+                        id: row.try_get("id")?,
+                        method: row.try_get("method")?,
+                        amount_minor: row.try_get("amount_minor")?,
+                        refunded_minor: row.try_get("refunded_minor")?,
+                    })
+                })
+                .collect()
+        })
+    }
+    fn refund_line<'a>(&'a mut self, sale_id: &'a str, line_id: &'a str) -> Fut<'a, Option<PosRefundLineRow>> {
+        Box::pin(async move {
+            self.ready().await?;
+            let row = sqlx::query(
+                "SELECT id,fulfillment_id,quantity_milli,returned_milli,subtotal_minor,tax_minor FROM pos_lines WHERE id=$1 AND sale_id=$2 FOR UPDATE",
+            )
+            .bind(line_id)
+            .bind(sale_id)
+            .fetch_optional(&mut *self.connection)
+            .await?;
+            row.map(|row| {
+                Ok::<_, Error>(PosRefundLineRow {
+                    id: row.try_get("id")?,
+                    fulfillment_id: row.try_get("fulfillment_id")?,
+                    quantity_milli: row.try_get("quantity_milli")?,
+                    returned_milli: row.try_get("returned_milli")?,
+                    subtotal_minor: row.try_get("subtotal_minor")?,
+                    tax_minor: row.try_get("tax_minor")?,
+                })
+            })
+            .transpose()
+        })
+    }
+    fn fulfillment_return_facts<'a>(&'a mut self, fulfillment_id: &'a str) -> Fut<'a, Option<PosFulfillmentReturnFacts>> {
+        Box::pin(async move {
+            self.ready().await?;
+            let row = sqlx::query(
+                "SELECT id,kind,state,quantity_milli,cost_minor,warehouse_id,product_id FROM pos_fulfillments WHERE id=$1 FOR UPDATE",
+            )
+            .bind(fulfillment_id)
+            .fetch_optional(&mut *self.connection)
+            .await?;
+            row.map(|row| {
+                Ok::<_, Error>(PosFulfillmentReturnFacts {
+                    fulfillment_id: row.try_get("id")?,
+                    kind: row.try_get("kind")?,
+                    state: row.try_get("state")?,
+                    quantity_milli: row.try_get("quantity_milli")?,
+                    cost_minor: row.try_get("cost_minor")?,
+                    warehouse_id: row.try_get("warehouse_id")?,
+                    product_id: row.try_get("product_id")?,
+                })
+            })
+            .transpose()
+        })
+    }
+    fn update_line_return<'a>(
+        &'a mut self,
+        line_id: &'a str,
+        quantity_milli: i64,
+        value_minor: i64,
+        tax_minor: i64,
+        cost_minor: i64,
+    ) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query("UPDATE pos_lines SET returned_milli=returned_milli+$1,refunded_minor=refunded_minor+$2,refunded_tax_minor=refunded_tax_minor+$3,returned_cost_minor=returned_cost_minor+$4 WHERE id=$5")
+                .bind(quantity_milli)
+                .bind(value_minor)
+                .bind(tax_minor)
+                .bind(cost_minor)
+                .bind(line_id)
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(())
+        })
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn insert_stock_return<'a>(
+        &'a mut self,
+        id: &'a str,
+        company_id: &'a str,
+        fulfillment_id: &'a str,
+        warehouse_id: &'a str,
+        product_id: &'a str,
+        quantity_milli: i64,
+        value_minor: i64,
+        movement_date: &'a str,
+        source_id: &'a str,
+        source_number: &'a str,
+        now: TimestampMillis,
+    ) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query(
+                "INSERT INTO pos_stock_moves(id,company_id,warehouse_id,product_id,fulfillment_id,source_id,source_number,kind,quantity_milli,value_minor,movement_date,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,'return',$8,$9,$10,$11)",
+            )
+            .bind(id)
+            .bind(company_id)
+            .bind(warehouse_id)
+            .bind(product_id)
+            .bind(fulfillment_id)
+            .bind(source_id)
+            .bind(source_number)
+            .bind(quantity_milli)
+            .bind(value_minor)
+            .bind(movement_date)
+            .bind(now.get())
+            .execute(&mut *self.connection)
+            .await?;
+            Ok(())
+        })
+    }
+    fn insert_refund_payment<'a>(&'a mut self, id: &'a str, refund_id: &'a str, payment_id: &'a str, amount_minor: i64) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query("INSERT INTO pos_refund_payments(id,refund_id,payment_id,amount_minor,state) VALUES($1,$2,$3,$4,'succeeded')")
+                .bind(id)
+                .bind(refund_id)
+                .bind(payment_id)
+                .bind(amount_minor)
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(())
+        })
+    }
+    fn bump_payment_refunded<'a>(&'a mut self, payment_id: &'a str, amount_minor: i64, now: TimestampMillis) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query("UPDATE pos_payments SET refunded_minor=refunded_minor+$1,version=version+1,updated_at=$2 WHERE id=$3")
+                .bind(amount_minor)
+                .bind(now.get())
+                .bind(payment_id)
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(())
+        })
+    }
+    fn complete_refund<'a>(&'a mut self, refund_id: &'a str, actor_id: &'a str, now: TimestampMillis) -> Fut<'a, bool> {
+        Box::pin(async move {
+            self.ready().await?;
+            let rows = sqlx::query("UPDATE pos_refunds SET state='completed',approved_by=$1,version=version+1 WHERE id=$2")
+                .bind(actor_id)
+                .bind(refund_id)
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(rows.rows_affected() == 1)
+        })
+    }
+    fn company_hotel_registers<'a>(&'a mut self, company: &'a CompanyId) -> Fut<'a, bool> {
+        Box::pin(async move {
+            self.ready().await?;
+            Ok(sqlx::query_scalar(
+                "SELECT EXISTS(SELECT 1 FROM pos_registers WHERE company_id=$1 AND property_id IS NOT NULL)",
+            )
+            .bind(company.as_str())
+            .fetch_one(&mut *self.connection)
+            .await?)
         })
     }
     fn prepared_day_close<'a>(

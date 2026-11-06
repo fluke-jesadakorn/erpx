@@ -232,7 +232,7 @@ describe('native POS cash command transport',()=>{
     'shift.open','shift.close','shift.review','cash.approve',
     'sale.create','sale.add','sale.update_line','sale.customer','sale.move_table','sale.remove',
     'sale.discount','sale.merge','sale.split','payment.create','payment.verify_transfer','payment.cancel_transfer','sale.complete','sale.hold','sale.resume','sale.cancel',
-    'refund.request','refund.reject',
+    'refund.request','refund.approve','refund.reject',
   ]);
   expect(nativePosCommandCapability('shift.open')).toEqual({capability:'pos.shifts',purpose:'new-work'});
   expect(nativePosCommandCapability('shift.close')).toEqual({capability:'pos.shifts',purpose:'settle-existing'});
@@ -244,6 +244,7 @@ describe('native POS cash command transport',()=>{
     expect(nativePosCommandCapability(operation)).toEqual({capability:'pos.sales',purpose:'new-work'});
   expect(nativePosCommandCapability('sale.cancel')).toEqual({capability:'pos.sales',purpose:'settle-existing'});
   expect(nativePosCommandCapability('refund.request')).toEqual({capability:'pos.refunds',purpose:'settle-existing'});
+  expect(nativePosCommandCapability('refund.approve')).toEqual({capability:'pos.refunds',purpose:'settle-existing'});
   expect(nativePosCommandCapability('payment.create')).toEqual({capability:'pos.sales',purpose:'new-work'});
   expect(nativePosCommandCapability('payment.verify_transfer')).toEqual({capability:'pos.sales',purpose:'new-work'});
   expect(nativePosCommandCapability('payment.cancel_transfer')).toEqual({capability:'pos.sales',purpose:'new-work'});
