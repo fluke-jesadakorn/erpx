@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./public/native-assets": "./src/public/native-assets.ts",
     "./adapters/server/native-assets": "./src/adapters/server/native-assets.ts",
     "./adapters/server/native-assets-owned": "./src/adapters/server/native-assets-owned.ts",
     "./adapters/server/native-assets-page": "./src/adapters/server/native-assets-page.ts",

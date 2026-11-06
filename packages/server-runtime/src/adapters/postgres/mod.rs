@@ -27,8 +27,18 @@ impl PersistenceError {
     pub fn sql_state(&self) -> Option<&str> {
         self.sql_state.as_deref()
     }
+    /// Classify a NOWAIT conflict from an explicitly guarded pre-snapshot
+    /// source lock. Other SQL errors retain their ordinary classification.
+    pub fn pre_snapshot_lock_conflict(error: sqlx::Error) -> Self {
+        let mut error = Self::from(error);
+        if error.sql_state() == Some("55P03") {
+            error.code = "PRE_SNAPSHOT_LOCK_CONTENDED";
+        }
+        error
+    }
     pub fn retryable(&self) -> bool {
         matches!(self.sql_state(), Some("40001" | "40P01"))
+            || (self.code == "PRE_SNAPSHOT_LOCK_CONTENDED" && self.sql_state() == Some("55P03"))
     }
 }
 impl std::fmt::Display for PersistenceError {

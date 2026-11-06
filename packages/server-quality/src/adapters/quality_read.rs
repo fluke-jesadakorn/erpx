@@ -158,6 +158,17 @@ pub async fn lock_quality_read_sources(c: &mut PgConnection) -> Result<(), Error
     Ok(())
 }
 
+/// Acquire cancellation writer intent before taking shared Quality source
+/// locks and before any snapshot. Composition must first acquire the earlier
+/// Commercial/Commerce owner locks used by the surrounding command.
+pub async fn lock_quality_cancellation_writes(c: &mut PgConnection) -> Result<(), Error> {
+    if !c.is_in_transaction() {
+        return Err(PersistenceError::new("QUALITY_SERIALIZABLE_REQUIRED").into());
+    }
+    sqlx::query("LOCK TABLE inventory_quality_holds,inventory_quality_cancellations IN SHARE ROW EXCLUSIVE MODE").execute(c).await?;
+    Ok(())
+}
+
 fn parse_status(value: &str) -> Result<HoldStatus, Error> {
     HoldStatus::parse(value).ok_or_else(|| invalid("A Quality hold status is invalid.").into())
 }
@@ -587,6 +598,109 @@ impl QualityReadRepository for PgQualityRead<'_> {
 
 pub struct PgQualityCancellation<'a> {
     pub connection: &'a mut PgConnection,
+}
+
+/// A transaction-bound Quality cancellation effect. This is an owner effect,
+/// not an authorization or purchase proof; the caller must keep its current
+/// authority and purchase witnesses in the same serializable transaction.
+pub struct PreparedQualityCancellation {
+    source: CurrentQualityDetail,
+    command: QualityCancellationCommand,
+    company: CompanyId,
+    branch: Option<RecordId>,
+    actor: UserId,
+    now: i64,
+    receipt: QualityCancellationReceipt,
+}
+
+impl PreparedQualityCancellation {
+    pub fn receipt(&self) -> &QualityCancellationReceipt { &self.receipt }
+
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        self.source.require_current(c).await
+    }
+
+    /// Apply exactly once. Workflow must resolve an existing receipt before
+    /// preparing this effect; an existing owner event is never a replay proof.
+    pub async fn apply(&self, c: &mut PgConnection) -> Result<RetainedQualityCancellation, Error> {
+        self.require_current(c).await?;
+        let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM inventory_quality_cancellations WHERE id=$1)")
+            .bind(&self.receipt.cancellation_id).fetch_one(&mut *c).await?;
+        if exists { return Err(cancellation_conflict().into()); }
+        let receipt = apply_quality_cancellation(c, &self.command, &self.company, self.branch.as_ref(), &self.actor, self.now).await?;
+        if receipt != self.receipt { return Err(changed().into()); }
+        let mut expected_hold = self.source.data.hold.clone();
+        expected_hold.status = receipt.status;
+        expected_hold.version = receipt.version;
+        expected_hold.updated_at = self.now;
+        match self.command.action {
+            CancellationAction::Request => {
+                expected_hold.cancel_requested_by = Some(self.actor.as_str().to_owned());
+                expected_hold.cancel_reason = Some(self.command.reason.clone());
+            }
+            CancellationAction::Approve => {
+                expected_hold.cancelled_by = Some(self.actor.as_str().to_owned());
+                expected_hold.cancelled_at = Some(self.now);
+            }
+            CancellationAction::Reject => {}
+        }
+        let retained = RetainedQualityCancellation { unit: unit(c).await?, command: self.command.clone(), company: self.company.clone(), branch: self.branch.clone(), actor: self.actor.clone(), receipt, expected_hold, now: self.now };
+        retained.require_current(c).await?;
+        Ok(retained)
+    }
+}
+
+/// Retained owner-effect witness; it grants no permission to execute.
+pub struct RetainedQualityCancellation {
+    unit: Unit,
+    command: QualityCancellationCommand,
+    company: CompanyId,
+    branch: Option<RecordId>,
+    actor: UserId,
+    receipt: QualityCancellationReceipt,
+    expected_hold: QualityHold,
+    now: i64,
+}
+
+impl RetainedQualityCancellation {
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        serializable(c).await?;
+        if unit(c).await? != self.unit { return Err(changed().into()); }
+        let valid: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM inventory_quality_cancellations e JOIN inventory_quality_holds h ON h.id=e.hold_id WHERE e.id=$1 AND h.id=$2 AND h.company_id=$3 AND ($4::text IS NULL OR h.branch_id=$4) AND e.actor_id=$5 AND e.action=$6 AND e.reason=$7 AND e.version=$8 AND h.version=$8 AND h.status=$9 AND e.created_at=$10)")
+            .bind(&self.receipt.cancellation_id).bind(self.command.hold_id.as_str()).bind(self.company.as_str())
+            .bind(self.branch.as_ref().map(RecordId::as_str)).bind(self.actor.as_str())
+            .bind(self.command.action.as_str()).bind(&self.command.reason).bind(self.receipt.version)
+            .bind(self.receipt.status.as_str()).bind(self.now).fetch_one(&mut *c).await?;
+        if !valid { return Err(changed().into()); }
+        let hold = read_detail(c, self.company.as_str(), self.branch.as_ref().map(RecordId::as_str), self.command.hold_id.as_str()).await?.ok_or_else(changed)?.hold;
+        if hold != self.expected_hold { return Err(changed().into()); }
+        Ok(())
+    }
+}
+
+/// Prepare against a scoped, current owner row in the caller's transaction.
+/// The caller must validate current actor permission, purchase and Workflow
+/// replay independently before invoking this owner port.
+pub async fn prepare_quality_cancellation(
+    c: &mut PgConnection, command: &QualityCancellationCommand, company: &CompanyId,
+    branch: Option<&RecordId>, actor: &UserId, now: i64,
+) -> Result<PreparedQualityCancellation, Error> {
+    let normalized = crate::application::quality::normalize_quality_cancellation(command)?;
+    if normalized != *command {
+        return Err(BusinessError::invalid("QUALITY_CANCELLATION_REASON", "Normalize the cancellation reason before fingerprinting.").into());
+    }
+    let source = read_quality_detail(c, company, branch, command.hold_id.as_str()).await?.ok_or_else(hold_not_found)?;
+    let facts = source.data.hold.facts();
+    if matches!(command.action, CancellationAction::Approve | CancellationAction::Reject)
+        && (same_person(c, actor.as_str(), &facts.created_by, company.as_str()).await?
+            || same_person(c, actor.as_str(), facts.cancel_requested_by.as_deref().unwrap_or(""), company.as_str()).await?) {
+        return Err(independent_required().into());
+    }
+    let plan = crate::domain::quality::plan_cancellation(&facts, actor.as_str(), command.action, command.expected_version)?;
+    let id = command.hold_id.as_str().to_owned();
+    let receipt = QualityCancellationReceipt { id: id.clone(), hold_id: id,
+        cancellation_id: format!("quality-cancel-{}", command.command_key.as_str()), status: plan.target, version: plan.version };
+    Ok(PreparedQualityCancellation { source, command: command.clone(), company: company.clone(), branch: branch.cloned(), actor: actor.clone(), now, receipt })
 }
 
 impl QualityCancellationRepository for PgQualityCancellation<'_> {

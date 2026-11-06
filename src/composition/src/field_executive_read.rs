@@ -48,6 +48,7 @@ impl PreparedFieldExecutiveRead {
     ) -> Result<(), Error> {
         if let Some(g) = &self.guard {
             let ctx = SourceRecordContext {
+                purchase_locks: None,
                 actor: current,
                 holding: &target.holding,
                 company: &target.company,
@@ -232,6 +233,7 @@ pub(crate) async fn prepare_read<C: Clock + Send + Sync>(
         json!({"raw":raw,"sources":sources})
     };
     let ctx = SourceRecordContext {
+        purchase_locks: None,
         actor: current,
         holding: &target.holding,
         company: &target.company,

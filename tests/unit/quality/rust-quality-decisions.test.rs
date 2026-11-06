@@ -198,6 +198,34 @@ fn derives_measurement_results_and_rejects_conflicting_or_incomplete_values() {
 }
 
 #[test]
+fn invalid_captured_limits_never_turn_into_unbounded_passing_limits() {
+    for limits in [(Some("invalid"), None), (None, Some("NaN"))] {
+        let result = evaluate_measurements(
+            &[metric(limits.0, limits.1)],
+            &[MeasurementInput {
+                metric_id: "metric-weight".into(),
+                value: "10".into(),
+            }],
+            None,
+        )
+        .unwrap();
+        assert_eq!(result.result, InspectionResult::Fail);
+    }
+}
+
+#[test]
+fn cancellation_reason_normalization_matches_javascript_trim() {
+    let normalized = erpx_server_quality::public::quality_read::validate_reason(
+        "\u{feff} reason \u{feff}", "QUALITY_CANCELLATION_REASON", "Invalid reason",
+    ).unwrap();
+    assert_eq!(normalized, "reason");
+    let retained = erpx_server_quality::public::quality_read::validate_reason(
+        "\u{0085}reason\u{0085}", "QUALITY_CANCELLATION_REASON", "Invalid reason",
+    ).unwrap();
+    assert_eq!(retained, "\u{0085}reason\u{0085}");
+}
+
+#[test]
 fn separates_independent_inspection_release_cancellation_and_disposition_decisions() {
     let held = hold(HoldStatus::Held, "actor", None, None);
     let creator = actor(true, true, true);

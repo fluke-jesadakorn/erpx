@@ -135,6 +135,7 @@ impl<'a, C: Clock + Send + Sync> FinanceFieldJournalIntakeAuthority<'a, C> {
     }
     fn context(&self) -> SourceRecordContext<'_, C> {
         SourceRecordContext {
+            purchase_locks: None,
             actor: self.current,
             holding: &self.config.holding,
             company: &self.config.company,

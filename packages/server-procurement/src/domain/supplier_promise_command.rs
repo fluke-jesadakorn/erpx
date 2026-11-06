@@ -6,6 +6,7 @@
 //! immutable Procurement promise history plus the Workflow-style command receipt,
 //! audit and outbox evidence; the Commerce order version advance is an explicit
 //! cross-owner effect preserved from the retained command.
+use super::valid_date;
 use erpx_server_shared::public::{
     BusinessError, CommandKey, CompanyId, FailureKind, RecordId, TimestampMillis,
 };
@@ -43,9 +44,7 @@ impl SupplierPromiseCommandActor {
     }
 
     pub fn can_record(&self) -> bool {
-        self.has("commerce.read")
-            && self.has("commerce.purchase")
-            && self.has_module("procurement")
+        self.has("commerce.read") && self.has("commerce.purchase") && self.has_module("procurement")
     }
 
     pub fn require_record(&self, now: TimestampMillis) -> Result<(), BusinessError> {
@@ -147,31 +146,35 @@ fn valid_identifier(value: &str) -> bool {
     RecordId::new(value).is_ok()
 }
 
-fn valid_date(value: &str) -> bool {
-    let bytes = value.as_bytes();
-    if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-' {
-        return false;
-    }
-    if !bytes
-        .iter()
-        .enumerate()
-        .all(|(index, byte)| matches!(index, 4 | 7) || byte.is_ascii_digit())
-    {
-        return false;
-    }
-    let month = (bytes[5] - b'0') * 10 + (bytes[6] - b'0');
-    let day = (bytes[8] - b'0') * 10 + (bytes[9] - b'0');
-    (1..=12).contains(&month) && (1..=31).contains(&day)
-}
 
 fn valid_currency(value: &str) -> bool {
     value.len() == 3 && value.bytes().all(|byte| byte.is_ascii_uppercase())
 }
 
-fn valid_text(value: &str, minimum: usize, limit: usize) -> bool {
-    let length = value.chars().count();
-    (minimum..=limit).contains(&length) && value.trim() == value
+fn js_trim(value: &str) -> &str {
+    value.trim_matches(|c: char| {
+        matches!(
+            c,
+            '\u{0009}'..='\u{000d}'
+                | '\u{0020}'
+                | '\u{00a0}'
+                | '\u{1680}'
+                | '\u{2000}'..='\u{200a}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202f}'
+                | '\u{205f}'
+                | '\u{3000}'
+                | '\u{feff}'
+        )
+    })
 }
+
+fn valid_length(value: &str, minimum: usize, limit: usize) -> bool {
+    let length = value.encode_utf16().count();
+    (minimum..=limit).contains(&length)
+}
+
 
 fn valid_quantity(value: &str) -> Option<i64> {
     let (whole, fraction) = match value.split_once('.') {
@@ -252,16 +255,18 @@ impl RecordSupplierPromiseCommand {
                 "Use a valid supplier confirmation date.",
             ));
         }
-        if !valid_text(&self.supplier_reference, 3, REFERENCE_LIMIT) {
+        let supplier_reference = js_trim(&self.supplier_reference).to_owned();
+        if !valid_length(&supplier_reference, 3, REFERENCE_LIMIT) {
             return Err(invalid(
                 "SUPPLIER_PROMISE_INPUT_INVALID",
-                "Enter a trimmed supplier reference between 3 and 160 characters.",
+                "Enter a supplier reference between 3 and 160 characters.",
             ));
         }
-        if !valid_text(&self.evidence, 5, EVIDENCE_LIMIT) {
+        let evidence = js_trim(&self.evidence).to_owned();
+        if !valid_length(&evidence, 5, EVIDENCE_LIMIT) {
             return Err(invalid(
                 "SUPPLIER_PROMISE_INPUT_INVALID",
-                "Enter trimmed supplier evidence between 5 and 2000 characters.",
+                "Enter supplier evidence between 5 and 2000 characters.",
             ));
         }
         if self.attachment_set_ids.len() > MAX_ATTACHMENTS
@@ -269,7 +274,11 @@ impl RecordSupplierPromiseCommand {
                 .attachment_set_ids
                 .iter()
                 .any(|id| !valid_identifier(id))
-            || self.attachment_set_ids.iter().collect::<BTreeSet<_>>().len()
+            || self
+                .attachment_set_ids
+                .iter()
+                .collect::<BTreeSet<_>>()
+                .len()
                 != self.attachment_set_ids.len()
         {
             return Err(invalid(
@@ -289,13 +298,13 @@ impl RecordSupplierPromiseCommand {
                 return Err(invalid(
                     "PROMISE_LINES_REQUIRED",
                     "A supplier withdrawal must not carry promised quantities.",
-                ))
+                ));
             }
             "confirmed" if !(1..=MAX_LINES).contains(&line_count) => {
                 return Err(invalid(
                     "PROMISE_LINES_REQUIRED",
                     "Record at least one and at most one hundred dated supplier quantities.",
-                ))
+                ));
             }
             "confirmed" => {}
             _ => {}
@@ -340,8 +349,8 @@ impl RecordSupplierPromiseCommand {
             expected_version: self.expected_version,
             kind: self.kind.clone(),
             confirmation_date: self.confirmation_date.clone(),
-            supplier_reference: self.supplier_reference.clone(),
-            evidence: self.evidence.clone(),
+            supplier_reference,
+            evidence,
             lines,
         })
     }
@@ -397,7 +406,9 @@ impl PromiseOrderSource {
                 .department_id
                 .as_ref()
                 .map(|value| value.as_str())
-                .is_some_and(|department| self.department_id.as_ref().map(|value| value.as_str()) != Some(department))
+                .is_some_and(|department| {
+                    self.department_id.as_ref().map(|value| value.as_str()) != Some(department)
+                })
         {
             return Err(not_found());
         }
@@ -562,7 +573,10 @@ impl SupplierPromiseAuthority {
             user_id: actor.user_id.clone(),
             assignment_id: actor.assignment_id.clone(),
             company_id: actor.company_id.as_str().to_owned(),
-            branch_id: actor.branch_id.as_ref().map(|value| value.as_str().to_owned()),
+            branch_id: actor
+                .branch_id
+                .as_ref()
+                .map(|value| value.as_str().to_owned()),
             department_id: actor
                 .department_id
                 .as_ref()
@@ -580,7 +594,10 @@ pub fn fingerprint(
 ) -> Result<String, BusinessError> {
     let authority = serde_json::to_string(&SupplierPromiseAuthority::from_actor(actor))
         .map_err(|_| invalid_receipt())?;
-    let input = serde_json::to_string(input).map_err(|_| invalid_receipt())?;
+    let mut normalized = input.clone();
+    normalized.supplier_reference = js_trim(&input.supplier_reference).to_owned();
+    normalized.evidence = js_trim(&input.evidence).to_owned();
+    let input = serde_json::to_string(&normalized).map_err(|_| invalid_receipt())?;
     Ok(format!("{OPERATION}\n{order_id}\n{authority}\n{input}"))
 }
 

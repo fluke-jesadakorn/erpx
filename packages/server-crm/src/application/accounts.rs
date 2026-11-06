@@ -28,6 +28,7 @@ pub trait AccountCreateRepository: Send {
 pub async fn create_account<R>(
     actor_user_id: &str,
     company_id: &str,
+    command_key: &str,
     input: &AccountCreateInput,
     repository: &mut R,
     now: i64,
@@ -35,7 +36,7 @@ pub async fn create_account<R>(
 where
     R: AccountCreateRepository,
 {
-    if actor_user_id.is_empty() || now < 0 {
+    if actor_user_id.is_empty() || company_id.is_empty() || command_key.is_empty() || now < 0 {
         return Err(BusinessError::invalid(
             "CRM_ACCOUNT_INPUT_INVALID",
             "Use a bounded CRM account name of 2 to 160 characters.",
@@ -45,7 +46,7 @@ where
     let plan = validate_account_create(input)?;
     // The route layer passes the command key; the record id (`account-{key}`)
     // matches the TS writer exactly. The repository writes only `crm_accounts`.
-    let record_id = crate::domain::accounts::record_id_for_key("__application__");
+    let record_id = crate::domain::accounts::record_id_for_key(command_key);
     repository
         .insert_account(company_id, &record_id, actor_user_id, &plan, now)
         .await?;

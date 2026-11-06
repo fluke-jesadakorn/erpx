@@ -236,6 +236,53 @@ fn calendar_dates_and_utc_defaults_are_bounded() {
 }
 
 #[test]
+fn course_text_limits_count_utf16_units_for_input_and_readback() {
+    let input = CourseRequest {
+        title: "ก".repeat(160),
+        description: "คำอธิบาย".into(),
+        provider: "ทีม".into(),
+        duration_minutes: 90,
+        required_for: Some("ช่าง".into()),
+    };
+    let valid = input.validate().unwrap();
+    assert_eq!(valid.title, "ก".repeat(160));
+    let mut persisted = course("draft", Some("ช่าง"));
+    persisted.title = valid.title;
+    persisted.description = valid.description;
+    persisted.provider = valid.provider;
+    persisted.validate_source().unwrap();
+    assert!(CourseRequest { title: "😀".repeat(80), ..input.clone() }.validate().is_ok());
+    assert!(CourseRequest { title: format!("{}ก", "😀".repeat(80)), ..input.clone() }.validate().is_err());
+    assert!(CourseRequest { title: "ก".repeat(161), ..input }.validate().is_err());
+}
+
+#[test]
+fn learning_field_boundaries_and_js_whitespace_are_preserved() {
+    let base = CourseRequest { title: "\u{feff}หลักสูตร\u{feff}".into(), description: "ก".repeat(3_000), provider: "😀".repeat(80), duration_minutes: 1_000_001, required_for: Some("😀".repeat(60)) };
+    let valid = base.validate().unwrap();
+    assert_eq!(valid.title, "หลักสูตร");
+    assert!(CourseRequest { description: "ก".repeat(3_001), ..base.clone() }.validate().is_err());
+    assert!(CourseRequest { provider: format!("{}ก", "😀".repeat(80)), ..base.clone() }.validate().is_err());
+    assert!(CourseRequest { required_for: Some(format!("{}ก", "😀".repeat(60))), ..base.clone() }.validate().is_err());
+    assert!(CourseRequest { duration_minutes: 9_007_199_254_740_992, ..base.clone() }.validate().is_err());
+    let mut row = course("draft", Some(&"😀".repeat(60)));
+    row.title = "😀".repeat(80);
+    row.description = valid.description;
+    row.provider = valid.provider;
+    row.duration_minutes = valid.duration_minutes;
+    row.validate_source().unwrap();
+    row.title.push('ก');
+    assert!(row.validate_source().is_err());
+    assert!(erpx_server_learning::public::learning::normalize_reason(&"ก".repeat(3_000)).is_ok());
+    assert!(erpx_server_learning::public::learning::normalize_reason(&"ก".repeat(3_001)).is_err());
+    let revoke = CertificateRevocation { expected_assignment_version: 1, reason: format!("\u{feff}{}\u{feff}", "😀".repeat(1_000)) };
+    assert_eq!(revoke.validate().unwrap().reason, "😀".repeat(1_000));
+    assert!(CertificateRevocation { reason: format!("{}ก", "😀".repeat(1_000)), ..revoke }.validate().is_err());
+    assert_eq!(CourseRequest { title: "\u{0085}abc".into(), ..base.clone() }.validate().unwrap().title, "\u{0085}abc");
+    assert!(CourseRequest { title: "ab\0c".into(), ..base }.validate().is_err());
+}
+
+#[test]
 fn course_request_trims_optional_code_and_rejects_weak_fields() {
     let input = CourseRequest {
         title: "  Safe equipment operation  ".into(),
@@ -254,9 +301,7 @@ fn course_request_trims_optional_code_and_rejects_weak_fields() {
             ..input.clone()
         }
         .validate()
-        .unwrap()
-        .required_for
-        .is_none()
+        .is_err()
     );
     assert!(
         CourseRequest {
@@ -375,6 +420,9 @@ fn assignment_input_and_action_shape_are_strict() {
         reason: "Required before operating production equipment".into(),
     };
     assert_eq!(input.validate().unwrap().due_date, "2026-11-30");
+    assert!(AssignmentRequest { due_date: " 2026-11-30 ".into(), ..input.clone() }.validate().is_err());
+    assert_eq!(erpx_server_learning::public::learning::normalize_reason("\u{0085}abc\nxyz").unwrap(), "\u{0085}abc\nxyz");
+    assert!(erpx_server_learning::public::learning::normalize_reason("abc\0xyz").is_err());
     assert!(
         AssignmentRequest {
             due_date: "2026-02-30".into(),

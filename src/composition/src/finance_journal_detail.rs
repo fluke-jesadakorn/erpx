@@ -837,7 +837,7 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
             let config=config.clone();let clock=clock.clone();let id=id.clone();Box::pin(async move {
                 if current.holding_id()!=&config.holding || current.selection().workspace().company_id!=config.company{return Err(scope().into())}
                 current.require_permission("finance.read")?;current.require_permission("module.finance.read")?;
-                let source_context=crate::field_service_source_record::SourceRecordContext{actor:current,holding:&config.holding,company:&config.company,catalogue:&config.purchases,clock:clock.as_ref()};
+                let source_context=crate::field_service_source_record::SourceRecordContext{purchase_locks:None,actor:current,holding:&config.holding,company:&config.company,catalogue:&config.purchases,clock:clock.as_ref()};
                 let source=crate::finance_service_invoice_history::read_service_invoice_history(c,&source_context,&id).await?;
                 if payment_evidence {
                     source.require_current(c,&source_context).await?;
@@ -3309,7 +3309,7 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                             user_id: current.user_id().clone(),
                             assignment_id: current.selection().assignment().id.clone(),
                         };
-                        let source_context=crate::field_service_source_record::SourceRecordContext{actor:current,holding:&configuration.holding,company:&configuration.company,catalogue:&configuration.purchases,clock:clock.as_ref()};
+                        let source_context=crate::field_service_source_record::SourceRecordContext{purchase_locks:None,actor:current,holding:&configuration.holding,company:&configuration.company,catalogue:&configuration.purchases,clock:clock.as_ref()};
                         // A client label cannot choose this admission. Finance
                         // proves the exact invoice/book edge, then the existing
                         // same-unit Field history port proves lineage/purchase.

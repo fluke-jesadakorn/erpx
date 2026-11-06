@@ -29,6 +29,8 @@ serde_json.workspace = true
 [dev-dependencies]
 tokio.workspace = true
 uuid.workspace = true
+erpx-server-quality.workspace = true
+erpx-server-identity-access.workspace = true
 
 [[test]]
 name = "maintenance_notifications"

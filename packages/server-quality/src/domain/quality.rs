@@ -141,18 +141,20 @@ fn measured_number(value: &str) -> Option<f64> {
     number.is_finite().then_some(number)
 }
 
-fn limit(value: &Option<String>) -> Option<f64> {
-    value.as_deref().and_then(measured_number)
-}
-
 pub fn quality_measurement_passed(metric: &QualityMetric, value: &str) -> bool {
     let Some(measured) = measured_number(value) else {
         return false;
     };
-    let minimum = limit(&metric.minimum);
-    let maximum = limit(&metric.maximum);
-    minimum.is_none_or(|minimum| measured >= minimum)
-        && maximum.is_none_or(|maximum| measured <= maximum)
+    // An invalid stored bound is not an absent bound. Treating it as absent
+    // could incorrectly release stock if the captured specification is corrupt.
+    metric
+        .minimum
+        .as_deref()
+        .is_none_or(|bound| measured_number(bound).is_some_and(|minimum| measured >= minimum))
+        && metric
+            .maximum
+            .as_deref()
+            .is_none_or(|bound| measured_number(bound).is_some_and(|maximum| measured <= maximum))
 }
 
 /// Retained inspection derivation: every configured metric is required, the
@@ -403,7 +405,10 @@ pub fn validate_reason(
     code: &'static str,
     message: &'static str,
 ) -> Result<String, BusinessError> {
-    let value = value.trim();
+    let value = value.trim_matches(|c: char| matches!(c,
+        '\u{0009}'..='\u{000d}' | '\u{0020}' | '\u{00a0}' | '\u{1680}' |
+        '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' |
+        '\u{205f}' | '\u{3000}' | '\u{feff}'));
     let length = value.encode_utf16().count();
     if !(3..=2000).contains(&length) {
         return Err(BusinessError::invalid(code, message));

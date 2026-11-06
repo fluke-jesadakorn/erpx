@@ -23,6 +23,7 @@ pub struct LeadFacts {
 #[derive(Clone, Debug)]
 pub struct ActivityFacts {
     pub owner_id: String,
+    pub due_date: String,
     pub status: String,
     pub version: i64,
 }
@@ -46,14 +47,21 @@ pub trait ActivityRepository: Send {
         &'a mut self,
         company_id: &'a str,
         record_id: &'a str,
+        command_key: &'a str,
         created_by: &'a str,
         plan: &'a ActivityCreatePlan,
+        input: &'a ActivityCreateInput,
         now: i64,
     ) -> ActivitiesFuture<'a, (), Self::Error>;
 
     fn update_activity<'a>(
         &'a mut self,
+        company_id: &'a str,
         record_id: &'a str,
+        command_key: &'a str,
+        actor_id: &'a str,
+        record: &'a ActivityFacts,
+        input: &'a ActivityChangeInput,
         plan: &'a ActivityChangePlan,
         now: i64,
     ) -> ActivitiesFuture<'a, (), Self::Error>;
@@ -61,6 +69,7 @@ pub trait ActivityRepository: Send {
 
 pub async fn create_activity<R>(
     actor: &ActivityActor,
+    command_key: &str,
     input: &ActivityCreateInput,
     repository: &mut R,
     now: i64,
@@ -68,6 +77,13 @@ pub async fn create_activity<R>(
 where
     R: ActivityRepository,
 {
+    if command_key.is_empty() {
+        return Err(BusinessError::invalid(
+            "CRM_ACTIVITY_INPUT_INVALID",
+            "A command key is required.",
+        )
+        .into());
+    }
     let plan = validate_create(actor, input)?;
     let lead = repository
         .lead(&actor.company_id, &plan.lead_id)
@@ -88,13 +104,15 @@ where
         .into());
     }
     require_lead_open(&lead.status, lead.stage.as_deref())?;
-    let record_id = crate::domain::activities_native::create_record_id("__application__");
+    let record_id = crate::domain::activities_native::create_record_id(command_key);
     repository
         .insert_activity(
             &actor.company_id,
             &record_id,
+            command_key,
             &actor.user_id,
             &plan,
+            input,
             now,
         )
         .await?;
@@ -104,6 +122,7 @@ where
 pub async fn change_activity<R>(
     actor: &ActivityActor,
     record_id: &str,
+    command_key: &str,
     input: &ActivityChangeInput,
     repository: &mut R,
     now: i64,
@@ -111,6 +130,13 @@ pub async fn change_activity<R>(
 where
     R: ActivityRepository,
 {
+    if command_key.is_empty() {
+        return Err(BusinessError::invalid(
+            "CRM_ACTIVITY_INPUT_INVALID",
+            "A command key is required.",
+        )
+        .into());
+    }
     let record = repository
         .activity(&actor.company_id, record_id)
         .await?
@@ -131,7 +157,16 @@ where
     }
     let plan = validate_change(actor, input, &record.owner_id, &record.status)?;
     repository
-        .update_activity(record_id, &plan, now)
+        .update_activity(
+            &actor.company_id,
+            record_id,
+            command_key,
+            &actor.user_id,
+            &record,
+            input,
+            &plan,
+            now,
+        )
         .await?;
     Ok(plan)
 }

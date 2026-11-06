@@ -242,7 +242,7 @@ use erpx_server_commerce::public::service_initial_count_masters::{
     CurrentServiceCountRecordMasters, read_service_count_record_masters,
 };
 use erpx_server_commercial::public::purchases::{
-    CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
+    CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgReadOnlyCompanyPurchaseReader,
     PurchaseRequest, PurchaseWitness, current_package_catalogue,
 };
 use erpx_server_identity_access::public::{
@@ -323,11 +323,13 @@ impl<C: Clock + Sync> UpdateSource<'_, C> {
         self.purchases
             .require_for(c, purpose, self.clock.now())
             .await?;
-        PgCompanyPurchaseReader::new(
+        let locks = erpx_server_commercial::public::purchases::bind_purchase_read_sources(c).await?;
+        PgReadOnlyCompanyPurchaseReader::new(
             self.current.holding_id().clone(),
             self.current.selection().workspace().company_id.clone(),
             c,
             &self.catalogue,
+            &locks,
         )
         .revalidate(&self.supply, self.clock.now())
         .await?
@@ -359,11 +361,13 @@ async fn update_source<'a, C: Clock + Sync>(
         .await?;
     let catalogue = current_package_catalogue()?;
     let supply = {
-        let mut reader = PgCompanyPurchaseReader::new(
+        let locks = erpx_server_commercial::public::purchases::bind_purchase_read_sources(c).await?;
+        let mut reader = PgReadOnlyCompanyPurchaseReader::new(
             current.holding_id().clone(),
             current.selection().workspace().company_id.clone(),
             c,
             &catalogue,
+            &locks,
         );
         let observed = reader
             .inspect(

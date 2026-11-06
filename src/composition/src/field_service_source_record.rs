@@ -3,7 +3,8 @@ use crate::field_service_reservation_read::{FieldServiceRenderedContext, context
 use erpx_server_assets::public::field_service_workspace::CurrentServiceWorkspaceAssets;
 use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
-    PurchaseInspection, PurchaseRequest, PurchaseWitness,
+    PgReadOnlyCompanyPurchaseReader, PurchaseInspection, PurchaseReadSourceLocks, PurchaseRequest,
+    PurchaseWitness,
 };
 use erpx_server_field_service::public::source_record::CurrentFieldRecordSource;
 use erpx_server_finance::public::field_service_workspace::CurrentServiceWorkspaceCustomers;
@@ -11,7 +12,7 @@ use erpx_server_identity_access::public::effective_authority::{
     AuthorizedWorkContext, HoldingWorkSourcePreparation,
 };
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
+use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId, TimestampMillis};
 use erpx_server_support::public::field_service_source_record::CurrentFieldSourceTicket;
 use serde::Serialize;
 use sqlx::PgConnection;
@@ -127,6 +128,42 @@ pub(crate) struct SourceRecordContext<'a, C> {
     pub company: &'a CompanyId,
     pub catalogue: &'a CommercialCatalogue,
     pub clock: &'a C,
+    /// Set only by trusted composition after all purchase source locks are held.
+    pub purchase_locks: Option<&'a PurchaseReadSourceLocks>,
+}
+
+pub(crate) enum SourcePurchaseReader<'a> {
+    Existing(PgCompanyPurchaseReader<'a>),
+    Guarded(PgReadOnlyCompanyPurchaseReader<'a, 'a>),
+}
+
+impl SourcePurchaseReader<'_> {
+    pub(crate) async fn inspect(&mut self, request: &PurchaseRequest, now: TimestampMillis) -> Result<PurchaseInspection, Error> {
+        match self {
+            Self::Existing(reader) => reader.inspect(request, now).await,
+            Self::Guarded(reader) => reader.inspect(request, now).await,
+        }
+    }
+
+    pub(crate) async fn revalidate(&mut self, witness: &PurchaseWitness, now: TimestampMillis) -> Result<PurchaseInspection, Error> {
+        match self {
+            Self::Existing(reader) => reader.revalidate(witness, now).await,
+            Self::Guarded(reader) => reader.revalidate(witness, now).await,
+        }
+    }
+}
+
+impl<C> SourceRecordContext<'_, C> {
+    pub(crate) fn purchase_reader<'a>(&'a self, c: &'a mut PgConnection) -> SourcePurchaseReader<'a> {
+        match self.purchase_locks {
+            Some(locks) => SourcePurchaseReader::Guarded(PgReadOnlyCompanyPurchaseReader::new(
+                self.holding.clone(), self.company.clone(), c, self.catalogue, locks,
+            )),
+            None => SourcePurchaseReader::Existing(PgCompanyPurchaseReader::new(
+                self.holding.clone(), self.company.clone(), c, self.catalogue,
+            )),
+        }
+    }
 }
 /// Owner witnesses retained by a consuming Records/Collaboration transaction.
 /// The surrounding selected-work authorizer remains responsible for the live
@@ -161,12 +198,7 @@ impl PreparedFieldSourceRecord {
             value.require_current(c).await?;
         }
         for purchase in &self.purchases {
-            PgCompanyPurchaseReader::new(
-                ctx.holding.clone(),
-                ctx.company.clone(),
-                c,
-                ctx.catalogue,
-            )
+            ctx.purchase_reader(c)
             .revalidate(purchase, ctx.clock.now())
             .await?;
         }
@@ -185,10 +217,9 @@ pub(crate) async fn prepare<C: Clock>(
 ) -> Result<PreparedFieldSourceRecord, Error> {
     let SourceRecordContext {
         actor,
-        holding,
         company,
-        catalogue,
         clock,
+        ..
     } = *ctx;
     use erpx_server_field_service::public::source_record::{
         FieldRecordLineage, check_version, read_source_record, require_source_lineage,
@@ -201,7 +232,7 @@ pub(crate) async fn prepare<C: Clock>(
             CapabilityPurpose::History,
         ] {
             let inspection =
-                PgCompanyPurchaseReader::new(holding.clone(), company.clone(), c, catalogue)
+                ctx.purchase_reader(c)
                     .inspect(
                         &PurchaseRequest {
                             capabilities: vec!["service.orders".into()],
@@ -243,7 +274,7 @@ pub(crate) async fn prepare<C: Clock>(
     let mut purchases = shadow_purchases;
     let mut owner_witnesses = None;
     if matches!(mode, SourceRecordMode::Enforced) {
-        let p = PgCompanyPurchaseReader::new(holding.clone(), company.clone(), c, catalogue)
+        let p = ctx.purchase_reader(c)
             .inspect(
                 &PurchaseRequest {
                     capabilities: vec!["service.orders".into()],
@@ -279,7 +310,7 @@ pub(crate) async fn prepare<C: Clock>(
             let mut part_purchase = None;
             let parts_history = if has_asset {
                 let p =
-                    PgCompanyPurchaseReader::new(holding.clone(), company.clone(), c, catalogue)
+                    ctx.purchase_reader(c)
                         .inspect(
                             &PurchaseRequest {
                                 capabilities: vec!["service.parts-assets".into()],

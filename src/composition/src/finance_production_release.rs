@@ -8,6 +8,7 @@
 //! personal permission and never falls back to development semantics.
 use erpx_server_platform_administration::public::production_release::{
     PgProductionReleaseReader, ProductionReleaseReadPort, current_production_release_catalogue,
+    lock_production_release_sources,
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, TimestampMillis};
@@ -48,6 +49,9 @@ pub(crate) async fn require_production_release(
         )
     })?;
     let artifact = current_software_version();
+    // Take the release locks before the first SELECT establishes a snapshot.
+    // The reader also takes these locks so direct callers retain the same guard.
+    lock_production_release_sources(&mut *connection).await?;
     let now = sqlx::query_scalar::<_, i64>(
         "SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint",
     )

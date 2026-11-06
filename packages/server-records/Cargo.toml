@@ -44,6 +44,10 @@ name = "record_registry"
 path = "../../tests/unit/shared.records/rust-record-registry.test.rs"
 
 [[test]]
+name = "record_source"
+path = "../../tests/unit/shared.records/rust-record-source.test.rs"
+
+[[test]]
 name = "record_registry_http"
 path = "../../tests/unit/shared.records/rust-record-registry-http.test.rs"
 

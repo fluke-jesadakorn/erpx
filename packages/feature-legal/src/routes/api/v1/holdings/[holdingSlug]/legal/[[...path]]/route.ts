@@ -49,7 +49,7 @@ import { legalData, legalRecordData, legalWorkspaceDetail as detail, legalComman
 import { sendEnvelope, signingAction } from "@erpx/server-legal/public/legal/signing";
 import { errorResponse, ApiError } from "@erpx/server-runtime/public/http";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
-import { legalReadScope } from "@erpx/server-legal/adapters/purchases";
+import { legalReadScope } from "@erpx/server-legal/public/purchases";
 import { nativeLegalAvailable, nativeLegalCommand, nativeLegalCommandSelected, nativeLegalDetail, nativeLegalFailure, nativeLegalRegister } from "@erpx/feature-legal/lib/native-legal";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };

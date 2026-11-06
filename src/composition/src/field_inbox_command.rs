@@ -260,6 +260,7 @@ async fn execute<C: Clock + Send + Sync>(
         .require_current(
             c,
             &SourceRecordContext {
+                purchase_locks: None,
                 actor: current,
                 holding: &target.holding,
                 company: &target.company,

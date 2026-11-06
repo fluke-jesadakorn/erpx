@@ -291,6 +291,7 @@ impl<C: Clock + Sync + Send, I: IdentifierSource + Send> FieldExceptionUnit for 
     }
     async fn source(&mut self, row: &Exception) -> Result<PreparedRecordsSource, Error> {
         let context = SourceRecordContext {
+            purchase_locks: None,
             actor: self.current,
             holding: &self.target.holding,
             company: &self.target.company,
@@ -386,6 +387,7 @@ impl<C: Clock + Sync + Send, I: IdentifierSource + Send> FieldExceptionUnit for 
             .require_current(
                 self.c,
                 &SourceRecordContext {
+                    purchase_locks: None,
                     actor: self.current,
                     holding: &self.target.holding,
                     company: &self.target.company,
@@ -642,6 +644,7 @@ async fn execute<C: Clock + Sync + Send>(
             .require_current(
                 unit.c,
                 &SourceRecordContext {
+                    purchase_locks: None,
                     actor: current,
                     holding: &target.holding,
                     company: &target.company,
@@ -781,10 +784,10 @@ where
   if current.holding_id()!=&target.holding||current.selection().workspace().company_id!=target.company{return Err(changed());}
   let scope=current.selection().workspace();let record=read_field_exception(c,&target.company,&id,scope.branch_id.as_ref().map(|v|v.as_str()),scope.department_id.as_ref().map(|v|v.as_str())).await?.ok_or_else(||BusinessError::new(FailureKind::NotFound,"OPERATIONS_EXCEPTION_NOT_FOUND","Exception not found in this scope."))?;
   let view=read_field_exception_view(c,record).await?;
-  let mut port=FieldRecordsSourcePort{connection:c,context:SourceRecordContext{actor:current,holding:&target.holding,company:&target.company,catalogue:&target.catalogue,clock:target.clock.as_ref()}};
+  let mut port=FieldRecordsSourcePort{connection:c,context:SourceRecordContext{purchase_locks:None,actor:current,holding:&target.holding,company:&target.company,catalogue:&target.catalogue,clock:target.clock.as_ref()}};
   let prepared=prepare_source(&mut port,target.company.as_str(),&SourceReference{kind:SourceKind::FieldServiceOrder,id:view.source_id().into(),expected_version:None}).await?;
   let (source,witness)=prepared.into_parts();
-  view.require_current(c).await?;witness.require_current(c,&SourceRecordContext{actor:current,holding:&target.holding,company:&target.company,catalogue:&target.catalogue,clock:target.clock.as_ref()}).await?;require_selected_actor_current(c,current,target.clock.now().get()).await?;
+  view.require_current(c).await?;witness.require_current(c,&SourceRecordContext{purchase_locks:None,actor:current,holding:&target.holding,company:&target.company,catalogue:&target.catalogue,clock:target.clock.as_ref()}).await?;require_selected_actor_current(c,current,target.clock.now().get()).await?;
   Ok(json!({"data":{"row":view.data()["row"],"history":view.data()["history"],"source":{"kind":source.kind.as_str(),"id":source.id,"companyId":source.company_id,"branchId":source.branch_id,"departmentId":source.department_id,"version":source.version,"title":source.title,"status":source.status},"canWrite":current.has_permission("records.write"),"canReview":current.has_permission("records.review")},"context":crate::field_service_reservation_read::context(current)?}))
  })}).await
 }

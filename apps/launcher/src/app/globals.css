@@ -339,6 +339,7 @@
 @source "../../../../packages/feature-operations/src/lib/operations-work-model.ts";
 @source "../../../../packages/feature-operations/src/lib/routine-command.ts";
 @source "../../../../packages/feature-operations/src/lib/routine-purchase-controls.ts";
+@source "../../../../packages/feature-operations/src/public/native-operations.ts";
 @source "../../../../packages/feature-organization/src/components/department-override-decision.tsx";
 @source "../../../../packages/feature-organization/src/lib/gpo-rules.ts";
 @source "../../../../packages/feature-organization/src/lib/hierarchy.ts";

@@ -421,6 +421,56 @@ fn actor_branch(actor: LearningActor, branch: &str, department: Option<&str>) ->
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn course_unicode_and_safe_duration_round_trip_through_postgres() {
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        let input = CourseRequest {
+            title: "ก".repeat(160), description: "😀".repeat(1_500),
+            provider: "😀".repeat(80), duration_minutes: 1_000_001,
+            required_for: Some("ช".repeat(120)),
+        };
+        let created = run_create_course(&pool, author(), "learning-unicode-0001", input.clone()).await.unwrap();
+        let id = created["id"].as_str().unwrap();
+        let row = sqlx::query("SELECT title,description,provider,duration_minutes,required_for FROM learning_courses WHERE id=$1")
+            .bind(id).fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(row.get::<String,_>("title"), input.title);
+        assert_eq!(row.get::<String,_>("description"), input.description);
+        assert_eq!(row.get::<String,_>("provider"), input.provider);
+        assert_eq!(row.get::<i64,_>("duration_minutes"), 1_000_001);
+        assert_eq!(row.get::<Option<String>,_>("required_for"), input.required_for);
+        let workspace = run_workspace(&pool, author(), false).await.unwrap();
+        let saved = workspace["courses"].as_array().unwrap().iter().find(|row| row["id"] == id).unwrap();
+        assert_eq!(saved["title"], input.title);
+        assert_eq!(saved["description"], input.description);
+        assert_eq!(saved["duration_minutes"], 1_000_001);
+        for after_replay in [false, true] {
+            if after_replay {
+                assert_eq!(run_create_course(&pool, author(), "learning-unicode-0001", input.clone()).await.unwrap(), created);
+            }
+            let effects: (i64,i64,i64,i64,i64) = sqlx::query_as("SELECT (SELECT count(*) FROM learning_courses WHERE id=$1),(SELECT count(*) FROM learning_course_events WHERE course_id=$1 AND action='create'),(SELECT count(*) FROM command_receipts WHERE command_id=$2),(SELECT count(*) FROM audit_events WHERE command_id=$2),(SELECT count(*) FROM outbox_events WHERE command_id=$2)")
+                .bind(id).bind("learning-unicode-0001").fetch_one(pool.raw()).await.unwrap();
+            assert_eq!(effects, (1,1,1,1,1), "after replay: {after_replay}");
+        }
+        let too_long = CourseRequest { title: format!("{}ก", "😀".repeat(80)), ..input.clone() };
+        assert!(run_create_course(&pool, author(), "learning-unicode-invalid", too_long).await.is_err());
+        let too_large = CourseRequest { duration_minutes: 9_007_199_254_740_992, ..input };
+        assert!(run_create_course(&pool, author(), "learning-duration-invalid", too_large).await.is_err());
+        let invalid_effects: (i64,i64,i64,i64,i64) = sqlx::query_as("SELECT (SELECT count(*) FROM learning_courses WHERE id IN ('learning-course-learning-unicode-invalid','learning-course-learning-duration-invalid')),(SELECT count(*) FROM learning_course_events WHERE course_id IN ('learning-course-learning-unicode-invalid','learning-course-learning-duration-invalid')),(SELECT count(*) FROM command_receipts WHERE command_id IN ('learning-unicode-invalid','learning-duration-invalid')),(SELECT count(*) FROM audit_events WHERE command_id IN ('learning-unicode-invalid','learning-duration-invalid')),(SELECT count(*) FROM outbox_events WHERE command_id IN ('learning-unicode-invalid','learning-duration-invalid'))").fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(invalid_effects, (0,0,0,0,0));
+        let controls = CourseRequest { title: "\u{0085}Learn\nSafety".into(), description: "First\nsecond".into(), provider: "Team".into(), duration_minutes: 30, required_for: None };
+        let saved_control = run_create_course(&pool, author(), "learning-control-0001", controls.clone()).await.unwrap();
+        let control_id = saved_control["id"].as_str().unwrap();
+        let row: (String,String) = sqlx::query_as("SELECT title,description FROM learning_courses WHERE id=$1").bind(control_id).fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(row, (controls.title.clone(),controls.description.clone()));
+        let workspace = run_workspace(&pool, author(), false).await.unwrap();
+        let row = workspace["courses"].as_array().unwrap().iter().find(|row| row["id"] == control_id).unwrap();
+        assert_eq!(row["title"], controls.title);
+        assert_eq!(row["description"], controls.description);
+        assert!(run_create_course(&pool, author(), "learning-empty-code", CourseRequest { required_for: Some(" \u{feff}".into()), ..controls }).await.is_err());
+    }).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn course_catalogue_is_independently_reviewed_versioned_and_evidenced() {
     fixture::with_database(4, |pool| async move {
         setup(&pool).await;

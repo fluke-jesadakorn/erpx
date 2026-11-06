@@ -2132,6 +2132,7 @@
 @source "../../../../packages/server-legal/src/public/metric-purchases.ts";
 @source "../../../../packages/server-legal/src/public/pms-rollout-facts.ts";
 @source "../../../../packages/server-legal/src/public/presentation-queries.ts";
+@source "../../../../packages/server-legal/src/public/purchases.ts";
 @source "../../../../packages/server-legal/src/public/record-purchases.ts";
 @source "../../../../packages/server-legal/src/public/rules/deadlines.ts";
 @source "../../../../packages/server-legal/src/public/rules/features.ts";

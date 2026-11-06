@@ -338,6 +338,14 @@ fn malformed_dates_quantities_and_open_rows_fail_closed() {
     bad_format.history[0].confirmation_date = "2026-13-01".into();
     assert_eq!(invalid(bad_format).code, "SUPPLIER_PROMISE_HISTORY_INVALID");
 
+    let mut impossible_header = Repo::valid();
+    impossible_header.history[0].confirmation_date = "2026-02-29".into();
+    assert_eq!(invalid(impossible_header).code, "SUPPLIER_PROMISE_HISTORY_INVALID");
+
+    let mut impossible_line = Repo::valid();
+    impossible_line.lines[0].promised_date = "2026-11-31".into();
+    assert_eq!(invalid(impossible_line).code, "SUPPLIER_PROMISE_HISTORY_INVALID");
+
     let mut zero = Repo::valid();
     zero.lines[0].quantity_milli = 0;
     assert_eq!(invalid(zero).code, "SUPPLIER_PROMISE_HISTORY_INVALID");
@@ -373,6 +381,29 @@ fn malformed_dates_quantities_and_open_rows_fail_closed() {
         invalid(withdrawn_open).code,
         "SUPPLIER_PROMISE_HISTORY_INVALID"
     );
+}
+
+#[test]
+fn overlong_utf16_supplier_history_fails_closed() {
+    let mut repository = Repo::valid();
+    repository.history[0].supplier_reference = format!("{}x", "😀".repeat(80));
+    assert_eq!(invalid(repository).code, "SUPPLIER_PROMISE_HISTORY_INVALID");
+    let mut repository = Repo::valid();
+    repository.history[0].evidence = format!("{}x", "😀".repeat(1000));
+    assert_eq!(invalid(repository).code, "SUPPLIER_PROMISE_HISTORY_INVALID");
+}
+
+#[tokio::test]
+async fn supplier_history_uses_javascript_trim_whitespace() {
+    let mut repository = Repo::valid();
+    repository.history[0].supplier_reference = "\u{0085}supplier".into();
+    supplier_promise_history(&actor(&["commerce.read"], &["procurement"]), &mut repository, "order", NOW)
+        .await.expect("JavaScript trim preserves U+0085");
+
+    let mut repository = Repo::valid();
+    repository.history[0].supplier_reference = "\u{feff}supplier".into();
+    assert_eq!(supplier_promise_history(&actor(&["commerce.read"], &["procurement"]), &mut repository, "order", NOW)
+        .await.unwrap_err().code, "SUPPLIER_PROMISE_HISTORY_INVALID");
 }
 
 #[test]

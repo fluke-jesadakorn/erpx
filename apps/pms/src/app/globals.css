@@ -275,6 +275,7 @@
 @source "../../../../packages/feature-pms/src/lib/section-route.ts";
 @source "../../../../packages/feature-pms/src/lib/workspace-command-rejections.ts";
 @source "../../../../packages/feature-pms/src/lib/workspace-command.ts";
+@source "../../../../packages/feature-pms/src/public/native-pms.ts";
 @source "../../../../packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/[action]/route.ts";
 @source "../../../../packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/booking-changes/route.ts";
 @source "../../../../packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/booking-refunds/route.ts";

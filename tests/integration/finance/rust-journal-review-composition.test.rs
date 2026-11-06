@@ -238,6 +238,49 @@ async fn full_finance_purchase_cannot_grant_unproved_foreign_sources_or_producti
  let denied=FinanceJournalConfiguration::new(FinanceJournalEnvironment::Production,erpx_server_shared::public::HoldingId::new("h001").unwrap(),erpx_server_shared::public::CompanyId::new("company").unwrap(),std::sync::Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap()));assert!(denied.is_ok());assert_eq!(counts(pool,"foreign-denied").await,(0,0,0));
  }).await;
 }
+
+#[tokio::test]
+async fn production_release_guard_waits_for_release_writer_before_denial() {
+    account::with_system(|system| async move {
+        let p = setup(system).await;
+        p.create("release-lock", false).await.unwrap();
+        let pool = &p.system.holdings[0];
+        let mut writer = pool.raw().begin().await.unwrap();
+        let (database, pid): (String, i32) =
+            sqlx::query_as("SELECT current_database(),pg_backend_pid()")
+                .fetch_one(&mut *writer)
+                .await
+                .unwrap();
+        sqlx::query("LOCK TABLE company_release_acceptances IN ROW EXCLUSIVE MODE")
+            .execute(&mut *writer)
+            .await
+            .unwrap();
+        let config = FinanceJournalConfiguration::new(
+            FinanceJournalEnvironment::Production,
+            erpx_server_shared::public::HoldingId::new("h001").unwrap(),
+            erpx_server_shared::public::CompanyId::new("company").unwrap(),
+            std::sync::Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap()),
+        ).unwrap();
+        let administration = FinanceJournalReviewAdministration::new(
+            p.authorizer.clone(), config, p.system.scenario.clock.clone(),
+        );
+        let proof = p.reviewer.clone();
+        let selection = p.reviewer_selection.clone();
+        let task = tokio::spawn(async move {
+            administration.review("acme.example.test", proof, selection,
+                command("journal-release-lock", "post-release-lock", post())).await
+        });
+        let waiting = blocked_by(&p.system.control, &database, pid).await;
+        assert!(!task.is_finished());
+        writer.commit().await.unwrap();
+        waiting.expect("production release guard must wait for the release writer");
+        let outcome = tokio::time::timeout(std::time::Duration::from_secs(15), task)
+            .await.unwrap().unwrap();
+        business(outcome, "FINANCE_PRODUCTION_RELEASE_REQUIRED");
+        assert_eq!(journal(pool, "journal-release-lock").await, ("draft".into(), 1));
+        assert_eq!(counts(pool, "post-release-lock").await, (0, 0, 0));
+    }).await;
+}
 #[tokio::test]
 async fn actual_audit_constraint_and_final_source_or_identity_withdrawal_roll_back_every_effect() {
     for mutation in ["audit", "source", "identity", "purchase"] {

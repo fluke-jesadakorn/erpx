@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./public/native-manage-erpx": "./src/public/native-manage-erpx.ts",
     "./components/ai-providers": "./src/components/ai-providers.tsx",
     "./components/platform-migration-run": "./src/components/platform-migration-run.tsx",
     "./components/settings/company-business-acceptance": "./src/components/settings/company-business-acceptance.tsx",

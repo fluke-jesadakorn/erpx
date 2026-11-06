@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./public/native-quality": "./src/public/native-quality.ts",
     "./components/quality-console.module.css": "./src/components/quality-console.module.css",
     "./components/quality-console": "./src/components/quality-console.tsx",
     "./components/source-record-backdrop": "./src/components/source-record-backdrop.tsx",

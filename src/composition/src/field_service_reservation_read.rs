@@ -1268,6 +1268,7 @@ impl<C: Clock + Send + Sync + 'static> FieldServiceReservationReadService<C> {
                         crate::field_service_source_record::read(
                             c,
                             &crate::field_service_source_record::SourceRecordContext {
+                                purchase_locks: None,
                                 actor: current,
                                 holding: &config.holding,
                                 company: &config.company,

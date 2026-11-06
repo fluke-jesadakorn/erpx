@@ -12,7 +12,7 @@ import { requireWorkContext, publicScope } from "@erpx/server-identity_access/pu
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { qualityAlerts } from "@erpx/server-quality/public/quality-alerts";
 import { qualityDetail } from "@erpx/server-quality/public/quality";
-import { nativeQualityAvailable, nativeQualityDetail } from "@erpx/feature-quality/adapters/server/native-quality-page";
+import { nativeQualityAvailable, nativeQualityDetail } from "@erpx/feature-quality/public/native-quality";
 import { accessPage } from "@erpx/server-work_projection/public/page-error";
 import styles from "@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/quality/[id]/quality-detail.module.css";
 

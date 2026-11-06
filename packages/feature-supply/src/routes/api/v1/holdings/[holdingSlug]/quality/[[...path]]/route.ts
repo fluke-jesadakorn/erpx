@@ -4,8 +4,8 @@ import {requestPublicOrigin} from "@erpx/server-manage_erpx/public/public-origin
 import {ApiError,errorResponse} from "@erpx/server-runtime/public/http";
 import {cancelQualityHold,qualityWorkspace,qualityDetail,createQualityHold,inspectQualityHold,releaseQualityHold,createQualityScrapDisposition,saveQualitySpec,transitionQualitySpec,qualityHoldSchema,qualityInspectionSchema,qualityReleaseSchema,qualityDispositionSchema,qualitySpecSchema,qualitySpecActionSchema} from "@erpx/server-quality/public/quality";
 import {acknowledgeQualityAlert} from "@erpx/server-quality/public/quality-alerts";
-import {nativeQualityAvailable,nativeQualityDetail,nativeQualityWorkspace} from "@erpx/feature-quality/adapters/server/native-quality-page";
-import {ownedNativeQualityCancel} from "@erpx/feature-quality/adapters/server/native-quality-owned";
+import {nativeQualityAvailable,nativeQualityDetail,nativeQualityWorkspace} from "@erpx/feature-quality/public/native-quality";
+import {ownedNativeQualityCancel} from "@erpx/feature-quality/public/native-quality";
 type Context={params:Promise<{holdingSlug:string;path?:string[]}>};
 export async function GET(_request:Request,context:Context){try{const {holdingSlug,path=[]}=await context.params,actor=await requireWorkContext(holdingSlug);if(path.length>1)throw new ApiError(404,'NOT_FOUND','Quality route not found.');
   if(path.length){

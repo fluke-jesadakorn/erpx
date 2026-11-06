@@ -42,7 +42,19 @@ pub fn account_kind_invalid() -> BusinessError {
     )
 }
 
-pub fn validate_account_create(input: &AccountCreateInput) -> Result<AccountCreatePlan, BusinessError> {
+pub(crate) fn js_trim(value: &str) -> &str {
+    value.trim_matches(|c: char| {
+        matches!(c,
+            '\u{0009}'..='\u{000d}' | '\u{0020}' | '\u{00a0}' | '\u{1680}' |
+            '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' |
+            '\u{205f}' | '\u{3000}' | '\u{feff}'
+        )
+    })
+}
+
+pub fn validate_account_create(
+    input: &AccountCreateInput,
+) -> Result<AccountCreatePlan, BusinessError> {
     if input.action != "create-account" {
         return Err(BusinessError::invalid(
             "CRM_ACCOUNT_ACTION_INVALID",
@@ -52,12 +64,10 @@ pub fn validate_account_create(input: &AccountCreateInput) -> Result<AccountCrea
     if !matches!(input.kind.as_str(), "business" | "individual") {
         return Err(account_kind_invalid());
     }
-    let name = input.name.trim().to_owned();
-    if name.len() < 2
-        || name.len() > NAME_LIMIT
-        || name.chars().any(char::is_control)
-        || name.chars().count() > NAME_LIMIT
-    {
+    let name = js_trim(&input.name).to_owned();
+    // Zod's string length uses JavaScript UTF-16 code units, not UTF-8 bytes
+    // or Unicode scalar values. Preserve the existing identity contract.
+    if !(2..=NAME_LIMIT).contains(&name.encode_utf16().count()) {
         return Err(account_create_invalid());
     }
     Ok(AccountCreatePlan {
@@ -92,11 +102,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_control_characters_and_empty_names() {
-        let bad = validate_account_create(&input(json!({
-            "action": "create-account", "kind": "individual", "name": "A\u{0007}B"
-        })));
-        assert!(bad.is_err());
+    fn rejects_empty_names() {
         let empty = validate_account_create(&input(json!({
             "action": "create-account", "kind": "individual", "name": "   "
         })));

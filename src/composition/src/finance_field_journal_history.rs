@@ -74,12 +74,7 @@ impl CurrentFieldJournalHistory {
         actor(ctx)?;
         require_selected_actor_current(c, ctx.actor, ctx.clock.now().get()).await?;
         Box::pin(self.lineage.require_current(c)).await?;
-        let mut reader = PgCompanyPurchaseReader::new(
-            ctx.holding.clone(),
-            ctx.company.clone(),
-            c,
-            ctx.catalogue,
-        );
+        let mut reader = ctx.purchase_reader(c);
         if reader
             .revalidate(&self.base, ctx.clock.now())
             .await?
@@ -121,12 +116,7 @@ impl CurrentFieldJournalHistory {
         require_selected_actor_current(c, ctx.actor, ctx.clock.now().get()).await?;
         Box::pin(self.finance.require_current(c)).await?;
         Box::pin(self.lineage.require_current(c)).await?;
-        let mut reader = PgCompanyPurchaseReader::new(
-            ctx.holding.clone(),
-            ctx.company.clone(),
-            c,
-            ctx.catalogue,
-        );
+        let mut reader = ctx.purchase_reader(c);
         if reader
             .revalidate(&self.base, ctx.clock.now())
             .await?
@@ -165,7 +155,7 @@ pub(crate) async fn read_field_journal_history<C: Clock>(
     let finance = Box::pin(read_field_service_journal_detail(c, &actor, &id, &target)).await?;
     let lineage = Box::pin(FieldServicePartsSource::retain(c, target)).await?;
     let mut reader =
-        PgCompanyPurchaseReader::new(ctx.holding.clone(), ctx.company.clone(), c, ctx.catalogue);
+        ctx.purchase_reader(c);
     let req = |cap: &str| PurchaseRequest {
         capabilities: vec![cap.into()],
         purpose: CapabilityPurpose::History,

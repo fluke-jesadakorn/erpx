@@ -12,6 +12,66 @@ use erpx_server_shared::public::BusinessError;
 use facts::*;
 use finance::FinanceFacts;
 use std::sync::Arc;
+
+#[tokio::test]
+async fn quality_lineage_uses_actual_inventory_posted_count_witness() {
+    use erpx_server_inventory::public::quality_disposition_count::{CurrentQualityDispositionCount, QualityDispositionCountRequest, inspect_quality_disposition_count, lock_quality_disposition_count_sources};
+    use erpx_server_quality::public::purchase_lineage::{CountLineageRequest, QualityLineageCountPort, QualityLineageRequest, inspect_quality_purchase_lineage, lock_quality_purchase_lineage};
+    use erpx_server_runtime::public::postgres::PgWorkFuture;
+    struct InventoryCount;
+    impl QualityLineageCountPort for InventoryCount {
+        type Witness=CurrentQualityDispositionCount;
+        fn inspect<'a>(&'a mut self,c:&'a mut sqlx::PgConnection,r:CountLineageRequest)->PgWorkFuture<'a,Option<Self::Witness>,BusinessError> {
+            Box::pin(async move { inspect_quality_disposition_count(c,QualityDispositionCountRequest {company_id:r.company_id,branch_id:r.branch_id,warehouse_id:r.warehouse_id,count_id:r.count_id,hold_id:r.hold_id}).await })
+        }
+        fn require_current<'a>(&'a mut self,c:&'a mut sqlx::PgConnection,w:&'a Self::Witness)->PgWorkFuture<'a,(),BusinessError> {
+            Box::pin(async move { w.require_current(c).await })
+        }
+    }
+    fixture::with_database(2,|pool|async move {
+        setup(&pool,"none").await;
+        sqlx::raw_sql("INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,status,created_by,created_at,updated_at,quantity_scope,held_quantity_milli,source_type,source_id) VALUES('joined-root','company','branch','warehouse','product','Review','2026-11-10','held','maker',0,0,'partial',3000,'goods_receipt','origin'); INSERT INTO inventory_counts(id,company_id,branch_id,warehouse_id,number,count_date,reason,status,quality_hold_id,created_by,prepared_by,created_at,updated_at) VALUES('joined-count','company','branch','warehouse','JOINED','2026-11-10','Scrap','posted','joined-root','maker','maker',0,0); UPDATE inventory_quality_holds SET status='disposed',last_result='fail',disposition_kind='scrap',disposition_reason='Scrap',disposition_requested_by='reviewer',disposition_count_id='joined-count',disposition_quantity_milli=1000,disposed_by='approver',disposed_at=1 WHERE id='joined-root'; INSERT INTO inventory_quality_disposition_events(id,hold_id,count_id,action,actor_id,reviewed_version,reason,created_at) VALUES('joined-event','joined-root','joined-count','post','approver',1,'Scrap',1); INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,status,created_by,created_at,updated_at,quantity_scope,held_quantity_milli,source_type,source_id) VALUES('joined-root-remaining-joined-count','company','branch','warehouse','product','Remaining','2026-11-10','held','maker',1,1,'partial',2000,'goods_receipt','origin:remaining:joined-count')").execute(pool.raw()).await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_quality_purchase_lineage(&mut tx).await.unwrap();
+        lock_quality_disposition_count_sources(&mut tx).await.unwrap();
+        let mut counts=InventoryCount;
+        let request=QualityLineageRequest {company_id:company(),branch_id:Some("branch".into()),hold_id:"joined-root-remaining-joined-count".into()};
+        let witness=inspect_quality_purchase_lineage(&mut tx,&mut counts,request.clone()).await.unwrap();
+        assert_eq!(witness.root()["id"],"joined-root");
+        witness.require_current(&mut tx,&mut counts).await.unwrap();
+        sqlx::query("UPDATE inventory_counts SET status='draft' WHERE id='joined-count'").execute(&mut *tx).await.unwrap();
+        assert!(witness.require_current(&mut tx,&mut counts).await.is_err());
+        let current=inspect_quality_purchase_lineage(&mut tx,&mut counts,request).await.unwrap();
+        assert_eq!(current.root()["id"],"joined-root-remaining-joined-count");
+        tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn posted_quality_count_witness_retains_scope_reciprocal_hold_and_unit() {
+    use erpx_server_inventory::public::quality_disposition_count::{QualityDispositionCountRequest, inspect_quality_disposition_count, lock_quality_disposition_count_sources};
+    fixture::with_database(2, |pool| async move {
+        setup(&pool,"none").await;
+        sqlx::raw_sql("INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,created_by,created_at,updated_at) VALUES('quality-hold','company','branch','warehouse','product','Quality','2026-01-10','maker',0,0); INSERT INTO inventory_counts(id,company_id,branch_id,warehouse_id,number,count_date,reason,status,quality_hold_id,created_by,prepared_by,created_at,updated_at) VALUES('quality-count','company','branch','warehouse','QC-1','2026-01-10','Quality','posted','quality-hold','maker','maker',0,0),('draft-count','company','branch','warehouse','QC-2','2026-01-10','Quality','draft','quality-hold','maker','maker',0,0)").execute(pool.raw()).await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_quality_disposition_count_sources(&mut tx).await.unwrap();
+        let request=|| QualityDispositionCountRequest {company_id:company(),branch_id:"branch".into(),warehouse_id:"warehouse".into(),count_id:"quality-count".into(),hold_id:"quality-hold".into()};
+        let source=inspect_quality_disposition_count(&mut tx,request()).await.unwrap().unwrap();
+        source.require_current(&mut tx).await.unwrap();
+        for bad in [QualityDispositionCountRequest {count_id:"draft-count".into(),..request()},QualityDispositionCountRequest {hold_id:"other".into(),..request()},QualityDispositionCountRequest {branch_id:"other".into(),..request()},QualityDispositionCountRequest {warehouse_id:"other".into(),..request()},QualityDispositionCountRequest {company_id:erpx_server_shared::public::CompanyId::new("foreign").unwrap(),..request()}] {
+            assert!(inspect_quality_disposition_count(&mut tx,bad).await.unwrap().is_none());
+        }
+        sqlx::query("UPDATE inventory_counts SET status='cancelled' WHERE id='quality-count'").execute(&mut *tx).await.unwrap();
+        assert!(source.require_current(&mut tx).await.is_err());
+        tx.rollback().await.unwrap();
+        let mut other=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+        assert!(source.require_current(&mut other).await.is_err());
+        other.rollback().await.unwrap();
+    }).await;
+}
 fn selection(quantity: i64) -> ConsumptionSelection {
     ConsumptionSelection {
         company_id: company(),

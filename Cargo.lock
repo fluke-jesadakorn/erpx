@@ -762,6 +762,8 @@ name = "erpx-server-collaboration"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
+ "erpx-server-identity-access",
+ "erpx-server-quality",
  "erpx-server-runtime",
  "erpx-server-shared",
  "reqwest",
@@ -982,6 +984,7 @@ dependencies = [
  "erpx-server-quality",
  "erpx-server-runtime",
  "erpx-server-shared",
+ "erpx-server-workflow",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -1209,6 +1212,7 @@ version = "0.1.0"
 dependencies = [
  "erpx-server-runtime",
  "erpx-server-shared",
+ "serde_json",
  "sqlx",
  "tokio",
  "uuid",
@@ -1253,6 +1257,8 @@ dependencies = [
 name = "erpx-server-sales"
 version = "0.1.0"
 dependencies = [
+ "erpx-server-identity-access",
+ "erpx-server-people-payroll",
  "erpx-server-runtime",
  "erpx-server-shared",
  "serde",

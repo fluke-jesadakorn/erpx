@@ -2,8 +2,8 @@ import 'server-only';
 import {headers} from 'next/headers';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
-import type {HandbookListRow, HandbookRevision} from '@erpx/server-collaboration/domain/handbook';
-import type {HandbookPurchaseControls} from '@erpx/server-collaboration/domain/handbook-purchases';
+import type {HandbookListRow, HandbookRevision} from '@erpx/server-collaboration/public/handbook';
+import type {HandbookPurchaseControls} from '@erpx/server-collaboration/public/handbook-purchases';
 import {collaborationPresentationQueries} from '@erpx/server-collaboration/public/presentation-queries';
 import {createNativeHandbookClient} from './native-handbook';
 

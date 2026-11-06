@@ -14,6 +14,7 @@ path = "src/lib.rs"
 erpx-server-shared.workspace = true
 erpx-server-runtime.workspace = true
 sqlx.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true

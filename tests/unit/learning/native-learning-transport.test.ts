@@ -82,6 +82,25 @@ beforeEach(()=>{controls.mockReset();controls.mockResolvedValue(undefined);});
 afterEach(()=>{delete process.env.ERPX_NATIVE_LEARNING_CONFIG;vi.unstubAllEnvs();});
 
 describe('native Learning transport',()=>{
+ it('reads safe-integer course durations and UTF-16 text boundaries',async()=>{
+  const bounded={...course,title:'ก'.repeat(160),description:'ก'.repeat(3000),provider:'😀'.repeat(80),required_for:'😀'.repeat(60),duration_minutes:Number.MAX_SAFE_INTEGER};
+  const response=(item:unknown)=>ok({data:{courses:[item],assignments:[],people:[],canWrite:true,canReview:true,actorId:'reviewer'},context});
+  const accepted=createNativeLearningClient(nativeLearningConfiguration(config()),vi.fn().mockResolvedValue(response(bounded)));
+  expect((await accepted.workspace(incoming(),actor,input)).courses).toEqual([bounded]);
+  for(const invalid of [
+   {...bounded,duration_minutes:Number.MAX_SAFE_INTEGER+1},
+   {...bounded,duration_minutes:0},
+   {...bounded,title:`${'😀'.repeat(80)}ก`},
+   {...bounded,provider:`${'😀'.repeat(80)}ก`},
+   {...bounded,title:'bad\u0000title'},
+  ]){
+   const rejected=createNativeLearningClient(nativeLearningConfiguration(config()),vi.fn().mockResolvedValue(response(invalid)));
+   await expect(rejected.workspace(incoming(),actor,input)).rejects.toMatchObject({code:'NATIVE_LEARNING_RESPONSE_INVALID'});
+  }
+  const control={...course,title:'\u0085Learn\nSafety',description:'First\nsecond',provider:'Team'};
+  const retained=createNativeLearningClient(nativeLearningConfiguration(config()),vi.fn().mockResolvedValue(response(control)));
+  expect((await retained.workspace(incoming(),actor,input)).courses).toEqual([control]);
+ });
  it('forwards the exact workspace Host, session, personal selector and context CAS',async()=>{
   const transport=vi.fn().mockResolvedValue(ok({data:{courses:[course],assignments:[{...assignment,learner_id:'reviewer'}],people:[person],canWrite:true,canReview:true,actorId:'reviewer'},context}));
   const learning=createNativeLearningClient(nativeLearningConfiguration(config()),transport);
@@ -115,6 +134,25 @@ describe('native Learning transport',()=>{
   expect(url.toString()).toBe('http://127.0.0.1:44993/api/v1/holdings/acme/learning/assignments/learning-assignment-1');
   expect(headers.get('x-erpx-workspace-branch')).toBe('north');
   expect(headers.get('x-erpx-workspace-department')).toBe('team');
+ });
+
+ it('reads Unicode assignment, person, event and evidence within UTF-16 limits',async()=>{
+  const saved={...assignment,course_title:'ก'.repeat(160),learner_name:'😀'.repeat(150),result_evidence:'ก'.repeat(3000),completion_reason:'😀'.repeat(1500)};
+  const member={...person,name:'😀'.repeat(150)};
+  const history={...event,reason:'😀'.repeat(1500)};
+  const payload=(assignmentValue:unknown,historyValue:unknown,personValue:unknown)=>({data:{courses:[course],assignments:[assignmentValue],people:[personValue],canWrite:true,canReview:true,actorId:'reviewer',assignment:assignmentValue,history:[historyValue],handoff:null,certificate:null},context});
+  const accepted=createNativeLearningClient(nativeLearningConfiguration(config()),vi.fn().mockResolvedValue(ok(payload(saved,history,member))));
+  const detail=await accepted.detail(incoming(),actor,'learning-assignment-1',input);
+  expect(detail.assignment.result_evidence).toBe(saved.result_evidence);
+  expect(detail.history[0].reason).toBe(history.reason);
+  for(const data of [
+   payload({...saved,result_evidence:`${'😀'.repeat(1500)}ก`},history,member),
+   payload(saved,{...history,reason:`${'😀'.repeat(1500)}ก`},member),
+   payload(saved,history,{...member,name:`${'😀'.repeat(150)}ก`}),
+  ]){
+   const rejected=createNativeLearningClient(nativeLearningConfiguration(config()),vi.fn().mockResolvedValue(ok(data)));
+   await expect(rejected.detail(incoming(),actor,'learning-assignment-1',input)).rejects.toMatchObject({code:'NATIVE_LEARNING_RESPONSE_INVALID'});
+  }
  });
 
  it('reads bounded eligibility handoff facts for one person and effective date',async()=>{

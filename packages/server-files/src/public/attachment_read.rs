@@ -2,7 +2,11 @@
 //!
 //! The owning record remains authorized by composition; this package owns only
 //! the bounded Files ledger/status facts and the Files access audit.
-pub use crate::adapters::attachment_read_postgres::PostgresAttachmentRead;
+pub use crate::adapters::attachment_read_postgres::{
+    AttachmentOwnerKind, AttachmentOwnershipWitness, PostgresAttachmentRead,
+    StockCountAttachmentTarget, inspect_attachment_ownership, lock_attachment_ownership_sources,
+    revalidate_attachment_ownership, stock_count_attachment_target,
+};
 pub use crate::application::attachment_read::{
     AttachmentReadPorts, AttachmentTargetAuthority, attachment_link_status, list_attachment_sets,
 };

@@ -36,11 +36,11 @@ where
     let expected = target.company.clone();
     authorizer.execute_with_sources_deferred(host,proof,move||{let mut w=workspace()?;w.mutation=false;if w.company_id!=expected{return Err(BusinessError::new(FailureKind::Forbidden,"SUPPORT_SCOPE_REQUIRED","Use the current Company."));}Ok(w)},WorkAuthorizationRequest{permission:WorkPermissionRequirement::AnyOf(vec!["support.read".into(),"records.read".into()]),module:None,destination:"service/support".into(),api:true},FieldCollaborationSources,move|c,current|{let target=target.clone();let id=id.clone();Box::pin(async move{
   if current.holding_id()!=&target.holding||current.selection().workspace().company_id!=target.company{return Err(BusinessError::new(FailureKind::Forbidden,"SUPPORT_SCOPE_REQUIRED","Use the current Company.").into());}
-  let mut port=FieldRecordsSourcePort{connection:c,context:SourceRecordContext{actor:current,holding:&target.holding,company:&target.company,catalogue:&target.catalogue,clock:target.clock.as_ref()}};
+  let mut port=FieldRecordsSourcePort{connection:c,context:SourceRecordContext{purchase_locks:None,actor:current,holding:&target.holding,company:&target.company,catalogue:&target.catalogue,clock:target.clock.as_ref()}};
   let prepared=prepare_source(&mut port,target.company.as_str(),&SourceReference{kind:SourceKind::SupportTicket,id,expected_version:None}).await.map_err(|error|match error{PgTransactionError::Business(e)if e.kind==FailureKind::NotFound&&e.code=="SOURCE_RECORD_NOT_FOUND"=>BusinessError::new(FailureKind::NotFound,"SUPPORT_TICKET_NOT_FOUND","Ticket not found in this scope.").into(),other=>other})?;
   let (_,witness)=prepared.into_parts();let ticket=witness.support_data().ok_or_else(||BusinessError::new(FailureKind::Unavailable,"SUPPORT_SOURCE_INVALID","The Support source is unavailable."))?;
   let data=serde_json::json!({"row":ticket["row"],"history":ticket["history"],"managedInFieldService":ticket["row"]["source_kind"]=="field_service","canWork":false,"canManage":false,"canReport":false,"canConfirm":false,"canReopen":false,"slaPolicies":[],"canChange":false,"canShare":false});
-  witness.require_current(c,&SourceRecordContext{actor:current,holding:&target.holding,company:&target.company,catalogue:&target.catalogue,clock:target.clock.as_ref()}).await?;
+  witness.require_current(c,&SourceRecordContext{purchase_locks:None,actor:current,holding:&target.holding,company:&target.company,catalogue:&target.catalogue,clock:target.clock.as_ref()}).await?;
   require_selected_actor_current(c,current,target.clock.now().get()).await?;
   Ok(FieldSupportReadResponse{data,context:crate::field_service_reservation_read::context(current)?})
  })}).await

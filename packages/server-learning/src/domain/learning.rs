@@ -445,13 +445,23 @@ pub struct ValidatedRevocation {
 }
 
 pub(crate) fn valid_text(value: &str, max: usize) -> bool {
-    value.len() <= max && !value.chars().any(char::is_control)
+    value.encode_utf16().count() <= max && !value.chars().any(char::is_control)
+}
+
+// PostgreSQL text cannot represent NUL. Other content controls are accepted
+// by the existing Zod schemas and must survive owner readback.
+fn valid_content(value: &str, max: usize) -> bool {
+    value.encode_utf16().count() <= max && !value.contains('\0')
+}
+
+fn trim_js(value: &str) -> &str {
+    value.trim_matches(|c| matches!(c, '\u{0009}'..='\u{000d}' | '\u{0020}' | '\u{00a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}'))
 }
 
 pub fn normalize_reason(value: &str) -> Result<String, BusinessError> {
-    let reason = value.trim();
-    let length = reason.chars().count();
-    if !(3..=MAX_REASON).contains(&length) || !valid_text(reason, MAX_REASON) {
+    let reason = trim_js(value);
+    let length = reason.encode_utf16().count();
+    if !(3..=MAX_REASON).contains(&length) || !valid_content(reason, MAX_REASON) {
         return Err(request_invalid());
     }
     Ok(reason.to_owned())
@@ -462,11 +472,8 @@ fn normalize_evidence(value: &str) -> Result<String, BusinessError> {
 }
 
 fn normalize_code(value: &str) -> Result<Option<String>, BusinessError> {
-    let code = value.trim();
-    if code.is_empty() {
-        return Ok(None);
-    }
-    if !(2..=MAX_REQUIRED_FOR).contains(&code.chars().count())
+    let code = trim_js(value);
+    if !(2..=MAX_REQUIRED_FOR).contains(&code.encode_utf16().count())
         || !valid_text(code, MAX_REQUIRED_FOR)
     {
         return Err(request_invalid());
@@ -516,7 +523,7 @@ pub fn valid_date(value: &str) -> bool {
 }
 
 pub fn normalize_date(value: &str) -> Result<String, BusinessError> {
-    let date = value.trim();
+    let date = value;
     if !valid_date(date) {
         return Err(request_invalid());
     }
@@ -541,16 +548,16 @@ pub fn utc_date(now: i64) -> String {
 
 impl CourseRequest {
     pub fn validate(&self) -> Result<ValidatedCourse, BusinessError> {
-        let title = self.title.trim();
-        let description = self.description.trim();
-        let provider = self.provider.trim();
-        if !(3..=MAX_TITLE).contains(&title.chars().count())
-            || !valid_text(title, MAX_TITLE)
-            || !(3..=MAX_DESCRIPTION).contains(&description.chars().count())
-            || !valid_text(description, MAX_DESCRIPTION)
-            || !(2..=MAX_PROVIDER).contains(&provider.chars().count())
-            || !valid_text(provider, MAX_PROVIDER)
-            || !(1..=1_000_000).contains(&self.duration_minutes)
+        let title = trim_js(&self.title);
+        let description = trim_js(&self.description);
+        let provider = trim_js(&self.provider);
+        if !(3..=MAX_TITLE).contains(&title.encode_utf16().count())
+            || !valid_content(title, MAX_TITLE)
+            || !(3..=MAX_DESCRIPTION).contains(&description.encode_utf16().count())
+            || !valid_content(description, MAX_DESCRIPTION)
+            || !(2..=MAX_PROVIDER).contains(&provider.encode_utf16().count())
+            || !valid_content(provider, MAX_PROVIDER)
+            || !(1..=9_007_199_254_740_991).contains(&self.duration_minutes)
         {
             return Err(request_invalid());
         }
@@ -662,10 +669,10 @@ impl AssignmentChange {
 
 impl CertificateRevocation {
     pub fn validate(&self) -> Result<ValidatedRevocation, BusinessError> {
-        let reason = self.reason.trim();
+        let reason = trim_js(&self.reason);
         if self.expected_assignment_version < 1
-            || !(8..=2_000).contains(&reason.chars().count())
-            || !valid_text(reason, 2_000)
+            || !(8..=2_000).contains(&reason.encode_utf16().count())
+            || !valid_content(reason, 2_000)
         {
             return Err(request_invalid());
         }
@@ -703,12 +710,12 @@ impl CourseRow {
         let reviewed = matches!(self.status.as_str(), "published" | "retired" | "rejected");
         if self.id.is_empty()
             || self.company_id.is_empty()
-            || !(3..=MAX_TITLE).contains(&self.title.chars().count())
-            || !(3..=MAX_DESCRIPTION).contains(&self.description.chars().count())
-            || !(2..=MAX_PROVIDER).contains(&self.provider.chars().count())
-            || !(1..=1_000_000).contains(&self.duration_minutes)
+            || !(3..=MAX_TITLE).contains(&self.title.encode_utf16().count())
+            || !(3..=MAX_DESCRIPTION).contains(&self.description.encode_utf16().count())
+            || !(2..=MAX_PROVIDER).contains(&self.provider.encode_utf16().count())
+            || !(1..=9_007_199_254_740_991).contains(&self.duration_minutes)
             || self.required_for.as_deref().is_some_and(|value| {
-                !(2..=MAX_REQUIRED_FOR).contains(&value.chars().count())
+                !(2..=MAX_REQUIRED_FOR).contains(&value.encode_utf16().count())
                     || !valid_text(value, MAX_REQUIRED_FOR)
             })
             || !valid_status
@@ -803,14 +810,14 @@ impl AssignmentRow {
             || self
                 .result_evidence
                 .as_deref()
-                .is_some_and(|value| !valid_text(value, MAX_REASON))
+                .is_some_and(|value| !valid_content(value, MAX_REASON))
             || self.created_by.is_empty()
             || self.version < 1
             || self.created_at < 0
             || self.updated_at < self.created_at
             || self.course_title.is_empty()
             || self.required_for.as_deref().is_some_and(|value| {
-                !(2..=MAX_REQUIRED_FOR).contains(&value.chars().count())
+                !(2..=MAX_REQUIRED_FOR).contains(&value.encode_utf16().count())
                     || !valid_text(value, MAX_REQUIRED_FOR)
             })
             || completion && self.completion_reason.is_none()
@@ -900,7 +907,7 @@ impl EventRow {
             || self.action.len() > 200
             || self.actor_id.is_empty()
             || self.reason.is_empty()
-            || !valid_text(&self.reason, MAX_REASON)
+            || !valid_content(&self.reason, MAX_REASON)
             || !matches!(
                 self.status.as_str(),
                 "assigned" | "in_progress" | "completed" | "waived" | "cancelled"
@@ -1006,7 +1013,7 @@ impl CertificateRow {
                 .is_some_and(|value| !valid_date(value) || value < self.valid_from.as_str())
             || !matches!(self.completion_kind.as_str(), "completed" | "waived")
             || self.evidence_ref.is_empty()
-            || !valid_text(&self.evidence_ref, MAX_REASON)
+            || !valid_content(&self.evidence_ref, MAX_REASON)
             || self.issued_by.is_empty()
             || self.created_at < 0
         {

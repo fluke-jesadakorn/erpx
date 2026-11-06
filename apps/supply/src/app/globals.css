@@ -278,6 +278,7 @@
 @source "../../../../packages/feature-quality/src/lib/quality-command-attempt.ts";
 @source "../../../../packages/feature-quality/src/lib/quality-command-fetch.ts";
 @source "../../../../packages/feature-quality/src/lib/quality-purchase-controls.ts";
+@source "../../../../packages/feature-quality/src/public/native-quality.ts";
 @source "../../../../packages/feature-records/src/components/collection-record-link.tsx";
 @source "../../../../packages/feature-records/src/components/loaders/attachments--record-document-panel.tsx";
 @source "../../../../packages/feature-records/src/components/loaders/finance--consolidation-run-console.tsx";

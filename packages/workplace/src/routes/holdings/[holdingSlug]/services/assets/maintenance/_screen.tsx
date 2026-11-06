@@ -9,7 +9,7 @@ import { StatusBadge } from "@erpx/ui/components/primitives";
 import { MaintenanceConsole } from "@erpx/feature-assets/components/asset-maintenance-console";
 import { MaintenancePreventiveConsole } from "@erpx/feature-maintenance/components/maintenance-preventive-console";
 import { requireWorkContext, publicScope } from "@erpx/server-identity_access/public/authorization";
-import { ownedMaintenanceWorkspace } from "@erpx/feature-assets/adapters/server/native-maintenance-owned";
+import { ownedMaintenanceWorkspace } from "@erpx/feature-assets/public/native-assets";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";

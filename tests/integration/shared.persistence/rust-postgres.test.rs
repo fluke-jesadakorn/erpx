@@ -1,7 +1,7 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 use erpx_server_runtime::public::postgres::{
-    PgTransactionError, PgUnitOfWork, SessionLock, TransactionOptions,
+    PersistenceError, PgTransactionError, PgUnitOfWork, SessionLock, TransactionOptions,
 };
 use fixture::with_database;
 use std::{
@@ -60,6 +60,75 @@ async fn serialization_retry_replays_the_complete_callback_with_no_partial_write
         })}).await.unwrap();
         assert_eq!(attempts.load(Ordering::SeqCst),3);
         assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM replayed").fetch_one(pool.raw()).await.unwrap(),1);
+    }).await;
+}
+
+#[tokio::test]
+async fn only_explicit_pre_snapshot_lock_conflicts_retry_the_unit() {
+    with_database(2, |pool| async move {
+        sqlx::raw_sql("CREATE SEQUENCE scoped_attempt; CREATE TABLE scoped_effect(id int); CREATE FUNCTION scoped_lock_probe() RETURNS void LANGUAGE plpgsql AS $$ BEGIN IF nextval('scoped_attempt') < 3 THEN RAISE EXCEPTION 'lock unavailable' USING ERRCODE='55P03'; END IF; END $$; CREATE FUNCTION ordinary_lock_probe() RETURNS void LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'lock unavailable' USING ERRCODE='55P03'; END $$;").execute(pool.raw()).await.unwrap();
+        let uow = PgUnitOfWork::new(pool.clone());
+        let calls = Arc::new(AtomicUsize::new(0));
+        let observed = calls.clone();
+        uow.run::<_, Infallible, _>(TransactionOptions::default(), move |c| {
+            let observed = observed.clone();
+            Box::pin(async move {
+                observed.fetch_add(1, Ordering::SeqCst);
+                sqlx::query("INSERT INTO scoped_effect VALUES(1)").execute(&mut *c).await?;
+                sqlx::query("SELECT scoped_lock_probe()").execute(&mut *c).await
+                    .map_err(PersistenceError::pre_snapshot_lock_conflict)?;
+                Ok(())
+            })
+        }).await.unwrap();
+        assert_eq!(calls.load(Ordering::SeqCst), 3);
+        assert_eq!(sqlx::query_scalar::<_, i64>("SELECT count(*) FROM scoped_effect").fetch_one(pool.raw()).await.unwrap(), 1);
+        let calls = Arc::new(AtomicUsize::new(0));
+        let observed = calls.clone();
+        let result = uow.run::<(), Infallible, _>(TransactionOptions::default(), move |c| {
+            let observed = observed.clone();
+            Box::pin(async move {
+                observed.fetch_add(1, Ordering::SeqCst);
+                sqlx::query("SELECT ordinary_lock_probe()").execute(c).await?;
+                Ok(())
+            })
+        }).await;
+        assert!(matches!(result, Err(PgTransactionError::Persistence(ref e)) if e.sql_state() == Some("55P03") && !e.retryable()));
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        let calls = Arc::new(AtomicUsize::new(0));
+        let observed = calls.clone();
+        let result = uow.run::<(), Infallible, _>(TransactionOptions::default(), move |c| {
+            let observed = observed.clone();
+            Box::pin(async move {
+                observed.fetch_add(1, Ordering::SeqCst);
+                sqlx::query("INSERT INTO scoped_effect VALUES(2)").execute(&mut *c).await?;
+                sqlx::query("SELECT ordinary_lock_probe()").execute(c).await
+                    .map_err(PersistenceError::pre_snapshot_lock_conflict)?;
+                Ok(())
+            })
+        }).await;
+        assert!(matches!(result, Err(PgTransactionError::Persistence(ref e)) if e.sql_state() == Some("55P03") && e.retryable()));
+        assert_eq!(calls.load(Ordering::SeqCst), 4);
+        assert_eq!(sqlx::query_scalar::<_, i64>("SELECT count(*) FROM scoped_effect WHERE id=2").fetch_one(pool.raw()).await.unwrap(), 0);
+        let calls = Arc::new(AtomicUsize::new(0));
+        let observed = calls.clone();
+        let result = uow.run_once::<(), Infallible, _>(TransactionOptions::default(), move |c| {
+            Box::pin(async move {
+                observed.fetch_add(1, Ordering::SeqCst);
+                sqlx::query("SELECT ordinary_lock_probe()").execute(c).await
+                    .map_err(PersistenceError::pre_snapshot_lock_conflict)?;
+                Ok(())
+            })
+        }).await;
+        assert!(matches!(result, Err(PgTransactionError::Persistence(ref e)) if e.sql_state() == Some("55P03")));
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        let result = uow.run::<(), Infallible, _>(TransactionOptions::default(), |c| {
+            Box::pin(async move {
+                sqlx::query("SELECT * FROM missing_pre_snapshot_test_relation")
+                    .execute(c).await.map_err(PersistenceError::pre_snapshot_lock_conflict)?;
+                Ok(())
+            })
+        }).await;
+        assert!(matches!(result, Err(PgTransactionError::Persistence(ref e)) if e.sql_state() == Some("42P01") && !e.retryable()));
     }).await;
 }
 #[tokio::test]

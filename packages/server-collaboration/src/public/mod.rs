@@ -26,3 +26,6 @@ pub mod field_inbox;
 pub mod service_invoice_flow_notification;
 
 pub mod field_journal_flow_notification;
+
+pub mod crm_activity_notification;
+pub mod quality_notification;

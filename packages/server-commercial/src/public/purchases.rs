@@ -8,7 +8,7 @@ pub use crate::adapters::postgres_grant_commands::{
     PgPackageBatchReview, PgPackageGrantCommands, PgPackageGrantPolicy,
 };
 pub use crate::adapters::postgres_purchases::{
-    PgCompanyPurchaseReader, PurchaseInspection, PurchaseWitness, lock_commercial_authority_sources,
+    PgCompanyPurchaseReader, PgReadOnlyCompanyPurchaseReader, PurchaseInspection, PurchaseReadLockPreparation, PurchaseReadSourceLocks, PurchaseWitness, bind_purchase_read_sources, lock_commercial_authority_sources, lock_purchase_read_sources,
 };
 pub use crate::application::grant_batches::{
     BatchChange, BatchReceipt, GrantBatch, GrantBatchPreview, NormalizedGrantBatch,

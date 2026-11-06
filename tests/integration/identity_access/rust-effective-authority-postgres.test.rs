@@ -19,6 +19,313 @@ use std::sync::{
 };
 use std::time::Duration;
 
+#[tokio::test]
+async fn permission_catalog_utility_marks_only_its_nowait_conflict_and_retains_lock() {
+    use erpx_server_identity_access::public::permission_catalog_lock::lock_permission_catalog_sources;
+    fixture::with_database(2,|control|async move {fixture::with_database(3,move|holding|async move {
+        setup(&control,&holding).await;
+        let mut writer=holding.raw().begin().await.unwrap();
+        sqlx::query("UPDATE iam_permissions SET definition=definition WHERE id='quality.inspect'").execute(&mut *writer).await.unwrap();
+        let mut blocked=holding.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *blocked).await.unwrap();
+        let error=lock_permission_catalog_sources(&mut blocked).await.unwrap_err();
+        assert!(matches!(error,PgTransactionError::Persistence(ref e) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));
+        blocked.rollback().await.unwrap();writer.commit().await.unwrap();
+        let mut guard=holding.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *guard).await.unwrap();
+        lock_permission_catalog_sources(&mut guard).await.unwrap();
+        let guard_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *guard).await.unwrap();
+        let pool=holding.clone();let (send,receive)=tokio::sync::oneshot::channel();
+        let writer=tokio::spawn(async move {let mut tx=pool.raw().begin().await.unwrap();let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *tx).await.unwrap();send.send(pid).unwrap();sqlx::query("UPDATE iam_permissions SET definition=definition WHERE id='quality.inspect'").execute(&mut *tx).await.unwrap();tx.commit().await.unwrap();});
+        let writer_pid=receive.await.unwrap();tokio::time::timeout(Duration::from_secs(5),async {loop {
+            let blocked:bool=sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(guard_pid).bind(writer_pid).fetch_one(holding.raw()).await.unwrap();
+            if blocked {break;}tokio::time::sleep(Duration::from_millis(10)).await;
+        }}).await.expect("catalog writer did not wait for permission source lock");
+        guard.rollback().await.unwrap();writer.await.unwrap();
+    }).await;}).await;
+}
+
+#[tokio::test]
+async fn selected_quality_recipients_require_real_presnapshot_catalog_lock() {
+    use erpx_server_identity_access::public::effective_authority::HoldingWorkSourcePreparation;
+    use erpx_server_identity_access::public::quality_recipients::{QualityRecipientRequest,QualityRecipientStatus,inspect_quality_recipients_for_selected,lock_quality_recipient_sources};
+    use erpx_server_shared::public::{CompanyId,RecordId};
+    #[derive(Clone)] struct QualitySources;
+    impl HoldingWorkSourcePreparation for QualitySources {
+        fn prepare<'a>(&'a self,c:&'a mut PgConnection)->PgWorkFuture<'a,(),BusinessError> {
+            Box::pin(async move {let guard=lock_quality_recipient_sources(c).await?;drop(guard);Ok(())})
+        }
+    }
+    #[derive(Clone)] struct StrongQualitySources;
+    impl HoldingWorkSourcePreparation for StrongQualitySources {
+        fn prepare<'a>(&'a self,c:&'a mut PgConnection)->PgWorkFuture<'a,(),BusinessError> {
+            Box::pin(async move {sqlx::query("LOCK TABLE iam_permissions IN SHARE ROW EXCLUSIVE MODE NOWAIT").execute(c).await?;Ok(())})
+        }
+    }
+    fixture::with_database(2,|control|async move {fixture::with_database(3,move|holding|async move {
+        let (authorizer,_)=setup(&control,&holding).await;
+        sqlx::raw_sql("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','custom_native_authority',2,'[\"finance.read\",\"finance.write\",\"module.finance.read\",\"quality.read\",\"quality.inspect\"]','[]','[\"holding\",\"branch\",\"department\"]','fixture',0); UPDATE iam_roles SET published_revision=2 WHERE id='custom_native_authority'; UPDATE assignments SET valid_from=0,valid_until=9007199254740991 WHERE id='grant'; INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES('selected-dept','department','selected','Selected','branch','company','branch','active')").execute(holding.raw()).await.unwrap();
+        let request=|| QualityRecipientRequest {company_id:CompanyId::new("company").unwrap(),branch_id:RecordId::new("branch").unwrap(),creator:"creator".into(),cancellation_requester:None,status:QualityRecipientStatus::Held};
+        authorizer.execute("acme.example.test",proof(),input(),access(),|c,current|Box::pin(async move {
+            let request=QualityRecipientRequest {company_id:CompanyId::new("company").unwrap(),branch_id:RecordId::new("branch").unwrap(),creator:"creator".into(),cancellation_requester:None,status:QualityRecipientStatus::Held};
+            let error=inspect_quality_recipients_for_selected(c,current,request,NOW).await.err().unwrap();
+            assert!(matches!(error,PgTransactionError::Business(e) if e.code=="QUALITY_RECIPIENT_LOCK_REQUIRED"));Ok(())
+        })).await.unwrap();
+        let other_pool=holding.clone();
+        authorizer.execute_with_sources("acme.example.test",proof(),input(),access(),QualitySources,move|c,current|{let other_pool=other_pool.clone();Box::pin(async move {
+            let request=QualityRecipientRequest {company_id:CompanyId::new("company").unwrap(),branch_id:RecordId::new("branch").unwrap(),creator:"creator".into(),cancellation_requester:None,status:QualityRecipientStatus::Held};
+            let witness=inspect_quality_recipients_for_selected(c,current,request.clone(),NOW).await?;
+            assert_eq!(witness.recipients(), &["user".to_string()]);witness.require_current(c,NOW).await?;
+            let foreign=QualityRecipientRequest {company_id:CompanyId::new("foreign").unwrap(),..request.clone()};
+            assert!(inspect_quality_recipients_for_selected(c,current,foreign,NOW).await.is_err());
+            let mut other=other_pool.raw().begin().await?;sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await?;
+            assert!(witness.require_current(&mut other,NOW).await.is_err());other.rollback().await?;Ok(())
+        })}).await.unwrap();
+        authorizer.execute_with_sources("acme.example.test",proof(),input(),access(),StrongQualitySources,|c,current|Box::pin(async move {
+            let request=QualityRecipientRequest {company_id:CompanyId::new("company").unwrap(),branch_id:RecordId::new("branch").unwrap(),creator:"creator".into(),cancellation_requester:None,status:QualityRecipientStatus::Held};
+            let source=inspect_quality_recipients_for_selected(c,current,request,NOW).await?;
+            assert_eq!(source.recipients(), &["user".to_string()]);source.require_current(c,NOW).await?;Ok(())
+        })).await.unwrap();
+        let mut branch_input=input();branch_input.branch_slug=Some("north".into());
+        authorizer.execute_with_sources("acme.example.test",proof(),branch_input,access(),QualitySources,|c,current|Box::pin(async move {
+            let request=QualityRecipientRequest {company_id:CompanyId::new("company").unwrap(),branch_id:RecordId::new("branch").unwrap(),creator:"creator".into(),cancellation_requester:None,status:QualityRecipientStatus::Held};
+            assert!(inspect_quality_recipients_for_selected(c,current,request.clone(),NOW).await.is_ok());
+            assert!(inspect_quality_recipients_for_selected(c,current,QualityRecipientRequest {branch_id:RecordId::new("other").unwrap(),..request},NOW).await.is_err());Ok(())
+        })).await.unwrap();
+        let mut department_input=input();department_input.branch_slug=Some("north".into());department_input.department_slug=Some("selected".into());
+        authorizer.execute_with_sources("acme.example.test",proof(),department_input,access(),QualitySources,move|c,current|Box::pin(async move {
+            assert!(inspect_quality_recipients_for_selected(c,current,request(),NOW).await.is_err());Ok(())
+        })).await.unwrap();
+    }).await;}).await;
+}
+
+#[tokio::test]
+async fn quality_recipient_permissions_first_writer_forces_scoped_retry() {
+    use erpx_server_identity_access::public::quality_recipients::{QualityRecipientRequest,QualityRecipientStatus,inspect_quality_recipients,lock_quality_recipient_sources};
+    use erpx_server_runtime::public::postgres::{PgUnitOfWork,TransactionOptions};
+    use erpx_server_shared::public::{CompanyId,RecordId};
+    fixture::with_database(2,|control|async move {fixture::with_database(3,move|holding|async move {
+        setup(&control,&holding).await;
+        sqlx::raw_sql("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','custom_native_authority',2,'[\"quality.inspect\"]','[]','[\"holding\"]','fixture',0); UPDATE iam_roles SET published_revision=2 WHERE id='custom_native_authority'; UPDATE assignments SET valid_from=0,valid_until=9007199254740991 WHERE id='grant'").execute(holding.raw()).await.unwrap();
+        let mut writer=holding.raw().begin().await.unwrap();
+        sqlx::query("UPDATE iam_permissions SET definition=jsonb_set(definition,'{availability}','\"planned\"'::jsonb) WHERE id='quality.inspect'").execute(&mut *writer).await.unwrap();
+        let pool=holding.clone();let attempts=Arc::new(AtomicUsize::new(0));let owner_attempts=attempts.clone();let (send,mut receive)=tokio::sync::mpsc::unbounded_channel();
+        let owner=tokio::spawn(async move {PgUnitOfWork::new(pool).run::<Vec<String>,BusinessError,_>(TransactionOptions::default(),move|c| {
+            let attempts=owner_attempts.clone();let send=send.clone();Box::pin(async move {
+                attempts.fetch_add(1,Ordering::SeqCst);
+                let prep=match lock_quality_recipient_sources(c).await { Ok(prep)=>prep,Err(e)=>{if matches!(&e,PgTransactionError::Persistence(p) if p.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && p.sql_state()==Some("55P03")){send.send(()).unwrap();}return Err(e)} };
+                let locks=prep.bind().await?;
+                let current=inspect_quality_recipients(c,&locks,QualityRecipientRequest {company_id:CompanyId::new("company").unwrap(),branch_id:RecordId::new("branch").unwrap(),creator:"creator".into(),cancellation_requester:None,status:QualityRecipientStatus::Held}).await?;
+                current.require_current(c).await?;Ok(current.recipients().to_vec())
+            })
+        }).await});
+        tokio::time::timeout(Duration::from_secs(5),receive.recv()).await.unwrap().unwrap();
+        // This role write would form a cycle if the reader waited on the
+        // permission table while retaining its already-acquired role lock.
+        sqlx::query("UPDATE iam_roles SET name=name WHERE id='custom_native_authority'").execute(&mut *writer).await.unwrap();
+        writer.commit().await.unwrap();
+        assert!(owner.await.unwrap().unwrap().is_empty());
+        assert!(attempts.load(Ordering::SeqCst)>=2);
+    }).await;}).await;
+}
+
+#[tokio::test]
+async fn quality_recipient_roles_first_writer_commits_before_first_snapshot() {
+    use erpx_server_identity_access::public::quality_recipients::{QualityRecipientRequest,QualityRecipientStatus,inspect_quality_recipients,lock_quality_recipient_sources};
+    use erpx_server_shared::public::{CompanyId,RecordId};
+    use sqlx::Connection;
+    fixture::with_database(2,|control|async move {fixture::with_database(3,move|holding|async move {
+        setup(&control,&holding).await;
+        sqlx::raw_sql("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','custom_native_authority',2,'[\"quality.inspect\"]','[]','[\"holding\"]','fixture',0); UPDATE iam_roles SET published_revision=2 WHERE id='custom_native_authority'; UPDATE assignments SET valid_from=0,valid_until=9007199254740991 WHERE id='grant'").execute(holding.raw()).await.unwrap();
+        let mut writer=holding.raw().begin().await.unwrap();let writer_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();
+        sqlx::query("UPDATE iam_roles SET status='archived' WHERE id='custom_native_authority'").execute(&mut *writer).await.unwrap();
+        let pool=holding.clone();let (send,receive)=tokio::sync::oneshot::channel();
+        let reader=tokio::spawn(async move {let mut c=pool.raw().acquire().await.unwrap();let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *c).await.unwrap();let mut tx=c.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();send.send(pid).unwrap();
+            let locks=lock_quality_recipient_sources(&mut tx).await.unwrap().bind().await.unwrap();
+            let source=inspect_quality_recipients(&mut tx,&locks,QualityRecipientRequest {company_id:CompanyId::new("company").unwrap(),branch_id:RecordId::new("branch").unwrap(),creator:"creator".into(),cancellation_requester:None,status:QualityRecipientStatus::Held}).await.unwrap();
+            assert!(source.recipients().is_empty());source.require_current(&mut tx).await.unwrap();tx.rollback().await.unwrap();});
+        let reader_pid=receive.await.unwrap();tokio::time::timeout(Duration::from_secs(5),async {loop {
+            let blocked:bool=sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(writer_pid).bind(reader_pid).fetch_one(holding.raw()).await.unwrap();
+            if blocked {break;}tokio::time::sleep(Duration::from_millis(10)).await;
+        }}).await.expect("selected reader did not wait for role writer");
+        sqlx::query("UPDATE iam_permissions SET definition=jsonb_set(definition,'{availability}','\"planned\"'::jsonb) WHERE id='quality.inspect'").execute(&mut *writer).await.unwrap();writer.commit().await.unwrap();reader.await.unwrap();
+    }).await;}).await;
+}
+
+#[tokio::test]
+async fn quality_recipient_missing_permission_is_stable_until_unit_finishes() {
+    use erpx_server_identity_access::public::quality_recipients::{QualityRecipientRequest,QualityRecipientStatus,inspect_quality_recipients,lock_quality_recipient_sources};
+    use erpx_server_shared::public::{CompanyId,RecordId};
+    fixture::with_database(2,|control|async move {fixture::with_database(3,move|holding|async move {
+        setup(&control,&holding).await;
+        sqlx::raw_sql("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','custom_native_authority',2,'[\"quality.inspect\"]','[]','[\"holding\"]','fixture',0); UPDATE iam_roles SET published_revision=2 WHERE id='custom_native_authority'; UPDATE assignments SET valid_from=0,valid_until=9007199254740991 WHERE id='grant'").execute(holding.raw()).await.unwrap();
+        let definition:serde_json::Value=sqlx::query_scalar("DELETE FROM iam_permissions WHERE id='quality.inspect' RETURNING definition").fetch_one(holding.raw()).await.unwrap();
+        let mut reader=holding.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *reader).await.unwrap();
+        let locks=lock_quality_recipient_sources(&mut reader).await.unwrap().bind().await.unwrap();
+        let request=QualityRecipientRequest {company_id:CompanyId::new("company").unwrap(),branch_id:RecordId::new("branch").unwrap(),creator:"creator".into(),cancellation_requester:None,status:QualityRecipientStatus::Held};
+        let witness=inspect_quality_recipients(&mut reader,&locks,request.clone()).await.unwrap();assert!(witness.recipients().is_empty());
+        let reader_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *reader).await.unwrap();
+        let pool=holding.clone();let (send,receive)=tokio::sync::oneshot::channel();
+        let writer=tokio::spawn(async move {let mut tx=pool.raw().begin().await.unwrap();let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *tx).await.unwrap();send.send(pid).unwrap();sqlx::query("INSERT INTO iam_permissions(id,definition) VALUES('quality.inspect',$1)").bind(definition).execute(&mut *tx).await.unwrap();tx.commit().await.unwrap();});
+        let writer_pid=receive.await.unwrap();tokio::time::timeout(Duration::from_secs(5),async {loop {
+            let blocked:bool=sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(reader_pid).bind(writer_pid).fetch_one(holding.raw()).await.unwrap();
+            if blocked {break;}tokio::time::sleep(Duration::from_millis(10)).await;
+        }}).await.expect("permission insertion did not wait for protected absence");
+        witness.require_current(&mut reader).await.unwrap();reader.commit().await.unwrap();writer.await.unwrap();
+        let mut next=holding.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *next).await.unwrap();
+        let locks=lock_quality_recipient_sources(&mut next).await.unwrap().bind().await.unwrap();
+        let current=inspect_quality_recipients(&mut next,&locks,request).await.unwrap();assert_eq!(current.recipients(), &["user".to_string()]);
+        next.rollback().await.unwrap();
+    }).await;}).await;
+}
+
+#[tokio::test]
+async fn quality_recipient_set_matches_scoped_status_and_alias_rules() {
+    use erpx_server_identity_access::public::quality_recipients::{inspect_quality_recipients,lock_quality_recipient_sources,QualityRecipientRequest,QualityRecipientStatus};
+    use erpx_server_shared::public::{CompanyId,RecordId};
+    fixture::with_database(2, |control| async move {
+        fixture::with_database(3, move |holding| async move {
+            setup(&control,&holding).await;
+            sqlx::raw_sql("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','custom_native_authority',2,'[\"quality.read\",\"quality.inspect\",\"quality.release\"]','[]','[\"holding\",\"branch\"]','fixture',0); UPDATE iam_roles SET published_revision=2 WHERE id='custom_native_authority'; UPDATE assignments SET valid_from=0,valid_until=9007199254740991 WHERE id='grant'; INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy) VALUES('company','creator','local:creator','same-person','active','local'),('company','alias','local:alias','same-person','active','local'),('company','manager','local:manager','manager-person','active','local'),('company','other','local:other','other-person','active','local'); INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind,scope_node_id) VALUES('quality-creator','creator','custom_native_authority','[]','company',0,9007199254740991,1,'holding',NULL),('quality-alias','alias','custom_native_authority','[]','company',0,9007199254740991,1,'holding',NULL),('quality-manager','manager','custom_native_authority','[]','company',0,9007199254740991,1,'branch','branch'),('quality-other-branch','other','custom_native_authority','[]','company',0,9007199254740991,1,'branch','other')").execute(holding.raw()).await.unwrap();
+            let mut tx=holding.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+            let locks=lock_quality_recipient_sources(&mut tx).await.unwrap().bind().await.unwrap();
+            let request=QualityRecipientRequest { company_id:CompanyId::new("company").unwrap(),branch_id:RecordId::new("branch").unwrap(),creator:"creator".into(),cancellation_requester:Some("user".into()),status:QualityRecipientStatus::CancellationPending };
+            let witness=inspect_quality_recipients(&mut tx,&locks,request.clone()).await.unwrap();
+            assert_eq!(witness.recipients(), &["manager"]);witness.require_current(&mut tx).await.unwrap();
+            let held=inspect_quality_recipients(&mut tx,&locks,QualityRecipientRequest { status:QualityRecipientStatus::Held,..request.clone() }).await.unwrap();
+            assert_eq!(held.recipients(), &["manager","user"]);
+            let cancelled=inspect_quality_recipients(&mut tx,&locks,QualityRecipientRequest { status:QualityRecipientStatus::Cancelled,..request.clone() }).await.unwrap();
+            assert_eq!(cancelled.recipients(), &["creator"]);
+            let missing_requester=inspect_quality_recipients(&mut tx,&locks,QualityRecipientRequest { cancellation_requester:None,..request.clone() }).await.unwrap();
+            assert!(missing_requester.recipients().is_empty());
+            let foreign=inspect_quality_recipients(&mut tx,&locks,QualityRecipientRequest { company_id:CompanyId::new("foreign").unwrap(),..request.clone() }).await.unwrap();
+            assert!(foreign.recipients().is_empty());
+            let mut other=holding.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+            assert!(witness.require_current(&mut other).await.is_err());
+            assert!(inspect_quality_recipients(&mut other,&locks,request.clone()).await.is_err());other.rollback().await.unwrap();
+            sqlx::query("UPDATE assignments SET valid_until=1 WHERE id='quality-manager'").execute(&mut *tx).await.unwrap();
+            assert!(witness.require_current(&mut tx).await.is_err());
+            sqlx::query("UPDATE assignments SET valid_until=9007199254740991 WHERE id='quality-manager'").execute(&mut *tx).await.unwrap();
+            witness.require_current(&mut tx).await.unwrap();
+            sqlx::query("UPDATE assignments SET revoked_at=1 WHERE id='quality-manager'").execute(&mut *tx).await.unwrap();
+            assert!(witness.require_current(&mut tx).await.is_err());
+            tx.rollback().await.unwrap();
+            let mut guard=holding.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *guard).await.unwrap();
+            let locks=lock_quality_recipient_sources(&mut guard).await.unwrap().bind().await.unwrap();
+            let witness=inspect_quality_recipients(&mut guard,&locks,request).await.unwrap();
+            let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *guard).await.unwrap();
+            let writer_pool=holding.clone();
+            let writer=tokio::spawn(async move { sqlx::query("UPDATE assignments SET revoked_at=1 WHERE id='quality-manager'").execute(writer_pool.raw()).await.unwrap(); });
+            tokio::time::timeout(Duration::from_secs(5),async { loop {
+                let blocked:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE $1=ANY(pg_blocking_pids(pid)))").bind(pid).fetch_one(holding.raw()).await.unwrap();
+                if blocked { break; } tokio::time::sleep(Duration::from_millis(10)).await;
+            }}).await.expect("recipient withdrawal did not wait for the source guard");
+            witness.require_current(&mut guard).await.unwrap();guard.commit().await.unwrap();writer.await.unwrap();
+        }).await;
+    }).await;
+}
+
+#[tokio::test]
+async fn sales_recipient_scoped_current_assignment_is_transaction_bound() {
+    use erpx_server_identity_access::public::sales_recipient::{SalesRecipientRequest, inspect_sales_recipient, lock_sales_recipient_sources};
+    use erpx_server_shared::public::CompanyId;
+    fixture::with_database(2, |control| async move {
+        fixture::with_database(3, move |holding| async move {
+            setup(&control, &holding).await;
+            sqlx::raw_sql("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','custom_native_authority',2,'[\"commerce.read\",\"commerce.sales\"]','[]','[\"holding\",\"branch\",\"department\"]','fixture',0); UPDATE iam_roles SET published_revision=2 WHERE id='custom_native_authority'; UPDATE assignments SET valid_from=0,valid_until=9007199254740991 WHERE id='grant'")
+                .execute(holding.raw()).await.unwrap();
+            sqlx::query("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES('recipient-dept','department','recipient','Recipient','branch','company','branch','active')").execute(holding.raw()).await.unwrap();
+            let mut tx = holding.raw().begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+            let locks = lock_sales_recipient_sources(&mut tx).await.unwrap().bind().await.unwrap();
+            let request = || SalesRecipientRequest { company_id: CompanyId::new("company").unwrap(), user_id: "user".into(), branch_id: "branch".into(), department_id: None };
+            let witness = inspect_sales_recipient(&mut tx, &locks, request()).await.unwrap();
+            assert!(witness.is_eligible());
+            witness.require_current(&mut tx).await.unwrap();
+            sqlx::query("UPDATE assignments SET scope_kind='branch',scope_node_id='branch' WHERE id='grant'").execute(&mut *tx).await.unwrap();
+            assert!(inspect_sales_recipient(&mut tx, &locks, request()).await.unwrap().is_eligible());
+            let wrong = SalesRecipientRequest { branch_id: "other".into(), ..request() };
+            assert!(!inspect_sales_recipient(&mut tx, &locks, wrong).await.unwrap().is_eligible());
+            let foreign = SalesRecipientRequest { company_id: CompanyId::new("foreign").unwrap(), ..request() };
+            assert!(!inspect_sales_recipient(&mut tx, &locks, foreign).await.unwrap().is_eligible());
+            sqlx::query("UPDATE assignments SET scope_kind='department',scope_node_id='recipient-dept' WHERE id='grant'").execute(&mut *tx).await.unwrap();
+            let department = SalesRecipientRequest { department_id: Some("recipient-dept".into()), ..request() };
+            assert!(inspect_sales_recipient(&mut tx, &locks, department).await.unwrap().is_eligible());
+            assert!(!inspect_sales_recipient(&mut tx, &locks, request()).await.unwrap().is_eligible());
+            sqlx::query("UPDATE assignments SET scope_kind='holding',scope_node_id=NULL,valid_until=1 WHERE id='grant'").execute(&mut *tx).await.unwrap();
+            assert!(!inspect_sales_recipient(&mut tx, &locks, request()).await.unwrap().is_eligible());
+            sqlx::query("UPDATE assignments SET valid_until=9007199254740991 WHERE id='grant'").execute(&mut *tx).await.unwrap();
+            sqlx::raw_sql("INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status) VALUES('*','sales_only_recipient','Sales only',false,1,'active'); INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','sales_only_recipient',1,'[\"commerce.sales\"]','[]','[\"holding\"]','fixture',0); INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind) VALUES('sales-only','user','sales_only_recipient','[]','company',0,9007199254740991,1,'holding'); INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','custom_native_authority',3,'[\"commerce.read\"]','[]','[\"holding\",\"branch\"]','fixture',0); UPDATE iam_roles SET published_revision=3 WHERE id='custom_native_authority'")
+                .execute(&mut *tx).await.unwrap();
+            assert!(!inspect_sales_recipient(&mut tx, &locks, request()).await.unwrap().is_eligible(), "different assignments cannot combine permissions");
+            sqlx::query("UPDATE iam_roles SET status='archived' WHERE id='custom_native_authority'").execute(&mut *tx).await.unwrap();
+            assert!(witness.require_current(&mut tx).await.is_err());
+            tx.rollback().await.unwrap();
+            let mut other = holding.raw().begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+            assert!(witness.require_current(&mut other).await.is_err());
+            assert!(inspect_sales_recipient(&mut other, &locks, request()).await.is_err());
+            other.rollback().await.unwrap();
+            let mut guard = holding.raw().begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *guard).await.unwrap();
+            let guarded_locks = lock_sales_recipient_sources(&mut guard).await.unwrap().bind().await.unwrap();
+            let guarded = inspect_sales_recipient(&mut guard, &guarded_locks, request()).await.unwrap();
+            assert!(guarded.is_eligible());
+            let guard_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *guard).await.unwrap();
+            let writer_pool = holding.clone();
+            let writer = tokio::spawn(async move {
+                sqlx::query("UPDATE iam_roles SET status='archived' WHERE id='custom_native_authority'").execute(writer_pool.raw()).await.unwrap();
+            });
+            tokio::time::timeout(Duration::from_secs(5), async {
+                loop {
+                    let blocked: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE $1=ANY(pg_blocking_pids(pid)))")
+                        .bind(guard_pid).fetch_one(holding.raw()).await.unwrap();
+                    if blocked { break; }
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+            }).await.expect("role withdrawal did not wait for the source guard");
+            guarded.require_current(&mut guard).await.unwrap();
+            guard.commit().await.unwrap();
+            writer.await.unwrap();
+            let role: String = sqlx::query_scalar("SELECT status FROM iam_roles WHERE id='custom_native_authority'").fetch_one(holding.raw()).await.unwrap();
+            assert_eq!(role, "archived");
+        }).await;
+    }).await;
+}
+
+#[tokio::test]
+async fn sales_recipient_preparation_waits_for_crm_writer_before_snapshot() {
+    use erpx_server_identity_access::public::sales_recipient::lock_sales_recipient_sources;
+    fixture::with_database(2, |control| async move {
+        fixture::with_database(3, move |holding| async move {
+            setup(&control, &holding).await;
+            sqlx::query("INSERT INTO crm_leads(id,company_id,branch_id,title,contact_name,contact_detail,source,brief,owner_id,due_date,status,version,created_by,created_at,updated_at) VALUES('recipient-lead','company','branch','Lead','Customer','Contact','Staff','Brief','user','2026-12-01','open',1,'user',0,0)").execute(holding.raw()).await.unwrap();
+            let mut writer = holding.raw().begin().await.unwrap();
+            let writer_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();
+            sqlx::query("UPDATE crm_leads SET status='disqualified',version=version+1 WHERE id='recipient-lead'").execute(&mut *writer).await.unwrap();
+            let source_pool = holding.clone();
+            let reader = tokio::spawn(async move {
+                let mut tx = source_pool.raw().begin().await.unwrap();
+                sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+                let mut prep = lock_sales_recipient_sources(&mut tx).await.unwrap();
+                sqlx::query("LOCK TABLE crm_leads IN SHARE MODE").execute(prep.connection()).await.unwrap();
+                let _bound = prep.bind().await.unwrap();
+                let status: String = sqlx::query_scalar("SELECT status FROM crm_leads WHERE id='recipient-lead'").fetch_one(&mut *tx).await.unwrap();
+                tx.rollback().await.unwrap();
+                status
+            });
+            tokio::time::timeout(Duration::from_secs(5), async {
+                loop {
+                    let blocked: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE $1=ANY(pg_blocking_pids(pid)))")
+                        .bind(writer_pid).fetch_one(holding.raw()).await.unwrap();
+                    if blocked { break; }
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+            }).await.expect("source preparation did not wait for CRM writer");
+            writer.commit().await.unwrap();
+            assert_eq!(reader.await.unwrap(), "disqualified");
+        }).await;
+    }).await;
+}
+
 // An explicit synthetic foreign-owner port. Production composition must use an
 // actual owner's opaque source; Identity never queries a foreign business table.
 #[derive(Clone)]

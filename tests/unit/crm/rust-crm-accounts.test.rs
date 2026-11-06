@@ -2,7 +2,7 @@
 //! application delegation against an in-memory fake. No PostgreSQL, no
 //! purchase check, no HTTP. The TS runtime stays authoritative.
 use erpx_server_crm::public::accounts::{
-    AccountCreateInput, AccountCreatePlan, AccountsFuture, AccountCreateRepository, create_account,
+    AccountCreateInput, AccountCreatePlan, AccountCreateRepository, AccountsFuture, create_account,
     validate_account_create,
 };
 use erpx_server_crm::public::pipeline::CrmPipelineActor;
@@ -64,8 +64,23 @@ fn trims_and_accepts_business_and_individual_kinds() {
 }
 
 #[test]
-fn rejects_control_chars_empty_and_overlong_names() {
-    assert!(validate_account_create(&input("business", "A\u{0007}B")).is_err());
+fn matches_javascript_utf16_length_and_rejects_empty_and_overlong_names() {
+    assert!(validate_account_create(&input("business", "A\u{0007}B")).is_ok());
+    assert!(validate_account_create(&input("business", &"ก".repeat(160))).is_ok());
+    assert!(validate_account_create(&input("business", &"😀".repeat(80))).is_ok());
+    assert!(validate_account_create(&input("business", &"😀".repeat(81))).is_err());
+    assert_eq!(
+        validate_account_create(&input("business", "\u{feff}Acme\u{feff}"))
+            .unwrap()
+            .name,
+        "Acme"
+    );
+    assert_eq!(
+        validate_account_create(&input("business", "\u{0085}Acme\u{0085}"))
+            .unwrap()
+            .name,
+        "\u{0085}Acme\u{0085}"
+    );
     assert!(validate_account_create(&input("business", "   ")).is_err());
     let long = "a".repeat(161);
     assert!(validate_account_create(&input("business", &long)).is_err());
@@ -99,6 +114,7 @@ async fn application_delegates_trimmed_plan_to_repository() {
     let plan = create_account(
         &actor.user_id,
         actor.company_id.as_str(),
+        "command-1",
         &input("individual", "  Ada Lovelace  "),
         &mut repo,
         NOW.get(),
@@ -108,7 +124,7 @@ async fn application_delegates_trimmed_plan_to_repository() {
     assert_eq!(plan.name, "Ada Lovelace");
     let (company_id, record_id, created_by, saved, now) = repo.inserted.unwrap();
     assert_eq!(company_id, "company");
-    assert!(record_id.starts_with("account-"));
+    assert_eq!(record_id, "account-command-1");
     assert_eq!(created_by, "owner");
     assert_eq!(saved, plan);
     assert_eq!(now, NOW.get());
@@ -120,6 +136,7 @@ async fn application_surfaces_validation_errors_without_repository_write() {
     let err = create_account(
         "owner",
         company().as_str(),
+        "command-2",
         &input("business", "   "),
         &mut repo,
         NOW.get(),

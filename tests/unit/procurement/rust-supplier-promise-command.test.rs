@@ -2,8 +2,8 @@
 use erpx_server_procurement::public::supplier_promise_command::{
     PreparedPromiseLine, PreparedSupplierPromise, PromiseOrderLineSource, PromiseOrderSource,
     PromiseSource, RecordSupplierPromiseCommand, SupplierPromiseAuthority,
-    SupplierPromiseCommandActor, SupplierPromiseLineCommand, ValidatedSupplierPromise,
-    fingerprint, idempotency_conflict, incomplete_receipt, invalid_receipt, line_id, not_found,
+    SupplierPromiseCommandActor, SupplierPromiseLineCommand, ValidatedSupplierPromise, fingerprint,
+    idempotency_conflict, incomplete_receipt, invalid_receipt, line_id, not_found,
     prepare_supplier_promise, promise_id, source_changed, validate_readback,
 };
 use erpx_server_shared::public::{
@@ -56,7 +56,9 @@ fn validates_confirmed_and_withdrawn_commands() {
         lines: Vec::new(),
         ..confirmed_input()
     };
-    let validated = withdrawn.validate().expect("withdrawn input should validate");
+    let validated = withdrawn
+        .validate()
+        .expect("withdrawn input should validate");
     assert_eq!(validated.kind, "withdrawn");
     assert!(validated.lines.is_empty());
 }
@@ -112,6 +114,38 @@ fn rejects_invalid_domain_inputs() {
     let mut input = confirmed_input();
     input.lines[0].quantity = "0".into();
     assert!(input.validate().is_err());
+}
+
+#[test]
+fn promise_dates_follow_the_calendar_including_century_leap_years() {
+    for date in ["2026-02-29", "2026-04-31", "1900-02-29", "2026-00-01"] {
+        let mut input = confirmed_input();
+        input.confirmation_date = date.into();
+        assert_eq!(input.validate().unwrap_err().code, "PROMISE_DATE_INVALID");
+        let mut input = confirmed_input();
+        input.lines[0].promised_date = date.into();
+        assert_eq!(input.validate().unwrap_err().code, "PROMISE_LINE_INVALID");
+    }
+    for date in ["2024-02-29", "2000-02-29"] {
+        let mut input = confirmed_input();
+        input.confirmation_date = date.into();
+        input.lines[0].promised_date = date.into();
+        assert!(input.validate().is_ok(), "{date}");
+    }
+}
+
+#[test]
+fn supplier_text_limits_match_utf16_length() {
+    let mut input = confirmed_input();
+    input.supplier_reference = "😀".repeat(80);
+    assert!(input.validate().is_ok());
+    input.supplier_reference.push('x');
+    assert_eq!(input.validate().unwrap_err().code, "SUPPLIER_PROMISE_INPUT_INVALID");
+    let mut input = confirmed_input();
+    input.evidence = "😀".repeat(1000);
+    assert!(input.validate().is_ok());
+    input.evidence.push('x');
+    assert_eq!(input.validate().unwrap_err().code, "SUPPLIER_PROMISE_INPUT_INVALID");
 }
 
 #[test]
@@ -216,15 +250,16 @@ fn validate_readback_checks_persisted_shape() {
     };
     let prepared = prepare_supplier_promise(&actor, &validated, source).unwrap();
     let promise = promise_id(&CommandKey::new("command-key-2").unwrap());
-    let readback = erpx_server_procurement::public::supplier_promise_command::SupplierPromiseReadback {
-        id: promise.clone(),
-        order_id: "order".into(),
-        order_version: 1,
-        kind: "confirmed".into(),
-        recorded_by: "owner".into(),
-        created_at: NOW.get(),
-        line_count: 1,
-    };
+    let readback =
+        erpx_server_procurement::public::supplier_promise_command::SupplierPromiseReadback {
+            id: promise.clone(),
+            order_id: "order".into(),
+            order_version: 1,
+            kind: "confirmed".into(),
+            recorded_by: "owner".into(),
+            created_at: NOW.get(),
+            line_count: 1,
+        };
     validate_readback(&readback, &prepared, &promise, &actor, NOW).expect("readback should pass");
 
     let mut bad = readback.clone();

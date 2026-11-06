@@ -281,6 +281,7 @@ async fn prepare_source_ref<C: Clock + Send + Sync>(
     let mut port = FieldRecordsSourcePort {
         connection: c,
         context: SourceRecordContext {
+            purchase_locks: None,
             actor: current,
             holding: &target.holding,
             company: &target.company,
@@ -394,6 +395,7 @@ pub(super) async fn execute_setup<C: Clock + Send + Sync>(
                     .require_current(
                         c,
                         &SourceRecordContext {
+                            purchase_locks: None,
                             actor: current,
                             holding: &target.holding,
                             company: &target.company,
@@ -552,6 +554,7 @@ pub(super) async fn execute_setup<C: Clock + Send + Sync>(
         v.require_current(
             c,
             &SourceRecordContext {
+                purchase_locks: None,
                 actor: current,
                 holding: &target.holding,
                 company: &target.company,
@@ -657,7 +660,7 @@ where
  let summary=summarize(&typed,target.clock.now().get());
  let data=json!({"exceptions":exceptions,"policies":rows.data()["policies"],"people":picker,"actorId":current.user_id().as_str(),"canWrite":current.has_permission("records.write"),"canReview":current.has_permission("records.review"),"summary":summary,"work":work});
  if serde_json::to_vec(&data).map_err(|_|changed())?.len()>2*1024*1024-8192{return Err(BusinessError::new(FailureKind::Unavailable,"OPERATIONS_READ_LIMIT","The Operations workspace exceeds this bounded read.").into());}
- same_people.require_current(c,target.clock.now()).await?;rows.require_current(c).await?;people.require_current(c).await?;members.require_current(c,target.clock.now()).await?;for g in guards{g.require_current(c,&SourceRecordContext{actor:current,holding:&target.holding,company:&target.company,catalogue:&target.catalogue,clock:target.clock.as_ref()}).await?;}require_selected_actor_current(c,current,target.clock.now().get()).await?;
+ same_people.require_current(c,target.clock.now()).await?;rows.require_current(c).await?;people.require_current(c).await?;members.require_current(c,target.clock.now()).await?;for g in guards{g.require_current(c,&SourceRecordContext{purchase_locks:None,actor:current,holding:&target.holding,company:&target.company,catalogue:&target.catalogue,clock:target.clock.as_ref()}).await?;}require_selected_actor_current(c,current,target.clock.now().get()).await?;
  Ok(json!({"data":data,"context":crate::field_service_reservation_read::context(current)?}))
  })}).await
 }

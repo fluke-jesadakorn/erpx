@@ -266,6 +266,13 @@ pub struct QualityCancellationReceipt {
     pub version: i64,
 }
 
+/// Normalize before constructing a Workflow request so its fingerprint and
+/// the owner effect both use the same retained command input.
+pub fn normalize_quality_cancellation(command: &QualityCancellationCommand) -> Result<QualityCancellationCommand, BusinessError> {
+    let reason = validate_reason(&command.reason, "QUALITY_CANCELLATION_REASON", "Enter a cancellation reason between 3 and 2000 characters.")?;
+    Ok(QualityCancellationCommand { reason, ..command.clone() })
+}
+
 pub trait QualityCancellationRepository: Send + Sync {
     fn cancel<'a>(
         &'a mut self,

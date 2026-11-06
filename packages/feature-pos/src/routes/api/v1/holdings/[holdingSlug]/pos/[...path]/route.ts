@@ -8,7 +8,7 @@ import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { holdingResources } from "../../../../../../../../../../packages/server-runtime/src/public/runtime";
 import { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
 import {posCommand} from '@erpx/server-pos/public/pos-core';
-import {requirePosPurchased} from '@erpx/server-pos/adapters/purchase-boundary';
+import {requirePosPurchased} from '@erpx/server-pos/public/purchase-boundary';
 import {nativePosCashActor,nativePosCashAvailable,nativePosCashConfiguration,createNativePosCashClient,nativePosCashFailure} from '@erpx/feature-pos/adapters/server/native-pos-cash';
 import {finishPosOAuth,oauthUrl} from '@erpx/server-pos/public/pos-stripe';
 import { posCustomers,posDayReport } from "@erpx/server-pos/public/pos-daily";

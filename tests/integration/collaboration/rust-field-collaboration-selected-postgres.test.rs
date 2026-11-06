@@ -3275,3 +3275,77 @@ async fn native_field_executive_evidence_keeps_cursor_audit_and_source_rollback(
         runtime.close().await;
     }).await;
 }
+
+// This exercises the real selected-session authorizer and actual owner lock
+// ports against the retained TS lock order, not Quality purchase acceptance.
+#[path = "../../support/rust-effective-authority.rs"]
+mod quality_lock_auth;
+#[derive(Clone)]
+struct QualityLockOrderSources;
+impl erpx_server_identity_access::public::effective_authority::HoldingWorkSourcePreparation for QualityLockOrderSources {
+    fn prepare<'c>(&'c self,c:&'c mut sqlx::PgConnection)->erpx_server_runtime::public::postgres::PgWorkFuture<'c,(),erpx_server_shared::public::BusinessError> {
+        Box::pin(async move {
+            erpx_server_commercial::public::purchases::lock_commercial_authority_sources(c).await?;
+            erpx_server_commerce::public::quality_return_origin::lock_quality_return_commerce(c).await?;
+            erpx_server_inventory::public::quality_fulfillment_allocation::lock_quality_fulfillment_allocations(c).await?;
+            erpx_server_inventory::public::quality_disposition_count::lock_quality_disposition_count_sources(c).await?;
+            erpx_server_quality::public::quality_http::lock_quality_cancellation_writes(c).await?;
+            erpx_server_quality::public::quality_http::lock_quality_read_sources(c).await?;
+            erpx_server_collaboration::public::quality_notification::lock_quality_notifications(c).await?;
+            Ok(())
+        })
+    }
+}
+async fn ts_quality_writer_locks(c:&mut sqlx::PgConnection) {
+    sqlx::query("LOCK TABLE company_package_grants IN ROW EXCLUSIVE MODE").execute(&mut *c).await.unwrap();
+    sqlx::query("LOCK TABLE commerce_orders,commerce_order_lines,commerce_fulfillments,commerce_fulfillment_lines,commerce_returns,commerce_return_lines,commerce_return_lot_allocations IN SHARE ROW EXCLUSIVE MODE").execute(&mut *c).await.unwrap();
+    sqlx::query("LOCK TABLE inventory_fulfillment_lot_allocations IN SHARE ROW EXCLUSIVE MODE").execute(&mut *c).await.unwrap();
+    sqlx::query("LOCK TABLE inventory_counts,inventory_count_lines,inventory_count_lot_lines IN SHARE MODE").execute(&mut *c).await.unwrap();
+    sqlx::query("LOCK TABLE inventory_quality_holds IN SHARE ROW EXCLUSIVE MODE").execute(c).await.unwrap();
+}
+#[tokio::test]
+async fn quality_authorizer_and_ts_style_writer_lock_order_complete_both_directions() {
+    use erpx_server_quality::public::quality_http::prepare_quality_cancellation;
+    use erpx_server_quality::public::quality_read::{CancellationAction,QualityCancellationCommand};
+    use erpx_server_shared::public::{CommandKey,RecordId,UserId};
+    use sqlx::Connection;
+    use std::time::Duration;
+    projection_fixture::with_database(2,|control|async move {
+        projection_fixture::with_database(4,move|holding|async move {
+            let (authorizer,_)=quality_lock_auth::setup(&control,&holding).await;
+            sqlx::raw_sql("INSERT INTO commerce_warehouses(id,company_id,branch_id,code,name) VALUES('quality-lock-warehouse','company','branch','QL','Warehouse'); INSERT INTO commerce_products(id,company_id,sku,name,price_minor,tracking_mode) VALUES('quality-lock-product','company','QL','Product',100,'none'); INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor) VALUES('quality-lock-warehouse','quality-lock-product',1000,100); INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,status,created_by,created_at,updated_at,quantity_scope) VALUES('quality-lock-first','company','branch','quality-lock-warehouse','quality-lock-product','Original reason','2026-11-10','held','user',0,0,'whole'),('quality-lock-second','company','branch','quality-lock-warehouse','quality-lock-product','Original reason','2026-11-10','held','user',0,0,'whole')").execute(holding.raw()).await.unwrap();
+            let mut writer=holding.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *writer).await.unwrap();ts_quality_writer_locks(&mut writer).await;
+            sqlx::query("UPDATE inventory_quality_holds SET reason='Writer first' WHERE id='quality-lock-first'").execute(&mut *writer).await.unwrap();
+            let writer_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();
+            let first_authorizer=authorizer.clone();
+            let native=tokio::spawn(async move {
+                first_authorizer.execute_with_sources_deferred("acme.example.test",quality_lock_auth::proof(),||Ok(quality_lock_auth::input()),quality_lock_auth::access(),QualityLockOrderSources,|c,_|Box::pin(async move {
+                    let reason:String=sqlx::query_scalar("SELECT reason FROM inventory_quality_holds WHERE id='quality-lock-first'").fetch_one(&mut *c).await?;assert_eq!(reason,"Writer first");
+                    let command=QualityCancellationCommand { command_key:CommandKey::new("quality-order-first")?,hold_id:RecordId::new("quality-lock-first")?,expected_version:1,action:CancellationAction::Request,reason:"Review duplicate hold".into() };
+                    let effect=prepare_quality_cancellation(c,&command,&CompanyId::new("company")?,Some(&RecordId::new("branch")?),&UserId::new("user")?,quality_lock_auth::NOW).await?;effect.apply(c).await?;Ok(())
+                })).await
+            });
+            tokio::time::timeout(Duration::from_secs(8),async { loop { let blocked:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE $1=ANY(pg_blocking_pids(pid)))").bind(writer_pid).fetch_one(holding.raw()).await.unwrap();if blocked {break;}tokio::time::sleep(Duration::from_millis(10)).await; }}).await.expect("authorizer did not wait for TS-style Commerce writer");
+            let _:i64=sqlx::query_scalar("SELECT count(*) FROM assignments WHERE company_id='company'").fetch_one(&mut *writer).await.unwrap();
+            writer.commit().await.unwrap();tokio::time::timeout(Duration::from_secs(15),native).await.unwrap().unwrap().unwrap();
+            let (send,mut receive)=tokio::sync::mpsc::unbounded_channel();let proceed=Arc::new(tokio::sync::Notify::new());let waiting=proceed.clone();let second_authorizer=authorizer.clone();
+            let native=tokio::spawn(async move {
+                second_authorizer.execute_with_sources_deferred("acme.example.test",quality_lock_auth::proof(),||Ok(quality_lock_auth::input()),quality_lock_auth::access(),QualityLockOrderSources,move|c,_|{let send=send.clone();let waiting=waiting.clone();Box::pin(async move {
+                    let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *c).await?;send.send(pid).unwrap();waiting.notified().await;
+                    let command=QualityCancellationCommand { command_key:CommandKey::new("quality-order-second")?,hold_id:RecordId::new("quality-lock-second")?,expected_version:1,action:CancellationAction::Request,reason:"Review duplicate hold".into() };
+                    let effect=prepare_quality_cancellation(c,&command,&CompanyId::new("company")?,Some(&RecordId::new("branch")?),&UserId::new("user")?,quality_lock_auth::NOW).await?;effect.apply(c).await?;Ok(())
+                })}).await
+            });
+            let native_pid=tokio::time::timeout(Duration::from_secs(15),receive.recv()).await.unwrap().unwrap();
+            let writer_pool=holding.clone();let (send,receive)=tokio::sync::oneshot::channel();
+            let writer=tokio::spawn(async move {
+                let mut conn=writer_pool.raw().acquire().await.unwrap();let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *conn).await.unwrap();let mut tx=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();send.send(pid).unwrap();ts_quality_writer_locks(&mut tx).await;
+                let status:String=sqlx::query_scalar("SELECT status FROM inventory_quality_holds WHERE id='quality-lock-second'").fetch_one(&mut *tx).await.unwrap();assert_eq!(status,"cancel_pending");
+                sqlx::query("UPDATE inventory_quality_holds SET reason='Writer second' WHERE id='quality-lock-second'").execute(&mut *tx).await.unwrap();tx.commit().await.unwrap();
+            });
+            let writer_pid=receive.await.unwrap();tokio::time::timeout(Duration::from_secs(8),async {loop {let blocked:bool=sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(native_pid).bind(writer_pid).fetch_one(holding.raw()).await.unwrap();if blocked {break;}tokio::time::sleep(Duration::from_millis(10)).await;}}).await.expect("TS-style Commerce writer did not wait for authorizer sources");
+            proceed.notify_one();tokio::time::timeout(Duration::from_secs(15),native).await.unwrap().unwrap().unwrap();tokio::time::timeout(Duration::from_secs(15),writer).await.unwrap().unwrap();
+            let count:i64=sqlx::query_scalar("SELECT count(*) FROM inventory_quality_cancellations WHERE hold_id IN ('quality-lock-first','quality-lock-second')").fetch_one(holding.raw()).await.unwrap();assert_eq!(count,2);
+        }).await;
+    }).await;
+}

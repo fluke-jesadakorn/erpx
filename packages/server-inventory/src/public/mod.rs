@@ -34,3 +34,8 @@ pub mod movement_read;
 pub mod stock_register;
 pub mod stock_receipt;
 pub mod stock_issue;
+
+pub mod quality_stock_source;
+pub mod quality_cancellation_stock;
+pub mod quality_disposition_count;
+pub mod quality_fulfillment_allocation;

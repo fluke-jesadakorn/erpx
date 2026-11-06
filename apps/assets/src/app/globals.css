@@ -29,6 +29,7 @@
 @source "../../../../packages/feature-assets/src/components/use-asset-command.ts";
 @source "../../../../packages/feature-assets/src/lib/accounting-command.ts";
 @source "../../../../packages/feature-assets/src/lib/command.ts";
+@source "../../../../packages/feature-assets/src/public/native-assets.ts";
 @source "../../../../packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/assets/financial-assets/[...path]/route.ts";
 @source "../../../../packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/assets/financial-assets/route.ts";
 @source "../../../../packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/assets/route.ts";

@@ -50,7 +50,9 @@ pub use crate::domain::account_credentials::{
 pub use crate::domain::invitation_authority::{StaffInvitationGrant, invitation_scope_covers};
 
 pub mod permission_catalog;
-
+pub mod permission_catalog_lock;
+pub mod quality_recipients;
+pub mod sales_recipient;
 pub mod work_admission;
 
 pub mod effective_authority;

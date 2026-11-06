@@ -2,6 +2,7 @@ use crate::{application::production_release::ProductionReleaseReadPort, domain::
 use erpx_server_identity_access::public::release_reviewers::{
     PgReleaseReviewerReader, ReleaseReviewerRequest, lock_release_reviewer_sources,
 };
+use erpx_server_identity_access::public::permission_catalog_lock::lock_permission_catalog_sources;
 use erpx_server_organization::public::{
     PgCompanyBusinessAcceptanceReader, lock_business_acceptance_sources,
 };
@@ -86,7 +87,8 @@ pub async fn lock_production_release_sources(connection: &mut PgConnection) -> R
         .execute(&mut *connection)
         .await?;
     lock_release_reviewer_sources(&mut *connection).await?;
-    lock_business_acceptance_sources(connection).await
+    lock_business_acceptance_sources(&mut *connection).await?;
+    lock_permission_catalog_sources(connection).await
 }
 pub struct ProductionReleaseInspection {
     pub accepted: bool,

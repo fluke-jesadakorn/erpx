@@ -1153,3 +1153,117 @@ async fn actual_router_reads_and_provisions_over_postgres_with_target_and_key_ne
     })
     .await;
 }
+
+// Synthetic Holding fixture tests the real Platform Administration release
+// reader with an explicit test artifact. It is not a production Finance gate,
+// release workflow acceptance, or proof that the compiled artifact is built.
+const SYNTHETIC_RELEASE_ARTIFACT:&str="test-only-accepted-release";
+async fn seed_synthetic_production_release(pool:&DatabasePool) {
+    use erpx_server_platform_administration::public::production_release::current_production_release_catalogue;
+    sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,company_id,status) VALUES('release-company','company','release-company','Synthetic release company','release-company','active'); INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status) VALUES('*','release_test_reviewer','Synthetic release reviewer',false,1,'active'); INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','release_test_reviewer',1,'[\"organization.manage\",\"pms.approve\",\"commerce.approve\",\"records.write\",\"pos.approve\",\"people.manage\",\"payroll.approve\",\"finance.approve\"]','[]','[\"holding\"]','synthetic',0); INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy) VALUES('release-company','release-requester','local:release-requester','requester-person','active','local'),('release-company','setup-reviewer','local:setup-reviewer','setup-person','active','local'); INSERT INTO company_business_acceptance(company_id,status,version,requested_by,reviewed_by,requested_at,reviewed_at,reason,review_reason,updated_at) VALUES('release-company','accepted',2,'release-requester','setup-reviewer',1,2,'Synthetic setup request','Synthetic independent review',2)").execute(pool.raw()).await.unwrap();
+    let catalogue=current_production_release_catalogue().unwrap();assert_eq!(catalogue.criteria().len(),15);
+    for (i,_) in catalogue.criteria().iter().enumerate() {
+        let user=format!("release-reviewer-{i}");let assignment=format!("release-assignment-{i}");
+        sqlx::query("INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy) VALUES('release-company',$1,$2,$3,'active','local')").bind(&user).bind(format!("local:{user}")).bind(format!("person-{i}")).execute(pool.raw()).await.unwrap();
+        sqlx::query("INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind) VALUES($1,$2,'release_test_reviewer','[]','release-company',0,9007199254740991,1,'holding')").bind(&assignment).bind(&user).execute(pool.raw()).await.unwrap();
+        // Gate rows are inserted after the acceptance below.
+    }
+    sqlx::query("INSERT INTO company_release_acceptances(id,company_id,scope_version,software_version,configuration_revision,setup_version,evidence_sha256,evidence_json,requested_by,reason,created_at,updated_at) SELECT 'synthetic-release','release-company',$1,$2,revision,2,$3,'{}','release-requester','Synthetic fixture only',1,1 FROM company_release_revisions WHERE company_id='release-company'")
+        .bind(catalogue.scope_version()).bind(SYNTHETIC_RELEASE_ARTIFACT).bind("a".repeat(64)).execute(pool.raw()).await.unwrap();
+    for (i,criterion) in catalogue.criteria().iter().enumerate() {
+        sqlx::query("INSERT INTO company_release_gate_reviews(company_id,release_id,criterion_id,state,reviewer_id,assignment_id,permission,reason,reviewed_at) VALUES('release-company','synthetic-release',$1,'passed',$2,$3,$4,'Synthetic independent fixture review',1)")
+            .bind(&criterion.id).bind(format!("release-reviewer-{i}")).bind(format!("release-assignment-{i}")).bind(&criterion.permission).execute(pool.raw()).await.unwrap();
+    }
+}
+async fn synthetic_release_accepted(c:&mut sqlx::PgConnection,artifact:&str)->bool {
+    use erpx_server_platform_administration::public::production_release::{current_production_release_catalogue,PgProductionReleaseReader,ProductionReleaseReadPort};
+    use erpx_server_shared::public::{CompanyId,TimestampMillis};
+    let catalogue=current_production_release_catalogue().unwrap();
+    PgProductionReleaseReader::new(c,artifact,&catalogue).unwrap().inspect(&CompanyId::new("release-company").unwrap(),TimestampMillis::new(0)).await.unwrap().accepted
+}
+
+#[tokio::test]
+async fn synthetic_release_permissions_first_writer_causes_retry_and_fresh_denial() {
+    use erpx_server_platform_administration::public::production_release::lock_production_release_sources;
+    use erpx_server_runtime::public::postgres::{PgTransactionError,PgUnitOfWork,TransactionOptions};
+    use std::sync::atomic::{AtomicUsize,Ordering};
+    fixture::with_database(3,|pool|async move {
+        migrate(&pool,MigrationTrack::HoldingWrite).await;seed_synthetic_production_release(&pool).await;
+        let mut baseline=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *baseline).await.unwrap();lock_production_release_sources(&mut baseline).await.unwrap();
+        assert!(synthetic_release_accepted(&mut baseline,SYNTHETIC_RELEASE_ARTIFACT).await);baseline.rollback().await.unwrap();
+        let mut writer=pool.raw().begin().await.unwrap();
+        sqlx::query("UPDATE iam_permissions SET definition=jsonb_set(definition,'{availability}','\"planned\"'::jsonb) WHERE id='finance.approve'").execute(&mut *writer).await.unwrap();
+        let owner_pool=pool.clone();let attempts=Arc::new(AtomicUsize::new(0));let owner_attempts=attempts.clone();let (send,mut receive)=tokio::sync::mpsc::unbounded_channel();
+        let reader=tokio::spawn(async move {PgUnitOfWork::new(owner_pool).run::<bool,BusinessError,_>(TransactionOptions::default(),move|c| {
+            let attempts=owner_attempts.clone();let send=send.clone();Box::pin(async move {
+                attempts.fetch_add(1,Ordering::SeqCst);
+                if let Err(error)=lock_production_release_sources(c).await {
+                    if matches!(&error,PgTransactionError::Persistence(e) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03")) {send.send(()).unwrap();}
+                    return Err(error);
+                }
+                Ok(synthetic_release_accepted(c,SYNTHETIC_RELEASE_ARTIFACT).await)
+            })
+        }).await});
+        tokio::time::timeout(std::time::Duration::from_secs(5),receive.recv()).await.unwrap().unwrap();
+        // A permissions-first migration must be able to acquire its later
+        // role write after the contended reader rolls its attempt back.
+        sqlx::query("UPDATE iam_roles SET name=name WHERE id='release_test_reviewer'").execute(&mut *writer).await.unwrap();
+        writer.commit().await.unwrap();
+        assert!(!reader.await.unwrap().unwrap());assert!(attempts.load(Ordering::SeqCst)>=2);
+    }).await;
+}
+
+#[tokio::test]
+async fn synthetic_release_reader_first_blocks_permission_withdrawal_until_commit() {
+    use erpx_server_platform_administration::public::production_release::lock_production_release_sources;
+    fixture::with_database(3,|pool|async move {
+        migrate(&pool,MigrationTrack::HoldingWrite).await;seed_synthetic_production_release(&pool).await;
+        let mut reader=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *reader).await.unwrap();lock_production_release_sources(&mut reader).await.unwrap();
+        assert!(synthetic_release_accepted(&mut reader,SYNTHETIC_RELEASE_ARTIFACT).await);
+        let reader_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *reader).await.unwrap();let writer_pool=pool.clone();let (send,receive)=tokio::sync::oneshot::channel();
+        let writer=tokio::spawn(async move {let mut tx=writer_pool.raw().begin().await.unwrap();let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *tx).await.unwrap();send.send(pid).unwrap();sqlx::query("UPDATE iam_permissions SET definition=jsonb_set(definition,'{availability}','\"planned\"'::jsonb) WHERE id='finance.approve'").execute(&mut *tx).await.unwrap();tx.commit().await.unwrap();});
+        let writer_pid=receive.await.unwrap();tokio::time::timeout(std::time::Duration::from_secs(5),async {loop {
+            let blocked:bool=sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(reader_pid).bind(writer_pid).fetch_one(pool.raw()).await.unwrap();
+            if blocked {break;}tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }}).await.expect("reviewer permission withdrawal did not wait for release source");
+        assert!(synthetic_release_accepted(&mut reader,SYNTHETIC_RELEASE_ARTIFACT).await);reader.commit().await.unwrap();writer.await.unwrap();
+        let mut fresh=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *fresh).await.unwrap();lock_production_release_sources(&mut fresh).await.unwrap();
+        assert!(!synthetic_release_accepted(&mut fresh,SYNTHETIC_RELEASE_ARTIFACT).await);fresh.rollback().await.unwrap();
+    }).await;
+}
+#[tokio::test]
+async fn synthetic_production_release_reader_requires_all_current_independent_gates() {
+    use erpx_server_platform_administration::public::production_release::{current_production_release_catalogue,lock_production_release_sources};
+    fixture::with_database(3,|pool|async move {
+        migrate(&pool,MigrationTrack::HoldingWrite).await;seed_synthetic_production_release(&pool).await;
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_production_release_sources(&mut tx).await.unwrap();
+        assert!(synthetic_release_accepted(&mut tx,SYNTHETIC_RELEASE_ARTIFACT).await);
+        assert!(!synthetic_release_accepted(&mut tx,"unbuilt").await);
+        assert!(!synthetic_release_accepted(&mut tx,"another-artifact").await);
+        for gate in current_production_release_catalogue().unwrap().criteria() {
+            sqlx::query("UPDATE company_release_gate_reviews SET state='pending' WHERE release_id='synthetic-release' AND criterion_id=$1").bind(&gate.id).execute(&mut *tx).await.unwrap();
+            assert!(!synthetic_release_accepted(&mut tx,SYNTHETIC_RELEASE_ARTIFACT).await,"{}",gate.id);
+            sqlx::query("UPDATE company_release_gate_reviews SET state='passed' WHERE release_id='synthetic-release' AND criterion_id=$1").bind(&gate.id).execute(&mut *tx).await.unwrap();
+        }
+        sqlx::query("UPDATE iam_members SET person_id='requester-person' WHERE user_id='release-reviewer-0' AND company_id='release-company'").execute(&mut *tx).await.unwrap();
+        assert!(!synthetic_release_accepted(&mut tx,SYNTHETIC_RELEASE_ARTIFACT).await);
+        tx.rollback().await.unwrap();
+        let mut writer=pool.raw().begin().await.unwrap();
+        sqlx::query("UPDATE company_release_acceptances SET revoked_at=2 WHERE id='synthetic-release'").execute(&mut *writer).await.unwrap();
+        let writer_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();let other_pool=pool.clone();
+        let reader=tokio::spawn(async move {
+            let mut tx=other_pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+            lock_production_release_sources(&mut tx).await.unwrap();let accepted=synthetic_release_accepted(&mut tx,SYNTHETIC_RELEASE_ARTIFACT).await;tx.rollback().await.unwrap();accepted
+        });
+        tokio::time::timeout(std::time::Duration::from_secs(5),async {loop {let blocked:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE $1=ANY(pg_blocking_pids(pid)))").bind(writer_pid).fetch_one(pool.raw()).await.unwrap();if blocked {break;}tokio::time::sleep(std::time::Duration::from_millis(10)).await;}}).await.expect("release reader must wait for writer before snapshot");
+        writer.commit().await.unwrap();assert!(!reader.await.unwrap());
+        sqlx::query("UPDATE company_release_acceptances SET revoked_at=NULL WHERE id='synthetic-release'").execute(pool.raw()).await.unwrap();
+        let mut reader=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *reader).await.unwrap();lock_production_release_sources(&mut reader).await.unwrap();
+        assert!(synthetic_release_accepted(&mut reader,SYNTHETIC_RELEASE_ARTIFACT).await);
+        let reader_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *reader).await.unwrap();let writer_pool=pool.clone();
+        let writer=tokio::spawn(async move {sqlx::query("UPDATE company_release_acceptances SET revoked_at=3 WHERE id='synthetic-release'").execute(writer_pool.raw()).await.unwrap();});
+        tokio::time::timeout(std::time::Duration::from_secs(5),async {loop {let blocked:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE $1=ANY(pg_blocking_pids(pid)))").bind(reader_pid).fetch_one(pool.raw()).await.unwrap();if blocked {break;}tokio::time::sleep(std::time::Duration::from_millis(10)).await;}}).await.expect("release withdrawal must wait for held source");
+        assert!(synthetic_release_accepted(&mut reader,SYNTHETIC_RELEASE_ARTIFACT).await);reader.commit().await.unwrap();writer.await.unwrap();
+        let mut fresh=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *fresh).await.unwrap();lock_production_release_sources(&mut fresh).await.unwrap();assert!(!synthetic_release_accepted(&mut fresh,SYNTHETIC_RELEASE_ARTIFACT).await);fresh.rollback().await.unwrap();
+    }).await;
+}

@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./public/native-operations": "./src/public/native-operations.ts",
     "./adapters/server/native-operations": "./src/adapters/server/native-operations.ts",
     "./components/routine-editor": "./src/components/routine-editor.tsx",
     "./components/routine-schedule-controls": "./src/components/routine-schedule-controls.tsx",

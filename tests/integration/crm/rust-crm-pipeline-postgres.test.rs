@@ -6,6 +6,14 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
+use erpx_server_crm::public::activities_native::{
+    ActivityActor, ActivityChangeInput, ActivityCreateInput, PgCrmActivityCommands,
+    change_activity, create_activity,
+};
+use erpx_server_crm::public::activity_source::{
+    CrmActivitySourceKind, CrmActivitySourceRequest, inspect_crm_activity_source,
+    lock_crm_activity_sources,
+};
 use erpx_server_crm::public::pipeline::{
     CrmPipelineActor, CrmPipelineCustomerDirectory, CrmPipelineEntitlement,
     CrmPipelineEntitlementPort, CrmPipelineFuture, CrmPipelinePeopleDirectory, CrmPipelineQuery,
@@ -19,6 +27,261 @@ use erpx_server_shared::public::{BusinessError, CompanyId, RecordId, TimestampMi
 use std::collections::BTreeMap;
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
+
+#[tokio::test]
+async fn activity_source_retains_scoped_crm_identity_in_original_unit() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        sqlx::raw_sql("INSERT INTO crm_accounts(id,company_id,kind,name,created_by,created_at,updated_at) VALUES('account-one','company','business','One','owner',1,1),('account-two','company','business','Two','owner',1,1); INSERT INTO crm_contacts(id,company_id,account_id,name,detail,created_by,created_at,updated_at) VALUES('contact-one','company','account-one','Contact','Detail','owner',1,1); UPDATE crm_leads SET account_id='account-one',contact_id='contact-one',department_id='department' WHERE id='page-01'; INSERT INTO crm_lead_activities(id,company_id,lead_id,activity_type,subject,details,owner_id,due_date,created_by,created_at,updated_at) VALUES('source-activity','company','page-01','call','Call customer','Discuss scope','owner','2026-11-20','owner',1,1)").execute(pool.raw()).await.unwrap();
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_crm_activity_sources(&mut tx).await.unwrap();
+        let request = || CrmActivitySourceRequest { company_id: CompanyId::new("company").unwrap(), branch_id: Some("branch".into()), department_id: None, source_id: "source-activity".into(), kind: CrmActivitySourceKind::Activity };
+        let source = inspect_crm_activity_source(&mut tx,request()).await.unwrap();
+        assert_eq!(source.finance_party(),None);
+        assert!(!source.has_opportunity());
+        source.require_current(&mut tx).await.unwrap();
+        let foreign = CrmActivitySourceRequest { company_id: CompanyId::new("foreign").unwrap(), ..request() };
+        assert_eq!(business(inspect_crm_activity_source(&mut tx,foreign).await.err().unwrap()).code,"CRM_SOURCE_NOT_FOUND");
+        let wrong_branch = CrmActivitySourceRequest { branch_id: Some("other-branch".into()), ..request() };
+        assert_eq!(business(inspect_crm_activity_source(&mut tx,wrong_branch).await.err().unwrap()).code,"CRM_SOURCE_NOT_FOUND");
+        let department = CrmActivitySourceRequest {department_id:Some("department".into()),..request()};
+        inspect_crm_activity_source(&mut tx,department).await.unwrap().require_current(&mut tx).await.unwrap();
+        let wrong_department = CrmActivitySourceRequest {department_id:Some("other-department".into()),..request()};
+        assert_eq!(business(inspect_crm_activity_source(&mut tx,wrong_department).await.err().unwrap()).code,"CRM_SOURCE_NOT_FOUND");
+        sqlx::query("UPDATE crm_contacts SET account_id='account-two' WHERE id='contact-one'").execute(&mut *tx).await.unwrap();
+        assert_eq!(business(source.require_current(&mut tx).await.unwrap_err()).code,"CRM_SOURCE_CHANGED");
+        tx.rollback().await.unwrap();
+        let mut other = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+        assert_eq!(business(source.require_current(&mut other).await.unwrap_err()).code,"CRM_SOURCE_CHANGED");
+        other.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn activity_source_waits_for_identity_writer_before_snapshot() {
+    use sqlx::Connection;
+    fixture::with_database(3,|pool|async move {
+        setup(&pool).await;
+        sqlx::raw_sql("INSERT INTO crm_accounts(id,company_id,kind,name,created_by,created_at,updated_at) VALUES('account-writer','company','business','Account','owner',1,1); INSERT INTO crm_contacts(id,company_id,account_id,name,detail,created_by,created_at,updated_at) VALUES('contact-writer','company','account-writer','Contact','Detail','owner',1,1); UPDATE crm_leads SET account_id='account-writer',contact_id='contact-writer' WHERE id='page-01'; INSERT INTO crm_lead_activities(id,company_id,lead_id,activity_type,subject,details,owner_id,due_date,created_by,created_at,updated_at) VALUES('activity-writer','company','page-01','call','Call customer','Discuss scope','owner','2026-11-20','owner',1,1)").execute(pool.raw()).await.unwrap();
+        let mut writer=pool.raw().begin().await.unwrap();
+        let writer_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();
+        sqlx::query("UPDATE crm_accounts SET finance_party_id='customer' WHERE id='account-writer'").execute(&mut *writer).await.unwrap();
+        let reader_pool=pool.clone();let (send,receive)=tokio::sync::oneshot::channel();
+        let reader=tokio::spawn(async move {
+            let mut connection=reader_pool.raw().acquire().await.unwrap();
+            let reader_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *connection).await.unwrap();
+            let mut tx=connection.begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+            send.send(reader_pid).unwrap();
+            lock_crm_activity_sources(&mut tx).await.unwrap();
+            let request=CrmActivitySourceRequest {company_id:CompanyId::new("company").unwrap(),branch_id:Some("branch".into()),department_id:None,source_id:"activity-writer".into(),kind:CrmActivitySourceKind::Activity};
+            let source=inspect_crm_activity_source(&mut tx,request).await.unwrap();
+            assert_eq!(source.finance_party(),Some("customer"));
+            source.require_current(&mut tx).await.unwrap();
+            tx.rollback().await.unwrap();
+        });
+        let reader_pid=receive.await.unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(5),async {loop {
+            let blocked:bool=sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(writer_pid).bind(reader_pid).fetch_one(pool.raw()).await.unwrap();
+            if blocked {break;}tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }}).await.expect("CRM source lock did not wait for account writer");
+        writer.commit().await.unwrap();reader.await.unwrap();
+    }).await;
+}
+
+async fn wait_for_writer_block(pool: &DatabasePool, writer_pid: i32) {
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            let blocked: bool = sqlx::query_scalar(
+                "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid)))",
+            ).bind(writer_pid).fetch_one(pool.raw()).await.unwrap();
+            if blocked { break; }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    }).await.expect("activity transaction never waited for the source writer");
+}
+
+#[tokio::test]
+async fn activity_adapter_persists_actual_event_identity_and_json() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let actor = ActivityActor { user_id: "owner".into(), company_id: "company".into(),
+            can_sales: true, can_manage: false, has_read: true, same_person_ids: vec![] };
+        let creator = actor.clone();
+        PgUnitOfWork::new(pool.clone()).run::<(), BusinessError, _>(TransactionOptions::default(), move |connection| {
+            let creator = creator.clone();
+            Box::pin(async move {
+                let mut repository = PgCrmActivityCommands::new(connection);
+                let input = ActivityCreateInput { lead_id: "page-01".into(), expected_version: 1,
+                    activity_type: "call".into(), subject: "  Call customer  ".into(),
+                    details: "  Discuss scope  ".into(), owner_id: "owner".into(), due_date: "2026-11-20".into() };
+                create_activity(&creator, "create-1", &input, &mut repository, NOW.get()).await?;
+                Ok(())
+            })
+        }).await.unwrap();
+        PgUnitOfWork::new(pool.clone()).run::<(), BusinessError, _>(TransactionOptions::default(), move |connection| {
+            let actor = actor.clone();
+            Box::pin(async move {
+                let mut repository = PgCrmActivityCommands::new(connection);
+                let input = ActivityChangeInput { action: "complete".into(), expected_version: 1, reason: "  Done well  ".into() };
+                change_activity(&actor, "crm-activity-create-1", "complete-1", &input, &mut repository, NOW.get() + 1).await?;
+                Ok(())
+            })
+        }).await.unwrap();
+        let rows: Vec<(String, String, String, String, serde_json::Value)> = sqlx::query_as(
+            "SELECT id,actor_id,owner_id,due_date,snapshot_json FROM crm_lead_activity_events WHERE activity_id=$1 ORDER BY version")
+            .bind("crm-activity-create-1").fetch_all(pool.raw()).await.unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!((&rows[0].0, &rows[1].0), (&"crm-activity-event-create-1".to_string(), &"crm-activity-event-complete-1".to_string()));
+        for row in &rows { assert_eq!((&*row.1, &*row.2, &*row.3), ("owner", "owner", "2026-11-20")); }
+        assert_eq!(rows[0].4["subject"], "Call customer");
+        assert_eq!(rows[1].4["reason"], "Done well");
+    }).await;
+}
+
+#[tokio::test]
+async fn activity_create_cannot_cross_concurrent_opportunity_close() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        // Match the existing TS opportunity command's write order: the
+        // opportunity changes first, then the owning lead version advances.
+        let mut writer = pool.raw().begin().await.unwrap();
+        let writer_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()")
+            .fetch_one(&mut *writer).await.unwrap();
+        sqlx::query("UPDATE crm_opportunities SET stage='lost',version=version+1 WHERE id='opp-discovery'")
+            .execute(&mut *writer).await.unwrap();
+        let reader_pool = pool.clone();
+        let create = tokio::spawn(async move {
+            let actor = ActivityActor { user_id: "owner".into(), company_id: "company".into(),
+                can_sales: true, can_manage: false, has_read: true, same_person_ids: vec![] };
+            PgUnitOfWork::new(reader_pool).run::<(), BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let actor = actor.clone();
+                Box::pin(async move {
+                    let mut repository = PgCrmActivityCommands::new(connection);
+                    let input = ActivityCreateInput { lead_id: "lead-discovery".into(), expected_version: 2,
+                        activity_type: "call".into(), subject: "Call customer".into(), details: "Discuss scope".into(),
+                        owner_id: "owner".into(), due_date: "2026-11-20".into() };
+                    create_activity(&actor, "close-race", &input, &mut repository, NOW.get()).await?;
+                    Ok(())
+                })
+            }).await
+        });
+        wait_for_writer_block(&pool, writer_pid).await;
+        sqlx::query("UPDATE crm_leads SET version=version+1 WHERE id='lead-discovery'")
+            .execute(&mut *writer).await.unwrap();
+        writer.commit().await.unwrap();
+        assert_eq!(business(create.await.unwrap().unwrap_err()).code, "CRM_LEAD_VERSION_CHANGED");
+        let count: i64 = sqlx::query_scalar("SELECT (SELECT count(*) FROM crm_lead_activities WHERE id='crm-activity-close-race') + (SELECT count(*) FROM crm_lead_activity_events WHERE activity_id='crm-activity-close-race')")
+            .fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(count, 0);
+    }).await;
+}
+
+#[tokio::test]
+async fn activity_create_cannot_cross_concurrent_lead_disqualification() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        let mut writer = pool.raw().begin().await.unwrap();
+        let writer_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()")
+            .fetch_one(&mut *writer).await.unwrap();
+        sqlx::query("UPDATE crm_leads SET status='disqualified',version=version+1 WHERE id='page-01'")
+            .execute(&mut *writer).await.unwrap();
+        let reader_pool = pool.clone();
+        let create = tokio::spawn(async move {
+            let actor = ActivityActor { user_id: "owner".into(), company_id: "company".into(),
+                can_sales: true, can_manage: false, has_read: true, same_person_ids: vec![] };
+            PgUnitOfWork::new(reader_pool).run::<(), BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let actor = actor.clone();
+                Box::pin(async move {
+                    let mut repository = PgCrmActivityCommands::new(connection);
+                    let input = ActivityCreateInput { lead_id: "page-01".into(), expected_version: 1,
+                        activity_type: "call".into(), subject: "Call customer".into(), details: "Discuss scope".into(),
+                        owner_id: "owner".into(), due_date: "2026-11-20".into() };
+                    create_activity(&actor, "lead-race", &input, &mut repository, NOW.get()).await?;
+                    Ok(())
+                })
+            }).await
+        });
+        wait_for_writer_block(&pool, writer_pid).await;
+        writer.commit().await.unwrap();
+        assert_eq!(business(create.await.unwrap().unwrap_err()).code, "CRM_LEAD_VERSION_CHANGED");
+        let count: i64 = sqlx::query_scalar("SELECT (SELECT count(*) FROM crm_lead_activities WHERE id='crm-activity-lead-race') + (SELECT count(*) FROM crm_lead_activity_events WHERE activity_id='crm-activity-lead-race')")
+            .fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(count, 0);
+    }).await;
+}
+
+#[tokio::test]
+async fn activity_create_waits_for_concurrent_qualification_insert() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        let mut writer = pool.raw().begin().await.unwrap();
+        let writer_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();
+        // Qualification inserts the opportunity before changing the lead.
+        sqlx::query("INSERT INTO crm_opportunities(id,lead_id,customer_id,expected_minor,currency,close_date,created_by,created_at,updated_at) VALUES('opp-new','page-01','customer',100,'THB','2026-12-01','owner',100,100)")
+            .execute(&mut *writer).await.unwrap();
+        let reader_pool = pool.clone();
+        let create = tokio::spawn(async move {
+            let actor = ActivityActor { user_id: "owner".into(), company_id: "company".into(), can_sales: true,
+                can_manage: false, has_read: true, same_person_ids: vec![] };
+            PgUnitOfWork::new(reader_pool).run::<(), BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let actor = actor.clone();
+                Box::pin(async move {
+                    let mut repository = PgCrmActivityCommands::new(connection);
+                    let input = ActivityCreateInput { lead_id: "page-01".into(), expected_version: 1,
+                        activity_type: "call".into(), subject: "Call customer".into(), details: "Discuss scope".into(),
+                        owner_id: "owner".into(), due_date: "2026-11-20".into() };
+                    create_activity(&actor, "qualify-race", &input, &mut repository, NOW.get()).await?;
+                    Ok(())
+                })
+            }).await
+        });
+        wait_for_writer_block(&pool, writer_pid).await;
+        sqlx::query("UPDATE crm_leads SET status='qualified',version=version+1 WHERE id='page-01'")
+            .execute(&mut *writer).await.unwrap();
+        writer.commit().await.unwrap();
+        assert_eq!(business(create.await.unwrap().unwrap_err()).code, "CRM_LEAD_VERSION_CHANGED");
+        let count: i64 = sqlx::query_scalar("SELECT (SELECT count(*) FROM crm_lead_activities WHERE id='crm-activity-qualify-race') + (SELECT count(*) FROM crm_lead_activity_events WHERE activity_id='crm-activity-qualify-race')")
+            .fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(count, 0);
+    }).await;
+}
+
+#[tokio::test]
+async fn opportunity_close_waits_for_prior_activity_create() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        let mut creator = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *creator).await.unwrap();
+        let creator_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *creator).await.unwrap();
+        let actor = ActivityActor { user_id: "owner".into(), company_id: "company".into(), can_sales: true,
+            can_manage: false, has_read: true, same_person_ids: vec![] };
+        let input = ActivityCreateInput { lead_id: "lead-discovery".into(), expected_version: 2,
+            activity_type: "call".into(), subject: "Call customer".into(), details: "Discuss scope".into(),
+            owner_id: "owner".into(), due_date: "2026-11-20".into() };
+        create_activity(&actor, "prior-create", &input, &mut PgCrmActivityCommands::new(&mut creator), NOW.get()).await.unwrap();
+        let writer_pool = pool.clone();
+        let close = tokio::spawn(async move {
+            let mut writer = writer_pool.raw().begin().await.unwrap();
+            sqlx::query("UPDATE crm_opportunities SET stage='lost',version=version+1 WHERE id='opp-discovery'")
+                .execute(&mut *writer).await.unwrap();
+            sqlx::query("UPDATE crm_leads SET version=version+1 WHERE id='lead-discovery'")
+                .execute(&mut *writer).await.unwrap();
+            writer.commit().await.unwrap();
+        });
+        wait_for_writer_block(&pool, creator_pid).await;
+        creator.commit().await.unwrap();
+        close.await.unwrap();
+        let count: i64 = sqlx::query_scalar("SELECT (SELECT count(*) FROM crm_lead_activities WHERE id='crm-activity-prior-create') + (SELECT count(*) FROM crm_lead_activity_events WHERE activity_id='crm-activity-prior-create')")
+            .fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(count, 2);
+        let stage: String = sqlx::query_scalar("SELECT stage FROM crm_opportunities WHERE id='opp-discovery'")
+            .fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(stage, "lost");
+    }).await;
+}
 
 fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
     match error {

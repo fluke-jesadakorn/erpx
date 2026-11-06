@@ -157,6 +157,27 @@ fn sources() -> ServiceInitialPhysicalStockSources {
     environment().sources()
 }
 
+#[derive(Clone)]
+struct ObserveFirstContention {
+    inner: ServiceInitialPhysicalStockSources,
+    attempts: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    seen: std::sync::Arc<tokio::sync::Notify>,
+    resume: std::sync::Arc<tokio::sync::Notify>,
+}
+impl erpx_server_identity_access::public::effective_authority::HoldingWorkSourcePreparation for ObserveFirstContention {
+    fn prepare<'c>(&'c self, c: &'c mut sqlx::PgConnection) -> erpx_server_runtime::public::postgres::PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            let attempt = self.attempts.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let result = self.inner.prepare(c).await;
+            if attempt == 0 && matches!(&result, Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(e)) if e.code == "PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state() == Some("55P03")) {
+                self.seen.notify_one();
+                self.resume.notified().await;
+            }
+            result
+        })
+    }
+}
+
 #[tokio::test]
 async fn selected_account_updates_and_replays_real_service_count() {
     for tracking in ["none", "lot"] {
@@ -179,7 +200,25 @@ async fn selected_account_updates_and_replays_real_service_count() {
   let mut tx=db.begin().await.unwrap();
   sqlx::raw_sql(r#"INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) SELECT 'fixture-setup-key','commerce.service-parts-posting-setup.confirm-existing','fixture-a','synthetic-setup-hash','company',jsonb_build_object('id','company','status','confirmed-existing','version',1,'_servicePartsPostingSetup',jsonb_build_object('kind','service-parts-posting-setup','companyId','company','commandId','fixture-setup-key','mode','confirm-existing','mapping',to_jsonb(s)))::text,0,'{"companyId":"company"}' FROM commerce_settings s WHERE company_id='company';
   INSERT INTO commerce_service_parts_posting_sources(company_id,command_id,mode,mapping_json,proof_json,created_by,created_at) SELECT 'company','fixture-setup-key','confirm-existing',to_jsonb(s),jsonb_build_object('kind','service-parts-posting-setup','companyId','company','commandId','fixture-setup-key','mode','confirm-existing','mapping',to_jsonb(s)),'fixture-a',0 FROM commerce_settings s WHERE company_id='company'"#).execute(&mut *tx).await.unwrap();tx.commit().await.unwrap();
-  { let mut tx=db.begin().await.unwrap();sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,version,reason,evidence,updated_at) VALUES('company','supply',1,'active',0,1,'Synthetic Supply gate','synthetic evidence',1)").execute(&mut *tx).await.unwrap();sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) SELECT 'supply-update-fixture',company_id,package_id,'fixture-a','supply-fixture',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),1 FROM company_package_grants WHERE company_id='company' AND package_id='supply'").execute(&mut *tx).await.unwrap();tx.commit().await.unwrap();}
+  {
+   let absent:bool=sqlx::query_scalar("SELECT NOT EXISTS(SELECT 1 FROM company_package_grants WHERE company_id='company' AND package_id='supply')").fetch_one(db).await.unwrap();assert!(absent);
+   let mut tx=db.begin().await.unwrap();sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,version,reason,evidence,updated_at) VALUES('company','supply',1,'active',0,1,'Synthetic Supply gate','synthetic evidence',1)").execute(&mut *tx).await.unwrap();sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) SELECT 'supply-update-fixture',company_id,package_id,'fixture-a','supply-fixture',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),1 FROM company_package_grants WHERE company_id='company' AND package_id='supply'").execute(&mut *tx).await.unwrap();
+   let attempts=std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));let seen=std::sync::Arc::new(tokio::sync::Notify::new());let resume=std::sync::Arc::new(tokio::sync::Notify::new());
+   let counted=ObserveFirstContention{inner:sources(),attempts:attempts.clone(),seen:seen.clone(),resume:resume.clone()};
+   let selected=p.selection.clone();let proof=p.review.maker.clone();let authorizer=p.review.authorizer.clone();let clock=p.review.system.scenario.clock.clone();
+   let task=tokio::spawn(async move{authorizer.execute_with_selected_ingress_deferred("acme.example.test",proof,move||Ok(selected),(access(),counted),|_|Ok::<_,BusinessError>(()),move|c,current,_|{let clock=clock.clone();Box::pin(async move{
+     use erpx_server_commercial::public::purchases::{bind_purchase_read_sources,current_package_catalogue,CapabilityPurpose,PackageEnforcementMode,PgReadOnlyCompanyPurchaseReader,PurchaseRequest};
+     use erpx_server_shared::public::Clock;
+     let count=read_initial_count_selection(c,current,clock.as_ref(),InitialCountSelection{warehouse_id:Some("warehouse".into()),product_id:Some("count-product".into()),count_date:Some("2026-01-10".into())},&environment()).await?;
+     let locks=bind_purchase_read_sources(c).await?;let catalogue=current_package_catalogue()?;let mut reader=PgReadOnlyCompanyPurchaseReader::new(current.holding_id().clone(),current.selection().workspace().company_id.clone(),c,&catalogue,&locks);
+     let supply=reader.inspect(&PurchaseRequest{capabilities:vec!["supply.counts".into()],purpose:CapabilityPurpose::NewWork,mode:PackageEnforcementMode::Enforced},clock.now()).await?;supply.require_allowed()?;
+     Ok(serde_json::to_value(count).unwrap())
+   })}).await});
+   tokio::time::timeout(std::time::Duration::from_secs(5),seen.notified()).await.expect("selected Count must encounter writer fence");
+   let effects:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM inventory_counts WHERE id='count-native-update-create'),(SELECT count(*) FROM command_receipts WHERE command_id='native-update-create'),(SELECT count(*) FROM outbox_events WHERE command_id='native-update-create')").fetch_one(db).await.unwrap();assert_eq!(effects,(0,0,0));
+   tx.commit().await.unwrap();resume.notify_one();let result=task.await.unwrap().unwrap().unwrap();assert_eq!(result["canPrepare"],true);assert_eq!(attempts.load(std::sync::atomic::Ordering::SeqCst),2);
+   let history:i64=sqlx::query_scalar("SELECT count(*) FROM company_package_history_rights WHERE company_id='company' AND package_id='supply' AND source_event_id='supply-update-fixture'").fetch_one(db).await.unwrap();assert_eq!(history,1);
+  }
   let actor={let selection=p.selection.clone();let proof=p.review.maker.clone();p.review.authorizer.execute_with_selected_ingress_deferred("acme.example.test",proof,move||Ok(selection),(access(),sources()),|_|Ok::<_,BusinessError>(()),move|_,current,_|Box::pin(async move{let w=current.selection().workspace();let a=current.selection().assignment();let iam=erpx_server_identity_access::public::command_metadata::project_command_iam(current)?;Ok(serde_json::json!({"userId":current.user_id().as_str(),"name":"Synthetic maker","email":"a@example.test","assignmentId":a.id.as_str(),"role":a.role,"companyId":w.company_id.as_str(),"branchId":w.branch_id.as_ref().map(|v|v.as_str()),"departmentId":w.department_id.as_ref().map(|v|v.as_str()),"holdingId":current.holding_id().as_str(),"holdingSlug":"acme","holdingName":"Synthetic","scope":{"kind":"holding","holdingId":current.holding_id().as_str(),"holdingSlug":"acme","holdingName":"Synthetic","companyId":w.company_id.as_str()},"assignmentScope":"holding","inherited":false,"modules":["field_service","inventory"],"assignments":[],"workspaces":[],"authority":{"sessionId":current.session_id().as_str(),"revision":current.selection().revision(),"assignmentVersion":a.version},"iam":iam}))})).await.unwrap().unwrap()};
   #[cfg(feature="field-service-http")]
   {
@@ -304,8 +343,8 @@ async fn selected_account_updates_and_replays_real_service_count() {
   let race=||{let raw=revised.clone();let selection=p.selection.clone();let proof=proof.clone();let clock=clock.clone();let authorizer=authorizer.clone();async move{authorizer.execute_with_selected_ingress_deferred("acme.example.test",proof,move||Ok(selection),(access(),sources()),|_|Ok::<_,BusinessError>(()),move|c,current,_|{let clock=clock.clone();let raw=raw.clone();Box::pin(async move{execute_service_initial_count_update(c,current,clock.as_ref(),&mut Ids,ServiceCountUpdateCommand{key:"native-update-command",id:"count-native-update-create",raw:&raw},&environment()).await})}).await}};
   let (one,two)=tokio::join!(race(),race());for result in [one,two]{assert_eq!(result.unwrap().unwrap(),serde_json::json!({"id":"count-native-update-create","status":"draft","version":2}));}
   for _ in 0..2 {let raw=revised.clone();let selection=p.selection.clone();let proof=proof.clone();let clock=clock.clone();let result=authorizer.execute_with_selected_ingress_deferred("acme.example.test",proof,move||Ok(selection),(access(),sources()),|_|Ok::<_,BusinessError>(()),move|c,current,_|{let clock=clock.clone();let raw=raw.clone();Box::pin(async move{execute_service_initial_count_update(c,current,clock.as_ref(),&mut Ids,ServiceCountUpdateCommand{key:"native-update-command",id:"count-native-update-create",raw:&raw},&environment()).await})}).await.unwrap().unwrap();assert_eq!(result,serde_json::json!({"id":"count-native-update-create","status":"draft","version":2}));}
-  for (remove,restore) in [("UPDATE audit_events SET command_id='fixture-missing-audit' WHERE command_id='native-update-command'","UPDATE audit_events SET command_id='native-update-command' WHERE command_id='fixture-missing-audit'"),("UPDATE outbox_events SET command_id='fixture-missing-outbox' WHERE command_id='native-update-command'","UPDATE outbox_events SET command_id='native-update-command' WHERE command_id='fixture-missing-outbox'")] {
-   sqlx::query(remove).execute(db).await.unwrap();let raw=revised.clone();let selection=p.selection.clone();let proof=proof.clone();let clock=clock.clone();let result=authorizer.execute_with_selected_ingress_deferred("acme.example.test",proof,move||Ok(selection),(access(),sources()),|_|Ok::<_,BusinessError>(()),move|c,current,_|{let clock=clock.clone();let raw=raw.clone();Box::pin(async move{execute_service_initial_count_update(c,current,clock.as_ref(),&mut Ids,ServiceCountUpdateCommand{key:"native-update-command",id:"count-native-update-create",raw:&raw},&environment()).await})}).await;assert!(matches!(result,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e)) if e.code=="SERVICE_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED"));sqlx::query(restore).execute(db).await.unwrap();
+  for (remove,restore) in [("UPDATE audit_events SET command_id='fixture-missing-audit' WHERE command_id='native-update-command'","UPDATE audit_events SET command_id='native-update-command' WHERE command_id='fixture-missing-audit'"),("WITH runtime_owner AS MATERIALIZED (SELECT set_config('erpx.outbox_runtime','native-rust',true)) UPDATE outbox_events SET command_id='fixture-missing-outbox' FROM runtime_owner WHERE command_id='native-update-command'","WITH runtime_owner AS MATERIALIZED (SELECT set_config('erpx.outbox_runtime','native-rust',true)) UPDATE outbox_events SET command_id='native-update-command' FROM runtime_owner WHERE command_id='fixture-missing-outbox'")] {
+   assert_eq!(sqlx::query(remove).execute(db).await.unwrap().rows_affected(),1);let raw=revised.clone();let selection=p.selection.clone();let proof=proof.clone();let clock=clock.clone();let result=authorizer.execute_with_selected_ingress_deferred("acme.example.test",proof,move||Ok(selection),(access(),sources()),|_|Ok::<_,BusinessError>(()),move|c,current,_|{let clock=clock.clone();let raw=raw.clone();Box::pin(async move{execute_service_initial_count_update(c,current,clock.as_ref(),&mut Ids,ServiceCountUpdateCommand{key:"native-update-command",id:"count-native-update-create",raw:&raw},&environment()).await})}).await;assert!(matches!(result,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e)) if e.code=="SERVICE_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED"));assert_eq!(sqlx::query(restore).execute(db).await.unwrap().rows_affected(),1);
   }
   {let mut v:serde_json::Value=serde_json::from_str(&revised).unwrap();v["expectedVersion"]=serde_json::json!(2);let raw=v.to_string();let selection=p.review.reviewer_selection.clone();let proof=p.review.reviewer.clone();let clock=clock.clone();let denied=authorizer.execute_with_selected_ingress_deferred("acme.example.test",proof,move||Ok(selection),(access(),sources()),|_|Ok::<_,BusinessError>(()),move|c,current,_|{let clock=clock.clone();let raw=raw.clone();Box::pin(async move{execute_service_initial_count_update(c,current,clock.as_ref(),&mut Ids,ServiceCountUpdateCommand{key:"nonpreparer-update",id:"count-native-update-create",raw:&raw},&environment()).await})}).await;assert!(matches!(denied,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(e)) if e.kind==erpx_server_shared::public::FailureKind::Forbidden));}
   sqlx::query("UPDATE assignments SET role='count_maker' WHERE id='finance-fixture-b'").execute(db).await.unwrap();
@@ -375,7 +414,9 @@ async fn selected_account_updates_and_replays_real_service_count() {
    // Race the actual Bun claimant against native on the retained Flow event.
    // Other fixture events are delayed only within this disposable database.
    {
-    sqlx::query("UPDATE outbox_events SET next_attempt_at=CASE WHEN command_id='legacy-flow-default' THEN 0 ELSE 2000000 END").execute(db).await.unwrap();
+    assert!(sqlx::query("WITH runtime_owner AS MATERIALIZED (SELECT set_config('erpx.outbox_runtime','native-rust',true)) UPDATE outbox_events e SET next_attempt_at=CASE WHEN command_id='legacy-flow-default' THEN 0 ELSE 2000000 END FROM runtime_owner WHERE erpx_native_outbox_owned(e)").execute(db).await.unwrap().rows_affected()>0);
+    sqlx::query("UPDATE outbox_events e SET next_attempt_at=CASE WHEN command_id='legacy-flow-default' THEN 0 ELSE 2000000 END WHERE NOT erpx_native_outbox_owned(e)").execute(db).await.unwrap();
+    assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM outbox_events WHERE command_id='legacy-flow-default' AND next_attempt_at=0").fetch_one(db).await.unwrap(),1);
     let (ready,started)=tokio::sync::oneshot::channel();let (release,go)=std::sync::mpsc::channel::<()>();let payload=serde_json::json!({"database":db_name});
     let live=tokio::task::spawn_blocking(move||{use std::io::{BufRead,BufReader,Read,Write};use std::process::{Command,Stdio};let mut child=Command::new(std::env::var("ERPX_BUN_BIN").unwrap()).current_dir(concat!(env!("CARGO_MANIFEST_DIR"),"/../..")).arg("scripts/testing/fixtures/service-count-job-claim.ts").stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();let mut input=child.stdin.take().unwrap();writeln!(input,"{}",payload).unwrap();input.flush().unwrap();let mut output=BufReader::new(child.stdout.take().unwrap());let mut line=String::new();output.read_line(&mut line).unwrap();assert_eq!(line,"READY\n");ready.send(()).unwrap();go.recv().unwrap();writeln!(input,"GO").unwrap();input.flush().unwrap();drop(input);let mut body=String::new();output.read_to_string(&mut body).unwrap();assert!(child.wait().unwrap().success());serde_json::from_str::<serde_json::Value>(&body).unwrap()});
     started.await.unwrap();release.send(()).unwrap();
@@ -386,7 +427,9 @@ async fn selected_account_updates_and_replays_real_service_count() {
    }
    // Project and acknowledge the real eligible Flow on distinct leased databases.
    {
-    sqlx::query("UPDATE outbox_events SET next_attempt_at=CASE WHEN command_id='legacy-flow-default' THEN 0 ELSE 2000000 END").execute(db).await.unwrap();
+    assert!(sqlx::query("WITH runtime_owner AS MATERIALIZED (SELECT set_config('erpx.outbox_runtime','native-rust',true)) UPDATE outbox_events e SET next_attempt_at=CASE WHEN command_id='legacy-flow-default' THEN 0 ELSE 2000000 END FROM runtime_owner WHERE erpx_native_outbox_owned(e)").execute(db).await.unwrap().rows_affected()>0);
+    sqlx::query("UPDATE outbox_events e SET next_attempt_at=CASE WHEN command_id='legacy-flow-default' THEN 0 ELSE 2000000 END WHERE NOT erpx_native_outbox_owned(e)").execute(db).await.unwrap();
+    assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM outbox_events WHERE command_id='legacy-flow-default' AND next_attempt_at=0").fetch_one(db).await.unwrap(),1);
     let write=p.pool().clone();
     account::database::with_database(2,move|read|async move{
      let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");

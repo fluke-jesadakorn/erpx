@@ -11,7 +11,7 @@ import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { qualityWorkspace } from "@erpx/server-quality/public/quality";
 import { qualityAlerts } from "@erpx/server-quality/public/quality-alerts";
 import { QualityConsole } from "@erpx/feature-quality/components/quality-console";
-import { nativeQualityAvailable, nativeQualityWorkspace } from "@erpx/feature-quality/adapters/server/native-quality-page";
+import { nativeQualityAvailable, nativeQualityWorkspace } from "@erpx/feature-quality/public/native-quality";
 import { RecordDocumentDrawer } from "@erpx/feature-files/components/record-document-drawer";
 import { AttachmentFeatureSurface } from "@erpx/feature-files/components/attachment-feature-context";
 import { PageContent, Card, TableFrame } from "@erpx/ui/components/foundation";

@@ -238,10 +238,13 @@ const integer = (value: unknown, min = 0): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= min;
 const boolean = (value: unknown): value is boolean => typeof value === 'boolean';
 const trimmed = (value: unknown, minimum: number, maximum: number): value is string =>
-  text(value, maximum) &&
-  [...value].length >= minimum &&
+  typeof value === 'string' &&
+  value.length >= minimum && value.length <= maximum &&
   value.trim() === value &&
   !/[\u0000-\u001f\u007f]/.test(value);
+const content = (value: unknown, minimum: number, maximum: number): value is string =>
+  typeof value === 'string' && value.length >= minimum && value.length <= maximum &&
+  value.trim() === value && !value.includes('\u0000');
 const date = (value: unknown): value is string => {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const year = Number(value.slice(0, 4));
@@ -282,11 +285,10 @@ const course = (value: unknown): value is NativeLearningCourse =>
   ]) &&
   identifier(value.id) &&
   identifier(value.company_id) &&
-  trimmed(value.title, 3, 160) &&
-  trimmed(value.description, 3, 3_000) &&
-  trimmed(value.provider, 2, 160) &&
+  content(value.title, 3, 160) &&
+  content(value.description, 3, 3_000) &&
+  content(value.provider, 2, 160) &&
   integer(value.duration_minutes, 1) &&
-  value.duration_minutes <= 1_000_000 &&
   (value.required_for === null || trimmed(value.required_for, 2, 120)) &&
   typeof value.status === 'string' &&
   courseStatuses.has(value.status) &&
@@ -339,14 +341,14 @@ const assignment = (value: unknown): value is NativeLearningAssignment =>
   (value.attendance === null ||
     (typeof value.attendance === 'string' && attendanceValues.has(value.attendance))) &&
   (value.score_bps === null || (integer(value.score_bps) && value.score_bps <= 10_000)) &&
-  (value.result_evidence === null || trimmed(value.result_evidence, 1, 3_000)) &&
-  (value.completion_reason === null || trimmed(value.completion_reason, 1, 3_000)) &&
+  (value.result_evidence === null || content(value.result_evidence, 1, 3_000)) &&
+  (value.completion_reason === null || content(value.completion_reason, 1, 3_000)) &&
   identifier(value.created_by) &&
   integer(value.version, 1) &&
   integer(value.created_at) &&
   integer(value.updated_at) &&
   value.updated_at >= value.created_at &&
-  trimmed(value.course_title, 1, 160) &&
+  content(value.course_title, 1, 160) &&
   (value.required_for === null || trimmed(value.required_for, 2, 120)) &&
   (value.learner_name === null || trimmed(value.learner_name, 1, 300)) &&
   (value.learner_eligible === 0 || value.learner_eligible === 1);
@@ -366,7 +368,7 @@ const event = (value: unknown): value is NativeLearningEvent =>
   value.version <= 1_000_000 &&
   trimmed(value.action, 1, 200) &&
   identifier(value.actor_id) &&
-  trimmed(value.reason, 1, 3_000) &&
+  content(value.reason, 1, 3_000) &&
   typeof value.status === 'string' &&
   assignmentStatuses.has(value.status) &&
   integer(value.created_at);
@@ -419,7 +421,7 @@ const certificate = (value: unknown): value is NativeLearningCertificate =>
   optionalDate(value.expires_on) &&
   (value.expires_on === null || (value.expires_on as string) >= (value.valid_from as string)) &&
   (value.completion_kind === 'completed' || value.completion_kind === 'waived') &&
-  trimmed(value.evidence_ref, 1, 3_000) &&
+  content(value.evidence_ref, 1, 3_000) &&
   identifier(value.issued_by) &&
   integer(value.created_at) &&
   optionalIdentifier(value.revocation_id);
@@ -498,7 +500,7 @@ const eligibilityCertificate = (
     !optionalDate(item.expires_on) ||
     (item.expires_on !== null && (item.expires_on as string) < (item.valid_from as string)) ||
     (item.completion_kind !== 'completed' && item.completion_kind !== 'waived') ||
-    !trimmed(item.evidence_ref, 1, 3_000) ||
+    !content(item.evidence_ref, 1, 3_000) ||
     !identifier(item.issued_by) ||
     !integer(item.created_at) ||
     !optionalIdentifier(item.revocation_id) ||

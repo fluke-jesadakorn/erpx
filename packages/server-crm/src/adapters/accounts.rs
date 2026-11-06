@@ -5,7 +5,7 @@
 //! notification and no Workflow ledger write happens in this adapter; those
 //! stay in the TS runtime (`purchases.ts`, `executeCommand`) until the
 //! coordinator wires the Rust ledger + `sales.crm` enforcement path.
-use crate::application::accounts::{AccountsFuture, AccountCreateRepository};
+use crate::application::accounts::{AccountCreateRepository, AccountsFuture};
 use crate::domain::accounts::AccountCreatePlan;
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, FailureKind};

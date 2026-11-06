@@ -10,7 +10,7 @@ import {
   type NativePmsFrontDeskStatus,
   type NativePmsPageContext,
   type NativePmsReadInput,
-} from '@erpx/feature-pms/adapters/server/native-pms';
+} from '@erpx/feature-pms/public/native-pms';
 
 function expected(actor: NativePmsPageContext) {
   if (!actor.authority) throw new NativePmsError('NATIVE_PMS_CONTEXT_CHANGED');
@@ -240,4 +240,4 @@ export async function nativePmsFrontDeskFromSearch(
   });
 }
 
-export { NativePmsError, nativePmsFailure } from '@erpx/feature-pms/adapters/server/native-pms';
+export { NativePmsError, nativePmsFailure } from '@erpx/feature-pms/public/native-pms';

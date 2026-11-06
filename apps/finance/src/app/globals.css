@@ -565,6 +565,7 @@
 @source "../../../../packages/feature-pms/src/lib/pms-receipt-funding.ts";
 @source "../../../../packages/feature-pms/src/lib/pms-room-charge.ts";
 @source "../../../../packages/feature-pms/src/lib/workspace-command-rejections.ts";
+@source "../../../../packages/feature-pms/src/public/native-pms.ts";
 @source "../../../../packages/feature-pos/src/components/pos-backoffice-history-reversals-screen.tsx";
 @source "../../../../packages/feature-pos/src/components/pos-backoffice-history-screen.tsx";
 @source "../../../../packages/feature-pos/src/components/pos-backoffice-kitchen-screen.tsx";

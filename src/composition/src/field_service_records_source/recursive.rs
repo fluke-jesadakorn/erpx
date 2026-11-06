@@ -3,8 +3,7 @@
 //! guessed recursion through Field navigation links and no HTTP source guards.
 use super::*;
 use erpx_server_commercial::public::purchases::{
-    CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
-    PurchaseWitness,
+    CapabilityPurpose, PackageEnforcementMode, PurchaseRequest, PurchaseWitness,
 };
 #[allow(clippy::large_enum_variant)]
 enum Leaf {
@@ -37,7 +36,7 @@ impl PreparedLeafSource {
                 branch.require_current(c).await?;
             }
         }
-        PgCompanyPurchaseReader::new(ctx.holding.clone(), ctx.company.clone(), c, ctx.catalogue)
+        ctx.purchase_reader(c)
             .revalidate(&self.purchase, ctx.clock.now())
             .await?;
         Ok(())
@@ -158,7 +157,7 @@ pub(super) async fn prepare<C: Clock>(
         &record,
     )?;
     let purchase =
-        PgCompanyPurchaseReader::new(ctx.holding.clone(), ctx.company.clone(), c, ctx.catalogue)
+        ctx.purchase_reader(c)
             .inspect(
                 &PurchaseRequest {
                     capabilities: vec![capability.into()],

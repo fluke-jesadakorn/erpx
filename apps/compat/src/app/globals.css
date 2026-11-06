@@ -352,6 +352,7 @@
 @source "../../../../packages/feature-assets/src/components/use-asset-command.ts";
 @source "../../../../packages/feature-assets/src/lib/accounting-command.ts";
 @source "../../../../packages/feature-assets/src/lib/command.ts";
+@source "../../../../packages/feature-assets/src/public/native-assets.ts";
 @source "../../../../packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/assets/financial-assets/[...path]/route.ts";
 @source "../../../../packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/assets/financial-assets/route.ts";
 @source "../../../../packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/assets/route.ts";
@@ -1225,6 +1226,7 @@
 @source "../../../../packages/feature-operations/src/lib/operations-work-model.ts";
 @source "../../../../packages/feature-operations/src/lib/routine-command.ts";
 @source "../../../../packages/feature-operations/src/lib/routine-purchase-controls.ts";
+@source "../../../../packages/feature-operations/src/public/native-operations.ts";
 @source "../../../../packages/feature-organization/src/adapters/server/native-organization.ts";
 @source "../../../../packages/feature-organization/src/components/department-authority-workspace.tsx";
 @source "../../../../packages/feature-organization/src/components/department-override-decision.tsx";
@@ -1487,6 +1489,7 @@
 @source "../../../../packages/feature-platform_administration/src/components/settings/company-business-acceptance.tsx";
 @source "../../../../packages/feature-platform_administration/src/components/settings/push-settings.tsx";
 @source "../../../../packages/feature-platform_administration/src/lib/native-platform-administration.ts";
+@source "../../../../packages/feature-platform_administration/src/public/native-manage-erpx.ts";
 @source "../../../../packages/feature-pms/src/adapters/server/native-pms.ts";
 @source "../../../../packages/feature-pms/src/components/booking-copy.tsx";
 @source "../../../../packages/feature-pms/src/components/booking-flow.tsx";
@@ -1566,6 +1569,7 @@
 @source "../../../../packages/feature-pms/src/lib/section-route.ts";
 @source "../../../../packages/feature-pms/src/lib/workspace-command-rejections.ts";
 @source "../../../../packages/feature-pms/src/lib/workspace-command.ts";
+@source "../../../../packages/feature-pms/src/public/native-pms.ts";
 @source "../../../../packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/[action]/route.ts";
 @source "../../../../packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/booking-changes/route.ts";
 @source "../../../../packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/booking-refunds/route.ts";
@@ -1806,6 +1810,7 @@
 @source "../../../../packages/feature-quality/src/lib/quality-command-attempt.ts";
 @source "../../../../packages/feature-quality/src/lib/quality-command-fetch.ts";
 @source "../../../../packages/feature-quality/src/lib/quality-purchase-controls.ts";
+@source "../../../../packages/feature-quality/src/public/native-quality.ts";
 @source "../../../../packages/feature-records/src/components/billing-cost-editor.tsx";
 @source "../../../../packages/feature-records/src/components/collection-record-link.tsx";
 @source "../../../../packages/feature-records/src/components/loaders/attachments--record-document-panel.tsx";
@@ -4847,6 +4852,7 @@
 @source "../../../../packages/server-legal/src/public/portal-upload-request.ts";
 @source "../../../../packages/server-legal/src/public/presentation-context-queries.ts";
 @source "../../../../packages/server-legal/src/public/presentation-queries.ts";
+@source "../../../../packages/server-legal/src/public/purchases.ts";
 @source "../../../../packages/server-legal/src/public/record-purchases.ts";
 @source "../../../../packages/server-legal/src/public/rules/deadlines.ts";
 @source "../../../../packages/server-legal/src/public/rules/features.ts";
@@ -6245,6 +6251,7 @@
 @source "../../../../packages/server-pos/src/public/pos-stripe.ts";
 @source "../../../../packages/server-pos/src/public/pos.ts";
 @source "../../../../packages/server-pos/src/public/presentation-queries.ts";
+@source "../../../../packages/server-pos/src/public/purchase-boundary.ts";
 @source "../../../../packages/server-pos/src/public/records-record-details-owned-facts.ts";
 @source "../../../../packages/server-pos/src/public/records-source-facts.ts";
 @source "../../../../packages/server-pos/src/public/room-charge-reversal-queue.ts";

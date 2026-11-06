@@ -316,3 +316,76 @@ fn changed() -> BusinessError {
         "The current purchase source or transaction changed.",
     )
 }
+
+/// A trusted caller starts this utility-only lock preparation before any
+/// Holding snapshot. PostgreSQL does not expose proof that a prior snapshot
+/// was absent; composition must enforce this ordering.
+pub struct PurchaseReadLockPreparation<'a> { connection: &'a mut PgConnection }
+pub struct PurchaseReadSourceLocks { transaction:(String,i32,String) }
+impl PurchaseReadLockPreparation<'_> {
+    pub fn connection(&mut self)->&mut PgConnection { self.connection }
+    /// Bind only after every other source lock has been acquired.
+    pub async fn bind(self)->Result<PurchaseReadSourceLocks,Error> {
+        bind_purchase_read_sources(self.connection).await
+    }
+}
+/// Bind an already-acquired SHARE-or-stronger fence in a trusted preparation.
+/// Like `lock_purchase_read_sources`, the caller must acquire the fence before
+/// any snapshot; PostgreSQL cannot attest that ordering after the fact.
+pub async fn bind_purchase_read_sources(connection:&mut PgConnection)->Result<PurchaseReadSourceLocks,Error> {
+    let transaction=read_only_transaction(connection).await?;
+    require_purchase_read_locks(connection).await?;
+    Ok(PurchaseReadSourceLocks { transaction })
+}
+/// Read-only purchase fence. It never upgrades to a writer lock or takes the
+/// Company advisory. NOWAIT lets the enclosing unit release earlier IAM/owner
+/// locks and retry instead of waiting in an opposing lock order.
+pub async fn lock_purchase_read_sources(connection:&mut PgConnection)->Result<PurchaseReadLockPreparation<'_>,Error> {
+    if !connection.is_in_transaction() { return Err(PersistenceError::new("COMMERCIAL_OWNER_TRANSACTION_REQUIRED").into()); }
+    sqlx::query("LOCK TABLE company_package_grants,company_package_history_rights IN SHARE MODE NOWAIT")
+        .execute(&mut *connection).await.map_err(PersistenceError::pre_snapshot_lock_conflict)?;
+    Ok(PurchaseReadLockPreparation { connection })
+}
+async fn read_only_transaction(c:&mut PgConnection)->Result<(String,i32,String),Error> {
+    if !c.is_in_transaction() || sqlx::query_scalar::<_,String>("SHOW transaction_isolation").fetch_one(&mut *c).await? != "serializable" { return Err(PersistenceError::new("COMMERCIAL_SERIALIZABLE_REQUIRED").into()); }
+    Ok(sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text").fetch_one(c).await?)
+}
+async fn require_purchase_read_locks(c:&mut PgConnection)->Result<(),Error> {
+    let held:bool=sqlx::query_scalar("SELECT count(DISTINCT relation)=2 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND granted AND mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock') AND relation IN ('company_package_grants'::regclass,'company_package_history_rights'::regclass)").fetch_one(c).await?;
+    if !held { return Err(PersistenceError::new("COMMERCIAL_PURCHASE_READ_LOCKS_REQUIRED").into()); } Ok(())
+}
+/// Separate admission reader for a read-only guarded Company unit. The
+/// existing general reader remains unchanged and is not made safe by this API.
+pub struct PgReadOnlyCompanyPurchaseReader<'c,'g> {
+    inner:PgCompanyPurchaseReader<'c>,locks:&'g PurchaseReadSourceLocks,
+}
+impl<'c,'g> PgReadOnlyCompanyPurchaseReader<'c,'g> {
+    pub fn new(holding:HoldingId,company:CompanyId,connection:&'c mut PgConnection,catalogue:&'c CommercialCatalogue,locks:&'g PurchaseReadSourceLocks)->Self {
+        Self { inner:PgCompanyPurchaseReader::new(holding,company,connection,catalogue),locks }
+    }
+    async fn facts(&mut self)->Result<CompanyPurchaseFacts,Error> {
+        if read_only_transaction(self.inner.connection).await? != self.locks.transaction { return Err(changed().into()); }
+        require_purchase_read_locks(self.inner.connection).await?;
+        let company=self.inner.company_id.as_str();
+        let rows=sqlx::query("SELECT company_id,package_id,package_version::bigint AS package_version,state,starts_at,ends_at,version::bigint AS version,reason,evidence FROM company_package_grants WHERE company_id=$1 ORDER BY package_id FOR SHARE").bind(company).fetch_all(&mut *self.inner.connection).await?;
+        let grants=rows.into_iter().map(|r|Ok(CompanyPackageGrant {company_id:r.try_get("company_id")?,package_id:r.try_get("package_id")?,package_version:r.try_get("package_version")?,state:r.try_get("state")?,starts_at:r.try_get("starts_at")?,ends_at:r.try_get("ends_at")?,version:r.try_get("version")?,reason:r.try_get("reason")?,evidence:r.try_get("evidence")?})).collect::<Result<Vec<_>,sqlx::Error>>()?;
+        let rows=sqlx::query("SELECT company_id,package_id,package_version::bigint AS package_version,source_grant_version::bigint AS source_grant_version,source_event_id,retained_at FROM company_package_history_rights WHERE company_id=$1 ORDER BY package_id,package_version FOR SHARE").bind(company).fetch_all(&mut *self.inner.connection).await?;
+        let history=rows.into_iter().map(|r|Ok(CompanyPackageHistoryRight {company_id:r.try_get("company_id")?,package_id:r.try_get("package_id")?,package_version:r.try_get("package_version")?,source_grant_version:r.try_get("source_grant_version")?,source_event_id:r.try_get("source_event_id")?,retained_at:r.try_get("retained_at")?})).collect::<Result<Vec<_>,sqlx::Error>>()?;
+        Ok(CompanyPurchaseFacts {grants,history})
+    }
+    pub async fn inspect(&mut self,request:&PurchaseRequest,now:TimestampMillis)->Result<PurchaseInspection,Error> {
+        validate_purchase_request(request)?;
+        let facts=self.facts().await?;let revision=self.inner.revision(&facts,now)?;
+        let access=request.capabilities.iter().map(|capability| {
+            let decision=self.inner.catalogue.purchased_capability(&facts.grants,self.inner.company_id.as_str(),capability,request.purpose,now.get(),&facts.history);
+            CapabilityAccess {capability:capability.clone(),purpose:request.purpose,decision,allowed_by_mode:request.mode.permits(decision)}
+        }).collect();
+        let token=token(&self.inner.holding_id,&self.inner.company_id,request,&self.locks.transaction,&revision)?;
+        Ok(PurchaseInspection {access,revision:revision.clone(),witness:PurchaseWitness {holding_id:self.inner.holding_id.clone(),company_id:self.inner.company_id.clone(),request:request.clone(),transaction:self.locks.transaction.clone(),revision,token}})
+    }
+    pub async fn revalidate(&mut self,witness:&PurchaseWitness,now:TimestampMillis)->Result<PurchaseInspection,Error> {
+        if witness.holding_id!=self.inner.holding_id || witness.company_id!=self.inner.company_id || witness.transaction!=self.locks.transaction { return Err(changed().into()); }
+        let current=self.inspect(&witness.request,now).await?;
+        if current.revision!=witness.revision || current.witness.token!=witness.token { return Err(changed().into()); } Ok(current)
+    }
+}

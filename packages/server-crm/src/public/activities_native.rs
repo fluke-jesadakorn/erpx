@@ -4,7 +4,8 @@
 //! ledger remain in TypeScript.
 pub use crate::adapters::activities_native::PgCrmActivityCommands;
 pub use crate::application::activities_native::{
-    ActivitiesFuture, ActivityFacts, ActivityRepository, LeadFacts, change_activity, create_activity,
+    ActivitiesFuture, ActivityFacts, ActivityRepository, LeadFacts, change_activity,
+    create_activity,
 };
 pub use crate::domain::activities_native::{
     ActivityActor, ActivityChangeInput, ActivityChangePlan, ActivityCreateInput,

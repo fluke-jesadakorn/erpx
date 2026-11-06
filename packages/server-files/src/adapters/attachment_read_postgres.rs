@@ -154,6 +154,137 @@ async fn serializable_unit(c: &mut PgConnection) -> Result<(), Error> {
     Ok(())
 }
 
+/// Files ledger classification only; this grants no authority to read a target.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AttachmentOwnerKind {
+    FieldVisit,
+    Other,
+}
+
+pub struct AttachmentOwnershipWitness {
+    company: erpx_server_shared::public::CompanyId,
+    unit: (String, i32, String),
+    link_id: String,
+    kind: AttachmentOwnerKind,
+    digest: Vec<u8>,
+}
+
+impl AttachmentOwnershipWitness {
+    pub fn kind(&self) -> AttachmentOwnerKind {
+        self.kind
+    }
+}
+
+/// Persisted Files target facts, not a determination that a Count exists,
+/// belongs to Service, or is readable by the selected actor.
+#[derive(Debug, PartialEq, Eq)]
+pub struct StockCountAttachmentTarget {
+    pub target_id: String,
+    pub purpose_key: String,
+    pub component_kind: String,
+    pub component_ref: Option<String>,
+}
+
+/// Read exact `stock_count` target fields only from the witness's locked unit.
+/// Other target types, including `inventory_stock_count`, remain separate.
+pub async fn stock_count_attachment_target(
+    c: &mut PgConnection,
+    witness: &AttachmentOwnershipWitness,
+) -> Result<Option<StockCountAttachmentTarget>, Error> {
+    revalidate_attachment_ownership(c, witness).await?;
+    let row: Option<(String, String, String, Option<String>)> = sqlx::query_as("SELECT s.target_id,s.purpose_key,s.component_kind,s.component_ref FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id LEFT JOIN attachments a ON a.id=l.attachment_id AND a.company_id=s.company_id WHERE l.id=$1 AND s.company_id=$2 AND s.target_type='stock_count' AND (l.attachment_id IS NULL OR a.id IS NOT NULL)")
+        .bind(&witness.link_id).bind(witness.company.as_str()).fetch_optional(c).await?;
+    Ok(
+        row.map(|(target_id, purpose_key, component_kind, component_ref)| {
+            StockCountAttachmentTarget {
+                target_id,
+                purpose_key,
+                component_kind,
+                component_ref,
+            }
+        }),
+    )
+}
+
+/// Acquire before the first Holding snapshot, together with every target-owner
+/// lock. The caller must establish a compatible global lock order.
+pub async fn lock_attachment_ownership_sources(c: &mut PgConnection) -> Result<(), Error> {
+    if !c.is_in_transaction() {
+        return Err(PersistenceError::new("FILES_TRANSACTION_REQUIRED").into());
+    }
+    sqlx::query("LOCK TABLE attachment_sets, attachment_links, attachments IN SHARE MODE")
+        .execute(c)
+        .await?;
+    Ok(())
+}
+
+async fn ownership_unit(c: &mut PgConnection) -> Result<(String, i32, String), Error> {
+    serializable_unit(c).await?;
+    let held: bool = sqlx::query_scalar("SELECT count(DISTINCT relation)=3 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND granted AND mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock') AND relation IN ('attachment_sets'::regclass,'attachment_links'::regclass,'attachments'::regclass)")
+        .fetch_one(&mut *c).await?;
+    if !held {
+        return Err(PersistenceError::new("FILES_OWNERSHIP_LOCKS_REQUIRED").into());
+    }
+    Ok(
+        sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text")
+            .fetch_one(c)
+            .await?,
+    )
+}
+
+async fn ownership_facts(
+    c: &mut PgConnection,
+    company: &erpx_server_shared::public::CompanyId,
+    link: &str,
+) -> Result<Option<(AttachmentOwnerKind, Vec<u8>)>, Error> {
+    let row: Option<(bool, Vec<u8>)> = sqlx::query_as("SELECT s.target_type='field_service_visit', sha256(convert_to(jsonb_build_array(s.company_id,l.id,s.id,s.target_type,s.target_id,s.component_kind,s.component_ref,s.purpose_key,l.attachment_id,a.id)::text,'UTF8')) FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id LEFT JOIN attachments a ON a.id=l.attachment_id AND a.company_id=s.company_id WHERE l.id=$1 AND s.company_id=$2 AND (l.attachment_id IS NULL OR a.id IS NOT NULL)")
+        .bind(link).bind(company.as_str()).fetch_optional(c).await?;
+    Ok(row.map(|(field, digest)| {
+        (
+            if field {
+                AttachmentOwnerKind::FieldVisit
+            } else {
+                AttachmentOwnerKind::Other
+            },
+            digest,
+        )
+    }))
+}
+
+/// Bind only after all owner source locks are held. Lock presence does not prove
+/// that the caller acquired them before its first snapshot.
+pub async fn inspect_attachment_ownership(
+    c: &mut PgConnection,
+    company: &erpx_server_shared::public::CompanyId,
+    link: &str,
+) -> Result<Option<AttachmentOwnershipWitness>, Error> {
+    let unit = ownership_unit(c).await?;
+    Ok(ownership_facts(c, company, link)
+        .await?
+        .map(|(kind, digest)| AttachmentOwnershipWitness {
+            company: company.clone(),
+            unit,
+            link_id: link.to_owned(),
+            kind,
+            digest,
+        }))
+}
+
+pub async fn revalidate_attachment_ownership(
+    c: &mut PgConnection,
+    witness: &AttachmentOwnershipWitness,
+) -> Result<(), Error> {
+    if ownership_unit(c).await? != witness.unit
+        || ownership_facts(c, &witness.company, &witness.link_id)
+            .await?
+            .as_ref()
+            != Some(&(witness.kind, witness.digest.clone()))
+    {
+        return Err(changed());
+    }
+    Ok(())
+}
+
 fn parse_sets(value: Option<serde_json::Value>) -> Result<Vec<AttachmentSetFacts>, Error> {
     let value = value.ok_or_else(|| {
         BusinessError::new(

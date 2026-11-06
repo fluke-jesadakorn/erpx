@@ -53,6 +53,7 @@ pub(crate) async fn visible<C: Clock + Send + Sync>(
     let mut port = FieldRecordsSourcePort {
         connection: c,
         context: SourceRecordContext {
+            purchase_locks: None,
             actor: current,
             holding: &target.holding,
             company: &target.company,
@@ -153,6 +154,7 @@ async fn read<C: Clock + Send + Sync>(
         .await?
         {
             let ctx = SourceRecordContext {
+                purchase_locks: None,
                 actor: current,
                 holding: &target.holding,
                 company: &target.company,
@@ -247,6 +249,7 @@ async fn read<C: Clock + Send + Sync>(
         can_review: current.has_permission("records.review"),
     };
     let ctx = SourceRecordContext {
+        purchase_locks: None,
         actor: current,
         holding: &target.holding,
         company: &target.company,

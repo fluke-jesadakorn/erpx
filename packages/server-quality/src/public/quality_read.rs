@@ -4,7 +4,7 @@ pub use crate::application::quality::{
     QualityCancellationReceipt, QualityCancellationRepository, QualityDetail, QualityDetailData,
     QualityDisposition, QualityFuture, QualityHold, QualityHoldView, QualityInspection,
     QualityMeasurement, QualityReadRepository, QualityWorkspace, QualityWorkspaceData,
-    cancel_quality_hold, evaluate_inspection, plan_for_locked_hold, quality_detail,
+    cancel_quality_hold, normalize_quality_cancellation, evaluate_inspection, plan_for_locked_hold, quality_detail,
     quality_workspace,
 };
 pub use crate::domain::quality::{

@@ -603,6 +603,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
                         }
                     };
                     let context = SourceRecordContext {
+                        purchase_locks: None,
                         actor: self.current,
                         holding: self.holding,
                         company: self.company,
@@ -694,6 +695,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
                     _ => return Err(changed().into()),
                 };
                 let context = SourceRecordContext {
+                    purchase_locks: None,
                     actor: self.current,
                     holding: self.holding,
                     company: self.company,
@@ -774,6 +776,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
             } => {
                 if let Some(source) = source.as_ref() {
                     let context = SourceRecordContext {
+                        purchase_locks: None,
                         actor: self.current,
                         holding: self.holding,
                         company: self.company,
@@ -818,6 +821,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
                 }
                 if let Some(source) = source {
                     let context = SourceRecordContext {
+                        purchase_locks: None,
                         actor: self.current,
                         holding: self.holding,
                         company: self.company,
@@ -840,6 +844,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
                 }
                 if let Some(source) = source {
                     let context = SourceRecordContext {
+                        purchase_locks: None,
                         actor: self.current,
                         holding: self.holding,
                         company: self.company,

@@ -321,9 +321,9 @@ pub mod field_reservation_alerts;
 pub mod inventory_availability_http;
 pub mod inventory_availability_read;
 pub mod inventory_reservation_alerts;
-#[cfg(feature = "existing-business")]
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod inventory_stock_http;
-#[cfg(feature = "existing-business")]
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod inventory_stock_read;
 
 #[cfg(feature = "field-service")]
@@ -358,27 +358,27 @@ mod finance_field_journal_files_bind;
 #[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
 pub mod finance_service_receipt_files;
 
-#[cfg(feature = "existing-business")]
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod support_evidence_command;
-#[cfg(feature = "existing-business")]
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod support_evidence_http;
-#[cfg(feature = "existing-business")]
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod support_incident_command;
-#[cfg(feature = "existing-business")]
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod support_incident_http;
-#[cfg(feature = "existing-business")]
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod support_read_http;
-#[cfg(feature = "existing-business")]
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod support_session_command;
-#[cfg(feature = "existing-business")]
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod support_session_http;
-#[cfg(feature = "existing-business")]
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod support_sla_command;
-#[cfg(feature = "existing-business")]
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod support_sla_http;
-#[cfg(feature = "existing-business")]
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod support_ticket_command;
-#[cfg(feature = "existing-business")]
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod support_ticket_http;
-#[cfg(feature = "existing-business")]
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod support_ticket_read;

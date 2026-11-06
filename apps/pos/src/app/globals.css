@@ -254,6 +254,7 @@
 @source "../../../../packages/feature-pms/src/lib/section-route.ts";
 @source "../../../../packages/feature-pms/src/lib/workspace-command-rejections.ts";
 @source "../../../../packages/feature-pms/src/lib/workspace-command.ts";
+@source "../../../../packages/feature-pms/src/public/native-pms.ts";
 @source "../../../../packages/feature-pos/src/adapters/server/native-pos-cash.ts";
 @source "../../../../packages/feature-pos/src/components/legacy-commerce-draft-boundary.tsx";
 @source "../../../../packages/feature-pos/src/components/legacy-count-draft-boundary.tsx";
@@ -3197,6 +3198,7 @@
 @source "../../../../packages/server-pos/src/public/pos-images.ts";
 @source "../../../../packages/server-pos/src/public/pos-stripe.ts";
 @source "../../../../packages/server-pos/src/public/pos.ts";
+@source "../../../../packages/server-pos/src/public/purchase-boundary.ts";
 @source "../../../../packages/server-pos/src/public/records-record-details-owned-facts.ts";
 @source "../../../../packages/server-pos/src/public/records-source-facts.ts";
 @source "../../../../packages/server-pos/src/public/room-charge-reversal-queue.ts";

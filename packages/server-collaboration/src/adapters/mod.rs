@@ -31,3 +31,6 @@ pub mod field_inbox;
 pub(crate) mod service_invoice_flow_notification;
 
 pub(crate) mod field_journal_flow_notification;
+
+pub(crate) mod crm_activity_notification;
+pub(crate) mod quality_notification;

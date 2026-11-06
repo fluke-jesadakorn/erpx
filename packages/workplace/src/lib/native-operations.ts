@@ -7,7 +7,7 @@ import {
   type NativeOperationsPageContext,
   type NativeOperationsReadInput,
   type NativeOperationsReceipt,
-} from '@erpx/feature-operations/adapters/server/native-operations';
+} from '@erpx/feature-operations/public/native-operations';
 import type {
   OperationsDetail,
   OperationsWorkspace,

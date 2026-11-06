@@ -5,6 +5,7 @@ pub use crate::adapters::quality_http::{
 };
 pub use crate::adapters::quality_read::{
     CurrentQualityDetail, CurrentQualityWorkspace, PgQualityCancellation, PgQualityRead,
-    apply_quality_cancellation, lock_quality_read_sources, read_quality_detail,
+    PreparedQualityCancellation, RetainedQualityCancellation, prepare_quality_cancellation,
+    apply_quality_cancellation, lock_quality_cancellation_writes, lock_quality_read_sources, read_quality_detail,
     read_quality_workspace,
 };

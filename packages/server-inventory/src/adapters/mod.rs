@@ -23,3 +23,9 @@ pub(crate) mod service_initial_count_revision;
 pub(crate) mod service_count_generic_detail;
 
 pub(crate) mod service_package_settlement;
+
+
+pub(crate) mod quality_stock_source;
+pub(crate) mod quality_cancellation_stock;
+pub(crate) mod quality_disposition_count;
+pub(crate) mod quality_fulfillment_allocation;

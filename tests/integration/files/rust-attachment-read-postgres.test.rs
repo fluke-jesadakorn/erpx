@@ -7,6 +7,10 @@ use erpx_server_files::public::attachment_read::{
     AttachmentListFilter, AttachmentReadPorts, AttachmentReader, AttachmentTargetAuthority,
     AttachmentTargetScope, PostgresAttachmentRead, attachment_link_status, list_attachment_sets,
 };
+use erpx_server_files::public::attachment_read::{
+    inspect_attachment_ownership, lock_attachment_ownership_sources,
+    revalidate_attachment_ownership,
+};
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, PgWorkFuture,
     TransactionOptions, load_migrations, migrate_database,
@@ -22,6 +26,225 @@ use std::sync::{
 mod fixture;
 
 type Error = PgTransactionError<BusinessError>;
+
+async fn wait_for_blocker(pool: &DatabasePool, waiting: i32, blocker: i32) {
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            let blocked: bool = sqlx::query_scalar("SELECT $2 = ANY(pg_blocking_pids($1))")
+                .bind(waiting)
+                .bind(blocker)
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+            if blocked {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("expected exact backend to block");
+}
+
+#[tokio::test]
+async fn ownership_source_locks_serialize_both_writer_orders() {
+    fixture::with_database(3, |pool| async move {
+        migrate(&pool).await;
+        seed(&pool, "race", "company", "asset-1", "manual", "draft", "draft", "actor", "available", 1000).await;
+        let mut writer = pool.raw().acquire().await.unwrap();
+        let writer_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();
+        let mut tx = writer.begin().await.unwrap();
+        sqlx::query("UPDATE attachment_sets SET target_type='field_service_visit',purpose_key='site_photo' WHERE id='set-race'").execute(&mut *tx).await.unwrap();
+        let (send_pid, recv_pid) = tokio::sync::oneshot::channel();
+        let reader_pool = pool.clone();
+        let reader = tokio::spawn(async move {
+            let mut c = reader_pool.raw().acquire().await.unwrap();
+            let pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *c).await.unwrap();
+            send_pid.send(pid).unwrap();
+            let mut t = c.begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *t).await.unwrap();
+            lock_attachment_ownership_sources(&mut t).await.unwrap();
+            let witness = inspect_attachment_ownership(&mut t, &CompanyId::new("company").unwrap(), "link-race").await.unwrap().unwrap();
+            assert_eq!(witness.kind(), erpx_server_files::public::attachment_read::AttachmentOwnerKind::FieldVisit);
+            revalidate_attachment_ownership(&mut t, &witness).await.unwrap();
+            t.commit().await.unwrap();
+        });
+        let reader_pid = recv_pid.await.unwrap();
+        wait_for_blocker(&pool, reader_pid, writer_pid).await;
+        tx.commit().await.unwrap();
+        reader.await.unwrap();
+        drop(writer);
+
+        let mut reader = pool.raw().acquire().await.unwrap();
+        let reader_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *reader).await.unwrap();
+        let mut tx = reader.begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_attachment_ownership_sources(&mut tx).await.unwrap();
+        let witness = inspect_attachment_ownership(&mut tx, &CompanyId::new("company").unwrap(), "link-race").await.unwrap().unwrap();
+        let (send_pid, recv_pid) = tokio::sync::oneshot::channel();
+        let writer_pool = pool.clone();
+        let writer = tokio::spawn(async move {
+            let mut c = writer_pool.raw().acquire().await.unwrap();
+            let pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *c).await.unwrap();
+            send_pid.send(pid).unwrap();
+            let mut t = c.begin().await.unwrap();
+            sqlx::query("UPDATE attachment_links SET attachment_id=NULL WHERE id='link-race'").execute(&mut *t).await.unwrap();
+            t.commit().await.unwrap();
+        });
+        let writer_pid = recv_pid.await.unwrap();
+        wait_for_blocker(&pool, writer_pid, reader_pid).await;
+        revalidate_attachment_ownership(&mut tx, &witness).await.unwrap();
+        tx.commit().await.unwrap();
+        writer.await.unwrap();
+        let mut fresh = reader.begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *fresh).await.unwrap();
+        lock_attachment_ownership_sources(&mut fresh).await.unwrap();
+        assert!(revalidate_attachment_ownership(&mut fresh, &witness).await.is_err());
+        let after = inspect_attachment_ownership(&mut fresh, &CompanyId::new("company").unwrap(), "link-race").await.unwrap().unwrap();
+        assert_eq!(after.kind(), erpx_server_files::public::attachment_read::AttachmentOwnerKind::FieldVisit);
+        revalidate_attachment_ownership(&mut fresh, &after).await.unwrap();
+        fresh.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn ownership_witness_is_company_scoped_transaction_bound_and_rechecks_source() {
+    fixture::with_database(2, |pool| async move {
+        migrate(&pool).await;
+        seed(
+            &pool,
+            "ownership",
+            "company",
+            "asset-1",
+            "manual",
+            "draft",
+            "draft",
+            "actor",
+            "available",
+            1000,
+        )
+        .await;
+        seed(&pool, "foreign-source", "foreign", "foreign-asset", "manual", "draft", "draft", "actor", "available", 1000).await;
+        let company = CompanyId::new("company").unwrap();
+        let foreign = CompanyId::new("foreign").unwrap();
+        let mut c = pool.raw().acquire().await.unwrap();
+        let mut tx = c.begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        assert!(
+            inspect_attachment_ownership(&mut tx, &company, "link-ownership")
+                .await
+                .is_err()
+        );
+        tx.rollback().await.unwrap();
+        let mut tx = c.begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        lock_attachment_ownership_sources(&mut tx).await.unwrap();
+        assert!(
+            inspect_attachment_ownership(&mut tx, &foreign, "link-ownership")
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            inspect_attachment_ownership(&mut tx, &company, "missing")
+                .await
+                .unwrap()
+                .is_none()
+        );
+        let witness = inspect_attachment_ownership(&mut tx, &company, "link-ownership")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            witness.kind(),
+            erpx_server_files::public::attachment_read::AttachmentOwnerKind::Other
+        );
+        revalidate_attachment_ownership(&mut tx, &witness)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE attachment_sets SET target_id='changed' WHERE id='set-ownership'")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        assert!(
+            revalidate_attachment_ownership(&mut tx, &witness)
+                .await
+                .is_err()
+        );
+        tx.rollback().await.unwrap();
+        sqlx::query(
+            "UPDATE attachment_sets SET target_type='field_service_visit',purpose_key='site_photo' WHERE id='set-ownership'",
+        )
+        .execute(&mut *c)
+        .await
+        .unwrap();
+        sqlx::query("UPDATE attachment_links SET attachment_id=NULL WHERE id='link-ownership'")
+            .execute(&mut *c)
+            .await
+            .unwrap();
+        let mut tx = c.begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        lock_attachment_ownership_sources(&mut tx).await.unwrap();
+        let field = inspect_attachment_ownership(&mut tx, &company, "link-ownership")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            field.kind(),
+            erpx_server_files::public::attachment_read::AttachmentOwnerKind::FieldVisit
+        );
+        revalidate_attachment_ownership(&mut tx, &field)
+            .await
+            .unwrap();
+        assert!(erpx_server_files::public::attachment_read::stock_count_attachment_target(&mut tx, &field).await.unwrap().is_none());
+        assert!(
+            revalidate_attachment_ownership(&mut tx, &witness)
+                .await
+                .is_err()
+        );
+        sqlx::query("UPDATE attachment_sets SET purpose_key='not-a-field-purpose' WHERE id='set-ownership'")
+            .execute(&mut *tx).await.unwrap();
+        assert!(revalidate_attachment_ownership(&mut tx, &field).await.is_err());
+        let invalid = inspect_attachment_ownership(&mut tx, &company, "link-ownership").await.unwrap().unwrap();
+        assert_eq!(invalid.kind(), erpx_server_files::public::attachment_read::AttachmentOwnerKind::FieldVisit);
+        revalidate_attachment_ownership(&mut tx, &invalid).await.unwrap();
+        sqlx::query("UPDATE attachment_links SET attachment_id='source-foreign-source' WHERE id='link-ownership'").execute(&mut *tx).await.unwrap();
+        assert!(revalidate_attachment_ownership(&mut tx, &invalid).await.is_err());
+        assert!(inspect_attachment_ownership(&mut tx, &company, "link-ownership").await.unwrap().is_none());
+        sqlx::query("SAVEPOINT missing_source").execute(&mut *tx).await.unwrap();
+        let error = sqlx::query("UPDATE attachment_links SET attachment_id='missing-source' WHERE id='link-ownership'").execute(&mut *tx).await.unwrap_err();
+        assert_eq!(error.as_database_error().and_then(|e| e.code()).as_deref(), Some("23503"));
+        sqlx::query("ROLLBACK TO SAVEPOINT missing_source").execute(&mut *tx).await.unwrap();
+        tx.rollback().await.unwrap();
+        let long_target = "count-".to_owned() + &"x".repeat(512);
+        sqlx::query("UPDATE attachment_sets SET target_type='stock_count',target_id=$1,component_kind='action',component_ref='submit',purpose_key='count_sheet' WHERE id='set-ownership'").bind(&long_target).execute(&mut *c).await.unwrap();
+        let mut tx = c.begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_attachment_ownership_sources(&mut tx).await.unwrap();
+        assert!(inspect_attachment_ownership(&mut tx, &foreign, "link-ownership").await.unwrap().is_none());
+        let count = inspect_attachment_ownership(&mut tx, &company, "link-ownership").await.unwrap().unwrap();
+        let target = erpx_server_files::public::attachment_read::stock_count_attachment_target(&mut tx, &count).await.unwrap().unwrap();
+        assert_eq!((&target.target_id, target.purpose_key.as_str(), target.component_kind.as_str(), target.component_ref.as_deref()), (&long_target, "count_sheet", "action", Some("submit")));
+        sqlx::query("UPDATE attachment_sets SET component_ref='different' WHERE id='set-ownership'").execute(&mut *tx).await.unwrap();
+        assert!(erpx_server_files::public::attachment_read::stock_count_attachment_target(&mut tx, &count).await.is_err());
+        tx.rollback().await.unwrap();
+        let mut tx = c.begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_attachment_ownership_sources(&mut tx).await.unwrap();
+        assert!(erpx_server_files::public::attachment_read::stock_count_attachment_target(&mut tx, &count).await.is_err());
+        tx.rollback().await.unwrap();
+    })
+    .await;
+}
 
 async fn migrate(pool: &DatabasePool) {
     let migrations = load_migrations(

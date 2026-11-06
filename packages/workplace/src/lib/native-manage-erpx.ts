@@ -7,7 +7,7 @@ import {
   NativeManageErpxError,
   nativeManageErpxFailure,
   type NativeManageErpxOnboardingView,
-} from '@erpx/feature-platform_administration/adapters/server/native-manage-erpx';
+} from '@erpx/feature-platform_administration/public/native-manage-erpx';
 
 function client() {
   const raw = process.env.ERPX_NATIVE_MANAGE_ERPX_CONFIG;

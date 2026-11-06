@@ -80,11 +80,15 @@ fn invalid_input(code: &'static str, message: &'static str) -> BusinessError {
 }
 
 fn valid_identifier(value: &str) -> bool {
-    !value.is_empty() && value.len() <= 200 && !value.chars().any(char::is_control)
+    !value.is_empty()
 }
 
 fn valid_text(value: &str, limit: usize) -> bool {
-    !value.is_empty() && value.len() <= limit && !value.chars().any(char::is_control)
+    (3..=limit).contains(
+        &crate::domain::accounts::js_trim(value)
+            .encode_utf16()
+            .count(),
+    )
 }
 
 fn valid_date(value: &str) -> bool {
@@ -116,7 +120,10 @@ fn valid_date(value: &str) -> bool {
     (1..=days).contains(&day)
 }
 
-pub fn validate_create(actor: &ActivityActor, input: &ActivityCreateInput) -> Result<ActivityCreatePlan, BusinessError> {
+pub fn validate_create(
+    actor: &ActivityActor,
+    input: &ActivityCreateInput,
+) -> Result<ActivityCreatePlan, BusinessError> {
     if !actor.can_sales {
         return Err(BusinessError::new(
             FailureKind::Forbidden,
@@ -131,7 +138,10 @@ pub fn validate_create(actor: &ActivityActor, input: &ActivityCreateInput) -> Re
             "Your selected role does not grant CRM read access.",
         ));
     }
-    if !matches!(input.activity_type.as_str(), "call" | "email" | "meeting" | "task") {
+    if !matches!(
+        input.activity_type.as_str(),
+        "call" | "email" | "meeting" | "task"
+    ) {
         return Err(invalid_input(
             "CRM_ACTIVITY_TYPE_INVALID",
             "Choose a call, email, meeting or task activity.",
@@ -140,10 +150,8 @@ pub fn validate_create(actor: &ActivityActor, input: &ActivityCreateInput) -> Re
     if input.expected_version < 1
         || !valid_identifier(&input.lead_id)
         || !valid_identifier(&input.owner_id)
-        || !valid_text(input.subject.trim(), SUBJECT_LIMIT)
-        || input.subject.len() > SUBJECT_LIMIT
-        || !valid_text(input.details.trim(), DETAILS_LIMIT)
-        || input.details.len() > DETAILS_LIMIT
+        || !valid_text(&input.subject, SUBJECT_LIMIT)
+        || !valid_text(&input.details, DETAILS_LIMIT)
         || !valid_date(&input.due_date)
     {
         return Err(invalid_input(
@@ -155,8 +163,8 @@ pub fn validate_create(actor: &ActivityActor, input: &ActivityCreateInput) -> Re
         lead_id: input.lead_id.clone(),
         expected_lead_version: input.expected_version,
         activity_type: input.activity_type.clone(),
-        subject: input.subject.trim().to_owned(),
-        details: input.details.trim().to_owned(),
+        subject: crate::domain::accounts::js_trim(&input.subject).to_owned(),
+        details: crate::domain::accounts::js_trim(&input.details).to_owned(),
         owner_id: input.owner_id.clone(),
         due_date: input.due_date.clone(),
     })
@@ -201,7 +209,7 @@ pub fn validate_change(
             "Choose a complete or cancel activity action.",
         ));
     }
-    if input.expected_version < 1 || !valid_text(input.reason.trim(), DETAILS_LIMIT) || input.reason.len() > DETAILS_LIMIT {
+    if input.expected_version < 1 || !valid_text(&input.reason, DETAILS_LIMIT) {
         return Err(invalid_input(
             "CRM_ACTIVITY_INPUT_INVALID",
             "Use a bounded CRM activity reason.",
@@ -231,8 +239,12 @@ pub fn validate_change(
     Ok(ActivityChangePlan {
         action: input.action.clone(),
         expected_version: input.expected_version,
-        status: if is_complete { "completed".into() } else { "cancelled".into() },
-        outcome: Some(input.reason.trim().to_owned()),
+        status: if is_complete {
+            "completed".into()
+        } else {
+            "cancelled".into()
+        },
+        outcome: Some(crate::domain::accounts::js_trim(&input.reason).to_owned()),
     })
 }
 
@@ -329,7 +341,9 @@ mod tests {
         };
         assert!(validate_change(&actor(), &change, "owner", "open").is_ok());
         assert_eq!(
-            validate_change(&actor(), &change, "other", "open").unwrap_err().code,
+            validate_change(&actor(), &change, "other", "open")
+                .unwrap_err()
+                .code,
             "CRM_ACTIVITY_OWNER_REQUIRED"
         );
         let mut manager = actor();
@@ -343,7 +357,9 @@ mod tests {
         let plan = validate_change(&manager, &cancel, "other", "open").unwrap();
         assert_eq!(plan.status, "cancelled");
         assert_eq!(
-            validate_change(&actor(), &cancel, "other", "open").unwrap_err().code,
+            validate_change(&actor(), &cancel, "other", "open")
+                .unwrap_err()
+                .code,
             "CRM_ACTIVITY_OWNER_REQUIRED"
         );
     }
@@ -356,7 +372,9 @@ mod tests {
             reason: "Needed".into(),
         };
         assert_eq!(
-            validate_change(&actor(), &reassign, "owner", "open").unwrap_err().code,
+            validate_change(&actor(), &reassign, "owner", "open")
+                .unwrap_err()
+                .code,
             "CRM_ACTIVITY_REASSIGN_TS_OWNED"
         );
         let done = ActivityChangeInput {
@@ -365,7 +383,9 @@ mod tests {
             reason: "Done".into(),
         };
         assert_eq!(
-            validate_change(&actor(), &done, "owner", "completed").unwrap_err().code,
+            validate_change(&actor(), &done, "owner", "completed")
+                .unwrap_err()
+                .code,
             "CRM_ACTIVITY_STATE_CHANGED"
         );
     }

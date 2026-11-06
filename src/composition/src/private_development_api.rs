@@ -1697,41 +1697,63 @@ async fn assemble_checked(
             current_package_catalogue().map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
         );
         let mut targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut brand_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut organization_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut organization_setup_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut approval_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut handbook_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut learning_targets = Vec::new();
         let mut quality_targets = Vec::new();
         let mut identity_access_targets = Vec::new();
         let mut billing_targets = Vec::new();
         let mut pos_targets = Vec::new();
         let mut commercial_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut commerce_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut customer_360_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut customer_authority_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut ecommerce_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut crm_targets = Vec::new();
         let mut manage_erpx_targets = Vec::new();
         let mut platform_administration_targets = Vec::new();
         let mut agent_evidence_targets = Vec::new();
         let mut records_context_targets = Vec::new();
         let mut records_registry_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut legal_targets = Vec::new();
         let mut benefits_targets = Vec::new();
         let mut pms_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut maintenance_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut bom_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut planning_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut marketing_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut talent_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut sales_documents_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut sales_price_lists_targets = Vec::new();
         let mut files_targets = Vec::new();
         let mut procurement_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut projects_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut project_graph_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut project_command_targets = Vec::new();
         let mut operations_targets = Vec::new();
         let mut people_payroll_targets = Vec::new();
@@ -1833,6 +1855,7 @@ async fn assemble_checked(
                         ),
                     ),
                 });
+                #[cfg(feature = "existing-business")]
                 brand_targets.push(crate::brand_identity_http::BrandIdentityTarget {
                     host: holding.host.clone(),
                     holding_slug: holding.registration.slug.clone(),
@@ -1845,6 +1868,7 @@ async fn assemble_checked(
                         Arc::new(SharedClock(clock.clone())),
                     )),
                 });
+                #[cfg(feature = "existing-business")]
                 organization_targets.push(
                     crate::organization_nodes_http::OrganizationNodesTarget {
                         host: holding.host.clone(),
@@ -1859,6 +1883,7 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                #[cfg(feature = "existing-business")]
                 learning_targets.push(
                     erpx_server_learning::public::learning_http::LearningHttpTarget {
                         host: holding.host.clone(),
@@ -1973,6 +1998,7 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                #[cfg(feature = "existing-business")]
                 commerce_targets.push(
                     erpx_server_commerce::public::order_http::CommerceOrderHttpTarget {
                         host: holding.host.clone(),
@@ -1992,6 +2018,7 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                #[cfg(feature = "existing-business")]
                 customer_360_targets.push(
                     erpx_server_customer_360::public::customer_timeline_http::CustomerTimelineHttpTarget {
                         host: holding.host.clone(),
@@ -2011,6 +2038,7 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                #[cfg(feature = "existing-business")]
                 customer_authority_targets.push(
                     erpx_server_customer_authority::public::access_http::CustomerAccessHttpTarget {
                         host: holding.host.clone(),
@@ -2030,6 +2058,7 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                #[cfg(feature = "existing-business")]
                 ecommerce_targets.push(
                     erpx_server_ecommerce::public::ecommerce_http::EcommerceHttpTarget {
                         host: holding.host.clone(),
@@ -2049,6 +2078,7 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                #[cfg(feature = "existing-business")]
                 crm_targets.push(
                     erpx_server_crm::public::pipeline_http::CrmPipelineHttpTarget {
                         host: holding.host.clone(),
@@ -2129,6 +2159,7 @@ async fn assemble_checked(
                         },
                     );
                 }
+                #[cfg(feature = "existing-business")]
                 legal_targets.push(erpx_server_legal::public::legal_records::LegalHttpTarget {
                     host: holding.host.clone(),
                     holding_slug: holding.registration.slug.clone(),
@@ -2165,6 +2196,7 @@ async fn assemble_checked(
                         )),
                     },
                 );
+            #[cfg(feature = "existing-business")]
             maintenance_targets.push(
                     erpx_server_maintenance::public::http::MaintenanceHttpTarget {
                         host: holding.host.clone(),
@@ -2184,6 +2216,7 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                #[cfg(feature = "existing-business")]
                 let manufacturing_backend = Arc::new(crate::manufacturing::ManufacturingBackend::new(
                     config.policy.clone(),
                     Arc::new(FinanceJournalReadScopeHeaders),
@@ -2196,6 +2229,7 @@ async fn assemble_checked(
                         Arc::new(SharedClock(clock.clone())),
                     )),
                 ));
+                #[cfg(feature = "existing-business")]
                 bom_targets.push(
                     erpx_server_manufacturing::public::bom_http::BomHttpTarget {
                         host: holding.host.clone(),
@@ -2204,6 +2238,7 @@ async fn assemble_checked(
                         backend: manufacturing_backend.clone(),
                     },
                 );
+                #[cfg(feature = "existing-business")]
                 planning_targets.push(
                     erpx_server_manufacturing::public::planning_http::PlanningHttpTarget {
                         host: holding.host.clone(),
@@ -2212,6 +2247,7 @@ async fn assemble_checked(
                         backend: manufacturing_backend.clone(),
                     },
                 );
+                #[cfg(feature = "existing-business")]
                 marketing_targets.push(
                     erpx_server_marketing::public::campaign_attribution_http::MarketingCampaignHttpTarget {
                         host: holding.host.clone(),
@@ -2231,6 +2267,7 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                #[cfg(feature = "existing-business")]
                 talent_targets.push(
                     erpx_server_talent::public::requisition_http::TalentRequisitionHttpTarget {
                         host: holding.host.clone(),
@@ -2250,6 +2287,7 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                #[cfg(feature = "existing-business")]
                 let sales_backend = Arc::new(crate::sales::SalesBackend::new(
                     config.policy.clone(),
                     Arc::new(FinanceJournalReadScopeHeaders),
@@ -2262,6 +2300,7 @@ async fn assemble_checked(
                         Arc::new(SharedClock(clock.clone())),
                     )),
                 ));
+                #[cfg(feature = "existing-business")]
                 sales_documents_targets.push(
                     erpx_server_sales::public::sales_documents_http::SalesDocumentsHttpTarget {
                         host: holding.host.clone(),
@@ -2270,6 +2309,7 @@ async fn assemble_checked(
                         backend: sales_backend.clone(),
                     },
                 );
+                #[cfg(feature = "existing-business")]
                 sales_price_lists_targets.push(
                     erpx_server_sales::public::sales_price_lists_http::PriceListHttpTarget {
                         host: holding.host.clone(),
@@ -2344,6 +2384,7 @@ async fn assemble_checked(
                     )),
                 },
             );
+                #[cfg(feature = "existing-business")]
                 let projects_backend = Arc::new(crate::projects::ProjectsBackend::new(
                     config.policy.clone(),
                     Arc::new(FinanceJournalReadScopeHeaders),
@@ -2357,6 +2398,7 @@ async fn assemble_checked(
                         catalogue.clone(),
                     )),
                 ));
+                #[cfg(feature = "existing-business")]
                 projects_targets.push(
                     erpx_server_projects::public::project_wbs_http::ProjectWbsHttpTarget {
                         host: holding.host.clone(),
@@ -2365,6 +2407,7 @@ async fn assemble_checked(
                         backend: projects_backend.clone(),
                     },
                 );
+                #[cfg(feature = "existing-business")]
                 project_graph_targets.push(
                     erpx_server_projects::public::project_graph_http::ProjectGraphHttpTarget {
                         host: holding.host.clone(),
@@ -2373,6 +2416,7 @@ async fn assemble_checked(
                         backend: projects_backend.clone(),
                     },
                 );
+                #[cfg(feature = "existing-business")]
                 project_command_targets.push(
                     erpx_server_projects::public::project_commands_http::ProjectCommandHttpTarget {
                         host: holding.host.clone(),
@@ -2436,6 +2480,7 @@ async fn assemble_checked(
                         )),
                     )),
                 });
+                #[cfg(feature = "existing-business")]
                 handbook_targets.push(
                     erpx_server_collaboration::public::handbook_http::HandbookHttpTarget {
                         host: holding.host.clone(),
@@ -2455,6 +2500,7 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                #[cfg(feature = "existing-business")]
                 approval_targets.push(
                 erpx_server_workflow::public::approval_oversight_http::ApprovalOversightHttpTarget {
                     host: holding.host.clone(),
@@ -2474,6 +2520,7 @@ async fn assemble_checked(
                     )),
                 },
             );
+                #[cfg(feature = "existing-business")]
                 organization_setup_targets.push(
                 erpx_server_organization::public::organization_setup_http::OrganizationSetupHttpTarget {
                     host: holding.host.clone(),
@@ -2790,6 +2837,7 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
             );
         }
+        #[cfg(feature = "existing-business")]
         if !brand_targets.is_empty() {
             router = router.merge(
                 crate::brand_identity_http::brand_identity_router(
@@ -2801,6 +2849,7 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
             );
         }
+        #[cfg(feature = "existing-business")]
         if !organization_targets.is_empty() {
             router = router.merge(
                 crate::organization_nodes_http::organization_nodes_router(
@@ -2812,6 +2861,7 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
             );
         }
+        #[cfg(feature = "existing-business")]
         if !organization_setup_targets.is_empty() {
             router = router.merge(
                 erpx_server_organization::public::organization_setup_http::organization_setup_router(
@@ -2820,6 +2870,7 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_ORGANIZATION_CONFIGURATION_INVALID")?,
             );
         }
+        #[cfg(feature = "existing-business")]
         if !approval_targets.is_empty() {
             router = router.merge(
                 erpx_server_workflow::public::approval_oversight_http::approval_oversight_http_router(
@@ -2828,12 +2879,14 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_WORKFLOW_CONFIGURATION_INVALID")?,
             );
         }
+        #[cfg(feature = "existing-business")]
         if !handbook_targets.is_empty() {
             router = router.merge(
                 erpx_server_collaboration::public::handbook_http::handbook_router(handbook_targets)
                     .map_err(|_| "PRIVATE_API_COLLABORATION_CONFIGURATION_INVALID")?,
             );
         }
+        #[cfg(feature = "existing-business")]
         if !learning_targets.is_empty() {
             router = router.merge(
                 erpx_server_learning::public::learning_http::learning_http_router(learning_targets)
@@ -2872,12 +2925,14 @@ async fn assemble_checked(
                     .map_err(|_| "PRIVATE_API_COMMERCIAL_CONFIGURATION_INVALID")?,
             );
         }
+        #[cfg(feature = "existing-business")]
         if !commerce_targets.is_empty() {
             router = router.merge(
                 erpx_server_commerce::public::order_http::commerce_order_http_router(commerce_targets)
                     .map_err(|_| "PRIVATE_API_COMMERCE_CONFIGURATION_INVALID")?,
             );
         }
+        #[cfg(feature = "existing-business")]
         if !customer_360_targets.is_empty() {
             router = router.merge(
                 erpx_server_customer_360::public::customer_timeline_http::customer_timeline_http_router(
@@ -2886,6 +2941,7 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_CUSTOMER_360_CONFIGURATION_INVALID")?,
             );
         }
+        #[cfg(feature = "existing-business")]
         if !customer_authority_targets.is_empty() {
             router = router.merge(
                 erpx_server_customer_authority::public::access_http::customer_access_http_router(
@@ -2894,12 +2950,14 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_CUSTOMER_AUTHORITY_CONFIGURATION_INVALID")?,
             );
         }
+        #[cfg(feature = "existing-business")]
         if !ecommerce_targets.is_empty() {
             router = router.merge(
                 erpx_server_ecommerce::public::ecommerce_http::ecommerce_router(ecommerce_targets)
                     .map_err(|_| "PRIVATE_API_ECOMMERCE_CONFIGURATION_INVALID")?,
             );
         }
+        #[cfg(feature = "existing-business")]
         if !crm_targets.is_empty() {
             router = router.merge(
                 erpx_server_crm::public::pipeline_http::crm_pipeline_http_router(crm_targets)
@@ -2931,6 +2989,7 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_AGENT_EVIDENCE_CONFIGURATION_INVALID")?,
             );
         }
+        #[cfg(feature = "existing-business")]
         if !legal_targets.is_empty() {
             router = router.merge(
                 erpx_server_legal::public::legal_records::legal_router(legal_targets)
@@ -2951,36 +3010,42 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_BENEFITS_CONFIGURATION_INVALID")?,
             );
         }
+        #[cfg(feature = "existing-business")]
         if !maintenance_targets.is_empty() {
             router = router.merge(
                 erpx_server_maintenance::public::http::maintenance_router(maintenance_targets)
                     .map_err(|_| "PRIVATE_API_MAINTENANCE_CONFIGURATION_INVALID")?,
             );
         }
+        #[cfg(feature = "existing-business")]
         if !bom_targets.is_empty() {
             router = router.merge(
                 erpx_server_manufacturing::public::bom_http::bom_router(bom_targets)
                     .map_err(|_| "PRIVATE_API_MANUFACTURING_CONFIGURATION_INVALID")?,
             );
         }
+        #[cfg(feature = "existing-business")]
         if !planning_targets.is_empty() {
             router = router.merge(
                 erpx_server_manufacturing::public::planning_http::planning_router(planning_targets)
                     .map_err(|_| "PRIVATE_API_MANUFACTURING_CONFIGURATION_INVALID")?,
             );
         }
+        #[cfg(feature = "existing-business")]
         if !marketing_targets.is_empty() {
             router = router.merge(
                 erpx_server_marketing::public::campaign_attribution_http::marketing_campaign_http_router(marketing_targets)
                     .map_err(|_| "PRIVATE_API_MARKETING_CONFIGURATION_INVALID")?,
             );
         }
+        #[cfg(feature = "existing-business")]
         if !talent_targets.is_empty() {
             router = router.merge(
                 erpx_server_talent::public::requisition_http::talent_requisition_http_router(talent_targets)
                     .map_err(|_| "PRIVATE_API_TALENT_CONFIGURATION_INVALID")?,
             );
         }
+        #[cfg(feature = "existing-business")]
         if !sales_documents_targets.is_empty() {
             router = router.merge(
                 erpx_server_sales::public::sales_documents_http::sales_documents_router(
@@ -2989,6 +3054,7 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_SALES_CONFIGURATION_INVALID")?,
             );
         }
+        #[cfg(feature = "existing-business")]
         if !sales_price_lists_targets.is_empty() {
             router = router.merge(
                 erpx_server_sales::public::sales_price_lists_http::sales_price_lists_router(
@@ -3025,12 +3091,14 @@ async fn assemble_checked(
                     .map_err(|_| "PRIVATE_API_PROCUREMENT_CONFIGURATION_INVALID")?,
             );
         }
+        #[cfg(feature = "existing-business")]
         if !projects_targets.is_empty() {
             router = router.merge(
                 erpx_server_projects::public::project_wbs_http::projects_router(projects_targets)
                     .map_err(|_| "PRIVATE_API_PROJECTS_CONFIGURATION_INVALID")?,
             );
         }
+        #[cfg(feature = "existing-business")]
         if !project_graph_targets.is_empty() {
             router = router.merge(
                 erpx_server_projects::public::project_graph_http::project_graph_router(
@@ -3039,6 +3107,7 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_PROJECTS_CONFIGURATION_INVALID")?,
             );
         }
+        #[cfg(feature = "existing-business")]
         if !project_command_targets.is_empty() {
             router = router.merge(
                 erpx_server_projects::public::project_commands_http::project_milestone_commands_router(
@@ -3861,6 +3930,7 @@ async fn assemble_checked(
         finance_create_targets,
         finance_edit_targets,
         finance_reversal_targets,
+        #[cfg(feature = "existing-business")]
         brand_targets: config
             .finance_journal_reads
             .keys()
@@ -3872,6 +3942,8 @@ async fn assemble_checked(
                     .map(|h| (h.host.clone(), h.registration.slug.clone()))
             })
             .collect(),
+        #[cfg(not(feature = "existing-business"))]
+        brand_targets: BTreeSet::new(),
         generic_payment_targets: config
             .finance_journal_reads
             .keys()
@@ -4001,6 +4073,7 @@ async fn assemble_checked(
                     .map(|h| (h.host.clone(), h.registration.slug.clone()))
             })
             .collect(),
+        #[cfg(feature = "existing-business")]
         organization_targets: config
             .finance_journal_reads
             .keys()
@@ -4012,6 +4085,8 @@ async fn assemble_checked(
                     .map(|h| (h.host.clone(), h.registration.slug.clone()))
             })
             .collect(),
+        #[cfg(not(feature = "existing-business"))]
+        organization_targets: BTreeSet::new(),
         account_bootstrap: config.account_bootstrap,
     });
     Ok(CheckedAssembly {

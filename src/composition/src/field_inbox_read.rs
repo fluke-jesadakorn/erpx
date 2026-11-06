@@ -127,12 +127,12 @@ pub(crate) async fn prepare_inbox_source<'a, C: Clock + Send + Sync>(
     let scope = current.selection().workspace();
     let read=async{
         if row.source_type=="journal" {
-            let ctx=SourceRecordContext{actor:current,holding:&target.holding,company:&target.company,catalogue:&target.catalogue,clock:target.clock.as_ref()};
+            let ctx=SourceRecordContext{purchase_locks:None,actor:current,holding:&target.holding,company:&target.company,catalogue:&target.catalogue,clock:target.clock.as_ref()};
             let source=Box::pin(crate::finance_field_journal_history::read_field_journal_history(c,&ctx,&row.source_id)).await?;
             return Ok(Some(PreparedInboxSource{href:format!("/finance/journals/{}",component(&row.source_id)),reference:None,owner:InboxOwnerWitness::Direct,source:InboxSourceWitness::Journal(Box::new(source))}));
         }
         if row.source_type=="invoice" {
-            let ctx=SourceRecordContext{actor:current,holding:&target.holding,company:&target.company,catalogue:&target.catalogue,clock:target.clock.as_ref()};
+            let ctx=SourceRecordContext{purchase_locks:None,actor:current,holding:&target.holding,company:&target.company,catalogue:&target.catalogue,clock:target.clock.as_ref()};
             let source=crate::finance_service_invoice_history::read_service_invoice_history(c,&ctx,&row.source_id).await?;
             return Ok(Some(PreparedInboxSource{href:format!("/finance/invoices/{}",component(&row.source_id)),reference:None,owner:InboxOwnerWitness::Direct,source:InboxSourceWitness::Invoice(source)}));
         }
@@ -144,7 +144,7 @@ pub(crate) async fn prepare_inbox_source<'a, C: Clock + Send + Sync>(
             return Ok(Some(PreparedInboxSource{href:format!("/services/field-service/settings/initial-stock/{}",component(&row.source_id)),reference:None,owner:InboxOwnerWitness::Direct,source:InboxSourceWitness::Count{record,modules}}));
         }
         if row.source_type=="support_ticket" {
-            let mut port=FieldRecordsSourcePort{connection:c,context:SourceRecordContext{actor:current,holding:&target.holding,company:&target.company,catalogue:&target.catalogue,clock:target.clock.as_ref()}};
+            let mut port=FieldRecordsSourcePort{connection:c,context:SourceRecordContext{purchase_locks:None,actor:current,holding:&target.holding,company:&target.company,catalogue:&target.catalogue,clock:target.clock.as_ref()}};
             let (_,source)=prepare_source(&mut port,target.company.as_str(),&SourceReference{kind:SourceKind::SupportTicket,id:row.source_id.clone(),expected_version:None}).await?.into_parts();
             if source.support_data().and_then(|d|d["row"]["source_kind"].as_str())!=Some("field_service"){return Ok(None);}
             return Ok(Some(PreparedInboxSource{href:format!("/field-service/support/{}",component(&row.source_id)),reference:None,owner:InboxOwnerWitness::Direct,source:InboxSourceWitness::Record(source)}));
@@ -227,6 +227,7 @@ async fn read<C: Clock + Send + Sync>(
         }
     }
     let source_context = SourceRecordContext {
+        purchase_locks: None,
         actor: current,
         holding: &target.holding,
         company: &target.company,

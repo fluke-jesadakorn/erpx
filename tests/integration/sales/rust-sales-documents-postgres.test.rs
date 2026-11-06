@@ -20,6 +20,30 @@ use erpx_server_shared::public::{
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
 
+#[tokio::test]
+async fn recipient_composes_current_identity_and_dated_people_in_one_unit() {
+    use erpx_server_sales::public::sales_recipient::{SalesRecipientRequest, inspect_sales_recipient, prepare_sales_recipient_sources};
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        sqlx::raw_sql("INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status) VALUES('*','sales_recipient_test','Sales recipient',false,1,'active'); INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','sales_recipient_test',1,'[\"commerce.read\",\"commerce.sales\"]','[]','[\"holding\",\"branch\",\"department\"]','fixture',0); INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind) VALUES('sales-recipient-grant','sales-user','sales_recipient_test','[]','company',0,9007199254740991,1,'holding'); INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,created_by,created_at,updated_at) VALUES('sales-person','sales-user','company','Sales','TH','fixture',0,0); INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at) VALUES('sales-engagement','sales-person','company','employee','salaried','active','2000-01-01','Sales','THB','fixture',0,0)").execute(pool.raw()).await.unwrap();
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        let locks = prepare_sales_recipient_sources(&mut tx).await.unwrap().bind().await.unwrap();
+        let request = || SalesRecipientRequest { company_id: CompanyId::new("company").unwrap(), user_id: "sales-user".into(), branch_id: "branch".into(), department_id: None };
+        let eligible = inspect_sales_recipient(&mut tx, &locks, request()).await.unwrap();
+        assert!(eligible.is_eligible());
+        eligible.require_current(&mut tx).await.unwrap();
+        let wrong_company = SalesRecipientRequest { company_id: CompanyId::new("foreign").unwrap(), ..request() };
+        assert!(!inspect_sales_recipient(&mut tx, &locks, wrong_company).await.unwrap().is_eligible());
+        sqlx::query("UPDATE hr_engagements SET start_date='9999-01-01' WHERE id='sales-engagement'").execute(&mut *tx).await.unwrap();
+        assert!(!inspect_sales_recipient(&mut tx, &locks, request()).await.unwrap().is_eligible());
+        assert!(eligible.require_current(&mut tx).await.is_err());
+        sqlx::query("UPDATE hr_engagements SET start_date='2000-01-01',end_date='2000-01-02' WHERE id='sales-engagement'").execute(&mut *tx).await.unwrap();
+        assert!(!inspect_sales_recipient(&mut tx, &locks, request()).await.unwrap().is_eligible());
+        tx.rollback().await.unwrap();
+    }).await;
+}
+
 fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
     match error {
         PgTransactionError::Business(error) => error,

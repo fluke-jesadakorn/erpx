@@ -1,7 +1,7 @@
 //! Exact Service Count purchase purposes; no Supply package is substituted.
 use erpx_server_commercial::public::purchases::{
-    CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
-    PurchaseRequest, PurchaseWitness, current_package_catalogue,
+    CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgReadOnlyCompanyPurchaseReader,
+    PurchaseRequest, PurchaseWitness, bind_purchase_read_sources, current_package_catalogue,
 };
 use erpx_server_identity_access::public::effective_authority::AuthorizedWorkContext;
 use erpx_server_runtime::public::postgres::PgTransactionError;
@@ -28,8 +28,10 @@ impl ServiceCountPurchases {
         let holding = current.holding_id().clone();
         let company = current.selection().workspace().company_id.clone();
         let catalogue = current_package_catalogue()?;
-        let mut reader =
-            PgCompanyPurchaseReader::new(holding.clone(), company.clone(), c, &catalogue);
+        let locks = bind_purchase_read_sources(c).await?;
+        let mut reader = PgReadOnlyCompanyPurchaseReader::new(
+            holding.clone(), company.clone(), c, &catalogue, &locks,
+        );
         let request = |purpose| PurchaseRequest {
             capabilities: vec![
                 "service.orders".into(),
@@ -66,11 +68,13 @@ impl ServiceCountPurchases {
         purpose: CapabilityPurpose,
         now: TimestampMillis,
     ) -> Result<(), Error> {
-        let mut reader = PgCompanyPurchaseReader::new(
+        let locks = bind_purchase_read_sources(c).await?;
+        let mut reader = PgReadOnlyCompanyPurchaseReader::new(
             self.holding.clone(),
             self.company.clone(),
             c,
             &self.catalogue,
+            &locks,
         );
         let witness = match purpose {
             CapabilityPurpose::History => &self.history,
@@ -85,11 +89,13 @@ impl ServiceCountPurchases {
         c: &mut PgConnection,
         now: TimestampMillis,
     ) -> Result<(), Error> {
-        let mut reader = PgCompanyPurchaseReader::new(
+        let locks = bind_purchase_read_sources(c).await?;
+        let mut reader = PgReadOnlyCompanyPurchaseReader::new(
             self.holding.clone(),
             self.company.clone(),
             c,
             &self.catalogue,
+            &locks,
         );
         let history = reader
             .revalidate(&self.history, now)

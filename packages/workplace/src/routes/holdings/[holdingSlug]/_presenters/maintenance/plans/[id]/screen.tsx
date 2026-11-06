@@ -3,7 +3,7 @@ import { RecordLink as Link } from "@erpx/feature-records/components/record-link
 import {requireWorkContext,publicScope} from "@erpx/server-identity_access/public/authorization";
 import {workspaceBase} from "@erpx/feature-work_projection/lib/workspace";
 import {pageError} from "@erpx/server-work_projection/public/page-error";
-import {ownedMaintenancePlanDetail} from "@erpx/feature-assets/adapters/server/native-maintenance-owned";
+import {ownedMaintenancePlanDetail} from "@erpx/feature-assets/public/native-assets";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import { MaintenancePreventiveConsole } from "@erpx/feature-records/components/loaders/modules--maintenance-preventive-console";
 import {TimeText} from "@erpx/feature-people_payroll/components/time/time-preference-context";

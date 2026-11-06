@@ -5,6 +5,7 @@
 //! retains the normal Account/Holding session, purchase admission and current
 //! authority; the owner read enforces the Company, selected-context expiry,
 //! `commerce.read` and the Procurement module for this bounded slice.
+use super::valid_date;
 use erpx_server_shared::public::{
     BusinessError, CompanyId, FailureKind, RecordId, TimestampMillis,
 };
@@ -97,30 +98,41 @@ fn valid_identifier(value: &str) -> bool {
     RecordId::new(value).is_ok()
 }
 
-fn valid_date(value: &str) -> bool {
-    let bytes = value.as_bytes();
-    if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-' {
-        return false;
-    }
-    if !bytes
-        .iter()
-        .enumerate()
-        .all(|(index, byte)| matches!(index, 4 | 7) || byte.is_ascii_digit())
-    {
-        return false;
-    }
-    let month = (bytes[5] - b'0') * 10 + (bytes[6] - b'0');
-    let day = (bytes[8] - b'0') * 10 + (bytes[9] - b'0');
-    (1..=12).contains(&month) && (1..=31).contains(&day)
-}
 
 fn valid_currency(value: &str) -> bool {
     value.len() == 3 && value.bytes().all(|byte| byte.is_ascii_uppercase())
 }
 
 fn valid_text(value: &str, minimum: usize, limit: usize) -> bool {
-    let length = value.chars().count();
-    (minimum..=limit).contains(&length) && value.trim() == value
+    let length = value.encode_utf16().count();
+    let trimmed = value.trim_matches(|c: char| {
+        matches!(
+            c,
+            '\u{0009}'..='\u{000d}'
+                | '\u{0020}'
+                | '\u{00a0}'
+                | '\u{1680}'
+                | '\u{2000}'..='\u{200a}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202f}'
+                | '\u{205f}'
+                | '\u{3000}'
+                | '\u{feff}'
+        )
+    });
+    (minimum..=limit).contains(&length) && trimmed == value
+}
+
+fn valid_supplier_text(value: &str, minimum: usize, limit: usize) -> bool {
+    let length = value.encode_utf16().count();
+    // Retained Zod uses JavaScript String.trim: U+FEFF is whitespace, while
+    // U+0085 is not. Rust's Unicode whitespace set differs on both points.
+    let trimmed = value.trim_matches(|c: char| matches!(c,
+        '\u{0009}'..='\u{000d}' | '\u{0020}' | '\u{00a0}' | '\u{1680}' |
+        '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' |
+        '\u{205f}' | '\u{3000}' | '\u{feff}'));
+    (minimum..=limit).contains(&length) && trimmed == value
 }
 
 fn valid_kind(value: &str) -> bool {
@@ -170,8 +182,8 @@ impl SupplierPromiseRow {
             || !valid_date(&self.required_date)
             || !valid_kind(&self.kind)
             || !valid_date(&self.confirmation_date)
-            || !valid_text(&self.supplier_reference, 3, REFERENCE_LIMIT)
-            || !valid_text(&self.evidence, 5, EVIDENCE_LIMIT)
+            || !valid_supplier_text(&self.supplier_reference, 3, REFERENCE_LIMIT)
+            || !valid_supplier_text(&self.evidence, 5, EVIDENCE_LIMIT)
         {
             return Err(source_invalid());
         }
@@ -254,6 +266,7 @@ impl OpenPromiseRow {
             || self.quantity_milli != line.quantity_milli
             || self.fulfilled_snapshot_milli != line.fulfilled_snapshot_milli
             || self.promised_date != line.promised_date
+            || !valid_date(&self.promised_date)
             || !valid_identifier(&self.branch_id)
             || self
                 .department_id

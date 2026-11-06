@@ -72,7 +72,7 @@ describe('native Quality transport',()=>{
  it('sends one keyed cancellation with origin and returns the owner acknowledgement',async()=>{
   const transport=vi.fn().mockResolvedValue(ok({data:receipt}));
   const client=createNativeQualityReader(config(),transport);
-  const result=await client.cancel(incoming(),'acme','hold-a',{
+  const result=await client.cancel(incoming({'x-erpx-workspace-branch':'bangkok','x-erpx-workspace-department':'inspection'}),'acme','hold-a',{
     expectedVersion:1,action:'request',reason:'Incorrect receiving hold',
   },'quality-cancel-http');
   expect(result).toEqual(receipt);
@@ -80,9 +80,37 @@ describe('native Quality transport',()=>{
   expect(method).toBe('POST');
   expect(url.toString()).toBe('http://127.0.0.1:44991/api/v1/holdings/acme/quality/hold-a/cancel');
   expect(headers.get('origin')).toBe('https://acme.example.com');
+  expect(headers.get('cookie')).toBe('__Host-erpx-product=session');
+  expect(headers.get('x-erpx-context-company')).toBe('company');
+  expect(headers.get('x-erpx-context-assignment')).toBe('quality-assignment');
+  expect(headers.get('x-erpx-context-revision')).toBe('7');
+  expect(headers.get('x-erpx-context-assignment-version')).toBe('3');
+  expect(headers.get('x-erpx-workspace-branch')).toBe('bangkok');
+  expect(headers.get('x-erpx-workspace-department')).toBe('inspection');
   expect(headers.get('idempotency-key')).toBe('quality-cancel-http');
   expect(headers.get('content-type')).toBe('application/json');
-  expect(JSON.parse(body)).toMatchObject({expectedVersion:1,action:'request'});
+  expect(JSON.parse(body)).toEqual({expectedVersion:1,action:'request',reason:'Incorrect receiving hold'});
+ });
+
+ it('forwards missing or mismatched selected context to the owner without inventing authority',async()=>{
+  const transport=vi.fn().mockResolvedValue(new Response(
+    JSON.stringify({error:{code:'WORK_CONTEXT_CHANGED',message:'Reload and review.'}}),
+    {status:409,headers:{'content-type':'application/json'}},
+  ));
+  const client=createNativeQualityReader(config(),transport);
+  const selected=incoming({'x-erpx-context-company':'other-company'});
+  selected.delete('x-erpx-context-assignment');
+  selected.delete('x-erpx-context-assignment-version');
+  await expect(client.cancel(selected,'acme','hold-a',{
+    expectedVersion:1,action:'request',reason:'Incorrect receiving hold',
+  },'quality-cancel-http')).rejects.toMatchObject({status:409,code:'WORK_CONTEXT_CHANGED'});
+  const [, , headers, body]=transport.mock.calls[0];
+  expect(headers.get('x-erpx-context-company')).toBe('other-company');
+  expect(headers.get('x-erpx-context-assignment')).toBeNull();
+  expect(headers.get('x-erpx-context-assignment-version')).toBeNull();
+  expect(headers.get('x-erpx-context-revision')).toBe('7');
+  expect(headers.get('idempotency-key')).toBe('quality-cancel-http');
+  expect(JSON.parse(body)).toEqual({expectedVersion:1,action:'request',reason:'Incorrect receiving hold'});
  });
 
  it('surfaces a bounded owner error with its status, code and message',async()=>{

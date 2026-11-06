@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./public/native-pms": "./src/public/native-pms.ts",
     "./components/visual-prototype.module.css": "./src/components/visual-prototype.module.css",
     "./components/pms-backoffice-guests-screen": "./src/components/pms-backoffice-guests-screen.tsx",
     "./components/standard-pms-import": "./src/components/standard-pms-import.tsx",

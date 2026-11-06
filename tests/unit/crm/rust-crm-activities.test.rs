@@ -49,6 +49,7 @@ impl Fake {
             }),
             activity: Some(ActivityFacts {
                 owner_id: "owner".into(),
+                due_date: "2026-11-20".into(),
                 status: "open".into(),
                 version: 1,
             }),
@@ -83,8 +84,10 @@ impl ActivityRepository for Fake {
         &'a mut self,
         _company_id: &'a str,
         record_id: &'a str,
+        _command_key: &'a str,
         _created_by: &'a str,
         _plan: &'a erpx_server_crm::public::activities_native::ActivityCreatePlan,
+        _input: &'a ActivityCreateInput,
         _now: i64,
     ) -> ActivitiesFuture<'a, (), Self::Error> {
         self.inserted = Some(record_id.to_owned());
@@ -93,14 +96,16 @@ impl ActivityRepository for Fake {
 
     fn update_activity<'a>(
         &'a mut self,
+        _company_id: &'a str,
         record_id: &'a str,
+        _command_key: &'a str,
+        _actor_id: &'a str,
+        _record: &'a ActivityFacts,
+        _input: &'a ActivityChangeInput,
         plan: &'a erpx_server_crm::public::activities_native::ActivityChangePlan,
         _now: i64,
     ) -> ActivitiesFuture<'a, (), Self::Error> {
-        self.updated = Some((
-            record_id.to_owned(),
-            plan.status.clone(),
-        ));
+        self.updated = Some((record_id.to_owned(), plan.status.clone()));
         Box::pin(async { Ok(()) })
     }
 }
@@ -112,6 +117,22 @@ fn create_plan_trims_text() {
     let plan = validate_create(&actor(), &input).unwrap();
     assert_eq!(plan.subject, "Call the customer");
     assert_eq!(plan.activity_type, "call");
+}
+
+#[test]
+fn text_validation_matches_javascript_trim_and_utf16_boundaries() {
+    let mut input = create();
+    input.subject = format!("\u{feff}{}\u{feff}", "ก".repeat(200));
+    assert_eq!(
+        validate_create(&actor(), &input).unwrap().subject,
+        "ก".repeat(200)
+    );
+    input.subject = "😀".repeat(101);
+    assert!(validate_create(&actor(), &input).is_err());
+    input.subject = "ab".into();
+    assert!(validate_create(&actor(), &input).is_err());
+    input.subject = "\u{0085}ab".into();
+    assert!(validate_create(&actor(), &input).is_ok());
 }
 
 #[test]
@@ -155,7 +176,9 @@ fn complete_is_owner_only_cancel_allows_manager() {
     };
     assert!(validate_change(&actor(), &complete, "owner", "open").is_ok());
     assert_eq!(
-        validate_change(&actor(), &complete, "other", "open").unwrap_err().code,
+        validate_change(&actor(), &complete, "other", "open")
+            .unwrap_err()
+            .code,
         "CRM_ACTIVITY_OWNER_REQUIRED"
     );
     let mut manager = actor();
@@ -173,7 +196,9 @@ fn complete_is_owner_only_cancel_allows_manager() {
         "cancelled"
     );
     assert_eq!(
-        validate_change(&actor(), &cancel, "other", "open").unwrap_err().code,
+        validate_change(&actor(), &cancel, "other", "open")
+            .unwrap_err()
+            .code,
         "CRM_ACTIVITY_OWNER_REQUIRED"
     );
 }
@@ -186,7 +211,9 @@ fn reassign_and_closed_are_rejected() {
         reason: "Needed".into(),
     };
     assert_eq!(
-        validate_change(&actor(), &reassign, "owner", "open").unwrap_err().code,
+        validate_change(&actor(), &reassign, "owner", "open")
+            .unwrap_err()
+            .code,
         "CRM_ACTIVITY_REASSIGN_TS_OWNED"
     );
     let done = ActivityChangeInput {
@@ -195,7 +222,9 @@ fn reassign_and_closed_are_rejected() {
         reason: "Done".into(),
     };
     assert_eq!(
-        validate_change(&actor(), &done, "owner", "completed").unwrap_err().code,
+        validate_change(&actor(), &done, "owner", "completed")
+            .unwrap_err()
+            .code,
         "CRM_ACTIVITY_STATE_CHANGED"
     );
 }
@@ -209,7 +238,7 @@ async fn create_rejects_closed_or_version_mismatched_lead() {
         version: 1,
     });
     assert_eq!(
-        create_activity(&actor(), &create(), &mut repo, NOW.get())
+        create_activity(&actor(), "key-1", &create(), &mut repo, NOW.get())
             .await
             .unwrap_err()
             .code,
@@ -221,28 +250,37 @@ async fn create_rejects_closed_or_version_mismatched_lead() {
         stage: None,
         version: 2,
     });
-    assert!(create_activity(&actor(), &create(), &mut repo, NOW.get())
-        .await
-        .is_err());
+    assert!(
+        create_activity(&actor(), "key-1", &create(), &mut repo, NOW.get())
+            .await
+            .is_err()
+    );
     assert!(repo.inserted.is_none());
 }
 
 #[tokio::test]
 async fn create_and_complete_round_trip_through_fake() {
     let mut repo = Fake::new();
-    let plan = create_activity(&actor(), &create(), &mut repo, NOW.get())
+    let plan = create_activity(&actor(), "key-1", &create(), &mut repo, NOW.get())
         .await
         .unwrap();
     assert_eq!(plan.activity_type, "call");
-    assert!(repo.inserted.as_deref().unwrap().starts_with("crm-activity-"));
+    assert_eq!(repo.inserted.as_deref(), Some("crm-activity-key-1"));
     let complete = ActivityChangeInput {
         action: "complete".into(),
         expected_version: 1,
         reason: "Done".into(),
     };
-    let updated = change_activity(&actor(), "crm-activity-key-1", &complete, &mut repo, NOW.get())
-        .await
-        .unwrap();
+    let updated = change_activity(
+        &actor(),
+        "crm-activity-key-1",
+        "key-2",
+        &complete,
+        &mut repo,
+        NOW.get(),
+    )
+    .await
+    .unwrap();
     assert_eq!(updated.status, "completed");
     assert_eq!(
         repo.updated,

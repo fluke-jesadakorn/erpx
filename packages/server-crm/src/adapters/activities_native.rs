@@ -8,7 +8,9 @@
 use crate::application::activities_native::{
     ActivitiesFuture, ActivityFacts, ActivityRepository, LeadFacts,
 };
-use crate::domain::activities_native::{ActivityChangePlan, ActivityCreatePlan};
+use crate::domain::activities_native::{
+    ActivityChangeInput, ActivityChangePlan, ActivityCreateInput, ActivityCreatePlan,
+};
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::BusinessError;
 use sqlx::{Connection, PgConnection, Row};
@@ -44,8 +46,20 @@ impl<'a> PgCrmActivityCommands<'a> {
         lead_id: &str,
     ) -> Result<Option<LeadFacts>, Error> {
         serializable(&mut *self.connection).await?;
+        // The legacy opportunity commands update the opportunity before the
+        // lead, and increment the lead version in the same transaction.
+        // Lock in that order so a concurrent close cannot pass this gate on a
+        // stale stage. Qualification inserts an opportunity and updates its
+        // lead in the same transaction; the lead lock also fences that case.
+        let stage = sqlx::query_scalar::<_, String>(
+            "SELECT v.stage FROM crm_opportunities v JOIN crm_leads l ON l.id=v.lead_id WHERE l.id=$1 AND l.company_id=$2 FOR UPDATE OF v",
+        )
+        .bind(lead_id)
+        .bind(company_id)
+        .fetch_optional(&mut *self.connection)
+        .await?;
         let row = sqlx::query(
-            "SELECT status,version FROM crm_leads WHERE id=$1 AND company_id=$2",
+            "SELECT status,version FROM crm_leads WHERE id=$1 AND company_id=$2 FOR UPDATE",
         )
         .bind(lead_id)
         .bind(company_id)
@@ -54,7 +68,7 @@ impl<'a> PgCrmActivityCommands<'a> {
         row.map(|row| {
             Ok(LeadFacts {
                 status: row.try_get("status")?,
-                stage: None,
+                stage,
                 version: row.try_get("version")?,
             })
         })
@@ -68,7 +82,7 @@ impl<'a> PgCrmActivityCommands<'a> {
     ) -> Result<Option<ActivityFacts>, Error> {
         serializable(&mut *self.connection).await?;
         let row = sqlx::query(
-            "SELECT owner_id,status,version FROM crm_lead_activities WHERE id=$1 AND company_id=$2",
+            "SELECT owner_id,due_date,status,version FROM crm_lead_activities WHERE id=$1 AND company_id=$2",
         )
         .bind(activity_id)
         .bind(company_id)
@@ -77,6 +91,7 @@ impl<'a> PgCrmActivityCommands<'a> {
         row.map(|row| {
             Ok(ActivityFacts {
                 owner_id: row.try_get("owner_id")?,
+                due_date: row.try_get("due_date")?,
                 status: row.try_get("status")?,
                 version: row.try_get("version")?,
             })
@@ -88,8 +103,10 @@ impl<'a> PgCrmActivityCommands<'a> {
         &mut self,
         company_id: &str,
         record_id: &str,
+        command_key: &str,
         created_by: &str,
         plan: &ActivityCreatePlan,
+        input: &ActivityCreateInput,
         now: i64,
     ) -> Result<(), Error> {
         serializable(&mut *self.connection).await?;
@@ -112,7 +129,7 @@ impl<'a> PgCrmActivityCommands<'a> {
         sqlx::query(
             "INSERT INTO crm_lead_activity_events(id,activity_id,version,action,actor_id,owner_id,due_date,note,snapshot_json,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
         )
-        .bind(format!("crm-activity-event-{record_id}"))
+        .bind(format!("crm-activity-event-{command_key}"))
         .bind(record_id)
         .bind(1i64)
         .bind("create")
@@ -120,10 +137,9 @@ impl<'a> PgCrmActivityCommands<'a> {
         .bind(&plan.owner_id)
         .bind(&plan.due_date)
         .bind(&plan.details)
-        .bind(serde_json::json!({
-            "leadId": plan.lead_id, "activityType": plan.activity_type,
-            "subject": plan.subject, "ownerId": plan.owner_id, "dueDate": plan.due_date,
-        }).to_string())
+        .bind(serde_json::json!({"leadId": plan.lead_id, "expectedVersion": input.expected_version,
+            "activityType": plan.activity_type, "subject": plan.subject, "details": plan.details,
+            "ownerId": plan.owner_id, "dueDate": plan.due_date}))
         .bind(now)
         .execute(&mut *self.connection)
         .await?;
@@ -132,42 +148,49 @@ impl<'a> PgCrmActivityCommands<'a> {
 
     pub async fn update_activity(
         &mut self,
+        company_id: &str,
         record_id: &str,
+        command_key: &str,
+        actor_id: &str,
+        record: &ActivityFacts,
+        input: &ActivityChangeInput,
         plan: &ActivityChangePlan,
         now: i64,
     ) -> Result<(), Error> {
         serializable(&mut *self.connection).await?;
         let affected = sqlx::query(
-            "UPDATE crm_lead_activities SET status=$1,outcome=$2,version=version+1,updated_at=$3 WHERE id=$4 AND status='open'",
+            "UPDATE crm_lead_activities SET status=$1,outcome=$2,version=version+1,updated_at=$3 WHERE id=$4 AND company_id=$5 AND version=$6 AND status='open'",
         )
         .bind(&plan.status)
         .bind(plan.outcome.as_deref())
         .bind(now)
         .bind(record_id)
+        .bind(company_id)
+        .bind(plan.expected_version)
         .execute(&mut *self.connection)
         .await?
         .rows_affected();
         if affected != 1 {
             return Err(PersistenceError::new("CRM_ACTIVITY_UPDATE_CONFLICT").into());
         }
-        let version = sqlx::query_scalar::<_, i64>(
-            "SELECT version FROM crm_lead_activities WHERE id=$1",
-        )
-        .bind(record_id)
-        .fetch_one(&mut *self.connection)
-        .await?;
+        let version =
+            sqlx::query_scalar::<_, i64>("SELECT version FROM crm_lead_activities WHERE id=$1")
+                .bind(record_id)
+                .fetch_one(&mut *self.connection)
+                .await?;
         sqlx::query(
             "INSERT INTO crm_lead_activity_events(id,activity_id,version,action,actor_id,owner_id,due_date,note,snapshot_json,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
         )
-        .bind(format!("crm-activity-event-{record_id}-{version}"))
+        .bind(format!("crm-activity-event-{command_key}"))
         .bind(record_id)
         .bind(version)
         .bind(&plan.action)
-        .bind("__actor__")
-        .bind("__owner__")
-        .bind("1970-01-01")
+        .bind(actor_id)
+        .bind(&record.owner_id)
+        .bind(&record.due_date)
         .bind(plan.outcome.as_deref().unwrap_or(""))
-        .bind(serde_json::json!({"action": plan.action, "status": plan.status}).to_string())
+        .bind(serde_json::json!({"action": input.action, "expectedVersion": input.expected_version,
+            "reason": plan.outcome}))
         .bind(now)
         .execute(&mut *self.connection)
         .await?;
@@ -191,32 +214,60 @@ impl ActivityRepository for PgCrmActivityCommands<'_> {
         company_id: &'a str,
         activity_id: &'a str,
     ) -> ActivitiesFuture<'a, Option<ActivityFacts>, Self::Error> {
-        Box::pin(async move {
-            PgCrmActivityCommands::activity(self, company_id, activity_id).await
-        })
+        Box::pin(
+            async move { PgCrmActivityCommands::activity(self, company_id, activity_id).await },
+        )
     }
 
     fn insert_activity<'a>(
         &'a mut self,
         company_id: &'a str,
         record_id: &'a str,
+        command_key: &'a str,
         created_by: &'a str,
         plan: &'a ActivityCreatePlan,
+        input: &'a ActivityCreateInput,
         now: i64,
     ) -> ActivitiesFuture<'a, (), Self::Error> {
         Box::pin(async move {
-            PgCrmActivityCommands::insert_activity(self, company_id, record_id, created_by, plan, now).await
+            PgCrmActivityCommands::insert_activity(
+                self,
+                company_id,
+                record_id,
+                command_key,
+                created_by,
+                plan,
+                input,
+                now,
+            )
+            .await
         })
     }
 
     fn update_activity<'a>(
         &'a mut self,
+        company_id: &'a str,
         record_id: &'a str,
+        command_key: &'a str,
+        actor_id: &'a str,
+        record: &'a ActivityFacts,
+        input: &'a ActivityChangeInput,
         plan: &'a ActivityChangePlan,
         now: i64,
     ) -> ActivitiesFuture<'a, (), Self::Error> {
         Box::pin(async move {
-            PgCrmActivityCommands::update_activity(self, record_id, plan, now).await
+            PgCrmActivityCommands::update_activity(
+                self,
+                company_id,
+                record_id,
+                command_key,
+                actor_id,
+                record,
+                input,
+                plan,
+                now,
+            )
+            .await
         })
     }
 }

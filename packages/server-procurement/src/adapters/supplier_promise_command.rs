@@ -57,6 +57,60 @@ async fn require_serializable(connection: &mut PgConnection) -> Result<(), Error
     Ok(())
 }
 
+/// Procurement history only. Acquire before the first snapshot when the same
+/// unit may insert a promise and its lines; this is not source authorization.
+pub async fn lock_supplier_promise_history_writes(c: &mut PgConnection) -> Result<(), Error> {
+    if !c.is_in_transaction() {
+        return Err(PersistenceError::new("PROCUREMENT_PROMISE_SERIALIZABLE_REQUIRED").into());
+    }
+    sqlx::query("LOCK TABLE procurement_delivery_promises,procurement_delivery_promise_lines IN SHARE ROW EXCLUSIVE MODE")
+        .execute(c).await?;
+    Ok(())
+}
+
+/// Exact image of one selected promise and its lines, not the order's complete
+/// promise history. Text remains unbounded and this is not a TS fingerprint.
+/// The caller must separately prove Commerce, Workflow, Files and actor facts.
+pub struct CurrentSupplierPromiseHistory {
+    company: CompanyId,
+    order_id: String,
+    promise_id: String,
+    unit: (String, i32, String),
+    image: Option<serde_json::Value>,
+}
+
+impl CurrentSupplierPromiseHistory {
+    pub fn image(&self) -> Option<&serde_json::Value> { self.image.as_ref() }
+
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        if promise_history_unit(c).await? != self.unit
+            || promise_history_image(c, &self.company, &self.order_id, &self.promise_id).await? != self.image {
+            return Err(source_changed().into());
+        }
+        Ok(())
+    }
+}
+
+async fn promise_history_unit(c: &mut PgConnection) -> Result<(String, i32, String), Error> {
+    require_serializable(c).await?;
+    let held: bool = sqlx::query_scalar("SELECT count(DISTINCT relation)=2 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND granted AND mode IN ('ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock') AND relation IN ('procurement_delivery_promises'::regclass,'procurement_delivery_promise_lines'::regclass)")
+        .fetch_one(&mut *c).await?;
+    if !held { return Err(PersistenceError::new("PROCUREMENT_PROMISE_HISTORY_LOCKS_REQUIRED").into()); }
+    Ok(sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text").fetch_one(c).await?)
+}
+
+async fn promise_history_image(c: &mut PgConnection, company: &CompanyId, order_id: &str, promise_id: &str) -> Result<Option<serde_json::Value>, Error> {
+    Ok(sqlx::query_scalar("SELECT jsonb_build_object('promise',to_jsonb(p),'lines',COALESCE((SELECT jsonb_agg(to_jsonb(l) ORDER BY l.ordinal,l.id) FROM procurement_delivery_promise_lines l WHERE l.promise_id=p.id),'[]'::jsonb)) FROM procurement_delivery_promises p WHERE p.company_id=$1 AND p.order_id=$2 AND p.id=$3")
+        .bind(company.as_str()).bind(order_id).bind(promise_id).fetch_optional(c).await?)
+}
+
+/// Bind only after all owner locks have been acquired before the snapshot.
+pub async fn inspect_supplier_promise_history(c: &mut PgConnection, company: &CompanyId, order_id: &str, promise_id: &str) -> Result<CurrentSupplierPromiseHistory, Error> {
+    let unit = promise_history_unit(c).await?;
+    let image = promise_history_image(c, company, order_id, promise_id).await?;
+    Ok(CurrentSupplierPromiseHistory { company: company.clone(), order_id: order_id.into(), promise_id: promise_id.into(), unit, image })
+}
+
 impl SupplierPromiseCommandRepository for PgSupplierPromiseCommand<'_> {
     type Error = Error;
 

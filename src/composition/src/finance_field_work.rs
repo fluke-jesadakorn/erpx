@@ -17,7 +17,7 @@ pub(crate) async fn read<C:Clock>(c:&mut PgConnection,current:&AuthorizedWorkCon
         }).collect();
         let href=format!("/finance/{}/{encoded}",if kind=="invoice"{"invoices"}else{"journals"});
         let result=if kind=="invoice" {
-            let context=crate::field_service_source_record::SourceRecordContext{actor:current,holding:&config.holding,company:&config.company,catalogue:&config.catalogue,clock};
+            let context=crate::field_service_source_record::SourceRecordContext{purchase_locks:None,actor:current,holding:&config.holding,company:&config.company,catalogue:&config.catalogue,clock};
             let source=crate::finance_service_invoice_history::read_service_invoice_history(c,&context,&id).await;
             match source {
                 Ok(source)=>{

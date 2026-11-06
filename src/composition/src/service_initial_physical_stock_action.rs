@@ -1286,15 +1286,17 @@ struct GenericDefaultSupply {
 }
 impl GenericDefaultSupply {
     async fn capture<C: Clock>(c: &mut PgConnection, current: &AuthorizedWorkContext, clock: &C) -> Result<Self, Error> {
-        use erpx_server_commercial::public::purchases::{current_package_catalogue, PgCompanyPurchaseReader, PurchaseRequest, PackageEnforcementMode};
+        use erpx_server_commercial::public::purchases::{current_package_catalogue, PgReadOnlyCompanyPurchaseReader, bind_purchase_read_sources, PurchaseRequest, PackageEnforcementMode};
         let catalogue=current_package_catalogue()?;
-        let mut reader=PgCompanyPurchaseReader::new(current.holding_id().clone(),current.selection().workspace().company_id.clone(),c,&catalogue);
+        let locks=bind_purchase_read_sources(c).await?;
+        let mut reader=PgReadOnlyCompanyPurchaseReader::new(current.holding_id().clone(),current.selection().workspace().company_id.clone(),c,&catalogue,&locks);
         let observed=reader.inspect(&PurchaseRequest{capabilities:vec!["supply.counts".into()],purpose:CapabilityPurpose::NewWork,mode:PackageEnforcementMode::Enforced},clock.now()).await?;
         observed.require_allowed()?;
         Ok(Self{catalogue,witness:observed.witness})
     }
     async fn require<C: Clock>(&self,c:&mut PgConnection,current:&AuthorizedWorkContext,clock:&C)->Result<(),Error>{
-        let mut reader=erpx_server_commercial::public::purchases::PgCompanyPurchaseReader::new(current.holding_id().clone(),current.selection().workspace().company_id.clone(),c,&self.catalogue);
+        let locks=erpx_server_commercial::public::purchases::bind_purchase_read_sources(c).await?;
+        let mut reader=erpx_server_commercial::public::purchases::PgReadOnlyCompanyPurchaseReader::new(current.holding_id().clone(),current.selection().workspace().company_id.clone(),c,&self.catalogue,&locks);
         reader.revalidate(&self.witness,clock.now()).await?.require_allowed()?;Ok(())
     }
 }

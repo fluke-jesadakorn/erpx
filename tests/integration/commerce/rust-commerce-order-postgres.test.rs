@@ -22,6 +22,225 @@ use sqlx::Row;
 
 const NOW: i64 = 1_800_000_000_000;
 
+#[tokio::test]
+async fn quality_masters_prove_active_product_and_scoped_warehouse_in_one_unit() {
+    use erpx_server_commerce::public::quality_masters::{inspect_quality_masters,lock_quality_masters,QualityMasterRequest};
+    fixture::with_database(3,|pool|async move {
+        setup(&pool).await;
+        let long_product=format!("product-{}","p".repeat(202));let long_warehouse=format!("warehouse-{}","w".repeat(202));
+        sqlx::query("INSERT INTO commerce_products(id,company_id,sku,name,price_minor,tracking_mode) VALUES($1,'company','LONG-P','Long product',100,'none')").bind(&long_product).execute(pool.raw()).await.unwrap();
+        sqlx::query("INSERT INTO commerce_warehouses(id,company_id,branch_id,code,name) VALUES($1,'company','branch','LONG-W','Long warehouse')").bind(&long_warehouse).execute(pool.raw()).await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_quality_masters(&mut tx).await.unwrap();
+        let company=CompanyId::new("company").unwrap();let branch=RecordId::new("branch").unwrap();let product=String::from("product-1");let warehouse=String::from("warehouse-1");
+        let request=||QualityMasterRequest::WarehouseProduct {company:company.clone(),branch:Some(branch.clone()),warehouse_id:warehouse.clone(),product_id:product.clone()};
+        let witness=inspect_quality_masters(&mut tx,request()).await.unwrap();let facts=witness.facts().unwrap();assert_eq!(facts.product_id,"product-1");assert_eq!(facts.branch_id.as_deref(),Some("branch"));witness.require_current(&mut tx).await.unwrap();
+        let other=inspect_quality_masters(&mut tx,QualityMasterRequest::WarehouseProduct {company:company.clone(),branch:Some(RecordId::new("other-branch").unwrap()),warehouse_id:warehouse.clone(),product_id:product.clone()}).await.unwrap();assert!(other.facts().is_none());
+        let foreign=inspect_quality_masters(&mut tx,QualityMasterRequest::Product {company:CompanyId::new("foreign").unwrap(),product_id:product.clone()}).await.unwrap();assert!(foreign.facts().is_none());
+        let product_witness=inspect_quality_masters(&mut tx,QualityMasterRequest::Product {company:company.clone(),product_id:product.clone()}).await.unwrap();assert_eq!(product_witness.facts().unwrap().product_version,Some(1));
+        assert!(long_product.len()>200 && long_warehouse.len()>200);
+        let physical=inspect_quality_masters(&mut tx,QualityMasterRequest::WarehouseProduct {company:company.clone(),branch:Some(branch.clone()),warehouse_id:long_warehouse.clone(),product_id:long_product.clone()}).await.unwrap();
+        let facts=physical.facts().unwrap();assert_eq!(facts.product_id,long_product);assert_eq!(facts.warehouse_id.as_deref(),Some(long_warehouse.as_str()));physical.require_current(&mut tx).await.unwrap();
+        let physical_product=inspect_quality_masters(&mut tx,QualityMasterRequest::Product {company:company.clone(),product_id:long_product.clone()}).await.unwrap();assert!(physical_product.facts().is_some());physical_product.require_current(&mut tx).await.unwrap();
+        sqlx::query("UPDATE commerce_products SET name='Unrelated display rename' WHERE id='product-1'").execute(&mut *tx).await.unwrap();witness.require_current(&mut tx).await.unwrap();product_witness.require_current(&mut tx).await.unwrap();
+        let mut other_tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other_tx).await.unwrap();assert!(witness.require_current(&mut other_tx).await.is_err());other_tx.rollback().await.unwrap();
+        sqlx::query("UPDATE commerce_warehouses SET status='archived' WHERE id='warehouse-1'").execute(&mut *tx).await.unwrap();assert!(witness.require_current(&mut tx).await.is_err());assert!(inspect_quality_masters(&mut tx,request()).await.unwrap().facts().is_none());
+        sqlx::query("UPDATE commerce_products SET status='archived' WHERE id='product-1'").execute(&mut *tx).await.unwrap();assert!(product_witness.require_current(&mut tx).await.is_err());assert!(inspect_quality_masters(&mut tx,QualityMasterRequest::Product {company,product_id:product}).await.unwrap().facts().is_none());
+        tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn quality_master_lock_waits_for_writer_then_reads_fresh_archival() {
+    use erpx_server_commerce::public::quality_masters::{inspect_quality_masters,lock_quality_masters,QualityMasterRequest};
+    use sqlx::Connection;
+    fixture::with_database(3,|pool|async move {
+        setup(&pool).await;
+        let mut writer=pool.raw().begin().await.unwrap();sqlx::query("UPDATE commerce_products SET status='archived' WHERE id='product-1'").execute(&mut *writer).await.unwrap();
+        let writer_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();let other_pool=pool.clone();let (send,receive)=tokio::sync::oneshot::channel();
+        let reader=tokio::spawn(async move {
+            let mut connection=other_pool.raw().acquire().await.unwrap();let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *connection).await.unwrap();
+            let mut tx=connection.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();send.send(pid).unwrap();
+            lock_quality_masters(&mut tx).await.unwrap();
+            let witness=inspect_quality_masters(&mut tx,QualityMasterRequest::Product {company:CompanyId::new("company").unwrap(),product_id:"product-1".into()}).await.unwrap();
+            assert!(witness.facts().is_none());witness.require_current(&mut tx).await.unwrap();tx.rollback().await.unwrap();
+        });
+        let reader_pid=receive.await.unwrap();let mut blocked=false;
+        for _ in 0..200 {blocked=sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(writer_pid).bind(reader_pid).fetch_one(pool.raw()).await.unwrap();if blocked {break;}tokio::time::sleep(std::time::Duration::from_millis(10)).await;}
+        assert!(blocked,"source lock must wait before acquiring its snapshot");writer.commit().await.unwrap();reader.await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn quality_customer_return_commerce_uses_actual_scoped_untracked_sources() {
+    use erpx_server_commerce::public::quality_return_origin::{inspect_quality_return_commerce,lock_quality_return_commerce,QualityReturnSelector};
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        sqlx::raw_sql("INSERT INTO finance_charts(id,company_id,name,base_currency,created_by,created_at,updated_at) VALUES('return-chart','company','Return chart','THB','creator',0,0); INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,created_at,updated_at) VALUES('debit','return-chart','company','100','Debit','asset',0,0),('credit','return-chart','company','400','Credit','revenue',0,0)").execute(pool.raw()).await.unwrap();
+        sqlx::raw_sql("INSERT INTO commerce_products(id,company_id,sku,name,unit,price_minor,tax_bps,status,version,tracking_mode,item_type) VALUES('return-stock','company','RS1','Stock','each',1000,0,'active',1,'none','stock'); UPDATE commerce_order_lines SET item_type='stock',product_id='return-stock' WHERE id='sales-confirmed-line'; INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,debit_account_id,credit_account_id,created_by,created_at,updated_at) VALUES('return-invoice','company','party-1','receivable','I-1','2026-11-01','2026-11-02','THB',1000,0,1000,1000,'debit','credit','creator',0,0); INSERT INTO commerce_fulfillments(id,order_id,number,fulfillment_date,created_by,created_at,version,invoice_id) VALUES('return-fulfillment','sales-confirmed','RF-1','2026-11-01','creator',0,1,'return-invoice'); INSERT INTO commerce_fulfillment_lines(id,fulfillment_id,order_line_id,quantity_milli,value_minor,subtotal_minor,tax_minor) VALUES('return-fulfillment-line','return-fulfillment','sales-confirmed-line',1000,1000,1000,0); INSERT INTO commerce_returns(id,company_id,branch_id,order_id,fulfillment_id,invoice_id,kind,number,return_date,reason,status,subtotal_minor,tax_minor,total_minor,version,requested_by,approved_by,created_at,updated_at) VALUES('return-1','company','branch','sales-confirmed','return-fulfillment','return-invoice','customer_return','RET-1','2026-11-01','reason','approved',1000,0,1000,2,'creator','reviewer',0,0); INSERT INTO commerce_return_lines(id,return_id,fulfillment_line_id,product_id,quantity_milli,value_minor,subtotal_minor,tax_minor,ordinal) VALUES('return-line','return-1','return-fulfillment-line','return-stock',1000,1000,1000,0,0)").execute(pool.raw()).await.unwrap();
+        sqlx::raw_sql("INSERT INTO inventory_lots(id,company_id,product_id,tracking_mode,lot_code,created_by,created_at) VALUES('return-lot-a','company','return-stock','lot','A','creator',0),('return-lot-b','company','return-stock','lot','B','creator',0); INSERT INTO inventory_fulfillment_lot_allocations(id,fulfillment_line_id,lot_id,quantity_milli,value_minor,disposition) VALUES('original-a','return-fulfillment-line','return-lot-a',500,500,'available'),('original-b','return-fulfillment-line','return-lot-b',500,500,'available'); ").execute(pool.raw()).await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::raw_sql("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_quality_return_commerce(&mut tx).await.unwrap();
+        let company=CompanyId::new("company").unwrap();
+        let source=inspect_quality_return_commerce(&mut tx,&company,Some(&RecordId::new("branch").unwrap()),QualityReturnSelector::UntrackedLine("return-line".into())).await.unwrap();
+        let facts=source.facts().unwrap();assert_eq!(facts.return_id,"return-1");assert_eq!(facts.approver,"reviewer");assert_eq!(facts.line_ordinal,0);assert_eq!(facts.lot_id,None);
+        source.require_current(&mut tx).await.unwrap();
+        assert!(inspect_quality_return_commerce(&mut tx,&CompanyId::new("foreign").unwrap(),None,QualityReturnSelector::UntrackedLine("return-line".into())).await.unwrap().facts().is_none());
+        assert!(inspect_quality_return_commerce(&mut tx,&company,None,QualityReturnSelector::TrackedAllocation("return-line".into())).await.unwrap().facts().is_none());
+        assert!(inspect_quality_return_commerce(&mut tx,&company,Some(&RecordId::new("other-branch").unwrap()),QualityReturnSelector::UntrackedLine("return-line".into())).await.unwrap().facts().is_none());
+        for (update, restore) in [
+            ("UPDATE commerce_returns SET status='requested' WHERE id='return-1'", "UPDATE commerce_returns SET status='approved' WHERE id='return-1'"),
+            ("UPDATE commerce_returns SET kind='supplier_return' WHERE id='return-1'", "UPDATE commerce_returns SET kind='customer_return' WHERE id='return-1'"),
+            ("UPDATE commerce_fulfillments SET invoice_id=NULL WHERE id='return-fulfillment'", "UPDATE commerce_fulfillments SET invoice_id='return-invoice' WHERE id='return-fulfillment'"),
+            ("UPDATE commerce_returns SET fulfillment_id='fulfillment-1' WHERE id='return-1'", "UPDATE commerce_returns SET fulfillment_id='return-fulfillment' WHERE id='return-1'"),
+            ("UPDATE commerce_return_lines SET product_id='product-1' WHERE id='return-line'", "UPDATE commerce_return_lines SET product_id='return-stock' WHERE id='return-line'"),
+        ] {
+            sqlx::query(update).execute(&mut *tx).await.unwrap();
+            assert!(inspect_quality_return_commerce(&mut tx,&company,None,QualityReturnSelector::UntrackedLine("return-line".into())).await.unwrap().facts().is_none());
+            sqlx::query(restore).execute(&mut *tx).await.unwrap();
+        }
+        let mut other=pool.raw().begin().await.unwrap();sqlx::raw_sql("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+        assert!(source.require_current(&mut other).await.is_err());other.rollback().await.unwrap();
+        let reader_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *tx).await.unwrap();
+        let other_pool=pool.clone();let (send,receive)=tokio::sync::oneshot::channel();
+        let writer=tokio::spawn(async move {
+            let mut writer=other_pool.raw().begin().await.unwrap();
+            let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();send.send(pid).unwrap();
+            sqlx::query("INSERT INTO commerce_return_lot_allocations(id,return_line_id,fulfillment_allocation_id,lot_id,quantity_milli,value_minor,snapshot_quantity_milli,snapshot_value_minor,snapshot_version) VALUES('blocked-lot','return-line','original-a','return-lot-a',500,500,0,0,0)").execute(&mut *writer).await.unwrap();
+            writer.rollback().await.unwrap();
+        });
+        let writer_pid=receive.await.unwrap();let mut blocked=false;
+        for _ in 0..200 {
+            blocked=sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(reader_pid).bind(writer_pid).fetch_one(pool.raw()).await.unwrap();
+            if blocked { break; }tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert!(blocked,"allocation INSERT must wait for the protected absence read");
+        tx.rollback().await.unwrap();writer.await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::raw_sql("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_quality_return_commerce(&mut tx).await.unwrap();
+        let source=inspect_quality_return_commerce(&mut tx,&company,None,QualityReturnSelector::UntrackedLine("return-line".into())).await.unwrap();
+        assert!(source.facts().is_some());
+        sqlx::raw_sql("INSERT INTO commerce_return_lot_allocations(id,return_line_id,fulfillment_allocation_id,lot_id,quantity_milli,value_minor,snapshot_quantity_milli,snapshot_value_minor,snapshot_version) VALUES('lot-b','return-line','original-b','return-lot-b',500,500,0,0,0),('lot-a','return-line','original-a','return-lot-a',500,500,0,0,0)").execute(&mut *tx).await.unwrap();
+        assert!(source.require_current(&mut tx).await.is_err());
+        assert!(inspect_quality_return_commerce(&mut tx,&company,None,QualityReturnSelector::UntrackedLine("return-line".into())).await.unwrap().facts().is_none());
+        let tracked=inspect_quality_return_commerce(&mut tx,&company,None,QualityReturnSelector::TrackedAllocation("lot-b".into())).await.unwrap();
+        let facts=tracked.facts().unwrap();assert_eq!(facts.lot_ordinal,Some(1));assert_eq!(facts.lot_id.as_deref(),Some("return-lot-b"));assert_eq!(facts.fulfillment_allocation_id.as_deref(),Some("original-b"));
+        tracked.require_current(&mut tx).await.unwrap();
+        sqlx::query("UPDATE commerce_returns SET approved_by='creator' WHERE id='return-1'").execute(&mut *tx).await.unwrap();
+        assert!(tracked.require_current(&mut tx).await.is_err());
+        tx.rollback().await.unwrap();
+        // A matching writer that starts first must finish before our first
+        // source snapshot; the fresh read must then refuse untracked origin.
+        let mut writer=pool.raw().begin().await.unwrap();
+        sqlx::query("INSERT INTO commerce_return_lot_allocations(id,return_line_id,fulfillment_allocation_id,lot_id,quantity_milli,value_minor,snapshot_quantity_milli,snapshot_value_minor,snapshot_version) VALUES('writer-first-lot','return-line','original-a','return-lot-a',500,500,0,0,0)").execute(&mut *writer).await.unwrap();
+        let writer_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();
+        let other_pool=pool.clone();let (send,receive)=tokio::sync::oneshot::channel();
+        let reader=tokio::spawn(async move {
+            use sqlx::Connection;
+            let mut connection=other_pool.raw().acquire().await.unwrap();
+            let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *connection).await.unwrap();
+            let mut tx=connection.begin().await.unwrap();
+            sqlx::raw_sql("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+            send.send(pid).unwrap();
+            lock_quality_return_commerce(&mut tx).await.unwrap();
+            let witness=inspect_quality_return_commerce(&mut tx,&CompanyId::new("company").unwrap(),None,QualityReturnSelector::UntrackedLine("return-line".into())).await.unwrap();
+            assert!(witness.facts().is_none());witness.require_current(&mut tx).await.unwrap();
+            tx.rollback().await.unwrap();
+        });
+        let reader_pid=receive.await.unwrap();let mut blocked=false;
+        for _ in 0..200 {
+            blocked=sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(writer_pid).bind(reader_pid).fetch_one(pool.raw()).await.unwrap();
+            if blocked { break; }tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert!(blocked,"reader must wait for matching allocation writer before snapshot");
+        writer.commit().await.unwrap();reader.await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn quality_receipt_commerce_witness_is_scoped_and_same_unit() {
+    use erpx_server_commerce::public::quality_receipt_origin::{inspect_quality_receipt_commerce, lock_quality_receipt_commerce};
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        sqlx::raw_sql("INSERT INTO commerce_products(id,company_id,sku,name,unit,price_minor,tax_bps,status,version,tracking_mode,item_type) VALUES('stock-product','company','STOCK-1','Stock','each',1000,0,'active',1,'none','stock'); UPDATE commerce_order_lines SET item_type='stock',product_id='stock-product' WHERE id='purchase-draft-line'; INSERT INTO commerce_fulfillments(id,order_id,number,fulfillment_date,created_by,created_at,version) VALUES('receipt-1','purchase-draft','R-1','2026-11-01','creator',0,1); INSERT INTO commerce_fulfillment_lines(id,fulfillment_id,order_line_id,quantity_milli,value_minor,subtotal_minor,tax_minor) VALUES('receipt-line','receipt-1','purchase-draft-line',1000,1000,1000,0)").execute(pool.raw()).await.unwrap();
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::raw_sql("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_quality_receipt_commerce(&mut tx).await.unwrap();
+        let company = CompanyId::new("company").unwrap();
+        let branch = RecordId::new("branch").unwrap();
+        let witness = inspect_quality_receipt_commerce(&mut tx, &company, Some(&branch), "receipt-line").await.unwrap();
+        assert_eq!(witness.facts().unwrap().order_id, "purchase-draft");
+        witness.require_current(&mut tx).await.unwrap();
+        assert!(inspect_quality_receipt_commerce(&mut tx, &CompanyId::new("foreign").unwrap(), None, "receipt-line").await.unwrap().facts().is_none());
+        assert!(inspect_quality_receipt_commerce(&mut tx, &company, Some(&RecordId::new("other-branch").unwrap()), "receipt-line").await.unwrap().facts().is_none());
+        assert!(inspect_quality_receipt_commerce(&mut tx, &company, None, "wrong-line").await.unwrap().facts().is_none());
+        let mut other = pool.raw().begin().await.unwrap();
+        sqlx::raw_sql("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+        assert!(witness.require_current(&mut other).await.is_err());
+        other.rollback().await.unwrap();
+        sqlx::query("UPDATE commerce_orders SET kind='sales' WHERE id='purchase-draft'").execute(&mut *tx).await.unwrap();
+        assert!(inspect_quality_receipt_commerce(&mut tx, &company, None, "receipt-line").await.unwrap().facts().is_none());
+        sqlx::query("UPDATE commerce_orders SET kind='purchase' WHERE id='purchase-draft'").execute(&mut *tx).await.unwrap();
+        sqlx::query("UPDATE commerce_order_lines SET item_type='service',product_id='product-1' WHERE id='purchase-draft-line'").execute(&mut *tx).await.unwrap();
+        assert!(inspect_quality_receipt_commerce(&mut tx, &company, None, "receipt-line").await.unwrap().facts().is_none());
+        sqlx::query("UPDATE commerce_order_lines SET item_type='stock',product_id='stock-product' WHERE id='purchase-draft-line'").execute(&mut *tx).await.unwrap();
+        sqlx::query("UPDATE commerce_order_lines SET description='changed' WHERE id='purchase-draft-line'").execute(&mut *tx).await.unwrap();
+        assert!(witness.require_current(&mut tx).await.is_err());
+        tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn quality_receipt_source_lock_conflicts_with_real_writers_in_both_orders() {
+    use erpx_server_commerce::public::quality_receipt_origin::lock_quality_receipt_commerce;
+    use sqlx::Connection;
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        let mut writer = pool.raw().begin().await.unwrap();
+        sqlx::query("UPDATE commerce_orders SET note='writer-first' WHERE id='purchase-draft'").execute(&mut *writer).await.unwrap();
+        let writer_pid:i32 = sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();
+        let other_pool=pool.clone();
+        let (send, receive)=tokio::sync::oneshot::channel();
+        let reader=tokio::spawn(async move {
+            let mut connection=other_pool.raw().acquire().await.unwrap();
+            let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *connection).await.unwrap();
+            let mut tx=connection.begin().await.unwrap();
+            sqlx::raw_sql("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+            send.send(pid).unwrap();
+            lock_quality_receipt_commerce(&mut tx).await.unwrap();
+            let note:String=sqlx::query_scalar("SELECT note FROM commerce_orders WHERE id='purchase-draft'").fetch_one(&mut *tx).await.unwrap();
+            assert_eq!(note,"writer-first");
+            tx.rollback().await.unwrap();
+        });
+        let reader_pid=receive.await.unwrap();
+        let mut blocked=false;
+        for _ in 0..200 {
+            blocked=sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(writer_pid).bind(reader_pid).fetch_one(pool.raw()).await.unwrap();
+            if blocked { break; } tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert!(blocked,"reader must wait for the existing writer before taking its snapshot");
+        writer.commit().await.unwrap(); reader.await.unwrap();
+        let mut reader=pool.raw().begin().await.unwrap();
+        sqlx::raw_sql("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *reader).await.unwrap();
+        lock_quality_receipt_commerce(&mut reader).await.unwrap();
+        let reader_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *reader).await.unwrap();
+        let other_pool=pool.clone();let (send,receive)=tokio::sync::oneshot::channel();
+        let writer=tokio::spawn(async move {
+            let mut tx=other_pool.raw().begin().await.unwrap();
+            let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *tx).await.unwrap();send.send(pid).unwrap();
+            sqlx::query("UPDATE commerce_orders SET note='writer-second' WHERE id='purchase-draft'").execute(&mut *tx).await.unwrap();
+            tx.rollback().await.unwrap();
+        });
+        let writer_pid=receive.await.unwrap();let mut blocked=false;
+        for _ in 0..200 {
+            blocked=sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(reader_pid).bind(writer_pid).fetch_one(pool.raw()).await.unwrap();
+            if blocked { break; } tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert!(blocked,"writer must wait for the retained source lock");
+        reader.rollback().await.unwrap();writer.await.unwrap();
+    }).await;
+}
+
 fn actor(
     user: &str,
     role: &str,

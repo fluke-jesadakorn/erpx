@@ -63,12 +63,7 @@ impl CurrentServiceInvoiceHistory {
         require_selected_actor_current(c, ctx.actor, ctx.clock.now().get()).await?;
         self.finance.require_current(c).await?;
         self.lineage.require_current(c).await?;
-        let mut reader = PgCompanyPurchaseReader::new(
-            ctx.holding.clone(),
-            ctx.company.clone(),
-            c,
-            ctx.catalogue,
-        );
+        let mut reader = ctx.purchase_reader(c);
         if reader
             .revalidate(&self.base, ctx.clock.now())
             .await?
@@ -117,7 +112,7 @@ pub(crate) async fn read_service_invoice_history<C: Clock>(
     .await?
     .ok_or_else(changed)?;
     let mut reader =
-        PgCompanyPurchaseReader::new(ctx.holding.clone(), ctx.company.clone(), c, ctx.catalogue);
+        ctx.purchase_reader(c);
     let req = |cap: &str| PurchaseRequest {
         capabilities: vec![cap.into()],
         purpose: CapabilityPurpose::History,

@@ -81,12 +81,7 @@ impl PreparedRecordsSource {
                     origin.require_current(c, ctx).await?;
                 }
                 ticket.require_current(c).await?;
-                erpx_server_commercial::public::purchases::PgCompanyPurchaseReader::new(
-                    ctx.holding.clone(),
-                    ctx.company.clone(),
-                    c,
-                    ctx.catalogue,
-                )
+                ctx.purchase_reader(c)
                 .revalidate(purchase, ctx.clock.now())
                 .await?;
                 if ctx.clock.now().get() >= ctx.actor.expires_at() {
@@ -138,7 +133,7 @@ impl<C: Clock + Sync + Send> SourceRecordPort for FieldRecordsSourcePort<'_, C> 
         }
         if reference.kind == SourceKind::SupportTicket {
             use erpx_server_commercial::public::purchases::{
-                CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
+                CapabilityPurpose, PackageEnforcementMode, PurchaseRequest,
             };
             let scope = actor.selection().workspace();
             let ticket =
@@ -203,12 +198,7 @@ impl<C: Clock + Sync + Send> SourceRecordPort for FieldRecordsSourcePort<'_, C> 
             } else {
                 None
             };
-            let purchase = PgCompanyPurchaseReader::new(
-                self.context.holding.clone(),
-                self.context.company.clone(),
-                self.connection,
-                self.context.catalogue,
-            )
+            let purchase = self.context.purchase_reader(self.connection)
             .inspect(
                 &PurchaseRequest {
                     capabilities: vec!["support.tickets".into()],

@@ -773,3 +773,154 @@ async fn final_review_expiry_after_all_batch_effects_rolls_back_grants_audits_an
         assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM company_package_grant_events WHERE package_id IN ('finance','finance-advanced')").fetch_one(pool.raw()).await.unwrap(),0);
     }).await;
 }
+
+// Regression for absent-row snapshots, not a claim of actual Quality IAM.
+// The writer uses the real grant command with the suite's synthetic policy.
+#[tokio::test]
+async fn absent_purchase_sources_must_not_survive_a_committed_company_grant() {
+    use std::time::Duration;
+    fixture::with_database(3,|pool|async move {
+        setup_commands(&pool).await;
+        sqlx::raw_sql("INSERT INTO fixture_grant_authority VALUES('phantom-company',true,'synthetic-actor'); INSERT INTO fixture_package_obligations VALUES('phantom-company','legal',0)").execute(pool.raw()).await.unwrap();
+        let company=CompanyId::new("phantom-company").unwrap();
+        let mut writer=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *writer).await.unwrap();
+        let mut grant=command("active",1,"phantom-native-grant-001");grant.grant.company_id="phantom-company".into();
+        let catalogue=current_package_catalogue().unwrap();let mut policy=GrantPolicy;
+        PgPackageGrantCommands::new(holding(),company.clone(),&mut writer,&catalogue,&mut policy,&CommandClock).apply(&grant).await.unwrap();
+        let writer_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();
+        let reader_pool=pool.clone();let (send,receive)=tokio::sync::oneshot::channel();
+        let reader=tokio::spawn(async move {
+            let mut c=reader_pool.raw().acquire().await.unwrap();let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *c).await.unwrap();
+            let mut tx=c.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+            lock_commercial_authority_sources(&mut tx).await.unwrap();
+            let initial:i64=sqlx::query_scalar("SELECT count(*) FROM company_package_grants WHERE company_id='phantom-company'").fetch_one(&mut *tx).await.unwrap();assert_eq!(initial,0);send.send(pid).unwrap();
+            let catalogue=current_package_catalogue().unwrap();
+            let mut reader=PgCompanyPurchaseReader::new(holding(),CompanyId::new("phantom-company").unwrap(),&mut tx,&catalogue);
+            let result=reader.read(&CompanyId::new("phantom-company").unwrap()).await.map(|f|(f.grants.len(),f.history.len()));
+            tx.rollback().await.unwrap();result
+        });
+        let reader_pid=receive.await.unwrap();let mut blocked=false;
+        for _ in 0..500 { blocked=sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(writer_pid).bind(reader_pid).fetch_one(pool.raw()).await.unwrap();if blocked {break;}tokio::time::sleep(Duration::from_millis(10)).await; }
+        assert!(blocked,"reader must actually await the real company grant writer");writer.commit().await.unwrap();
+        let result=tokio::time::timeout(Duration::from_secs(10),reader).await.unwrap().unwrap();
+        match result { Ok((grants,history))=>assert_eq!((grants,history),(1,1),"a retained pre-insert snapshot must not be treated as fresh"),Err(Error::Persistence(error))=>assert_eq!(error.sql_state(),Some("40001")),Err(error)=>panic!("unexpected purchase read error: {error:?}") }
+    }).await;
+}
+
+#[tokio::test]
+async fn absent_purchase_reader_holds_company_fence_until_its_unit_finishes() {
+    use std::time::Duration;
+    fixture::with_database(3,|pool|async move {
+        setup_commands(&pool).await;
+        sqlx::raw_sql("INSERT INTO fixture_grant_authority VALUES('phantom-company',true,'synthetic-actor'); INSERT INTO fixture_package_obligations VALUES('phantom-company','legal',0)").execute(pool.raw()).await.unwrap();
+        let company=CompanyId::new("phantom-company").unwrap();
+        let mut reader_tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *reader_tx).await.unwrap();
+        lock_commercial_authority_sources(&mut reader_tx).await.unwrap();let catalogue=current_package_catalogue().unwrap();
+        let mut reader=PgCompanyPurchaseReader::new(holding(),company.clone(),&mut reader_tx,&catalogue);
+        let proof=reader.inspect(&request(CapabilityPurpose::History,PackageEnforcementMode::Enforced),history_now()).await.unwrap();
+        assert!(proof.access.iter().all(|item|!item.allowed_by_mode));
+        let reader_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *reader_tx).await.unwrap();
+        let writer_pool=pool.clone();let (send,receive)=tokio::sync::oneshot::channel();
+        let writer=tokio::spawn(async move {
+            let mut connection=writer_pool.raw().acquire().await.unwrap();let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *connection).await.unwrap();
+            let mut tx=connection.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();send.send(pid).unwrap();
+            let mut grant=command("active",1,"phantom-native-grant-002");grant.grant.company_id="phantom-company".into();
+            let catalogue=current_package_catalogue().unwrap();let mut policy=GrantPolicy;
+            PgPackageGrantCommands::new(holding(),CompanyId::new("phantom-company").unwrap(),&mut tx,&catalogue,&mut policy,&CommandClock).apply(&grant).await.unwrap();tx.commit().await.unwrap();
+        });
+        let writer_pid=receive.await.unwrap();let mut blocked=false;
+        for _ in 0..500 {blocked=sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(reader_pid).bind(writer_pid).fetch_one(pool.raw()).await.unwrap();if blocked {break;}tokio::time::sleep(Duration::from_millis(10)).await;}
+        assert!(blocked,"the actual grant writer must await the retained Company fence");
+        let mut reader=PgCompanyPurchaseReader::new(holding(),company,&mut reader_tx,&catalogue);reader.revalidate(&proof.witness,history_now()).await.unwrap();drop(reader);
+        reader_tx.commit().await.unwrap();tokio::time::timeout(Duration::from_secs(10),writer).await.unwrap().unwrap();
+        let rows:(i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM company_package_grants WHERE company_id='phantom-company'),(SELECT count(*) FROM company_package_history_rights WHERE company_id='phantom-company')").fetch_one(pool.raw()).await.unwrap();assert_eq!(rows,(1,1));
+    }).await;
+}
+
+#[tokio::test]
+async fn guarded_purchase_read_retries_before_snapshot_and_sees_real_new_grant_and_history() {
+    use std::sync::{Arc,atomic::{AtomicUsize,Ordering}};
+    use std::time::Duration;
+    fixture::with_database(3,|pool|async move {
+        setup_commands(&pool).await;
+        sqlx::raw_sql("INSERT INTO fixture_grant_authority VALUES('guarded-company',true,'synthetic-actor'); INSERT INTO fixture_package_obligations VALUES('guarded-company','legal',0)").execute(pool.raw()).await.unwrap();
+        let mut writer=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *writer).await.unwrap();
+        let mut grant=command("active",1,"guarded-native-grant-001");grant.grant.company_id="guarded-company".into();let catalogue=current_package_catalogue().unwrap();let mut policy=GrantPolicy;
+        PgPackageGrantCommands::new(holding(),CompanyId::new("guarded-company").unwrap(),&mut writer,&catalogue,&mut policy,&CommandClock).apply(&grant).await.unwrap();
+        let contended=Arc::new(tokio::sync::Notify::new());let attempts=Arc::new(AtomicUsize::new(0));let other_pool=pool.clone();let signal=contended.clone();let counted=attempts.clone();
+        let reader=tokio::spawn(async move {
+            PgUnitOfWork::new(other_pool).run::<(),BusinessError,_>(TransactionOptions::default(),move|c|{let signal=signal.clone();let counted=counted.clone();Box::pin(async move {
+                counted.fetch_add(1,Ordering::SeqCst);
+                let prep=match lock_purchase_read_sources(c).await { Ok(prep)=>prep,Err(error)=>{signal.notify_one();return Err(error)} };
+                let locks=prep.bind().await?;let catalogue=current_package_catalogue()?;
+                let mut reader=PgReadOnlyCompanyPurchaseReader::new(holding(),CompanyId::new("guarded-company")?,c,&catalogue,&locks);
+                let history=reader.inspect(&request(CapabilityPurpose::History,PackageEnforcementMode::Enforced),history_now()).await?;assert!(history.access.iter().all(|entry|entry.allowed_by_mode));reader.revalidate(&history.witness,history_now()).await?;
+                let active=reader.inspect(&request(CapabilityPurpose::SettleExisting,PackageEnforcementMode::Enforced),now(1000)).await?;assert!(active.access.iter().all(|entry|entry.allowed_by_mode));Ok(())
+            })}).await
+        });
+        tokio::time::timeout(Duration::from_secs(5),contended.notified()).await.expect("reader did not fail its NOWAIT fence against the writer");writer.commit().await.unwrap();
+        tokio::time::timeout(Duration::from_secs(10),reader).await.unwrap().unwrap().unwrap();assert!(attempts.load(Ordering::SeqCst)>=2);
+        let rows:(i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM company_package_grants WHERE company_id='guarded-company'),(SELECT count(*) FROM company_package_history_rights WHERE company_id='guarded-company')").fetch_one(pool.raw()).await.unwrap();assert_eq!(rows,(1,1));
+    }).await;
+}
+
+#[tokio::test]
+async fn guarded_purchase_retry_exhaustion_has_no_owner_effect() {
+    use std::sync::{Arc,atomic::{AtomicUsize,Ordering}};
+    fixture::with_database(3,|pool|async move {
+        setup_commands(&pool).await;sqlx::query("CREATE TABLE purchase_retry_effects(id text primary key)").execute(pool.raw()).await.unwrap();
+        let mut writer=pool.raw().begin().await.unwrap();sqlx::query("LOCK TABLE company_package_grants IN ROW EXCLUSIVE MODE").execute(&mut *writer).await.unwrap();
+        let attempts=Arc::new(AtomicUsize::new(0));let counted=attempts.clone();
+        let result=PgUnitOfWork::new(pool.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),move|c|{let counted=counted.clone();Box::pin(async move {
+            counted.fetch_add(1,Ordering::SeqCst);let prep=lock_purchase_read_sources(c).await?;let _locks=prep.bind().await?;
+            sqlx::query("INSERT INTO purchase_retry_effects VALUES('should-not-exist')").execute(c).await?;Ok(())
+        })}).await;
+        assert!(matches!(result,Err(Error::Persistence(ref error)) if error.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && error.sql_state()==Some("55P03")));
+        assert_eq!(attempts.load(Ordering::SeqCst),4);let count:i64=sqlx::query_scalar("SELECT count(*) FROM purchase_retry_effects").fetch_one(pool.raw()).await.unwrap();assert_eq!(count,0);writer.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn guarded_purchase_readers_share_fence_across_companies_without_upgrade() {
+    use std::time::Duration;
+    fixture::with_database(4,|pool|async move {
+        setup_commands(&pool).await;let catalogue=current_package_catalogue().unwrap();
+        let mut first=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *first).await.unwrap();
+        let first_locks=lock_purchase_read_sources(&mut first).await.unwrap().bind().await.unwrap();
+        let mut second=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *second).await.unwrap();
+        let second_locks=lock_purchase_read_sources(&mut second).await.unwrap().bind().await.unwrap();
+        let mut first_reader=PgReadOnlyCompanyPurchaseReader::new(holding(),company(),&mut first,&catalogue,&first_locks);
+        let proof=first_reader.inspect(&request(CapabilityPurpose::NewWork,PackageEnforcementMode::Enforced),now(1000)).await.unwrap();assert!(proof.access.iter().all(|a|a.allowed_by_mode));
+        assert!(first_reader.revalidate(&proof.witness,now(3000)).await.is_err());first_reader.revalidate(&proof.witness,now(1000)).await.unwrap();drop(first_reader);
+        let mut second_reader=PgReadOnlyCompanyPurchaseReader::new(holding(),CompanyId::new("foreign").unwrap(),&mut second,&catalogue,&second_locks);
+        assert!(second_reader.inspect(&request(CapabilityPurpose::NewWork,PackageEnforcementMode::Enforced),now(1000)).await.unwrap().access.iter().all(|a|a.allowed_by_mode));
+        assert!(second_reader.revalidate(&proof.witness,now(1000)).await.is_err());drop(second_reader);
+        let first_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *first).await.unwrap();
+        let writer_pool=pool.clone();let (send,receive)=tokio::sync::oneshot::channel();
+        let writer=tokio::spawn(async move {
+            let mut c=writer_pool.raw().acquire().await.unwrap();let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *c).await.unwrap();
+            let mut tx=c.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();send.send(pid).unwrap();
+            let catalogue=current_package_catalogue().unwrap();let mut policy=GrantPolicy;PgPackageGrantCommands::new(holding(),company(),&mut tx,&catalogue,&mut policy,&CommandClock).apply(&command("draining",2,"guarded-reader-first-001")).await.unwrap();tx.commit().await.unwrap();
+        });
+        let writer_pid=receive.await.unwrap();let mut blocked=false;
+        for _ in 0..500 {blocked=sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(first_pid).bind(writer_pid).fetch_one(pool.raw()).await.unwrap();if blocked {break;}tokio::time::sleep(Duration::from_millis(10)).await;}
+        assert!(blocked,"writer must wait for guarded read-only fence");
+        first.commit().await.unwrap();second.commit().await.unwrap();tokio::time::timeout(Duration::from_secs(10),writer).await.unwrap().unwrap();
+        let state:String=sqlx::query_scalar("SELECT state FROM company_package_grants WHERE company_id='company' AND package_id='legal'").fetch_one(pool.raw()).await.unwrap();assert_eq!(state,"draining");
+    }).await;
+}
+
+#[tokio::test]
+async fn guarded_purchase_read_accepts_stronger_locks_and_rejects_cross_unit() {
+    fixture::with_database(3,|pool|async move {
+        setup(&pool).await;
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        sqlx::query("LOCK TABLE company_package_grants,company_package_history_rights IN SHARE ROW EXCLUSIVE MODE").execute(&mut *tx).await.unwrap();
+        let locks=bind_purchase_read_sources(&mut tx).await.unwrap();let catalogue=current_package_catalogue().unwrap();
+        let mut reader=PgReadOnlyCompanyPurchaseReader::new(holding(),company(),&mut tx,&catalogue,&locks);let proof=reader.inspect(&request(CapabilityPurpose::NewWork,PackageEnforcementMode::Enforced),now(1000)).await.unwrap();drop(reader);
+        let mut other=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();assert!(bind_purchase_read_sources(&mut other).await.is_err());
+        let mut wrong=PgReadOnlyCompanyPurchaseReader::new(holding(),company(),&mut other,&catalogue,&locks);assert!(wrong.inspect(&request(CapabilityPurpose::NewWork,PackageEnforcementMode::Enforced),now(1000)).await.is_err());assert!(wrong.revalidate(&proof.witness,now(1000)).await.is_err());drop(wrong);other.rollback().await.unwrap();tx.rollback().await.unwrap();
+        let mut plain=pool.raw().acquire().await.unwrap();assert!(lock_purchase_read_sources(&mut plain).await.is_err());
+    }).await;
+}

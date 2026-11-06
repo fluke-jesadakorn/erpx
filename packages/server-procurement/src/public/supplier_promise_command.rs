@@ -1,5 +1,5 @@
 //! Native Procurement supplier promise record command.
-pub use crate::adapters::supplier_promise_command::PgSupplierPromiseCommand;
+pub use crate::adapters::supplier_promise_command::{PgSupplierPromiseCommand, CurrentSupplierPromiseHistory, inspect_supplier_promise_history, lock_supplier_promise_history_writes};
 pub use crate::application::supplier_promise_command::{
     SupplierPromiseCommandFuture, SupplierPromiseCommandRepository, record_supplier_promise,
     promise_line_id, StoredSupplierPromiseReceipt, SupplierPromiseCommitPlan,

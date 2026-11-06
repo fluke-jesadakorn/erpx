@@ -219,6 +219,7 @@ impl<C: Clock + Send + Sync, I: IdentifierSource + Send> Unit<'_, C, I> {
         department: Option<&str>,
     ) -> Result<bool, Error> {
         let context = SourceRecordContext {
+            purchase_locks: None,
             actor: self.current,
             holding: self.current.holding_id(),
             company: &self.current.selection().workspace().company_id,
@@ -276,6 +277,7 @@ impl<C: Clock + Send + Sync, I: IdentifierSource + Send> CollaborationSourcePort
         reference: &SourceReference,
     ) -> Result<(SourceRecord, Self::Witness), Error> {
         let context = SourceRecordContext {
+            purchase_locks: None,
             actor: self.current,
             holding: self.current.holding_id(),
             company: &self.current.selection().workspace().company_id,
@@ -295,6 +297,7 @@ impl<C: Clock + Send + Sync, I: IdentifierSource + Send> CollaborationSourcePort
     }
     async fn require_current(&mut self, witness: &Self::Witness) -> Result<(), Error> {
         let context = SourceRecordContext {
+            purchase_locks: None,
             actor: self.current,
             holding: self.current.holding_id(),
             company: &self.current.selection().workspace().company_id,
