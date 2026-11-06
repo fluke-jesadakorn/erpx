@@ -3,9 +3,9 @@
 use erpx_server_pos::public::commands::{
     CashApproveInput, PosActor, PosCashMovement, PosCommand, PosCommandRepository, PosFinancePort,
     PosFulfillment, PosFulfillmentInsert, PosFuture, PosHospitalityPort, PosJournalRequest, PosLine,
-    PosFulfillmentSplitFacts, PosFulfillmentStock, PosLineDetail, PosLineDiscountRow, PosLineInsert,
-    PosLineSplitRow, PosOperation, PosOrganizationPort, PosPaymentInsert, PosReceipt,
-    PosReceiptRequest, PosRefund, PosStockRow,
+    PosConsumptionPart, PosFulfillmentSplitFacts, PosFulfillmentStock, PosInventoryPort,
+    PosInvoiceRequest, PosLineDetail, PosLineDiscountRow, PosLineInsert, PosLineSplitRow, PosOperation,
+    PosOrganizationPort, PosPaymentInsert, PosReceipt, PosReceiptRequest, PosRefund, PosStockRow,
     PosRegister, PosResult, PosSale, PosSettings, PosShift, execute_pos_command,
 };
 use erpx_server_shared::public::{
@@ -35,7 +35,7 @@ fn settings() -> PosSettings {
         currency: "THB".into(),
         cashier_discount_bps: 0,
         accounts_json:
-            r#"{"chartId":"chart","cash":"cash","cashTransfer":"transfer","cashDifference":"difference"}"#
+            r#"{"chartId":"chart","cash":"cash","cashTransfer":"transfer","cashDifference":"difference","edc":"edc","receivable":"receivable","advance":"advance","revenue":"revenue","outputTax":"outputTax","cogs":"cogs","inventory":"inventory"}"#
                 .into(),
         accounting_approved_by: Some("finance".into()),
     }
@@ -444,6 +444,40 @@ impl PosCommandRepository for Probe {
         Box::pin(async move { Ok(self.reject) })
     }
 
+    fn sale_paid_total<'a>(&'a mut self, _: &'a str) -> PosFuture<'a, i64> {
+        Box::pin(async { Ok(0) })
+    }
+    fn sale_pending_payments<'a>(&'a mut self, _: &'a str) -> PosFuture<'a, bool> {
+        Box::pin(async { Ok(false) })
+    }
+    fn delete_reservation<'a>(&'a mut self, _: &'a str, _: &'a str) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn insert_stock_move<'a>(
+        &'a mut self,
+        _: &'a str,
+        _: &'a str,
+        _: &'a str,
+        _: &'a str,
+        _: &'a str,
+        _: i64,
+        _: i64,
+        _: &'a str,
+        _: &'a str,
+        _: TimestampMillis,
+    ) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn mark_fulfillment_delivered<'a>(&'a mut self, _: &'a str, _: i64) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn complete_sale<'a>(&'a mut self, _: &'a str, _: TimestampMillis) -> PosFuture<'a, bool> {
+        Box::pin(async { Ok(true) })
+    }
+    fn attach_invoice<'a>(&'a mut self, _: &'a str, _: &'a str) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
     fn payment_reserved<'a>(&'a mut self, _: &'a str) -> PosFuture<'a, i64> {
         Box::pin(async { Ok(0) })
     }
@@ -568,6 +602,23 @@ impl PosFinancePort for Finance {
         self.calls.push(format!("receipt:{}", request.amount_minor));
         Box::pin(async { Ok(()) })
     }
+    fn record_invoice<'a>(&'a mut self, request: &'a PosInvoiceRequest) -> PosFuture<'a, ()> {
+        self.calls.push(format!("invoice:{}", request.total_minor));
+        Box::pin(async { Ok(()) })
+    }
+}
+#[derive(Default)]
+struct Inventory {
+    calls: Vec<String>,
+}
+impl PosInventoryPort for Inventory {
+    fn queue_consumption<'a>(
+        &'a mut self,
+        parts: &'a [PosConsumptionPart],
+    ) -> PosFuture<'a, i64> {
+        self.calls.push(format!("consume:{}", parts.len()));
+        Box::pin(async move { Ok(parts.iter().map(|part| part.expected_value_minor).sum()) })
+    }
 }
 #[derive(Default)]
 struct Hospitality {
@@ -616,6 +667,7 @@ fn run(
         None,
         None,
         finance,
+        &mut Inventory::default(),
         hospitality,
         &mut Organization,
         NOW,
@@ -643,6 +695,7 @@ fn permission_module_expiry_and_department_precede_every_read() {
             None,
             None,
             &mut Finance::default(),
+            &mut Inventory::default(),
             &mut Hospitality::default(),
             &mut Organization,
             NOW,
