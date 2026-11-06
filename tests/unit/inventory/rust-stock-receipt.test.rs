@@ -330,3 +330,83 @@ fn refuses_available_receipt_into_a_quarantined_lot_but_allows_quarantine() {
         "LOT_UNAVAILABLE"
     );
 }
+
+#[test]
+fn trims_receipt_identities_before_dedupe_and_lookup() {
+    let plan = prepare_stock_receipt(
+        &source("lot", vec![]),
+        &input(
+            1_000,
+            1_000,
+            vec![allocation(
+                Some("  L-A  "),
+                None,
+                1_000,
+                ReceiptDisposition::Available,
+            )],
+        ),
+    )
+    .unwrap();
+    assert_eq!(
+        plan.lines[0].allocations[0].lot_code.as_deref(),
+        Some("L-A")
+    );
+    assert_eq!(
+        prepare_stock_receipt(
+            &source("lot", vec![]),
+            &input(
+                2_000,
+                2_000,
+                vec![
+                    allocation(Some("L-A"), None, 1_000, ReceiptDisposition::Available),
+                    allocation(
+                        Some("\u{00a0}L-A"),
+                        None,
+                        1_000,
+                        ReceiptDisposition::Available
+                    ),
+                ],
+            ),
+        )
+        .unwrap_err()
+        .code,
+        "LOT_ALLOCATION_DUPLICATE"
+    );
+    assert_eq!(
+        prepare_stock_receipt(
+            &source("lot", vec![]),
+            &input(
+                1_000,
+                1_000,
+                vec![allocation(
+                    Some("   "),
+                    None,
+                    1_000,
+                    ReceiptDisposition::Available,
+                )],
+            ),
+        )
+        .unwrap_err()
+        .code,
+        "STOCK_RECEIPT_IDENTITY_REQUIRED"
+    );
+}
+
+#[test]
+fn receipt_identities_use_utf16_bounds_like_the_transport() {
+    let emoji_lot = "😀".repeat(40);
+    assert!(prepare_stock_receipt(
+        &source("lot", vec![]),
+        &input(
+            1_000,
+            1_000,
+            vec![allocation(
+                Some(emoji_lot.as_str()),
+                None,
+                1_000,
+                ReceiptDisposition::Available,
+            )],
+        ),
+    )
+    .is_ok());
+}

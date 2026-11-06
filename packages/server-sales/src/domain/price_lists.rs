@@ -120,12 +120,10 @@ pub struct PriceListInput {
 
 impl PriceListInput {
     pub fn normalized(mut self) -> Result<Self, BusinessError> {
-        self.name = self.name.trim().to_owned();
+        self.name = js_trim(&self.name).to_owned();
         self.currency = self.currency.trim().to_ascii_uppercase();
-        if self.name.chars().count() < NAME_MIN
-            || self.name.chars().count() > NAME_MAX
-            || self.name.chars().any(char::is_control)
-        {
+        let name_len = cp_len(&self.name);
+        if name_len < NAME_MIN || name_len > NAME_MAX || self.name.chars().any(char::is_control) {
             return Err(request_invalid());
         }
         if self.currency.len() != 3 || !self.currency.bytes().all(|byte| byte.is_ascii_uppercase())
@@ -221,10 +219,11 @@ pub struct PriceListDecision {
 
 impl PriceListDecision {
     pub fn normalized(mut self) -> Result<Self, BusinessError> {
-        self.reason = self.reason.trim().to_owned();
+        self.reason = js_trim(&self.reason).to_owned();
+        let reason_len = cp_len(&self.reason);
         if self.expected_version < 1
-            || self.reason.chars().count() < REASON_MIN
-            || self.reason.chars().count() > REASON_MAX
+            || reason_len < REASON_MIN
+            || reason_len > REASON_MAX
             || !valid_note(&self.reason, REASON_MAX)
         {
             return Err(request_invalid());
@@ -478,8 +477,38 @@ fn validate_identifier(value: &str) -> Result<(), ()> {
     RecordId::new(value).map(|_| ()).map_err(|_| ())
 }
 
+/// ECMAScript `String.prototype.trim` whitespace: WhiteSpace plus
+/// LineTerminator. Rust's `str::trim` additionally strips U+0085 (White_Space
+/// in Unicode but not in JavaScript `trim`) and keeps U+FEFF, so the exact
+/// set is spelled out to match the retained Zod `trim()` boundary of
+/// `packages/server-sales/src/domain/price-lists.ts`.
+fn js_trim(value: &str) -> &str {
+    value.trim_matches(|character| {
+        matches!(
+            character,
+            '\u{0009}'..='\u{000D}'
+                | '\u{0020}'
+                | '\u{00A0}'
+                | '\u{1680}'
+                | '\u{2000}'..='\u{200A}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202F}'
+                | '\u{205F}'
+                | '\u{3000}'
+                | '\u{FEFF}'
+        )
+    })
+}
+
+/// Zod 4 counts code points, not UTF-16 units, for `.length`/min/max.
+/// Astral characters are 1 code point (2 UTF-16 units, 4 bytes).
+fn cp_len(value: &str) -> usize {
+    value.chars().count()
+}
+
 fn valid_note(value: &str, limit: usize) -> bool {
-    value.len() <= limit
+    cp_len(value) <= limit
         && !value
             .chars()
             .any(|character| character.is_control() && !matches!(character, '\n' | '\r' | '\t'))
@@ -529,8 +558,8 @@ impl PriceListRow {
         if self.company_id != company.as_str()
             || self.id.is_empty()
             || self.id.len() > 200
-            || self.name.chars().count() < NAME_MIN
-            || self.name.chars().count() > NAME_MAX
+            || cp_len(&self.name) < NAME_MIN
+            || cp_len(&self.name) > NAME_MAX
             || self.name.chars().any(char::is_control)
             || self.currency.len() != 3
             || !self.currency.bytes().all(|byte| byte.is_ascii_uppercase())
@@ -904,5 +933,115 @@ mod tests {
         );
         let active_without_fields = json!({"id":"price-list-1","status":"active","version":2});
         assert!(parse_receipt_result(&active_without_fields.to_string()).is_ok());
+    }
+
+    #[test]
+    fn js_trim_matches_ecmascript_whitespace_set() {
+        assert_eq!(js_trim("\u{FEFF} Standard \u{00A0}"), "Standard");
+        assert_eq!(js_trim("\u{2000}pricing\u{2028}"), "pricing");
+        // U+0085 is Unicode White_Space but not JavaScript trim whitespace.
+        assert_eq!(js_trim("\u{0085}abc\u{0085}"), "\u{0085}abc\u{0085}");
+        // Zero-width space is never trimmed.
+        assert_eq!(js_trim("a\u{200B}"), "a\u{200B}");
+        assert_eq!(cp_len("😀"), 1);
+        assert_eq!(cp_len("ก"), 1);
+    }
+
+    fn input_with_name(name: String) -> PriceListInput {
+        PriceListInput {
+            name,
+            currency: "THB".into(),
+            customer_id: None,
+            valid_from: "2026-11-01".into(),
+            valid_until: "2026-11-30".into(),
+            max_auto_discount_bps: 500,
+            items: vec![PriceListItemInput {
+                product_id: "product-1".into(),
+                price_minor: 1_000,
+                tax_bps: 700,
+            }],
+        }
+    }
+
+    #[test]
+    fn price_list_name_counts_js_codepoints_after_ecma_trim() {
+        // Zod 4 counts code points: 160 emoji are 160 code points and pass,
+        // 161 exceed the bound.
+        assert!(input_with_name("😀".repeat(160)).normalized().is_ok());
+        assert!(input_with_name("😀".repeat(161)).normalized().is_err());
+        // Thai text counts one unit per code point regardless of UTF-8 width.
+        assert!(input_with_name("ก".repeat(160)).normalized().is_ok());
+        assert!(input_with_name("ก".repeat(161)).normalized().is_err());
+        // ECMAScript trim strips U+FEFF before measuring, so a padded
+        // 160-unit name passes.
+        let padded = input_with_name(format!("\u{feff}{}\u{feff}", "a".repeat(160)))
+            .normalized()
+            .unwrap();
+        assert_eq!(padded.name, "a".repeat(160));
+        // JS trim does not strip NEL (U+0085): it remains and is a control
+        // character, so Rust must reject rather than trim and accept.
+        assert!(
+            input_with_name(format!("\u{0085}{}", "a".repeat(159)))
+                .normalized()
+                .is_err()
+        );
+        // A FEFF-only name is empty after trim and fails the minimum.
+        assert!(input_with_name("\u{feff}".into()).normalized().is_err());
+    }
+
+    #[test]
+    fn decision_reason_counts_js_codepoints_after_ecma_trim() {
+        let decision = |reason: String| {
+            PriceListDecision {
+                expected_version: 1,
+                action: PriceListDecisionAction::Activate,
+                reason,
+            }
+            .normalized()
+        };
+        // 1000 emoji are 1000 code points and pass; 1001 exceed the bound.
+        assert!(decision("😀".repeat(1000)).is_ok());
+        assert!(decision("😀".repeat(1001)).is_err());
+        // Thai reasons at the unit bound were previously rejected by the
+        // byte-length readback note check (1000 units = 3000 bytes).
+        assert!(decision("ก".repeat(1000)).is_ok());
+        assert!(decision("ก".repeat(1001)).is_err());
+        // Trim before measuring: FEFF padding does not count.
+        assert!(decision(format!("\u{feff}{}\u{feff}", "a".repeat(1000))).is_ok());
+        // NEL is not trimmed and is a control character inside the reason.
+        assert!(decision(format!("\u{0085}{}", "a".repeat(999))).is_err());
+    }
+
+    #[test]
+    fn persisted_row_name_shares_the_codepoint_boundary() {
+        let company = CompanyId::new("company").unwrap();
+        let draft_with_name = |name: String| PriceListRow {
+            id: "price-list-1".into(),
+            company_id: "company".into(),
+            name,
+            currency: "THB".into(),
+            customer_id: None,
+            valid_from: "2026-11-01".into(),
+            valid_until: "2026-11-30".into(),
+            max_auto_discount_bps: 500,
+            status: PriceListStatus::Draft.as_str().into(),
+            version: 1,
+            created_by: "creator".into(),
+            prepared_by: "creator".into(),
+            approved_by: None,
+            approval_reason: None,
+            activated_at: None,
+            created_at: 1,
+            updated_at: 1,
+        };
+        assert!(draft_with_name("ก".repeat(160)).validate(&company).is_ok());
+        assert!(draft_with_name("😀".repeat(160)).validate(&company).is_ok());
+        assert_eq!(
+            draft_with_name("😀".repeat(161))
+                .validate(&company)
+                .unwrap_err()
+                .code,
+            "SALES_PRICING_SOURCE_INVALID"
+        );
     }
 }

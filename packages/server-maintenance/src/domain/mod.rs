@@ -1,3 +1,4 @@
+pub(crate) mod preventive_input;
 pub(crate) mod read;
 pub(crate) mod work;
 

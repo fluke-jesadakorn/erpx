@@ -43,6 +43,10 @@ name = "schedule_commands"
 path = "../../tests/unit/maintenance/rust-schedule-commands.test.rs"
 
 [[test]]
+name = "preventive_action_wire"
+path = "../../tests/unit/maintenance/rust-preventive-action-wire.test.rs"
+
+[[test]]
 name = "maintenance_read_postgres"
 path = "../../tests/integration/maintenance/rust-maintenance-read-postgres.test.rs"
 

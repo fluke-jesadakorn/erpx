@@ -1,5 +1,11 @@
 //! Original B0 Maintenance schema normalization, separate from current authority.
-use crate::application::work_commands::{NormalizedMaintenanceChange, NormalizedMaintenanceCreate};
+use crate::application::preventive_commands::NormalizedMaintenancePreventiveAction;
+use crate::application::work_commands::{
+    NormalizedMaintenanceChange, NormalizedMaintenanceCreate,
+};
+use crate::domain::preventive_input::{
+    MaintenancePreventiveAction, MaintenancePreventiveActionInput,
+};
 use crate::domain::work_input::*;
 use erpx_server_workflow::public::commands::CommandJson;
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -457,6 +463,58 @@ pub fn normalize_maintenance_create(
             owner_id: text(&json, "ownerId")?,
             scheduled_at,
             reason: text(&json, "reason")?,
+        },
+        json.as_str().to_owned(),
+    ))
+}
+
+/// Preventive-plan action normalization (`activate`, `pause`, `cancel`,
+/// `generate`). This is a plain Zod object rather than a discriminated union:
+/// an invalid action records `invalid_value` and still validates the remaining
+/// fields in schema order. Trim, UTF-16 code-point lengths and canonical
+/// receipt bytes follow the shared `Validation` helpers.
+pub fn normalize_maintenance_preventive_action(
+    bytes: &[u8],
+) -> Result<NormalizedMaintenancePreventiveAction, MaintenanceWireFailure> {
+    let body = document(bytes)?;
+    let mut check = Validation::default();
+    let mut fields = vec![];
+    if let Some(v) = check.enumeration(
+        property(&body, "action"),
+        &field("action"),
+        &["activate", "pause", "cancel", "generate"],
+    ) {
+        fields.push(("action", v));
+    }
+    if let Some(v) = check.integer(
+        property(&body, "expectedVersion"),
+        &field("expectedVersion"),
+        false,
+    ) {
+        fields.push(("expectedVersion", v));
+    }
+    if let Some(v) = check.string(
+        property(&body, "reason"),
+        &field("reason"),
+        3,
+        Some(2000),
+        true,
+    ) {
+        fields.push(("reason", v));
+    }
+    let json = check.finish(&fields)?;
+    let action = match text(&json, "action")?.as_str() {
+        "activate" => MaintenancePreventiveAction::Activate,
+        "pause" => MaintenancePreventiveAction::Pause,
+        "cancel" => MaintenancePreventiveAction::Cancel,
+        "generate" => MaintenancePreventiveAction::Generate,
+        _ => return Err(MaintenanceWireFailure::json()),
+    };
+    Ok(NormalizedMaintenancePreventiveAction::new(
+        MaintenancePreventiveActionInput {
+            expected_version: int(&json, "expectedVersion")?,
+            reason: text(&json, "reason")?,
+            action,
         },
         json.as_str().to_owned(),
     ))

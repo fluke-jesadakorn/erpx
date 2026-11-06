@@ -11,6 +11,9 @@ use std::future::Future;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MaintenanceCommandInputJson(String);
 impl MaintenanceCommandInputJson {
+    pub(crate) fn from_owned(json: String) -> Self {
+        Self(json)
+    }
     pub fn as_str(&self) -> &str {
         &self.0
     }

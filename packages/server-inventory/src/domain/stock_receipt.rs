@@ -9,6 +9,11 @@ pub const MAX_LINES: usize = 200;
 pub const MAX_ALLOCATIONS: usize = 500;
 pub const MAX_SAFE: i64 = 9_007_199_254_740_991;
 pub const MAX_LOTS_PER_LINE: usize = 200;
+/// Commerce transport bounds for free-text identities. Zod 4 counts trimmed
+/// strings in code points, so the portable guard must not use Rust
+/// byte lengths here.
+pub const MAX_LOT_CODE: usize = 100;
+pub const MAX_SERIAL: usize = 160;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -239,6 +244,54 @@ fn required(value: &Option<String>, max: usize) -> Result<String, BusinessError>
     }
 }
 
+/// ECMAScript String.prototype.trim whitespace, used by retained Zod schemas.
+pub(crate) fn js_trim(value: &str) -> &str {
+    value.trim_matches(|c: char| {
+        matches!(
+            c,
+            '\u{0009}'..='\u{000d}'
+                | '\u{0020}'
+                | '\u{00a0}'
+                | '\u{1680}'
+                | '\u{2000}'..='\u{200a}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202f}'
+                | '\u{205f}'
+                | '\u{3000}'
+                | '\u{feff}'
+        )
+    })
+}
+
+/// Zod 4 counts code points, not UTF-16 units, for min/max.
+fn cp_len(value: &str) -> usize {
+    value.chars().count()
+}
+
+/// Lot/serial identities arrive Zod-trimmed; the portable guard must trim
+/// again because plan data may cross a module boundary before application.
+/// Internal identifiers and ISO dates keep byte-length checks above.
+fn required_identity(value: &Option<String>, max: usize) -> Result<String, BusinessError> {
+    match value.as_ref() {
+        Some(text) => {
+            let trimmed = js_trim(text);
+            if !trimmed.is_empty() && cp_len(trimmed) <= max {
+                Ok(trimmed.to_owned())
+            } else {
+                Err(invalid(
+                    "STOCK_RECEIPT_IDENTITY_REQUIRED",
+                    "Enter the lot or serial identity for every allocation.",
+                ))
+            }
+        }
+        _ => Err(invalid(
+            "STOCK_RECEIPT_IDENTITY_REQUIRED",
+            "Enter the lot or serial identity for every allocation.",
+        )),
+    }
+}
+
 fn optional(value: &Option<String>, max: usize) -> Result<Option<String>, BusinessError> {
     match value.as_ref() {
         None => Ok(None),
@@ -347,7 +400,7 @@ pub fn validate_stock_receipt_plan(plan: &StockReceiptPlan) -> Result<(), Busine
                             ));
                         }
                         (
-                            required(&allocation.lot_code, 200)?,
+                            required_identity(&allocation.lot_code, MAX_LOT_CODE)?,
                             allocation.disposition == ReceiptDisposition::Quarantine,
                         )
                     }
@@ -359,7 +412,7 @@ pub fn validate_stock_receipt_plan(plan: &StockReceiptPlan) -> Result<(), Busine
                             ));
                         }
                         (
-                            required(&allocation.serial_number, 200)?,
+                            required_identity(&allocation.serial_number, MAX_SERIAL)?,
                             allocation.disposition == ReceiptDisposition::Quarantine,
                         )
                     }
@@ -379,8 +432,8 @@ pub fn validate_stock_receipt_plan(plan: &StockReceiptPlan) -> Result<(), Busine
                 let reason = allocation
                     .quarantine_reason
                     .as_deref()
-                    .map(str::trim)
-                    .filter(|reason| (3..=2_000).contains(&reason.len()));
+                    .map(js_trim)
+                    .filter(|reason| (3..=2_000).contains(&cp_len(reason)));
                 if quarantined {
                     let due = allocation
                         .quarantine_due_date
@@ -630,7 +683,7 @@ pub fn prepare_stock_receipt(
                             "Use a lot code, not a serial number, for this product.",
                         ));
                     }
-                    let lot_code = required(&allocation.lot_code, 200)?;
+                    let lot_code = required_identity(&allocation.lot_code, MAX_LOT_CODE)?;
                     (Some(lot_code.clone()), None, lot_code)
                 }
                 "serial" => {
@@ -646,7 +699,7 @@ pub fn prepare_stock_receipt(
                             "Each serial allocation must be exactly one unit.",
                         ));
                     }
-                    let serial = required(&allocation.serial_number, 200)?;
+                    let serial = required_identity(&allocation.serial_number, MAX_SERIAL)?;
                     (None, Some(serial.clone()), serial)
                 }
                 _ => {
@@ -687,8 +740,8 @@ pub fn prepare_stock_receipt(
                 let reason = allocation
                     .quarantine_reason
                     .as_deref()
-                    .map(str::trim)
-                    .filter(|reason| (3..=2_000).contains(&reason.len()))
+                    .map(js_trim)
+                    .filter(|reason| (3..=2_000).contains(&cp_len(reason)))
                     .ok_or_else(|| {
                         invalid(
                             "QUARANTINE_EVIDENCE_REQUIRED",
@@ -1024,6 +1077,162 @@ mod tests {
                 .unwrap_err()
                 .code,
             "QUARANTINE_EVIDENCE_REQUIRED"
+        );
+    }
+
+    #[test]
+    fn js_trim_matches_the_ecmascript_whitespace_set() {
+        assert_eq!(js_trim("\u{feff} \u{00a0}L-A\u{3000}\t"), "L-A");
+        // U+0085 is Unicode White_Space but not an ECMAScript trim character.
+        assert_eq!(js_trim("\u{0085}ab\u{0085}"), "\u{0085}ab\u{0085}");
+        assert_eq!(cp_len("😀"), 1);
+    }
+
+    #[test]
+    fn trims_identities_and_rejects_whitespace_only_codes() {
+        let plan = prepare_stock_receipt(
+            &source("lot", vec![]),
+            &input(
+                1_000,
+                1_000,
+                vec![allocation(
+                    Some("  L-A  "),
+                    None,
+                    1_000,
+                    ReceiptDisposition::Available,
+                )],
+            ),
+        )
+        .unwrap();
+        assert_eq!(
+            plan.lines[0].allocations[0].lot_code.as_deref(),
+            Some("L-A")
+        );
+        for blank in ["", "   ", "\u{00a0}\u{2003}"] {
+            assert_eq!(
+                prepare_stock_receipt(
+                    &source("lot", vec![]),
+                    &input(
+                        1_000,
+                        1_000,
+                        vec![allocation(
+                            Some(blank),
+                            None,
+                            1_000,
+                            ReceiptDisposition::Available,
+                        )],
+                    ),
+                )
+                .unwrap_err()
+                .code,
+                "STOCK_RECEIPT_IDENTITY_REQUIRED"
+            );
+        }
+        // Trimming happens before duplicate detection on both sides.
+        assert_eq!(
+            prepare_stock_receipt(
+                &source("lot", vec![]),
+                &input(
+                    2_000,
+                    2_000,
+                    vec![
+                        allocation(Some("L-A"), None, 1_000, ReceiptDisposition::Available),
+                        allocation(Some(" L-A\t"), None, 1_000, ReceiptDisposition::Available),
+                    ],
+                ),
+            )
+            .unwrap_err()
+            .code,
+            "LOT_ALLOCATION_DUPLICATE"
+        );
+    }
+
+    #[test]
+    fn bounds_identities_by_utf16_not_utf8_bytes() {
+        // 40 astral characters are 40 code points.
+        let emoji_lot = "😀".repeat(40);
+        let plan = prepare_stock_receipt(
+            &source("lot", vec![]),
+            &input(
+                1_000,
+                1_000,
+                vec![allocation(
+                    Some(emoji_lot.as_str()),
+                    None,
+                    1_000,
+                    ReceiptDisposition::Available,
+                )],
+            ),
+        )
+        .unwrap();
+        assert_eq!(
+            plan.lines[0].allocations[0].lot_code.as_ref(),
+            Some(&emoji_lot)
+        );
+        let too_long_lot = "😀".repeat(101);
+        assert_eq!(
+            prepare_stock_receipt(
+                &source("lot", vec![]),
+                &input(
+                    1_000,
+                    1_000,
+                    vec![allocation(
+                        Some(too_long_lot.as_str()),
+                        None,
+                        1_000,
+                        ReceiptDisposition::Available,
+                    )],
+                ),
+            )
+            .unwrap_err()
+            .code,
+            "STOCK_RECEIPT_IDENTITY_REQUIRED"
+        );
+        let too_long_serial = "S".repeat(161);
+        assert_eq!(
+            prepare_stock_receipt(
+                &source("serial", vec![]),
+                &input(
+                    1_000,
+                    1_000,
+                    vec![allocation(
+                        None,
+                        Some(too_long_serial.as_str()),
+                        1_000,
+                        ReceiptDisposition::Available,
+                    )],
+                ),
+            )
+            .unwrap_err()
+            .code,
+            "STOCK_RECEIPT_IDENTITY_REQUIRED"
+        );
+    }
+
+    #[test]
+    fn quarantine_reason_uses_js_trim_and_utf16_length() {
+        // A leading FEFF is stripped, so only "ab" remains (below the 3 minimum).
+        let mut short = allocation(Some("L-A"), None, 1_000, ReceiptDisposition::Quarantine);
+        short.quarantine_reason = Some("\u{feff}ab".into());
+        assert_eq!(
+            prepare_stock_receipt(&source("lot", vec![]), &input(1_000, 1_000, vec![short]))
+                .unwrap_err()
+                .code,
+            "QUARANTINE_EVIDENCE_REQUIRED"
+        );
+        // 1000 emoji are 1000 code points and must survive normalization (Zod counts code points).
+        let mut long = allocation(Some("L-A"), None, 1_000, ReceiptDisposition::Quarantine);
+        long.quarantine_reason = Some("😀".repeat(1000));
+        let plan = prepare_stock_receipt(&source("lot", vec![]), &input(1_000, 1_000, vec![long]))
+            .unwrap();
+        assert_eq!(
+            cp_len(
+                plan.lines[0].allocations[0]
+                    .quarantine_reason
+                    .as_deref()
+                    .unwrap()
+            ),
+            1000
         );
     }
 }

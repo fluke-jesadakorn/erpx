@@ -1,5 +1,6 @@
 //! Native standalone sales-invoice create. Finance owns the invoice, line
 //! revision, Money evidence and command receipt in the caller's transaction.
+use crate::domain::money::js_trim;
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
 use serde::{Deserialize, Serialize};
@@ -285,6 +286,20 @@ fn valid_date(value: &str) -> bool {
             .all(|(index, byte)| index == 4 || index == 7 || byte.is_ascii_digit())
 }
 
+/// Zod `z.string().trim().min().max()` length: ECMAScript `trim`, then
+/// UTF-16 code-unit length. Rust `str::trim` (Unicode `White_Space`, which
+/// drops U+0085 but keeps U+FEFF) and UTF-8 byte length both diverge: a
+/// 2,000-char Thai note is 6,000 bytes, a 1,000-emoji note is 2,000 UTF-16
+/// units but 4,000 bytes. Free text (`completionNote`, line `description`)
+/// must use this; ascii-gated `party_id` / `currency` / dates and decimal
+/// money (digits/dot only) keep byte lengths below — for every value they
+/// accept, byte length equals code-point length, and their caps are byte
+/// defense-in-depth (`party_id` 200-byte ID cap, 64/80-byte decimal caps),
+/// not Zod text lengths. Zod 4 counts code points, not UTF-16 units.
+fn trimmed_cp_len(value: &str) -> usize {
+    js_trim(value).chars().count()
+}
+
 fn validate(input: &SalesInvoiceCreateInput) -> Result<(), Error> {
     if input.party_id.is_empty()
         || input.party_id.len() > 200
@@ -294,8 +309,7 @@ fn validate(input: &SalesInvoiceCreateInput) -> Result<(), Error> {
         || input.currency.len() != 3
         || !input.currency.bytes().all(|byte| byte.is_ascii_uppercase())
         || !input.completion_confirmed
-        || input.completion_note.trim().len() < 3
-        || input.completion_note.trim().len() > 2000
+        || !(3..=2000).contains(&trimmed_cp_len(&input.completion_note))
         || input.lines.is_empty()
         || input.lines.len() > 100
     {
@@ -305,8 +319,8 @@ fn validate(input: &SalesInvoiceCreateInput) -> Result<(), Error> {
         ));
     }
     for line in &input.lines {
-        if line.description.trim().is_empty()
-            || line.description.trim().len() > 1000
+        if trimmed_cp_len(&line.description) == 0
+            || trimmed_cp_len(&line.description) > 1000
             || !(0..=10_000).contains(&line.tax_bps)
         {
             return Err(invalid("INVALID_INVOICE_LINE", "Use a valid service line."));
@@ -339,7 +353,7 @@ fn calculate_lines(
             ));
         }
         lines.push(Line {
-            description: line.description.trim().into(),
+            description: js_trim(&line.description).into(),
             quantity_millis: i64::try_from(quantity_millis).map_err(|_| unavailable())?,
             unit_price_minor: i64::try_from(unit_price_minor).map_err(|_| unavailable())?,
             tax_bps: line.tax_bps,
@@ -563,7 +577,12 @@ pub async fn create_sales_invoice(
         )
         .into());
     }
-    let input_json = serde_json::to_string(input).map_err(|_| unavailable())?;
+    let mut normalized_input = input.clone();
+    normalized_input.completion_note = js_trim(&normalized_input.completion_note).to_owned();
+    for line in &mut normalized_input.lines {
+        line.description = js_trim(&line.description).to_owned();
+    }
+    let input_json = serde_json::to_string(&normalized_input).map_err(|_| unavailable())?;
     let invoice_id = format!("invoice-{}-invoice", command.as_str());
     let request_hash = fingerprint(actor, "finance.sales-invoice.prepare", &invoice_id, &input_json);
     let authority = authority_json(actor);
@@ -821,7 +840,7 @@ pub async fn create_sales_invoice(
         status: "draft".into(),
         version: 1,
         completion_evidence: SalesInvoiceCompletionEvidence {
-            note: input.completion_note.trim().into(),
+            note: js_trim(&input.completion_note).into(),
             confirmed_by: actor.user_id.clone(),
             confirmed_at: now,
             invoice_revision: 1,
@@ -842,4 +861,96 @@ pub async fn create_sales_invoice(
     )
     .await?;
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn error_code(error: Error) -> &'static str {
+        match error {
+            PgTransactionError::Business(error) => error.code,
+            PgTransactionError::Persistence(_) => "PERSISTENCE",
+        }
+    }
+    fn input() -> SalesInvoiceCreateInput {
+        SalesInvoiceCreateInput {
+            party_id: "party-1".into(),
+            invoice_date: "2026-11-01".into(),
+            due_date: "2026-11-30".into(),
+            currency: "THB".into(),
+            completion_confirmed: true,
+            completion_note: "Work completed".into(),
+            lines: vec![SalesInvoiceCreateLine {
+                description: "Service".into(),
+                quantity: "1".into(),
+                unit_price: "100.00".into(),
+                tax_bps: 0,
+            }],
+        }
+    }
+    #[test]
+    fn trimmed_note_and_description_use_js_trim_and_codepoint_length_like_zod() {
+        // Baseline ascii, plus JS-trim of NBSP/ideographic space.
+        assert!(validate(&input()).is_ok());
+        let mut with_js_space = input();
+        with_js_space.completion_note = "\u{00a0}\u{3000}Work completed\u{202f}".into();
+        assert!(validate(&with_js_space).is_ok());
+        // U+FEFF is ECMAScript whitespace (trimmed) but not Rust `White_Space`:
+        // after JS trim this note is "ab" (< 3) and must fail, whereas the old
+        // Rust-trim byte check accepted it.
+        let mut feff_note = input();
+        feff_note.completion_note = "\u{feff}\u{feff}ab".into();
+        assert_eq!(
+            error_code(validate(&feff_note).unwrap_err()),
+            "INVALID_SALES_INVOICE"
+        );
+        // U+0085 is Rust whitespace but NOT ECMAScript trim: three NEL chars
+        // are a valid 3-unit note under Zod and must pass.
+        let mut nel_note = input();
+        nel_note.completion_note = "\u{0085}\u{0085}\u{0085}".into();
+        assert!(validate(&nel_note).is_ok());
+        // BMP text: 2,000 Thai chars are 6,000 UTF-8 bytes but 2,000 UTF-16
+        // units — Zod accepts, the old byte check rejected.
+        let mut thai_note = input();
+        thai_note.completion_note = "ก".repeat(2000);
+        assert!(validate(&thai_note).is_ok());
+        let mut thai_long = input();
+        thai_long.completion_note = "ก".repeat(2001);
+        assert!(validate(&thai_long).is_err());
+        // Astral text: Zod 4 counts code points: 2,000 emoji is the
+        // 2,000-code-point Zod maximum, 2,001 must fail.
+        let mut emoji_note = input();
+        emoji_note.completion_note = "🛠".repeat(2000);
+        assert!(validate(&emoji_note).is_ok());
+        let mut emoji_long = input();
+        emoji_long.completion_note = "🛠".repeat(2001);
+        assert!(validate(&emoji_long).is_err());
+        // Description: 1..=1000 UTF-16 after JS trim.
+        let mut thai_desc = input();
+        thai_desc.lines[0].description = "ก".repeat(1000);
+        assert!(validate(&thai_desc).is_ok());
+        let mut emoji_desc = input();
+        emoji_desc.lines[0].description = "🛠".repeat(1000);
+        assert!(validate(&emoji_desc).is_ok());
+        let mut desc_long = input();
+        desc_long.lines[0].description = "🛠".repeat(1001);
+        assert_eq!(
+            error_code(validate(&desc_long).unwrap_err()),
+            "INVALID_INVOICE_LINE"
+        );
+        // FEFF-only description is empty after JS trim; NEL-only is content.
+        let mut feff_desc = input();
+        feff_desc.lines[0].description = "\u{feff}".into();
+        assert!(validate(&feff_desc).is_err());
+        let mut nel_desc = input();
+        nel_desc.lines[0].description = "\u{0085}".into();
+        assert!(validate(&nel_desc).is_ok());
+    }
+    #[test]
+    fn calculated_line_stores_the_js_trimmed_description() {
+        let mut value = input();
+        value.lines[0].description = "\u{feff}  Service  \u{00a0}".into();
+        let lines = calculate_lines(&value, None).unwrap();
+        assert_eq!(lines[0].description, "Service");
+    }
 }

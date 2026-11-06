@@ -6,7 +6,8 @@ pub use crate::adapters::stock_receipt::{
     read_stock_receipt_source,
 };
 pub use crate::domain::stock_receipt::{
-    MAX_ALLOCATIONS, MAX_LINES, MAX_LOTS_PER_LINE, ReceiptDisposition, StockReceiptAllocationInput,
+    MAX_ALLOCATIONS, MAX_LINES, MAX_LOT_CODE, MAX_LOTS_PER_LINE, MAX_SERIAL,
+    ReceiptDisposition, StockReceiptAllocationInput,
     StockReceiptAllocationPlan, StockReceiptAppliedAllocation, StockReceiptAppliedLine,
     StockReceiptAppliedReceipt, StockReceiptInput, StockReceiptLine, StockReceiptLineInput,
     StockReceiptLinePlan, StockReceiptLot, StockReceiptOrder, StockReceiptPlan,

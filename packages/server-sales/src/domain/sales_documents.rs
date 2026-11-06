@@ -120,8 +120,11 @@ fn too_large() -> BusinessError {
     )
 }
 
+/// Bounded transport limit for the document search query. This is a byte
+/// length bound on the query string (a DoS/transport bound), not a Zod
+/// `salesQuerySchema.q` is `z.string().max(200)` (Zod counts code points).
 pub fn validate_search(value: &str) -> Result<(), BusinessError> {
-    if value.len() > SEARCH_LIMIT || value.chars().any(char::is_control) {
+    if value.chars().count() > SEARCH_LIMIT || value.chars().any(char::is_control) {
         return Err(request_invalid());
     }
     Ok(())
@@ -156,6 +159,9 @@ fn valid_identifier(value: &str) -> bool {
     RecordId::new(value).is_ok()
 }
 
+/// Byte-length source sanity bound for persisted document text (number and
+/// party name). These are native row-validation bounds over the stored
+/// Commerce/Finance source text, not Zod length schemas, so bytes are kept.
 fn valid_text(value: &str, limit: usize) -> bool {
     !value.is_empty() && value.len() <= limit && !value.chars().any(char::is_control)
 }
