@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T01:47:07+07:00",
+  "updatedAt": "2026-11-07T03:14:35+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -4174,10 +4174,11 @@
       "merged": false,
       "evidenceFlows": [
         "pos-native-cash-movement",
-        "pos-native-cash-http"
+        "pos-native-cash-http",
+        "pos-browser-register-session"
       ],
       "sourceRef": "packages/server-pos/src/public/pos.ts",
-      "gap": "Native POS shift open/close/review and cash-approval commands are owner-qualified; the command router is mounted with real Account/IAM, Finance period/party reads and Organization issuer. A composed retail sale.create test proves a real issuer, an open Finance period, idempotent replay and persisted POS readback. Browser acceptance is unblocked: the contributed POS package plus the keyed workspace serve the startup page (200) and a browser-created warehouse persisted in commerce_warehouses (POST 201, readback verified). Remaining: nine posting roles, register, bank and independent accounting approval, the shift browser journey, and the shared owner-transaction journal port for shift review/cash approval; PMS hospitality remains open."
+      "gap": "Browser register-session journey passed at the keyed contributor workspace: POS first-time setup created register b83df265 (retail, warehouse warehouses-ca68eb6a), accounting prepared by usr_mali and independently approved by usr_nisa (pos_settings v2), a service product was enabled in pos_catalog/pos_register_catalog, the November 2026 Finance period was opened, shift 1aba01bd opened with 100.00 USD, sale 889c7b59 completed for 25.00 USD with payment 66149df2 and paid invoice 8e14603e, and the shift closed at expected/counted 125.00 USD with zero variance. Finance posted three balanced POS journals (sale/receipt/allocate). Still open: sale.add, sale.complete, payment.create, catalogue and startup operations remain on the retained TypeScript POS writer (native set covers shift.open/close, sale.create/cancel, refund request/reject); shift.review and cash.approve remain blocked on the shared owner-transaction journal port."
     },
     {
       "id": "pos/feature-sales-baskets",
@@ -6453,8 +6454,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T01:47:07+07:00",
-    "sourceHead": "fb1121c26",
+    "generatedAt": "2026-11-07T03:14:35+07:00",
+    "sourceHead": "12c3e3bd4",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7089,9 +7090,9 @@
     },
     "blockers": [
       {
-        "id": "pos-register-session-accounting",
-        "detail": "The keyed contributor workspace on 3443 now serves an authenticated Account session at current HEAD: a fresh login opens /supply/inventory-quality/quality (200, \"Quality holds\") and /bangkok/pos/settings/startup (200) with the holding_owner role. The POS package is purchased in the fixture and the browser created a real warehouse through POST /__erpx/pos/api/v1/holdings/acme/branches/bangkok/pos/startup/warehouses (201, warehouses-ca68eb6a...), persisted in commerce_warehouses (acme-co/bangkok, code POS-E2E, active, v1). Remaining: prepare all nine posting roles, register, bank and independent accounting approval before a shift can open; shift review/cash approval also need the shared owner-transaction journal port.",
-        "unblock": "Complete POS accounting preparation through the existing startup UI, then open a register session and run the shift/cash browser journey; add the shared Finance journal port for review/approval posting."
+        "id": "pos-shift-review-journal-port",
+        "detail": "POS accounting setup, register/catalogue, shift open/close and a completed sale with paid invoice now work end-to-end in the authenticated browser. shift.review and cash.approve still need the shared owner-transaction journal port, and sale.add/sale.complete/payment.create plus the startup/catalogue commands are still served by the retained TypeScript POS writer rather than the native composition.",
+        "unblock": "Add the shared Finance owner-transaction journal port and migrate the remaining POS command set, then re-run the shift review/approval browser journey."
       },
       {
         "id": "external-writer",
@@ -7105,9 +7106,9 @@
       }
     ],
     "nextActions": [
-      "Run the POS startup browser journey to completion (nine posting roles, register, bank, independent accounting approval), then open a register session and attach persisted shift readback.",
-      "When a browser cohort is available, prioritize operations (6), assets (5), organization (4), quality (4), planning (5) in that order because their code is already mounted.",
-      "Use the now-working authenticated cohort to attach browser evidence to the browser-ready partials; do not raise counts without it."
+      "Implement the shared owner-transaction journal port and finish native shift.review/cash.approve, then attach the review/approval browser readback.",
+      "Move sale.add, sale.complete, payment.create and POS startup/catalogue commands onto the native composition; retire the retained TypeScript POS writer for them.",
+      "Use the working authenticated cohort to attach browser evidence to the browser-ready partials; do not raise counts without it."
     ],
     "integrationLog": [
       {
@@ -7233,6 +7234,24 @@
           "authenticated POS startup browser journey + persisted warehouse"
         ],
         "evidence": "bootstrap completes; fresh login opens supply quality 200 and POS startup 200; POST .../pos/startup/warehouses 201; commerce_warehouses readback acme-co/bangkok POS-E2E active v1; 3100/console-dev/3101 health 200",
+        "counts": {
+          "owners": 4,
+          "verified": 28,
+          "partial": 91,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T03:14:35+07:00",
+        "commit": "12c3e3bd4",
+        "bundles": [
+          "POS accounting setup + independent approval",
+          "POS register/catalogue + November period",
+          "POS shift open/close browser journey",
+          "completed POS sale with paid invoice and balanced journals"
+        ],
+        "evidence": "fresh login; settings.bootstrap register b83df265; accounting.approve by usr_nisa (pos_settings v2); catalog.save service product; startup period November 2026; shift.open 200 1aba01bd; sale.create/add/payment.create/sale.complete 200 with invoice 8e14603e paid; shift.close 200 counted=expected=12500 variance 0; three balanced POS journals fbd53c0d/aae579ac/a72948e8",
         "counts": {
           "owners": 4,
           "verified": 28,
