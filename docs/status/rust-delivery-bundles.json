@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T05:04:38+07:00",
+  "updatedAt": "2026-11-07T05:07:31+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -4192,7 +4192,7 @@
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-pos/src/public/pos.ts",
-      "gap": "Native sale.create/add/update_line/customer/move_table/remove/discount/hold/resume/cancel are mounted and tested. Discount allocates the bill amount across locked lines with cumulative remainder math and refreshes the totals. Remaining TypeScript-only basket commands: sale.split, sale.merge; payment.create/sale.complete still need the Inventory/Finance completion ports."
+      "gap": "Native sale.create/add/update_line/customer/move_table/remove/discount/merge/hold/resume/cancel are mounted and tested. Merge locks both bills, checks register/shift/customer and payment absence, moves the lines and refreshes both versions. The only remaining TypeScript-only basket command is sale.split; payment.create/sale.complete still need the Inventory/Finance completion ports."
     },
     {
       "id": "pos/feature-payments-receipts",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T05:04:38+07:00",
-    "sourceHead": "58bb73efc",
+    "generatedAt": "2026-11-07T05:07:31+07:00",
+    "sourceHead": "734b7b826",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7092,9 +7092,9 @@
     },
     "blockers": [
       {
-        "id": "pos-split-merge-and-completion",
-        "detail": "sale.discount is now native. sale.split and sale.merge remain TypeScript-only; payment.create/sale.complete additionally need Inventory stock/consumption and Finance invoice/journal ports.",
-        "unblock": "Port sale.split/sale.merge, then add the Inventory/Finance completion ports, fence their TS ingress and run the bill/payment/void browser journeys."
+        "id": "pos-split-and-completion",
+        "detail": "sale.merge is now native. sale.split remains TypeScript-only; payment.create/sale.complete additionally need Inventory stock/consumption and Finance invoice/journal ports.",
+        "unblock": "Port sale.split, then add the Inventory/Finance completion ports, fence their TS ingress and run the bill/payment/void browser journeys."
       },
       {
         "id": "external-writer",
@@ -7108,7 +7108,7 @@
       }
     ],
     "nextActions": [
-      "Port sale.split and sale.merge onto the native basket writer and fence their TS ingress.",
+      "Port sale.split onto the native basket writer and fence its TS ingress.",
       "Add the Inventory stock/consumption and Finance invoice/journal ports for payment.create and sale.complete, then run the bill/payment/void browser journeys.",
       "Use the working authenticated cohort to attach browser evidence to the browser-ready partials; do not raise counts without it."
     ],
@@ -7380,6 +7380,21 @@
           "native sale.discount allocation"
         ],
         "evidence": "POS unit 12/12; POS Postgres 10/10 with the discount case asserting line discount/bill portion 100, subtotal 900, tax 63, sale totals 900/63/963, version 2; typecheck passes",
+        "counts": {
+          "owners": 3,
+          "verified": 29,
+          "partial": 90,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T05:07:31+07:00",
+        "commit": "734b7b826",
+        "bundles": [
+          "native sale.merge"
+        ],
+        "evidence": "POS unit 12/12; POS Postgres 11/11 with the merge case asserting moved lines, source merged/version 2 and target totals 2000/140/2140/version 2; typecheck passes",
         "counts": {
           "owners": 3,
           "verified": 29,
