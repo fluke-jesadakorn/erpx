@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T06:18:10+07:00",
+  "updatedAt": "2026-11-07T06:44:33+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -4162,7 +4162,7 @@
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-pos/src/public/pos.ts",
-      "gap": "Native refund request, reject and approve are mounted. Approve requires an independent reviewer, validates the exact requested line snapshot and remaining payment capacity, restocks delivered stock through the Inventory owner return adapter with the captured restored cost, posts the return/refund/refund-payment journals, settles cash/transfer/EDC refund payments with Finance refund rows, and completes the refund. Stripe refunds fail closed until the provider port exists. Remaining: Stripe refund provider, refund browser journey and paid-void journey."
+      "gap": "Native refund request, reject and approve are browser verified for cash/transfer/EDC: the receipt deep link now opens (POS receipts product destination), the maker requested refund b1470068 from the receipt, the independent reviewer approved it (200 version 2), refund completed approved_by usr_nisa, the line/payment refunded, Finance refund settled and both refund journals posted balanced. Approve restocks delivered stock through the Inventory owner return adapter with the captured restored cost. Remaining: the Stripe refund provider and its retry/cancel jobs."
     },
     {
       "id": "pos/feature-register-session",
@@ -4216,7 +4216,7 @@
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-pos/src/public/pos.ts",
-      "gap": "Native sale.cancel (unpaid/held bill) and native refund approval cover the void paths at the command level; the paid-void flow now depends on the native refund approval rather than a TypeScript writer. A browser void/paid-void journey has not run."
+      "gap": "Native sale.cancel (unpaid/held bill) and native refund approval cover the void paths at the command level; the receipt deep link and refund/paid-void controls now render. A dedicated browser paid-void journey has not run; the paid void settles through refund approve."
     },
     {
       "id": "sales/quotes",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T06:18:10+07:00",
-    "sourceHead": "3cd78147d",
+    "generatedAt": "2026-11-07T06:44:33+07:00",
+    "sourceHead": "578f3e3fb",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7092,9 +7092,9 @@
     },
     "blockers": [
       {
-        "id": "pos-refund-browser-and-stripe",
-        "detail": "Refund approve/pay is native for cash/transfer/EDC. Remaining: the Stripe refund provider, browser refund and paid-void journeys, receipt print/PDF readback, and payment retry/cancel jobs.",
-        "unblock": "Add the Stripe provider/queue port for refunds and payment retry/cancel, then run the refund and paid-void browser journeys with persisted journal/readback before closing the remaining POS workflows."
+        "id": "pos-stripe-tender-refund-and-receipt-print",
+        "detail": "Cash/EDC/transfer payments, completion, transfer verification/cancel, and refund request/approve are native and browser verified. Remaining POS work: Stripe card/PromptPay tenders and refunds, payment retry/cancel jobs, receipt print/PDF readback and a dedicated paid-void browser journey.",
+        "unblock": "Add the Stripe provider/queue port for tenders and refunds plus retry/cancel, then the receipt print/PDF readback and paid-void journey."
       },
       {
         "id": "external-writer",
@@ -7108,8 +7108,8 @@
       }
     ],
     "nextActions": [
-      "Run the refund browser journey (request as maker, approve as independent reviewer) and the paid-void journey against the keyed workspace.",
-      "Add the Stripe refund/tender provider and payment retry/cancel queue port, then the receipt print/PDF readback.",
+      "Add the Stripe provider/queue port for the card/PromptPay tender and refund paths, then payment.retry/payment.cancel.",
+      "Run the receipt print/PDF readback and the dedicated paid-void browser journey.",
       "Use the working authenticated cohort to attach browser evidence to the browser-ready partials; do not raise counts without it."
     ],
     "integrationLog": [
@@ -7494,6 +7494,22 @@
           "refund approval authority fix"
         ],
         "evidence": "POS unit 13/13, POS Postgres 17/17, composed HTTP+PG 3/3; refund.approve now requires pos.approve before any read",
+        "counts": {
+          "owners": 3,
+          "verified": 30,
+          "partial": 89,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T06:44:33+07:00",
+        "commit": "578f3e3fb",
+        "bundles": [
+          "POS receipt deep-link gate fix",
+          "browser refund request + independent approval"
+        ],
+        "evidence": "receipt deep link 200 (was PRODUCT_ROLE_REQUIRED); browser refund.request 200 {id:b1470068}; reviewer refund.approve 200 {version:2}; pos_refunds completed approved_by usr_nisa; pos_lines returned 1000/refunded 2500; pos_payments refunded 2500; pos_refund_payments succeeded 2500; finance_payments refund settled POS-REF-\u2026; journal-refund and journal-refund-payment posted 2 lines each balanced 2500; typecheck and POS 13/13 + 17/17",
         "counts": {
           "owners": 3,
           "verified": 30,
