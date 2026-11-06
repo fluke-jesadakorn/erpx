@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T05:53:25+07:00",
+  "updatedAt": "2026-11-07T06:04:30+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -4204,7 +4204,7 @@
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-pos/src/public/pos.ts",
-      "gap": "payment.create (cash/EDC/transfer) and sale.complete are native. Completion consumes each sellable fulfilment through the Inventory owner adapter on the same serializable transaction, posts the balanced COGS/inventory consume journal, the receivable/revenue/tax sale journal and the advance allocation journal, inserts the paid Finance invoice and attaches its id to the sale. Browser journey: sale.create/add -> payment.create 200 -> sale.complete 200 {version:4}; pos_sales completed with invoice ee7fff5a, finance_invoices paid 2500, and the sale/receipt/allocate journals are each posted and balanced. Remaining: transfer verification, Stripe tenders, payment retry/cancel, receipt print/PDF readback and refunds of settled payments."
+      "gap": "payment.create, payment.verify_transfer, payment.cancel_transfer and sale.complete are native. Transfer verification requires an independent Account reviewer and validates the imported Finance bank transaction (account, reference, date, currency, amount, version, match state) before settling the receipt journal and marking the bank transaction matched. Browser history readback shows the completed receipt; Remaining: Stripe tenders, payment.retry/payment.cancel (provider jobs), receipt print/PDF readback and refunds of settled payments."
     },
     {
       "id": "pos/feature-voids",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T05:53:25+07:00",
-    "sourceHead": "d05c3692a",
+    "generatedAt": "2026-11-07T06:04:30+07:00",
+    "sourceHead": "25c5ae1f3",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7092,9 +7092,9 @@
     },
     "blockers": [
       {
-        "id": "pos-tender-followups-and-refunds",
-        "detail": "POS payments and completion are native with Inventory consumption and Finance invoice/journal evidence. Remaining POS work: transfer verification (bank evidence), Stripe tenders, payment retry/cancel, receipt print/PDF readback, refund approval/payment and the paid-void path.",
-        "unblock": "Migrate payment.verify_transfer/cancel_transfer/retry/cancel and the Stripe tender path, then the refund approval/payment commands and browser journeys."
+        "id": "pos-stripe-and-refunds",
+        "detail": "Cash/EDC/transfer payments, transfer verification/cancellation and sale completion are native. Remaining POS payments scope: Stripe card/PromptPay tenders, payment retry/cancel jobs, receipt print/PDF readback, and refund approve/pay with Inventory return + Finance settlement.",
+        "unblock": "Implement the Stripe provider/queue port for the Stripe tender path, then refund approve/pay and the receipt print readback."
       },
       {
         "id": "external-writer",
@@ -7108,8 +7108,8 @@
       }
     ],
     "nextActions": [
-      "Migrate payment.verify_transfer, payment.cancel_transfer, payment.retry and payment.cancel, then close pos/feature-payments-receipts with the receipt print readback.",
-      "Implement refund approve/pay with the Inventory return and Finance settlement ports, then run the refund and paid-void browser journeys.",
+      "Implement refund approve/pay (Inventory return + Finance settlement) and run the refund/paid-void browser journeys.",
+      "Add the Stripe provider and payment retry/cancel job port, then the receipt print/PDF readback, before closing pos/feature-payments-receipts.",
       "Use the working authenticated cohort to attach browser evidence to the browser-ready partials; do not raise counts without it."
     ],
     "integrationLog": [
@@ -7445,6 +7445,23 @@
           "Finance paid invoice + sale/allocate journals"
         ],
         "evidence": "POS unit 12/12, POS Postgres 14/14, composed HTTP+PG 2/2 (stock sale: reservation -> consumption 1000 -> delivered cost 1000, paid invoice, sale/allocate/consume journals balanced, stock 5000->4000), native transport 10/10, typecheck passes; browser sale.complete 200 {version:4}, pos_sales completed invoice ee7fff5a, finance_invoices paid 2500, sale/receipt/allocate journals each posted and balanced",
+        "counts": {
+          "owners": 3,
+          "verified": 30,
+          "partial": 89,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T06:04:30+07:00",
+        "commit": "25c5ae1f3",
+        "bundles": [
+          "native payment.verify_transfer",
+          "native payment.cancel_transfer",
+          "Finance bank transaction read/match"
+        ],
+        "evidence": "POS unit 12/12, POS Postgres 16/16, composed HTTP+PG 3/3 (independent reviewer verifies BANK-REF-1 against the imported bank transaction: payment succeeded, finance payment settled, receipt journal balanced, bank matched; second transfer cancelled and the bill reopened), native transport 10/10, typecheck passes; browser POS history shows POS-20261107-ADCDF454 Succeeded",
         "counts": {
           "owners": 3,
           "verified": 30,
