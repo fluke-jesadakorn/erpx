@@ -1,4 +1,8 @@
 pub mod journal_review;
+pub mod raw_field_journal_marker;
+pub mod raw_field_payment_allocation_marker;
+pub mod raw_field_invoice_marker;
+pub mod attachment_target_source;
 pub mod field_work;
 pub use crate::adapters::postgres_journal::PgJournalStore;
 pub use crate::adapters::postgres_journal_facts::{
@@ -123,3 +127,5 @@ pub mod bank_reconciliation;
 pub mod bank_workspace;
 
 pub mod period_close;
+
+pub mod pos_sources;

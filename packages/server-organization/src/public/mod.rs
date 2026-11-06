@@ -29,3 +29,5 @@ pub mod organization_nodes;
 
 pub mod organization_setup;
 pub mod organization_setup_http;
+
+pub mod pos_issuer;

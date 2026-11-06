@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-06T23:59:51+07:00",
+  "updatedAt": "2026-11-07T00:30:18+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -4177,7 +4177,7 @@
         "pos-native-cash-http"
       ],
       "sourceRef": "packages/server-pos/src/public/pos.ts",
-      "gap": "Native POS shift open/close/review and cash-approve commands are implemented with exact money, CAS, independence and persisted readback; owner HTTP and Next route cutover are wired. Composition port bindings and browser remain open."
+      "gap": "Native POS shift open/close/review and cash-approval commands are owner-qualified; the command router is mounted with real Account/IAM, Finance period/party reads and Organization issuer. A composed retail sale.create test proves a real issuer, open Finance period, idempotent replay and persisted POS readback. Journal-posting shift review/cash approval still need the shared owner-transaction journal port; PMS hospitality and browser remain open."
     },
     {
       "id": "pos/feature-sales-baskets",
@@ -4189,7 +4189,7 @@
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-pos/src/public/pos.ts",
-      "gap": "Native sale create/hold/resume/unpaid-cancel commands are implemented; item add/edit/discount/remove remain blocked on a Commerce/Inventory catalog port. Composition/UI/browser remain open."
+      "gap": "Native sale create is composed over HTTP with real Organization issuer and Finance period/party sources and a composed PostgreSQL test. Hold/resume/unpaid-cancel remain owner-qualified; item add/edit/discount/remove need Commerce/Inventory catalog ports; payment/completion await Finance/Inventory ports and browser."
     },
     {
       "id": "pos/feature-payments-receipts",
@@ -6454,7 +6454,7 @@
   ],
   "executionPlan": {
     "generatedAt": "2026-11-06T20:11:14+07:00",
-    "sourceHead": "61d71e6ed",
+    "sourceHead": "PENDING-pos-mount",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7201,6 +7201,21 @@
           "Benefits command/workspace composition mount with real People and purchase gate"
         ],
         "evidence": "composed HTTP+PG 2/2 + Benefits/People 100+ owner tests; tsc clean",
+        "counts": {
+          "owners": 4,
+          "verified": 28,
+          "partial": 91,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T00:30:18+07:00",
+        "commit": "pending",
+        "bundles": [
+          "POS command router mount + real Finance period/party + Organization issuer"
+        ],
+        "evidence": "composed HTTP+PG 1/1 retail sale.create, POS 46 tests, native worker build clean",
         "counts": {
           "owners": 4,
           "verified": 28,

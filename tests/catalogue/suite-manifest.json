@@ -53551,6 +53551,61 @@
       ]
     },
     {
+      "id": "pos.rust-pos-command-composed-http-postgres.integration",
+      "lane": "integration",
+      "owner": "pos",
+      "modules": [
+        "pos"
+      ],
+      "files": [
+        "tests/integration/pos/rust-pos-command-composed-http-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Composed native POS command HTTP over the real Account session/IAM, Finance period/party sources and Organization issuer; proves retail sale create, idempotent replay and persisted readback."
+      },
+      "framework": "cargo",
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml",
+        "tests/support/finance/review-composition.rs",
+        "tests/support/rust-account-revocation.rs",
+        "tests/support/rust-account-credentials.rs",
+        "tests/support/rust-account.rs",
+        "tests/support/rust-postgres.rs",
+        "packages/server-pos/Cargo.toml",
+        "packages/server-finance/Cargo.toml",
+        "packages/server-organization/Cargo.toml"
+      ],
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "pos_command_composed_http_postgres"
+        ],
+        "features": [
+          "existing-business"
+        ]
+      },
+      "apps": [
+        "pos"
+      ],
+      "packages": [
+        "@erpx/server-pos",
+        "@erpx/server-finance",
+        "@erpx/server-organization",
+        "@erpx/server-identity_access",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
+    },
+    {
       "id": "pos.native-pos-cash-transport.unit",
       "lane": "unit",
       "owner": "pos",

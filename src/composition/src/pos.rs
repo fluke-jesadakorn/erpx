@@ -4,12 +4,12 @@
 use crate::business_http::BusinessScopeSlugs;
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
-    account_inbound_http::parse_inbound_account_request,
+    account_inbound_http::{parse_inbound_account_request, unique_request_header},
     effective_authority::{
         AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
         WorkAuthorizationRequest,
     },
-    work_context::{HoldingWorkspaceRequest, WorkScopeKind},
+    work_context::{ExpectedWorkSelection, HoldingWorkspaceRequest, WorkScopeKind},
 };
 use erpx_server_pos::public::cash_movement::{
     CashMovementActor, CreateCashMovement, create_cash_movement, PgCashMovementCommand,
@@ -17,6 +17,21 @@ use erpx_server_pos::public::cash_movement::{
 use erpx_server_pos::public::cash_movement_http::{
     CashMovementHttpBackend, CashMovementHttpFuture, CashMovementHttpRequest,
     CashMovementHttpResponse, CashMovementHttpTarget,
+};
+use erpx_server_pos::public::commands::{
+    PgPosCommandRepository, PosActor, PosCommand, PosCommandRepository, PosFinancePort,
+    PosFuture, PosHospitalityPort, PosJournalRequest, PosOrganizationPort, PosResult,
+    execute_pos_command,
+};
+use erpx_server_pos::public::commands_http::{
+    PosCommandHttpBackend, PosCommandHttpFuture, PosCommandHttpRequest, PosCommandHttpResponse,
+    PosCommandHttpTarget,
+};
+use erpx_server_finance::public::pos_sources::{
+    finance_party_exists, lock_pos_finance_sources, read_open_period_for_date,
+};
+use erpx_server_organization::public::pos_issuer::{
+    lock_pos_issuer_source, read_company_display_name,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
@@ -63,6 +78,96 @@ struct PosSources;
 impl HoldingWorkSourcePreparation for PosSources {
     fn prepare<'c>(&'c self, _: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async { Ok(()) })
+    }
+}
+
+#[derive(Clone, Copy)]
+struct PosCommandSources;
+
+impl HoldingWorkSourcePreparation for PosCommandSources {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            lock_pos_finance_sources(c).await.map_err(business)?;
+            lock_pos_issuer_source(c).await.map_err(business)?;
+            Ok(())
+        })
+    }
+}
+
+struct PosFinanceSnapshot {
+    business_date: String,
+    period_open: bool,
+    party_exists: bool,
+}
+
+impl PosFinancePort for PosFinanceSnapshot {
+    fn open_period<'a>(&'a mut self, _: &'a CompanyId, date: &'a str) -> PosFuture<'a, ()> {
+        Box::pin(async move {
+            if date == self.business_date && self.period_open {
+                Ok(())
+            } else {
+                Err(BusinessError::new(
+                    FailureKind::Conflict,
+                    "POS_PERIOD_CLOSED",
+                    "Open the Finance period for this business date.",
+                ))
+            }
+        })
+    }
+
+    fn post_journal<'a>(
+        &'a mut self,
+        _: &'a PosJournalRequest,
+    ) -> PosFuture<'a, Option<String>> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "POS_FINANCE_JOURNAL_PORT_REQUIRED",
+                "The POS journal port needs the shared owner transaction contract.",
+            ))
+        })
+    }
+
+    fn party_exists<'a>(&'a mut self, _: &'a CompanyId, _: &'a str) -> PosFuture<'a, bool> {
+        Box::pin(async move { Ok(self.party_exists) })
+    }
+}
+
+struct PosHospitalitySnapshot;
+
+impl PosHospitalityPort for PosHospitalitySnapshot {
+    fn hotel_day_open<'a>(
+        &'a mut self,
+        _: &'a CompanyId,
+        _: &'a str,
+        _: &'a str,
+        _: &'a str,
+    ) -> PosFuture<'a, bool> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "POS_HOSPITALITY_PORT_REQUIRED",
+                "The PMS hospitality port is not mounted.",
+            ))
+        })
+    }
+
+    fn room_charge_exists<'a>(&'a mut self, _: &'a str) -> PosFuture<'a, bool> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "POS_HOSPITALITY_PORT_REQUIRED",
+                "The PMS hospitality port is not mounted.",
+            ))
+        })
+    }
+}
+
+struct PosOrganizationSnapshot(String);
+
+impl PosOrganizationPort for PosOrganizationSnapshot {
+    fn issuer_name<'a>(&'a mut self, _: &'a CompanyId) -> PosFuture<'a, String> {
+        Box::pin(async move { Ok(self.0.clone()) })
     }
 }
 
@@ -227,6 +332,113 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
             )
             .await
     }
+
+    pub async fn command(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+        command: PosCommand,
+    ) -> Result<PosCommandHttpResponse, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources(
+                host,
+                proof,
+                selection,
+                WorkAuthorizationRequest {
+                    permission: "pos.sell".into(),
+                    module: Some("pos".into()),
+                    destination: "pos".into(),
+                    api: true,
+                },
+                PosCommandSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("pos.sell")?;
+                        let now = clock.now();
+                        let business_date = {
+                            let mut repository = PgPosCommandRepository::new(connection);
+                            repository.business_date(now).await.map_err(business)?
+                        };
+                        let period_open = read_open_period_for_date(
+                            connection,
+                            company.as_str(),
+                            &business_date,
+                        )
+                        .await
+                        .map_err(business)?
+                        .is_some();
+                        let party = match &command.input {
+                            erpx_server_pos::public::commands::PosCommandInput::SaleCreate(input) => {
+                                match &input.party_id {
+                                    Some(party) => finance_party_exists(
+                                        connection,
+                                        company.as_str(),
+                                        party,
+                                    )
+                                    .await
+                                    .map_err(business)?,
+                                    None => true,
+                                }
+                            }
+                            _ => true,
+                        };
+                        let issuer = read_company_display_name(connection, company.as_str())
+                            .await
+                            .map_err(business)?;
+                        let selected = current.selection();
+                        let workspace = selected.workspace();
+                        let assignment = selected.assignment();
+                        let actor = PosActor {
+                            user_id: current.user_id().clone(),
+                            holding_id: current.holding_id().clone(),
+                            company_id: workspace.company_id.clone(),
+                            branch_id: workspace.branch_id.clone(),
+                            department_id: workspace.department_id.clone(),
+                            assignment_id: assignment.id.clone(),
+                            permissions: current.command_iam_metadata().permissions.clone(),
+                            modules: current.modules().to_vec(),
+                            expires_at: current.expires_at(),
+                        };
+                        let mut repository = PgPosCommandRepository::new(connection);
+                        let mut finance = PosFinanceSnapshot {
+                            business_date,
+                            period_open,
+                            party_exists: party,
+                        };
+                        let mut hospitality = PosHospitalitySnapshot;
+                        let mut organization = PosOrganizationSnapshot(issuer);
+                        let result: PosResult = execute_pos_command(
+                            &actor,
+                            &command,
+                            &mut repository,
+                            &mut finance,
+                            &mut hospitality,
+                            &mut organization,
+                            now,
+                        )
+                        .await?;
+                        Ok(PosCommandHttpResponse {
+                            data: result.to_wire(),
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
 }
 
 pub struct PosBackend<C> {
@@ -267,6 +479,53 @@ impl<C: Clock + Send + Sync + 'static> PosBackend<C> {
                 mutation: false,
             },
         ))
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> PosBackend<C> {
+    fn command_context(
+        &self,
+        headers: &HeaderMap,
+    ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
+        let (proof, mut selection) = self.context(headers)?;
+        let revision = unique_request_header(headers, "x-erpx-context-revision")?
+            .ok_or_else(|| BusinessError::invalid("POS_CONTEXT_REQUIRED", "Use the current work revision."))?
+            .parse()
+            .map_err(|_| BusinessError::invalid("POS_CONTEXT_REQUIRED", "Use the current work revision."))?;
+        let assignment = unique_request_header(headers, "x-erpx-context-assignment")?
+            .ok_or_else(|| BusinessError::invalid("POS_CONTEXT_REQUIRED", "Choose the current assignment."))?
+            .to_owned();
+        let assignment_version = unique_request_header(headers, "x-erpx-context-assignment-version")?
+            .ok_or_else(|| BusinessError::invalid("POS_CONTEXT_REQUIRED", "Use the current assignment version."))?
+            .parse()
+            .map_err(|_| BusinessError::invalid("POS_CONTEXT_REQUIRED", "Use the current assignment version."))?;
+        selection.mutation = true;
+        selection.expected = Some(ExpectedWorkSelection {
+            revision,
+            assignment_id: AssignmentId::new(assignment)?,
+            assignment_version,
+        });
+        Ok((proof, selection))
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> PosCommandHttpBackend for PosBackend<C> {
+    fn execute<'a>(
+        &'a self,
+        request: PosCommandHttpRequest<'a>,
+    ) -> PosCommandHttpFuture<'a, PosCommandHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.command_context(request.headers)?;
+            self.service
+                .command(
+                    request.host,
+                    proof,
+                    selection,
+                    request.command,
+                )
+                .await
+                .map_err(business)
+        })
     }
 }
 
