@@ -1,8 +1,4 @@
 pub(crate) mod finance_opening;
-pub(crate) mod raw_field_journal_marker;
-pub(crate) mod raw_field_payment_allocation_marker;
-pub(crate) mod raw_field_invoice_marker;
-pub(crate) mod attachment_target_source;
 pub(crate) mod finance_reports;
 pub(crate) mod finance_setup;
 pub(crate) mod finance_invoice_read;
