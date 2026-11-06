@@ -44,7 +44,7 @@ export type NativePosCommandReceipt = Readonly<{ id: string; version?: number }>
 export const NATIVE_POS_COMMANDS = new Set([
   'shift.open', 'shift.close', 'shift.review', 'cash.approve',
   'sale.create', 'sale.add', 'sale.update_line', 'sale.customer', 'sale.move_table', 'sale.remove',
-  'sale.discount', 'sale.merge', 'sale.split', 'payment.create',
+  'sale.discount', 'sale.merge', 'sale.split', 'payment.create', 'sale.complete',
   'sale.hold', 'sale.resume', 'sale.cancel',
   'refund.request', 'refund.reject',
 ]);
@@ -74,7 +74,8 @@ export function nativePosCommandCapability(operation: string): {
   if (operation.startsWith('shift.') || operation.startsWith('cash.'))
     return { capability: 'pos.shifts', purpose: operation === 'shift.open' ? 'new-work' : 'settle-existing' };
   if (operation.startsWith('refund.')) return { capability: 'pos.refunds', purpose: 'settle-existing' };
-  if (operation === 'sale.cancel') return { capability: 'pos.sales', purpose: 'settle-existing' };
+  if (operation === 'sale.cancel' || operation === 'sale.complete')
+    return { capability: 'pos.sales', purpose: 'settle-existing' };
   return { capability: 'pos.sales', purpose: 'new-work' };
 }
 /** Selected only when the native configuration is present and the operation is

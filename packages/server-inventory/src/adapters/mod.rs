@@ -30,3 +30,4 @@ pub(crate) mod quality_stock_source;
 pub(crate) mod quality_cancellation_stock;
 pub(crate) mod quality_disposition_count;
 pub(crate) mod quality_fulfillment_allocation;
+pub mod pos_consumption;

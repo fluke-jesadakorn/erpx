@@ -20,9 +20,10 @@ use erpx_server_pos::public::cash_movement_http::{
 };
 use erpx_server_pos::public::commands::{
     PgPosCommandRepository, PosActor, PosCommand, PosCommandInput, PosCommandRepository,
-    PosCatalogProduct as PosCatalogSnapshotProduct, PosCatalogSnapshot, PosFinancePort, PosFuture,
-    PosHospitalityPort, PosJournalRequest, PosOrganizationPort, PosReceiptRequest, PosResult,
-    PosStockRow, execute_pos_command,
+    PosCatalogProduct as PosCatalogSnapshotProduct, PosCatalogSnapshot, PosConsumptionPart,
+    PosFinancePort, PosFuture, PosHospitalityPort, PosInventoryPort, PosInvoiceRequest,
+    PosJournalRequest, PosOrganizationPort, PosReceiptRequest, PosResult, PosStockRow,
+    execute_pos_command,
 };
 use erpx_server_pos::public::commands_http::{
     PosCommandHttpBackend, PosCommandHttpFuture, PosCommandHttpRequest, PosCommandHttpResponse,
@@ -32,10 +33,13 @@ use erpx_server_commerce::public::pos_catalog::{lock_pos_catalog, read_pos_catal
 use erpx_server_inventory::public::availability_read::{
     lock_availability_sources, read_availability,
 };
+use erpx_server_inventory::public::pos_consumption::{
+    PosConsumptionPart as InventoryConsumptionPart, consume_pos_parts,
+};
 use erpx_server_finance::public::FinanceActor;
 use erpx_server_finance::public::pos_journal::{
-    PosJournalLine as FinancePosJournalLine, PosJournalPosting, PosReceiptRecord,
-    insert_pos_receipt, post_pos_journal,
+    PosInvoiceRecord, PosJournalLine as FinancePosJournalLine, PosJournalPosting, PosReceiptRecord,
+    insert_pos_invoice, insert_pos_receipt, post_pos_journal,
 };
 use erpx_server_finance::public::pos_sources::{
     finance_party_exists, lock_pos_finance_sources, read_open_period_for_date,
@@ -112,6 +116,26 @@ struct PosFinanceQueue {
     party_exists: bool,
     journals: Vec<PosJournalRequest>,
     receipts: Vec<PosReceiptRequest>,
+    invoices: Vec<PosInvoiceRequest>,
+}
+#[derive(Default)]
+struct PosInventoryQueue {
+    parts: Vec<PosConsumptionPart>,
+}
+
+impl PosInventoryPort for PosInventoryQueue {
+    fn queue_consumption<'a>(
+        &'a mut self,
+        parts: &'a [PosConsumptionPart],
+    ) -> PosFuture<'a, i64> {
+        Box::pin(async move {
+            self.parts.extend_from_slice(parts);
+            Ok(parts
+                .iter()
+                .map(|part| part.expected_value_minor)
+                .sum())
+        })
+    }
 }
 
 impl PosFinancePort for PosFinanceQueue {
@@ -158,6 +182,16 @@ impl PosFinancePort for PosFinanceQueue {
     ) -> PosFuture<'a, ()> {
         Box::pin(async move {
             self.receipts.push(request.clone());
+            Ok(())
+        })
+    }
+
+    fn record_invoice<'a>(
+        &'a mut self,
+        request: &'a PosInvoiceRequest,
+    ) -> PosFuture<'a, ()> {
+        Box::pin(async move {
+            self.invoices.push(request.clone());
             Ok(())
         })
     }
@@ -487,7 +521,7 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
                             _ => None,
                         };
                         let stock = match &command.input {
-                            PosCommandInput::PaymentCreate(_) => {
+                            PosCommandInput::PaymentCreate(_) | PosCommandInput::SaleComplete(_) => {
                                 let rows = read_availability(
                                     connection,
                                     company.as_str(),
@@ -500,8 +534,9 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
                                         .map(|row| PosStockRow {
                                             warehouse_id: row.warehouse_id,
                                             product_id: row.product_id,
-                                            quantity_milli: row.available_milli,
-                                            reserved_milli: 0,
+                                            quantity_milli: row.quantity_milli,
+                                            reserved_milli: row.reserved_milli,
+                                            value_minor: row.value_minor,
                                         })
                                         .collect::<Vec<_>>(),
                                 )
@@ -515,7 +550,9 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
                             party_exists: party,
                             journals: Vec::new(),
                             receipts: Vec::new(),
+                            invoices: Vec::new(),
                         };
+                        let mut inventory = PosInventoryQueue::default();
                         let mut hospitality = PosHospitalitySnapshot;
                         let mut organization = PosOrganizationSnapshot(issuer);
                         let result: PosResult = execute_pos_command(
@@ -525,12 +562,31 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
                             catalog.as_ref(),
                             stock.as_deref(),
                             &mut finance,
+                            &mut inventory,
                             &mut hospitality,
                             &mut organization,
                             now,
                         )
                         .await?;
                         drop(repository);
+                        if !inventory.parts.is_empty() {
+                            consume_pos_parts(
+                                connection,
+                                &inventory
+                                    .parts
+                                    .iter()
+                                    .map(|part| InventoryConsumptionPart {
+                                        fulfillment_id: part.fulfillment_id.clone(),
+                                        warehouse_id: part.warehouse_id.clone(),
+                                        product_id: part.product_id.clone(),
+                                        quantity_milli: part.quantity_milli,
+                                        expected_value_minor: part.expected_value_minor,
+                                    })
+                                    .collect::<Vec<_>>(),
+                            )
+                            .await
+                            .map_err(business)?;
+                        }
                         let finance_actor = FinanceActor {
                             user_id: actor.user_id.clone(),
                             holding_id: actor.holding_id.clone(),
@@ -584,6 +640,35 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
                             .map_err(business)?;
                             PgPosCommandRepository::new(connection)
                                 .attach_finance_payment(&pos_payment_id, &finance_payment_id)
+                                .await
+                                .map_err(business)?;
+                        }
+                        for invoice in finance.invoices {
+                            insert_pos_invoice(
+                                connection,
+                                &PosInvoiceRecord {
+                                    invoice_id: invoice.invoice_id.clone(),
+                                    company_id: invoice.company_id.as_str().to_owned(),
+                                    party_id: invoice.party_id,
+                                    number: invoice.number,
+                                    invoice_date: invoice.invoice_date,
+                                    currency: invoice.currency,
+                                    subtotal_minor: invoice.subtotal_minor,
+                                    tax_minor: invoice.tax_minor,
+                                    total_minor: invoice.total_minor,
+                                    receivable_account_id: invoice.receivable_account_id,
+                                    revenue_account_id: invoice.revenue_account_id,
+                                    tax_account_id: invoice.tax_account_id,
+                                    journal_id: invoice.journal_id,
+                                    source_id: invoice.sale_id.clone(),
+                                    actor_id: invoice.actor_id.as_str().to_owned(),
+                                    now: invoice.now.get(),
+                                },
+                            )
+                            .await
+                            .map_err(business)?;
+                            PgPosCommandRepository::new(connection)
+                                .attach_invoice(&invoice.sale_id, &invoice.invoice_id)
                                 .await
                                 .map_err(business)?;
                         }

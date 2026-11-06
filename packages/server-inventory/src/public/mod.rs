@@ -40,3 +40,4 @@ pub mod quality_stock_source;
 pub mod quality_cancellation_stock;
 pub mod quality_disposition_count;
 pub mod quality_fulfillment_allocation;
+pub mod pos_consumption;

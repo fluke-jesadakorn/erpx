@@ -1275,6 +1275,105 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
             Ok(rows.rows_affected() == 1)
         })
     }
+    fn sale_paid_total<'a>(&'a mut self, sale_id: &'a str) -> Fut<'a, i64> {
+        Box::pin(async move {
+            self.ready().await?;
+            Ok(sqlx::query_scalar(
+                "SELECT COALESCE(SUM(amount_minor-refunded_minor),0)::bigint FROM pos_payments WHERE sale_id=$1 AND state='succeeded'",
+            )
+            .bind(sale_id)
+            .fetch_one(&mut *self.connection)
+            .await?)
+        })
+    }
+    fn sale_pending_payments<'a>(&'a mut self, sale_id: &'a str) -> Fut<'a, bool> {
+        Box::pin(async move {
+            self.ready().await?;
+            Ok(sqlx::query_scalar(
+                "SELECT EXISTS(SELECT 1 FROM pos_payments WHERE sale_id=$1 AND state IN ('requested','pending'))",
+            )
+            .bind(sale_id)
+            .fetch_one(&mut *self.connection)
+            .await?)
+        })
+    }
+    fn delete_reservation<'a>(&'a mut self, fulfillment_id: &'a str, product_id: &'a str) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query("DELETE FROM pos_reservations WHERE fulfillment_id=$1 AND product_id=$2")
+                .bind(fulfillment_id)
+                .bind(product_id)
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(())
+        })
+    }
+    fn insert_stock_move<'a>(
+        &'a mut self,
+        id: &'a str,
+        company_id: &'a str,
+        fulfillment_id: &'a str,
+        warehouse_id: &'a str,
+        product_id: &'a str,
+        quantity_milli: i64,
+        value_minor: i64,
+        movement_date: &'a str,
+        source_number: &'a str,
+        now: TimestampMillis,
+    ) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query(
+                "INSERT INTO pos_stock_moves(id,company_id,warehouse_id,product_id,fulfillment_id,source_id,source_number,kind,quantity_milli,value_minor,movement_date,created_at) VALUES($1,$2,$3,$4,$5,$5,$6,'sale',$7,$8,$9,$10)",
+            )
+            .bind(id)
+            .bind(company_id)
+            .bind(warehouse_id)
+            .bind(product_id)
+            .bind(fulfillment_id)
+            .bind(source_number)
+            .bind(-quantity_milli)
+            .bind(-value_minor)
+            .bind(movement_date)
+            .bind(now.get())
+            .execute(&mut *self.connection)
+            .await?;
+            Ok(())
+        })
+    }
+    fn mark_fulfillment_delivered<'a>(&'a mut self, fulfillment_id: &'a str, cost_minor: i64) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query("UPDATE pos_fulfillments SET state='delivered',cost_minor=$1,version=version+1 WHERE id=$2")
+                .bind(cost_minor)
+                .bind(fulfillment_id)
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(())
+        })
+    }
+    fn complete_sale<'a>(&'a mut self, sale_id: &'a str, now: TimestampMillis) -> Fut<'a, bool> {
+        Box::pin(async move {
+            self.ready().await?;
+            let rows = sqlx::query("UPDATE pos_sales SET state='completed',version=version+1,updated_at=$1 WHERE id=$2")
+                .bind(now.get())
+                .bind(sale_id)
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(rows.rows_affected() == 1)
+        })
+    }
+    fn attach_invoice<'a>(&'a mut self, sale_id: &'a str, invoice_id: &'a str) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query("UPDATE pos_sales SET invoice_id=$1 WHERE id=$2")
+                .bind(invoice_id)
+                .bind(sale_id)
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(())
+        })
+    }
     fn prepared_day_close<'a>(
         &'a mut self,
         company: &'a CompanyId,

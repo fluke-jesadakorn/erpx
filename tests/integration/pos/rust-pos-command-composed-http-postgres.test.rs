@@ -100,17 +100,19 @@ async fn seed_pos(p: &review::Prepared) {
          INSERT INTO finance_periods(id,company_id,name,start_date,end_date,created_at) \
          VALUES('period-2027','company','2027','2027-01-01','2027-12-31',0) ON CONFLICT DO NOTHING;\
          INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,created_at,updated_at) \
-         VALUES('cash','company','chart','100','Cash','asset',0,0),('difference','company','chart','590','Cash difference','expense',0,0),('advance','company','chart','210','POS customer advances','liability',0,0) ON CONFLICT DO NOTHING;\
+         VALUES('cash','company','chart','100','Cash','asset',0,0),('difference','company','chart','590','Cash difference','expense',0,0),('advance','company','chart','210','POS customer advances','liability',0,0),('receivable','company','chart','120','Trade receivables','asset',0,0),('revenue','company','chart','401','Product revenue','revenue',0,0),('outputTax','company','chart','220','Output tax payable','liability',0,0),('cogs','company','chart','500','Cost of goods sold','expense',0,0),('inventory','company','chart','130','Inventory','asset',0,0) ON CONFLICT DO NOTHING;\
          INSERT INTO pos_settings(company_id,enabled,currency,accounts_json,accounting_prepared_by,accounting_approved_by,version) \
-         VALUES('company',true,'THB','{\"chartId\":\"chart\",\"cash\":\"cash\",\"cashTransfer\":\"transfer\",\"cashDifference\":\"difference\",\"edc\":\"edc\",\"receivable\":\"receivable\",\"advance\":\"advance\",\"bank\":\"bank\"}','fixture-a','fixture-b',1) ON CONFLICT DO NOTHING;\
+         VALUES('company',true,'THB','{\"chartId\":\"chart\",\"cash\":\"cash\",\"cashTransfer\":\"transfer\",\"cashDifference\":\"difference\",\"edc\":\"edc\",\"receivable\":\"receivable\",\"advance\":\"advance\",\"bank\":\"bank\",\"revenue\":\"revenue\",\"outputTax\":\"outputTax\",\"cogs\":\"cogs\",\"inventory\":\"inventory\"}','fixture-a','fixture-b',1) ON CONFLICT DO NOTHING;\
          INSERT INTO pos_registers(id,company_id,branch_id,warehouse_id,name,mode,active,version) \
          VALUES('register','company','branch','warehouse','Retail','retail',true,1) ON CONFLICT DO NOTHING;\
          INSERT INTO commerce_products(id,company_id,sku,name,price_minor,tax_bps,status,version) \
          VALUES('product','company','SALE-ADD','Sale add product',10000,700,'active',1) ON CONFLICT DO NOTHING;\
          INSERT INTO pos_catalog(product_id,company_id,kind,station,recipe_json,modifiers_json,tax_inclusive,version,enabled) \
-         VALUES('product','company','service','Shop','[]','[]',false,1,true) ON CONFLICT DO NOTHING;\
+         VALUES('product','company','stock','Shop','[{\"productId\":\"product\",\"quantityMilli\":1000}]','[]',false,1,true) ON CONFLICT DO NOTHING;\
          INSERT INTO pos_register_catalog(register_id,product_id,enabled) \
          VALUES('register','product',true) ON CONFLICT DO NOTHING;\
+         INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor,version) \
+         VALUES('warehouse','product',5000,5000,1) ON CONFLICT DO NOTHING;\
          INSERT INTO pos_shifts(id,register_id,company_id,branch_id,opened_by,opened_at,opening_minor,state,version,business_date) \
          VALUES('shift','register','company','branch','fixture-a',1800000000000,100000,'open',1,'2027-01-15') ON CONFLICT DO NOTHING;\
          INSERT INTO pos_shifts(id,register_id,company_id,branch_id,opened_by,opened_at,opening_minor,state,version,business_date,closed_by,closed_at,counted_minor,expected_minor,variance_minor) \
@@ -304,6 +306,85 @@ async fn pos_http_creates_a_retail_sale_with_real_organization_and_finance_sourc
         .await
         .unwrap();
         assert_eq!(sale_state, ("payment_pending".into(), 3));
+
+        let completed = app
+            .clone()
+            .oneshot(request_op(
+                &p,
+                "/api/v1/holdings/acme/pos/commands/sale.complete",
+                &format!(r#"{{"id":"{id}","expectedVersion":3}}"#),
+                "pos-http-complete-1",
+            ))
+            .await
+            .unwrap();
+        let status = completed.status();
+        let completed = json(completed).await;
+        assert_eq!(status, StatusCode::OK, "{completed}");
+        assert_eq!(completed["data"]["id"], id);
+        assert_eq!(completed["data"]["version"], 4);
+        let sale: (String, i64, Option<String>, i64) = sqlx::query_as(
+            "SELECT state,version,invoice_id,total_minor FROM pos_sales WHERE id=$1",
+        )
+        .bind(&id)
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(sale.0, "completed");
+        assert_eq!(sale.1, 4);
+        assert_eq!(sale.3, 10_700);
+        let invoice_id = sale.2.expect("invoice attached");
+        let invoice: (String, i64, String, String) = sqlx::query_as(
+            "SELECT status,total_minor,journal_id,source_type FROM finance_invoices WHERE id=$1",
+        )
+        .bind(&invoice_id)
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(invoice.0, "paid");
+        assert_eq!(invoice.1, 10_700);
+        assert_eq!(invoice.2, format!("journal-sale:{id}"));
+        assert_eq!(invoice.3, "pos");
+        for journal in [
+            format!("journal-sale:{id}"),
+            format!("journal-allocate:{id}"),
+        ] {
+            let row: (String, i64, i64) = sqlx::query_as(
+                "SELECT status,COALESCE(SUM(debit_minor),0)::bigint,COALESCE(SUM(credit_minor),0)::bigint FROM finance_journals j JOIN finance_journal_lines l ON l.journal_id=j.id WHERE j.id=$1 GROUP BY j.status",
+            )
+            .bind(&journal)
+            .fetch_one(p.system.holdings[0].raw())
+            .await
+            .unwrap();
+            assert_eq!(row.0, "posted", "{journal}");
+            assert_eq!(row.1, 10_700, "{journal}");
+            assert_eq!(row.2, 10_700, "{journal}");
+        }
+        let fulfillment: (String, String, i64) = sqlx::query_as(
+            "SELECT id,state,cost_minor FROM pos_fulfillments WHERE id IN (SELECT fulfillment_id FROM pos_lines WHERE sale_id=$1)",
+        )
+        .bind(&id)
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(fulfillment.1, "delivered");
+        assert_eq!(fulfillment.2, 1_000);
+        let consume: (String, i64, i64) = sqlx::query_as(
+            "SELECT status,COALESCE(SUM(debit_minor),0)::bigint,COALESCE(SUM(credit_minor),0)::bigint FROM finance_journals j JOIN finance_journal_lines l ON l.journal_id=j.id WHERE j.id=$1 GROUP BY j.status",
+        )
+        .bind(format!("journal-consume:{}", fulfillment.0))
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(consume.0, "posted");
+        assert_eq!(consume.1, 1_000);
+        assert_eq!(consume.2, 1_000);
+        let stock: (i64, i64) = sqlx::query_as(
+            "SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='product'",
+        )
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(stock, (4_000, 4_000));
     })
     .await;
 }

@@ -8,8 +8,9 @@ use crate::domain::commands::{
     CashApproveInput, PaymentCreateInput, PosActor, PosCashMovement, PosCatalogSnapshot, PosCommand,
     PosCommandInput, PosFulfillment, PosFulfillmentInsert, PosFulfillmentSplitFacts,
     PosFulfillmentStock, PosJournalLine, PosJournalRequest, PosLine, PosLineDetail,
-    PosLineDiscountRow, PosLineInsert, PosLineSplitRow, PosOperation, PosPaymentInsert, PosReceipt,
-    PosReceiptRequest, PosRefund, PosRegister, PosResult, PosSale, PosSettings, PosShift, PosStockRow,
+    PosConsumptionPart, PosInvoiceRequest, PosLineDiscountRow, PosLineInsert, PosLineSplitRow,
+    PosOperation, PosPaymentInsert, PosReceipt, PosReceiptRequest, PosRefund, PosRegister, PosResult,
+    PosSale, PosSettings, PosShift, PosStockRow,
     RefundRejectInput, RefundRequestInput, SaleAddInput, SaleCreateInput, SaleCustomerInput,
     SaleDiscountInput, SaleMergeInput, SaleMoveTableInput, SaleRemoveInput, SaleSplitInput,
     SaleUpdateLineInput, SaleVersionInput, ShiftCloseInput,
@@ -339,6 +340,41 @@ pub trait PosCommandRepository: Send {
         sale_id: &'a str,
         now: TimestampMillis,
     ) -> PosFuture<'a, bool, Self::Error>;
+    fn sale_paid_total<'a>(&'a mut self, sale_id: &'a str) -> PosFuture<'a, i64, Self::Error>;
+    fn sale_pending_payments<'a>(&'a mut self, sale_id: &'a str) -> PosFuture<'a, bool, Self::Error>;
+    fn delete_reservation<'a>(
+        &'a mut self,
+        fulfillment_id: &'a str,
+        product_id: &'a str,
+    ) -> PosFuture<'a, (), Self::Error>;
+    fn insert_stock_move<'a>(
+        &'a mut self,
+        id: &'a str,
+        company_id: &'a str,
+        fulfillment_id: &'a str,
+        warehouse_id: &'a str,
+        product_id: &'a str,
+        quantity_milli: i64,
+        value_minor: i64,
+        movement_date: &'a str,
+        source_number: &'a str,
+        now: TimestampMillis,
+    ) -> PosFuture<'a, (), Self::Error>;
+    fn mark_fulfillment_delivered<'a>(
+        &'a mut self,
+        fulfillment_id: &'a str,
+        cost_minor: i64,
+    ) -> PosFuture<'a, (), Self::Error>;
+    fn complete_sale<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+        now: TimestampMillis,
+    ) -> PosFuture<'a, bool, Self::Error>;
+    fn attach_invoice<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+        invoice_id: &'a str,
+    ) -> PosFuture<'a, (), Self::Error>;
     fn prepared_day_close<'a>(
         &'a mut self,
         company: &'a CompanyId,
@@ -388,6 +424,19 @@ pub trait PosFinancePort: Send {
         &'a mut self,
         request: &'a PosReceiptRequest,
     ) -> PosFuture<'a, ()>;
+    /// Retain the exact Finance invoice facts for the completed POS sale.
+    fn record_invoice<'a>(
+        &'a mut self,
+        request: &'a PosInvoiceRequest,
+    ) -> PosFuture<'a, ()>;
+}
+pub trait PosInventoryPort: Send {
+    /// Queue the precise Inventory consumption facts and return the snapshot
+    /// cost the owner transaction must reproduce exactly.
+    fn queue_consumption<'a>(
+        &'a mut self,
+        parts: &'a [PosConsumptionPart],
+    ) -> PosFuture<'a, i64>;
 }
 pub trait PosHospitalityPort: Send {
     fn hotel_day_open<'a>(
@@ -614,13 +663,14 @@ where
     Ok(())
 }
 
-pub async fn execute_pos_command<R, F, H, O>(
+pub async fn execute_pos_command<R, F, I, H, O>(
     actor: &PosActor,
     command: &PosCommand,
     repository: &mut R,
     catalog: Option<&PosCatalogSnapshot>,
     stock: Option<&[PosStockRow]>,
     finance: &mut F,
+    inventory: &mut I,
     hospitality: &mut H,
     organization: &mut O,
     now: TimestampMillis,
@@ -628,6 +678,7 @@ pub async fn execute_pos_command<R, F, H, O>(
 where
     R: PosCommandRepository,
     F: PosFinancePort,
+    I: PosInventoryPort,
     H: PosHospitalityPort,
     O: PosOrganizationPort,
 {
@@ -685,6 +736,9 @@ where
         }
         PosCommandInput::PaymentCreate(input) => {
             payment_create(actor, input, stock, repository, finance, now).await?
+        }
+        PosCommandInput::SaleComplete(input) => {
+            sale_complete(actor, input, stock, repository, finance, inventory, now).await?
         }
         PosCommandInput::SaleCreate(input) => {
             sale_create(
@@ -2407,4 +2461,334 @@ where
         id: payment_id,
         version: Some(sale.version + 1),
     })
+}
+
+struct SaleAccounts {
+    receivable: String,
+    advance: String,
+    revenue: String,
+    output_tax: String,
+    cogs: String,
+    inventory: String,
+}
+fn sale_accounts(settings: &PosSettings) -> Result<SaleAccounts, BusinessError> {
+    let value: serde_json::Value = serde_json::from_str(&settings.accounts_json).map_err(|_| {
+        request_invalid("POS_ACCOUNT_INVALID", "Configured POS accounts are invalid.")
+    })?;
+    let text = |name: &str| {
+        value
+            .get(name)
+            .and_then(serde_json::Value::as_str)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+            .ok_or_else(|| {
+                request_invalid(
+                    "POS_ACCOUNT_INVALID",
+                    "Configured POS accounts are incomplete.",
+                )
+            })
+    };
+    Ok(SaleAccounts {
+        receivable: text("receivable")?,
+        advance: text("advance")?,
+        revenue: text("revenue")?,
+        output_tax: text("outputTax")?,
+        cogs: text("cogs")?,
+        inventory: text("inventory")?,
+    })
+}
+
+async fn sale_complete<R, F, I>(
+    actor: &PosActor,
+    input: &SaleVersionInput,
+    stock: Option<&[PosStockRow]>,
+    repository: &mut R,
+    finance: &mut F,
+    inventory: &mut I,
+    now: TimestampMillis,
+) -> Result<PosResult, R::Error>
+where
+    R: PosCommandRepository,
+    F: PosFinancePort,
+    I: PosInventoryPort,
+{
+    let sale = repository
+        .sale(&actor.company_id, &input.id)
+        .await?
+        .ok_or_else(not_found)?;
+    scope_sale(actor, &sale)?;
+    version_matches(sale.version, input.expected_version)?;
+    if sale.state == "completed" {
+        return Ok(PosResult {
+            id: sale.id,
+            version: Some(sale.version),
+        });
+    }
+    if !matches!(sale.state.as_str(), "open" | "held" | "payment_pending") {
+        return Err(conflict("POS_SALE_LOCKED", "This bill cannot be closed.").into());
+    }
+    let settings = repository
+        .settings(&actor.company_id)
+        .await?
+        .ok_or_else(setup_required)?;
+    finance
+        .open_period(&actor.company_id, &sale.business_date)
+        .await
+        .map_err(R::Error::from)?;
+    let lines = repository.sale_lines(&sale.id).await?;
+    if lines.is_empty() {
+        return Err(request_invalid("POS_EMPTY_SALE", "Add items before closing the bill.").into());
+    }
+    let paid = repository.sale_paid_total(&sale.id).await?;
+    if paid != sale.total_minor {
+        return Err(conflict("POS_NOT_PAID", "Payment is incomplete.").into());
+    }
+    if repository.sale_pending_payments(&sale.id).await? {
+        return Err(conflict(
+            "POS_PAYMENT_PENDING",
+            "Wait for the payment result before closing the bill.",
+        )
+        .into());
+    }
+    let accounts = sale_accounts(&settings)?;
+    let fulfillments = repository.sale_fulfillment_stock(&sale.id).await?;
+    let mut availability: std::collections::HashMap<(String, String), (i64, i64, i64)> =
+        std::collections::HashMap::new();
+    for row in stock.unwrap_or(&[]) {
+        availability.insert(
+            (row.warehouse_id.clone(), row.product_id.clone()),
+            (row.quantity_milli, row.reserved_milli, row.value_minor),
+        );
+    }
+    for fulfillment in &fulfillments {
+        if fulfillment.state == "cancelled" {
+            return Err(conflict(
+                "POS_ITEM_CANCELLED",
+                "Remove cancelled items before closing the bill.",
+            )
+            .into());
+        }
+        if fulfillment.kind == "recipe" && fulfillment.state == "draft" {
+            return Err(conflict(
+                "POS_SEND_KITCHEN",
+                "Send items to the kitchen before closing the bill.",
+            )
+            .into());
+        }
+        if fulfillment.kind == "recipe" || fulfillment.state == "delivered" {
+            continue;
+        }
+        let parts = ingredients(&fulfillment.recipe_json, fulfillment.quantity_milli)?;
+        let mut consumption = Vec::new();
+        let mut cost = 0i64;
+        for (product_id, quantity) in parts {
+            let key = (fulfillment.warehouse_id.clone(), product_id.clone());
+            let (quantity_total, reserved, value) = availability.get(&key).copied().ok_or_else(|| {
+                conflict(
+                    "POS_STOCK_UNAVAILABLE",
+                    "Insufficient product or ingredients for this item.",
+                )
+            })?;
+            let available = quantity_total.saturating_sub(reserved);
+            if available < quantity || quantity_total <= 0 || value < 0 {
+                return Err(conflict(
+                    "POS_STOCK_UNAVAILABLE",
+                    "Insufficient product or ingredients for this item.",
+                )
+                .into());
+            }
+            let part_value = if quantity_total == quantity {
+                value
+            } else {
+                scaled(value, quantity, quantity_total)?
+            };
+            availability.insert(
+                key,
+                (
+                    quantity_total - quantity,
+                    reserved.saturating_sub(quantity),
+                    value - part_value,
+                ),
+            );
+            cost = cost
+                .checked_add(part_value)
+                .ok_or_else(|| request_invalid("POS_STOCK_UNAVAILABLE", "Review the stock value."))?;
+            consumption.push(PosConsumptionPart {
+                fulfillment_id: fulfillment.id.clone(),
+                warehouse_id: fulfillment.warehouse_id.clone(),
+                product_id,
+                quantity_milli: quantity,
+                expected_value_minor: part_value,
+            });
+        }
+        if !consumption.is_empty() {
+            let expected = inventory
+                .queue_consumption(&consumption)
+                .await
+                .map_err(R::Error::from)?;
+            if expected != cost {
+                return Err(conflict(
+                    "POS_STOCK_CHANGED",
+                    "Stock changed. Review it before closing the bill.",
+                )
+                .into());
+            }
+            for part in &consumption {
+                repository
+                    .delete_reservation(&part.fulfillment_id, &part.product_id)
+                    .await?;
+                let move_id = repository.new_id().await?;
+                if !valid_uuid(&move_id) {
+                    return Err(source_invalid().into());
+                }
+                repository
+                    .insert_stock_move(
+                        &move_id,
+                        actor.company_id.as_str(),
+                        &part.fulfillment_id,
+                        &part.warehouse_id,
+                        &part.product_id,
+                        part.quantity_milli,
+                        part.expected_value_minor,
+                        &sale.business_date,
+                        &format!("POS-{}", part.fulfillment_id),
+                        now,
+                    )
+                    .await?;
+            }
+            finance
+                .post_journal(&PosJournalRequest {
+                    company_id: actor.company_id.clone(),
+                    branch_id: actor.branch_id.clone(),
+                    chart_id: settings_chart_id(&settings)?,
+                    currency: sale.currency.clone(),
+                    business_date: sale.business_date.clone(),
+                    source_key: format!("consume:{}", fulfillment.id),
+                    source_id: fulfillment.id.clone(),
+                    actor_id: actor.user_id.clone(),
+                    lines: vec![
+                        PosJournalLine {
+                            account_id: accounts.cogs.clone(),
+                            debit: cost,
+                            credit: 0,
+                        },
+                        PosJournalLine {
+                            account_id: accounts.inventory.clone(),
+                            debit: 0,
+                            credit: cost,
+                        },
+                    ],
+                    now,
+                })
+                .await
+                .map_err(R::Error::from)?;
+        }
+        repository
+            .mark_fulfillment_delivered(&fulfillment.id, cost)
+            .await?;
+    }
+    let invoice_id = repository.new_id().await?;
+    if !valid_uuid(&invoice_id) {
+        return Err(source_invalid().into());
+    }
+    let journal_id = format!("journal-sale:{}", sale.id);
+    finance
+        .post_journal(&PosJournalRequest {
+            company_id: actor.company_id.clone(),
+            branch_id: actor.branch_id.clone(),
+            chart_id: settings_chart_id(&settings)?,
+            currency: sale.currency.clone(),
+            business_date: sale.business_date.clone(),
+            source_key: format!("sale:{}", sale.id),
+            source_id: sale.id.clone(),
+            actor_id: actor.user_id.clone(),
+            lines: vec![
+                PosJournalLine {
+                    account_id: accounts.receivable.clone(),
+                    debit: sale.total_minor,
+                    credit: 0,
+                },
+                PosJournalLine {
+                    account_id: accounts.revenue.clone(),
+                    debit: 0,
+                    credit: sale.subtotal_minor,
+                },
+                PosJournalLine {
+                    account_id: accounts.output_tax.clone(),
+                    debit: 0,
+                    credit: sale.tax_minor,
+                },
+            ],
+            now,
+        })
+        .await
+        .map_err(R::Error::from)?;
+    if paid > 0 {
+        finance
+            .post_journal(&PosJournalRequest {
+                company_id: actor.company_id.clone(),
+                branch_id: actor.branch_id.clone(),
+                chart_id: settings_chart_id(&settings)?,
+                currency: sale.currency.clone(),
+                business_date: sale.business_date.clone(),
+                source_key: format!("allocate:{}", sale.id),
+                source_id: sale.id.clone(),
+                actor_id: actor.user_id.clone(),
+                lines: vec![
+                    PosJournalLine {
+                        account_id: accounts.advance.clone(),
+                        debit: paid,
+                        credit: 0,
+                    },
+                    PosJournalLine {
+                        account_id: accounts.receivable.clone(),
+                        debit: 0,
+                        credit: paid,
+                    },
+                ],
+                now,
+            })
+            .await
+            .map_err(R::Error::from)?;
+    }
+    finance
+        .record_invoice(&PosInvoiceRequest {
+            invoice_id,
+            company_id: actor.company_id.clone(),
+            party_id: sale.party_id.clone(),
+            number: sale.number.clone(),
+            invoice_date: sale.business_date.clone(),
+            currency: sale.currency.clone(),
+            subtotal_minor: sale.subtotal_minor,
+            tax_minor: sale.tax_minor,
+            total_minor: sale.total_minor,
+            receivable_account_id: accounts.receivable,
+            revenue_account_id: accounts.revenue,
+            tax_account_id: accounts.output_tax,
+            journal_id,
+            sale_id: sale.id.clone(),
+            actor_id: actor.user_id.clone(),
+            now,
+        })
+        .await
+        .map_err(R::Error::from)?;
+    if !repository.complete_sale(&sale.id, now).await? {
+        return Err(version_conflict().into());
+    }
+    Ok(PosResult {
+        id: sale.id,
+        version: Some(sale.version + 1),
+    })
+}
+
+fn settings_chart_id(settings: &PosSettings) -> Result<String, BusinessError> {
+    let value: serde_json::Value = serde_json::from_str(&settings.accounts_json).map_err(|_| {
+        request_invalid("POS_ACCOUNT_INVALID", "Configured POS accounts are invalid.")
+    })?;
+    value
+        .get("chartId")
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .ok_or_else(|| request_invalid("POS_ACCOUNT_INVALID", "Configured POS chart is invalid."))
 }

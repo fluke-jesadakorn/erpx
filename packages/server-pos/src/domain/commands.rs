@@ -24,6 +24,7 @@ pub const OPERATION_SALE_DISCOUNT: &str = "sale.discount";
 pub const OPERATION_SALE_MERGE: &str = "sale.merge";
 pub const OPERATION_SALE_SPLIT: &str = "sale.split";
 pub const OPERATION_PAYMENT_CREATE: &str = "payment.create";
+pub const OPERATION_SALE_COMPLETE: &str = "sale.complete";
 pub const OPERATION_SALE_CANCEL: &str = "sale.cancel";
 pub const OPERATION_REFUND_REQUEST: &str = "refund.request";
 pub const OPERATION_REFUND_REJECT: &str = "refund.reject";
@@ -110,6 +111,7 @@ pub enum PosOperation {
     SaleMerge,
     SaleSplit,
     PaymentCreate,
+    SaleComplete,
     SaleHold,
     SaleResume,
     SaleCancel,
@@ -134,6 +136,7 @@ impl PosOperation {
             OPERATION_SALE_MERGE => Self::SaleMerge,
             OPERATION_SALE_SPLIT => Self::SaleSplit,
             OPERATION_PAYMENT_CREATE => Self::PaymentCreate,
+            OPERATION_SALE_COMPLETE => Self::SaleComplete,
             OPERATION_SALE_HOLD => Self::SaleHold,
             OPERATION_SALE_RESUME => Self::SaleResume,
             OPERATION_SALE_CANCEL => Self::SaleCancel,
@@ -158,6 +161,7 @@ impl PosOperation {
             Self::SaleMerge => OPERATION_SALE_MERGE,
             Self::SaleSplit => OPERATION_SALE_SPLIT,
             Self::PaymentCreate => OPERATION_PAYMENT_CREATE,
+            Self::SaleComplete => OPERATION_SALE_COMPLETE,
             Self::SaleHold => OPERATION_SALE_HOLD,
             Self::SaleResume => OPERATION_SALE_RESUME,
             Self::SaleCancel => OPERATION_SALE_CANCEL,
@@ -311,6 +315,7 @@ pub enum PosCommandInput {
     SaleMerge(SaleMergeInput),
     SaleSplit(SaleSplitInput),
     PaymentCreate(PaymentCreateInput),
+    SaleComplete(SaleVersionInput),
     SaleVersion(SaleVersionInput),
     RefundRequest(RefundRequestInput),
     RefundReject(RefundRejectInput),
@@ -433,6 +438,34 @@ pub struct PosStockRow {
     pub product_id: String,
     pub quantity_milli: i64,
     pub reserved_milli: i64,
+    pub value_minor: i64,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PosConsumptionPart {
+    pub fulfillment_id: String,
+    pub warehouse_id: String,
+    pub product_id: String,
+    pub quantity_milli: i64,
+    pub expected_value_minor: i64,
+}
+#[derive(Clone, Debug)]
+pub struct PosInvoiceRequest {
+    pub invoice_id: String,
+    pub company_id: CompanyId,
+    pub party_id: Option<String>,
+    pub number: String,
+    pub invoice_date: String,
+    pub currency: String,
+    pub subtotal_minor: i64,
+    pub tax_minor: i64,
+    pub total_minor: i64,
+    pub receivable_account_id: String,
+    pub revenue_account_id: String,
+    pub tax_account_id: String,
+    pub journal_id: String,
+    pub sale_id: String,
+    pub actor_id: UserId,
+    pub now: TimestampMillis,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PosFulfillmentStock {
@@ -1402,6 +1435,25 @@ impl PosCommand {
                         ("amountMinor", amount_minor.to_string()),
                         ("tenderedMinor", tendered_minor.to_string()),
                         ("reference", json_string(&reference)),
+                    ]),
+                )
+            }
+            PosOperation::SaleComplete => {
+                object(
+                    value,
+                    &["id", "expectedVersion"],
+                    &["id", "expectedVersion"],
+                )?;
+                let id = text(value, "id")?;
+                let expected_version = version(integer(value, "expectedVersion")?)?;
+                (
+                    PosCommandInput::SaleComplete(SaleVersionInput {
+                        id: id.clone(),
+                        expected_version,
+                    }),
+                    canonical(&[
+                        ("id", json_string(&id)),
+                        ("expectedVersion", expected_version.to_string()),
                     ]),
                 )
             }

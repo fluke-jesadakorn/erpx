@@ -278,3 +278,94 @@ pub async fn insert_pos_receipt(
     .await?;
     Ok(())
 }
+
+/// Exact Finance invoice facts supplied by the authorized POS completion.
+#[derive(Clone, Debug)]
+pub struct PosInvoiceRecord {
+    pub invoice_id: String,
+    pub company_id: String,
+    pub party_id: Option<String>,
+    pub number: String,
+    pub invoice_date: String,
+    pub currency: String,
+    pub subtotal_minor: i64,
+    pub tax_minor: i64,
+    pub total_minor: i64,
+    pub receivable_account_id: String,
+    pub revenue_account_id: String,
+    pub tax_account_id: String,
+    pub journal_id: String,
+    pub source_id: String,
+    pub actor_id: String,
+    pub now: i64,
+}
+
+/// Write the paid POS receivable invoice on the caller's open Finance
+/// transaction. The deterministic sale journal must already be posted.
+pub async fn insert_pos_invoice(
+    c: &mut PgConnection,
+    invoice: &PosInvoiceRecord,
+) -> Result<(), Error> {
+    if !c.is_in_transaction() {
+        return Err(
+            erpx_server_runtime::public::postgres::PersistenceError::new(
+                "POS_FINANCE_TRANSACTION_REQUIRED",
+            )
+            .into(),
+        );
+    }
+    if invoice.subtotal_minor < 0
+        || invoice.tax_minor < 0
+        || invoice.total_minor < 0
+        || invoice.subtotal_minor + invoice.tax_minor != invoice.total_minor
+        || invoice.invoice_id.is_empty()
+        || invoice.company_id.is_empty()
+        || invoice.journal_id.is_empty()
+    {
+        return Err(invalid(
+            "POS_FINANCE_INVOICE_INVALID",
+            "The POS invoice facts are invalid.",
+        ));
+    }
+    let party = match invoice.party_id.as_deref().filter(|value| !value.is_empty()) {
+        Some(party) => party.to_owned(),
+        None => {
+            let party = format!("pos-walkin-{}", invoice.company_id);
+            sqlx::query(
+                "INSERT INTO finance_parties(id,company_id,kind,code,name,currency,status,created_at,updated_at) \
+                 VALUES($1,$2,'customer','POS-WALKIN','POS walk-in customer',$3,'active',$4,$4) \
+                 ON CONFLICT(id) DO NOTHING",
+            )
+            .bind(&party)
+            .bind(&invoice.company_id)
+            .bind(&invoice.currency)
+            .bind(invoice.now)
+            .execute(&mut *c)
+            .await?;
+            party
+        }
+    };
+    sqlx::query(
+        "INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,debit_account_id,credit_account_id,tax_account_id,source_type,source_id,status,journal_id,created_by,approved_by,posted_at,created_at,updated_at) \
+         VALUES($1,$2,$3,'receivable',$4,$5,$5,$6,$7,$8,$9,0,$10,$11,$12,'pos',$13,'paid',$14,$15,$15,$16,$16,$16)",
+    )
+    .bind(&invoice.invoice_id)
+    .bind(&invoice.company_id)
+    .bind(&party)
+    .bind(&invoice.number)
+    .bind(&invoice.invoice_date)
+    .bind(&invoice.currency)
+    .bind(invoice.subtotal_minor)
+    .bind(invoice.tax_minor)
+    .bind(invoice.total_minor)
+    .bind(&invoice.receivable_account_id)
+    .bind(&invoice.revenue_account_id)
+    .bind(&invoice.tax_account_id)
+    .bind(&invoice.source_id)
+    .bind(&invoice.journal_id)
+    .bind(&invoice.actor_id)
+    .bind(invoice.now)
+    .execute(&mut *c)
+    .await?;
+    Ok(())
+}

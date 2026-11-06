@@ -3,8 +3,9 @@
 //! these tests prove POS-owned persistence, CAS, idempotency and readback.
 use erpx_server_pos::public::commands::{
     PgPosCommandRepository, PosActor, PosCatalogProduct, PosCatalogSnapshot, PosCommand,
-    PosFinancePort, PosFuture, PosHospitalityPort, PosJournalRequest, PosOperation,
-    PosOrganizationPort, PosReceiptRequest, PosResult, PosStockRow, execute_pos_command,
+    PosConsumptionPart, PosFinancePort, PosFuture, PosHospitalityPort, PosInventoryPort,
+    PosInvoiceRequest, PosJournalRequest, PosOperation, PosOrganizationPort, PosReceiptRequest,
+    PosResult, PosStockRow, execute_pos_command,
 };
 use erpx_server_runtime::public::postgres::{
     DatabaseConfig, DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, PoolLimits,
@@ -46,6 +47,19 @@ impl PosFinancePort for Finance {
     }
     fn record_receipt<'a>(&'a mut self, _: &'a PosReceiptRequest) -> PosFuture<'a, ()> {
         Box::pin(async { Ok(()) })
+    }
+    fn record_invoice<'a>(&'a mut self, _: &'a PosInvoiceRequest) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+}
+#[derive(Clone)]
+struct Inventory;
+impl PosInventoryPort for Inventory {
+    fn queue_consumption<'a>(
+        &'a mut self,
+        parts: &'a [PosConsumptionPart],
+    ) -> PosFuture<'a, i64> {
+        Box::pin(async move { Ok(parts.iter().map(|part| part.expected_value_minor).sum()) })
     }
 }
 struct Hospitality;
@@ -117,7 +131,7 @@ async fn setup(pool: &DatabasePool) {
          ('journal-shift','company','chart','period','J-SHIFT','2027-01-15','THB','pos','shift','POS-GL-SHIFT','posted','owner',0,0),\
          ('journal-cash','company','chart','period','J-CASH','2027-01-15','THB','pos','cash','POS-GL-CASH','posted','owner',0,0);\
          INSERT INTO pos_settings(company_id,enabled,currency,accounts_json,accounting_prepared_by,accounting_approved_by,version) VALUES \
-         ('company',true,'THB','{\"chartId\":\"chart\",\"cash\":\"cash\",\"cashTransfer\":\"transfer\",\"cashDifference\":\"difference\",\"edc\":\"edc\",\"receivable\":\"receivable\",\"advance\":\"advance\",\"bank\":\"bank\"}','owner','finance',1);\
+         ('company',true,'THB','{\"chartId\":\"chart\",\"cash\":\"cash\",\"cashTransfer\":\"transfer\",\"cashDifference\":\"difference\",\"edc\":\"edc\",\"receivable\":\"receivable\",\"advance\":\"advance\",\"bank\":\"bank\",\"revenue\":\"revenue\",\"outputTax\":\"outputTax\",\"cogs\":\"cogs\",\"inventory\":\"inventory\"}','owner','finance',1);\
          INSERT INTO pos_registers(id,company_id,branch_id,warehouse_id,name,mode,active,version) VALUES \
          ('register','company','branch','warehouse','Retail','retail',true,1);\
          INSERT INTO pos_shifts(id,register_id,company_id,branch_id,opened_by,opened_at,opening_minor,state,version,business_date) VALUES \
@@ -159,12 +173,24 @@ async fn run_with_snapshots(
     catalog: Option<PosCatalogSnapshot>,
     stock: Option<Vec<PosStockRow>>,
 ) -> Result<PosResult, PgTransactionError<BusinessError>> {
+    run_with_all(pool, actor, command, catalog, stock, Inventory).await
+}
+
+async fn run_with_all(
+    pool: &DatabasePool,
+    actor: PosActor,
+    command: PosCommand,
+    catalog: Option<PosCatalogSnapshot>,
+    stock: Option<Vec<PosStockRow>>,
+    inventory: Inventory,
+) -> Result<PosResult, PgTransactionError<BusinessError>> {
     PgUnitOfWork::new(pool.clone())
         .run::<PosResult, BusinessError, _>(TransactionOptions::default(), move |connection| {
             let actor = actor.clone();
             let command = command.clone();
             let catalog = catalog.clone();
             let stock = stock.clone();
+            let mut inventory = inventory.clone();
             Box::pin(async move {
                 let mut repository = PgPosCommandRepository::new(connection);
                 execute_pos_command(
@@ -174,6 +200,7 @@ async fn run_with_snapshots(
                     catalog.as_ref(),
                     stock.as_deref(),
                     &mut Finance,
+                    &mut inventory,
                     &mut Hospitality,
                     &mut Organization,
                     NOW,
@@ -857,6 +884,7 @@ fn non_serializable_transaction_fails_closed() {
                 None,
                 None,
                 &mut Finance,
+                &mut Inventory,
                 &mut Hospitality,
                 &mut Organization,
                 NOW,
@@ -1210,5 +1238,69 @@ fn payment_create_reserves_settles_cash_and_marks_the_sale_pending() {
         .await
         .unwrap();
         assert_eq!(sale, ("payment_pending".into(), 2));
+    });
+}
+
+#[test]
+fn sale_complete_consumes_stock_and_marks_the_bill_completed() {
+    with_database(|pool| async move {
+        setup(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO pos_sales(id,company_id,branch_id,register_id,shift_id,number,currency,business_date,state,subtotal_minor,tax_minor,discount_minor,total_minor,created_by,created_at,updated_at,accounts_json,service_mode,version) VALUES('sale-complete','company','branch','register','shift','POS-C','THB','2027-01-15','payment_pending',10000,0,0,10000,'cashier',0,0,'{}','retail',1);\
+             INSERT INTO pos_payments(id,sale_id,company_id,method,amount_minor,tendered_minor,state,created_by,created_at,updated_at) VALUES('pay','sale-complete','company','cash',10000,10000,'succeeded','cashier',0,0);\
+             INSERT INTO pos_fulfillments(id,company_id,branch_id,warehouse_id,product_id,quantity_milli,kind,station,recipe_json,accounts_json,currency,business_date,created_at,state,reserved) VALUES('complete-fulfilment','company','branch','warehouse','product',1000,'stock','Shop','[{\"productId\":\"product\",\"quantityMilli\":1000}]','{}','THB','2027-01-15',0,'draft',true);\
+             INSERT INTO pos_reservations(fulfillment_id,warehouse_id,product_id,quantity_milli) VALUES('complete-fulfilment','warehouse','product',1000);\
+             INSERT INTO pos_lines(id,sale_id,fulfillment_id,product_id,name,quantity_milli,price_minor,tax_bps,tax_inclusive,discount_minor,subtotal_minor,tax_minor,modifiers_json) VALUES('complete-line','sale-complete','complete-fulfilment','product','Product',1000,10000,0,false,0,10000,0,'[]');"
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let complete = command(
+            PosOperation::SaleComplete,
+            "sale-complete-key-1",
+            serde_json::json!({"id":"sale-complete","expectedVersion":1}),
+        );
+        let stock = vec![PosStockRow {
+            warehouse_id: "warehouse".into(),
+            product_id: "product".into(),
+            quantity_milli: 100000,
+            reserved_milli: 0,
+            value_minor: 100000,
+        }];
+        let result = run_with_snapshots(&pool, actor("manager"), complete, None, Some(stock))
+            .await
+            .unwrap();
+        assert_eq!(result.id, "sale-complete");
+        assert_eq!(result.version, Some(2));
+        let sale: (String, i64) = sqlx::query_as(
+            "SELECT state,version FROM pos_sales WHERE id='sale-complete'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(sale, ("completed".into(), 2));
+        let fulfillment: (String, i64) = sqlx::query_as(
+            "SELECT state,cost_minor FROM pos_fulfillments WHERE id='complete-fulfilment'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(fulfillment, ("delivered".into(), 1000));
+        let reservations: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM pos_reservations WHERE fulfillment_id='complete-fulfilment'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(reservations, 0);
+        let moves: (i64, i64, String) = sqlx::query_as(
+            "SELECT quantity_milli,value_minor,source_number FROM pos_stock_moves WHERE fulfillment_id='complete-fulfilment'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(moves.0, -1000);
+        assert_eq!(moves.1, -1000);
+        assert_eq!(moves.2, "POS-complete-fulfilment");
     });
 }
