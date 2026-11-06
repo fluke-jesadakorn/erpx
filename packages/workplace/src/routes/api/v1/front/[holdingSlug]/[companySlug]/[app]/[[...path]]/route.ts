@@ -3,6 +3,7 @@ import { roomChargeReversalQueue } from "@erpx/server-pos/public/room-charge-rev
 import { canonicalGuestAccount, guestAccountOperation } from "@erpx/feature-identity_access/lib/guest-account-compat";
 import { z } from "zod";
 import { ensureFrontRole, frontCompanyBrand, frontLocationScope, frontOperationAllowed, frontRoleState, type FrontAppKind } from "@erpx/server-work_projection/public/front-app";
+import { NATIVE_POS_COMMANDS, createNativePosCashClient, nativePosCashActor, nativePosCashAvailable, nativePosCashConfiguration, nativePosCashFailure } from "@erpx/feature-pos/adapters/server/native-pos-cash";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
@@ -222,6 +223,23 @@ export async function POST(request: Request, { params }: Context) {
       const operation = path.join(".");
       if (!frontOperationAllowed(app, operation))
         throw new ApiError(403, "FRONT_COMMAND_FORBIDDEN", "Configuration and approvals are handled in ERPX.");
+      const nativeRequired = NATIVE_POS_COMMANDS.has(operation) || operation === "cash.create";
+      if (nativeRequired) {
+        if (!nativePosCashAvailable())
+          throw new ApiError(503, "NATIVE_POS_COMMAND_REQUIRED", "This POS operation requires the native owner service.");
+        const key = commandKey(request), raw = await request.text();
+        const native = createNativePosCashClient(nativePosCashConfiguration(process.env.ERPX_NATIVE_POS_CASH_CONFIG!));
+        try {
+          const data = operation === "cash.create"
+            ? await native.cash(request.headers, nativePosCashActor(actor), key, raw)
+            : await native.command(request.headers, nativePosCashActor(actor), operation, key, raw);
+          return Response.json(canonicalDestinationLinks({ data }), { headers: { "Cache-Control": "private, no-store" } });
+        } catch (error) {
+          const failure = nativePosCashFailure(error);
+          if (failure) throw new ApiError(failure.status, failure.code, failure.message);
+          throw error;
+        }
+      }
       const body = await request.json();
       const db = (await holdingResources(actor.holdingId)).write as PostgresDatabase;
       return Response.json(

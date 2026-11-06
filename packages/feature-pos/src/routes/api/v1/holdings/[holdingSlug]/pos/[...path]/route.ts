@@ -9,7 +9,7 @@ import { holdingResources } from "../../../../../../../../../../packages/server-
 import { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
 import {posCommand} from '@erpx/server-pos/public/pos-core';
 import {requirePosPurchased} from '@erpx/server-pos/public/purchase-boundary';
-import {nativePosCashActor,nativePosCashAvailable,nativePosCommandScope,nativePosWorkflowOperation,nativePosCashConfiguration,createNativePosCashClient,nativePosCashFailure} from '@erpx/feature-pos/adapters/server/native-pos-cash';
+import {NATIVE_POS_COMMANDS,nativePosCashActor,nativePosCashAvailable,nativePosCommandScope,nativePosWorkflowOperation,nativePosCashConfiguration,createNativePosCashClient,nativePosCashFailure} from '@erpx/feature-pos/adapters/server/native-pos-cash';
 import {finishPosOAuth,oauthUrl} from '@erpx/server-pos/public/pos-stripe';
 import { posCustomers,posDayReport } from "@erpx/server-pos/public/pos-daily";
 import { posProductImage,uploadPosProductImage } from "@erpx/server-pos/public/pos-images";
@@ -21,7 +21,9 @@ export async function POST(request:Request,{params}:Context){
   if(path.length!==2)throw new ApiError(404,'NOT_FOUND','Unknown POS action.');
   if(path.join('/')==='images/upload')return Response.json(canonicalDestinationLinks({data:await uploadPosProductImage(request,actor)}),{headers:{'Cache-Control':'private, no-store'}});
   const operation=path.join("."),raw=await request.text(),db=(await holdingResources(actor.holdingId)).write as PostgresDatabase;
-  if(operation==='cash.create'&&nativePosCashAvailable()){
+  if((NATIVE_POS_COMMANDS.has(operation)||operation==='cash.create')&&!nativePosCashAvailable())
+   throw new ApiError(503,'NATIVE_POS_COMMAND_REQUIRED','This POS operation requires the native owner service.');
+  if(operation==='cash.create'){
    try{
     // Retained package preflight; the composition backend must repeat this
     // purchase admission inside the native owner transaction.
