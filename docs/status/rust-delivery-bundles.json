@@ -6451,5 +6451,663 @@
         "notFullImplementationDuration": true
       }
     }
-  ]
+  ],
+  "executionPlan": {
+    "generatedAt": "2026-11-06T20:11:14+07:00",
+    "sourceHead": "c34c47c0369285be00dafd389333422287045b68",
+    "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
+    "ownerTotals": {
+      "brand": {
+        "workflows": 3,
+        "verified": 3,
+        "partial": 0,
+        "unstarted": 0,
+        "phase": "active",
+        "businessMigrationComplete": true
+      },
+      "commercial": {
+        "workflows": 5,
+        "verified": 0,
+        "partial": 0,
+        "unstarted": 5,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "identity_access": {
+        "workflows": 6,
+        "verified": 0,
+        "partial": 1,
+        "unstarted": 5,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "organization": {
+        "workflows": 4,
+        "verified": 0,
+        "partial": 4,
+        "unstarted": 0,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "platform_administration": {
+        "workflows": 9,
+        "verified": 0,
+        "partial": 5,
+        "unstarted": 4,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "customer_360": {
+        "workflows": 4,
+        "verified": 0,
+        "partial": 2,
+        "unstarted": 2,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "customer_authority": {
+        "workflows": 4,
+        "verified": 0,
+        "partial": 2,
+        "unstarted": 2,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "support": {
+        "workflows": 6,
+        "verified": 6,
+        "partial": 0,
+        "unstarted": 0,
+        "phase": "active",
+        "businessMigrationComplete": true
+      },
+      "finance": {
+        "workflows": 10,
+        "verified": 8,
+        "partial": 2,
+        "unstarted": 0,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "pos": {
+        "workflows": 5,
+        "verified": 0,
+        "partial": 1,
+        "unstarted": 4,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "sales": {
+        "workflows": 5,
+        "verified": 0,
+        "partial": 2,
+        "unstarted": 3,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "assets": {
+        "workflows": 5,
+        "verified": 0,
+        "partial": 5,
+        "unstarted": 0,
+        "phase": "active",
+        "businessMigrationComplete": false
+      },
+      "inventory": {
+        "workflows": 5,
+        "verified": 3,
+        "partial": 2,
+        "unstarted": 0,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "maintenance": {
+        "workflows": 5,
+        "verified": 0,
+        "partial": 5,
+        "unstarted": 0,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "operations": {
+        "workflows": 6,
+        "verified": 0,
+        "partial": 6,
+        "unstarted": 0,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "procurement": {
+        "workflows": 5,
+        "verified": 0,
+        "partial": 1,
+        "unstarted": 4,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "quality": {
+        "workflows": 4,
+        "verified": 0,
+        "partial": 4,
+        "unstarted": 0,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "legal": {
+        "workflows": 5,
+        "verified": 0,
+        "partial": 5,
+        "unstarted": 0,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "people_payroll": {
+        "workflows": 5,
+        "verified": 0,
+        "partial": 2,
+        "unstarted": 3,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "crm": {
+        "workflows": 5,
+        "verified": 0,
+        "partial": 1,
+        "unstarted": 4,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "marketing": {
+        "workflows": 6,
+        "verified": 0,
+        "partial": 1,
+        "unstarted": 5,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "manufacturing": {
+        "workflows": 6,
+        "verified": 0,
+        "partial": 1,
+        "unstarted": 5,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "planning": {
+        "workflows": 5,
+        "verified": 0,
+        "partial": 5,
+        "unstarted": 0,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "projects": {
+        "workflows": 6,
+        "verified": 0,
+        "partial": 2,
+        "unstarted": 4,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "ecommerce": {
+        "workflows": 6,
+        "verified": 0,
+        "partial": 2,
+        "unstarted": 4,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "benefits": {
+        "workflows": 5,
+        "verified": 0,
+        "partial": 2,
+        "unstarted": 3,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "learning": {
+        "workflows": 5,
+        "verified": 0,
+        "partial": 5,
+        "unstarted": 0,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "talent": {
+        "workflows": 6,
+        "verified": 0,
+        "partial": 1,
+        "unstarted": 5,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "field_service": {
+        "workflows": 6,
+        "verified": 6,
+        "partial": 0,
+        "unstarted": 0,
+        "phase": "active",
+        "businessMigrationComplete": true
+      },
+      "agent": {
+        "workflows": 7,
+        "verified": 0,
+        "partial": 1,
+        "unstarted": 6,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "collaboration": {
+        "workflows": 8,
+        "verified": 0,
+        "partial": 8,
+        "unstarted": 0,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "pms": {
+        "workflows": 12,
+        "verified": 0,
+        "partial": 3,
+        "unstarted": 9,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "manage_erpx": {
+        "workflows": 4,
+        "verified": 0,
+        "partial": 1,
+        "unstarted": 3,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "commerce": {
+        "workflows": 0,
+        "verified": 0,
+        "partial": 0,
+        "unstarted": 0,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "billing": {
+        "workflows": 0,
+        "verified": 0,
+        "partial": 0,
+        "unstarted": 0,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "records": {
+        "workflows": 0,
+        "verified": 0,
+        "partial": 0,
+        "unstarted": 0,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "workflow": {
+        "workflows": 0,
+        "verified": 0,
+        "partial": 0,
+        "unstarted": 0,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "files": {
+        "workflows": 0,
+        "verified": 0,
+        "partial": 0,
+        "unstarted": 0,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "work_projection": {
+        "workflows": 0,
+        "verified": 0,
+        "partial": 0,
+        "unstarted": 0,
+        "phase": "partial",
+        "businessMigrationComplete": false
+      },
+      "runtime": {
+        "workflows": 0,
+        "verified": 0,
+        "partial": 0,
+        "unstarted": 0,
+        "phase": "foundation",
+        "businessMigrationComplete": false
+      },
+      "shared": {
+        "workflows": 0,
+        "verified": 0,
+        "partial": 0,
+        "unstarted": 0,
+        "phase": "foundation",
+        "businessMigrationComplete": false
+      }
+    },
+    "dependencyGraph": {
+      "edges": [
+        {
+          "from": "quality",
+          "to": "inventory",
+          "reason": "hold/quarantine and disposition count effects"
+        },
+        {
+          "from": "quality",
+          "to": "finance",
+          "reason": "controlled scrap and valuation posting"
+        },
+        {
+          "from": "quality",
+          "to": "files",
+          "reason": "inspection evidence descriptors"
+        },
+        {
+          "from": "quality",
+          "to": "identity_access",
+          "reason": "independent-person review authority"
+        },
+        {
+          "from": "field_service",
+          "to": "inventory",
+          "reason": "reservation, issue and initial count effects"
+        },
+        {
+          "from": "field_service",
+          "to": "finance",
+          "reason": "service invoice and cost journal handoff"
+        },
+        {
+          "from": "field_service",
+          "to": "files",
+          "reason": "visit attachments"
+        },
+        {
+          "from": "field_service",
+          "to": "support",
+          "reason": "request-to-ticket handoff"
+        },
+        {
+          "from": "inventory",
+          "to": "commerce",
+          "reason": "stock balances, receipts and fulfillment"
+        },
+        {
+          "from": "inventory",
+          "to": "finance",
+          "reason": "inventory value and count posting"
+        },
+        {
+          "from": "commerce",
+          "to": "inventory",
+          "reason": "goods receipt/issue seam"
+        },
+        {
+          "from": "commerce",
+          "to": "finance",
+          "reason": "supplier bill and receipt accounting"
+        },
+        {
+          "from": "sales",
+          "to": "inventory",
+          "reason": "availability and stock issue"
+        },
+        {
+          "from": "sales",
+          "to": "finance",
+          "reason": "invoice and receivable handoff"
+        },
+        {
+          "from": "procurement",
+          "to": "inventory",
+          "reason": "receiving and supplier bill"
+        },
+        {
+          "from": "procurement",
+          "to": "finance",
+          "reason": "payable and payment"
+        },
+        {
+          "from": "pos",
+          "to": "inventory",
+          "reason": "sale stock movement"
+        },
+        {
+          "from": "pos",
+          "to": "finance",
+          "reason": "settlement and payout"
+        },
+        {
+          "from": "manufacturing",
+          "to": "inventory",
+          "reason": "component consumption and output"
+        },
+        {
+          "from": "manufacturing",
+          "to": "planning",
+          "reason": "demand and capacity"
+        },
+        {
+          "from": "operations",
+          "to": "workflow",
+          "reason": "command receipts, audit and outbox"
+        },
+        {
+          "from": "operations",
+          "to": "collaboration",
+          "reason": "notifications and action cards"
+        },
+        {
+          "from": "support",
+          "to": "collaboration",
+          "reason": "notifications and mentions"
+        },
+        {
+          "from": "support",
+          "to": "files",
+          "reason": "ticket evidence"
+        },
+        {
+          "from": "legal",
+          "to": "files",
+          "reason": "document versions and PDF verification"
+        },
+        {
+          "from": "legal",
+          "to": "identity_access",
+          "reason": "signer authority"
+        },
+        {
+          "from": "pms",
+          "to": "finance",
+          "reason": "guest ledger and settlement"
+        },
+        {
+          "from": "pms",
+          "to": "inventory",
+          "reason": "room/stock consumption"
+        },
+        {
+          "from": "assets",
+          "to": "finance",
+          "reason": "acquisition cost and depreciation"
+        },
+        {
+          "from": "assets",
+          "to": "maintenance",
+          "reason": "asset-linked maintenance"
+        },
+        {
+          "from": "maintenance",
+          "to": "inventory",
+          "reason": "part issue"
+        },
+        {
+          "from": "maintenance",
+          "to": "workflow",
+          "reason": "transition receipts"
+        },
+        {
+          "from": "projects",
+          "to": "finance",
+          "reason": "project cost"
+        },
+        {
+          "from": "projects",
+          "to": "procurement",
+          "reason": "project purchases"
+        },
+        {
+          "from": "learning",
+          "to": "benefits",
+          "reason": "eligibility handoff"
+        },
+        {
+          "from": "talent",
+          "to": "people_payroll",
+          "reason": "hire handoff"
+        },
+        {
+          "from": "people_payroll",
+          "to": "finance",
+          "reason": "payroll posting"
+        },
+        {
+          "from": "crm",
+          "to": "marketing",
+          "reason": "lead handoff"
+        },
+        {
+          "from": "customer_360",
+          "to": "sales",
+          "reason": "customer timeline"
+        },
+        {
+          "from": "customer_authority",
+          "to": "identity_access",
+          "reason": "authority bindings"
+        },
+        {
+          "from": "ecommerce",
+          "to": "inventory",
+          "reason": "listing stock"
+        },
+        {
+          "from": "ecommerce",
+          "to": "finance",
+          "reason": "checkout settlement"
+        },
+        {
+          "from": "benefits",
+          "to": "people_payroll",
+          "reason": "provider payroll"
+        },
+        {
+          "from": "collaboration",
+          "to": "workflow",
+          "reason": "record relations"
+        },
+        {
+          "from": "platform_administration",
+          "to": "organization",
+          "reason": "holding provisioning"
+        },
+        {
+          "from": "organization",
+          "to": "identity_access",
+          "reason": "placement authority"
+        },
+        {
+          "from": "identity_access",
+          "to": "workflow",
+          "reason": "command receipts"
+        },
+        {
+          "from": "workflow",
+          "to": "records",
+          "reason": "source records and audit"
+        },
+        {
+          "from": "files",
+          "to": "records",
+          "reason": "attachment descriptors"
+        }
+      ],
+      "sharedResources": [
+        "src/composition/** (single integration writer: lead)",
+        "Cargo.toml/Cargo.lock (lead)",
+        "tests/catalogue/suite-manifest.json (lead)",
+        "docs/status/** (lead)",
+        "packages/contracts/** (lead)",
+        "PostgreSQL 5432 leased erpx_dev_rust_* fixtures",
+        "Next build/link queue (one at a time)",
+        "DB/browser queue (one at a time)"
+      ],
+      "notes": "Edges are source-owner handoffs recorded by the workflow gaps/evidence, not import edges. A consumer must use the producer public port in the same transaction where atomicity is claimed."
+    },
+    "criticalPath": [
+      {
+        "order": 1,
+        "bundle": "native browser verification cohort",
+        "why": "38 owners have browser-only or browser-final gaps; without an authenticated native cohort no workflow can move from partial to verified. Current host has no Docker daemon and the development gateway has no native transport configured.",
+        "exit": "Authenticated desktop+mobile journey over the real Account session and a native owner route, with page/console errors, persisted effects and readback recorded.",
+        "estimateHours": "8-16",
+        "status": "blocked"
+      },
+      {
+        "order": 2,
+        "bundle": "close browser-ready partials",
+        "why": "operations 6, assets 5, organization 4, quality 4, planning 5, learning 5, legal 5, maintenance 5, collaboration 8, pms 3, platform_administration 5, customer_360 2, customer_authority 2, ecommerce 2, benefits 2, identity_access 1, projects 2, procurement 1, crm 1, marketing 1, manufacturing 1, talent 1, pos 1, sales 1, people_payroll 1, manage_erpx 1, apps 1, account 1, admin 1, quality 1 are already native or have qualified slices.",
+        "exit": "Each workflow's full catalogue scope is exercised through the native path; retained fallback is gone for that scope.",
+        "estimateHours": "60-120",
+        "status": "pending cohort"
+      },
+      {
+        "order": 3,
+        "bundle": "code completion for near-closed owners",
+        "why": "finance 2, inventory 2, sales 2, pos 1, procurement 1, crm 1, marketing 1, manufacturing 1, talent 1, projects 2, ecommerce 2, benefits 2, identity_access 1, people_payroll 2, manage_erpx 1 remain partly retained; completing their native writers/ports unlocks browser closure in the same wave.",
+        "exit": "Owner crate owns the command/read, composition uses its public port, no TS fallback when configured.",
+        "estimateHours": "40-80",
+        "status": "in progress"
+      },
+      {
+        "order": 4,
+        "bundle": "untouched owners",
+        "why": "93 workflows have neither verified nor partial evidence: pms 9, agent 6, identity_access 5, manufacturing 5, marketing 5, projects 4, talent 5, ecommerce 4, commercial 5, crm 4, pos 4, procurement 4, sales 3, people_payroll 3, benefits 3, customer_360 2, customer_authority 2, manage_erpx 3, planning 5, platform_administration 4, and surface owners account 4, admin 3, apps 1, booking 1, portal 1, legal-portal 2, forms 1. Verified/partial owners (field_service, support, brand, finance, inventory, operations, collaboration, assets, maintenance, learning, legal, organization, quality) contribute no unstarted workflows.",
+        "exit": "Native owner implementation plus frontend/legacy/gates.",
+        "estimateHours": "180-320",
+        "status": "not started"
+      }
+    ],
+    "sharedQueues": {
+      "compositionWriter": "lead only; owners deliver public ports and report the exact mount",
+      "buildLinkNextBuild": "one at a time; owners use cargo check -p <crate> and tsc scoped projects",
+      "databaseBrowser": "one at a time; verification owns the queue and never reuses another source's result",
+      "fixturesDbCachesApi": "separate queues; no shared mutable fixture/cache between owners",
+      "git": "lead commits/pushes only; no PR/force-push/development; reconcile remote SHA before every push"
+    },
+    "blockers": [
+      {
+        "id": "browser-cohort-unavailable",
+        "detail": "Docker daemon is not available (docker API socket absent), so the existing native engineering cohort images/volumes cannot run. The development gateway on 3100 runs without ERPX_NATIVE_* transport and the private Rust API has no local leased-DB launch in this environment.",
+        "unblock": "User provides a running Docker daemon with the existing cohort images or authorizes a local native dev cohort (leased DB clones + private API + normal Account session)."
+      },
+      {
+        "id": "external-writer",
+        "detail": "Another writer is concurrently editing packages/server-quality/**, packages/server-files/**, packages/server-identity_access/** and tests for quality inspection attachments/same-person. Preserve its files; do not reset or overwrite.",
+        "unblock": "Coordinate file ownership before touching those paths; lead integrates after its freeze."
+      },
+      {
+        "id": "private-production-3101",
+        "detail": "The installed private production service is not listening on 127.0.0.1:3101 at survey time. This goal does not authorize deploy/release; availability is reported, not changed.",
+        "unblock": "Outside this goal; operator action."
+      }
+    ],
+    "nextActions": [
+      "Freeze and review the four owner slices currently in flight; integrate their public ports through the lead-owned composition writer.",
+      "When a browser cohort is available, prioritize operations (6), assets (5), organization (4), quality (4), planning (5) in that order because their code is already mounted.",
+      "Keep the quality cancellation-history composed API evidence attached to the pushed SHA; do not convert partial counts to verified until browser acceptance exists."
+    ]
+  }
 }
