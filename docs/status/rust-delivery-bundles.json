@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T01:15:39+07:00",
+  "updatedAt": "2026-11-07T01:47:07+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -4177,7 +4177,7 @@
         "pos-native-cash-http"
       ],
       "sourceRef": "packages/server-pos/src/public/pos.ts",
-      "gap": "Native POS shift open/close/review and cash-approval commands are owner-qualified; the command router is mounted with real Account/IAM, Finance period/party reads and Organization issuer. A composed retail sale.create test proves a real issuer, open Finance period, idempotent replay and persisted POS readback. Journal-posting shift review/cash approval still need the shared owner-transaction journal port; PMS hospitality and browser remain open. The composed POS command test passes from a pristine archive, and the keyed native workspace reaches the authenticated app shell; role selection is still blocked by the dev work-role/active-context fixture."
+      "gap": "Native POS shift open/close/review and cash-approval commands are owner-qualified; the command router is mounted with real Account/IAM, Finance period/party reads and Organization issuer. A composed retail sale.create test proves a real issuer, an open Finance period, idempotent replay and persisted POS readback. Browser acceptance is unblocked: the contributed POS package plus the keyed workspace serve the startup page (200) and a browser-created warehouse persisted in commerce_warehouses (POST 201, readback verified). Remaining: nine posting roles, register, bank and independent accounting approval, the shift browser journey, and the shared owner-transaction journal port for shift review/cash approval; PMS hospitality remains open."
     },
     {
       "id": "pos/feature-sales-baskets",
@@ -6453,8 +6453,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-06T20:11:14+07:00",
-    "sourceHead": "484f68a46",
+    "generatedAt": "2026-11-07T01:47:07+07:00",
+    "sourceHead": "fb1121c26",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7089,9 +7089,9 @@
     },
     "blockers": [
       {
-        "id": "browser-cohort-unavailable",
-        "detail": "The keyed contributor lifecycle and Docker Colima socket are available, but host port 3443 is held by another ERPX workspace container (`erpx-dev-service-parts-q-1f71-arm64-workspace-1`, source 1f71a96, not this HEAD). The lifecycle correctly refuses to adopt or stop it. The existing 3100 development gateway has no ERPX_NATIVE_ACCOUNT_SESSION_CONFIG, so authenticated Holding pages return 500 NATIVE_SESSION_CONFIGURATION_REQUIRED. Without an owned HTTPS origin bound to current HEAD, no authenticated desktop/mobile journey can run.",
-        "unblock": "User authorization to stop/replace the other keyed workspace occupying 127.0.0.1:3443, or an approved alternate HTTPS origin/profile for a new keyed workspace bound to this HEAD. No staging/private production/public runtime change is implied."
+        "id": "pos-register-session-accounting",
+        "detail": "The keyed contributor workspace on 3443 now serves an authenticated Account session at current HEAD: a fresh login opens /supply/inventory-quality/quality (200, \"Quality holds\") and /bangkok/pos/settings/startup (200) with the holding_owner role. The POS package is purchased in the fixture and the browser created a real warehouse through POST /__erpx/pos/api/v1/holdings/acme/branches/bangkok/pos/startup/warehouses (201, warehouses-ca68eb6a...), persisted in commerce_warehouses (acme-co/bangkok, code POS-E2E, active, v1). Remaining: prepare all nine posting roles, register, bank and independent accounting approval before a shift can open; shift review/cash approval also need the shared owner-transaction journal port.",
+        "unblock": "Complete POS accounting preparation through the existing startup UI, then open a register session and run the shift/cash browser journey; add the shared Finance journal port for review/approval posting."
       },
       {
         "id": "external-writer",
@@ -7105,9 +7105,9 @@
       }
     ],
     "nextActions": [
-      "Freeze and review the four owner slices currently in flight; integrate their public ports through the lead-owned composition writer.",
+      "Run the POS startup browser journey to completion (nine posting roles, register, bank, independent accounting approval), then open a register session and attach persisted shift readback.",
       "When a browser cohort is available, prioritize operations (6), assets (5), organization (4), quality (4), planning (5) in that order because their code is already mounted.",
-      "Keep the quality cancellation-history composed API evidence attached to the pushed SHA; do not convert partial counts to verified until browser acceptance exists."
+      "Use the now-working authenticated cohort to attach browser evidence to the browser-ready partials; do not raise counts without it."
     ],
     "integrationLog": [
       {
@@ -7216,6 +7216,23 @@
           "POS command router mount + real Finance period/party + Organization issuer"
         ],
         "evidence": "composed HTTP+PG 1/1 retail sale.create, POS 46 tests, native worker build clean",
+        "counts": {
+          "owners": 4,
+          "verified": 28,
+          "partial": 91,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T01:47:07+07:00",
+        "commit": "fb1121c26",
+        "bundles": [
+          "contributor grant audit payload fix",
+          "contributor POS package fixture",
+          "authenticated POS startup browser journey + persisted warehouse"
+        ],
+        "evidence": "bootstrap completes; fresh login opens supply quality 200 and POS startup 200; POST .../pos/startup/warehouses 201; commerce_warehouses readback acme-co/bangkok POS-E2E active v1; 3100/console-dev/3101 health 200",
         "counts": {
           "owners": 4,
           "verified": 28,
