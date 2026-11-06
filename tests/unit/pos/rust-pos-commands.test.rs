@@ -130,6 +130,7 @@ struct Probe {
     receipt_insert: bool,
     postings: Vec<String>,
     audits: usize,
+    aliases: Vec<(String, String)>,
 }
 impl Default for Probe {
     fn default() -> Self {
@@ -166,6 +167,7 @@ impl Default for Probe {
             reject: true,
             postings: Vec::new(),
             audits: 0,
+            aliases: Vec::new(),
         }
     }
 }
@@ -210,6 +212,20 @@ impl PosCommandRepository for Probe {
     fn business_date(&mut self, _: TimestampMillis) -> PosFuture<'_, String> {
         self.calls.push("business-date");
         Box::pin(async { Ok("2026-11-06".into()) })
+    }
+    fn same_person<'a>(
+        &'a mut self,
+        _: &'a CompanyId,
+        left: &'a str,
+        right: &'a str,
+    ) -> PosFuture<'a, bool> {
+        self.calls.push("same-person");
+        let same = left == right
+            || self
+                .aliases
+                .iter()
+                .any(|(a, b)| (a == left && b == right) || (a == right && b == left));
+        Box::pin(async move { Ok(same) })
     }
     fn settings<'a>(&'a mut self, _: &'a CompanyId) -> PosFuture<'a, Option<PosSettings>> {
         self.calls.push("settings");
@@ -986,6 +1002,32 @@ fn refund_request_rejects_duplicates_and_over_quantities_and_computes_tax() {
     .unwrap_err();
     assert_eq!(error.code, "POS_ROOM_CHARGE_REVERSAL");
     assert!(!room.calls.contains(&"insert-refund"));
+}
+
+#[test]
+fn merged_alias_blocks_self_review_through_the_identity_port() {
+    let mut probe = Probe::default();
+    probe.aliases = vec![("manager".into(), "cashier".into())];
+    probe.shift = Some(PosShift {
+        state: "closed".into(),
+        variance_minor: Some(0),
+        closed_by: Some("cashier".into()),
+        version: 2,
+        ..shift("closed", 2)
+    });
+    let error = run(
+        &mut probe,
+        &mut Finance::default(),
+        &mut Hospitality::default(),
+        &command(
+            PosOperation::ShiftReview,
+            serde_json::json!({"id":"shift","expectedVersion":2,"reason":"Count reviewed"}),
+        ),
+    )
+    .unwrap_err();
+    assert_eq!(error.code, "POS_INDEPENDENT_REVIEW");
+    assert!(probe.calls.contains(&"same-person"));
+    assert!(!probe.calls.contains(&"review-shift"));
 }
 
 #[test]

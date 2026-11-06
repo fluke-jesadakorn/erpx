@@ -43,6 +43,12 @@ pub trait PosCommandRepository: Send {
     ) -> PosFuture<'a, (), Self::Error>;
     fn new_id(&mut self) -> PosFuture<'_, String, Self::Error>;
     fn business_date(&mut self, now: TimestampMillis) -> PosFuture<'_, String, Self::Error>;
+    fn same_person<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        left: &'a str,
+        right: &'a str,
+    ) -> PosFuture<'a, bool, Self::Error>;
 
     fn settings<'a>(
         &'a mut self,
@@ -320,9 +326,6 @@ fn scope_refund(actor: &PosActor, refund: &PosRefund) -> Result<(), BusinessErro
         return Err(not_found());
     }
     Ok(())
-}
-fn same_person(actor: &PosActor, user: &str) -> bool {
-    actor.user_id.as_str() == user
 }
 fn version_matches(actual: i64, expected: i64) -> Result<(), BusinessError> {
     if actual != expected {
@@ -681,11 +684,16 @@ where
         )
         .into());
     }
-    if same_person(actor, &shift.opened_by)
-        || shift
-            .closed_by
-            .as_deref()
-            .is_some_and(|user| same_person(actor, user))
+    if repository
+        .same_person(&actor.company_id, actor.user_id.as_str(), &shift.opened_by)
+        .await?
+    {
+        return Err(independent_review().into());
+    }
+    if let Some(closed_by) = shift.closed_by.as_deref()
+        && repository
+            .same_person(&actor.company_id, actor.user_id.as_str(), closed_by)
+            .await?
     {
         return Err(independent_review().into());
     }
@@ -754,7 +762,17 @@ where
         .cash_movement(&shift.id, &input.movement_id)
         .await?
         .ok_or_else(independent_review)?;
-    if movement.approved_by.is_some() || same_person(actor, &movement.created_by) {
+    if movement.approved_by.is_some() {
+        return Err(independent_review().into());
+    }
+    if repository
+        .same_person(
+            &actor.company_id,
+            actor.user_id.as_str(),
+            &movement.created_by,
+        )
+        .await?
+    {
         return Err(independent_review().into());
     }
     let settings = repository
@@ -1175,7 +1193,17 @@ where
         .ok_or_else(not_found)?;
     scope_refund(actor, &refund)?;
     version_matches(refund.version, input.expected_version)?;
-    if refund.state != "requested" || same_person(actor, &refund.requested_by) {
+    if refund.state != "requested" {
+        return Err(independent_review().into());
+    }
+    if repository
+        .same_person(
+            &actor.company_id,
+            actor.user_id.as_str(),
+            &refund.requested_by,
+        )
+        .await?
+    {
         return Err(independent_review().into());
     }
     if !repository

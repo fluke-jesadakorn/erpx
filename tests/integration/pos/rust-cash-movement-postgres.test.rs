@@ -16,7 +16,7 @@ use erpx_server_shared::public::{
     TimestampMillis, UserId,
 };
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row, postgres::PgConnectOptions};
-use std::{str::FromStr, time::Duration};
+use std::{str::FromStr, sync::atomic::{AtomicU64, Ordering}, time::Duration};
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
 
@@ -114,13 +114,15 @@ where
         let mut admin = PgConnection::connect_with(&admin_options)
             .await
             .expect("test administrator unavailable");
+        static NEXT_DATABASE: AtomicU64 = AtomicU64::new(0);
         let token = format!(
-            "{}{}",
+            "{}{}{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
-                .as_nanos()
+                .as_nanos(),
+            NEXT_DATABASE.fetch_add(1, Ordering::SeqCst)
         );
         let name = format!("erpx_dev_rust_{token}");
         let lease = format!("erpx-rust-test:{token}");

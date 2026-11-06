@@ -141,6 +141,24 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
             .await?)
         })
     }
+    fn same_person<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        left: &'a str,
+        right: &'a str,
+    ) -> Fut<'a, bool> {
+        Box::pin(async move {
+            self.ready().await?;
+            Ok(
+                sqlx::query_scalar("SELECT COALESCE(iam_same_person($1,$2,$3),false)")
+                    .bind(left)
+                    .bind(right)
+                    .bind(company.as_str())
+                    .fetch_one(&mut *self.connection)
+                    .await?,
+            )
+        })
+    }
 
     fn settings<'a>(&'a mut self, company: &'a CompanyId) -> Fut<'a, Option<PosSettings>> {
         Box::pin(async move {

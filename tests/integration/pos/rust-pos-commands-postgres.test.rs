@@ -14,7 +14,11 @@ use erpx_server_shared::public::{
     UserId,
 };
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row, postgres::PgConnectOptions};
-use std::{str::FromStr, sync::atomic::{AtomicU64, Ordering}, time::Duration};
+use std::{
+    str::FromStr,
+    sync::atomic::{AtomicU64, Ordering},
+    time::Duration,
+};
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
 
@@ -663,6 +667,144 @@ fn refund_request_and_reject_persist_line_tax_capacity_and_independent_review() 
                 .unwrap_err(),
             );
             assert_eq!(same.code, "POS_INDEPENDENT_REVIEW");
+        })
+    });
+}
+
+#[test]
+fn merged_iam_member_alias_is_denied_as_self_review_for_shift_cash_and_refund() {
+    with_database(|pool| {
+        Box::pin(async move {
+            setup(&pool).await;
+            sqlx::raw_sql(
+                "INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy) VALUES \
+                 ('company','manager','principal-manager','person-shared','active','local'),\
+                 ('company','manager-alias','principal-alias','person-shared','active','local'),\
+                 ('company','manager-other','principal-other','person-other','active','local');\
+                 UPDATE pos_shifts SET state='closed',counted_minor=100000,expected_minor=100000,\
+                 variance_minor=0,opened_by='manager',closed_by='cashier',version=2 WHERE id='shift';\
+                 INSERT INTO pos_shifts(id,register_id,company_id,branch_id,opened_by,opened_at,opening_minor,state,version,business_date) \
+                 VALUES('shift-cash','register','company','branch','cashier',1800000000000,100000,'open',1,'2027-01-15');\
+                 INSERT INTO pos_cash_movements(id,shift_id,amount_minor,reason,created_by,created_at) \
+                 VALUES('movement-cash','shift-cash',1000,'Drawer top-up','manager',1800000000000);\
+                 INSERT INTO pos_sales(id,company_id,branch_id,register_id,shift_id,number,currency,business_date,state,subtotal_minor,tax_minor,total_minor,created_by,created_at,updated_at,accounts_json,version) \
+                 VALUES('refund-sale','company','branch','register','shift-cash','POS-REF','THB','2027-01-15','completed',1000,0,1000,'cashier',0,0,'{}',2);\
+                 INSERT INTO pos_refunds(id,sale_id,company_id,branch_id,reason,lines_json,amount_minor,state,requested_by,created_at,accounting_date,tax_minor) \
+                 VALUES('refund-alias','refund-sale','company','branch','Return','[]',1000,'requested','manager',0,'2027-01-15',0)",
+            )
+            .execute(pool.raw())
+            .await
+            .unwrap();
+
+            for (operation, value) in [
+                (
+                    PosOperation::ShiftReview,
+                    serde_json::json!({"id":"shift","expectedVersion":2,"reason":"Count reviewed"}),
+                ),
+                (
+                    PosOperation::CashApprove,
+                    serde_json::json!({"id":"shift-cash","expectedVersion":1,"movementId":"movement-cash"}),
+                ),
+                (
+                    PosOperation::RefundReject,
+                    serde_json::json!({"id":"refund-alias","expectedVersion":1,"reason":"Evidence insufficient"}),
+                ),
+            ] {
+                let error = business(
+                    run(
+                        &pool,
+                        actor("manager-alias"),
+                        command(operation, "alias-denied-0001", value),
+                    )
+                    .await
+                    .unwrap_err(),
+                );
+                assert_eq!(error.code, "POS_INDEPENDENT_REVIEW", "{operation:?}");
+            }
+            assert_eq!(
+                sqlx::query_scalar::<_, i64>("SELECT version FROM pos_shifts WHERE id='shift'")
+                    .fetch_one(pool.raw())
+                    .await
+                    .unwrap(),
+                2
+            );
+            assert_eq!(
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT version FROM pos_shifts WHERE id='shift-cash'"
+                )
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+                1
+            );
+            assert_eq!(
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT version FROM pos_refunds WHERE id='refund-alias'"
+                )
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+                1
+            );
+
+            run(
+                &pool,
+                actor("manager-other"),
+                command(
+                    PosOperation::ShiftReview,
+                    "distinct-review-0001",
+                    serde_json::json!({"id":"shift","expectedVersion":2,"reason":"Count reviewed"}),
+                ),
+            )
+            .await
+            .unwrap();
+            run(
+                &pool,
+                actor("manager-other"),
+                command(
+                    PosOperation::CashApprove,
+                    "distinct-cash-0001",
+                    serde_json::json!({"id":"shift-cash","expectedVersion":1,"movementId":"movement-cash"}),
+                ),
+            )
+            .await
+            .unwrap();
+            run(
+                &pool,
+                actor("manager-other"),
+                command(
+                    PosOperation::RefundReject,
+                    "distinct-refund-0001",
+                    serde_json::json!({"id":"refund-alias","expectedVersion":1,"reason":"Evidence insufficient"}),
+                ),
+            )
+            .await
+            .unwrap();
+            assert_eq!(
+                sqlx::query_scalar::<_, i64>("SELECT version FROM pos_shifts WHERE id='shift'")
+                    .fetch_one(pool.raw())
+                    .await
+                    .unwrap(),
+                3
+            );
+            assert_eq!(
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT version FROM pos_shifts WHERE id='shift-cash'"
+                )
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+                2
+            );
+            assert_eq!(
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT version FROM pos_refunds WHERE id='refund-alias'"
+                )
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+                2
+            );
         })
     });
 }
