@@ -461,12 +461,41 @@ fn valid_identifier(value: &str) -> bool {
     RecordId::new(value).is_ok()
 }
 
+/// ECMAScript `String.prototype.trim` whitespace: WhiteSpace plus
+/// LineTerminator. Rust's `str::trim` additionally strips U+0085 (White_Space
+/// in Unicode but not in JavaScript `trim`) and keeps U+FEFF, so the exact
+/// set is spelled out to match the retained Zod `trim()` boundary.
+pub(crate) fn js_trim(value: &str) -> &str {
+    value.trim_matches(|character| {
+        matches!(character,
+            '\u{0009}'..='\u{000D}'
+                | '\u{0020}'
+                | '\u{00A0}'
+                | '\u{1680}'
+                | '\u{2000}'..='\u{200A}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202F}'
+                | '\u{205F}'
+                | '\u{3000}'
+                | '\u{FEFF}')
+    })
+}
+
+/// Zod string limits count UTF-16 code units (`String.length`), not UTF-8
+/// bytes or Unicode scalar values. Thai text (3 bytes, 1 unit) and astral
+/// text (surrogate pairs) must be measured the way the retained TypeScript
+/// gateway measures them.
+pub(crate) fn utf16_len(value: &str) -> usize {
+    value.encode_utf16().count()
+}
+
 fn valid_text(value: &str, limit: usize) -> bool {
-    !value.is_empty() && value.len() <= limit && !value.chars().any(char::is_control)
+    !value.is_empty() && utf16_len(value) <= limit && !value.chars().any(char::is_control)
 }
 
 fn valid_note(value: &str, limit: usize) -> bool {
-    value.len() <= limit
+    utf16_len(value) <= limit
         && !value
             .chars()
             .any(|character| character.is_control() && !matches!(character, '\n' | '\r' | '\t'))
@@ -710,8 +739,8 @@ impl TransitionCommand {
             return Err(request_invalid());
         }
         if let Some(reason) = &self.reason {
-            let trimmed = reason.trim();
-            if trimmed.len() > REASON_LIMIT || !valid_note(trimmed, REASON_LIMIT) {
+            let trimmed = js_trim(reason);
+            if utf16_len(trimmed) > REASON_LIMIT || !valid_note(trimmed, REASON_LIMIT) {
                 return Err(request_invalid());
             }
         }
@@ -777,7 +806,7 @@ pub fn transition_identity(actor: &CommerceOrderActor, command: &TransitionComma
             "id": command.order_id.as_str(),
             "action": command.action.as_str(),
             "expectedVersion": command.expected_version,
-            "reason": command.reason.as_deref().map(str::trim),
+            "reason": command.reason.as_deref().map(js_trim),
         },
     })
     .to_string()
@@ -804,7 +833,7 @@ pub fn authorize_transition(
     if state == OrderState::Converted && command.action != OrderAction::Convert {
         return Err(version_conflict());
     }
-    let reason = command.reason.as_deref().map(str::trim);
+    let reason = command.reason.as_deref().map(js_trim);
     let expected_state;
     let next_state;
     let mut approved_by = order.approved_by.clone();
@@ -838,7 +867,7 @@ pub fn authorize_transition(
             }
             if order.discount_approval_required == 1 {
                 let reason = reason.filter(|value| {
-                    value.chars().count() >= DISCOUNT_REASON_MIN && value.len() <= REASON_LIMIT
+                    utf16_len(value) >= DISCOUNT_REASON_MIN && utf16_len(value) <= REASON_LIMIT
                 });
                 if reason.is_none() {
                     return Err(discount_reason_required());
@@ -1090,6 +1119,20 @@ mod tests {
         assert!(valid_currency("THB"));
         assert!(!valid_currency("thb"));
         assert!(!valid_currency("TH"));
+    }
+
+    #[test]
+    fn js_trim_matches_ecmascript_whitespace_set() {
+        assert_eq!(js_trim("\u{FEFF} reason \u{00A0}"), "reason");
+        assert_eq!(js_trim("\u{2000}x\u{2028}"), "x");
+        assert_eq!(js_trim("\u{0085}abc\u{0085}"), "\u{0085}abc\u{0085}");
+        assert_eq!(js_trim("a\u{200B}"), "a\u{200B}");
+        assert_eq!(utf16_len("😀"), 2);
+        assert_eq!(utf16_len("ก"), 1);
+        assert!(valid_note(&"ก".repeat(1_000), REASON_LIMIT));
+        assert!(!valid_note(&"ก".repeat(1_001), REASON_LIMIT));
+        assert!(valid_note(&"😀".repeat(500), REASON_LIMIT));
+        assert!(!valid_note(&"😀".repeat(501), REASON_LIMIT));
     }
 
     #[test]

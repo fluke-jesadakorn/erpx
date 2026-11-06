@@ -483,3 +483,159 @@ fn serialized_workspace_uses_the_bounded_transport_shape() {
     assert_eq!(record["record"]["id"], "s1");
     assert_eq!(record["record"]["effective_status"], "active");
 }
+
+fn expect_source_invalid(error: BusinessError) {
+    assert_eq!(error.code, "AGENT_EVIDENCE_SOURCE_INVALID");
+    assert_eq!(error.kind, FailureKind::Unavailable);
+}
+
+#[test]
+fn identifiers_match_the_200_byte_transport_boundary() {
+    // Exactly 200 UTF-8 bytes pass; 201 fail, for every identifier field.
+    let mut row = invocation("i1", "claimant", 10);
+    row.id = "x".repeat(200);
+    validate_invocation(&actor(), row).unwrap();
+
+    let mut row = invocation("i1", "claimant", 10);
+    row.id = "x".repeat(201);
+    expect_source_invalid(validate_invocation(&actor(), row).unwrap_err());
+
+    for field in ["session_id", "turn_id", "user_id"] {
+        let mut row = invocation("i1", "claimant", 10);
+        let long = "y".repeat(201);
+        match field {
+            "session_id" => row.session_id = long,
+            "turn_id" => row.turn_id = long,
+            _ => row.user_id = long,
+        }
+        expect_source_invalid(validate_invocation(&actor(), row).unwrap_err());
+    }
+
+    let mut row = invocation("i1", "claimant", 10);
+    row.agent_version_id = Some("v".repeat(201));
+    expect_source_invalid(validate_invocation(&actor(), row).unwrap_err());
+
+    let mut row = invocation("i1", "claimant", 10);
+    row.agent_version_id = Some(String::new());
+    expect_source_invalid(validate_invocation(&actor(), row).unwrap_err());
+
+    for field in ["id", "user_id", "assignment_id"] {
+        let mut row = session("s1", "claimant", "active", NOW + 1, 10);
+        let long = "z".repeat(201);
+        match field {
+            "id" => row.id = long,
+            "user_id" => row.user_id = long,
+            _ => row.assignment_id = long,
+        }
+        expect_source_invalid(validate_session(&actor(), row, NOW, false).unwrap_err());
+    }
+}
+
+#[test]
+fn boundaries_count_utf8_bytes_not_chars_or_utf16_units() {
+    // 50 astral emoji are 200 UTF-8 bytes, 100 UTF-16 units and 50 chars: the
+    // 200-byte boundary accepts them, while 67 emoji (268 bytes, 134 UTF-16
+    // units, 67 chars) fail. A char count would wrongly admit the latter.
+    let mut row = invocation("i1", "claimant", 10);
+    row.id = "😀".repeat(50);
+    validate_invocation(&actor(), row).unwrap();
+
+    let mut row = invocation("i1", "claimant", 10);
+    row.id = "😀".repeat(67);
+    expect_source_invalid(validate_invocation(&actor(), row).unwrap_err());
+
+    // 200 two-byte chars are exactly 400 bytes of conversation key and pass;
+    // 201 exceed the byte bound even though they are only 201 chars.
+    let mut row = session("s1", "claimant", "active", NOW + 1, 10);
+    row.conversation_key = "é".repeat(200);
+    validate_session(&actor(), row, NOW, false).unwrap();
+
+    let mut row = session("s1", "claimant", "active", NOW + 1, 10);
+    row.conversation_key = "é".repeat(201);
+    expect_source_invalid(validate_session(&actor(), row, NOW, false).unwrap_err());
+
+    let mut row = session("s1", "claimant", "active", NOW + 1, 10);
+    row.conversation_key = "c".repeat(400);
+    validate_session(&actor(), row, NOW, false).unwrap();
+
+    let mut row = session("s1", "claimant", "active", NOW + 1, 10);
+    row.conversation_key = "c".repeat(401);
+    expect_source_invalid(validate_session(&actor(), row, NOW, false).unwrap_err());
+}
+
+#[test]
+fn control_sets_match_the_transport_validators() {
+    // `text()` rejects [\u0000-\u001f\u007f]; C1 controls are outside that set
+    // even though Rust `char::is_control` covers them, so they pass here.
+    let mut row = invocation("i1", "claimant", 10);
+    row.id = "with\u{0085}nel".into();
+    validate_invocation(&actor(), row).unwrap();
+
+    for control in ['\u{0000}', '\u{001f}', '\u{007f}'] {
+        let mut row = invocation("i1", "claimant", 10);
+        row.id = format!("bad{control}id");
+        expect_source_invalid(validate_invocation(&actor(), row).unwrap_err());
+    }
+
+    // `messageText()` allows tab, LF, CR and empty values, and rejects the
+    // remaining controls on both the error and hold-reason paths.
+    for allowed in ["tab\there", "line\nbreak", "carriage\rreturn", ""] {
+        let mut row = invocation("i1", "claimant", 10);
+        row.error = Some(allowed.into());
+        validate_invocation(&actor(), row).unwrap();
+    }
+    for rejected in [
+        '\u{0000}', '\u{0008}', '\u{000b}', '\u{000c}', '\u{000e}', '\u{001f}', '\u{007f}',
+    ] {
+        let mut row = invocation("i1", "claimant", 10);
+        row.error = Some(format!("bad{rejected}error"));
+        expect_source_invalid(validate_invocation(&actor(), row).unwrap_err());
+    }
+
+    let mut row = session("s1", "claimant", "active", NOW + 1, 10);
+    row.legal_hold = true;
+    row.hold_reason = Some("line one\nline two".into());
+    validate_session(&actor(), row, NOW, false).unwrap();
+
+    let mut row = session("s1", "claimant", "active", NOW + 1, 10);
+    row.legal_hold = true;
+    row.hold_reason = Some(String::new());
+    validate_session(&actor(), row, NOW, false).unwrap();
+
+    let mut row = session("s1", "claimant", "active", NOW + 1, 10);
+    row.legal_hold = true;
+    row.hold_reason = Some("bad\u{0000}reason".into());
+    expect_source_invalid(validate_session(&actor(), row, NOW, false).unwrap_err());
+}
+
+#[test]
+fn message_fields_keep_the_2000_byte_bound() {
+    let mut row = invocation("i1", "claimant", 10);
+    row.error = Some("x".repeat(2_000));
+    validate_invocation(&actor(), row).unwrap();
+
+    let mut row = invocation("i1", "claimant", 10);
+    row.error = Some("x".repeat(2_001));
+    expect_source_invalid(validate_invocation(&actor(), row).unwrap_err());
+
+    let mut row = session("s1", "claimant", "active", NOW + 1, 10);
+    row.legal_hold = true;
+    row.hold_reason = Some("x".repeat(2_000));
+    validate_session(&actor(), row, NOW, false).unwrap();
+
+    let mut row = session("s1", "claimant", "active", NOW + 1, 10);
+    row.legal_hold = true;
+    row.hold_reason = Some("x".repeat(2_001));
+    expect_source_invalid(validate_session(&actor(), row, NOW, false).unwrap_err());
+}
+
+#[test]
+fn workspace_requires_a_positive_now_for_the_client_envelope() {
+    expect_source_invalid(
+        validate_workspace(&actor(), 0, vec![invocation("i1", "claimant", 10)], vec![])
+            .unwrap_err(),
+    );
+    let workspace =
+        validate_workspace(&actor(), 1, vec![invocation("i1", "claimant", 10)], vec![]).unwrap();
+    assert_eq!(workspace.now, 1);
+}

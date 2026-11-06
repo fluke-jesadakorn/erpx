@@ -124,16 +124,116 @@ fn purchase_requests_are_bounded_and_unambiguous() {
         mode: PackageEnforcementMode::Enforced,
     };
     assert!(validate_purchase_request(&request(vec!["legal.contracts".into()])).is_ok());
+    assert!(validate_purchase_request(&request(vec!["x".repeat(128)])).is_ok());
     for invalid in [
         request(vec![]),
         request(vec!["".into()]),
         request(vec!["x".repeat(129)]),
+        request(vec!["😀".repeat(33)]),
+        request(vec!["ก".repeat(43)]),
         request((0..257).map(|index| format!("cap.{index}")).collect()),
     ] {
         let error = validate_purchase_request(&invalid).unwrap_err();
         assert_eq!(error.kind, FailureKind::InvalidInput);
         assert_eq!(error.code, "COMMERCIAL_CAPABILITIES_REQUIRED");
     }
+}
+
+#[test]
+fn grant_evidence_uses_js_trim_and_lifecycle_batch_counts_utf16_units() {
+    let catalogue = current_package_catalogue().unwrap();
+    let package_id = catalogue.definitions()[0].id.clone();
+    let valid = |reason: &str, evidence: &str| CompanyPackageGrant {
+        company_id: "company".into(),
+        package_id: package_id.clone(),
+        package_version: 1,
+        state: "active".into(),
+        starts_at: 0,
+        ends_at: None,
+        version: 1,
+        reason: reason.into(),
+        evidence: evidence.into(),
+    };
+    // ECMAScript trim strips U+FEFF and U+00A0: whitespace-only evidence
+    // must fail. Rust str::trim would keep U+FEFF and wrongly pass.
+    for whitespace in [
+        "\u{feff}",
+        "\u{00a0}",
+        "\u{2028}",
+        "\u{3000}",
+        "  \u{feff}  ",
+    ] {
+        assert_eq!(
+            catalogue
+                .validate_grant_change(None, &valid(whitespace, "Reviewed evidence"), 0, 0)
+                .unwrap_err()
+                .code,
+            "GRANT_EVIDENCE_REQUIRED"
+        );
+        assert_eq!(
+            catalogue
+                .validate_grant_change(None, &valid("Reviewed reason", whitespace), 0, 0)
+                .unwrap_err()
+                .code,
+            "GRANT_EVIDENCE_REQUIRED"
+        );
+    }
+    // U+0085 (NEL) is not in the ECMAScript trim set, so it alone is
+    // evidence content, not whitespace.
+    assert!(
+        catalogue
+            .validate_grant_change(None, &valid("\u{0085}", "Reviewed evidence"), 0, 0)
+            .is_ok()
+    );
+    // Interior/edge JS whitespace around real content stays valid.
+    assert!(
+        catalogue
+            .validate_grant_change(
+                None,
+                &valid("\u{feff}Reviewed reason\u{00a0}", "Reviewed evidence"),
+                0,
+                0,
+            )
+            .is_ok()
+    );
+
+    // normalize_lifecycle_batch stores the JS-trimmed reason/evidence and
+    // measures trimmed fields in UTF-16 units (500 emoji = 1000 units).
+    let batch = |reason: &str, evidence: &str| GrantBatch {
+        company_id: "company".into(),
+        expected_revision: "a".repeat(64),
+        idempotency_key: "synthetic-lifecycle-key".into(),
+        changes: vec![BatchChange {
+            expected_version: 0,
+            grant: valid(reason, evidence),
+        }],
+    };
+    let stored = normalize_lifecycle_batch(batch(
+        "\u{feff}Reviewed reason\u{00a0}",
+        "  Reviewed evidence  ",
+    ))
+    .unwrap();
+    assert_eq!(stored.changes[0].grant.reason, "Reviewed reason");
+    assert_eq!(stored.changes[0].grant.evidence, "Reviewed evidence");
+    assert!(normalize_lifecycle_batch(batch(&"😀".repeat(500), "Reviewed evidence")).is_ok());
+    assert_eq!(
+        normalize_lifecycle_batch(batch(&"😀".repeat(501), "Reviewed evidence"))
+            .unwrap_err()
+            .code,
+        "VALIDATION_FAILED"
+    );
+    assert_eq!(
+        normalize_lifecycle_batch(batch("  ab  ", "Reviewed evidence"))
+            .unwrap_err()
+            .code,
+        "VALIDATION_FAILED"
+    );
+    assert_eq!(
+        normalize_lifecycle_batch(batch("\u{feff}", "Reviewed evidence"))
+            .unwrap_err()
+            .code,
+        "VALIDATION_FAILED"
+    );
 }
 
 #[test]

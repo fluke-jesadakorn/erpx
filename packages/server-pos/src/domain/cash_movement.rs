@@ -191,6 +191,24 @@ pub(crate) fn idempotency_conflict() -> BusinessError {
     )
 }
 
+/// Zod `string.length` counts JavaScript UTF-16 code units, not UTF-8 bytes
+/// or Unicode scalar values. Thai text (3 bytes, 1 unit) and astral text
+/// (surrogate pairs: 4 bytes, 2 units) must be measured the way the
+/// retained TypeScript gateway (`z.string().trim().min(3).max(1000)`)
+/// measures them.
+pub(crate) fn utf16_len(value: &str) -> usize {
+    value.encode_utf16().count()
+}
+
+/// JavaScript `String.prototype.trim()` parity for Zod `.trim()` fields.
+/// Rust `str::trim` additionally trims NEL (U+0085) and keeps ZWNBSP
+/// (U+FEFF); JavaScript trims FEFF and not NEL.
+pub(crate) fn js_trim(value: &str) -> &str {
+    value.trim_matches(|character: char| {
+        matches!(character, '\u{0009}'..='\u{000d}' | '\u{0020}' | '\u{00a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}')
+    })
+}
+
 impl CreateCashMovement {
     pub fn validate(&self) -> Result<ValidatedCashMovement, BusinessError> {
         if self.expected_version < 1
@@ -199,8 +217,8 @@ impl CreateCashMovement {
         {
             return Err(request_invalid());
         }
-        let reason = self.reason.trim();
-        let reason_len = reason.chars().count();
+        let reason = js_trim(&self.reason);
+        let reason_len = utf16_len(reason);
         if !(REASON_MIN..=REASON_MAX).contains(&reason_len) {
             return Err(request_invalid());
         }

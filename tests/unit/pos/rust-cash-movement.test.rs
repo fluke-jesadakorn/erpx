@@ -480,3 +480,130 @@ fn receipt_identity_is_company_assignment_and_input_bound() {
         r#"{"user":"user","assignment":"assignment","company":"company","branch":"branch","operation":"cash.create","input":{"id":"shift-1","expectedVersion":3,"amountMinor":50000,"reason":"Opening float top-up"}}"#
     );
 }
+
+#[test]
+fn reason_counts_js_utf16_units_not_utf8_bytes_or_scalars() {
+    // 1000 Thai scalars: 1000 UTF-16 units (allowed), 3000 bytes.
+    let mut thai = command();
+    thai.reason = "ก".repeat(1000);
+    assert_eq!(thai.validate().unwrap().reason, "ก".repeat(1000));
+    // End to end: the stored readback must carry the same text.
+    let mut probe = Probe::default();
+    probe.readback.as_mut().unwrap().reason = thai.reason.clone();
+    run(&mut probe, &actor(), &thai).unwrap();
+
+    // 1001 Thai scalars exceed the JS max.
+    let mut over = command();
+    over.reason = "ก".repeat(1001);
+    let mut probe = Probe::default();
+    assert_eq!(
+        run(&mut probe, &actor(), &over).unwrap_err().code,
+        "POS_CASH_REQUEST_INVALID"
+    );
+    assert!(probe.calls.is_empty());
+
+    // 500 astral scalars: 1000 UTF-16 units, 2000 bytes (allowed).
+    let mut astral = command();
+    astral.reason = "😀".repeat(500);
+    assert_eq!(astral.validate().unwrap().reason, "😀".repeat(500));
+    let mut probe = Probe::default();
+    probe.readback.as_mut().unwrap().reason = astral.reason.clone();
+    run(&mut probe, &actor(), &astral).unwrap();
+
+    // 501 astral scalars: 1002 UTF-16 units -> over the max as Zod measures.
+    let mut over_astral = command();
+    over_astral.reason = "😀".repeat(501);
+    let mut probe = Probe::default();
+    assert_eq!(
+        run(&mut probe, &actor(), &over_astral).unwrap_err().code,
+        "POS_CASH_REQUEST_INVALID"
+    );
+    assert!(probe.calls.is_empty());
+
+    // Two astral scalars count 4 UTF-16 units, so they pass the 3-unit
+    // minimum where a scalar count (2) would reject them.
+    let mut short_astral = command();
+    short_astral.reason = "😀😀".into();
+    assert_eq!(short_astral.validate().unwrap().reason, "😀😀");
+
+    // One astral scalar is 2 UTF-16 units, below the 3-unit minimum.
+    let mut single_astral = command();
+    single_astral.reason = "😀".into();
+    let mut probe = Probe::default();
+    assert_eq!(
+        run(&mut probe, &actor(), &single_astral).unwrap_err().code,
+        "POS_CASH_REQUEST_INVALID"
+    );
+    assert!(probe.calls.is_empty());
+}
+
+#[test]
+fn trims_feff_but_not_nel_like_javascript() {
+    // JS trim strips ZWNBSP (U+FEFF): the reason normalizes and the
+    // receipt identity matches the unpadded text.
+    let mut padded = command();
+    padded.reason = "\u{FEFF}Opening float top-up\u{FEFF}".into();
+    assert_eq!(padded.validate().unwrap().reason, "Opening float top-up");
+    assert_eq!(
+        erpx_server_pos::public::cash_movement::receipt_identity(
+            &actor(),
+            &command().validate().unwrap(),
+        ),
+        erpx_server_pos::public::cash_movement::receipt_identity(
+            &actor(),
+            &padded.validate().unwrap(),
+        )
+    );
+    let mut probe = Probe::default();
+    run(&mut probe, &actor(), &padded).unwrap();
+    assert_eq!(
+        probe.written,
+        Some((50_000, "Opening float top-up".into(), SHIFT.into()))
+    );
+
+    // FEFF-padded short text: JS trims FEFF leaving length 2 -> reject,
+    // where Rust `str::trim` would keep FEFF and incorrectly accept.
+    let mut short_padded = command();
+    short_padded.reason = "\u{FEFF}\u{FEFF}ab\u{FEFF}".into();
+    let mut probe = Probe::default();
+    assert_eq!(
+        run(&mut probe, &actor(), &short_padded).unwrap_err().code,
+        "POS_CASH_REQUEST_INVALID"
+    );
+    assert!(probe.calls.is_empty());
+
+    // JS trim does not strip NEL (U+0085): it counts toward the length,
+    // so NEL plus 1000 letters exceeds the max and must be rejected
+    // rather than trimmed and accepted.
+    let mut nel_over = command();
+    nel_over.reason = format!("\u{0085}{}", "x".repeat(1000));
+    let mut probe = Probe::default();
+    assert_eq!(
+        run(&mut probe, &actor(), &nel_over).unwrap_err().code,
+        "POS_CASH_REQUEST_INVALID"
+    );
+    assert!(probe.calls.is_empty());
+
+    // Conversely, NEL plus "ab" is 3 units under JS rules because NEL
+    // remains; Rust `str::trim` would strip NEL and reject the length.
+    let mut nel_short = command();
+    nel_short.reason = "\u{0085}ab".into();
+    assert_eq!(nel_short.validate().unwrap().reason, "\u{0085}ab");
+}
+
+#[test]
+fn amount_boundaries_match_retained_cash_create() {
+    for valid in [99_999_999_999, -99_999_999_999, -1] {
+        let mut input = command();
+        input.amount_minor = valid;
+        assert_eq!(input.validate().unwrap().amount_minor, valid);
+    }
+    for invalid in [0, 100_000_000_000, -100_000_000_000] {
+        let mut input = command();
+        input.amount_minor = invalid;
+        assert_eq!(
+            input.validate().unwrap_err().code,
+            "POS_CASH_REQUEST_INVALID"
+        );
+    }
+}

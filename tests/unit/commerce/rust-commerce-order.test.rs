@@ -998,3 +998,85 @@ fn stale_cas_and_bad_readback_fail_without_a_receipt() {
         "IDEMPOTENCY_CONFLICT"
     );
 }
+
+#[test]
+fn discount_reason_and_long_reason_use_utf16_js_trim_parity() {
+    let mut discount = order("quote", "submitted", 2, "creator");
+    discount.discount_approval_required = 1;
+    let command = TransitionCommand {
+        action: OrderAction::Approve,
+        expected_version: 2,
+        ..submit()
+    };
+    let readback = SalesOrderRow {
+        state: "confirmed".into(),
+        version: 3,
+        approved_by: Some("user".into()),
+        discount_approved_by: Some("user".into()),
+        discount_approved_at: Some(NOW.get()),
+        ..order("quote", "confirmed", 3, "creator")
+    };
+    // Three astral symbols are six UTF-16 units (chars count would be 3).
+    let mut emoji = CommandProbe::ready(discount.clone(), readback.clone());
+    let receipt = run(
+        &mut emoji,
+        &actor(),
+        &TransitionCommand {
+            reason: Some("💯💯💯".into()),
+            ..command.clone()
+        },
+    )
+    .unwrap();
+    assert_eq!(receipt, expected_receipt("confirmed", 3, None));
+
+    // U+FEFF is JavaScript whitespace: padded "abcd" trims to 4 units.
+    let mut padded = CommandProbe::ready(discount.clone(), readback.clone());
+    assert_eq!(
+        run(
+            &mut padded,
+            &actor(),
+            &TransitionCommand {
+                reason: Some("\u{FEFF}abcd\u{FEFF}".into()),
+                ..command.clone()
+            }
+        )
+        .unwrap_err()
+        .code,
+        "DISCOUNT_APPROVAL_REASON_REQUIRED"
+    );
+
+    // 1,000 Thai symbols are 1,000 UTF-16 units (3,000 UTF-8 bytes).
+    let mut thai = CommandProbe::ready(
+        order("quote", "draft", 1, "creator"),
+        order("quote", "submitted", 2, "creator"),
+    );
+    let receipt = run(
+        &mut thai,
+        &actor(),
+        &TransitionCommand {
+            reason: Some("ก".repeat(1_000)),
+            ..submit()
+        },
+    )
+    .unwrap();
+    assert_eq!(receipt, expected_receipt("submitted", 2, None));
+
+    let mut over = CommandProbe::ready(
+        order("quote", "draft", 1, "creator"),
+        order("quote", "submitted", 2, "creator"),
+    );
+    assert_eq!(
+        run(
+            &mut over,
+            &actor(),
+            &TransitionCommand {
+                reason: Some("ก".repeat(1_001)),
+                ..submit()
+            }
+        )
+        .unwrap_err()
+        .code,
+        "COMMERCE_ORDER_REQUEST_INVALID"
+    );
+    assert!(over.calls.is_empty());
+}

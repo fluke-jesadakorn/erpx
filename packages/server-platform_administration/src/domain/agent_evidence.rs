@@ -9,7 +9,12 @@ use serde::Serialize;
 
 pub const INVOCATION_LIMIT: usize = 50;
 pub const SESSION_LIMIT: usize = 100;
-const TEXT_LIMIT: usize = 300;
+/// Response-path identifier bound. The retained TypeScript transport validator
+/// (`native-agent-evidence.ts` `identifier`) allows at most 200 UTF-8 bytes, so
+/// this matches `RecordId` and the client render check instead of a looser 300.
+const ID_LIMIT: usize = 200;
+/// Response-path conversation-key bound (`text(value, 400)` on the client).
+const CONVERSATION_KEY_LIMIT: usize = 400;
 const DIGEST_LIMIT: usize = 64;
 const ERROR_LIMIT: usize = 2_000;
 
@@ -168,8 +173,46 @@ pub fn not_found() -> BusinessError {
     )
 }
 
-fn text(value: &str, max: usize) -> bool {
-    !value.is_empty() && value.len() <= max && !value.chars().any(char::is_control)
+/// Retained TypeScript transport `text()`: UTF-8 byte length plus rejection of
+/// `[\u0000-\u001f\u007f]` (and only that set; C1 controls U+0080-U+009F pass
+/// on the client, unlike Rust `char::is_control`). Byte length is deliberate:
+/// unlike the Zod command schemas, this response boundary uses `TextEncoder`
+/// byte counts, so no UTF-16 conversion applies here.
+fn transport_text(value: &str, max: usize) -> bool {
+    !value.is_empty()
+        && value.len() <= max
+        && !value
+            .chars()
+            .any(|character| matches!(character, '\u{0000}'..='\u{001f}' | '\u{007f}'))
+}
+
+fn identifier_text(value: &str) -> bool {
+    transport_text(value, ID_LIMIT)
+}
+
+fn optional_identifier(value: &Option<String>) -> bool {
+    value.as_deref().is_none_or(identifier_text)
+}
+
+/// Retained TypeScript transport `messageText()`: UTF-8 byte length plus
+/// rejection of `[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]`. Tab, LF and CR
+/// stay allowed so multi-line hold reasons and provider errors are not lost.
+fn message_text(value: &str) -> bool {
+    value.len() <= ERROR_LIMIT
+        && !value.chars().any(|character| {
+            matches!(
+                character,
+                '\u{0000}'..='\u{0008}'
+                    | '\u{000b}'
+                    | '\u{000c}'
+                    | '\u{000e}'..='\u{001f}'
+                    | '\u{007f}'
+            )
+        })
+}
+
+fn optional_message_text(value: &Option<String>) -> bool {
+    value.as_deref().is_none_or(message_text)
 }
 
 fn digest(value: &str) -> bool {
@@ -177,10 +220,6 @@ fn digest(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
-}
-
-fn optional_text(value: &Option<String>, max: usize) -> bool {
-    value.as_deref().is_none_or(|value| text(value, max))
 }
 
 fn timestamp(value: i64) -> bool {
@@ -191,28 +230,22 @@ fn optional_timestamp(value: Option<i64>) -> bool {
     value.is_none_or(timestamp)
 }
 
-fn binary_error(value: &Option<String>) -> bool {
-    value
-        .as_deref()
-        .is_none_or(|value| value.len() <= ERROR_LIMIT)
-}
-
 pub fn validate_invocation(
     actor: &AgentEvidenceActor,
     row: AgentInvocationEvidence,
 ) -> Result<AgentInvocationEvidence, BusinessError> {
     if row.company_id != actor.company_id
-        || !text(&row.id, TEXT_LIMIT)
-        || !text(&row.session_id, TEXT_LIMIT)
-        || !text(&row.turn_id, TEXT_LIMIT)
-        || !text(&row.user_id, TEXT_LIMIT)
-        || !optional_text(&row.agent_version_id, TEXT_LIMIT)
+        || !identifier_text(&row.id)
+        || !identifier_text(&row.session_id)
+        || !identifier_text(&row.turn_id)
+        || !identifier_text(&row.user_id)
+        || !optional_identifier(&row.agent_version_id)
         || !digest(&row.question_digest)
         || !digest(&row.sources_digest)
         || !matches!(row.outcome.as_str(), "succeeded" | "failed")
         || !optional_timestamp(row.input_tokens)
         || !optional_timestamp(row.output_tokens)
-        || !binary_error(&row.error)
+        || !optional_message_text(&row.error)
         || !timestamp(row.created_at)
     {
         return Err(source_invalid());
@@ -236,10 +269,10 @@ pub fn validate_session(
 ) -> Result<AgentPrivateSession, BusinessError> {
     if row.company_id != actor.company_id
         || (!manage && row.user_id != actor.user_id)
-        || !text(&row.id, TEXT_LIMIT)
-        || !text(&row.user_id, TEXT_LIMIT)
-        || !text(&row.assignment_id, TEXT_LIMIT)
-        || !text(&row.conversation_key, TEXT_LIMIT)
+        || !identifier_text(&row.id)
+        || !identifier_text(&row.user_id)
+        || !identifier_text(&row.assignment_id)
+        || !transport_text(&row.conversation_key, CONVERSATION_KEY_LIMIT)
         || row.generation < 1
         || row.version < 1
         || !matches!(row.status.as_str(), "active" | "expired")
@@ -248,7 +281,7 @@ pub fn validate_session(
         || !timestamp(row.last_used_at)
         || !timestamp(row.updated_at)
         || row.legal_hold != row.hold_reason.is_some()
-        || !optional_text(&row.hold_reason, ERROR_LIMIT)
+        || !optional_message_text(&row.hold_reason)
     {
         return Err(source_invalid());
     }
@@ -269,7 +302,10 @@ pub fn validate_workspace(
     mut invocations: Vec<AgentInvocationEvidence>,
     mut sessions: Vec<AgentPrivateSession>,
 ) -> Result<AgentEvidenceWorkspace, BusinessError> {
-    if invocations.len() > INVOCATION_LIMIT || sessions.len() > SESSION_LIMIT {
+    // The TypeScript workspace check requires `now` as an integer of at least
+    // 1, so a non-positive caller clock fails closed instead of emitting an
+    // envelope the retained client would reject.
+    if now < 1 || invocations.len() > INVOCATION_LIMIT || sessions.len() > SESSION_LIMIT {
         return Err(source_invalid());
     }
     invocations = invocations
