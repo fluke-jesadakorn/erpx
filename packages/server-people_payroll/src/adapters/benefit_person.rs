@@ -59,6 +59,25 @@ pub async fn inspect_benefit_person(c: &mut PgConnection, company: &str, user: &
     }
     Ok(CurrentBenefitPerson { company: company.to_owned(), user: user.to_owned(), selected, image: source, unit })
 }
+/// Bounded legal-name projection for the Benefits workspace and command
+/// receipts. The caller must already hold the shared People source locks.
+pub async fn inspect_benefit_person_names(
+    c: &mut PgConnection,
+    company: &str,
+    person_ids: &[String],
+) -> Result<Vec<(String, String)>, Error> {
+    if person_ids.len() > 501 || !holds_locks(c).await? {
+        return Err(PersistenceError::new("PEOPLE_BENEFIT_SOURCE_LOCK_REQUIRED").into());
+    }
+    Ok(sqlx::query_as(
+        "SELECT id,legal_name FROM hr_people WHERE company_id=$1 AND id=ANY($2::text[]) AND merged_into_id IS NULL ORDER BY id LIMIT 501",
+    )
+    .bind(company)
+    .bind(person_ids)
+    .fetch_all(c)
+    .await?)
+}
+
 async fn select(c: &mut PgConnection, company: &str, user: &str) -> Result<Option<BenefitEmployee>, Error> {
     let row = sqlx::query("SELECT p.id,e.id engagement_id,e.branch_id,e.department_id FROM hr_people p JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id WHERE p.company_id=$1 AND p.user_id=$2 AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active' LIMIT 1")
         .bind(company).bind(user).fetch_optional(c).await?;

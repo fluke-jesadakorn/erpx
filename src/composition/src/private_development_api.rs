@@ -1732,6 +1732,7 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut legal_targets = Vec::new();
         let mut benefits_targets = Vec::new();
+        let mut benefits_command_targets = Vec::new();
         let mut pms_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut maintenance_targets = Vec::new();
@@ -2178,25 +2179,36 @@ async fn assemble_checked(
                         )),
                     )),
                 });
-                benefits_targets.push(
-                    erpx_server_benefits::public::workspace_http::BenefitsWorkspaceHttpTarget {
-                        host: holding.host.clone(),
-                        holding_slug: holding.registration.slug.clone(),
-                        origin: format!("https://{}", holding.host),
-                        backend: Arc::new(crate::benefits::BenefitsBackend::new(
-                            config.policy.clone(),
-                            Arc::new(FinanceJournalReadScopeHeaders),
-                            Arc::new(crate::benefits::BenefitsService::new(
-                                authorizer.clone(),
-                                crate::benefits::BenefitsConfiguration::new(
-                                    holding.registration.holding_id.clone(),
-                                    company.clone(),
-                                ),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
+                {
+                    let benefits_backend = Arc::new(crate::benefits::BenefitsBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::benefits::BenefitsService::new(
+                            authorizer.clone(),
+                            crate::benefits::BenefitsConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
                         )),
-                    },
-                );
+                    ));
+                    benefits_targets.push(
+                        erpx_server_benefits::public::workspace_http::BenefitsWorkspaceHttpTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: format!("https://{}", holding.host),
+                            backend: benefits_backend.clone(),
+                        },
+                    );
+                    benefits_command_targets.push(
+                        erpx_server_benefits::public::command_http::BenefitsCommandHttpTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: format!("https://{}", holding.host),
+                            backend: benefits_backend,
+                        },
+                    );
+                }
             #[cfg(feature = "existing-business")]
             maintenance_targets.push(
                     erpx_server_maintenance::public::http::MaintenanceHttpTarget {
@@ -3020,6 +3032,14 @@ async fn assemble_checked(
                     benefits_targets,
                 )
                 .map_err(|_| "PRIVATE_API_BENEFITS_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !benefits_command_targets.is_empty() {
+            router = router.merge(
+                erpx_server_benefits::public::command_http::benefits_command_http_router(
+                    benefits_command_targets,
+                )
+                .map_err(|_| "PRIVATE_API_BENEFITS_COMMAND_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]

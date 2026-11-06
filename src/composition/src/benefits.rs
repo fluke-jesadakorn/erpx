@@ -10,6 +10,22 @@ use erpx_server_benefits::public::workspace_http::{
     BenefitsWorkspaceHttpBackend, BenefitsWorkspaceHttpFuture, BenefitsWorkspaceHttpReadRequest,
     BenefitsWorkspaceHttpResponse,
 };
+use erpx_server_benefits::public::command::{
+    BenefitsCommandActor, PgBenefitsCommand,
+    execute_benefits_command,
+};
+use erpx_server_benefits::public::command_http::{
+    BenefitsCommandHttpBackend, BenefitsCommandHttpFuture, BenefitsCommandHttpRequest,
+    BenefitsCommandHttpResponse,
+};
+use erpx_server_people_payroll::public::benefit_person::{
+    CurrentBenefitPerson, inspect_benefit_person, inspect_benefit_person_names, lock_benefit_people_sources,
+};
+use erpx_server_commercial::public::purchases::{
+    CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
+    PurchaseWitness, current_package_catalogue, lock_commercial_authority_sources,
+};
+use erpx_server_shared::public::{CommandKey, TimestampMillis};
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
     account_inbound_http::parse_inbound_account_request,
@@ -59,14 +75,108 @@ fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
 struct BenefitsSources;
 
 impl HoldingWorkSourcePreparation for BenefitsSources {
-    fn prepare<'c>(&'c self, _: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
-        Box::pin(async { Ok(()) })
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            lock_commercial_authority_sources(c).await.map_err(business)?;
+            lock_benefit_people_sources(c).await.map_err(business)?;
+            Ok(())
+        })
     }
 }
 
-struct BenefitsPeoplePortImpl;
+#[derive(Clone, Copy)]
+struct BenefitsCommandSources;
 
-impl BenefitsPeoplePort for BenefitsPeoplePortImpl {
+impl HoldingWorkSourcePreparation for BenefitsCommandSources {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            lock_commercial_authority_sources(c).await.map_err(business)?;
+            lock_benefit_people_sources(c).await.map_err(business)?;
+            Ok(())
+        })
+    }
+}
+
+async fn benefits_people(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    user_id: &str,
+) -> Result<(Option<BenefitsWorker>, Vec<(String, String)>, CurrentBenefitPerson), Error> {
+    let person = inspect_benefit_person(connection, company.as_str(), user_id)
+        .await
+        .map_err(business)?;
+    let worker = person.selected().map(|employee| BenefitsWorker {
+        person_id: employee.person_id.clone(),
+        engagement_id: employee.engagement_id.clone(),
+    });
+    let names = match &worker {
+        Some(worker) => inspect_benefit_person_names(
+            connection,
+            company.as_str(),
+            std::slice::from_ref(&worker.person_id),
+        )
+        .await
+        .map_err(business)?,
+        None => Vec::new(),
+    };
+    Ok((worker, names, person))
+}
+
+async fn benefits_entitlement(
+    connection: &mut PgConnection,
+    holding: &HoldingId,
+    company: &CompanyId,
+    now: TimestampMillis,
+) -> Result<(BenefitsEntitlement, PurchaseWitness), Error> {
+    let catalogue = current_package_catalogue()?;
+    let mut reader = PgCompanyPurchaseReader::new(
+        holding.clone(),
+        company.clone(),
+        connection,
+        &catalogue,
+    );
+    let request = |purpose| PurchaseRequest {
+        capabilities: vec!["people.benefits".into()],
+        purpose,
+        mode: PackageEnforcementMode::Enforced,
+    };
+    let history = reader
+        .inspect(&request(CapabilityPurpose::History), now)
+        .await
+        .map_err(business)?;
+    let new_work = reader
+        .inspect(&request(CapabilityPurpose::NewWork), now)
+        .await
+        .map_err(business)?;
+    let settle = reader
+        .inspect(&request(CapabilityPurpose::SettleExisting), now)
+        .await
+        .map_err(business)?;
+    let allowed = |inspection: &erpx_server_commercial::public::purchases::PurchaseInspection| {
+        inspection
+            .access
+            .iter()
+            .find(|access| access.capability == "people.benefits")
+            .is_some_and(|access| access.allowed_by_mode)
+    };
+    Ok((
+        BenefitsEntitlement {
+            enforced: true,
+            history_allowed: allowed(&history),
+            new_work: allowed(&new_work),
+            settle_existing: allowed(&settle),
+            revision: history.revision.clone(),
+        },
+        history.witness.clone(),
+    ))
+}
+
+struct BenefitsPeopleSnapshot {
+    worker: Option<BenefitsWorker>,
+    names: Vec<(String, String)>,
+}
+
+impl BenefitsPeoplePort for BenefitsPeopleSnapshot {
     type Error = BusinessError;
 
     fn worker<'a>(
@@ -74,7 +184,7 @@ impl BenefitsPeoplePort for BenefitsPeoplePortImpl {
         _company: &'a CompanyId,
         _user_id: &'a str,
     ) -> BenefitsFuture<'a, Option<BenefitsWorker>, Self::Error> {
-        Box::pin(async { Ok(None) })
+        Box::pin(async move { Ok(self.worker.clone()) })
     }
 
     fn employee_names<'a>(
@@ -82,33 +192,27 @@ impl BenefitsPeoplePort for BenefitsPeoplePortImpl {
         _company: &'a CompanyId,
         person_ids: &'a [String],
     ) -> BenefitsFuture<'a, Vec<(String, String)>, Self::Error> {
-        Box::pin(async {
-            Ok(person_ids
+        Box::pin(async move {
+            Ok(self
+                .names
                 .iter()
-                .map(|id| (id.clone(), "Unknown".to_owned()))
+                .filter(|(id, _)| person_ids.iter().any(|wanted| wanted == id))
+                .cloned()
                 .collect())
         })
     }
 }
 
-struct BenefitsEntitlementPortImpl;
+struct BenefitsEntitlementSnapshot(BenefitsEntitlement);
 
-impl BenefitsEntitlementPort for BenefitsEntitlementPortImpl {
+impl BenefitsEntitlementPort for BenefitsEntitlementSnapshot {
     type Error = BusinessError;
 
     fn entitlement<'a>(
         &'a mut self,
         _company_id: &'a str,
     ) -> BenefitsFuture<'a, BenefitsEntitlement, Self::Error> {
-        Box::pin(async {
-            Ok(BenefitsEntitlement {
-                enforced: false,
-                history_allowed: false,
-                new_work: false,
-                settle_existing: false,
-                revision: String::new(),
-            })
-        })
+        Box::pin(async move { Ok(self.0.clone()) })
     }
 }
 
@@ -254,10 +358,18 @@ impl<C: Clock + Send + Sync + 'static> BenefitsService<C> {
                         }
                         current.require_permission("records.read")?;
                         let actor = benefits_actor(current)?;
-                        let mut repository = PgBenefitsWorkspaceRead::new(connection);
-                        let mut people = BenefitsPeoplePortImpl;
-                        let mut entitlement = BenefitsEntitlementPortImpl;
                         let now = clock.now();
+                        let (worker, names, person) = benefits_people(
+                            connection,
+                            &company,
+                            current.user_id().as_str(),
+                        )
+                        .await?;
+                        let (entitlement, witness) =
+                            benefits_entitlement(connection, &holding, &company, now).await?;
+                        let mut repository = PgBenefitsWorkspaceRead::new(connection);
+                        let mut people = BenefitsPeopleSnapshot { worker, names };
+                        let mut entitlement = BenefitsEntitlementSnapshot(entitlement);
                         let workspace = benefits_workspace(
                             &actor,
                             personal,
@@ -267,9 +379,123 @@ impl<C: Clock + Send + Sync + 'static> BenefitsService<C> {
                             now,
                         )
                         .await?;
+                        drop(repository);
+                        person.require_current(connection).await.map_err(business)?;
+                        let catalogue = current_package_catalogue()?;
+                        PgCompanyPurchaseReader::new(
+                            holding.clone(),
+                            company.clone(),
+                            connection,
+                            &catalogue,
+                        )
+                        .revalidate(&witness, now)
+                        .await
+                        .map_err(business)?;
                         let data = serde_json::to_value(workspace).map_err(|_| unavailable())?;
                         Ok(BenefitsWorkspaceHttpResponse {
                             data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn command(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+        body: &Value,
+        key: &CommandKey,
+    ) -> Result<BenefitsCommandHttpResponse, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let body = body.clone();
+        let key = key.clone();
+        self.authorizer
+            .execute_with_sources(
+                host,
+                proof,
+                selection,
+                WorkAuthorizationRequest {
+                    permission: "records.write".into(),
+                    module: Some("benefits".into()),
+                    destination: "benefits".into(),
+                    api: true,
+                },
+                BenefitsCommandSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let body = body.clone();
+                    let key = key.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.write")?;
+                        let now = clock.now();
+                        let (worker, names, person) = benefits_people(
+                            connection,
+                            &company,
+                            current.user_id().as_str(),
+                        )
+                        .await?;
+                        let (entitlement, witness) =
+                            benefits_entitlement(connection, &holding, &company, now).await?;
+                        let selected = current.selection();
+                        let workspace = selected.workspace();
+                        let assignment = selected.assignment();
+                        let actor = BenefitsCommandActor {
+                            user_id: current.user_id().as_str().to_owned(),
+                            company_id: workspace.company_id.clone(),
+                            branch_id: workspace.branch_id.clone(),
+                            department_id: workspace.department_id.clone(),
+                            assignment_id: assignment.id.as_str().to_owned(),
+                            role: assignment.role.clone(),
+                            permissions: current.command_iam_metadata().permissions.clone(),
+                            modules: current.modules().to_vec(),
+                            work_context: "0".repeat(64),
+                            expires_at: current.expires_at(),
+                        };
+                        let mut repository = PgBenefitsCommand::new(connection, &actor);
+                        let mut people = BenefitsPeopleSnapshot { worker, names };
+                        let mut entitlement_port =
+                            BenefitsEntitlementSnapshot(entitlement);
+                        let result = execute_benefits_command(
+                            &actor,
+                            &body,
+                            &key,
+                            &mut repository,
+                            &mut people,
+                            &mut entitlement_port,
+                            now,
+                        )
+                        .await?;
+                        drop(repository);
+                        person.require_current(connection).await.map_err(business)?;
+                        let catalogue = current_package_catalogue()?;
+                        PgCompanyPurchaseReader::new(
+                            holding.clone(),
+                            company.clone(),
+                            connection,
+                            &catalogue,
+                        )
+                        .revalidate(&witness, now)
+                        .await
+                        .map_err(business)?;
+                        Ok(BenefitsCommandHttpResponse {
+                            data: serde_json::json!({
+                                "id": result.id,
+                                "status": result.status,
+                                "version": result.version,
+                            }),
                             context: context(current),
                         })
                     })
@@ -317,6 +543,55 @@ impl<C: Clock + Send + Sync + 'static> BenefitsBackend<C> {
                 mutation: false,
             },
         ))
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> BenefitsCommandHttpBackend for BenefitsBackend<C> {
+    fn command<'a>(
+        &'a self,
+        request: BenefitsCommandHttpRequest<'a>,
+    ) -> BenefitsCommandHttpFuture<'a, BenefitsCommandHttpResponse> {
+        Box::pin(async move {
+            let (proof, mut selection) = self.context(request.headers)?;
+            let revision = erpx_server_identity_access::public::account_inbound_http::unique_request_header(
+                request.headers,
+                "x-erpx-context-revision",
+            )?
+            .ok_or_else(|| BusinessError::invalid("BENEFITS_CONTEXT_REQUIRED", "Use the current work revision."))?
+            .parse()
+            .map_err(|_| BusinessError::invalid("BENEFITS_CONTEXT_REQUIRED", "Use the current work revision."))?;
+            let assignment = erpx_server_identity_access::public::account_inbound_http::unique_request_header(
+                request.headers,
+                "x-erpx-context-assignment",
+            )?
+            .ok_or_else(|| BusinessError::invalid("BENEFITS_CONTEXT_REQUIRED", "Choose the current assignment."))?
+            .to_owned();
+            let assignment_version = erpx_server_identity_access::public::account_inbound_http::unique_request_header(
+                request.headers,
+                "x-erpx-context-assignment-version",
+            )?
+            .ok_or_else(|| BusinessError::invalid("BENEFITS_CONTEXT_REQUIRED", "Use the current assignment version."))?
+            .parse()
+            .map_err(|_| BusinessError::invalid("BENEFITS_CONTEXT_REQUIRED", "Use the current assignment version."))?;
+            selection.mutation = true;
+            selection.expected = Some(
+                erpx_server_identity_access::public::work_context::ExpectedWorkSelection {
+                    revision,
+                    assignment_id: erpx_server_shared::public::AssignmentId::new(assignment)?,
+                    assignment_version,
+                },
+            );
+            self.service
+                .command(
+                    request.host,
+                    proof,
+                    selection,
+                    request.body,
+                    request.key,
+                )
+                .await
+                .map_err(business)
+        })
     }
 }
 

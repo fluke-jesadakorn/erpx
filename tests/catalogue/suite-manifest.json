@@ -3274,6 +3274,60 @@
       ]
     },
     {
+      "id": "benefits.rust-benefits-command-composed-http-postgres.integration",
+      "lane": "integration",
+      "owner": "benefits",
+      "modules": [
+        "benefits"
+      ],
+      "files": [
+        "tests/integration/benefits/rust-benefits-command-composed-http-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Composed native Benefits command HTTP over the real Account session/IAM, same-unit people.benefits purchase and PostgreSQL; proves plan create, replay and no-purchase denial."
+      },
+      "framework": "cargo",
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml",
+        "tests/support/finance/review-composition.rs",
+        "tests/support/rust-account-revocation.rs",
+        "tests/support/rust-account-credentials.rs",
+        "tests/support/rust-account.rs",
+        "tests/support/rust-postgres.rs",
+        "packages/server-benefits/Cargo.toml",
+        "packages/server-people_payroll/Cargo.toml"
+      ],
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "benefits_command_composed_http_postgres"
+        ],
+        "features": [
+          "existing-business"
+        ]
+      },
+      "apps": [
+        "people"
+      ],
+      "packages": [
+        "@erpx/server-benefits",
+        "@erpx/server-people_payroll",
+        "@erpx/server-commercial",
+        "@erpx/server-identity_access",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
+    },
+    {
       "id": "benefits.native-benefits-workspace-transport.unit",
       "lane": "unit",
       "owner": "benefits",

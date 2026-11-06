@@ -527,3 +527,8 @@ required-features = ["existing-business"]
 name = "marketing_lead_http_postgres"
 path = "../../tests/integration/marketing/rust-marketing-lead-http-postgres.test.rs"
 required-features = ["existing-business"]
+
+[[test]]
+name = "benefits_command_composed_http_postgres"
+path = "../../tests/integration/benefits/rust-benefits-command-composed-http-postgres.test.rs"
+required-features = ["existing-business"]
