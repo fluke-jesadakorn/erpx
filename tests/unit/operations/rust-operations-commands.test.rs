@@ -41,6 +41,10 @@ impl Repo {
                 record_id: record_id.into(),
                 request_fingerprint: fingerprint.into(),
                 result_json: Some(serde_json::to_string(receipt).unwrap()),
+                company_id: "company".into(),
+                branch_id: Some("branch".into()),
+                department_id: None,
+                actor_id: "owner".into(),
             },
         );
     }
