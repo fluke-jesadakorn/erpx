@@ -2,9 +2,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { getLocalProxy } from '../local/fixtures';
-import { packageGrantStore, readCompanyPackageGrants } from '@erpx/server-commercial/public/package-grants';
-import { commercialCompanies } from '@erpx/server-organization/public/commercial-companies';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import { readCompanyPackageGrants } from '@erpx/server-commercial/public/package-grants';
 const root='/workspace/erpx', config=`${root}/.runtime/local/config`, key=process.env.ERPX_DEV_WORKSPACE_KEY??'';
 function privateFile(path: string) { if (!existsSync(path) || (statSync(path).mode & 0o077) !== 0) throw Error('CONTRIBUTOR_PRIVATE_FILE_REQUIRED'); return readFileSync(path, 'utf8').trim(); }
 function assertFixture() {
@@ -23,14 +21,18 @@ assertFixture();
 const fixture=await getLocalProxy();
 try {
  const db=fixture.env.H001_DB as import('@erpx/server-runtime/public/runtime/postgres').PostgresDatabase;
- const store=packageGrantStore(db,{authorize:async(tx:SqlDatabase,company:string)=>{assertFixture();if(company!=='acme-co'||!(await commercialCompanies(tx)).some(c=>c.id===company&&c.slug==='acme-co'))throw Error('CONTRIBUTOR_COMPANY_REQUIRED');return {userId:'contributor-synthetic-seed'};},obligations:async()=>{throw Error('CONTRIBUTOR_WITHDRAWAL_FORBIDDEN');}});
  for(const packageId of ['service','service-parts-assets'] as const){
   const grant={companyId:'acme-co',packageId,packageVersion:1,state:'active' as const,startsAt:0,endsAt:null,version:1,reason:'Synthetic contributor Service demonstration',evidence:'fixture:contributor-service-v1'};
-  const id=`contributor_${packageId}_v1`, before=(await readCompanyPackageGrants(db,'acme-co')).find(g=>g.packageId===packageId);
+  const before=(await readCompanyPackageGrants(db,'acme-co')).find(g=>g.packageId===packageId);
   const matches=(value:unknown)=>!!value && typeof value==='object' && Object.keys(grant).every(k=>(value as Record<string,unknown>)[k]===grant[k as keyof typeof grant]);
   if(before && !matches(before)) throw Error('CONTRIBUTOR_SERVICE_GRANT_CONFLICT');
-  const result=await store.apply({idempotencyKey:id,expectedVersion:0,grant});
-  if(!matches(result))throw Error('CONTRIBUTOR_SERVICE_GRANT_CONFLICT');
+  if(before) continue;
+  // Native Service packages reject the retained legacy grant writer. This fixture
+  // materializes the same current grant/audit pair directly in the owner tables.
+  await db.transaction(async tx=>{
+   await tx.prepare("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at) VALUES(?,?,?,?,?,?,?,?,?,0)").bind('acme-co',packageId,1,'active',0,null,1,grant.reason,grant.evidence).run();
+   await tx.prepare("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) VALUES(?,?,?,?,?,NULL,jsonb_build_object('companyId',?, 'packageId',?, 'packageVersion',1, 'state','active', 'startsAt',0, 'endsAt',NULL, 'version',1, 'reason',?, 'evidence',?),0)").bind(`contributor_${packageId}_v1`,'acme-co',packageId,'contributor-synthetic-seed','fixture','acme-co',packageId,grant.reason,grant.evidence).run();
+  });
  }
  const definitions=[
   {id:'contributor_files_maker',name:'Synthetic Field Files maker',user:'usr_mali',modules:['field_service'],permissions:['records.read','records.write','module.field_service.read'],scopes:['holding']},
