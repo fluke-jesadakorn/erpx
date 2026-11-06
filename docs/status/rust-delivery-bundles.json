@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T05:11:20+07:00",
+  "updatedAt": "2026-11-07T05:34:35+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -4199,12 +4199,12 @@
       "kind": "module",
       "owner": "pos",
       "scope": "Payments & receipts",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-pos/src/public/pos.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native payment.create for cash/EDC/bank-transfer is mounted and browser verified: the command locks the sale, rechecks settings/period/shift/discount, reserves fulfilments against the Inventory availability snapshot, inserts the payment, settles cash/EDC and queues the Finance receipt row plus the deterministic receipt journal. Browser payment posted 200 {id:aebcfe8c,version:3}; pos_payments succeeded with finance_payment_id 927e51e8, finance_payments settled with journal-receipt:aebcfe8c and the journal posted Dr 1100 2500 / Cr advance 2500. Remaining: sale.complete (invoice + sale/COS journals + stock consumption) is still TypeScript-only, as are transfer verification, Stripe tenders, retry/cancel and the receipt PDF/print readback."
     },
     {
       "id": "pos/feature-voids",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T05:11:20+07:00",
-    "sourceHead": "8e8ab40f3",
+    "generatedAt": "2026-11-07T05:34:35+07:00",
+    "sourceHead": "0d3fdc949",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7092,9 +7092,9 @@
     },
     "blockers": [
       {
-        "id": "pos-payment-completion-ports",
-        "detail": "The POS basket command set is fully native. payment.create and sale.complete remain TypeScript-only and need Inventory stock/consumption plus Finance invoice/journal owner ports; the bill/payment/void browser journeys have not run.",
-        "unblock": "Add the Inventory/Finance completion ports, migrate payment.create/sale.complete, then run the bill/payment/void browser journeys with journal/readback."
+        "id": "pos-sale-complete-and-tender-followups",
+        "detail": "payment.create is native for cash/EDC/transfer. sale.complete still runs on the TypeScript writer and needs the Finance invoice/journal and Inventory consumption owner ports; transfer verification, Stripe tenders, payment retry/cancel and the receipt print/PDF readback are also still TypeScript-only.",
+        "unblock": "Add the Inventory consumption and Finance invoice/journal completion ports for sale.complete, migrate the transfer/Stripe settlement commands, then run the complete/receipt browser journeys."
       },
       {
         "id": "external-writer",
@@ -7108,8 +7108,8 @@
       }
     ],
     "nextActions": [
-      "Add the Inventory stock/consumption and Finance invoice/journal completion ports, then migrate payment.create/sale.complete and fence their TS ingress.",
-      "Run the bill/payment/void browser journeys with persisted journal and receipt readback.",
+      "Add the Inventory consumption + Finance invoice/journal ports for native sale.complete, then fence it and run the complete/receipt browser journey.",
+      "Migrate payment.verify_transfer/payment.cancel_transfer/payment.retry/payment.cancel and the Stripe tender path, then close pos/feature-payments-receipts.",
       "Use the working authenticated cohort to attach browser evidence to the browser-ready partials; do not raise counts without it."
     ],
     "integrationLog": [
@@ -7411,6 +7411,23 @@
           "POS basket command set closure"
         ],
         "evidence": "POS unit 12/12; POS Postgres 12/12 with the split case asserting target bill/line 1000/1000/70, halved fulfillment 1000/1000 and both sale versions 2; typecheck passes; browser sale.add persisted line/fulfilment/totals",
+        "counts": {
+          "owners": 3,
+          "verified": 30,
+          "partial": 89,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T05:34:35+07:00",
+        "commit": "0d3fdc949",
+        "bundles": [
+          "native payment.create",
+          "Inventory availability snapshot",
+          "Finance receipt + receipt journal"
+        ],
+        "evidence": "POS unit 12/12, POS Postgres 13/13, composed HTTP+PG 2/2 (payment receipt/journal readback), native transport 10/10, typecheck passes; browser payment POST 200 {id:aebcfe8c,version:3}; pos_payments succeeded+finance_payment_id; finance_payments settled journal-receipt:aebcfe8c; journal posted Dr 1100 2500 / Cr advance 2500",
         "counts": {
           "owners": 3,
           "verified": 30,
