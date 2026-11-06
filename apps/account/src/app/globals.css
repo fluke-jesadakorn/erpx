@@ -5,10 +5,12 @@
 @source "../../../../packages/catalogue/src/production-scope.ts";
 @source "../../../../packages/contracts/src/apps.ts";
 @source "../../../../packages/contracts/src/business-role-modules.generated.ts";
+@source "../../../../packages/contracts/src/command-flow.ts";
 @source "../../../../packages/contracts/src/console-retirement.ts";
 @source "../../../../packages/contracts/src/holding-fetch.ts";
 @source "../../../../packages/contracts/src/holding-hosts.ts";
 @source "../../../../packages/contracts/src/legal-portal-upload.ts";
+@source "../../../../packages/contracts/src/private-loopback.ts";
 @source "../../../../packages/contracts/src/product-registry.ts";
 @source "../../../../packages/contracts/src/product-return-path.ts";
 @source "../../../../packages/contracts/src/social-post-entry.ts";
@@ -200,6 +202,7 @@
 @source "../../../../packages/front/src/components/front-language.tsx";
 @source "../../../../packages/native-sdk/src/field-service-parts.ts";
 @source "../../../../packages/native-sdk/src/holding-target.ts";
+@source "../../../../packages/native-sdk/src/loopback.ts";
 @source "../../../../packages/native-sdk/src/session.ts";
 @source "../../../../packages/server-agent/src/adapters/ai-gateway.ts";
 @source "../../../../packages/server-agent/src/adapters/ai-providers.ts";
@@ -1129,7 +1132,6 @@
 @source "../../../../packages/server-identity_access/src/adapters/account-recovery.ts";
 @source "../../../../packages/server-identity_access/src/adapters/account-security.ts";
 @source "../../../../packages/server-identity_access/src/adapters/account-self-access.ts";
-@source "../../../../packages/server-identity_access/src/adapters/account-session-security.ts";
 @source "../../../../packages/server-identity_access/src/adapters/account-time-preference.ts";
 @source "../../../../packages/server-identity_access/src/adapters/account-work-context.ts";
 @source "../../../../packages/server-identity_access/src/adapters/account-workspace.ts";
@@ -1193,6 +1195,7 @@
 @source "../../../../packages/server-identity_access/src/adapters/native-account-companies.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-account-context.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-account-http.ts";
+@source "../../../../packages/server-identity_access/src/adapters/native-account-security.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-session.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-work-role-transport.ts";
 @source "../../../../packages/server-identity_access/src/adapters/notification-recipient-projections.ts";
@@ -1372,6 +1375,7 @@
 @source "../../../../packages/server-identity_access/src/public/learning-talent-snapshot-sources.ts";
 @source "../../../../packages/server-identity_access/src/public/legal-people-source.ts";
 @source "../../../../packages/server-identity_access/src/public/native-account-http.ts";
+@source "../../../../packages/server-identity_access/src/public/native-iam-assignments.ts";
 @source "../../../../packages/server-identity_access/src/public/native-work-role-transport.ts";
 @source "../../../../packages/server-identity_access/src/public/notification-recipient-projections.ts";
 @source "../../../../packages/server-identity_access/src/public/operations-operations-exceptions-facts.ts";

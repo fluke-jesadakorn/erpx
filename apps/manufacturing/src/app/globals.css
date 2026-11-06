@@ -10,6 +10,7 @@
 @source "../../../../packages/contracts/src/finance-purchase-controls.ts";
 @source "../../../../packages/contracts/src/holding-fetch.ts";
 @source "../../../../packages/contracts/src/holding-hosts.ts";
+@source "../../../../packages/contracts/src/private-loopback.ts";
 @source "../../../../packages/contracts/src/product-registry.ts";
 @source "../../../../packages/contracts/src/product-return-path.ts";
 @source "../../../../packages/contracts/src/social-post-entry.ts";
@@ -59,13 +60,23 @@
 @source "../../../../packages/feature-finance/src/adapters/browser/finance-command-fetch.ts";
 @source "../../../../packages/feature-finance/src/adapters/server/native-field-journal-flow.ts";
 @source "../../../../packages/feature-finance/src/adapters/server/native-finance-presentation.ts";
+@source "../../../../packages/feature-finance/src/adapters/server/native-finance-report.ts";
+@source "../../../../packages/feature-finance/src/adapters/server/native-finance-setup.ts";
+@source "../../../../packages/feature-finance/src/adapters/server/native-invoice-read.ts";
 @source "../../../../packages/feature-finance/src/adapters/server/native-journal-detail.ts";
 @source "../../../../packages/feature-finance/src/adapters/server/native-journal-page.ts";
 @source "../../../../packages/feature-finance/src/adapters/server/native-journal-post.ts";
+@source "../../../../packages/feature-finance/src/adapters/server/native-opening-balance.ts";
+@source "../../../../packages/feature-finance/src/adapters/server/native-period-close.ts";
+@source "../../../../packages/feature-finance/src/adapters/server/native-sales-defaults.ts";
+@source "../../../../packages/feature-finance/src/adapters/server/native-sales-invoice-create.ts";
+@source "../../../../packages/feature-finance/src/adapters/server/native-sales-invoice-edit.ts";
+@source "../../../../packages/feature-finance/src/adapters/server/native-sales-receipt.ts";
 @source "../../../../packages/feature-finance/src/adapters/server/native-service-customer-receipt.ts";
 @source "../../../../packages/feature-finance/src/adapters/server/native-service-invoice.ts";
 @source "../../../../packages/feature-finance/src/adapters/server/native-service-payment-command.ts";
 @source "../../../../packages/feature-finance/src/adapters/server/native-service-payment.ts";
+@source "../../../../packages/feature-finance/src/adapters/server/native-supplier-bill.ts";
 @source "../../../../packages/feature-finance/src/adapters/server/next-native-journal-detail.ts";
 @source "../../../../packages/feature-finance/src/application/command-attempts.ts";
 @source "../../../../packages/feature-finance/src/application/submit-command.ts";
@@ -141,6 +152,8 @@
 @source "../../../../packages/feature-learning/src/lib/purchase-controls.ts";
 @source "../../../../packages/feature-legal/src/lib/legal/features-domain.ts";
 @source "../../../../packages/feature-legal/src/lib/legal/features.ts";
+@source "../../../../packages/feature-manufacturing/src/adapters/server/next-native-manufacturing-bom.ts";
+@source "../../../../packages/feature-manufacturing/src/adapters/server/next-native-planning-workspace.ts";
 @source "../../../../packages/feature-manufacturing/src/components/draft-boundary.tsx";
 @source "../../../../packages/feature-manufacturing/src/components/existing-posting-setup.tsx";
 @source "../../../../packages/feature-manufacturing/src/components/planning-recommendation-reviews.tsx";
@@ -158,6 +171,12 @@
 @source "../../../../packages/feature-manufacturing/src/lib/posting-preparation-command.ts";
 @source "../../../../packages/feature-manufacturing/src/lib/posting-setup-command.ts";
 @source "../../../../packages/feature-manufacturing/src/lib/purchase-controls.ts";
+@source "../../../../packages/feature-manufacturing/src/public/native-manufacturing-bom-owned.ts";
+@source "../../../../packages/feature-manufacturing/src/public/native-manufacturing-bom-page.ts";
+@source "../../../../packages/feature-manufacturing/src/public/native-manufacturing-bom.ts";
+@source "../../../../packages/feature-manufacturing/src/public/native-planning-workspace-owned.ts";
+@source "../../../../packages/feature-manufacturing/src/public/native-planning-workspace-page.ts";
+@source "../../../../packages/feature-manufacturing/src/public/native-planning-workspace.ts";
 @source "../../../../packages/feature-manufacturing/src/routes/api/v1/holdings/[holdingSlug]/production/initial-physical-stock/[[...path]]/route.ts";
 @source "../../../../packages/feature-manufacturing/src/routes/api/v1/holdings/[holdingSlug]/production/posting-setup/[...path]/route.ts";
 @source "../../../../packages/feature-manufacturing/src/routes/api/v1/holdings/[holdingSlug]/production/posting-setup/route.ts";
@@ -362,6 +381,7 @@
 @source "../../../../packages/native-sdk/src/field-service-files-routes.ts";
 @source "../../../../packages/native-sdk/src/field-service-parts.ts";
 @source "../../../../packages/native-sdk/src/holding-target.ts";
+@source "../../../../packages/native-sdk/src/loopback.ts";
 @source "../../../../packages/native-sdk/src/session.ts";
 @source "../../../../packages/server-agent/src/adapters/agent-governance.ts";
 @source "../../../../packages/server-agent/src/adapters/ai-gateway.ts";
@@ -1116,6 +1136,7 @@
 @source "../../../../packages/server-files/src/public/leave-evidence-sources.ts";
 @source "../../../../packages/server-files/src/public/leave-review-evidence-facts.ts";
 @source "../../../../packages/server-files/src/public/marketing-creative.ts";
+@source "../../../../packages/server-files/src/public/native-attachments.ts";
 @source "../../../../packages/server-files/src/public/overtime-evidence-facts.ts";
 @source "../../../../packages/server-files/src/public/pms-command-facts.ts";
 @source "../../../../packages/server-files/src/public/private-attachment-reads.ts";
@@ -1250,6 +1271,7 @@
 @source "../../../../packages/server-finance/src/adapters/manufacturing-posting-setup.ts";
 @source "../../../../packages/server-finance/src/adapters/marketing-expenses.ts";
 @source "../../../../packages/server-finance/src/adapters/money-primitives.ts";
+@source "../../../../packages/server-finance/src/adapters/native-field-work.ts";
 @source "../../../../packages/server-finance/src/adapters/native-service-invoice-payment-evidence.ts";
 @source "../../../../packages/server-finance/src/adapters/payroll-other-bank-evidence.ts";
 @source "../../../../packages/server-finance/src/adapters/payroll-other-remittance-facts.ts";
@@ -1531,6 +1553,7 @@
 @source "../../../../packages/server-finance/src/public/manufacturing-posting-setup.ts";
 @source "../../../../packages/server-finance/src/public/marketing-expenses.ts";
 @source "../../../../packages/server-finance/src/public/money-primitives.ts";
+@source "../../../../packages/server-finance/src/public/native-field-work.ts";
 @source "../../../../packages/server-finance/src/public/payroll-other-remittance-facts.ts";
 @source "../../../../packages/server-finance/src/public/payroll-owner-facts.ts";
 @source "../../../../packages/server-finance/src/public/payroll-payslip-posting.ts";
@@ -3815,7 +3838,9 @@
 @source "../../../../packages/workplace/src/entries/workspace.tsx";
 @source "../../../../packages/workplace/src/holding-proxy.ts";
 @source "../../../../packages/workplace/src/lib/bounded-json-body.ts";
+@source "../../../../packages/workplace/src/lib/native-attachments.ts";
 @source "../../../../packages/workplace/src/lib/native-field-family.ts";
+@source "../../../../packages/workplace/src/lib/product-entry.ts";
 @source "../../../../packages/workplace/src/proxy.ts";
 @source "../../../../packages/workplace/src/routes/api/health/route.ts";
 @source "../../../../packages/workplace/src/routes/api/ready/route.ts";

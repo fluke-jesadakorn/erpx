@@ -76900,6 +76900,81 @@
         "rust-toolchain.toml",
         "packages/server-operations/Cargo.toml"
       ]
+    },
+    {
+      "id": "crm.rust-crm-accounts.unit",
+      "lane": "unit",
+      "owner": "crm",
+      "modules": [
+        "crm"
+      ],
+      "files": [
+        "tests/unit/crm/rust-crm-accounts.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native CRM accounts facts retain Company scope, Unicode validation and persisted readback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-crm",
+        "targets": [
+          "crm_accounts"
+        ],
+        "manifest": "packages/server-crm/Cargo.toml"
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-crm/Cargo.toml"
+      ]
+    },
+    {
+      "id": "crm.rust-crm-activities.unit",
+      "lane": "unit",
+      "owner": "crm",
+      "modules": [
+        "crm"
+      ],
+      "files": [
+        "tests/unit/crm/rust-crm-activities.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native CRM activities facts retain Company scope, Unicode validation and persisted readback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-crm",
+        "targets": [
+          "crm_activities"
+        ],
+        "manifest": "packages/server-crm/Cargo.toml"
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-crm/Cargo.toml"
+      ],
+      "apps": [
+        "supply"
+      ],
+      "packages": [
+        "@erpx/server-quality",
+        "@erpx/server-shared"
+      ]
     }
   ]
 }
