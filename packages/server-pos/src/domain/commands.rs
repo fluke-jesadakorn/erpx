@@ -17,6 +17,9 @@ pub const OPERATION_SALE_HOLD: &str = "sale.hold";
 pub const OPERATION_SALE_RESUME: &str = "sale.resume";
 pub const OPERATION_SALE_ADD: &str = "sale.add";
 pub const OPERATION_SALE_UPDATE_LINE: &str = "sale.update_line";
+pub const OPERATION_SALE_CUSTOMER: &str = "sale.customer";
+pub const OPERATION_SALE_MOVE_TABLE: &str = "sale.move_table";
+pub const OPERATION_SALE_REMOVE: &str = "sale.remove";
 pub const OPERATION_SALE_CANCEL: &str = "sale.cancel";
 pub const OPERATION_REFUND_REQUEST: &str = "refund.request";
 pub const OPERATION_REFUND_REJECT: &str = "refund.reject";
@@ -96,6 +99,9 @@ pub enum PosOperation {
     SaleCreate,
     SaleAdd,
     SaleUpdateLine,
+    SaleCustomer,
+    SaleMoveTable,
+    SaleRemove,
     SaleHold,
     SaleResume,
     SaleCancel,
@@ -113,6 +119,9 @@ impl PosOperation {
             OPERATION_SALE_CREATE => Self::SaleCreate,
             OPERATION_SALE_ADD => Self::SaleAdd,
             OPERATION_SALE_UPDATE_LINE => Self::SaleUpdateLine,
+            OPERATION_SALE_CUSTOMER => Self::SaleCustomer,
+            OPERATION_SALE_MOVE_TABLE => Self::SaleMoveTable,
+            OPERATION_SALE_REMOVE => Self::SaleRemove,
             OPERATION_SALE_HOLD => Self::SaleHold,
             OPERATION_SALE_RESUME => Self::SaleResume,
             OPERATION_SALE_CANCEL => Self::SaleCancel,
@@ -130,6 +139,9 @@ impl PosOperation {
             Self::SaleCreate => OPERATION_SALE_CREATE,
             Self::SaleAdd => OPERATION_SALE_ADD,
             Self::SaleUpdateLine => OPERATION_SALE_UPDATE_LINE,
+            Self::SaleCustomer => OPERATION_SALE_CUSTOMER,
+            Self::SaleMoveTable => OPERATION_SALE_MOVE_TABLE,
+            Self::SaleRemove => OPERATION_SALE_REMOVE,
             Self::SaleHold => OPERATION_SALE_HOLD,
             Self::SaleResume => OPERATION_SALE_RESUME,
             Self::SaleCancel => OPERATION_SALE_CANCEL,
@@ -194,6 +206,24 @@ pub struct SaleUpdateLineInput {
     pub note: String,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SaleCustomerInput {
+    pub id: String,
+    pub expected_version: i64,
+    pub party_id: Option<String>,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SaleMoveTableInput {
+    pub id: String,
+    pub expected_version: i64,
+    pub table_id: String,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SaleRemoveInput {
+    pub id: String,
+    pub expected_version: i64,
+    pub line_id: String,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SaleVersionInput {
     pub id: String,
     pub expected_version: i64,
@@ -229,6 +259,9 @@ pub enum PosCommandInput {
     SaleCreate(SaleCreateInput),
     SaleAdd(SaleAddInput),
     SaleUpdateLine(SaleUpdateLineInput),
+    SaleCustomer(SaleCustomerInput),
+    SaleMoveTable(SaleMoveTableInput),
+    SaleRemove(SaleRemoveInput),
     SaleVersion(SaleVersionInput),
     RefundRequest(RefundRequestInput),
     RefundReject(RefundRejectInput),
@@ -1050,6 +1083,83 @@ impl PosCommand {
                         ("quantityMilli", quantity_milli.to_string()),
                         ("discountMinor", discount_minor.to_string()),
                         ("note", json_string(&note)),
+                    ]),
+                )
+            }
+            PosOperation::SaleCustomer => {
+                object(
+                    value,
+                    &["id", "expectedVersion", "partyId"],
+                    &["id", "expectedVersion"],
+                )?;
+                let id = text(value, "id")?;
+                let expected_version = version(integer(value, "expectedVersion")?)?;
+                let party_id = match value.get("partyId") {
+                    None | Some(serde_json::Value::Null) => None,
+                    Some(value) => Some(
+                        value
+                            .as_str()
+                            .filter(|value| !value.is_empty() && value.len() <= 128)
+                            .ok_or_else(|| {
+                                request_invalid("POS_CUSTOMER_INVALID", "Customer is not available.")
+                            })?
+                            .to_owned(),
+                    ),
+                };
+                (
+                    PosCommandInput::SaleCustomer(SaleCustomerInput {
+                        id: id.clone(),
+                        expected_version,
+                        party_id: party_id.clone(),
+                    }),
+                    canonical(&[
+                        ("id", json_string(&id)),
+                        ("expectedVersion", expected_version.to_string()),
+                        ("partyId", optional_json(party_id.as_deref())),
+                    ]),
+                )
+            }
+            PosOperation::SaleMoveTable => {
+                object(
+                    value,
+                    &["id", "expectedVersion", "tableId"],
+                    &["id", "expectedVersion", "tableId"],
+                )?;
+                let id = text(value, "id")?;
+                let expected_version = version(integer(value, "expectedVersion")?)?;
+                let table_id = text(value, "tableId")?;
+                (
+                    PosCommandInput::SaleMoveTable(SaleMoveTableInput {
+                        id: id.clone(),
+                        expected_version,
+                        table_id: table_id.clone(),
+                    }),
+                    canonical(&[
+                        ("id", json_string(&id)),
+                        ("expectedVersion", expected_version.to_string()),
+                        ("tableId", json_string(&table_id)),
+                    ]),
+                )
+            }
+            PosOperation::SaleRemove => {
+                object(
+                    value,
+                    &["id", "expectedVersion", "lineId"],
+                    &["id", "expectedVersion", "lineId"],
+                )?;
+                let id = text(value, "id")?;
+                let expected_version = version(integer(value, "expectedVersion")?)?;
+                let line_id = text(value, "lineId")?;
+                (
+                    PosCommandInput::SaleRemove(SaleRemoveInput {
+                        id: id.clone(),
+                        expected_version,
+                        line_id: line_id.clone(),
+                    }),
+                    canonical(&[
+                        ("id", json_string(&id)),
+                        ("expectedVersion", expected_version.to_string()),
+                        ("lineId", json_string(&line_id)),
                     ]),
                 )
             }

@@ -942,3 +942,69 @@ fn sale_add_and_update_line_write_the_line_totals_and_versions() {
             assert_eq!(updated_sale, (30_000, 2_100, 32_100, 3));
     });
 }
+
+#[test]
+fn sale_customer_move_table_and_remove_write_the_basket() {
+    with_database(|pool| async move {
+        setup(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO finance_parties(id,company_id,kind,code,name,currency,created_at,updated_at) VALUES('party','company','customer','P','Party','THB',0,0);\
+             INSERT INTO pos_tables(id,register_id,name,seats) VALUES('table','register','T1',2);\
+             INSERT INTO pos_sales(id,company_id,branch_id,register_id,shift_id,number,currency,business_date,state,created_by,created_at,updated_at,accounts_json,service_mode,version) VALUES('sale-basket','company','branch','register','shift','POS-B','THB','2027-01-15','open','cashier',0,0,'{}','retail',1);\
+             INSERT INTO pos_fulfillments(id,company_id,branch_id,warehouse_id,product_id,quantity_milli,kind,station,recipe_json,accounts_json,currency,business_date,created_at,state) VALUES('basket-fulfilment','company','branch','warehouse','product',1000,'stock','Kitchen','[]','{}','THB','2027-01-15',0,'draft');\
+             INSERT INTO pos_lines(id,sale_id,fulfillment_id,product_id,name,quantity_milli,price_minor,tax_bps,tax_inclusive,discount_minor,subtotal_minor,tax_minor,modifiers_json) VALUES('basket-line','sale-basket','basket-fulfilment','product','Product',1000,1000,700,false,0,1000,70,'[]');"
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let customer = command(
+            PosOperation::SaleCustomer,
+            "sale-customer-key-1",
+            serde_json::json!({"id":"sale-basket","expectedVersion":1,"partyId":"party"}),
+        );
+        let result = run(&pool, actor("manager"), customer).await.unwrap();
+        assert_eq!(result.version, Some(2));
+        assert_eq!(
+            sqlx::query_scalar::<_, Option<String>>("SELECT party_id FROM pos_sales WHERE id='sale-basket'")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            Some("party".into())
+        );
+        let move_table = command(
+            PosOperation::SaleMoveTable,
+            "sale-table-key-1",
+            serde_json::json!({"id":"sale-basket","expectedVersion":2,"tableId":"table"}),
+        );
+        let result = run(&pool, actor("manager"), move_table).await.unwrap();
+        assert_eq!(result.version, Some(3));
+        assert_eq!(
+            sqlx::query_scalar::<_, String>("SELECT table_id FROM pos_sales WHERE id='sale-basket'")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            "table"
+        );
+        let remove = command(
+            PosOperation::SaleRemove,
+            "sale-remove-key-1",
+            serde_json::json!({"id":"sale-basket","expectedVersion":3,"lineId":"basket-line"}),
+        );
+        let result = run(&pool, actor("manager"), remove).await.unwrap();
+        assert_eq!(result.version, Some(4));
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT count(*) FROM pos_lines WHERE sale_id='sale-basket'")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            0
+        );
+        let totals: (i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT subtotal_minor,tax_minor,total_minor,version FROM pos_sales WHERE id='sale-basket'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(totals, (0, 0, 0, 4));
+    });
+}

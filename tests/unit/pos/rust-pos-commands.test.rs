@@ -437,6 +437,18 @@ impl PosCommandRepository for Probe {
         Box::pin(async move { Ok(self.reject) })
     }
 
+    fn set_sale_party<'a>(&'a mut self, _: &'a str, _: Option<&'a str>) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn set_sale_table<'a>(&'a mut self, _: &'a str, _: &'a str) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn delete_reservations<'a>(&'a mut self, _: &'a str) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
+    fn delete_line<'a>(&'a mut self, _: &'a str) -> PosFuture<'a, ()> {
+        Box::pin(async { Ok(()) })
+    }
     fn insert_fulfillment<'a>(&'a mut self, _: &'a PosFulfillmentInsert) -> PosFuture<'a, ()> {
         Box::pin(async { Ok(()) })
     }

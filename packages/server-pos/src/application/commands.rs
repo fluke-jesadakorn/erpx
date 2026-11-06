@@ -8,8 +8,9 @@ use crate::domain::commands::{
     CashApproveInput, PosActor, PosCashMovement, PosCatalogProduct, PosCatalogSnapshot, PosCommand,
     PosCommandInput, PosFulfillment, PosFulfillmentInsert, PosJournalLine, PosJournalRequest, PosLine,
     PosLineDetail, PosLineInsert, PosOperation, PosReceipt, PosRefund, PosRegister, PosResult, PosSale, PosSettings,
-    PosShift, RefundRejectInput, RefundRequestInput, SaleAddInput, SaleCreateInput,
-    SaleUpdateLineInput, SaleVersionInput, ShiftCloseInput, ShiftOpenInput, ShiftReviewInput,
+    PosShift, RefundRejectInput, RefundRequestInput, SaleAddInput, SaleCreateInput, SaleCustomerInput,
+    SaleMoveTableInput, SaleRemoveInput, SaleUpdateLineInput, SaleVersionInput, ShiftCloseInput,
+    ShiftOpenInput, ShiftReviewInput,
     accounting_review_required, conflict, day_closed, idempotency_conflict, independent_review,
     not_found, parse_receipt_result, period_closed, request_invalid, setup_required,
     source_invalid, valid_uuid, version_conflict,
@@ -211,6 +212,21 @@ pub trait PosCommandRepository: Send {
         tax_minor: i64,
         note: &'a str,
     ) -> PosFuture<'a, (), Self::Error>;
+    fn set_sale_party<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+        party_id: Option<&'a str>,
+    ) -> PosFuture<'a, (), Self::Error>;
+    fn set_sale_table<'a>(
+        &'a mut self,
+        sale_id: &'a str,
+        table_id: &'a str,
+    ) -> PosFuture<'a, (), Self::Error>;
+    fn delete_reservations<'a>(
+        &'a mut self,
+        fulfillment_id: &'a str,
+    ) -> PosFuture<'a, (), Self::Error>;
+    fn delete_line<'a>(&'a mut self, line_id: &'a str) -> PosFuture<'a, (), Self::Error>;
     fn prepared_day_close<'a>(
         &'a mut self,
         company: &'a CompanyId,
@@ -494,6 +510,15 @@ where
         }
         PosCommandInput::SaleUpdateLine(input) => {
             sale_update_line(actor, input, repository, now).await?
+        }
+        PosCommandInput::SaleCustomer(input) => {
+            sale_customer(actor, input, repository, finance, now).await?
+        }
+        PosCommandInput::SaleMoveTable(input) => {
+            sale_move_table(actor, input, repository, now).await?
+        }
+        PosCommandInput::SaleRemove(input) => {
+            sale_remove(actor, input, repository, now).await?
         }
         PosCommandInput::SaleCreate(input) => {
             sale_create(
@@ -1524,6 +1549,136 @@ where
             &input.note,
         )
         .await?;
+    if !repository.refresh_sale(&sale.id, now).await? {
+        return Err(version_conflict().into());
+    }
+    Ok(PosResult {
+        id: sale.id,
+        version: Some(input.expected_version + 1),
+    })
+}
+
+async fn sale_customer<R, F>(
+    actor: &PosActor,
+    input: &SaleCustomerInput,
+    repository: &mut R,
+    finance: &mut F,
+    now: TimestampMillis,
+) -> Result<PosResult, R::Error>
+where
+    R: PosCommandRepository,
+    F: PosFinancePort,
+{
+    let sale = repository
+        .sale(&actor.company_id, &input.id)
+        .await?
+        .ok_or_else(not_found)?;
+    scope_sale(actor, &sale)?;
+    version_matches(sale.version, input.expected_version)?;
+    if !matches!(sale.state.as_str(), "open" | "held") {
+        return Err(conflict(
+            "POS_SALE_NOT_EDITABLE",
+            "Only an open or held bill can change.",
+        )
+        .into());
+    }
+    if let Some(party) = input.party_id.as_deref()
+        && !finance
+            .party_exists(&actor.company_id, party)
+            .await
+            .map_err(R::Error::from)?
+    {
+        return Err(request_invalid("POS_CUSTOMER_INVALID", "Customer is not available.").into());
+    }
+    repository
+        .set_sale_party(&sale.id, input.party_id.as_deref())
+        .await?;
+    if !repository.refresh_sale(&sale.id, now).await? {
+        return Err(version_conflict().into());
+    }
+    Ok(PosResult {
+        id: sale.id,
+        version: Some(input.expected_version + 1),
+    })
+}
+
+async fn sale_move_table<R>(
+    actor: &PosActor,
+    input: &SaleMoveTableInput,
+    repository: &mut R,
+    now: TimestampMillis,
+) -> Result<PosResult, R::Error>
+where
+    R: PosCommandRepository,
+{
+    let sale = repository
+        .sale(&actor.company_id, &input.id)
+        .await?
+        .ok_or_else(not_found)?;
+    scope_sale(actor, &sale)?;
+    version_matches(sale.version, input.expected_version)?;
+    if !matches!(sale.state.as_str(), "open" | "held") {
+        return Err(conflict(
+            "POS_SALE_NOT_EDITABLE",
+            "Only an open or held bill can change.",
+        )
+        .into());
+    }
+    if !repository
+        .table_exists(&sale.register_id, &input.table_id)
+        .await?
+    {
+        return Err(request_invalid("POS_TABLE_INVALID", "Table is not at this sales point.").into());
+    }
+    repository
+        .set_sale_table(&sale.id, &input.table_id)
+        .await?;
+    if !repository.refresh_sale(&sale.id, now).await? {
+        return Err(version_conflict().into());
+    }
+    Ok(PosResult {
+        id: sale.id,
+        version: Some(input.expected_version + 1),
+    })
+}
+
+async fn sale_remove<R>(
+    actor: &PosActor,
+    input: &SaleRemoveInput,
+    repository: &mut R,
+    now: TimestampMillis,
+) -> Result<PosResult, R::Error>
+where
+    R: PosCommandRepository,
+{
+    let sale = repository
+        .sale(&actor.company_id, &input.id)
+        .await?
+        .ok_or_else(not_found)?;
+    scope_sale(actor, &sale)?;
+    version_matches(sale.version, input.expected_version)?;
+    if !matches!(sale.state.as_str(), "open" | "held") {
+        return Err(conflict(
+            "POS_SALE_NOT_EDITABLE",
+            "Only an open or held bill can change.",
+        )
+        .into());
+    }
+    let line = repository
+        .sale_line(&sale.id, &input.line_id)
+        .await?
+        .ok_or_else(|| request_invalid("POS_LINE_INVALID", "Line is not on this bill."))?;
+    if !matches!(line.fulfillment_state.as_str(), "draft" | "cancelled") {
+        return Err(conflict(
+            "POS_ITEM_IN_KITCHEN",
+            "Cancel the kitchen item before removing it from the bill.",
+        )
+        .into());
+    }
+    repository
+        .delete_reservations(&line.fulfillment_id)
+        .await?;
+    repository.delete_line(&line.id).await?;
     if !repository.refresh_sale(&sale.id, now).await? {
         return Err(version_conflict().into());
     }

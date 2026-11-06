@@ -874,6 +874,48 @@ impl PosCommandRepository for PgPosCommandRepository<'_> {
             Ok(())
         })
     }
+    fn set_sale_party<'a>(&'a mut self, sale_id: &'a str, party_id: Option<&'a str>) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query("UPDATE pos_sales SET party_id=$1 WHERE id=$2")
+                .bind(party_id)
+                .bind(sale_id)
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(())
+        })
+    }
+    fn set_sale_table<'a>(&'a mut self, sale_id: &'a str, table_id: &'a str) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query("UPDATE pos_sales SET table_id=$1 WHERE id=$2")
+                .bind(table_id)
+                .bind(sale_id)
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(())
+        })
+    }
+    fn delete_reservations<'a>(&'a mut self, fulfillment_id: &'a str) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query("DELETE FROM pos_reservations WHERE fulfillment_id=$1")
+                .bind(fulfillment_id)
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(())
+        })
+    }
+    fn delete_line<'a>(&'a mut self, line_id: &'a str) -> Fut<'a, ()> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query("DELETE FROM pos_lines WHERE id=$1")
+                .bind(line_id)
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(())
+        })
+    }
     fn prepared_day_close<'a>(
         &'a mut self,
         company: &'a CompanyId,

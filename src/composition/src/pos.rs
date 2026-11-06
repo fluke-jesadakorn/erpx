@@ -392,18 +392,26 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
                         .map_err(business)?
                         .is_some();
                         let party = match &command.input {
-                            erpx_server_pos::public::commands::PosCommandInput::SaleCreate(input) => {
-                                match &input.party_id {
-                                    Some(party) => finance_party_exists(
-                                        connection,
-                                        company.as_str(),
-                                        party,
-                                    )
-                                    .await
-                                    .map_err(business)?,
-                                    None => true,
-                                }
-                            }
+                            PosCommandInput::SaleCreate(input) => match &input.party_id {
+                                Some(party) => finance_party_exists(
+                                    connection,
+                                    company.as_str(),
+                                    party,
+                                )
+                                .await
+                                .map_err(business)?,
+                                None => true,
+                            },
+                            PosCommandInput::SaleCustomer(input) => match &input.party_id {
+                                Some(party) => finance_party_exists(
+                                    connection,
+                                    company.as_str(),
+                                    party,
+                                )
+                                .await
+                                .map_err(business)?,
+                                None => true,
+                            },
                             _ => true,
                         };
                         let issuer = read_company_display_name(connection, company.as_str())
