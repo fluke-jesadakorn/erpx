@@ -445,17 +445,16 @@ function transportCall(
     if (!idempotencyKey || !/^[A-Za-z0-9:_.-]{8,180}$/.test(idempotencyKey))
       return Promise.reject(new NativeMaintenanceError('NATIVE_MAINTENANCE_COMMAND_KEY_INVALID'));
     headers.set('idempotency-key', idempotencyKey);
-    if (origin) {
-      let originUrl: URL;
-      try {
-        originUrl = new URL(origin);
-      } catch {
-        return Promise.reject(new NativeMaintenanceError('NATIVE_MAINTENANCE_REQUEST_INVALID'));
-      }
-      if (origin !== originUrl.origin)
-        return Promise.reject(new NativeMaintenanceError('NATIVE_MAINTENANCE_REQUEST_INVALID'));
-      headers.set('origin', origin);
+    const effectiveOrigin = origin ?? `https://${host}`;
+    let originUrl: URL;
+    try {
+      originUrl = new URL(effectiveOrigin);
+    } catch {
+      return Promise.reject(new NativeMaintenanceError('NATIVE_MAINTENANCE_REQUEST_INVALID'));
     }
+    if (effectiveOrigin !== originUrl.origin)
+      return Promise.reject(new NativeMaintenanceError('NATIVE_MAINTENANCE_REQUEST_INVALID'));
+    headers.set('origin', effectiveOrigin);
   }
   const url = new URL(`/api/v1/holdings/${encodeURIComponent(holdingSlug)}${path}`, base);
   if (input.id !== undefined) url.searchParams.set('id', input.id);
