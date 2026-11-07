@@ -2,6 +2,7 @@ pub mod order;
 pub mod quality_receipt_origin;
 pub mod quality_return_origin;
 pub mod quality_masters;
+pub mod quality_scrap_stock;
 pub mod order_http;
 
 pub mod inventory_consumption;

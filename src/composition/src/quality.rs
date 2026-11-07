@@ -19,17 +19,20 @@ use erpx_server_identity_access::public::{
     work_context::{ExpectedWorkSelection, HoldingWorkspaceRequest},
 };
 use erpx_server_quality::public::quality_commands::{
-    HoldStatus, InspectionResult, QualityInspectionCommand, QualityInspectionReceipt,
-    QualitySpecActionCommand, QualitySpecCommand, QualitySpecReceipt, SpecStatus,
-    normalize_quality_cancellation, normalize_quality_inspection, normalize_quality_spec_action,
+    HoldStatus, InspectionResult, QualityDispositionCommand, QualityDispositionReceipt,
+    QualityInspectionCommand, QualityInspectionReceipt, QualityReleaseCommand,
+    QualityReleaseReceipt, QualitySpecActionCommand, QualitySpecCommand, QualitySpecReceipt,
+    SpecStatus, normalize_quality_cancellation, normalize_quality_disposition,
+    normalize_quality_inspection, normalize_quality_release, normalize_quality_spec_action,
     normalize_quality_spec_save,
 };
 use erpx_server_quality::public::quality_http::{
     PgQualityRead, QualityHttpBackend, QualityHttpCommandRequest, QualityHttpFuture,
     QualityHttpHistoryReply, QualityHttpHistoryRequest, QualityHttpReadReply,
     QualityHttpReadRequest, QualityHttpSaveSpecRequest, QualityHttpTarget, parse_cancellation,
-    parse_inspection, parse_quality_history_query, parse_spec_action, parse_spec_save,
-    quality_router, read_quality_cancellation_history_page, read_quality_detail_core,
+    parse_disposition, parse_inspection, parse_quality_history_query, parse_release,
+    parse_spec_action, parse_spec_save, quality_router, read_quality_cancellation_history_page,
+    read_quality_detail_core,
 };
 use erpx_server_quality::public::quality_read::{
     QualityActor, QualityCancellationCommand, QualityCancellationReceipt,
@@ -622,6 +625,108 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
             .await
     }
 
+    pub async fn release(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        mut selection: HoldingWorkspaceRequest,
+        command: QualityReleaseCommand,
+    ) -> Result<QualityReleaseReceipt, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        if selection.company_id != company {
+            return Err(scope().into());
+        }
+        selection.mutation = true;
+        let command = normalize_quality_release(command)?;
+        self.authorizer
+            .execute_with_sources(
+                host,
+                proof,
+                selection,
+                Self::command_access("quality.release"),
+                QualityCommandPreparation::release(),
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        let mut identifiers = QualityIds;
+                        let outcome = execute_quality_command(
+                            connection,
+                            current,
+                            &QualityOwnerCommand::Release(command),
+                            PackageEnforcementMode::Enforced,
+                            clock.as_ref(),
+                            clock.as_ref(),
+                            &mut identifiers,
+                        )
+                        .await?;
+                        release_receipt(&outcome)
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn scrap(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        mut selection: HoldingWorkspaceRequest,
+        command: QualityDispositionCommand,
+    ) -> Result<QualityDispositionReceipt, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        if selection.company_id != company {
+            return Err(scope().into());
+        }
+        selection.mutation = true;
+        let command = normalize_quality_disposition(command)?;
+        self.authorizer
+            .execute_with_sources(
+                host,
+                proof,
+                selection,
+                Self::command_access("quality.release"),
+                QualityCommandPreparation::scrap(),
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        let mut identifiers = QualityIds;
+                        let outcome = execute_quality_command(
+                            connection,
+                            current,
+                            &QualityOwnerCommand::Scrap(command),
+                            PackageEnforcementMode::Enforced,
+                            clock.as_ref(),
+                            clock.as_ref(),
+                            &mut identifiers,
+                        )
+                        .await?;
+                        disposition_receipt(&outcome)
+                    })
+                },
+            )
+            .await
+    }
+
     pub async fn cancel<Input>(
         &self,
         host: &str,
@@ -752,6 +857,47 @@ fn inspection_receipt(
         status: HoldStatus::parse(&value.status).ok_or_else(changed_result)?,
         result: InspectionResult::parse(&value.result).ok_or_else(changed_result)?,
         version: value.version,
+    })
+}
+
+#[derive(serde::Deserialize)]
+struct ReleaseResultJson {
+    id: String,
+    status: String,
+    version: i64,
+}
+
+fn release_receipt(
+    outcome: &erpx_server_workflow::public::commands::CommandOutcome,
+) -> Result<QualityReleaseReceipt, Error> {
+    let value: ReleaseResultJson =
+        serde_json::from_str(outcome.result.as_str()).map_err(|_| changed_result())?;
+    Ok(QualityReleaseReceipt {
+        id: value.id,
+        status: HoldStatus::parse(&value.status).ok_or_else(changed_result)?,
+        version: value.version,
+    })
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DispositionResultJson {
+    id: String,
+    status: String,
+    version: i64,
+    count_id: String,
+}
+
+fn disposition_receipt(
+    outcome: &erpx_server_workflow::public::commands::CommandOutcome,
+) -> Result<QualityDispositionReceipt, Error> {
+    let value: DispositionResultJson =
+        serde_json::from_str(outcome.result.as_str()).map_err(|_| changed_result())?;
+    Ok(QualityDispositionReceipt {
+        id: value.id,
+        status: HoldStatus::parse(&value.status).ok_or_else(changed_result)?,
+        version: value.version,
+        count_id: value.count_id,
     })
 }
 
@@ -938,6 +1084,34 @@ impl<C: Clock + Send + Sync + 'static> QualityHttpBackend for QualityBackend<C> 
             let command = parse_inspection(request.body, request.id, request.key.clone())?;
             self.service
                 .inspect(request.host, proof, selection, command)
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn release<'a>(
+        &'a self,
+        request: QualityHttpCommandRequest<'a>,
+    ) -> QualityHttpFuture<'a, QualityReleaseReceipt> {
+        Box::pin(async move {
+            let (proof, selection) = self.command_context(request.headers)?;
+            let command = parse_release(request.body, request.id, request.key.clone())?;
+            self.service
+                .release(request.host, proof, selection, command)
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn disposition<'a>(
+        &'a self,
+        request: QualityHttpCommandRequest<'a>,
+    ) -> QualityHttpFuture<'a, QualityDispositionReceipt> {
+        Box::pin(async move {
+            let (proof, selection) = self.command_context(request.headers)?;
+            let command = parse_disposition(request.body, request.id, request.key.clone())?;
+            self.service
+                .scrap(request.host, proof, selection, command)
                 .await
                 .map_err(business)
         })

@@ -71,7 +71,7 @@ async fn json(response: axum::response::Response) -> serde_json::Value {
 async fn grant_quality(p: &review::Prepared) {
     sqlx::raw_sql(
         "INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) \
-         VALUES('*','custom_finance_review',2,'[\"finance.read\",\"quality.read\",\"quality.hold\",\"quality.inspect\",\"quality.release\",\"module.quality.read\"]','[]','[\"holding\",\"branch\"]','fixture',0);\
+         VALUES('*','custom_finance_review',2,'[\"finance.read\",\"quality.read\",\"quality.hold\",\"quality.inspect\",\"quality.release\",\"inventory.approve\",\"module.quality.read\"]','[]','[\"holding\",\"branch\"]','fixture',0);\
          UPDATE iam_roles SET published_revision=2 WHERE company_id='*' AND id='custom_finance_review';\
          UPDATE assignments SET modules_json='[\"finance\",\"quality\"]',version=4 WHERE id IN ('finance-fixture-a','finance-fixture-b');\
          UPDATE active_work_contexts SET assignment_version=4 WHERE assignment_id IN ('finance-fixture-a','finance-fixture-b')",
@@ -1129,6 +1129,657 @@ async fn quality_cancellation_commands_use_the_workflow_ledger_and_after_image_n
         .await
         .unwrap();
         assert_eq!(purchase_rows, 0);
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn quality_release_and_scrap_dispositions_are_native_and_replayable() {
+    use sha2::{Digest, Sha256};
+    review::account::with_system(|system| async move {
+        let p = review::setup_with_finance(system, false).await;
+        grant_quality(&p).await;
+        seed_quality(&p).await;
+        let db = p.system.holdings[0].raw();
+        let now = p.system.scenario.clock.now().get();
+        let expires = now + 3_600_000;
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+            "UPDATE assignments SET valid_from=0,valid_until=9007199254740991 WHERE id IN ('finance-fixture-a','finance-fixture-b');\
+             INSERT INTO commerce_products(id,company_id,sku,name,price_minor,tracking_mode) \
+             VALUES('tracked-product','company','P2','Tracked product',1000,'lot'),\
+                   ('serial-product','company','P3','Serial product',100,'serial');\
+             INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor) \
+             VALUES('warehouse','tracked-product',5000,1000),('warehouse','serial-product',1000,100);\
+             INSERT INTO inventory_lots(id,company_id,product_id,tracking_mode,lot_code,serial_number,manufactured_date,expiry_date,created_by,created_at) \
+             VALUES('lot-a','company','tracked-product','lot','LOT-A',NULL,'2026-01-01','2027-01-01','fixture-a',{now}),\
+                   ('lot-b','company','tracked-product','lot','LOT-B',NULL,'2026-01-01','2027-01-01','fixture-a',{now}),\
+                   ('serial-lot','company','serial-product','serial',NULL,'SN-1','2026-01-01','2027-01-01','fixture-a',{now});\
+             INSERT INTO inventory_lot_balances(lot_id,warehouse_id,quantity_milli,value_minor) \
+             VALUES('lot-a','warehouse',3000,600),('lot-b','warehouse',2000,400),('serial-lot','warehouse',1000,100);\
+             INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,status,created_by,last_inspector,last_result,created_at,updated_at,quantity_scope,version) \
+             VALUES('release-hold','company','branch','warehouse','product','Release the passing batch','2026-11-10','awaiting_release','fixture-a','fixture-c','pass',{now},{now},'whole',1),\
+                   ('release-pass-required','company','branch','warehouse','product','A passing inspection is missing','2026-11-10','held','fixture-a','fixture-c','fail',{now},{now},'whole',1),\
+                   ('release-denied-hold','company','branch','warehouse','product','Release under an inactive purchase','2026-11-10','awaiting_release','fixture-a','fixture-c','pass',{now},{now},'whole',1),\
+                   ('scrap-hold','company','branch','warehouse','tracked-product','Scrap the failed tracked batch','2026-11-10','held','fixture-a','fixture-c','fail',{now},{now},'whole',1),\
+                   ('scrap-pass-hold','company','branch','warehouse','tracked-product','A failed inspection is missing','2026-11-10','held','fixture-a','fixture-c','pass',{now},{now},'whole',1),\
+                   ('scrap-exceed-hold','company','branch','warehouse','tracked-product','Scrap more than held','2026-11-10','held','fixture-a','fixture-c','fail',{now},{now},'whole',1),\
+                   ('scrap-serial-hold','company','branch','warehouse','serial-product','Scrap part of a serial','2026-11-10','held','fixture-a','fixture-c','fail',{now},{now},'whole',1),\
+                   ('scrap-no-lot-hold','company','branch','warehouse','tracked-product','Scrap without the affected lot','2026-11-10','held','fixture-a','fixture-c','fail',{now},{now},'whole',1),\
+                   ('scrap-stale-evidence-hold','company','branch','warehouse','tracked-product','Scrap with stale evidence','2026-11-10','held','fixture-a','fixture-c','fail',{now},{now},'whole',1),\
+                   ('scrap-purchase-hold','company','branch','warehouse','tracked-product','Scrap under an inactive purchase','2026-11-10','held','fixture-a','fixture-c','fail',{now},{now},'whole',1);\
+             UPDATE inventory_quality_holds SET lot_id='lot-a',held_quantity_milli=3000 WHERE id='scrap-hold';\
+             UPDATE inventory_quality_holds SET lot_id='lot-a',held_quantity_milli=1000 WHERE id='scrap-exceed-hold';\
+             UPDATE inventory_quality_holds SET lot_id='serial-lot',held_quantity_milli=1000 WHERE id='scrap-serial-hold';\
+             UPDATE inventory_quality_holds SET held_quantity_milli=3000 WHERE id='scrap-no-lot-hold';\
+             UPDATE inventory_quality_holds SET lot_id='lot-a',held_quantity_milli=3000 WHERE id='scrap-stale-evidence-hold';\
+             UPDATE inventory_quality_holds SET lot_id='lot-a',held_quantity_milli=3000 WHERE id='scrap-purchase-hold';\
+             INSERT INTO attachment_sets(id,company_id,branch_id,target_type,target_id,component_kind,component_ref,purpose_key,expected_target_version,policy_version,classification,audience_json,required_count,max_files,state,created_by,created_at,updated_at) \
+             VALUES('scrap-set','company','branch','quality_hold','scrap-hold','action','disposition','disposition_evidence',1,1,'internal','{{}}',0,10,'draft','fixture-b',{now},{now}),\
+                   ('scrap-stale-set','company','branch','quality_hold','scrap-stale-evidence-hold','action','disposition','disposition_evidence',2,1,'internal','{{}}',0,10,'draft','fixture-b',{now},{now});\
+             INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,actual_bytes,checksum_sha256,staging_key,final_key,status,created_by,expires_at,created_at,updated_at,owner_version,company_id,detected_media_type,attachment_set_id) \
+             VALUES('scrap-upload','quality_hold','scrap-hold','disposition_evidence','scrap.pdf','application/pdf',12,12,repeat('e',64),'scrap/staging','scrap/object','ready','fixture-b',{expires},{now},{now},1,'company','application/pdf','scrap-set');\
+             INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at,company_id,detected_media_type,source_state,scanned_at,scanner_definition_at) \
+             VALUES('scrap-file','scrap-upload','quality_hold','scrap-hold','disposition_evidence','scrap/object',1,'scrap.pdf','application/pdf',12,repeat('e',64),'fixture-b',{now},'company','application/pdf','available',{now},{now});\
+             INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) \
+             VALUES('scrap-link','scrap-set','scrap-file','draft','fixture-b',{now},{expires})"
+        )))
+        .execute(db)
+        .await
+        .unwrap();
+        let app = prepared_router(&p);
+
+        let unknown = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/release-hold/release",
+                &p,
+                true,
+                Some("quality-release-unknown"),
+                Some(r#"{"expectedVersion":1,"reason":"Independent release review.","extra":true}"#),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(unknown.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(json(unknown).await["error"]["code"], "QUALITY_RELEASE_REQUIRED");
+
+        let release_key = "quality-release-http";
+        let release_body = r#"{"expectedVersion":1,"reason":"Independent release review confirms the passing inspection."}"#;
+        let released = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/release-hold/release",
+                &p,
+                true,
+                Some(release_key),
+                Some(release_body),
+            ))
+            .await
+            .unwrap();
+        let status = released.status();
+        let released = json(released).await;
+        assert_eq!(status, StatusCode::OK, "{released}");
+        assert_eq!(released["data"]["id"], "release-hold");
+        assert_eq!(released["data"]["status"], "released");
+        assert_eq!(released["data"]["version"], 2);
+        let release_row: (String, String, Option<String>, Option<String>, Option<i64>, i64) =
+            sqlx::query_as(
+                "SELECT status,last_result,released_by,release_reason,released_at,version FROM inventory_quality_holds WHERE id='release-hold'",
+            )
+            .fetch_one(db)
+            .await
+            .unwrap();
+        assert_eq!(
+            release_row,
+            (
+                "released".into(),
+                "pass".into(),
+                Some("fixture-b".into()),
+                Some("Independent release review confirms the passing inspection.".into()),
+                Some(now),
+                2
+            )
+        );
+        let release_ledger: (i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM command_receipts WHERE command_id=$1),\
+                    (SELECT count(*) FROM audit_events WHERE command_id=$1),\
+                    (SELECT count(*) FROM outbox_events WHERE command_id=$1)",
+        )
+        .bind(release_key)
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(release_ledger, (1, 1, 1));
+        let release_notice: (String, i64, String) = sqlx::query_as(
+            "SELECT user_id,record_version,record_type FROM staff_notifications WHERE id=$1",
+        )
+        .bind(format!("{release_key}-fixture-a"))
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(
+            release_notice,
+            ("fixture-a".into(), 2, "quality_hold".into()),
+            "terminal release notice goes to the creator"
+        );
+        let release_bridge: (i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM inbox_events WHERE id=$1),\
+                    (SELECT count(*) FROM inbox_deliveries WHERE id=$2)",
+        )
+        .bind(format!("legacy:{release_key}-fixture-a"))
+        .bind(format!("{release_key}-fixture-a"))
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(release_bridge, (1, 1));
+
+        let release_replay = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/release-hold/release",
+                &p,
+                true,
+                Some(release_key),
+                Some(release_body),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(release_replay.status(), StatusCode::OK);
+        assert_eq!(json(release_replay).await["data"]["version"], 2);
+        let release_stable: (i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM command_receipts WHERE command_id=$1),\
+                    (SELECT count(*) FROM audit_events WHERE command_id=$1),\
+                    (SELECT count(*) FROM outbox_events WHERE command_id=$1),\
+                    (SELECT count(*) FROM staff_notifications WHERE id=$2)",
+        )
+        .bind(release_key)
+        .bind(format!("{release_key}-fixture-a"))
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(release_stable, (1, 1, 1, 1));
+
+        let self_release = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/release-denied-hold/release",
+                &p,
+                false,
+                Some("quality-release-self"),
+                Some(r#"{"expectedVersion":1,"reason":"The creator must not release this hold."}"#),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(self_release.status(), StatusCode::FORBIDDEN);
+        assert_eq!(
+            json(self_release).await["error"]["code"],
+            "INDEPENDENT_RELEASE_REQUIRED"
+        );
+
+        let pass_required = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/release-pass-required/release",
+                &p,
+                true,
+                Some("quality-release-pass-required"),
+                Some(r#"{"expectedVersion":1,"reason":"A failing inspection must not release."}"#),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(pass_required.status(), StatusCode::CONFLICT);
+        assert_eq!(
+            json(pass_required).await["error"]["code"],
+            "QUALITY_PASS_REQUIRED"
+        );
+
+        let stale_release = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/release-denied-hold/release",
+                &p,
+                true,
+                Some("quality-release-stale"),
+                Some(r#"{"expectedVersion":9,"reason":"A stale release version must not apply."}"#),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(stale_release.status(), StatusCode::CONFLICT);
+        assert_eq!(json(stale_release).await["error"]["code"], "CONFLICT");
+
+        let unknown_scrap = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/scrap-hold/disposition",
+                &p,
+                true,
+                Some("quality-scrap-unknown"),
+                Some(r#"{"expectedVersion":1,"dispositionDate":"2026-11-10","quantity":"1.5","reason":"Unknown key must be refused.","extra":1}"#),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(unknown_scrap.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(
+            json(unknown_scrap).await["error"]["code"],
+            "QUALITY_DISPOSITION_REQUIRED"
+        );
+
+        let scrap_key = "quality-scrap-http";
+        let scrap_body = r#"{"expectedVersion":1,"attachmentSetIds":["scrap-set"],"dispositionDate":"2026-11-10","quantity":"1.5","reason":"Controlled scrap after the failed inspection."}"#;
+        let scrapped = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/scrap-hold/disposition",
+                &p,
+                true,
+                Some(scrap_key),
+                Some(scrap_body),
+            ))
+            .await
+            .unwrap();
+        let status = scrapped.status();
+        let scrapped = json(scrapped).await;
+        assert_eq!(status, StatusCode::OK, "{scrapped}");
+        let count_id = format!("quality-scrap-{scrap_key}");
+        assert_eq!(scrapped["data"]["id"], "scrap-hold");
+        assert_eq!(scrapped["data"]["status"], "disposition_pending");
+        assert_eq!(scrapped["data"]["version"], 2);
+        assert_eq!(scrapped["data"]["countId"], count_id);
+
+        let hold_row: (String, Option<String>, Option<String>, Option<String>, Option<String>, Option<i64>, i64) =
+            sqlx::query_as(
+                "SELECT status,disposition_kind,disposition_reason,disposition_requested_by,disposition_count_id,disposition_quantity_milli,version FROM inventory_quality_holds WHERE id='scrap-hold'",
+            )
+            .fetch_one(db)
+            .await
+            .unwrap();
+        assert_eq!(
+            hold_row,
+            (
+                "disposition_pending".into(),
+                Some("scrap".into()),
+                Some("Controlled scrap after the failed inspection.".into()),
+                Some("fixture-b".into()),
+                Some(count_id.clone()),
+                Some(1500),
+                2
+            )
+        );
+        let count_exact: (String, String, i64, String, String) = sqlx::query_as(
+            "SELECT status,number,net_value_minor,quality_hold_id,branch_id FROM inventory_counts WHERE id=$1",
+        )
+        .bind(&count_id)
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(
+            count_exact,
+            (
+                "submitted".into(),
+                format!("QSCRAP-{}", hex::encode_upper(&Sha256::digest(count_id.as_bytes())[..7])),
+                -300,
+                "scrap-hold".into(),
+                "branch".into()
+            )
+        );
+        let stock_version: i64 = sqlx::query_scalar(
+            "SELECT version FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='tracked-product'",
+        )
+        .fetch_one(db)
+        .await
+        .unwrap();
+        let line: (String, i64, i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT product_id,snapshot_quantity_milli,snapshot_value_minor,snapshot_version,counted_quantity_milli,counted_value_minor FROM inventory_count_lines WHERE id=$1",
+        )
+        .bind(format!("{count_id}-0"))
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(
+            line,
+            (
+                "tracked-product".into(),
+                5000,
+                1000,
+                stock_version,
+                3500,
+                700
+            )
+        );
+        let lot_lines: Vec<(String, String, i64, i64, i64, i64)> = sqlx::query_as(
+            "SELECT id,result_lot_id,snapshot_quantity_milli,snapshot_value_minor,counted_quantity_milli,counted_value_minor FROM inventory_count_lot_lines WHERE count_line_id=$1 ORDER BY id",
+        )
+        .bind(format!("{count_id}-0"))
+        .fetch_all(db)
+        .await
+        .unwrap();
+        assert_eq!(
+            lot_lines,
+            vec![
+                (
+                    format!("{count_id}-0-lot-0"),
+                    "lot-a".into(),
+                    3000,
+                    600,
+                    1500,
+                    300
+                ),
+                (
+                    format!("{count_id}-0-lot-1"),
+                    "lot-b".into(),
+                    2000,
+                    400,
+                    2000,
+                    400
+                ),
+            ]
+        );
+        let disposition_event: (String, String, i64, String) = sqlx::query_as(
+            "SELECT action,count_id,reviewed_version,actor_id FROM inventory_quality_disposition_events WHERE id=$1",
+        )
+        .bind(format!("quality-disposition-{scrap_key}"))
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(
+            disposition_event,
+            ("request".into(), count_id.clone(), 1, "fixture-b".into())
+        );
+        let set_state: (String, Option<String>, Option<i64>) = sqlx::query_as(
+            "SELECT state,bound_command_id,bound_at FROM attachment_sets WHERE id='scrap-set'",
+        )
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(
+            set_state,
+            ("bound".into(), Some(scrap_key.into()), Some(now))
+        );
+        let link_state: (String, Option<String>, Option<String>, Option<i64>) = sqlx::query_as(
+            "SELECT state,binding_type,binding_id,bound_at FROM attachment_links WHERE id='scrap-link'",
+        )
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(
+            link_state,
+            (
+                "bound".into(),
+                Some("quality_disposition".into()),
+                Some(count_id.clone()),
+                Some(now)
+            )
+        );
+        let event_details: (String, String, String, i32) = sqlx::query_as(
+            "SELECT details_json::jsonb->>'bindingType',details_json::jsonb->>'bindingId',details_json::jsonb->'manifest'->0->>'linkId',jsonb_array_length(details_json::jsonb->'manifest') FROM attachment_events WHERE id=$1",
+        )
+        .bind(format!(
+            "attachment-bind-{}",
+            &hex::encode(Sha256::digest(format!("{scrap_key}\0scrap-set").as_bytes()))[..32]
+        ))
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(
+            event_details,
+            (
+                "quality_disposition".into(),
+                count_id.clone(),
+                "scrap-link".into(),
+                1
+            )
+        );
+        let scrap_ledger: (i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM command_receipts WHERE command_id=$1),\
+                    (SELECT count(*) FROM audit_events WHERE command_id=$1),\
+                    (SELECT count(*) FROM outbox_events WHERE command_id=$1)",
+        )
+        .bind(scrap_key)
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(scrap_ledger, (1, 1, 1));
+        let finance_notice: (String, String, i64, String) = sqlx::query_as(
+            "SELECT user_id,record_type,record_version,message FROM staff_notifications WHERE id=$1",
+        )
+        .bind(format!("{scrap_key}-fixture-a"))
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(
+            finance_notice,
+            (
+                "fixture-a".into(),
+                "stock_count".into(),
+                1,
+                "Quality scrap requires independent Finance review".into()
+            )
+        );
+        let actor_notice: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM staff_notifications WHERE id=$1",
+        )
+        .bind(format!("{scrap_key}-fixture-b"))
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(actor_notice, 0, "the requesting manager is excluded");
+        let finance_bridge: (i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM inbox_events WHERE id=$1),\
+                    (SELECT count(*) FROM inbox_deliveries WHERE id=$2)",
+        )
+        .bind(format!("legacy:{scrap_key}-fixture-a"))
+        .bind(format!("{scrap_key}-fixture-a"))
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(finance_bridge, (1, 1));
+
+        let replay = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/scrap-hold/disposition",
+                &p,
+                true,
+                Some(scrap_key),
+                Some(scrap_body),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(replay.status(), StatusCode::OK);
+        assert_eq!(json(replay).await["data"]["version"], 2);
+        let stable: (i64, i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM inventory_counts WHERE id=$1),\
+                    (SELECT count(*) FROM inventory_count_lines WHERE id=$2),\
+                    (SELECT count(*) FROM inventory_count_lot_lines WHERE count_line_id=$2),\
+                    (SELECT count(*) FROM inventory_quality_disposition_events WHERE id=$3),\
+                    (SELECT count(*) FROM attachment_events WHERE set_id='scrap-set' AND action='set.bound')",
+        )
+        .bind(&count_id)
+        .bind(format!("{count_id}-0"))
+        .bind(format!("quality-disposition-{scrap_key}"))
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(stable, (1, 1, 2, 1, 1), "replay does not duplicate rows");
+
+        let scrap_self = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/scrap-serial-hold/disposition",
+                &p,
+                false,
+                Some("quality-scrap-self"),
+                Some(r#"{"expectedVersion":1,"dispositionDate":"2026-11-10","quantity":"1","reason":"The creator must not request disposal."}"#),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(scrap_self.status(), StatusCode::FORBIDDEN);
+        assert_eq!(
+            json(scrap_self).await["error"]["code"],
+            "INDEPENDENT_DISPOSITION_REQUIRED"
+        );
+
+        let failed_required = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/scrap-pass-hold/disposition",
+                &p,
+                true,
+                Some("quality-scrap-pass-required"),
+                Some(r#"{"expectedVersion":1,"dispositionDate":"2026-11-10","quantity":"1","reason":"A passing inspection must not scrap."}"#),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(failed_required.status(), StatusCode::CONFLICT);
+        assert_eq!(
+            json(failed_required).await["error"]["code"],
+            "FAILED_INSPECTION_REQUIRED"
+        );
+
+        let over_held = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/scrap-exceed-hold/disposition",
+                &p,
+                true,
+                Some("quality-scrap-over-held"),
+                Some(r#"{"expectedVersion":1,"dispositionDate":"2026-11-10","quantity":"2","reason":"Scrap more than the held quantity."}"#),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(over_held.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(
+            json(over_held).await["error"]["code"],
+            "DISPOSITION_QUANTITY_MISMATCH"
+        );
+
+        let partial_serial = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/scrap-serial-hold/disposition",
+                &p,
+                true,
+                Some("quality-scrap-partial-serial"),
+                Some(r#"{"expectedVersion":1,"dispositionDate":"2026-11-10","quantity":"0.5","reason":"A serial number must be one whole unit."}"#),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(partial_serial.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(
+            json(partial_serial).await["error"]["code"],
+            "SERIAL_QUANTITY_INVALID"
+        );
+
+        let missing_lot = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/scrap-no-lot-hold/disposition",
+                &p,
+                true,
+                Some("quality-scrap-missing-lot"),
+                Some(r#"{"expectedVersion":1,"dispositionDate":"2026-11-10","quantity":"1","reason":"Tracked stock requires the affected lot."}"#),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(missing_lot.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(
+            json(missing_lot).await["error"]["code"],
+            "QUALITY_LOT_REQUIRED"
+        );
+
+        let stale_evidence = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/scrap-stale-evidence-hold/disposition",
+                &p,
+                true,
+                Some("quality-scrap-stale-evidence"),
+                Some(r#"{"expectedVersion":1,"attachmentSetIds":["scrap-stale-set"],"dispositionDate":"2026-11-10","quantity":"1","reason":"Stale evidence must not bind."}"#),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(stale_evidence.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(
+            json(stale_evidence).await["error"]["code"],
+            "QUALITY_ATTACHMENT_INVALID"
+        );
+        let stale_rows: (i64, String) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM inventory_counts WHERE quality_hold_id='scrap-stale-evidence-hold'),(SELECT state FROM attachment_sets WHERE id='scrap-stale-set')",
+        )
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(stale_rows, (0, "draft".into()));
+
+        let mut package = db.begin().await.unwrap();
+        sqlx::query(
+            "UPDATE company_package_grants SET state='inactive',version=version+1,updated_at=$1 WHERE company_id='company' AND package_id IN ('supply-quality','supply')",
+        )
+        .bind(now + 1)
+        .execute(&mut *package)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) \
+             SELECT 'quality-release-scrap-inactive-'||package_id,'company',package_id,'fixture-a','quality-release-scrap-inactive',NULL,\
+                    jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$1 \
+             FROM company_package_grants WHERE company_id='company' AND package_id IN ('supply-quality','supply')",
+        )
+        .bind(now + 1)
+        .execute(&mut *package)
+        .await
+        .unwrap();
+        package.commit().await.unwrap();
+
+        let denied_release = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/release-denied-hold/release",
+                &p,
+                true,
+                Some("quality-release-denied-purchase"),
+                Some(r#"{"expectedVersion":1,"reason":"An inactive purchase must not release."}"#),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(denied_release.status(), StatusCode::FORBIDDEN);
+        assert_eq!(
+            json(denied_release).await["error"]["code"],
+            "PACKAGE_INACTIVE"
+        );
+
+        let denied_scrap = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/scrap-purchase-hold/disposition",
+                &p,
+                true,
+                Some("quality-scrap-denied-purchase"),
+                Some(r#"{"expectedVersion":1,"dispositionDate":"2026-11-10","quantity":"1","reason":"An inactive counts purchase must not scrap."}"#),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(denied_scrap.status(), StatusCode::FORBIDDEN);
+        assert_eq!(
+            json(denied_scrap).await["error"]["code"],
+            "PACKAGE_INACTIVE"
+        );
     })
     .await;
 }

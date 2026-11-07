@@ -8,7 +8,8 @@ use super::quality_read::{
 };
 use crate::application::quality::{QualityInspection, QualityMeasurement};
 use crate::application::quality_commands::{
-    QualityInspectionCommand, QualityInspectionReceipt, QualitySpecAction,
+    QualityDispositionCommand, QualityInspectionCommand,
+    QualityInspectionReceipt, QualityReleaseCommand, QualityReleaseReceipt, QualitySpecAction,
     QualitySpecActionCommand, QualitySpecCommand, QualitySpecMetricInput, QualitySpecReceipt,
 };
 use crate::domain::quality::QualityMetric;
@@ -21,6 +22,7 @@ use erpx_server_files::public::quality_inspection_evidence::{
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, RecordId, UserId};
+use sha2::{Digest, Sha256};
 use sqlx::{Connection, PgConnection, Row};
 
 type Error = PgTransactionError<BusinessError>;
@@ -895,6 +897,381 @@ impl PreparedQualityInspection {
         self.require_evidence(c).await?;
         Ok(())
     }
+}
+
+/// Prepare a passing hold release against the current scoped after-image.
+pub struct PreparedQualityRelease {
+    unit: Unit,
+    company: CompanyId,
+    branch: Option<RecordId>,
+    source: crate::application::quality::QualityHold,
+    expected: crate::application::quality::QualityHold,
+    receipt: QualityReleaseReceipt,
+}
+
+impl PreparedQualityRelease {
+    pub fn receipt(&self) -> &QualityReleaseReceipt {
+        &self.receipt
+    }
+
+    pub fn hold(&self) -> &crate::application::quality::QualityHold {
+        &self.expected
+    }
+
+    pub async fn require_before(&self, c: &mut PgConnection) -> Result<(), Error> {
+        require_quality_command_locks(c).await?;
+        if unit(c).await? != self.unit
+            || read_holds(
+                c,
+                self.company.as_str(),
+                self.branch.as_ref().map(RecordId::as_str),
+                Some(&self.source.id),
+            )
+            .await?
+            .pop()
+            .as_ref()
+                != Some(&self.source)
+        {
+            return Err(hold_changed().into());
+        }
+        Ok(())
+    }
+
+    pub async fn apply(&self, c: &mut PgConnection) -> Result<(), Error> {
+        self.require_before(c).await?;
+        let updated = sqlx::query("UPDATE inventory_quality_holds SET status='released',released_by=$2,release_reason=$3,released_at=$4,version=$5,updated_at=$4 WHERE id=$1 AND company_id=$6 AND version=$7 AND status='awaiting_release' AND last_result='pass'")
+            .bind(&self.source.id)
+            .bind(self.expected.released_by.as_deref())
+            .bind(self.expected.release_reason.as_deref())
+            .bind(self.expected.released_at)
+            .bind(self.expected.version)
+            .bind(self.company.as_str())
+            .bind(self.source.version)
+            .execute(&mut *c)
+            .await?;
+        if updated.rows_affected() != 1 {
+            return Err(hold_changed().into());
+        }
+        self.require_after(c).await
+    }
+
+    pub async fn require_after(&self, c: &mut PgConnection) -> Result<(), Error> {
+        require_quality_command_locks(c).await?;
+        if unit(c).await? != self.unit
+            || read_holds(
+                c,
+                self.company.as_str(),
+                self.branch.as_ref().map(RecordId::as_str),
+                Some(&self.source.id),
+            )
+            .await?
+            .pop()
+            .as_ref()
+                != Some(&self.expected)
+        {
+            return Err(hold_changed().into());
+        }
+        Ok(())
+    }
+}
+
+pub async fn prepare_quality_release(
+    c: &mut PgConnection,
+    command: &QualityReleaseCommand,
+    company: &CompanyId,
+    branch: Option<&RecordId>,
+    actor: &UserId,
+    now: i64,
+) -> Result<PreparedQualityRelease, Error> {
+    require_quality_command_locks(c).await?;
+    let command = crate::application::quality_commands::normalize_quality_release(command.clone())?;
+    let source = read_holds(
+        c,
+        company.as_str(),
+        branch.map(RecordId::as_str),
+        Some(command.hold_id.as_str()),
+    )
+    .await?
+    .pop()
+    .ok_or_else(|| {
+        BusinessError::new(
+            FailureKind::NotFound,
+            "QUALITY_HOLD_NOT_FOUND",
+            "Quality hold not found.",
+        )
+    })?;
+    let self_created = same_person(c, actor.as_str(), &source.created_by, company.as_str()).await?;
+    let self_inspected = match source.last_inspector.as_deref() {
+        Some(inspector) => same_person(c, actor.as_str(), inspector, company.as_str()).await?,
+        None => false,
+    };
+    if self_created || self_inspected {
+        return Err(BusinessError::new(
+            FailureKind::Forbidden,
+            "INDEPENDENT_RELEASE_REQUIRED",
+            "A third person must approve release.",
+        )
+        .into());
+    }
+    if source.status != HoldStatus::AwaitingRelease
+        || source.last_result != Some(InspectionResult::Pass)
+    {
+        return Err(conflict(
+            "QUALITY_PASS_REQUIRED",
+            "A passing inspection is required before release.",
+        )
+        .into());
+    }
+    if source.version != command.expected_version {
+        return Err(hold_changed().into());
+    }
+    let expected = crate::application::quality::QualityHold {
+        status: HoldStatus::Released,
+        released_by: Some(actor.as_str().to_owned()),
+        release_reason: Some(command.reason.clone()),
+        released_at: Some(now),
+        version: source.version + 1,
+        updated_at: now,
+        ..source.clone()
+    };
+    Ok(PreparedQualityRelease {
+        unit: unit(c).await?,
+        company: company.clone(),
+        branch: branch.cloned(),
+        receipt: QualityReleaseReceipt {
+            id: expected.id.clone(),
+            status: expected.status,
+            version: expected.version,
+        },
+        source,
+        expected,
+    })
+}
+
+/// Public owner read used by composition before a scrap preparation. The
+/// caller must already hold the Quality command locks and current authority.
+pub async fn read_quality_hold_for_command(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    branch: Option<&RecordId>,
+    id: &str,
+) -> Result<Option<crate::application::quality::QualityHold>, Error> {
+    Ok(read_holds(c, company.as_str(), branch.map(RecordId::as_str), Some(id))
+        .await?
+        .pop())
+}
+
+/// Writer intent for the Quality disposition event inserted by scrap.
+pub async fn lock_quality_scrap_writes(c: &mut PgConnection) -> Result<(), Error> {
+    if !c.is_in_transaction() {
+        return Err(PersistenceError::new("QUALITY_SCRAP_TRANSACTION_REQUIRED").into());
+    }
+    sqlx::query(
+        "LOCK TABLE inventory_quality_disposition_events IN SHARE ROW EXCLUSIVE MODE",
+    )
+    .execute(&mut *c)
+    .await?;
+    Ok(())
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QualityScrapStock {
+    pub warehouse_id: String,
+    pub product_id: String,
+    pub branch_id: String,
+    pub quantity_milli: i64,
+    pub value_minor: i64,
+    pub version: i64,
+    pub product_version: i64,
+    pub name: String,
+    pub unit: String,
+    pub tracking_mode: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QualityScrapLot {
+    pub id: String,
+    pub tracking_mode: String,
+    pub lot_code: Option<String>,
+    pub serial_number: Option<String>,
+    pub manufactured_date: Option<String>,
+    pub expiry_date: Option<String>,
+    pub quantity_milli: i64,
+    pub value_minor: i64,
+    pub balance_version: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QualityScrapLotAdjustment {
+    pub lot: QualityScrapLot,
+    pub reduce_milli: i64,
+    pub lot_value_minor: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QualityScrapPlan {
+    pub count_id: String,
+    pub line_id: String,
+    pub number: String,
+    pub quantity_milli: i64,
+    pub scrap_value_minor: i64,
+    pub counted_quantity_milli: i64,
+    pub counted_value_minor: i64,
+    pub lots: Vec<QualityScrapLotAdjustment>,
+}
+
+/// Pure retained scrap policy over already-current owner facts. Owner writes and
+/// their after-images belong to composition because Inventory depends on this
+/// crate and cannot be imported here.
+pub fn plan_quality_scrap(
+    command: &QualityDispositionCommand,
+    hold: &crate::application::quality::QualityHold,
+    stock: &QualityScrapStock,
+    lots: &[QualityScrapLot],
+    actor: &str,
+    now: i64,
+) -> Result<(QualityScrapPlan, crate::application::quality::QualityHold), BusinessError> {
+    let quantity_milli = crate::application::quality_commands::disposition_quantity_milli(
+        &command.quantity,
+    )
+    .ok_or_else(|| {
+        invalid(
+            "DISPOSITION_QUANTITY_REQUIRED",
+            "Enter a positive quantity to scrap.",
+        )
+    })?;
+    let held = hold.held_quantity_milli.ok_or_else(|| {
+        BusinessError::new(
+            FailureKind::Conflict,
+            "QUALITY_STOCK_MISSING",
+            "The held stock is no longer available.",
+        )
+    })?;
+    if quantity_milli > held || quantity_milli > stock.quantity_milli {
+        return Err(invalid(
+            "DISPOSITION_QUANTITY_MISMATCH",
+            "Scrap no more than the quantity currently held. The remaining quantity stays quarantined for a separate disposition.",
+        ));
+    }
+    let tracking = stock.tracking_mode.as_str();
+    if tracking != "none" && hold.lot_id.is_none() {
+        return Err(invalid(
+            "QUALITY_LOT_REQUIRED",
+            "Choose the affected lot or serial before requesting tracked-stock disposal.",
+        ));
+    }
+    let target = hold
+        .lot_id
+        .as_deref()
+        .and_then(|id| lots.iter().find(|lot| lot.id == id));
+    if hold.lot_id.is_some() && target.is_none() {
+        return Err(conflict(
+            "QUALITY_LOT_CHANGED",
+            "The held lot or serial is no longer available.",
+        ));
+    }
+    if let Some(target) = target {
+        if quantity_milli > target.quantity_milli {
+            return Err(invalid(
+                "DISPOSITION_QUANTITY_EXCEEDED",
+                "Scrap quantity exceeds the held lot or serial balance.",
+            ));
+        }
+        if target.tracking_mode == "serial" && quantity_milli != 1000 {
+            return Err(invalid(
+                "SERIAL_QUANTITY_INVALID",
+                "A serial number must be scrapped as one whole unit.",
+            ));
+        }
+    }
+    let (scrap_value_minor, counted_quantity_milli, counted_value_minor) =
+        if let Some(target) = target {
+            let scrap = crate::application::quality_commands::scaled_amount(
+                target.value_minor,
+                quantity_milli,
+                target.quantity_milli,
+            )
+            .ok_or_else(|| invalid("DISPOSITION_VALUE_INVALID", "The scrap value is too large."))?;
+            (
+                scrap,
+                stock.quantity_milli - quantity_milli,
+                stock.value_minor - scrap,
+            )
+        } else {
+            let scrap = crate::application::quality_commands::scaled_amount(
+                stock.value_minor,
+                quantity_milli,
+                stock.quantity_milli,
+            )
+            .ok_or_else(|| invalid("DISPOSITION_VALUE_INVALID", "The scrap value is too large."))?;
+            (
+                scrap,
+                stock.quantity_milli - quantity_milli,
+                stock.value_minor - scrap,
+            )
+        };
+    let count_id = format!("quality-scrap-{}", command.key.as_str());
+    let number = format!(
+        "QSCRAP-{}",
+        hex::encode_upper(&Sha256::digest(count_id.as_bytes())[..7])
+    );
+    let lots = lots
+        .iter()
+        .map(|lot| {
+            let reduce_milli = if hold.lot_id.as_deref() == Some(lot.id.as_str()) {
+                quantity_milli
+            } else {
+                0
+            };
+            let lot_value_minor = if reduce_milli == 0 {
+                0
+            } else {
+                crate::application::quality_commands::scaled_amount(
+                    lot.value_minor,
+                    reduce_milli,
+                    lot.quantity_milli,
+                )
+                .unwrap_or(0)
+            };
+            QualityScrapLotAdjustment {
+                lot: lot.clone(),
+                reduce_milli,
+                lot_value_minor,
+            }
+        })
+        .collect();
+    let plan = QualityScrapPlan {
+        line_id: format!("{count_id}-0"),
+        count_id,
+        number,
+        quantity_milli,
+        scrap_value_minor,
+        counted_quantity_milli,
+        counted_value_minor,
+        lots,
+    };
+    let expected = crate::application::quality::QualityHold {
+        status: HoldStatus::DispositionPending,
+        disposition_kind: Some("scrap".into()),
+        disposition_reason: Some(command.reason.clone()),
+        disposition_requested_by: Some(actor.to_owned()),
+        disposition_count_id: Some(plan.count_id.clone()),
+        disposition_quantity_milli: Some(quantity_milli),
+        version: hold.version + 1,
+        updated_at: now,
+        ..hold.clone()
+    };
+    Ok((plan, expected))
+}
+
+/// Current alias-aware identity comparison over the retained holding unit.
+pub async fn quality_same_person(
+    c: &mut PgConnection,
+    left: &str,
+    right: &str,
+    company: &str,
+) -> Result<bool, Error> {
+    same_person(c, left, right, company).await
 }
 
 pub async fn prepare_quality_inspection(

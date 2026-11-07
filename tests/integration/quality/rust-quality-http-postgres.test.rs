@@ -84,7 +84,7 @@ async fn json(response: axum::response::Response) -> serde_json::Value {
 async fn grant_quality(p: &review::Prepared) {
     sqlx::raw_sql(
         "INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) \
-         VALUES('*','custom_finance_review',2,'[\"finance.read\",\"quality.read\",\"quality.hold\",\"quality.inspect\",\"quality.release\",\"module.quality.read\"]','[]','[\"holding\"]','fixture',0);\
+         VALUES('*','custom_finance_review',2,'[\"finance.read\",\"quality.read\",\"quality.hold\",\"quality.inspect\",\"quality.release\",\"inventory.approve\",\"module.quality.read\"]','[]','[\"holding\"]','fixture',0);\
          UPDATE iam_roles SET published_revision=2 WHERE company_id='*' AND id='custom_finance_review';\
          UPDATE assignments SET modules_json='[\"finance\",\"quality\"]',version=4 WHERE id IN ('finance-fixture-a','finance-fixture-b');\
          UPDATE active_work_contexts SET assignment_version=4 WHERE assignment_id IN ('finance-fixture-a','finance-fixture-b')",
@@ -563,4 +563,204 @@ async fn selected_quality_alias_fence_serializes_both_writer_orders() {
         let response=reader_result.expect("reader timed out").expect("reader task failed").expect("request timed out").expect("request failed");
         assert_eq!(response.status(),StatusCode::OK);assert_eq!(json(response).await["data"]["hold"]["decision"]["canInspect"],false);
     }).await;
+}
+
+#[tokio::test]
+async fn quality_http_release_and_scrap_routes_drive_native_owner_commands() {
+    review::account::with_system(|system| async move {
+        let p = review::setup_with_finance(system, false).await;
+        grant_quality(&p).await;
+        seed_quality(&p).await;
+        let db = p.system.holdings[0].raw();
+        let now = p.system.scenario.clock.now().get();
+        let expires = now + 3_600_000;
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+            "UPDATE assignments SET valid_from=0,valid_until=9007199254740991 WHERE id IN ('finance-fixture-a','finance-fixture-b');\
+             INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,status,created_by,last_inspector,last_result,held_quantity_milli,created_at,updated_at,quantity_scope,version) \
+             VALUES('http-release-hold','company','branch','warehouse','product','Release the passing batch','2026-11-10','awaiting_release','fixture-a','fixture-c','pass',NULL,{now},{now},'whole',1),\
+                   ('http-scrap-hold','company','branch','warehouse','product','Scrap the failed batch','2026-11-10','held','fixture-a','fixture-c','fail',5000,{now},{now},'whole',1);\
+             INSERT INTO attachment_sets(id,company_id,branch_id,target_type,target_id,component_kind,component_ref,purpose_key,expected_target_version,policy_version,classification,audience_json,required_count,max_files,state,created_by,created_at,updated_at) \
+             VALUES('http-scrap-set','company','branch','quality_hold','http-scrap-hold','action','disposition','disposition_evidence',1,1,'internal','{{}}',0,10,'draft','fixture-b',{now},{now});\
+             INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,actual_bytes,checksum_sha256,staging_key,final_key,status,created_by,expires_at,created_at,updated_at,owner_version,company_id,detected_media_type,attachment_set_id) \
+             VALUES('http-scrap-upload','quality_hold','http-scrap-hold','disposition_evidence','scrap.pdf','application/pdf',12,12,repeat('f',64),'http-scrap/staging','http-scrap/object','ready','fixture-b',{expires},{now},{now},1,'company','application/pdf','http-scrap-set');\
+             INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at,company_id,detected_media_type,source_state,scanned_at,scanner_definition_at) \
+             VALUES('http-scrap-file','http-scrap-upload','quality_hold','http-scrap-hold','disposition_evidence','http-scrap/object',1,'scrap.pdf','application/pdf',12,repeat('f',64),'fixture-b',{now},'company','application/pdf','available',{now},{now});\
+             INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) \
+             VALUES('http-scrap-link','http-scrap-set','http-scrap-file','draft','fixture-b',{now},{expires})"
+        )))
+        .execute(db)
+        .await
+        .unwrap();
+        let app = prepared_router(&p);
+
+        let release_key = "http-quality-release";
+        let release_body = r#"{"expectedVersion":1,"reason":"Independent release review confirms delivery."}"#;
+        let released = app
+            .clone()
+            .oneshot(command_request(
+                "/api/v1/holdings/acme/quality/http-release-hold/release",
+                &p,
+                true,
+                release_key,
+                release_body,
+            ))
+            .await
+            .unwrap();
+        let status = released.status();
+        let released = json(released).await;
+        assert_eq!(status, StatusCode::OK, "{released}");
+        assert_eq!(released["data"]["id"], "http-release-hold");
+        assert_eq!(released["data"]["status"], "released");
+        assert_eq!(released["data"]["version"], 2);
+        let response = app
+            .clone()
+            .oneshot(command_request(
+                "/api/v1/holdings/acme/quality/http-release-hold/release",
+                &p,
+                true,
+                release_key,
+                release_body,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(json(response).await["data"]["version"], 2);
+        let self_release = app
+            .clone()
+            .oneshot(command_request(
+                "/api/v1/holdings/acme/quality/http-scrap-hold/release",
+                &p,
+                false,
+                "http-quality-release-self",
+                r#"{"expectedVersion":1,"reason":"The creator must not release this hold."}"#,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(self_release.status(), StatusCode::FORBIDDEN);
+        assert_eq!(
+            json(self_release).await["error"]["code"],
+            "INDEPENDENT_RELEASE_REQUIRED"
+        );
+        let stale = app
+            .clone()
+            .oneshot(command_request(
+                "/api/v1/holdings/acme/quality/http-release-hold/release",
+                &p,
+                true,
+                "http-quality-release-stale",
+                r#"{"expectedVersion":9,"reason":"A stale release must not apply."}"#,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(stale.status(), StatusCode::CONFLICT);
+
+        let scrap_key = "http-quality-scrap";
+        let scrap_body = r#"{"expectedVersion":1,"attachmentSetIds":["http-scrap-set"],"dispositionDate":"2026-11-10","quantity":"2.5","reason":"Controlled scrap after the failed inspection."}"#;
+        let scrapped = app
+            .clone()
+            .oneshot(command_request(
+                "/api/v1/holdings/acme/quality/http-scrap-hold/disposition",
+                &p,
+                true,
+                scrap_key,
+                scrap_body,
+            ))
+            .await
+            .unwrap();
+        let status = scrapped.status();
+        let scrapped = json(scrapped).await;
+        assert_eq!(status, StatusCode::OK, "{scrapped}");
+        let count_id = format!("quality-scrap-{scrap_key}");
+        assert_eq!(scrapped["data"]["id"], "http-scrap-hold");
+        assert_eq!(scrapped["data"]["status"], "disposition_pending");
+        assert_eq!(scrapped["data"]["version"], 2);
+        assert_eq!(scrapped["data"]["countId"], count_id);
+
+        let replay = app
+            .clone()
+            .oneshot(command_request(
+                "/api/v1/holdings/acme/quality/http-scrap-hold/disposition",
+                &p,
+                true,
+                scrap_key,
+                scrap_body,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(replay.status(), StatusCode::OK);
+        assert_eq!(json(replay).await["data"]["countId"], count_id);
+
+        let self_scrap = app
+            .clone()
+            .oneshot(command_request(
+                "/api/v1/holdings/acme/quality/http-scrap-hold/disposition",
+                &p,
+                false,
+                "http-quality-scrap-self",
+                r#"{"expectedVersion":2,"dispositionDate":"2026-11-10","quantity":"1","reason":"The creator must not request disposal."}"#,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(self_scrap.status(), StatusCode::FORBIDDEN);
+        assert_eq!(
+            json(self_scrap).await["error"]["code"],
+            "INDEPENDENT_DISPOSITION_REQUIRED"
+        );
+        let mismatch = app
+            .clone()
+            .oneshot(command_request(
+                "/api/v1/holdings/acme/quality/http-scrap-hold/disposition",
+                &p,
+                true,
+                "http-quality-scrap-mismatch",
+                r#"{"expectedVersion":2,"dispositionDate":"2026-11-10","quantity":"9","reason":"Scrap more than the held quantity."}"#,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(mismatch.status(), StatusCode::CONFLICT);
+
+        let (hold, count, line, lot_lines, event, set_state, link_state, receipt, audit, outbox) =
+            sqlx::query_as::<_, (String, String, i64, i64, String, String, String, i64, i64, i64)>(
+                "SELECT h.status,c.status,\
+                        (SELECT count(*) FROM inventory_count_lines l WHERE l.count_id=c.id),\
+                        (SELECT count(*) FROM inventory_count_lot_lines l JOIN inventory_count_lines x ON x.id=l.count_line_id WHERE x.count_id=c.id),\
+                        e.action,s.state,a.state,\
+                        (SELECT count(*) FROM command_receipts WHERE command_id=$2),\
+                        (SELECT count(*) FROM audit_events WHERE command_id=$2),\
+                        (SELECT count(*) FROM outbox_events WHERE command_id=$2) \
+                 FROM inventory_quality_holds h JOIN inventory_counts c ON c.quality_hold_id=h.id \
+                 JOIN inventory_quality_disposition_events e ON e.hold_id=h.id AND e.count_id=c.id \
+                 JOIN attachment_sets s ON s.target_id=h.id AND s.id='http-scrap-set' \
+                 JOIN attachment_links a ON a.set_id=s.id \
+                 WHERE h.id='http-scrap-hold' AND c.id=$1",
+            )
+            .bind(&count_id)
+            .bind(scrap_key)
+            .fetch_one(db)
+            .await
+            .unwrap();
+        assert_eq!(
+            (hold.as_str(), count.as_str(), line, lot_lines, event.as_str()),
+            ("disposition_pending", "submitted", 1, 0, "request")
+        );
+        assert_eq!((set_state.as_str(), link_state.as_str()), ("bound", "bound"));
+        assert_eq!((receipt, audit, outbox), (1, 1, 1));
+        let notification: (String, String, i64, String) = sqlx::query_as(
+            "SELECT user_id,record_type,record_version,message FROM staff_notifications WHERE id=$1",
+        )
+        .bind(format!("{scrap_key}-fixture-a"))
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(
+            notification,
+            (
+                "fixture-a".into(),
+                "stock_count".into(),
+                1,
+                "Quality scrap requires independent Finance review".into()
+            )
+        );
+    })
+    .await;
 }

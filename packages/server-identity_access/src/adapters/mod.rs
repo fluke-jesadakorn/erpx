@@ -22,6 +22,7 @@ pub(crate) mod holding_work_context;
 pub(crate) mod permission_catalog;
 pub(crate) mod permission_catalog_lock;
 pub(crate) mod quality_recipients;
+pub(crate) mod quality_scrap_approvers;
 pub(crate) mod sales_recipient;
 pub mod work_admission;
 

@@ -24,6 +24,7 @@ pub mod field_outbox;
 pub mod payment_proof_binding;
 pub mod quality_inspection_descriptors;
 
+pub mod quality_disposition_evidence;
 pub mod quality_inspection_evidence;
 
 pub mod field_attachment_ancestry;

@@ -2,6 +2,7 @@ pub(crate) mod order;
 pub(crate) mod quality_receipt_origin;
 pub(crate) mod quality_return_origin;
 pub(crate) mod quality_masters;
+pub(crate) mod quality_scrap_stock;
 pub(crate) mod order_http;
 
 pub(crate) mod postgres_inventory_consumption;

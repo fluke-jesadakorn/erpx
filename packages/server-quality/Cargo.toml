@@ -12,6 +12,7 @@ path = "src/lib.rs"
 
 [dependencies]
 futures-util.workspace = true
+hex.workspace = true
 sha2.workspace = true
 url.workspace = true
 erpx-server-shared.workspace = true

@@ -36,6 +36,8 @@ pub mod stock_receipt;
 pub mod commerce_receipt;
 pub mod stock_issue;
 
+pub mod quality_scrap_count;
+pub mod quality_scrap_lots;
 pub mod quality_stock_source;
 pub mod quality_cancellation_stock;
 pub mod quality_disposition_count;

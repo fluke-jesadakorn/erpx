@@ -1,8 +1,10 @@
-//! Native Quality specification, inspection and cancellation command ports.
+//! Native Quality specification, inspection, release and scrap command ports.
 pub use crate::adapters::quality_commands::{
-    PreparedQualityInspection, PreparedQualitySpecSave, PreparedQualitySpecTransition,
-    QualitySpecRecord, lock_quality_command_sources, prepare_quality_inspection,
-    prepare_quality_spec_save, prepare_quality_spec_transition,
+    PreparedQualityInspection, PreparedQualityRelease, PreparedQualitySpecSave,
+    PreparedQualitySpecTransition, QualityScrapLot, QualityScrapLotAdjustment, QualityScrapPlan,
+    QualityScrapStock, QualitySpecRecord, lock_quality_command_sources, lock_quality_scrap_writes,
+    plan_quality_scrap, prepare_quality_inspection, prepare_quality_release, quality_same_person,
+    prepare_quality_spec_save, prepare_quality_spec_transition, read_quality_hold_for_command,
 };
 pub use crate::adapters::quality_read::{
     PreparedQualityCancellation, RetainedQualityCancellation, prepare_quality_cancellation,
@@ -11,9 +13,12 @@ pub use crate::application::quality::{
     QualityCancellationCommand, QualityCancellationReceipt, normalize_quality_cancellation,
 };
 pub use crate::application::quality_commands::{
-    QualityInspectionCommand, QualityInspectionReceipt, QualitySpecAction,
+    QualityDispositionCommand, QualityDispositionReceipt, QualityInspectionCommand,
+    QualityInspectionReceipt, QualityReleaseCommand, QualityReleaseReceipt, QualitySpecAction,
     QualitySpecActionCommand, QualitySpecCommand, QualitySpecInput, QualitySpecMetricInput,
-    QualitySpecReceipt, is_measured_value, normalize_quality_inspection,
-    normalize_quality_spec_action, normalize_quality_spec_save,
+    QualitySpecReceipt, disposition_quantity_milli, is_disposition_quantity, is_iso_date,
+    is_measured_value, normalize_quality_disposition, normalize_quality_inspection,
+    normalize_quality_release, normalize_quality_spec_action, normalize_quality_spec_save,
+    scaled_amount,
 };
 pub use crate::domain::quality::{HoldStatus, InspectionResult, SpecStatus};

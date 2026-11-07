@@ -49,6 +49,7 @@ pub mod field_visit_upload_denial;
 pub(crate) mod payment_proof_binding;
 pub(crate) mod quality_inspection_descriptors;
 
+pub(crate) mod quality_disposition_evidence;
 pub(crate) mod quality_inspection_evidence;
 
 pub(crate) mod field_attachment_ancestry;

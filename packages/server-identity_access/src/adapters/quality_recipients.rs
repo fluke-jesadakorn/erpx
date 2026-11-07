@@ -19,6 +19,7 @@ pub enum QualityRecipientStatus {
     Held,
     CancellationPending,
     Cancelled,
+    Released,
 }
 /// Post-inspection recipient request for the native Quality handoff. The
 /// inspection result creates either a held or an awaiting-release row; the
@@ -236,7 +237,9 @@ async fn read_cancellation(
     let (permission, terminal) = match r.status {
         QualityRecipientStatus::Held => ("quality.inspect", false),
         QualityRecipientStatus::CancellationPending => ("quality.release", false),
-        QualityRecipientStatus::Cancelled => ("quality.read", true),
+        QualityRecipientStatus::Cancelled | QualityRecipientStatus::Released => {
+            ("quality.read", true)
+        }
     };
     let pending = matches!(r.status, QualityRecipientStatus::CancellationPending);
     let rows:Vec<String>=sqlx::query_scalar("SELECT DISTINCT a.user_id FROM assignments a WHERE a.company_id=$1 AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=$2)) AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(a.role,a.company_id,$3) AND (($4::boolean AND a.user_id=$5) OR (NOT $4::boolean AND NOT iam_same_person(a.user_id,$5,a.company_id) AND (NOT $6::boolean OR NOT iam_same_person(a.user_id,$7,a.company_id)))) ORDER BY a.user_id")

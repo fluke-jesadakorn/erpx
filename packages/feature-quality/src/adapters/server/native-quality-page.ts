@@ -6,8 +6,10 @@ import {
   type NativeQualityDetailCore,
   type NativeQualityCancellationCursor,
   type NativeQualityCancellationPage,
+  type NativeQualityDispositionReceipt,
   type NativeQualityInspectionReceipt,
   type NativeQualityReceipt,
+  type NativeQualityReleaseReceipt,
   type NativeQualitySpecReceipt,
   type NativeQualityWorkspace,
   type QualityTransport,
@@ -98,6 +100,30 @@ export async function nativeQualityInspect(
   const native = client(transport);
   if (!native) return undefined;
   return native.inspect(await headers(), holdingSlug, id, input, key);
+}
+
+export async function nativeQualityRelease(
+  holdingSlug: string,
+  id: string,
+  input: unknown,
+  key: string,
+  transport?: QualityTransport,
+): Promise<NativeQualityReleaseReceipt | undefined> {
+  const native = client(transport);
+  if (!native) return undefined;
+  return native.release(await headers(), holdingSlug, id, input, key);
+}
+
+export async function nativeQualityDisposition(
+  holdingSlug: string,
+  id: string,
+  input: unknown,
+  key: string,
+  transport?: QualityTransport,
+): Promise<NativeQualityDispositionReceipt | undefined> {
+  const native = client(transport);
+  if (!native) return undefined;
+  return native.disposition(await headers(), holdingSlug, id, input, key);
 }
 
 export async function nativeQualityCancel(

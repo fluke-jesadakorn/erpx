@@ -11,10 +11,11 @@ use crate::application::quality::{
     QualityMeasurement, QualityWorkspace,
 };
 use crate::application::quality_commands::{
-    QualityInspectionCommand, QualityInspectionReceipt, QualitySpecAction,
+    QualityDispositionCommand, QualityDispositionReceipt, QualityInspectionCommand,
+    QualityInspectionReceipt, QualityReleaseCommand, QualityReleaseReceipt, QualitySpecAction,
     QualitySpecActionCommand, QualitySpecCommand, QualitySpecInput, QualitySpecMetricInput,
-    QualitySpecReceipt, normalize_quality_inspection, normalize_quality_spec_action,
-    normalize_quality_spec_save,
+    QualitySpecReceipt, normalize_quality_disposition, normalize_quality_inspection,
+    normalize_quality_release, normalize_quality_spec_action, normalize_quality_spec_save,
 };
 use crate::domain::quality::{
     CancellationAction, InspectionResult, MAX_SAFE_INTEGER, QualityDecision, QualityMetric,
@@ -162,6 +163,30 @@ pub trait QualityHttpBackend: Send + Sync {
             ))
         })
     }
+    fn release<'a>(
+        &'a self,
+        _request: QualityHttpCommandRequest<'a>,
+    ) -> QualityHttpFuture<'a, QualityReleaseReceipt> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "QUALITY_RELEASE_UNAVAILABLE",
+                "Release writes are unavailable.",
+            ))
+        })
+    }
+    fn disposition<'a>(
+        &'a self,
+        _request: QualityHttpCommandRequest<'a>,
+    ) -> QualityHttpFuture<'a, QualityDispositionReceipt> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "QUALITY_DISPOSITION_UNAVAILABLE",
+                "Disposition writes are unavailable.",
+            ))
+        })
+    }
 }
 
 pub struct QualityHttpTarget {
@@ -269,6 +294,14 @@ pub fn quality_router(targets: Vec<QualityHttpTarget>) -> Result<Router, Busines
         .route(
             "/api/v1/holdings/{holding_slug}/quality/{id}/inspect",
             post(inspect),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/quality/{id}/release",
+            post(release),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/quality/{id}/disposition",
+            post(disposition_command),
         )
         .with_state(Arc::new(QualityHttpState {
             targets: configured,
@@ -522,6 +555,27 @@ fn inspection_receipt_json(value: &QualityInspectionReceipt) -> Value {
             "status": value.status.as_str(),
             "result": value.result.as_str(),
             "version": value.version,
+        }
+    })
+}
+
+fn release_receipt_json(value: &QualityReleaseReceipt) -> Value {
+    json!({
+        "data": {
+            "id": value.id,
+            "status": value.status.as_str(),
+            "version": value.version,
+        }
+    })
+}
+
+fn disposition_receipt_json(value: &QualityDispositionReceipt) -> Value {
+    json!({
+        "data": {
+            "id": value.id,
+            "status": value.status.as_str(),
+            "version": value.version,
+            "countId": value.count_id,
         }
     })
 }
@@ -886,6 +940,142 @@ async fn read_detail_core(
     }
 }
 
+fn strict_keys(
+    object: &serde_json::Map<String, Value>,
+    allowed: &[&str],
+    code: &'static str,
+    message: &'static str,
+) -> Result<(), BusinessError> {
+    if object
+        .keys()
+        .any(|key| !allowed.contains(&key.as_str()))
+    {
+        return Err(BusinessError::invalid(code, message));
+    }
+    Ok(())
+}
+
+fn required_version(
+    object: &serde_json::Map<String, Value>,
+    code: &'static str,
+    message: &'static str,
+) -> Result<i64, BusinessError> {
+    object
+        .get("expectedVersion")
+        .and_then(|value| json_integer(value, 1))
+        .ok_or_else(|| BusinessError::invalid(code, message))
+}
+
+pub fn parse_release(
+    value: &Value,
+    hold_id: &str,
+    command_key: CommandKey,
+) -> Result<QualityReleaseCommand, BusinessError> {
+    let invalid = || {
+        BusinessError::invalid(
+            "QUALITY_RELEASE_REQUIRED",
+            "Review the current Quality hold, version and release reason.",
+        )
+    };
+    let object = value.as_object().ok_or_else(invalid)?;
+    strict_keys(
+        object,
+        &["expectedVersion", "reason"],
+        "QUALITY_RELEASE_REQUIRED",
+        "Review the current Quality hold, version and release reason.",
+    )?;
+    let expected_version = required_version(
+        object,
+        "QUALITY_RELEASE_REQUIRED",
+        "Refresh the quality hold before releasing.",
+    )?;
+    let reason = object
+        .get("reason")
+        .and_then(Value::as_str)
+        .ok_or_else(invalid)?
+        .to_owned();
+    normalize_quality_release(QualityReleaseCommand {
+        key: command_key,
+        hold_id: RecordId::new(hold_id)?,
+        expected_version,
+        reason,
+    })
+}
+
+pub fn parse_disposition(
+    value: &Value,
+    hold_id: &str,
+    command_key: CommandKey,
+) -> Result<QualityDispositionCommand, BusinessError> {
+    let invalid = || {
+        BusinessError::invalid(
+            "QUALITY_DISPOSITION_REQUIRED",
+            "Review the current Quality hold, quantity, date and scrap reason.",
+        )
+    };
+    let object = value.as_object().ok_or_else(invalid)?;
+    strict_keys(
+        object,
+        &[
+            "expectedVersion",
+            "attachmentSetIds",
+            "dispositionDate",
+            "quantity",
+            "reason",
+        ],
+        "QUALITY_DISPOSITION_REQUIRED",
+        "Review the current Quality hold, quantity, date and scrap reason.",
+    )?;
+    let expected_version = required_version(
+        object,
+        "QUALITY_DISPOSITION_REQUIRED",
+        "Refresh the quality hold before requesting disposal.",
+    )?;
+    let attachment_set_ids = object
+        .get("attachmentSetIds")
+        .map(|value| {
+            value
+                .as_array()
+                .filter(|rows| rows.len() <= 10)
+                .ok_or_else(invalid)?
+                .iter()
+                .map(|value| {
+                    value
+                        .as_str()
+                        .filter(|value| !value.is_empty() && value.len() <= 200)
+                        .map(str::to_owned)
+                        .ok_or_else(invalid)
+                })
+                .collect::<Result<Vec<_>, BusinessError>>()
+        })
+        .transpose()?
+        .unwrap_or_default();
+    let disposition_date = object
+        .get("dispositionDate")
+        .and_then(Value::as_str)
+        .ok_or_else(invalid)?
+        .to_owned();
+    let quantity = object
+        .get("quantity")
+        .and_then(Value::as_str)
+        .ok_or_else(invalid)?
+        .to_owned();
+    let reason = object
+        .get("reason")
+        .and_then(Value::as_str)
+        .ok_or_else(invalid)?
+        .to_owned();
+    normalize_quality_disposition(QualityDispositionCommand {
+        key: command_key,
+        hold_id: RecordId::new(hold_id)?,
+        expected_version,
+        attachment_set_ids,
+        disposition_date,
+        quantity,
+        reason,
+    })
+}
+
 pub fn json_integer(value: &Value, minimum: i64) -> Option<i64> {
     if let Some(integer) = value.as_i64() {
         return (integer >= minimum && integer <= MAX_SAFE_INTEGER).then_some(integer);
@@ -1078,6 +1268,64 @@ async fn inspect(
     .await;
     match result {
         Ok(receipt) => bounded(inspection_receipt_json(&receipt)),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn release(
+    State(state): State<Arc<QualityHttpState>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let target = target(&state, request.headers(), &slug)?;
+        let parsed = parse_quality_command(request, target).await?;
+        let id = RecordId::new(id)?;
+        let command = parse_release(&parsed.body, id.as_str(), parsed.key.clone())?;
+        target
+            .backend
+            .release(QualityHttpCommandRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &parsed.headers,
+                id: id.as_str(),
+                body: &parsed.body,
+                key: &command.key,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(receipt) => bounded(release_receipt_json(&receipt)),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn disposition_command(
+    State(state): State<Arc<QualityHttpState>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let target = target(&state, request.headers(), &slug)?;
+        let parsed = parse_quality_command(request, target).await?;
+        let id = RecordId::new(id)?;
+        let command = parse_disposition(&parsed.body, id.as_str(), parsed.key.clone())?;
+        target
+            .backend
+            .disposition(QualityHttpCommandRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &parsed.headers,
+                id: id.as_str(),
+                body: &parsed.body,
+                key: &command.key,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(receipt) => bounded(disposition_receipt_json(&receipt)),
         Err(error) => error_response(error),
     }
 }

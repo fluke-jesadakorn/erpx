@@ -153,6 +153,19 @@ export type NativeQualityInspectionReceipt = Readonly<{
   version: number;
 }>;
 
+export type NativeQualityReleaseReceipt = Readonly<{
+  id: string;
+  status: string;
+  version: number;
+}>;
+
+export type NativeQualityDispositionReceipt = Readonly<{
+  id: string;
+  status: string;
+  version: number;
+  countId: string;
+}>;
+
 type Settings = {
   privateBaseUrl: string;
   timeoutMs: number;
@@ -804,6 +817,62 @@ export function createNativeQualityReader(raw: string, transport: QualityTranspo
         status: value.status,
         result: value.result,
         version: value.version,
+      };
+    },
+    release: async (
+      incoming: Pick<Headers, 'get'>,
+      slug: string,
+      id: string,
+      input: unknown,
+      key: string,
+    ): Promise<NativeQualityReleaseReceipt> => {
+      if (!identifier(id)) return fail('NATIVE_QUALITY_REQUEST_INVALID', 422);
+      const value = await send(
+        'POST',
+        incoming,
+        slug,
+        `/${encodeURIComponent(id)}/release`,
+        JSON.stringify(input ?? {}),
+        key,
+      );
+      if (
+        !identifier(value.id) ||
+        !text(value.status) ||
+        !safeInteger(value.version) ||
+        value.version < 1
+      )
+        return fail('NATIVE_QUALITY_RESPONSE_INVALID');
+      return { id: value.id, status: value.status, version: value.version };
+    },
+    disposition: async (
+      incoming: Pick<Headers, 'get'>,
+      slug: string,
+      id: string,
+      input: unknown,
+      key: string,
+    ): Promise<NativeQualityDispositionReceipt> => {
+      if (!identifier(id)) return fail('NATIVE_QUALITY_REQUEST_INVALID', 422);
+      const value = await send(
+        'POST',
+        incoming,
+        slug,
+        `/${encodeURIComponent(id)}/disposition`,
+        JSON.stringify(input ?? {}),
+        key,
+      );
+      if (
+        !identifier(value.id) ||
+        !text(value.status) ||
+        !safeInteger(value.version) ||
+        value.version < 1 ||
+        !identifier(value.countId)
+      )
+        return fail('NATIVE_QUALITY_RESPONSE_INVALID');
+      return {
+        id: value.id,
+        status: value.status,
+        version: value.version,
+        countId: value.countId,
       };
     },
     cancel: async (

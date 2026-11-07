@@ -52,6 +52,7 @@ pub use crate::domain::invitation_authority::{StaffInvitationGrant, invitation_s
 pub mod permission_catalog;
 pub mod permission_catalog_lock;
 pub mod quality_recipients;
+pub mod quality_scrap_approvers;
 pub mod sales_recipient;
 pub mod work_admission;
 
