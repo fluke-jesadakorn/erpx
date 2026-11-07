@@ -373,10 +373,14 @@ function configuration(raw: NativeCustomerTimelineConfiguration) {
     } catch {
       return failure('NATIVE_CUSTOMER_TIMELINE_CONFIGURATION_INVALID');
     }
+    const originPort = origin.port;
     if (
       origin.protocol !== 'https:' ||
       holding.origin !== origin.origin ||
-      origin.port ||
+      (originPort !== '' &&
+        (!/^[1-9]\d{0,4}$/.test(originPort) ||
+          Number(originPort) < 1 ||
+          Number(originPort) > 65535)) ||
       origin.username ||
       origin.password ||
       !identifier(holding.holdingId) ||
@@ -403,7 +407,11 @@ function transportCall(
   timeout: number,
   signal?: AbortSignal,
 ): Promise<Response> {
-  const host = incoming.get('host');
+  const forwarded = incoming
+    .get('x-forwarded-host')
+    ?.split(',')[0]
+    ?.trim();
+  const host = forwarded && forwarded.length > 0 ? forwarded : incoming.get('host');
   const holding = host ? holdings.get(host) : undefined;
   if (!holding || holding.holdingSlug !== input.holdingSlug || holding.holdingId !== actor.holdingId)
     return Promise.reject(new NativeCustomerTimelineError(

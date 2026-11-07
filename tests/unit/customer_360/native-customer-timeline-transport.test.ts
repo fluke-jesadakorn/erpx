@@ -60,6 +60,16 @@ const input={holdingSlug:'acme',customerId:'customer',cursor:'opaque',limit:30,
 const ok=(value:unknown)=>new Response(JSON.stringify(value),{status:200,headers:{'content-type':'application/json'}});
 
 describe('native Customer 360 timeline transport',()=>{
+ it('accepts one bounded contributor Holding port and prefers the forwarded host',async()=>{
+  const contributor={...JSON.parse(config()),holdings:[{origin:'https://acme.example.com:3443',holdingSlug:'acme',holdingId:'h001'}]};
+  const transport=vi.fn().mockResolvedValue(ok(page([order])));
+  const client=createNativeCustomerTimelineClient(nativeCustomerTimelineConfiguration(JSON.stringify(contributor)),transport);
+  await client.timeline(incoming({host:'127.0.0.1:3207','x-forwarded-host':'acme.example.com:3443'}),actor,input);
+  expect(transport.mock.calls[0][2].get('host')).toBe('acme.example.com:3443');
+  for(const origin of ['https://acme.example.com:0','https://acme.example.com:65536','https://acme.example.com:abc'])
+    expect(()=>createNativeCustomerTimelineClient(nativeCustomerTimelineConfiguration(config({holdings:[{origin,holdingSlug:'acme',holdingId:'h001'}]})),vi.fn())).toThrow();
+ });
+
  it('forwards the configured Holding, customer, session, CAS, cursor and limit',async()=>{
   const transport=vi.fn().mockResolvedValue(ok(page([order])));
   const client=createNativeCustomerTimelineClient(nativeCustomerTimelineConfiguration(config()),transport);

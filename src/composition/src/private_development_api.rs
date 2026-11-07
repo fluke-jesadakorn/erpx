@@ -2191,6 +2191,25 @@ async fn assemble_checked(
                         )),
                     )),
                 });
+                customer_360_targets.push(
+                    erpx_server_customer_360::public::customer_timeline_http::CustomerTimelineHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::customer_360::Customer360Backend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::customer_360::Customer360Service::new(
+                                authorizer.clone(),
+                                crate::customer_360::Customer360Configuration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
             }
         }
         #[cfg(feature = "existing-business")]
@@ -2463,25 +2482,6 @@ async fn assemble_checked(
                     },
                 );
                 #[cfg(feature = "existing-business")]
-                customer_360_targets.push(
-                    erpx_server_customer_360::public::customer_timeline_http::CustomerTimelineHttpTarget {
-                        host: holding.host.clone(),
-                        holding_slug: holding.registration.slug.clone(),
-                        origin: format!("https://{}", holding.host),
-                        backend: Arc::new(crate::customer_360::Customer360Backend::new(
-                            config.policy.clone(),
-                            Arc::new(FinanceJournalReadScopeHeaders),
-                            Arc::new(crate::customer_360::Customer360Service::new(
-                                authorizer.clone(),
-                                crate::customer_360::Customer360Configuration::new(
-                                    holding.registration.holding_id.clone(),
-                                    company.clone(),
-                                ),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )),
-                    },
-                );
                 #[cfg(feature = "existing-business")]
                 customer_authority_targets.push(
                     erpx_server_customer_authority::public::access_http::CustomerAccessHttpTarget {
@@ -6920,6 +6920,18 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         ["", "api", "v1", "holdings", _, "legal", ..] => state.policy.audience(host).is_some(),
         _ => false,
     };
+    let customer_timeline = match request
+        .uri()
+        .path()
+        .split('/')
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        ["", "api", "v1", "holdings", _, "customers", _, "timeline"] => {
+            state.policy.audience(host).is_some()
+        }
+        _ => false,
+    };
     let payroll = match request
         .uri()
         .path()
@@ -6979,6 +6991,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || quality
         || pms
         || legal
+        || customer_timeline
         || service_packages
         || field_work_roles
         || field_operations

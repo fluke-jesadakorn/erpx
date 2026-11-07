@@ -89,6 +89,13 @@ fn target_configuration_requires_distinct_exact_holdings() {
     let backend: Arc<dyn CustomerTimelineHttpBackend> = Arc::new(Noop);
     assert!(customer_timeline_http_router(vec![target(backend.clone())]).is_ok());
     assert!(
+        customer_timeline_http_router(vec![CustomerTimelineHttpTarget {
+            origin: "https://acme.example.test:3443".into(),
+            ..target(backend.clone())
+        }])
+        .is_ok()
+    );
+    assert!(
         customer_timeline_http_router(vec![target(backend.clone()), target(backend.clone())])
             .is_err()
     );
@@ -99,6 +106,22 @@ fn target_configuration_requires_distinct_exact_holdings() {
         },
         CustomerTimelineHttpTarget {
             origin: "https://acme.example.test/path".into(),
+            ..target(backend.clone())
+        },
+        CustomerTimelineHttpTarget {
+            origin: "https://acme.example.test:0".into(),
+            ..target(backend.clone())
+        },
+        CustomerTimelineHttpTarget {
+            origin: "https://acme.example.test:65536".into(),
+            ..target(backend.clone())
+        },
+        CustomerTimelineHttpTarget {
+            origin: "https://acme.example.test:abc".into(),
+            ..target(backend.clone())
+        },
+        CustomerTimelineHttpTarget {
+            origin: "https://acme.example.test:3443:1".into(),
             ..target(backend.clone())
         },
         CustomerTimelineHttpTarget {
