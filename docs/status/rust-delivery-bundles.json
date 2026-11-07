@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T08:31:15+07:00",
+  "updatedAt": "2026-11-07T09:03:29+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 87,
-    "workflowsVerified": 32,
-    "workflowsMerged": 32,
+    "workflowsPartial": 83,
+    "workflowsVerified": 36,
+    "workflowsMerged": 36,
     "ownersComplete": 3,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -4549,9 +4549,9 @@
       "kind": "module",
       "owner": "operations",
       "scope": "Exception queue",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "operations-native-queue-read",
         "operations-native-commands",
@@ -4559,16 +4559,16 @@
         "operations-native-route-cutover"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Native exception queue/detail reads, lifecycle commands, policy decisions and transport are PostgreSQL/HTTP-qualified; the Operations page and queue-policy browser journey are verified. Remaining: the exception open/change command sources (Records source and People/IAM recipient ports) still fail closed, so an exception lifecycle browser journey has not run."
+      "gap": "Closed. Source reads dispatch through the POS/Assets/Field owner record-source ports and recipient checks through the Identity owner port; the native command path is mounted and browser verified. Opened an exception from the completed POS sale adcdf454 and ran the full lifecycle: acknowledge v2, start v3, assign v4, escalate v5, resolve v6, independent approve v7, close v8, reopen v9, prioritize v10, resolve v11, reject v12, cancel v13 with persisted status/priority readback."
     },
     {
       "id": "operations/feature-escalations",
       "kind": "module",
       "owner": "operations",
       "scope": "Escalations",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "operations-native-escalations",
         "operations-native-commands",
@@ -4576,39 +4576,39 @@
         "operations-native-route-cutover"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Native escalation/assign/prioritize commands and transport are PostgreSQL/HTTP-qualified; composition mount complete; browser remains open."
+      "gap": "Closed. Native assign/escalate/prioritize run through the same owner ports and are browser verified on the exception above: assign 200 v4, escalate to usr_nisa 200 v5 (status escalated), prioritize high 200 v10."
     },
     {
       "id": "operations/feature-approval-decisions",
       "kind": "module",
       "owner": "operations",
       "scope": "Approval decisions",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "operations-native-commands",
         "operations-native-transport",
         "operations-native-route-cutover"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Native approve/reject/close/reopen commands are PostgreSQL/HTTP-qualified; composition mount complete; browser remains open."
+      "gap": "Closed. Native approve/reject/close/reopen are browser verified by the independent reviewer and owner: approve 200 v7 (resolved, reviewed_by usr_nisa), close 200 v8, reopen 200 v9 (in_progress), reject 200 v12 (in_progress)."
     },
     {
       "id": "operations/feature-resolution",
       "kind": "module",
       "owner": "operations",
       "scope": "Resolution",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "operations-native-commands",
         "operations-native-transport",
         "operations-native-route-cutover"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Native resolve/cancel/acknowledge/start commands are PostgreSQL/HTTP-qualified; composition mount complete; browser remains open."
+      "gap": "Closed. Native acknowledge/start/resolve/cancel are browser verified on the same exception: acknowledge 200 v2, start 200 v3, resolve 200 v6 and v11 (awaiting_review), cancel 200 v13 (cancelled)."
     },
     {
       "id": "operations/feature-queue-policies",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T08:31:15+07:00",
-    "sourceHead": "a4f5b6ea8",
+    "generatedAt": "2026-11-07T09:03:29+07:00",
+    "sourceHead": "ca9bc8dfc",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6574,8 +6574,8 @@
       },
       "operations": {
         "workflows": 6,
-        "verified": 1,
-        "partial": 5,
+        "verified": 5,
+        "partial": 1,
         "unstarted": 0,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -7092,9 +7092,9 @@
     },
     "blockers": [
       {
-        "id": "operations-exception-source-and-recipient-ports",
-        "detail": "Operations quota policies are closed and browser verified. The exception open/change commands still fail closed because the Records source and People/IAM recipient owner ports are stubs, and the optional Field operational-exceptions source is unavailable; the core page degrades that section without failing.",
-        "unblock": "Wire the Records source record read and People/IAM recipient validation ports, then run the exception open/assign/escalate/resolve/approve browser journey."
+        "id": "pos-stripe-provider-configuration",
+        "detail": "Operations exception lifecycle is closed. POS Stripe card/PromptPay tenders and refunds plus payment.retry/payment.cancel remain unverified because the keyed POS app has no POS_STRIPE_* configuration; no mock provider is accepted.",
+        "unblock": "Provide the test-mode Stripe/Connect configuration for the isolated keyed workspace, or explicitly defer Stripe scope."
       },
       {
         "id": "pos-stripe-provider-configuration",
@@ -7113,7 +7113,7 @@
       }
     ],
     "nextActions": [
-      "Wire the Records source + People recipient ports for Operations exception commands and run the exception lifecycle browser journey.",
+      "Verify the Operations summary readback and close operations/feature-operations-summary, completing the Operations owner (6/6).",
       "Await the Stripe/Connect test configuration for the remaining POS tender/refund/retry paths.",
       "Continue with the next dependency-ready owner partial and keep counts tied to browser/HTTP evidence."
     ],
@@ -7600,6 +7600,23 @@
           "owners": 3,
           "verified": 32,
           "partial": 87,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T09:03:29+07:00",
+        "commit": "ca9bc8dfc",
+        "bundles": [
+          "Operations exception source ports",
+          "Identity recipient validation",
+          "full exception browser lifecycle"
+        ],
+        "evidence": "browser exception open from POS sale adcdf454 v4 \u2192 200; acknowledge v2, start v3, assign v4, escalate v5, resolve v6, approve v7 (reviewed_by usr_nisa), close v8, reopen v9, prioritize high v10, resolve v11, reject v12, cancel v13; final operations_exceptions row cancelled/high/version 13; Operations tests 13/13, 7/7, 5/5, 6/6, 6/6, 3/3; native transport 11/11; typecheck passes",
+        "counts": {
+          "owners": 3,
+          "verified": 36,
+          "partial": 83,
           "unstarted": 87,
           "total": 206
         }
