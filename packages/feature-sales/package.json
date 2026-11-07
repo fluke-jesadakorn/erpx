@@ -144,6 +144,7 @@
   "dependencies": {
     "@erpx/feature-commerce": "workspace:*",
     "@erpx/feature-crm": "workspace:*",
+    "@erpx/feature-marketing": "workspace:*",
     "@erpx/feature-customer_360": "workspace:*",
     "@erpx/feature-finance": "workspace:*",
     "@erpx/feature-identity_access": "workspace:*",

@@ -1818,6 +1818,8 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut marketing_lead_targets = Vec::new();
         #[cfg(feature = "existing-business")]
+        let mut marketing_lead_command_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut talent_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut sales_documents_targets = Vec::new();
@@ -1951,6 +1953,45 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                #[cfg(feature = "existing-business")]
+                {
+                    let marketing_backend = Arc::new(crate::marketing::MarketingBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::marketing::MarketingService::new(
+                            authorizer.clone(),
+                            crate::marketing::MarketingConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    ));
+                    marketing_targets.push(
+                        erpx_server_marketing::public::campaign_attribution_http::MarketingCampaignHttpTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: format!("https://{}", holding.host),
+                            backend: marketing_backend.clone(),
+                        },
+                    );
+                    marketing_lead_targets.push(
+                        erpx_server_marketing::public::lead_candidate_http::MarketingLeadHttpTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: format!("https://{}", holding.host),
+                            backend: marketing_backend.clone(),
+                        },
+                    );
+                    marketing_lead_command_targets.push(
+                        erpx_server_marketing::public::lead_candidate_command_http::MarketingLeadCommandHttpTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: format!("https://{}", holding.host),
+                            backend: marketing_backend,
+                        },
+                    );
+                }
             }
         }
         for (i, holding) in config.holdings.iter().enumerate() {
@@ -2530,37 +2571,6 @@ async fn assemble_checked(
                         backend: manufacturing_backend.clone(),
                     },
                 );
-                #[cfg(feature = "existing-business")]
-                {
-                    let marketing_backend = Arc::new(crate::marketing::MarketingBackend::new(
-                        config.policy.clone(),
-                        Arc::new(FinanceJournalReadScopeHeaders),
-                        Arc::new(crate::marketing::MarketingService::new(
-                            authorizer.clone(),
-                            crate::marketing::MarketingConfiguration::new(
-                                holding.registration.holding_id.clone(),
-                                company.clone(),
-                            ),
-                            Arc::new(SharedClock(clock.clone())),
-                        )),
-                    ));
-                    marketing_targets.push(
-                        erpx_server_marketing::public::campaign_attribution_http::MarketingCampaignHttpTarget {
-                            host: holding.host.clone(),
-                            holding_slug: holding.registration.slug.clone(),
-                            origin: format!("https://{}", holding.host),
-                            backend: marketing_backend.clone(),
-                        },
-                    );
-                    marketing_lead_targets.push(
-                        erpx_server_marketing::public::lead_candidate_http::MarketingLeadHttpTarget {
-                            host: holding.host.clone(),
-                            holding_slug: holding.registration.slug.clone(),
-                            origin: format!("https://{}", holding.host),
-                            backend: marketing_backend,
-                        },
-                    );
-                }
                 #[cfg(feature = "existing-business")]
                 talent_targets.push(
                     erpx_server_talent::public::requisition_http::TalentRequisitionHttpTarget {
@@ -3360,6 +3370,13 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_marketing::public::lead_candidate_http::marketing_lead_http_router(marketing_lead_targets)
                     .map_err(|_| "PRIVATE_API_MARKETING_LEAD_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !marketing_lead_command_targets.is_empty() {
+            router = router.merge(
+                erpx_server_marketing::public::lead_candidate_command_http::marketing_lead_command_http_router(marketing_lead_command_targets)
+                    .map_err(|_| "PRIVATE_API_MARKETING_COMMAND_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]
@@ -4298,6 +4315,17 @@ async fn assemble_checked(
                     .map(|h| (h.host.clone(), h.registration.slug.clone()))
             })
             .collect(),
+        marketing_command_targets: config
+            .crm_companies
+            .keys()
+            .filter_map(|holding_id| {
+                config
+                    .holdings
+                    .iter()
+                    .find(|h| &h.registration.holding_id == holding_id)
+                    .map(|h| (h.host.clone(), h.registration.slug.clone()))
+            })
+            .collect(),
         #[cfg(feature = "existing-business")]
         brand_targets: config
             .finance_journal_reads
@@ -4489,6 +4517,7 @@ struct Boundary {
     operations_targets: BTreeSet<(String, String)>,
     crm_targets: BTreeSet<(String, String)>,
     crm_command_targets: BTreeSet<(String, String)>,
+    marketing_command_targets: BTreeSet<(String, String)>,
     brand_targets: BTreeSet<(String, String)>,
     bank_targets: BTreeSet<(String, String)>,
     generic_payment_targets: BTreeSet<(String, String)>,
@@ -6760,6 +6789,19 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             }
             _ => false,
         };
+    let marketing_command = request.method() == axum::http::Method::POST
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            ["", "api", "v1", "holdings", slug, "marketing", "leads", _, "changes"] => state
+                .marketing_command_targets
+                .contains(&(host.to_owned(), (*slug).to_owned())),
+            _ => false,
+        };
     let quality = match request
         .uri()
         .path()
@@ -6822,6 +6864,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || operations
         || crm
         || crm_command
+        || marketing_command
         || maintenance
         || payroll
         || quality
@@ -6884,6 +6927,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             || field_collaboration_write
             || field_operations
             || crm_command
+            || marketing_command
             || support_ticket
             || support_incident
             || support_session

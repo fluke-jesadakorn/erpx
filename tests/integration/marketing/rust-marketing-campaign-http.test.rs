@@ -130,6 +130,20 @@ fn target_configuration_requires_distinct_exact_holdings() {
             origin: "https://acme.example.test:8443".into(),
             ..target()
         }])
+        .is_ok()
+    );
+    assert!(
+        marketing_campaign_http_router(vec![MarketingCampaignHttpTarget {
+            origin: "https://acme.example.test:notaport".into(),
+            ..target()
+        }])
+        .is_err()
+    );
+    assert!(
+        marketing_campaign_http_router(vec![MarketingCampaignHttpTarget {
+            origin: "https://acme.example.test:123456".into(),
+            ..target()
+        }])
         .is_err()
     );
 }
@@ -389,6 +403,20 @@ mod lead_http {
         assert!(
             marketing_lead_http_router(vec![MarketingLeadHttpTarget {
                 origin: "http://acme.example.test".into(),
+                ..target(backend.clone())
+            }])
+            .is_err()
+        );
+        assert!(
+            marketing_lead_http_router(vec![MarketingLeadHttpTarget {
+                origin: "https://acme.example.test:8443".into(),
+                ..target(backend.clone())
+            }])
+            .is_ok()
+        );
+        assert!(
+            marketing_lead_http_router(vec![MarketingLeadHttpTarget {
+                origin: "https://acme.example.test:notaport".into(),
                 ..target(backend.clone())
             }])
             .is_err()
