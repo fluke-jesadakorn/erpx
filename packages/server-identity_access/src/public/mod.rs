@@ -101,3 +101,4 @@ pub mod account_control_scope;
 pub mod platform_commercial_authority;
 
 pub mod account_work_presentation;
+pub mod operations_recipients;

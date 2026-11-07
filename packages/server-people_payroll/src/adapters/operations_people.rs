@@ -21,10 +21,10 @@ pub async fn read_operations_people(
         return Err(PersistenceError::new("OPERATIONS_PEOPLE_TRANSACTION_REQUIRED").into());
     }
     let rows: Vec<(String, String)> = sqlx::query_as(
-        "SELECT person_id,display_name FROM employees \
-         WHERE company_id=$1 AND status='active' AND person_id IS NOT NULL \
+        "SELECT user_id,display_name FROM employees \
+         WHERE company_id=$1 AND status='active' AND user_id IS NOT NULL \
            AND octet_length(display_name) BETWEEN 1 AND 3000 \
-         ORDER BY display_name,person_id LIMIT 1001",
+         ORDER BY display_name,user_id LIMIT 1001",
     )
     .bind(company.as_str())
     .fetch_all(c)

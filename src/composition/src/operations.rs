@@ -6,8 +6,12 @@ use erpx_server_identity_access::public::{
         AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
         WorkAuthorizationRequest,
     },
+    operations_recipients::operations_recipient_allowed,
     work_context::{ExpectedWorkSelection, HoldingWorkspaceRequest, WorkScopeKind},
 };
+use erpx_server_assets::public::record_source as asset_source;
+use erpx_server_field_service::public::source_record::read_source_record;
+use erpx_server_pos::public::record_source as pos_source;
 use erpx_server_operations::public::field_exceptions::Exception;
 use erpx_server_operations::public::field_policy::{
     OpenException as FieldOpenException, QueuePolicy,
@@ -30,12 +34,15 @@ use erpx_server_operations::public::queue_read::{
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::record_source_contract::{SourceRecord, SourceReference};
+use erpx_server_shared::public::record_source_contract::{
+    SourceKind, SourceRecord, SourceReference,
+};
 use erpx_server_shared::public::{
     AssignmentId, BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
 };
 use serde_json::Value;
 use sqlx::{Connection, PgConnection};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 type Error = PgTransactionError<BusinessError>;
@@ -147,8 +154,11 @@ impl OperationsPeopleDirectory for OperationsPeopleSnapshot {
     }
 }
 
+#[derive(Default)]
 struct OperationsCommandSnapshot {
-    same_person: Option<(String, bool)>,
+    source: Option<SourceRecord>,
+    recipients: HashMap<(String, bool), bool>,
+    same_people: HashMap<String, bool>,
 }
 
 impl OperationsCommandSources for OperationsCommandSnapshot {
@@ -156,30 +166,40 @@ impl OperationsCommandSources for OperationsCommandSnapshot {
     fn source<'a>(
         &'a mut self,
         _actor: &'a CommandActor,
-        _reference: &'a SourceReference,
+        reference: &'a SourceReference,
     ) -> OperationsCommandFuture<'a, SourceRecord, Self::Error> {
-        // Real Records source port is not wired; never fabricate a source record.
         Box::pin(async move {
-            Err(BusinessError::new(
-                FailureKind::Unavailable,
-                "OPERATIONS_SOURCE_UNAVAILABLE",
-                "Operations source records are not wired.",
-            ))
+            let source = self.source.as_ref().ok_or_else(source_unavailable)?;
+            if source.kind != reference.kind
+                || source.id != reference.id
+                || reference
+                    .expected_version
+                    .is_some_and(|version| version != source.version)
+            {
+                return Err(BusinessError::new(
+                    FailureKind::Conflict,
+                    "SOURCE_RECORD_CHANGED",
+                    "The source record changed. Reload its owning workspace.",
+                ));
+            }
+            Ok(source.clone())
         })
     }
     fn recipient<'a>(
         &'a mut self,
         _actor: &'a CommandActor,
         _scope: &'a erpx_server_operations::public::operations_commands::CommandScope,
-        _user_id: &'a str,
-        _review: bool,
+        user_id: &'a str,
+        review: bool,
     ) -> OperationsCommandFuture<'a, (), Self::Error> {
-        // Real People/IAM recipient port is not wired; fail closed.
         Box::pin(async move {
+            if self.recipients.get(&(user_id.to_owned(), review)).copied() == Some(true) {
+                return Ok(());
+            }
             Err(BusinessError::new(
-                FailureKind::Unavailable,
-                "OPERATIONS_RECIPIENT_UNAVAILABLE",
-                "Operations recipient validation is not wired.",
+                FailureKind::Forbidden,
+                "OPERATIONS_RECIPIENT_INVALID",
+                "Choose a current responsible person in this scope.",
             ))
         })
     }
@@ -189,19 +209,105 @@ impl OperationsCommandSources for OperationsCommandSnapshot {
         user_id: &'a str,
     ) -> OperationsCommandFuture<'a, bool, Self::Error> {
         Box::pin(async move {
-            self.same_person
-                .as_ref()
-                .filter(|(creator, _)| creator == user_id)
-                .map(|(_, same)| *same)
-                .ok_or_else(|| {
-                    BusinessError::new(
-                        FailureKind::Unavailable,
-                        "OPERATIONS_SAME_PERSON_UNAVAILABLE",
-                        "Operations same-person check is not wired.",
-                    )
-                })
+            self.same_people.get(user_id).copied().ok_or_else(|| {
+                BusinessError::new(
+                    FailureKind::Unavailable,
+                    "OPERATIONS_SAME_PERSON_UNAVAILABLE",
+                    "Operations same-person check is not wired.",
+                )
+            })
         })
     }
+}
+
+fn source_unavailable() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "OPERATIONS_SOURCE_UNAVAILABLE",
+        "Operations source records are not wired.",
+    )
+}
+
+fn source_not_found() -> Error {
+    BusinessError::new(
+        FailureKind::NotFound,
+        "SOURCE_RECORD_NOT_FOUND",
+        "Source record is unavailable in this work scope.",
+    )
+    .into()
+}
+
+async fn operations_source(
+    connection: &mut PgConnection,
+    actor: &CommandActor,
+    kind: SourceKind,
+    id: &str,
+) -> Result<SourceRecord, Error> {
+    match kind {
+        SourceKind::FieldServiceOrder => {
+            let current = read_source_record(
+                connection,
+                &CompanyId::new(actor.company_id.clone())?,
+                actor.branch_id.as_deref(),
+                actor.department_id.as_deref(),
+                id,
+            )
+            .await?;
+            let data = current.data();
+            Ok(SourceRecord {
+                kind,
+                id: data.id.clone(),
+                company_id: data.company_id.clone(),
+                branch_id: Some(data.branch_id.clone()),
+                department_id: data.department_id.clone(),
+                version: data.version,
+                title: data.title.clone(),
+                status: data.status.clone(),
+            })
+        }
+        SourceKind::PosSale => {
+            let current = pos_source::read_record_source(
+                connection,
+                &CompanyId::new(actor.company_id.clone())?,
+                id,
+            )
+            .await?
+            .ok_or_else(source_not_found)?;
+            Ok(current.data().clone())
+        }
+        SourceKind::Asset => {
+            let current = asset_source::read_record_source(
+                connection,
+                &CompanyId::new(actor.company_id.clone())?,
+                id,
+            )
+            .await?
+            .ok_or_else(source_not_found)?;
+            Ok(current.data().clone())
+        }
+        _ => Err(source_unavailable().into()),
+    }
+}
+
+async fn recipient_allowed(
+    connection: &mut PgConnection,
+    company: &str,
+    branch: Option<&str>,
+    department: Option<&str>,
+    user_id: &str,
+    review: bool,
+    now: i64,
+) -> Result<bool, Error> {
+    operations_recipient_allowed(
+        connection,
+        company,
+        branch,
+        department,
+        user_id,
+        review,
+        now,
+    )
+    .await
 }
 
 #[derive(Clone)]
@@ -535,34 +641,146 @@ impl<C: Clock + Send + Sync + 'static> OperationsService<C> {
                         current.require_permission("records.write")?;
                         let actor = command_actor(current)?;
                         let now = clock.now().get();
-                        let review_creator = match &command {
+                        let mut snapshot = OperationsCommandSnapshot::default();
+                        match &command {
+                            OperationsHttpCommand::OpenException(input) => {
+                                let reference = input.reference();
+                                let source = operations_source(
+                                    connection,
+                                    &actor,
+                                    reference.kind,
+                                    &reference.id,
+                                )
+                                .await?;
+                                let allowed = recipient_allowed(
+                                    connection,
+                                    company.as_str(),
+                                    source.branch_id.as_deref(),
+                                    source.department_id.as_deref(),
+                                    &input.owner_id,
+                                    false,
+                                    now,
+                                )
+                                .await?;
+                                snapshot
+                                    .recipients
+                                    .insert((input.owner_id.clone(), false), allowed);
+                                snapshot.source = Some(source);
+                            }
+                            OperationsHttpCommand::ChangeException(input) => {
+                                let row = {
+                                    let mut repository = PgOperationsCommandRepository {
+                                        connection: &mut *connection,
+                                    };
+                                    repository
+                                        .exception(
+                                            company.as_str(),
+                                            actor.branch_id.as_deref(),
+                                            actor.department_id.as_deref(),
+                                            &input.id,
+                                        )
+                                        .await?
+                                }
+                                .ok_or_else(|| {
+                                    BusinessError::new(
+                                        FailureKind::NotFound,
+                                        "OPERATIONS_NOT_FOUND",
+                                        "Not found.",
+                                    )
+                                })?;
+                                let kind = SourceKind::parse(&row.source_kind)?;
+                                let source = operations_source(
+                                    connection,
+                                    &actor,
+                                    kind,
+                                    &row.source_id,
+                                )
+                                .await?;
+                                let action = input.transition_input()?.action;
+                                let review = action.manages();
+                                let actor_allowed = recipient_allowed(
+                                    connection,
+                                    &row.company_id,
+                                    row.branch_id.as_deref(),
+                                    row.department_id.as_deref(),
+                                    &actor.user_id,
+                                    review,
+                                    now,
+                                )
+                                .await?;
+                                snapshot
+                                    .recipients
+                                    .insert((actor.user_id.clone(), review), actor_allowed);
+                                if let Some(owner) = input.owner_id.as_deref() {
+                                    let allowed = recipient_allowed(
+                                        connection,
+                                        &row.company_id,
+                                        row.branch_id.as_deref(),
+                                        row.department_id.as_deref(),
+                                        owner,
+                                        false,
+                                        now,
+                                    )
+                                    .await?;
+                                    snapshot
+                                        .recipients
+                                        .insert((owner.to_owned(), false), allowed);
+                                }
+                                if let Some(owner) = input.escalation_owner_id.as_deref() {
+                                    let allowed = recipient_allowed(
+                                        connection,
+                                        &row.company_id,
+                                        row.branch_id.as_deref(),
+                                        row.department_id.as_deref(),
+                                        owner,
+                                        true,
+                                        now,
+                                    )
+                                    .await?;
+                                    snapshot
+                                        .recipients
+                                        .insert((owner.to_owned(), true), allowed);
+                                }
+                                for user in [Some(row.owner_id.as_str()), row.resolved_by.as_deref()]
+                                    .into_iter()
+                                    .flatten()
+                                {
+                                    let same = sqlx::query_scalar::<_, bool>(
+                                        "SELECT iam_same_person($1,$2,$3)",
+                                    )
+                                    .bind(actor.user_id.as_str())
+                                    .bind(user)
+                                    .bind(company.as_str())
+                                    .fetch_one(&mut *connection)
+                                    .await?;
+                                    snapshot.same_people.insert(user.to_owned(), same);
+                                }
+                                snapshot.source = Some(source);
+                            }
                             OperationsHttpCommand::ReviewPolicy(input) => {
-                                sqlx::query_scalar::<_, String>(
+                                let creator = sqlx::query_scalar::<_, String>(
                                     "SELECT created_by FROM operations_queue_policies WHERE id=$1 AND company_id=$2",
                                 )
                                 .bind(&input.id)
                                 .bind(company.as_str())
                                 .fetch_optional(&mut *connection)
-                                .await?
-                            }
-                            _ => None,
-                        };
-                        let same_person = match review_creator {
-                            Some(creator) => {
-                                let same = sqlx::query_scalar::<_, bool>(
-                                    "SELECT iam_same_person($1,$2,$3)",
-                                )
-                                .bind(actor.user_id.as_str())
-                                .bind(&creator)
-                                .bind(company.as_str())
-                                .fetch_one(&mut *connection)
                                 .await?;
-                                Some((creator, same))
+                                if let Some(creator) = creator {
+                                    let same = sqlx::query_scalar::<_, bool>(
+                                        "SELECT iam_same_person($1,$2,$3)",
+                                    )
+                                    .bind(actor.user_id.as_str())
+                                    .bind(&creator)
+                                    .bind(company.as_str())
+                                    .fetch_one(&mut *connection)
+                                    .await?;
+                                    snapshot.same_people.insert(creator, same);
+                                }
                             }
-                            None => None,
-                        };
+                            OperationsHttpCommand::DraftPolicy(_) => {}
+                        }
                         let mut repository = PgOperationsCommandRepository { connection };
-                        let mut sources = OperationsCommandSnapshot { same_person };
+                        let mut sources = snapshot;
                         let receipt = match command {
                             OperationsHttpCommand::OpenException(input) => {
                                 open_operations_exception(
