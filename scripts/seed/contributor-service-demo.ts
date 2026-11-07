@@ -44,6 +44,8 @@ try {
   {id:'contributor_pos_reviewer',name:'Synthetic POS reviewer',user:'usr_nisa',modules:['pos'],permissions:['records.read','pos.read','pos.sell','pos.approve','pos.reports','module.pos.read'],scopes:['holding']},
   {id:'contributor_operations_owner',name:'Synthetic Operations owner',user:'usr_mali',modules:['operations'],permissions:['records.read','records.write','operations.read','module.operations.read'],scopes:['holding']},
   {id:'contributor_operations_reviewer',name:'Synthetic Operations reviewer',user:'usr_nisa',modules:['operations'],permissions:['records.read','records.write','operations.read','module.operations.read'],scopes:['holding']},
+  {id:'contributor_operations_owner_v2',name:'Synthetic Operations owner v2',user:'usr_mali',modules:['operations'],permissions:['records.read','records.write','operations.read','module.operations.read','finance.read','module.finance.read','payroll.read','module.people_payroll.read','people.read','support.read','commerce.read','inventory.read','module.inventory.read'],scopes:['holding']},
+  {id:'contributor_operations_reviewer_v2',name:'Synthetic Operations reviewer v2',user:'usr_nisa',modules:['operations'],permissions:['records.read','records.write','operations.read','module.operations.read','finance.read','module.finance.read','payroll.read','module.people_payroll.read','people.read','support.read','commerce.read','inventory.read','module.inventory.read'],scopes:['holding']},
  ];
  for(const d of definitions){
   const role=await db.prepare('SELECT company_id,id,name,built_in,published_revision,status FROM iam_roles WHERE company_id=? AND id=?').bind('*',d.id).first<Record<string,unknown>>();
