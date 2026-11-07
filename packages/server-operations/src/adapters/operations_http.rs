@@ -109,10 +109,17 @@ fn unique_header(headers: &HeaderMap, name: HeaderName) -> Result<Option<&str>, 
 }
 fn valid_origin(origin: &str) -> bool {
     origin.strip_prefix("https://").is_some_and(|rest| {
-        !rest.is_empty()
-            && !rest
+        let (host, port) = match rest.rsplit_once(':') {
+            Some((host, port)) => (host, Some(port)),
+            None => (rest, None),
+        };
+        !host.is_empty()
+            && !host
                 .bytes()
                 .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'@' | b':'))
+            && port.is_none_or(|port| {
+                (1..=5).contains(&port.len()) && port.bytes().all(|byte| byte.is_ascii_digit())
+            })
     })
 }
 fn status(kind: FailureKind) -> StatusCode {

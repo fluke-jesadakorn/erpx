@@ -576,7 +576,7 @@ export function directHttp(
     const agent = new Agent({ keepAlive: false, maxSockets: 1, maxTotalSockets: 1, proxyEnv: {} as import('node:http').ProxyEnv });
     const outgoing = request(
       url,
-      { method, agent, headers: { ...Object.fromEntries(headers), ...(body === undefined ? {} : { 'content-length': String(new TextEncoder().encode(body).length) }) }, signal, maxHeaderSize: 8192 },
+      { method, agent, headers: { ...Object.fromEntries(headers), ...(body === undefined ? {} : { 'content-length': String(new TextEncoder().encode(body).length) }) }, signal, setHost: false, maxHeaderSize: 8192 },
       (incoming) => {
         incoming.once('close', () => agent.destroy());
         try {

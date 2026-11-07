@@ -109,6 +109,7 @@ else {
 }
 await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'contributor-finance']);
 await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'contributor-pos']);
+await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'contributor-work-routines']);
 await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'contributor-service']);
 await run(['bun', '--no-env-file', '--conditions=react-server', 'scripts/local/dev-container-seed.ts', 'verify']);
 if (!nativeState) {

@@ -24,6 +24,7 @@ env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG=JSON.stringify({privateBaseUrl:nativeBase
 const nativeCount=JSON.stringify({privateBaseUrl:nativeBase,timeoutMs:10000,holdings:[{origin:holdingOrigins[0],holdingSlug:'acme',holdingId:'h001'}]});
 env.ERPX_NATIVE_FIELD_ATTACHMENT_CONFIG=JSON.stringify({privateBaseUrl:nativeBase,timeoutMs:10000,holdings:[{origin:holdingOrigins[0],holdingSlug:'acme',holdingId:'h001',fieldFamily:true}]});
 env.ERPX_NATIVE_POS_CASH_CONFIG=JSON.stringify({privateBaseUrl:nativeBase,timeoutMs:10000,holdings:[{origin:holdingOrigins[0],holdingSlug:'acme',holdingId:'h001'}]});
+env.ERPX_NATIVE_OPERATIONS_CONFIG=JSON.stringify({privateBaseUrl:nativeBase,timeoutMs:10000,holdings:[{origin:holdingOrigins[0],holdingSlug:'acme',holdingId:'h001'}]});
 for(const name of ['ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG','ERPX_NATIVE_FIELD_SERVICE_DETAIL_CONFIG','ERPX_NATIVE_FIELD_SERVICE_INITIAL_COUNT_CONFIG','ERPX_NATIVE_FIELD_SERVICE_PARTS_SETUP_CONFIG','ERPX_NATIVE_FIELD_SERVICE_PREREQUISITES_CONFIG','ERPX_NATIVE_FIELD_SERVICE_STOCK_SETUP_CONFIG'])env[name]=nativeCount;
 function assertOwnedGateway(){
  const pids=execFileSync('lsof',['-nP','-tiTCP:3100','-sTCP:LISTEN'],{encoding:'utf8'}).trim().split(/\s+/).filter(Boolean);if(!pids.length)throw Error('DEVELOPMENT_PORT_OWNER_UNAVAILABLE:3100');

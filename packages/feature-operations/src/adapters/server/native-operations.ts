@@ -1,3 +1,6 @@
+import 'server-only';
+import { Agent, request } from 'node:http';
+import { Readable } from 'node:stream';
 import type {
   OperationsDetail,
   OperationsException,
@@ -519,7 +522,6 @@ function configuration(raw: NativeOperationsConfiguration) {
     if (
       origin.protocol !== 'https:' ||
       holding.origin !== origin.origin ||
-      origin.port ||
       origin.username ||
       origin.password ||
       !identifier(holding.holdingId) ||
@@ -663,7 +665,47 @@ async function boundedJson(response: Response): Promise<unknown> {
 }
 
 const directHttp: NativeOperationsTransport = (method, url, headers, body, signal) =>
-  fetch(url, { method, headers, body, cache: 'no-store', redirect: 'error', signal });
+  new Promise((resolve, reject) => {
+    const agent = new Agent({
+      keepAlive: false,
+      maxSockets: 1,
+      maxTotalSockets: 1,
+      proxyEnv: {} as import('node:http').ProxyEnv,
+    });
+    const payload = body === undefined ? undefined : Buffer.from(body, 'utf8');
+    const outgoing = request(
+      url,
+      {
+        method,
+        agent,
+        headers: {
+          ...Object.fromEntries(headers),
+          ...(payload === undefined ? {} : { 'content-length': String(payload.byteLength) }),
+        },
+        signal,
+        setHost: false,
+        maxHeaderSize: 8192,
+      },
+      (incoming) => {
+        incoming.once('close', () => agent.destroy());
+        const values = new Headers();
+        for (let index = 0; index < incoming.rawHeaders.length; index += 2)
+          values.append(incoming.rawHeaders[index]!, incoming.rawHeaders[index + 1]!);
+        resolve(
+          new Response(Readable.toWeb(incoming) as unknown as ReadableStream<Uint8Array>, {
+            status: incoming.statusCode && incoming.statusCode >= 200 && incoming.statusCode <= 599 ? incoming.statusCode : 502,
+            headers: values,
+          }),
+        );
+      },
+    );
+    outgoing.once('error', (error) => {
+      agent.destroy();
+      reject(error);
+    });
+    if (payload === undefined) outgoing.end();
+    else outgoing.end(payload);
+  });
 
 export function createNativeOperationsClient(
   raw: NativeOperationsConfiguration,

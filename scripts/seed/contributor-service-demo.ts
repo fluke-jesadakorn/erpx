@@ -42,6 +42,8 @@ try {
   {id:'contributor_count_maker',name:'Synthetic Count maker',user:'usr_mali',modules:['inventory','field_service'],permissions:['records.read','inventory.read','inventory.prepare','workflow.warehouse_manager','organization.manage','module.inventory.read','module.field_service.read'],scopes:['holding','branch']},
   {id:'contributor_count_reviewer',name:'Synthetic Count reviewer',user:'usr_nisa',modules:['finance','inventory','field_service'],permissions:['finance.read','finance.write','finance.approve','inventory.read','inventory.approve','workflow.finance_approver','module.finance.read','module.inventory.read','module.field_service.read','records.read'],scopes:['holding']},
   {id:'contributor_pos_reviewer',name:'Synthetic POS reviewer',user:'usr_nisa',modules:['pos'],permissions:['records.read','pos.read','pos.sell','pos.approve','pos.reports','module.pos.read'],scopes:['holding']},
+  {id:'contributor_operations_owner',name:'Synthetic Operations owner',user:'usr_mali',modules:['operations'],permissions:['records.read','records.write','operations.read','module.operations.read'],scopes:['holding']},
+  {id:'contributor_operations_reviewer',name:'Synthetic Operations reviewer',user:'usr_nisa',modules:['operations'],permissions:['records.read','records.write','operations.read','module.operations.read'],scopes:['holding']},
  ];
  for(const d of definitions){
   const role=await db.prepare('SELECT company_id,id,name,built_in,published_revision,status FROM iam_roles WHERE company_id=? AND id=?').bind('*',d.id).first<Record<string,unknown>>();
