@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T11:47:06+07:00",
+  "updatedAt": "2026-11-07T11:49:23+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 76,
-    "workflowsVerified": 43,
-    "workflowsMerged": 43,
+    "workflowsPartial": 75,
+    "workflowsVerified": 44,
+    "workflowsMerged": 44,
     "ownersComplete": 5,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -4725,16 +4725,16 @@
       "kind": "module",
       "owner": "quality",
       "scope": "Results",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "quality-native-read",
         "quality-native-cancel",
         "quality-http"
       ],
       "sourceRef": "packages/server-quality/src/public/quality.ts",
-      "gap": "Native Quality workspace/detail is mounted and browser verified: the hold detail shows Inspection history 1 record \u00b7 pass \u00b7 Recorded by usr_nisa \u00b7 Visual inspection passed \u00b7 Reviewed hold version 2. Specification and measurement writes remain retained, so this workflow stays partial."
+      "gap": "Closed. Native Quality workspace/detail is mounted and browser verified: the hold detail at /supply/inventory-quality/quality/quality-hold-acceptance/overview shows Inspection history 1 record \u00b7 pass \u00b7 Recorded by usr_nisa \u00b7 Visual inspection passed \u00b7 Reviewed hold version 2. Specification/measurement setup belongs to the separate inspections/setup workflows and remains retained there."
     },
     {
       "id": "quality/release-gates",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T11:47:06+07:00",
-    "sourceHead": "1d7d61655",
+    "generatedAt": "2026-11-07T11:49:23+07:00",
+    "sourceHead": "7f4d27d33",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6590,8 +6590,8 @@
       },
       "quality": {
         "workflows": 4,
-        "verified": 0,
-        "partial": 4,
+        "verified": 1,
+        "partial": 3,
         "unstarted": 0,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -7730,6 +7730,21 @@
           "owners": 5,
           "verified": 43,
           "partial": 76,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T11:49:23+07:00",
+        "commit": "7f4d27d33",
+        "bundles": [
+          "quality results closure"
+        ],
+        "evidence": "browser quality hold detail 200 with inspection pass/evidence/reviewed version 2; Quality tests 7/7,10/10,5/5,19/19; typecheck passes",
+        "counts": {
+          "owners": 5,
+          "verified": 44,
+          "partial": 75,
           "unstarted": 87,
           "total": 206
         }
