@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T09:43:10+07:00",
+  "updatedAt": "2026-11-07T09:58:39+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 81,
-    "workflowsVerified": 38,
-    "workflowsMerged": 38,
+    "workflowsPartial": 78,
+    "workflowsVerified": 41,
+    "workflowsMerged": 41,
     "ownersComplete": 4,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -4489,45 +4489,45 @@
       "kind": "module",
       "owner": "maintenance",
       "scope": "Downtime",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "maintenance-native-read",
         "maintenance-native-http"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Native work detail/history reads and start/complete transitions are composed; dedicated downtime writes remain retained; browser remains open."
+      "gap": "Closed. Downtime is captured by the native start/complete transitions and browser verified: start 200 v2 persisted downtime_started_at, complete 200 v5 persisted downtime_ended_at for the same work order; no separate downtime UI writer exists in this scope."
     },
     {
       "id": "maintenance/feature-blocked-work",
       "kind": "module",
       "owner": "maintenance",
       "scope": "Blocked work",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "maintenance-native-read",
         "maintenance-native-http"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Native block/resume transitions are composed and HTTP-tested over PostgreSQL. Create remains retained; browser remains open."
+      "gap": "Closed. Native block/resume transitions are browser verified on work-acceptance: block 200 v3 (status blocked, blocked_reason persisted) and resume 200 v4 (status in_progress); the immutable history shows both events. Create belongs to the separate work-orders workflow and remains retained."
     },
     {
       "id": "maintenance/feature-completion",
       "kind": "module",
       "owner": "maintenance",
       "scope": "Completion",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "maintenance-native-read",
         "maintenance-native-http"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Native completion transitions are composed and HTTP-tested over PostgreSQL. Create remains retained; browser remains open."
+      "gap": "Closed. Native completion is browser verified on work-acceptance: complete 200 v5 with completion evidence and resulting condition good; the work order is completed and the immutable history records version 5. Create belongs to the separate work-orders workflow and remains retained."
     },
     {
       "id": "maintenance/feature-maintenance-history",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T09:43:10+07:00",
-    "sourceHead": "da47eadd0",
+    "generatedAt": "2026-11-07T09:58:39+07:00",
+    "sourceHead": "8b5b7a77c",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6566,8 +6566,8 @@
       },
       "maintenance": {
         "workflows": 5,
-        "verified": 1,
-        "partial": 4,
+        "verified": 4,
+        "partial": 1,
         "unstarted": 0,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -7113,9 +7113,9 @@
       }
     ],
     "nextActions": [
-      "Continue the Maintenance owner with the create/completion/downtime/blocked-work native writers, or move to the next dependency-ready non-Stripe owner partial.",
+      "Implement the native Maintenance work-order create (the only remaining Maintenance workflow), then close the owner.",
       "Await the Stripe/Connect test configuration for the remaining POS tender/refund/retry paths.",
-      "Reconcile remote HEAD and keep counts tied to browser/HTTP evidence."
+      "Continue with the next dependency-ready non-Stripe owner partial and keep counts tied to browser/HTTP evidence."
     ],
     "integrationLog": [
       {
@@ -7650,6 +7650,24 @@
           "owners": 4,
           "verified": 38,
           "partial": 81,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T09:58:39+07:00",
+        "commit": "8b5b7a77c",
+        "bundles": [
+          "native maintenance command origin",
+          "blocked work",
+          "completion",
+          "downtime"
+        ],
+        "evidence": "browser work-acceptance start 200 v2 (downtime_started_at), block 200 v3 (blocked_reason), resume 200 v4, complete 200 v5 (downtime_ended_at, evidence, condition good); immutable history versions 1-5; Maintenance tests and typecheck pass",
+        "counts": {
+          "owners": 4,
+          "verified": 41,
+          "partial": 78,
           "unstarted": 87,
           "total": 206
         }
