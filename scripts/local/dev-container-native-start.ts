@@ -40,7 +40,7 @@ export async function ensureContributorNative(root:string,key:string,config:stri
  const target=`${root}/target/dev-native-${process.arch}-rust1991`,log=`${scratch}/native-build.log`,fd=openSync(log,'a',0o600),start=Date.now();
  let code:number|null;
  try{
-  const child=spawn('/usr/local/cargo/bin/cargo',['build','--locked','-p','erpx-service','--no-default-features','--features','private-field-api,files-scan-worker','--bin','erpx-server'],{cwd:root,env:{NODE_ENV:'development',PATH:'/usr/local/cargo/bin:/usr/local/bin:/usr/bin:/bin',HOME:'/root',CARGO_HOME:'/usr/local/cargo',RUSTUP_HOME:'/usr/local/rustup',CARGO_TARGET_DIR:target,CARGO_INCREMENTAL:'1',CARGO_PROFILE_DEV_DEBUG:'0',PKG_CONFIG_PATH:'/opt/erpx-vips/lib/pkgconfig',LD_LIBRARY_PATH:'/opt/erpx-vips/lib'},stdio:['ignore',fd,fd]});
+  const child=spawn('/usr/local/cargo/bin/cargo',['build','--locked','-p','erpx-service','--no-default-features','--features','private-field-api,files-scan-worker,existing-business','--bin','erpx-server'],{cwd:root,env:{NODE_ENV:'development',PATH:'/usr/local/cargo/bin:/usr/local/bin:/usr/bin:/bin',HOME:'/root',CARGO_HOME:'/usr/local/cargo',RUSTUP_HOME:'/usr/local/rustup',CARGO_TARGET_DIR:target,CARGO_INCREMENTAL:'1',CARGO_PROFILE_DEV_DEBUG:'0',PKG_CONFIG_PATH:'/opt/erpx-vips/lib/pkgconfig',LD_LIBRARY_PATH:'/opt/erpx-vips/lib'},stdio:['ignore',fd,fd]});
   code=await new Promise<number|null>((done,reject)=>{child.once('error',reject);child.once('exit',done);});
  }finally{closeSync(fd);}
  writeFileSync(`${scratch}/native-build.json`,JSON.stringify({target,toolchain:'1.99.1',architecture:process.arch,elapsedMs:Date.now()-start,exitCode:code}),{mode:0o600});

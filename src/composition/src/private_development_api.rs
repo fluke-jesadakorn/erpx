@@ -203,6 +203,8 @@ struct ConfigurationDocument {
     #[serde(default)]
     operations_companies: Vec<FinanceReadDocument>,
     #[serde(default)]
+    maintenance_companies: Vec<FinanceReadDocument>,
+    #[serde(default)]
     finance_field_service_invoice_reads: Vec<String>,
     #[serde(default)]
     finance_field_service_invoice_posts: Vec<String>,
@@ -314,6 +316,7 @@ pub struct DevelopmentApiConfiguration {
     finance_journal_reads: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     pos_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     operations_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
+    maintenance_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     finance_field_service_invoice_reads: BTreeSet<HoldingId>,
     finance_field_service_invoice_posts: BTreeSet<HoldingId>,
     finance_field_service_receipt_writes: BTreeSet<HoldingId>,
@@ -649,6 +652,18 @@ impl DevelopmentApiConfiguration {
                 || !operations_companies.entry(holding).or_default().insert(company)
             {
                 return Err("PRIVATE_API_OPERATIONS_CONFIGURATION_INVALID");
+            }
+        }
+        let mut maintenance_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>> = BTreeMap::new();
+        for read in doc.maintenance_companies {
+            let holding = HoldingId::new(&read.holding_id)
+                .map_err(|_| "PRIVATE_API_MAINTENANCE_CONFIGURATION_INVALID")?;
+            let company = CompanyId::new(&read.company_id)
+                .map_err(|_| "PRIVATE_API_MAINTENANCE_CONFIGURATION_INVALID")?;
+            if !ids.contains(&read.holding_id)
+                || !maintenance_companies.entry(holding).or_default().insert(company)
+            {
+                return Err("PRIVATE_API_MAINTENANCE_CONFIGURATION_INVALID");
             }
         }
         let mut finance_field_service_invoice_reads = BTreeSet::new();
@@ -1260,6 +1275,7 @@ impl DevelopmentApiConfiguration {
             finance_journal_reads,
             pos_companies,
             operations_companies,
+            maintenance_companies,
             finance_field_service_invoice_reads,
             finance_field_service_invoice_posts,
             finance_field_service_receipt_writes,
@@ -1889,6 +1905,47 @@ async fn assemble_checked(
                             Arc::new(crate::operations::OperationsService::new(
                                 authorizer.clone(),
                                 crate::operations::OperationsConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
+            }
+        }
+        #[cfg(feature = "existing-business")]
+        for (i, holding) in config.holdings.iter().enumerate() {
+            let Some(companies) = config
+                .maintenance_companies
+                .get(&holding.registration.holding_id)
+            else {
+                continue;
+            };
+            let authorizer = Arc::new(
+                HoldingWorkAuthorizer::new(
+                    pools[0].clone(),
+                    pools[i + 1].clone(),
+                    holding.registration.holding_id.clone(),
+                    (*config.policy).clone(),
+                    clock.clone(),
+                    config.holdings_registry.clone(),
+                )
+                .map_err(|_| "PRIVATE_API_MAINTENANCE_CONFIGURATION_INVALID")?,
+            );
+            for company in companies {
+                maintenance_targets.push(
+                    erpx_server_maintenance::public::http::MaintenanceHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::maintenance::MaintenanceBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::maintenance::MaintenanceService::new(
+                                authorizer.clone(),
+                                crate::maintenance::MaintenanceConfiguration::new(
                                     holding.registration.holding_id.clone(),
                                     company.clone(),
                                 ),
@@ -6533,6 +6590,18 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };
+    let maintenance = match request
+        .uri()
+        .path()
+        .split('/')
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        ["", "api", "v1", "holdings", _, "maintenance", ..] => {
+            state.policy.audience(host).is_some()
+        }
+        _ => false,
+    };
     let pos_command = request.method() == axum::http::Method::POST
         && match request
             .uri()
@@ -6559,6 +6628,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
     ) || account_mfa
         || pos_command
         || operations
+        || maintenance
         || service_packages
         || field_work_roles
         || field_operations
