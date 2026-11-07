@@ -1894,6 +1894,30 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_OPERATIONS_CONFIGURATION_INVALID")?,
             );
             for company in companies {
+                if !config
+                    .finance_journal_reads
+                    .contains_key(&holding.registration.holding_id)
+                {
+                    people_payroll_targets.push(
+                        erpx_server_people_payroll::public::payroll_summary_http::PayrollReadHttpTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: format!("https://{}", holding.host),
+                            backend: Arc::new(crate::people_payroll::PeoplePayrollBackend::new(
+                                config.policy.clone(),
+                                Arc::new(FinanceJournalReadScopeHeaders),
+                                Arc::new(crate::people_payroll::PeoplePayrollService::new(
+                                    authorizer.clone(),
+                                    crate::people_payroll::PeoplePayrollConfiguration::new(
+                                        holding.registration.holding_id.clone(),
+                                        company.clone(),
+                                    ),
+                                    Arc::new(SharedClock(clock.clone())),
+                                )),
+                            )),
+                        },
+                    );
+                }
                 operations_targets.push(
                     erpx_server_operations::public::operations_http::OperationsHttpTarget {
                         host: holding.host.clone(),
@@ -6590,6 +6614,18 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };
+    let payroll = match request
+        .uri()
+        .path()
+        .split('/')
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        ["", "api", "v1", "holdings", _, "people", "payroll", ..] => {
+            state.policy.audience(host).is_some()
+        }
+        _ => false,
+    };
     let maintenance = match request
         .uri()
         .path()
@@ -6629,6 +6665,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || pos_command
         || operations
         || maintenance
+        || payroll
         || service_packages
         || field_work_roles
         || field_operations

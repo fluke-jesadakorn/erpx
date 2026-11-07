@@ -15,6 +15,8 @@ const steps={
  'contributor-work-routines':()=>import('../seed/contributor-work-routines-demo'),
  'contributor-assets':()=>import('../seed/contributor-assets-demo'),
  'contributor-assets-preventive':()=>import('../seed/contributor-assets-preventive-demo'),
+ 'contributor-people-payroll':()=>import('../seed/contributor-people-payroll-demo'),
+ 'contributor-people':()=>import('../seed/contributor-people-demo'),
  'contributor-service':()=>import('../seed/contributor-service-demo'),
  verify:()=>import('../seed/verify-seed-local'),
 } as const;

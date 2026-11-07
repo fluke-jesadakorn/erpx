@@ -269,7 +269,6 @@ function configuration(raw: NativePeoplePayrollConfiguration) {
     if (
       origin.protocol !== 'https:' ||
       holding.origin !== origin.origin ||
-      origin.port ||
       origin.username ||
       origin.password ||
       !identifier(holding.holdingId) ||
@@ -504,7 +503,7 @@ export function directHttp(
     const agent = new Agent({ keepAlive: false, maxSockets: 1, maxTotalSockets: 1, proxyEnv: {} as import('node:http').ProxyEnv });
     const outgoing = request(
       url,
-      { method, agent, headers: { ...Object.fromEntries(headers) }, signal, maxHeaderSize: 8192 },
+      { method, agent, headers: { ...Object.fromEntries(headers) }, signal, setHost: false, maxHeaderSize: 8192 },
       (incoming) => {
         incoming.once('close', () => agent.destroy());
         try {
