@@ -213,7 +213,7 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
                         current.require_permission("quality.read")?;
                         let actor = quality_actor(current)?;
                         let mut repository = PgQualityRead { connection };
-                        let data = quality_workspace_with_same_person(&actor, &mut repository, |user| current.same_person_user_raw(user)).await?;
+                        let data = quality_workspace_with_same_person(&actor, &mut repository, |user| erpx_server_shared::public::UserId::new(user.to_owned()).is_ok_and(|id| current.same_person_user(&id))).await?;
                         let _ = clock;
                         Ok(QualityHttpReadReply::Workspace(Box::new(data)))
                     })
@@ -254,7 +254,7 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
                         current.require_permission("quality.read")?;
                         let actor = quality_actor(current)?;
                         let mut repository = PgQualityRead { connection };
-                        let data = quality_detail_with_same_person(&actor, &id, &mut repository, |user| current.same_person_user_raw(user)).await?;
+                        let data = quality_detail_with_same_person(&actor, &id, &mut repository, |user| erpx_server_shared::public::UserId::new(user.to_owned()).is_ok_and(|id| current.same_person_user(&id))).await?;
                         Ok(QualityHttpReadReply::Detail(Box::new(data)))
                     })
                 },
@@ -345,7 +345,7 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
                         Ok(quality_detail_core_with_same_person(
                             &actor,
                             hold_source.data().clone(),
-                            &|user| current.same_person_user_raw(user),
+                            &|user| erpx_server_shared::public::UserId::new(user.to_owned()).is_ok_and(|id| current.same_person_user(&id)),
                         )?)
                     })
                 },
