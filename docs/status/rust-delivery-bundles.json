@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T17:41:43+07:00",
+  "updatedAt": "2026-11-07T18:43:44+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 75,
-    "workflowsVerified": 44,
-    "workflowsMerged": 44,
+    "workflowsPartial": 74,
+    "workflowsVerified": 45,
+    "workflowsMerged": 45,
     "ownersComplete": 5,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -4709,16 +4709,16 @@
       "kind": "module",
       "owner": "quality",
       "scope": "Inspections",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "quality-native-read",
         "quality-native-cancel",
         "quality-http"
       ],
       "sourceRef": "packages/server-quality/src/public/quality.ts",
-      "gap": "Native Quality inspection evidence is implemented for direct attachmentIds: Files ownership/metadata validation, bounded/unique attachment refs, staff notification/inbox handoff, receipts/audit/outbox. Browser upload + native inspect 200 persisted the ref/notification. attachmentSetIds still fail closed to retained TS because no Files set-membership port exists for quality_hold evidence."
+      "gap": "Closed. Native Quality inspection supports direct attachmentIds and attachmentSetIds through a Files-owned bounded set-membership witness, merged/deduplicated under the combined bound with persisted attachment refs, measurements, staff notifications/inbox, receipts/audit/outbox. Browser set inspection 200 verified with persisted ref and notification; stale/foreign-set rejection and direct+set dedup covered by PostgreSQL tests."
     },
     {
       "id": "quality/results",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T17:41:43+07:00",
-    "sourceHead": "98c468f3d",
+    "generatedAt": "2026-11-07T18:43:44+07:00",
+    "sourceHead": "13edca07e",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6590,8 +6590,8 @@
       },
       "quality": {
         "workflows": 4,
-        "verified": 1,
-        "partial": 3,
+        "verified": 2,
+        "partial": 2,
         "unstarted": 0,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -7807,6 +7807,21 @@
           "owners": 5,
           "verified": 44,
           "partial": 75,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T18:43:44+07:00",
+        "commit": "13edca07e",
+        "bundles": [
+          "native quality attachment-set evidence"
+        ],
+        "evidence": "browser set inspection 200 hold v2 fail; set manifest/attachment ref persisted; notifications/inbox at v2; quality commands 2/2, http 3/3, read/cancel 19/19, http 5/5; typecheck/structure pass",
+        "counts": {
+          "owners": 5,
+          "verified": 45,
+          "partial": 74,
           "unstarted": 87,
           "total": 206
         }
