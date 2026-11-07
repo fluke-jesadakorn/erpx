@@ -33,6 +33,8 @@ pub struct LegalHoldNotice {
     pub item_id: String,
     pub user_id: String,
     pub notified_at: i64,
+    pub company_id: String,
+    pub item_version: i64,
 }
 
 /// Identity-owned same-person decision. Production must supply the current IAM
@@ -330,7 +332,7 @@ impl<'c> PgLegalRecords<'c> {
                WHERE h.state!='released' \
                  AND t.item_id IN (SELECT id FROM legal_items WHERE company_id=$1) \
                ON CONFLICT DO NOTHING RETURNING hold_id,item_id,user_id,notified_at \
-             ) SELECT hold_id,item_id,user_id,notified_at FROM added ORDER BY hold_id,item_id,user_id",
+             ) SELECT added.hold_id,added.item_id,added.user_id,added.notified_at,i.company_id,i.version::bigint item_version                FROM added JOIN legal_items i ON i.id=added.item_id ORDER BY added.hold_id,added.item_id,added.user_id",
         )
         .bind(company)
         .bind(self.now)
@@ -347,6 +349,8 @@ impl<'c> PgLegalRecords<'c> {
                     item_id: row.try_get("item_id")?,
                     user_id: row.try_get("user_id")?,
                     notified_at: row.try_get("notified_at")?,
+                    company_id: row.try_get("company_id")?,
+                    item_version: row.try_get("item_version")?,
                 })
             })
             .collect::<Result<Vec<_>, sqlx::Error>>()?;

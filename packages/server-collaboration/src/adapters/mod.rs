@@ -1,3 +1,4 @@
+pub(crate) mod legal_hold_notifications;
 pub(crate) mod maintenance_notifications;
 
 pub(crate) mod field_service_notifications;

@@ -287,6 +287,15 @@ function nativeTransport(response: (method: string, url: URL, headers: Headers, 
   }};
 }
 
+it("native Legal accepts a bounded contributor Holding port and prefers the forwarded host", async () => {
+  const contributorConfig = {...nativeConfig, holdings: [{...nativeConfig.holdings[0], origin: "https://acme.example.test:3443"}]};
+  expect(() => nativeLegalConfiguration(JSON.stringify(contributorConfig))).not.toThrow();
+  const captured = nativeTransport(() => nativeResponse({records: [], total: 0, page: 1, counts: [], enabled: true, can_edit: true, can_hold: true, can_release_hold: true, can_share: true}));
+  const client = createNativeLegalClient(contributorConfig, captured.transport);
+  await client.register({get: (name: string) => ({host: "127.0.0.1:3209", "x-forwarded-host": "acme.example.test:3443", cookie: "session=value"})[name] ?? null}, nativeActor, new URLSearchParams());
+  expect(captured.calls[0]!.headers.get("host")).toBe("acme.example.test:3443");
+});
+
 it("native Legal configuration rejects reserved, non-loopback and duplicate targets", () => {
   expect(() => nativeLegalConfiguration(JSON.stringify({...nativeConfig, privateBaseUrl: "http://127.0.0.1:3101"}))).toThrow(NativeLegalError);
   expect(() => nativeLegalConfiguration(JSON.stringify({...nativeConfig, privateBaseUrl: "http://192.168.1.1:3199"}))).toThrow(NativeLegalError);

@@ -132,10 +132,19 @@ fn malformed(message: &'static str) -> BusinessError {
 
 fn valid_origin(origin: &str) -> bool {
     origin.strip_prefix("https://").is_some_and(|rest| {
-        !rest.is_empty()
-            && !rest
+        let (host, port) = match rest.rsplit_once(':') {
+            Some((host, port)) => (host, Some(port)),
+            None => (rest, None),
+        };
+        !host.is_empty()
+            && !host
                 .bytes()
                 .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'@' | b':'))
+            && port.is_none_or(|port| {
+                (1..=5).contains(&port.len())
+                    && port.bytes().all(|byte| byte.is_ascii_digit())
+                    && port.parse::<u16>().is_ok_and(|value| value > 0)
+            })
     })
 }
 
@@ -662,12 +671,23 @@ mod tests {
     fn configuration_rejects_duplicate_or_unsafe_targets() {
         let backend = Arc::new(Backend::default());
         assert!(LegalHttpService::new(vec![target(backend.clone())]).is_ok());
+        let mut contributor_target = target(backend.clone());
+        contributor_target.origin = "https://acme.example.test:3443".into();
+        assert!(LegalHttpService::new(vec![contributor_target]).is_ok());
         assert!(
             LegalHttpService::new(vec![target(backend.clone()), target(backend.clone())]).is_err()
         );
-        let mut unsafe_target = target(backend);
-        unsafe_target.origin = "http://acme.example.test".into();
-        assert!(LegalHttpService::new(vec![unsafe_target]).is_err());
+        for origin in [
+            "http://acme.example.test",
+            "https://acme.example.test:0",
+            "https://acme.example.test:65536",
+            "https://acme.example.test:abc",
+            "https://acme.example.test:3443:1",
+        ] {
+            let mut unsafe_target = target(backend.clone());
+            unsafe_target.origin = origin.into();
+            assert!(LegalHttpService::new(vec![unsafe_target]).is_err());
+        }
     }
 
     #[test]

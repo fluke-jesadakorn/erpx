@@ -2174,6 +2174,23 @@ async fn assemble_checked(
                         )),
                     )),
                 });
+                legal_targets.push(erpx_server_legal::public::legal_records::LegalHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: Arc::new(crate::legal::LegalBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::legal::LegalService::new(
+                            authorizer.clone(),
+                            crate::legal::LegalConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    )),
+                });
             }
         }
         #[cfg(feature = "existing-business")]
@@ -2545,23 +2562,6 @@ async fn assemble_checked(
                     );
                 }
                 #[cfg(feature = "existing-business")]
-                legal_targets.push(erpx_server_legal::public::legal_records::LegalHttpTarget {
-                    host: holding.host.clone(),
-                    holding_slug: holding.registration.slug.clone(),
-                    origin: format!("https://{}", holding.host),
-                    backend: Arc::new(crate::legal::LegalBackend::new(
-                        config.policy.clone(),
-                        Arc::new(FinanceJournalReadScopeHeaders),
-                        Arc::new(crate::legal::LegalService::new(
-                            authorizer.clone(),
-                            crate::legal::LegalConfiguration::new(
-                                holding.registration.holding_id.clone(),
-                                company.clone(),
-                            ),
-                            Arc::new(SharedClock(clock.clone())),
-                        )),
-                    )),
-                });
                 {
                     let benefits_backend = Arc::new(crate::benefits::BenefitsBackend::new(
                         config.policy.clone(),
@@ -6910,6 +6910,16 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         ["", "api", "v1", "holdings", _, "pms", ..] => state.policy.audience(host).is_some(),
         _ => false,
     };
+    let legal = match request
+        .uri()
+        .path()
+        .split('/')
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        ["", "api", "v1", "holdings", _, "legal", ..] => state.policy.audience(host).is_some(),
+        _ => false,
+    };
     let payroll = match request
         .uri()
         .path()
@@ -6968,6 +6978,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || payroll
         || quality
         || pms
+        || legal
         || service_packages
         || field_work_roles
         || field_operations

@@ -753,7 +753,11 @@ function responseHeaders(
   actor: NativeLegalPageContext,
   body: boolean,
 ): Headers {
-  const host = incoming.get('host');
+  const forwarded = incoming
+    .get('x-forwarded-host')
+    ?.split(',')[0]
+    ?.trim();
+  const host = forwarded && forwarded.length > 0 ? forwarded : incoming.get('host');
   if (!host) throw new NativeLegalError('NATIVE_LEGAL_AUTHORITY_INVALID');
   const headers = new Headers({
     host,
