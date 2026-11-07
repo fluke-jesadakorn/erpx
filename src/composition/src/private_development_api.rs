@@ -1918,6 +1918,30 @@ async fn assemble_checked(
                         },
                     );
                 }
+                if !config
+                    .finance_journal_reads
+                    .contains_key(&holding.registration.holding_id)
+                {
+                    quality_targets.push(
+                        erpx_server_quality::public::quality_http::QualityHttpTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: format!("https://{}", holding.host),
+                            backend: Arc::new(crate::quality::QualityBackend::new(
+                                config.policy.clone(),
+                                Arc::new(FinanceJournalReadScopeHeaders),
+                                Arc::new(crate::quality::QualityService::new(
+                                    authorizer.clone(),
+                                    crate::quality::QualityConfiguration::new(
+                                        holding.registration.holding_id.clone(),
+                                        company.clone(),
+                                    ),
+                                    Arc::new(SharedClock(clock.clone())),
+                                )),
+                            )),
+                        },
+                    );
+                }
                 operations_targets.push(
                     erpx_server_operations::public::operations_http::OperationsHttpTarget {
                         host: holding.host.clone(),
@@ -6614,6 +6638,16 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };
+    let quality = match request
+        .uri()
+        .path()
+        .split('/')
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        ["", "api", "v1", "holdings", _, "quality", ..] => state.policy.audience(host).is_some(),
+        _ => false,
+    };
     let payroll = match request
         .uri()
         .path()
@@ -6666,6 +6700,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || operations
         || maintenance
         || payroll
+        || quality
         || service_packages
         || field_work_roles
         || field_operations
