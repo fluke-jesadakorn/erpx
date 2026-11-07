@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T11:16:49+07:00",
+  "updatedAt": "2026-11-07T11:47:06+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -4734,7 +4734,7 @@
         "quality-http"
       ],
       "sourceRef": "packages/server-quality/src/public/quality.ts",
-      "gap": "Native Quality read/detail projection is implemented; specification and measurement writes remain retained."
+      "gap": "Native Quality workspace/detail is mounted and browser verified: the hold detail shows Inspection history 1 record \u00b7 pass \u00b7 Recorded by usr_nisa \u00b7 Visual inspection passed \u00b7 Reviewed hold version 2. Specification and measurement writes remain retained, so this workflow stays partial."
     },
     {
       "id": "quality/release-gates",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T11:16:49+07:00",
-    "sourceHead": "b3c93ab53",
+    "generatedAt": "2026-11-07T11:47:06+07:00",
+    "sourceHead": "1d7d61655",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7711,6 +7711,21 @@
           "people/people-payroll fixtures"
         ],
         "evidence": "browser payroll dashboard 200 with 2026-11 USD 1 run/1 person gross 1000.00 deductions 100.00 employer 200.00 net 900.00; people-payroll tests 2/2,18/18,1/1,4/4,6/6,4/4,2/2; typecheck passes",
+        "counts": {
+          "owners": 5,
+          "verified": 43,
+          "partial": 76,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T11:47:06+07:00",
+        "commit": "1d7d61655",
+        "bundles": [
+          "native Quality detail mount"
+        ],
+        "evidence": "browser quality hold detail 200 with inspection pass/evidence/reviewed version 2; Quality tests 7/7,10/10,5/5,19/19; typecheck passes; no count change because spec/measurement writes remain retained",
         "counts": {
           "owners": 5,
           "verified": 43,
