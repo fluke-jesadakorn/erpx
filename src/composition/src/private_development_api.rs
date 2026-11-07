@@ -205,6 +205,8 @@ struct ConfigurationDocument {
     #[serde(default)]
     operations_companies: Vec<FinanceReadDocument>,
     #[serde(default)]
+    platform_administration_companies: Vec<FinanceReadDocument>,
+    #[serde(default)]
     maintenance_companies: Vec<FinanceReadDocument>,
     #[serde(default)]
     finance_field_service_invoice_reads: Vec<String>,
@@ -319,6 +321,7 @@ pub struct DevelopmentApiConfiguration {
     pos_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     crm_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     operations_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
+    platform_administration_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     maintenance_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     finance_field_service_invoice_reads: BTreeSet<HoldingId>,
     finance_field_service_invoice_posts: BTreeSet<HoldingId>,
@@ -667,6 +670,22 @@ impl DevelopmentApiConfiguration {
                 || !operations_companies.entry(holding).or_default().insert(company)
             {
                 return Err("PRIVATE_API_OPERATIONS_CONFIGURATION_INVALID");
+            }
+        }
+        let mut platform_administration_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>> =
+            BTreeMap::new();
+        for read in doc.platform_administration_companies {
+            let holding = HoldingId::new(&read.holding_id)
+                .map_err(|_| "PRIVATE_API_PLATFORM_ADMINISTRATION_CONFIGURATION_INVALID")?;
+            let company = CompanyId::new(&read.company_id)
+                .map_err(|_| "PRIVATE_API_PLATFORM_ADMINISTRATION_CONFIGURATION_INVALID")?;
+            if !ids.contains(&read.holding_id)
+                || !platform_administration_companies
+                    .entry(holding)
+                    .or_default()
+                    .insert(company)
+            {
+                return Err("PRIVATE_API_PLATFORM_ADMINISTRATION_CONFIGURATION_INVALID");
             }
         }
         let mut maintenance_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>> = BTreeMap::new();
@@ -1291,6 +1310,7 @@ impl DevelopmentApiConfiguration {
             pos_companies,
             crm_companies,
             operations_companies,
+            platform_administration_companies,
             maintenance_companies,
             finance_field_service_invoice_reads,
             finance_field_service_invoice_posts,
@@ -1759,6 +1779,64 @@ async fn assemble_checked(
             }
         })
         .collect();
+    // Platform Administration has its own explicit Company binding. Its target
+    // must not depend on a Finance journal read or another business scope.
+    let mut platform_administration_targets = Vec::new();
+    for (i, holding) in config.holdings.iter().enumerate() {
+        let Some(companies) = config
+            .platform_administration_companies
+            .get(&holding.registration.holding_id)
+        else {
+            continue;
+        };
+        if companies.len() > 1 {
+            return Err("PRIVATE_API_PLATFORM_ADMINISTRATION_CONFIGURATION_INVALID");
+        }
+        for company in companies {
+            let authorizer = Arc::new(
+                HoldingWorkAuthorizer::new(
+                    pools[0].clone(),
+                    pools[i + 1].clone(),
+                    holding.registration.holding_id.clone(),
+                    (*config.policy).clone(),
+                    clock.clone(),
+                    config.holdings_registry.clone(),
+                )
+                .map_err(|_| "PRIVATE_API_PLATFORM_ADMINISTRATION_CONFIGURATION_INVALID")?,
+            );
+            platform_administration_targets.push(
+                erpx_server_platform_administration::public::platform_operations::PlatformHttpTarget {
+                    host: holding.host.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: Arc::new(crate::platform_administration::PlatformAdministrationBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::platform_administration::PlatformAdministrationService::new(
+                            authorizer,
+                            crate::platform_administration::PlatformAdministrationConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                holding.registration.slug.clone(),
+                                company.clone(),
+                                platform_administration_store.clone(),
+                                platform_administration_slots.clone(),
+                                platform_administration_holdings.clone(),
+                                pools[0].clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    )),
+                },
+            );
+        }
+    }
+    if !platform_administration_targets.is_empty() {
+        router = router.merge(
+            erpx_server_platform_administration::public::platform_operations::platform_router(
+                platform_administration_targets,
+            )
+            .map_err(|_| "PRIVATE_API_PLATFORM_ADMINISTRATION_CONFIGURATION_INVALID")?,
+        );
+    }
     if !config.finance_journal_reads.is_empty()
         || !config.pos_companies.is_empty()
         || !config.crm_companies.is_empty()
@@ -1798,7 +1876,6 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut crm_command_targets = Vec::new();
         let mut manage_erpx_targets = Vec::new();
-        let mut platform_administration_targets = Vec::new();
         let mut agent_evidence_targets = Vec::new();
         let mut records_context_targets = Vec::new();
         let mut records_registry_targets = Vec::new();
@@ -2430,28 +2507,6 @@ async fn assemble_checked(
                 );
 
                 if holding.registration.holding_id.as_str() == "h003" {
-                    platform_administration_targets.push(
-                    erpx_server_platform_administration::public::platform_operations::PlatformHttpTarget {
-                        host: holding.host.clone(),
-                        origin: format!("https://{}", holding.host),
-                        backend: Arc::new(crate::platform_administration::PlatformAdministrationBackend::new(
-                            config.policy.clone(),
-                            Arc::new(FinanceJournalReadScopeHeaders),
-                            Arc::new(crate::platform_administration::PlatformAdministrationService::new(
-                                authorizer.clone(),
-                                crate::platform_administration::PlatformAdministrationConfiguration::new(
-                                    holding.registration.holding_id.clone(),
-                                    company.clone(),
-                                    platform_administration_store.clone(),
-                                    platform_administration_slots.clone(),
-                                    platform_administration_holdings.clone(),
-                                    pools[0].clone(),
-                                ),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )),
-                    },
-                );
                     agent_evidence_targets.push(
                         erpx_server_platform_administration::public::agent_evidence_http::AgentEvidenceHttpTarget {
                             host: holding.host.clone(),
@@ -3292,14 +3347,6 @@ async fn assemble_checked(
             );
         }
 
-        if !platform_administration_targets.is_empty() {
-            router = router.merge(
-                erpx_server_platform_administration::public::platform_operations::platform_router(
-                    platform_administration_targets,
-                )
-                .map_err(|_| "PRIVATE_API_PLATFORM_ADMINISTRATION_CONFIGURATION_INVALID")?,
-            );
-        }
         if !agent_evidence_targets.is_empty() {
             router = router.merge(
                 erpx_server_platform_administration::public::agent_evidence_http::agent_evidence_http_router(
@@ -4293,6 +4340,17 @@ async fn assemble_checked(
                     .map(|h| (h.host.clone(), h.registration.slug.clone()))
             })
             .collect(),
+        platform_targets: config
+            .platform_administration_companies
+            .keys()
+            .filter_map(|holding_id| {
+                config
+                    .holdings
+                    .iter()
+                    .find(|h| &h.registration.holding_id == holding_id)
+                    .map(|h| (h.host.clone(), h.registration.slug.clone()))
+            })
+            .collect(),
         crm_targets: config
             .crm_companies
             .keys()
@@ -4515,6 +4573,7 @@ struct Boundary {
     finance_reversal_targets: BTreeSet<(String, String)>,
     pos_targets: BTreeSet<(String, String)>,
     operations_targets: BTreeSet<(String, String)>,
+    platform_targets: BTreeSet<(String, String)>,
     crm_targets: BTreeSet<(String, String)>,
     crm_command_targets: BTreeSet<(String, String)>,
     marketing_command_targets: BTreeSet<(String, String)>,
@@ -6758,6 +6817,35 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };
+    let platform_operations = match (
+        request.method(),
+        request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) {
+        (&axum::http::Method::GET, ["", "api", "v1", "platform", "operations"]) => state
+            .platform_targets
+            .iter()
+            .any(|(target_host, _)| target_host == host),
+        (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "platform",
+                "operations",
+                "provision" | "recover" | "migrate",
+            ],
+        ) => state
+            .platform_targets
+            .iter()
+            .any(|(target_host, _)| target_host == host),
+        _ => false,
+    };
     let crm = request.method() == axum::http::Method::GET
         && match request
             .uri()
@@ -6862,6 +6950,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
     ) || account_mfa
         || pos_command
         || operations
+        || platform_operations
         || crm
         || crm_command
         || marketing_command

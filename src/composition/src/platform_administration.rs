@@ -102,6 +102,7 @@ impl HoldingWorkSourcePreparation for PlatformAdministrationSources {
 #[derive(Clone)]
 pub struct PlatformAdministrationConfiguration {
     holding: HoldingId,
+    holding_slug: String,
     company: CompanyId,
     store: Arc<PgPlatformAdministration>,
     slots: Vec<PlatformResourceSlot>,
@@ -112,6 +113,7 @@ pub struct PlatformAdministrationConfiguration {
 impl PlatformAdministrationConfiguration {
     pub fn new(
         holding: HoldingId,
+        holding_slug: String,
         company: CompanyId,
         store: Arc<PgPlatformAdministration>,
         slots: Vec<PlatformResourceSlot>,
@@ -120,6 +122,7 @@ impl PlatformAdministrationConfiguration {
     ) -> Self {
         Self {
             holding,
+            holding_slug,
             company,
             store,
             slots,
@@ -131,6 +134,36 @@ impl PlatformAdministrationConfiguration {
     pub fn company(&self) -> &CompanyId {
         &self.company
     }
+}
+
+/// Next's server-only Platform Administration transport binds the exact work
+/// and Platform assignment identities back to the rendered context. Keep this
+/// shape distinct from the Agent evidence context, which has its own consumer.
+fn platform_context_value(
+    current: &AuthorizedWorkContext,
+    holding_slug: &str,
+    platform_assignment_id: &str,
+    platform_role: &str,
+) -> Value {
+    let selected = current.selection();
+    let workspace = selected.workspace();
+    let assignment = selected.assignment();
+    serde_json::json!({
+        "userId": current.user_id().as_str(),
+        "holdingId": current.holding_id().as_str(),
+        "holdingSlug": holding_slug,
+        "companyId": workspace.company_id.as_str(),
+        "branchId": workspace.branch_id.as_ref().map(|value| value.as_str()),
+        "departmentId": workspace.department_id.as_ref().map(|value| value.as_str()),
+        "workAssignmentId": assignment.id.as_str(),
+        "platformAssignmentId": platform_assignment_id,
+        "platformRole": platform_role,
+        "assignmentVersion": assignment.version,
+        "revision": selected.revision(),
+        "modules": current.modules(),
+        "permissions": current.command_iam_metadata().permissions,
+        "expiresAt": current.expires_at(),
+    })
 }
 
 fn context_value(current: &AuthorizedWorkContext) -> Value {
@@ -221,6 +254,7 @@ impl<C: Clock + Send + Sync + 'static> PlatformAdministrationService<C> {
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
         let holding = self.configuration.holding.clone();
+        let holding_slug = self.configuration.holding_slug.clone();
         let company = self.configuration.company.clone();
         let store = self.configuration.store.clone();
         let slots = self.configuration.slots.clone();
@@ -236,6 +270,7 @@ impl<C: Clock + Send + Sync + 'static> PlatformAdministrationService<C> {
                 PlatformAdministrationSources,
                 move |_connection, current| {
                     let holding = holding.clone();
+                    let holding_slug = holding_slug.clone();
                     let company = company.clone();
                     let store = store.clone();
                     let slots = slots.clone();
@@ -267,8 +302,8 @@ impl<C: Clock + Send + Sync + 'static> PlatformAdministrationService<C> {
                         }
                         let actor = PlatformActor {
                             user_id: current.user_id().as_str().to_owned(),
-                            assignment_id: platform_assignment_id,
-                            role,
+                            assignment_id: platform_assignment_id.clone(),
+                            role: role.clone(),
                         };
                         let snapshot = platform_operations_snapshot(
                             &actor,
@@ -287,7 +322,12 @@ impl<C: Clock + Send + Sync + 'static> PlatformAdministrationService<C> {
                         })?;
                         Ok(PlatformHttpResponse {
                             data,
-                            context: context_value(current),
+                            context: platform_context_value(
+                                current,
+                                &holding_slug,
+                                &platform_assignment_id,
+                                &role,
+                            ),
                         })
                     })
                 },
@@ -308,6 +348,7 @@ impl<C: Clock + Send + Sync + 'static> PlatformAdministrationService<C> {
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
         let holding = self.configuration.holding.clone();
+        let holding_slug = self.configuration.holding_slug.clone();
         let company = self.configuration.company.clone();
         let store = self.configuration.store.clone();
         let slots = self.configuration.slots.clone();
@@ -323,6 +364,7 @@ impl<C: Clock + Send + Sync + 'static> PlatformAdministrationService<C> {
                 PlatformAdministrationSources,
                 move |_connection, current| {
                     let holding = holding.clone();
+                    let holding_slug = holding_slug.clone();
                     let company = company.clone();
                     let store = store.clone();
                     let slots = slots.clone();
@@ -356,8 +398,8 @@ impl<C: Clock + Send + Sync + 'static> PlatformAdministrationService<C> {
                         }
                         let actor = PlatformActor {
                             user_id: current.user_id().as_str().to_owned(),
-                            assignment_id: platform_assignment_id,
-                            role,
+                            assignment_id: platform_assignment_id.clone(),
+                            role: role.clone(),
                         };
                         let data = match command {
                             PlatformHttpCommand::Provision(input) => {
@@ -435,7 +477,12 @@ impl<C: Clock + Send + Sync + 'static> PlatformAdministrationService<C> {
                         };
                         Ok(PlatformHttpResponse {
                             data,
-                            context: context_value(current),
+                            context: platform_context_value(
+                                current,
+                                &holding_slug,
+                                &platform_assignment_id,
+                                &role,
+                            ),
                         })
                     })
                 },
