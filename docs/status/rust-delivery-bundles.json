@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T10:49:36+07:00",
+  "updatedAt": "2026-11-07T11:16:49+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 77,
-    "workflowsVerified": 42,
-    "workflowsMerged": 42,
+    "workflowsPartial": 76,
+    "workflowsVerified": 43,
+    "workflowsMerged": 43,
     "ownersComplete": 5,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -4865,14 +4865,14 @@
       "kind": "module",
       "owner": "people_payroll",
       "scope": "Payroll summaries",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "people-payroll-native-summary"
       ],
       "sourceRef": "packages/server-people_payroll/src/public/people-payroll.ts",
-      "gap": "Native posted payroll summary and fail-closed Next/SSR cutover are implemented; composition mount complete; run detail and browser remain open."
+      "gap": "Closed. Native posted payroll summary is mounted and browser verified: /people/people/payroll/dashboard shows Posted payroll by pay month with 2026-11 \u00b7 USD \u00b7 1 run \u00b7 1 person \u00b7 gross 1000.00 \u00b7 deductions 100.00 \u00b7 employer 200.00 \u00b7 net 900.00 from the posted payroll run/item."
     },
     {
       "id": "people_payroll/feature-leave-requests",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T10:49:36+07:00",
-    "sourceHead": "2f9a274df",
+    "generatedAt": "2026-11-07T11:16:49+07:00",
+    "sourceHead": "b3c93ab53",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6606,8 +6606,8 @@
       },
       "people_payroll": {
         "workflows": 5,
-        "verified": 0,
-        "partial": 2,
+        "verified": 1,
+        "partial": 1,
         "unstarted": 3,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -7092,11 +7092,6 @@
     },
     "blockers": [
       {
-        "id": "people-payroll-browser-shell",
-        "detail": "Native payroll summary target is mounted, but the people product page remains \"Loading your workspace\u2026\" on /people/people/payroll/dashboard and other canonical paths return 404/403; no authenticated summary readback yet.",
-        "unblock": "Fix the people product shell/host cutover and canonical payroll route, then run the summary browser journey."
-      },
-      {
         "id": "pos-stripe-provider-configuration",
         "detail": "Operations exception lifecycle is closed. POS Stripe card/PromptPay tenders and refunds plus payment.retry/payment.cancel remain unverified because the keyed POS app has no POS_STRIPE_* configuration; no mock provider is accepted.",
         "unblock": "Provide the test-mode Stripe/Connect configuration for the isolated keyed workspace, or explicitly defer Stripe scope."
@@ -7118,8 +7113,8 @@
       }
     ],
     "nextActions": [
-      "Continue with the next dependency-ready non-Stripe owner partial; Maintenance is complete (5/5).",
-      "Await the Stripe/Connect test configuration for the remaining POS tender/refund/retry paths.",
+      "Continue with people_payroll/feature-payroll-runs or the next dependency-ready non-Stripe owner partial.",
+      "Await Stripe/Connect configuration for POS tenders/refunds/retry.",
       "Reconcile remote HEAD and keep counts tied to browser/HTTP evidence."
     ],
     "integrationLog": [
@@ -7704,6 +7699,22 @@
           "owners": 5,
           "verified": 42,
           "partial": 77,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T11:16:49+07:00",
+        "commit": "b3c93ab53",
+        "bundles": [
+          "native payroll summary mount",
+          "people/people-payroll fixtures"
+        ],
+        "evidence": "browser payroll dashboard 200 with 2026-11 USD 1 run/1 person gross 1000.00 deductions 100.00 employer 200.00 net 900.00; people-payroll tests 2/2,18/18,1/1,4/4,6/6,4/4,2/2; typecheck passes",
+        "counts": {
+          "owners": 5,
+          "verified": 43,
+          "partial": 76,
           "unstarted": 87,
           "total": 206
         }
