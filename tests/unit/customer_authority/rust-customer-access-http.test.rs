@@ -98,14 +98,29 @@ fn target_configuration_requires_distinct_exact_holdings() {
         backend: backend.clone(),
     };
     assert!(customer_access_http_router(vec![target()]).is_ok());
-    assert!(customer_access_http_router(vec![target(), target()]).is_err());
     assert!(
         customer_access_http_router(vec![CustomerAccessHttpTarget {
-            origin: "http://acme.example.test".into(),
+            origin: "https://acme.example.test:3443".into(),
             ..target()
         }])
-        .is_err()
+        .is_ok()
     );
+    assert!(customer_access_http_router(vec![target(), target()]).is_err());
+    for origin in [
+        "http://acme.example.test",
+        "https://acme.example.test:0",
+        "https://acme.example.test:65536",
+        "https://acme.example.test:abc",
+        "https://acme.example.test:3443:1",
+    ] {
+        assert!(
+            customer_access_http_router(vec![CustomerAccessHttpTarget {
+                origin: origin.into(),
+                ..target()
+            }])
+            .is_err()
+        );
+    }
     assert!(
         customer_access_http_router(vec![CustomerAccessHttpTarget {
             origin: "https://acme.example.test/path".into(),

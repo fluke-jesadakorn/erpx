@@ -46,6 +46,16 @@ const input={holdingSlug:'acme',expected:{companyId:'company',assignmentId:'assi
 const ok=(value:unknown)=>new Response(JSON.stringify(value),{status:200,headers:{'content-type':'application/json'}});
 
 describe('native Customer Authority customer-access transport',()=>{
+ it('accepts one bounded contributor Holding port and prefers the forwarded host',async()=>{
+  const contributor={...JSON.parse(config()),holdings:[{origin:'https://acme.example.com:3443',holdingSlug:'acme',holdingId:'h001'}]};
+  const transport=vi.fn().mockResolvedValue(ok({data:{rows:[row],sources:[source]},context}));
+  const access=createNativeCustomerAccessClient(nativeCustomerAccessConfiguration(JSON.stringify(contributor)),transport);
+  await access.workspace(incoming({host:'127.0.0.1:3206','x-forwarded-host':'acme.example.com:3443'}),actor,input);
+  expect(transport.mock.calls[0][2].get('host')).toBe('acme.example.com:3443');
+  for(const origin of ['https://acme.example.com:0','https://acme.example.com:65536','https://acme.example.com:abc'])
+    expect(()=>createNativeCustomerAccessClient(nativeCustomerAccessConfiguration(config({holdings:[{origin,holdingSlug:'acme',holdingId:'h001'}]})),vi.fn())).toThrow();
+ });
+
  it('forwards the exact workspace Host, session and context CAS',async()=>{
   const transport=vi.fn().mockResolvedValue(ok({data:{rows:[row],sources:[source]},context}));
   const access=createNativeCustomerAccessClient(nativeCustomerAccessConfiguration(config()),transport);

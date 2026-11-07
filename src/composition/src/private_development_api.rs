@@ -2229,6 +2229,25 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                customer_authority_targets.push(
+                    erpx_server_customer_authority::public::access_http::CustomerAccessHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::customer_authority::CustomerAuthorityBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::customer_authority::CustomerAuthorityService::new(
+                                authorizer.clone(),
+                                crate::customer_authority::CustomerAuthorityConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
             }
         }
         #[cfg(feature = "existing-business")]
@@ -2502,25 +2521,6 @@ async fn assemble_checked(
                 );
                 #[cfg(feature = "existing-business")]
                 #[cfg(feature = "existing-business")]
-                customer_authority_targets.push(
-                    erpx_server_customer_authority::public::access_http::CustomerAccessHttpTarget {
-                        host: holding.host.clone(),
-                        holding_slug: holding.registration.slug.clone(),
-                        origin: format!("https://{}", holding.host),
-                        backend: Arc::new(crate::customer_authority::CustomerAuthorityBackend::new(
-                            config.policy.clone(),
-                            Arc::new(FinanceJournalReadScopeHeaders),
-                            Arc::new(crate::customer_authority::CustomerAuthorityService::new(
-                                authorizer.clone(),
-                                crate::customer_authority::CustomerAuthorityConfiguration::new(
-                                    holding.registration.holding_id.clone(),
-                                    company.clone(),
-                                ),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )),
-                    },
-                );
                 #[cfg(feature = "existing-business")]
                 ecommerce_targets.push(
                     erpx_server_ecommerce::public::ecommerce_http::EcommerceHttpTarget {
@@ -6955,6 +6955,18 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         }
         _ => false,
     };
+    let customer_access = match request
+        .uri()
+        .path()
+        .split('/')
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        ["", "api", "v1", "holdings", _, "customer-access", ..] => {
+            state.policy.audience(host).is_some()
+        }
+        _ => false,
+    };
     let payroll = match request
         .uri()
         .path()
@@ -7016,6 +7028,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || legal
         || customer_timeline
         || planning
+        || customer_access
         || service_packages
         || field_work_roles
         || field_operations
