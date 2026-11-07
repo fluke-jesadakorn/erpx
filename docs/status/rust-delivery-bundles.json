@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T10:29:48+07:00",
+  "updatedAt": "2026-11-07T10:49:36+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T10:29:48+07:00",
-    "sourceHead": "da41ac640",
+    "generatedAt": "2026-11-07T10:49:36+07:00",
+    "sourceHead": "2f9a274df",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7092,6 +7092,11 @@
     },
     "blockers": [
       {
+        "id": "people-payroll-browser-shell",
+        "detail": "Native payroll summary target is mounted, but the people product page remains \"Loading your workspace\u2026\" on /people/people/payroll/dashboard and other canonical paths return 404/403; no authenticated summary readback yet.",
+        "unblock": "Fix the people product shell/host cutover and canonical payroll route, then run the summary browser journey."
+      },
+      {
         "id": "pos-stripe-provider-configuration",
         "detail": "Operations exception lifecycle is closed. POS Stripe card/PromptPay tenders and refunds plus payment.retry/payment.cancel remain unverified because the keyed POS app has no POS_STRIPE_* configuration; no mock provider is accepted.",
         "unblock": "Provide the test-mode Stripe/Connect configuration for the isolated keyed workspace, or explicitly defer Stripe scope."
@@ -7680,6 +7685,21 @@
           "maintenance owner completion"
         ],
         "evidence": "browser create form 200 {id:maintenance-eaaf2f20\u2026,version:1,status:open}; DB row open/v1/usr_mali and event version 1 create; detail history Version 1 \u00b7 create \u00b7 Created natively for the acceptance journey; Maintenance tests 6/6,3/3,2/2,1/1,1/1,2/2,2/2; Assets tests 4/4,10/10,17/17,2/2,13/13; typecheck passes",
+        "counts": {
+          "owners": 5,
+          "verified": 42,
+          "partial": 77,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T10:49:36+07:00",
+        "commit": "2f9a274df",
+        "bundles": [
+          "payroll summary browser investigation"
+        ],
+        "evidence": "native payroll summary target mounted via existing operations company binding; /people/people/payroll/dashboard stays Loading your workspace\u2026; alternate canonical paths 404/403; experiment reverted without changing counts",
         "counts": {
           "owners": 5,
           "verified": 42,
