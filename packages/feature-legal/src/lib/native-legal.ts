@@ -117,14 +117,17 @@ export async function nativeLegalDetail(
   return native.detail(incoming, context(actor), id);
 }
 
-/** Only the bounded document/hold/archive actions are selected natively. Other
- * Legal commands remain on the retained owner until their native slice lands. */
+/** Bounded document/hold/archive/member/share actions are selected natively.
+ * Other Legal commands remain on the retained owner until their native slice lands. */
 const COMMANDS = new Set([
   'document',
   'hold.create',
   'hold.request-release',
   'hold.release',
   'transition',
+  'share',
+  'share.revoke',
+  'member',
 ]);
 
 export function nativeLegalCommandSelected(body: unknown): boolean {

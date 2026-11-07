@@ -68,6 +68,7 @@ fn js_trim(value: &str) -> &str {
 #[derive(Clone, Debug)]
 pub struct LegalRecordsActor {
     pub holding_id: HoldingId,
+    pub holding_slug: String,
     pub company_id: CompanyId,
     pub user_id: UserId,
     pub assignment_id: erpx_server_shared::public::AssignmentId,
@@ -325,6 +326,7 @@ pub struct LegalCommandSource {
     pub editor: bool,
     pub frozen: bool,
     pub holds: Vec<LegalHoldSource>,
+    pub documents: Vec<String>,
     pub next_document_version: i64,
 }
 
@@ -342,6 +344,9 @@ pub enum LegalCommand {
     RequestHoldRelease { hold_id: String, reason: String },
     ReleaseHold { hold_id: String, reason: String },
     Archive { reason: String },
+    Share { document_id: String, email: String, expires_at: i64 },
+    RevokeShare { share_id: String },
+    SetMember { user_id: String, access: String },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -378,6 +383,19 @@ pub enum LegalCommandEffect {
     },
     Archive {
         reason: String,
+    },
+    Share {
+        share_id: String,
+        document_id: String,
+        email: String,
+        expires_at: i64,
+    },
+    RevokeShare {
+        share_id: String,
+    },
+    SetMember {
+        user_id: String,
+        access: String,
     },
 }
 
@@ -434,7 +452,14 @@ pub fn parse_envelope(raw: &Value) -> Result<LegalCommandEnvelope, BusinessError
         .ok_or_else(|| invalid("LEGAL_ACTION_REQUIRED", "Choose a current Legal action."))?;
     if !matches!(
         action,
-        "document" | "hold.create" | "hold.request-release" | "hold.release" | "transition"
+        "document"
+            | "hold.create"
+            | "hold.request-release"
+            | "hold.release"
+            | "transition"
+            | "share"
+            | "share.revoke"
+            | "member"
     ) {
         return Err(invalid(
             "LEGAL_ACTION_UNSUPPORTED",
@@ -477,6 +502,7 @@ pub fn command_permission(action: &str) -> Result<&'static str, BusinessError> {
         "document" | "transition" => Ok("legal.edit"),
         "hold.create" | "hold.request-release" => Ok("legal.hold"),
         "hold.release" => Ok("legal.hold.release"),
+        "share" | "share.revoke" | "member" => Ok("legal.share"),
         _ => Err(invalid(
             "LEGAL_ACTION_UNSUPPORTED",
             "This Legal action is not available through the native record command.",
@@ -533,6 +559,65 @@ pub fn parse_command(
         "transition" => Ok(LegalCommand::Archive {
             reason: reason(object)?,
         }),
+        "share" => {
+            let document_id = object
+                .get("documentId")
+                .and_then(Value::as_str)
+                .ok_or_else(|| invalid("LEGAL_DOCUMENT_REQUIRED", "Select a document from this record."))?;
+            if document_id.is_empty() || document_id.len() > 200 || document_id.chars().any(char::is_control) {
+                return Err(invalid("LEGAL_DOCUMENT_REQUIRED", "Select a document from this record."));
+            }
+            let email = object
+                .get("email")
+                .and_then(Value::as_str)
+                .map(js_trim)
+                .ok_or_else(|| invalid("LEGAL_EMAIL_REQUIRED", "Enter the verified account email."))?;
+            if email.len() < 3 || email.len() > 320 || email.chars().any(char::is_control) || !email.contains('@') {
+                return Err(invalid("LEGAL_EMAIL_REQUIRED", "Enter the verified account email."));
+            }
+            let expires_at = object
+                .get("expiresAt")
+                .and_then(Value::as_i64)
+                .filter(|value| *value > 0)
+                .ok_or_else(|| invalid("LEGAL_EXPIRY_REQUIRED", "Choose a bounded external access expiry."))?;
+            Ok(LegalCommand::Share {
+                document_id: document_id.to_owned(),
+                email: email.to_lowercase(),
+                expires_at,
+            })
+        }
+        "share.revoke" => {
+            let share_id = object
+                .get("shareId")
+                .and_then(Value::as_str)
+                .ok_or_else(|| invalid("LEGAL_SHARE_REQUIRED", "Choose a current external share."))?;
+            if share_id.is_empty() || share_id.len() > 200 || share_id.chars().any(char::is_control) {
+                return Err(invalid("LEGAL_SHARE_REQUIRED", "Choose a current external share."));
+            }
+            Ok(LegalCommand::RevokeShare {
+                share_id: share_id.to_owned(),
+            })
+        }
+        "member" => {
+            let user_id = object
+                .get("userId")
+                .and_then(Value::as_str)
+                .ok_or_else(|| invalid("LEGAL_PERSON_REQUIRED", "Choose an active person with access to this record."))?;
+            if user_id.is_empty() || user_id.len() > 200 || user_id.chars().any(char::is_control) {
+                return Err(invalid("LEGAL_PERSON_REQUIRED", "Choose an active person with access to this record."));
+            }
+            let access = object
+                .get("access")
+                .and_then(Value::as_str)
+                .ok_or_else(|| invalid("LEGAL_ACCESS_REQUIRED", "Choose read, edit or remove."))?;
+            if !matches!(access, "read" | "edit" | "remove") {
+                return Err(invalid("LEGAL_ACCESS_REQUIRED", "Choose read, edit or remove."));
+            }
+            Ok(LegalCommand::SetMember {
+                user_id: user_id.to_owned(),
+                access: access.to_owned(),
+            })
+        }
         _ => unreachable!("the envelope rejects unsupported actions"),
     }
 }
@@ -579,6 +664,9 @@ pub fn plan_command(
         LegalCommand::RequestHoldRelease { .. } => "hold.request-release",
         LegalCommand::ReleaseHold { .. } => "hold.release",
         LegalCommand::Archive { .. } => "transition",
+        LegalCommand::Share { .. } => "share",
+        LegalCommand::RevokeShare { .. } => "share.revoke",
+        LegalCommand::SetMember { .. } => "member",
     })?;
     require(actor, permission)?;
     if actor.is_requester() && !matches!(command, LegalCommand::AddDocument { .. }) {
@@ -737,6 +825,61 @@ pub fn plan_command(
                 "archived".to_owned(),
             )
         }
+        LegalCommand::Share {
+            document_id,
+            email,
+            expires_at,
+        } => {
+            if !source.documents.iter().any(|document| document == document_id) {
+                return Err(invalid(
+                    "LEGAL_DOCUMENT_REQUIRED",
+                    "Select a document from this record.",
+                ));
+            }
+            (
+                "share".to_owned(),
+                format!("Shared selected version with {email}"),
+                LegalCommandEffect::Share {
+                    share_id: derived_id("legal-share", key),
+                    document_id: document_id.clone(),
+                    email: email.clone(),
+                    expires_at: *expires_at,
+                },
+                None,
+                None,
+                item.state.clone(),
+            )
+        }
+        LegalCommand::RevokeShare { share_id } => (
+            "share.revoke".to_owned(),
+            "External access revoked".to_owned(),
+            LegalCommandEffect::RevokeShare {
+                share_id: share_id.clone(),
+            },
+            None,
+            None,
+            item.state.clone(),
+        ),
+        LegalCommand::SetMember { user_id, access } => {
+            if access == "remove" && (user_id == &item.created_by || user_id == &item.owner_id) {
+                return Err(BusinessError::new(
+                    FailureKind::Conflict,
+                    "LEGAL_OWNER_RETAINED",
+                    "Reassign ownership before removing the owner; creator membership is retained.",
+                ));
+            }
+            (
+                "member".to_owned(),
+                format!("{user_id}: {access}"),
+                LegalCommandEffect::SetMember {
+                    user_id: user_id.clone(),
+                    access: access.clone(),
+                },
+                None,
+                None,
+                item.state.clone(),
+            )
+        }
     };
     let next_version = envelope.expected_version.checked_add(1).ok_or_else(|| {
         invalid(
@@ -766,6 +909,9 @@ pub fn plan_command(
 fn result_state(command: &LegalCommand, item: &LegalRecord) -> String {
     match command {
         LegalCommand::Archive { .. } => "archived".to_owned(),
+        LegalCommand::Share { .. }
+        | LegalCommand::RevokeShare { .. }
+        | LegalCommand::SetMember { .. } => item.state.clone(),
         _ => item.state.clone(),
     }
 }
@@ -843,6 +989,7 @@ mod tests {
     fn actor(role: &str, permissions: &[&str]) -> LegalRecordsActor {
         LegalRecordsActor {
             holding_id: HoldingId::new("holding").unwrap(),
+            holding_slug: "acme".into(),
             company_id: CompanyId::new("company").unwrap(),
             user_id: UserId::new("user").unwrap(),
             assignment_id: erpx_server_shared::public::AssignmentId::new("assignment").unwrap(),
@@ -907,8 +1054,88 @@ mod tests {
                     same_person_release_requester: false,
                 },
             ],
+            documents: Vec::new(),
             next_document_version: 2,
         }
+    }
+
+    #[test]
+    fn share_and_member_commands_require_a_current_document_and_retain_the_owner() {
+        let share = json!({"action":"share","id":"item","expectedVersion":1,"documentId":"doc-1","email":" Person@Example.COM ","expiresAt":90000});
+        let envelope = parse_envelope(&share).unwrap();
+        assert_eq!(
+            parse_command(&share, &envelope).unwrap(),
+            LegalCommand::Share {
+                document_id: "doc-1".into(),
+                email: "person@example.com".into(),
+                expires_at: 90000,
+            }
+        );
+        let mut share_source = source("draft");
+        share_source.documents = vec!["doc-1".into()];
+        let plan = plan_command(
+            &actor("legal_manager", &["legal.read", "legal.share"]),
+            &share_source,
+            &envelope,
+            &parse_command(&share, &envelope).unwrap(),
+            "legal-share-command-0001",
+        )
+        .unwrap();
+        assert_eq!(plan.action, "share");
+        assert_eq!(
+            plan.effect,
+            LegalCommandEffect::Share {
+                share_id: derived_id("legal-share", "legal-share-command-0001"),
+                document_id: "doc-1".into(),
+                email: "person@example.com".into(),
+                expires_at: 90000,
+            }
+        );
+        let missing = json!({"action":"share","id":"item","expectedVersion":1,"documentId":"doc-x","email":"person@example.com","expiresAt":90000});
+        let missing_envelope = parse_envelope(&missing).unwrap();
+        assert_eq!(
+            plan_command(
+                &actor("legal_manager", &["legal.read", "legal.share"]),
+                &share_source,
+                &missing_envelope,
+                &parse_command(&missing, &missing_envelope).unwrap(),
+                "legal-share-command-0002",
+            )
+            .unwrap_err()
+            .code,
+            "LEGAL_DOCUMENT_REQUIRED"
+        );
+        let member = json!({"action":"member","id":"item","expectedVersion":1,"userId":"user","access":"read"});
+        let member_envelope = parse_envelope(&member).unwrap();
+        let plan = plan_command(
+            &actor("legal_manager", &["legal.read", "legal.share"]),
+            &share_source,
+            &member_envelope,
+            &parse_command(&member, &member_envelope).unwrap(),
+            "legal-member-command-0001",
+        )
+        .unwrap();
+        assert_eq!(
+            plan.effect,
+            LegalCommandEffect::SetMember {
+                user_id: "user".into(),
+                access: "read".into(),
+            }
+        );
+        let remove = json!({"action":"member","id":"item","expectedVersion":1,"userId":"user","access":"remove"});
+        let remove_envelope = parse_envelope(&remove).unwrap();
+        assert_eq!(
+            plan_command(
+                &actor("legal_manager", &["legal.read", "legal.share"]),
+                &share_source,
+                &remove_envelope,
+                &parse_command(&remove, &remove_envelope).unwrap(),
+                "legal-member-command-0002",
+            )
+            .unwrap_err()
+            .code,
+            "LEGAL_OWNER_RETAINED"
+        );
     }
 
     #[test]

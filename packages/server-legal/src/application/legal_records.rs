@@ -194,6 +194,7 @@ mod tests {
     fn actor(permissions: &[&str]) -> LegalRecordsActor {
         LegalRecordsActor {
             holding_id: HoldingId::new("holding").unwrap(),
+            holding_slug: "acme".into(),
             company_id: CompanyId::new("company").unwrap(),
             user_id: UserId::new("user").unwrap(),
             assignment_id: AssignmentId::new("assignment").unwrap(),
@@ -237,6 +238,7 @@ mod tests {
             editor,
             frozen: false,
             holds: Vec::new(),
+            documents: Vec::new(),
             next_document_version: 2,
         }
     }

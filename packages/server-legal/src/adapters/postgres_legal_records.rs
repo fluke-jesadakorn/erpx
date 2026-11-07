@@ -307,6 +307,113 @@ impl<'c> PgLegalRecords<'c> {
                     return Err(hold_state().into());
                 }
             }
+            LegalCommandEffect::Share {
+                share_id,
+                document_id,
+                email,
+                expires_at,
+            } => {
+                let belongs: bool = sqlx::query_scalar(
+                    "SELECT EXISTS(SELECT 1 FROM legal_documents WHERE id=$1 AND item_id=$2)",
+                )
+                .bind(document_id)
+                .bind(&plan.item_id)
+                .fetch_one(&mut *self.connection)
+                .await?;
+                if !belongs {
+                    return Err(invalid(
+                        "LEGAL_DOCUMENT_REQUIRED",
+                        "Select a document from this record.",
+                    )
+                    .into());
+                }
+                if *expires_at <= self.now + 60_000 || *expires_at > self.now + 90 * 86_400_000 {
+                    return Err(invalid(
+                        "LEGAL_EXPIRY_REQUIRED",
+                        "Choose an external access expiry between one minute and 90 days.",
+                    )
+                    .into());
+                }
+                sqlx::query(
+                    "INSERT INTO legal_shares(id,item_id,document_id,email,expires_at,created_by,created_at) \
+                     VALUES($1,$2,$3,$4,$5,$6,$7)",
+                )
+                .bind(share_id)
+                .bind(&plan.item_id)
+                .bind(document_id)
+                .bind(email)
+                .bind(expires_at)
+                .bind(actor.user_id.as_str())
+                .bind(self.now)
+                .execute(&mut *self.connection)
+                .await?;
+                sqlx::query(
+                    "INSERT INTO legal_invitation_jobs(id,share_id,holding_slug,state,created_at) \
+                     VALUES($1,$2,$3,'queued',$4)",
+                )
+                .bind(format!("legal-invitation-{}", short_hash(share_id)))
+                .bind(share_id)
+                .bind(actor.holding_slug.as_str())
+                .bind(self.now)
+                .execute(&mut *self.connection)
+                .await?;
+            }
+            LegalCommandEffect::RevokeShare { share_id } => {
+                let changed = sqlx::query(
+                    "UPDATE legal_shares SET revoked_at=$1,version=version+1 \
+                     WHERE id=$2 AND item_id=$3 AND revoked_at IS NULL",
+                )
+                .bind(self.now)
+                .bind(share_id)
+                .bind(&plan.item_id)
+                .execute(&mut *self.connection)
+                .await?
+                .rows_affected();
+                if changed != 1 {
+                    return Err(BusinessError::new(
+                        FailureKind::Conflict,
+                        "LEGAL_SHARE_STATE",
+                        "This external share is no longer active.",
+                    )
+                    .into());
+                }
+            }
+            LegalCommandEffect::SetMember { user_id, access } => {
+                if access == "remove" {
+                    sqlx::query("DELETE FROM legal_members WHERE item_id=$1 AND user_id=$2")
+                        .bind(&plan.item_id)
+                        .bind(user_id)
+                        .execute(&mut *self.connection)
+                        .await?;
+                } else {
+                    let eligible: bool = sqlx::query_scalar(
+                        "SELECT legal_person_eligible($1,$2,$3,$4,NULL)",
+                    )
+                    .bind(actor.company_id.as_str())
+                    .bind(user_id)
+                    .bind(actor.branch_id.as_ref().map(|value| value.as_str()))
+                    .bind(actor.department_id.as_ref().map(|value| value.as_str()))
+                    .fetch_one(&mut *self.connection)
+                    .await?;
+                    if !eligible {
+                        return Err(BusinessError::new(
+                            FailureKind::InvalidInput,
+                            "LEGAL_PERSON_UNAVAILABLE",
+                            "Choose an active person with access to this Company and record scope.",
+                        )
+                        .into());
+                    }
+                    sqlx::query(
+                        "INSERT INTO legal_members(item_id,user_id,access) VALUES($1,$2,$3) \
+                         ON CONFLICT(item_id,user_id) DO UPDATE SET access=excluded.access",
+                    )
+                    .bind(&plan.item_id)
+                    .bind(user_id)
+                    .bind(access)
+                    .execute(&mut *self.connection)
+                    .await?;
+                }
+            }
             LegalCommandEffect::Archive { .. } => {}
         }
         Ok(())
@@ -902,6 +1009,13 @@ impl LegalRecordsPorts for PgLegalRecords<'_> {
             let editor = self.editor(id, actor.user_id.as_str()).await?;
             let frozen = self.frozen(id).await?;
             let holds = self.hold_sources(actor, id).await?;
+            let documents = sqlx::query_scalar(
+                "SELECT id FROM legal_documents WHERE item_id=$1 ORDER BY version DESC LIMIT $2",
+            )
+            .bind(id)
+            .bind(DOCUMENT_LIMIT as i64)
+            .fetch_all(&mut *self.connection)
+            .await?;
             let next_document_version = self.next_document_version(id).await?;
             Ok(LegalCommandSource {
                 item,
@@ -909,6 +1023,7 @@ impl LegalRecordsPorts for PgLegalRecords<'_> {
                 editor,
                 frozen,
                 holds,
+                documents,
                 next_document_version,
             })
         })

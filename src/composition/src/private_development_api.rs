@@ -2185,6 +2185,7 @@ async fn assemble_checked(
                             authorizer.clone(),
                             crate::legal::LegalConfiguration::new(
                                 holding.registration.holding_id.clone(),
+                                holding.registration.slug.clone(),
                                 company.clone(),
                             ),
                             Arc::new(SharedClock(clock.clone())),

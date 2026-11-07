@@ -74,12 +74,17 @@ impl HoldingWorkSourcePreparation for LegalSources {
 #[derive(Clone)]
 pub struct LegalConfiguration {
     holding: HoldingId,
+    holding_slug: String,
     company: CompanyId,
 }
 
 impl LegalConfiguration {
-    pub fn new(holding: HoldingId, company: CompanyId) -> Self {
-        Self { holding, company }
+    pub fn new(holding: HoldingId, holding_slug: String, company: CompanyId) -> Self {
+        Self {
+            holding,
+            holding_slug,
+            company,
+        }
     }
 
     pub fn company(&self) -> &CompanyId {
@@ -87,11 +92,15 @@ impl LegalConfiguration {
     }
 }
 
-fn legal_actor(current: &AuthorizedWorkContext) -> Result<LegalRecordsActor, BusinessError> {
+fn legal_actor(
+    current: &AuthorizedWorkContext,
+    holding_slug: &str,
+) -> Result<LegalRecordsActor, BusinessError> {
     let selected = current.selection();
     let workspace = selected.workspace();
     Ok(LegalRecordsActor {
         holding_id: current.holding_id().clone(),
+        holding_slug: holding_slug.to_owned(),
         company_id: workspace.company_id.clone(),
         user_id: current.user_id().clone(),
         assignment_id: selected.assignment().id.clone(),
@@ -233,6 +242,7 @@ impl<C: Clock + Send + Sync + 'static> LegalService<C> {
     {
         let holding = self.configuration.holding.clone();
         let company = self.configuration.company.clone();
+        let holding_slug = self.configuration.holding_slug.clone();
         let _clock = self.clock.clone();
         self.authorizer
             .execute_with_sources_deferred(
@@ -244,6 +254,7 @@ impl<C: Clock + Send + Sync + 'static> LegalService<C> {
                 move |connection, current| {
                     let holding = holding.clone();
                     let company = company.clone();
+                    let holding_slug = holding_slug.clone();
                     let query = query.clone();
                     Box::pin(async move {
                         if current.holding_id() != &holding
@@ -252,7 +263,7 @@ impl<C: Clock + Send + Sync + 'static> LegalService<C> {
                             return Err(scope().into());
                         }
                         current.require_permission("legal.read")?;
-                        let actor = legal_actor(current)?;
+                        let actor = legal_actor(current, &holding_slug)?;
                         let mut ports = PgLegalRecords::new(connection, None, None);
                         let data = legal_register(&mut ports, &actor, query).await?;
                         Ok(LegalHttpReadReply::Register(Box::new(LegalRegisterReply {
@@ -277,6 +288,7 @@ impl<C: Clock + Send + Sync + 'static> LegalService<C> {
     {
         let holding = self.configuration.holding.clone();
         let company = self.configuration.company.clone();
+        let holding_slug = self.configuration.holding_slug.clone();
         self.authorizer
             .execute_with_sources_deferred(
                 host,
@@ -287,6 +299,7 @@ impl<C: Clock + Send + Sync + 'static> LegalService<C> {
                 move |connection, current| {
                     let holding = holding.clone();
                     let company = company.clone();
+                    let holding_slug = holding_slug.clone();
                     let id = id.clone();
                     Box::pin(async move {
                         if current.holding_id() != &holding
@@ -295,7 +308,7 @@ impl<C: Clock + Send + Sync + 'static> LegalService<C> {
                             return Err(scope().into());
                         }
                         current.require_permission("legal.read")?;
-                        let actor = legal_actor(current)?;
+                        let actor = legal_actor(current, &holding_slug)?;
                         let mut ports = PgLegalRecords::new(connection, None, None);
                         let data = legal_detail(&mut ports, &actor, &id).await?;
                         Ok(LegalHttpReadReply::Detail(Box::new(LegalDetailReply {
@@ -322,6 +335,7 @@ impl<C: Clock + Send + Sync + 'static> LegalService<C> {
     {
         let holding = self.configuration.holding.clone();
         let company = self.configuration.company.clone();
+        let holding_slug = self.configuration.holding_slug.clone();
         self.authorizer
             .execute_with_sources_deferred(
                 host,
@@ -332,6 +346,7 @@ impl<C: Clock + Send + Sync + 'static> LegalService<C> {
                 move |connection, current| {
                     let holding = holding.clone();
                     let company = company.clone();
+                    let holding_slug = holding_slug.clone();
                     let body = body.clone();
                     let key = key.clone();
                     let request_hash = request_hash.clone();
@@ -342,7 +357,7 @@ impl<C: Clock + Send + Sync + 'static> LegalService<C> {
                             return Err(scope().into());
                         }
                         current.require_permission("legal.read")?;
-                        let actor = legal_actor(current)?;
+                        let actor = legal_actor(current, &holding_slug)?;
                         let command_key =
                             CommandKey::new(key).map_err(PgTransactionError::Business)?;
                         let mut ports = PgLegalRecords::new(

@@ -174,6 +174,7 @@ impl LegalHttpBackend for HttpBackend {
 fn actor(role: &str, permissions: &[&str]) -> LegalRecordsActor {
     LegalRecordsActor {
         holding_id: HoldingId::new("holding").unwrap(),
+        holding_slug: "acme".into(),
         company_id: CompanyId::new("company").unwrap(),
         user_id: UserId::new("editor-user").unwrap(),
         assignment_id: AssignmentId::new("assignment").unwrap(),
@@ -284,6 +285,217 @@ async fn count(pool: &DatabasePool, table: &str) -> i64 {
         .fetch_one(pool.raw())
         .await
         .unwrap()
+}
+
+#[tokio::test]
+async fn legal_access_share_and_membership_are_native_and_replayable() {
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO assignments(id,user_id,role,modules_json,company_id,branch_id,valid_from,valid_until,revoked_at,version,scope_kind,scope_node_id,parent_id,source,source_id) \
+             VALUES('access-reviewer','reviewer-user','legal_manager','[\"legal\"]','company',NULL,0,9007199254740991,NULL,1,'holding',NULL,NULL,'legacy',NULL)",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let identity = Arc::new(Identity::default());
+        let notifier = Arc::new(Notifier { fail: false });
+        let editor = actor(
+            "legal_counsel",
+            &["legal.read", "legal.edit", "legal.share"],
+        );
+        let expires_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as i64
+            + 86_400_000;
+        let share_raw = serde_json::json!({
+            "action":"share",
+            "id":"contract-1",
+            "expectedVersion":1,
+            "documentId":"contract-1-v1",
+            "email":"Person@Example.COM",
+            "expiresAt":expires_at
+        });
+        let share = command(
+            &pool,
+            &editor,
+            &key("legal-share-command-0001"),
+            &share_raw,
+            notifier.clone(),
+            identity.clone(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(share["version"], 2);
+        assert_eq!(share["state"], "draft");
+        assert_eq!(
+            sqlx::query_scalar::<_, String>("SELECT email FROM legal_shares WHERE item_id='contract-1'")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            "person@example.com"
+        );
+        assert_eq!(count(&pool, "legal_invitation_jobs").await, 1);
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT holding_slug FROM legal_invitation_jobs LIMIT 1",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            "acme"
+        );
+        let replay = command(
+            &pool,
+            &editor,
+            &key("legal-share-command-0001"),
+            &share_raw,
+            notifier.clone(),
+            identity.clone(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(replay, share);
+        assert_eq!(count(&pool, "legal_shares").await, 1);
+        assert_eq!(count(&pool, "legal_invitation_jobs").await, 1);
+
+        let member_raw = serde_json::json!({
+            "action":"member",
+            "id":"contract-1",
+            "expectedVersion":2,
+            "userId":"reviewer-user",
+            "access":"read"
+        });
+        let member = command(
+            &pool,
+            &editor,
+            &key("legal-member-command-0001"),
+            &member_raw,
+            notifier.clone(),
+            identity.clone(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(member["version"], 3);
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT access FROM legal_members WHERE item_id='contract-1' AND user_id='reviewer-user'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            "read"
+        );
+        let outsider_raw = serde_json::json!({
+            "action":"member",
+            "id":"contract-1",
+            "expectedVersion":3,
+            "userId":"outsider",
+            "access":"read"
+        });
+        assert_eq!(
+            code(
+                command(
+                    &pool,
+                    &editor,
+                    &key("legal-member-command-0002"),
+                    &outsider_raw,
+                    notifier.clone(),
+                    identity.clone(),
+                )
+                .await
+                .unwrap_err()
+            ),
+            Some("LEGAL_PERSON_UNAVAILABLE")
+        );
+        let owner_remove = serde_json::json!({
+            "action":"member",
+            "id":"contract-1",
+            "expectedVersion":3,
+            "userId":"editor-user",
+            "access":"remove"
+        });
+        assert_eq!(
+            code(
+                command(
+                    &pool,
+                    &editor,
+                    &key("legal-member-command-0003"),
+                    &owner_remove,
+                    notifier.clone(),
+                    identity.clone(),
+                )
+                .await
+                .unwrap_err()
+            ),
+            Some("LEGAL_OWNER_RETAINED")
+        );
+
+        let share_id: String =
+            sqlx::query_scalar("SELECT id FROM legal_shares WHERE item_id='contract-1'")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        let revoke_raw = serde_json::json!({
+            "action":"share.revoke",
+            "id":"contract-1",
+            "expectedVersion":3,
+            "shareId":share_id
+        });
+        let revoke = command(
+            &pool,
+            &editor,
+            &key("legal-share-command-0002"),
+            &revoke_raw,
+            notifier.clone(),
+            identity.clone(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(revoke["version"], 4);
+        assert!(
+            sqlx::query_scalar::<_, Option<i64>>(
+                "SELECT revoked_at FROM legal_shares WHERE item_id='contract-1'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap()
+            .is_some()
+        );
+        let replay = command(
+            &pool,
+            &editor,
+            &key("legal-share-command-0002"),
+            &revoke_raw,
+            notifier,
+            identity,
+        )
+        .await
+        .unwrap();
+        assert_eq!(replay, revoke);
+        assert_eq!(count(&pool, "legal_shares").await, 1);
+        assert_eq!(count(&pool, "legal_invitation_jobs").await, 1);
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT count(*) FROM command_receipts WHERE record_id='contract-1' AND operation LIKE 'legal.%'"
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            3
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT count(*) FROM legal_events WHERE item_id='contract-1'"
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            3
+        );
+    })
+    .await;
 }
 
 #[tokio::test]
