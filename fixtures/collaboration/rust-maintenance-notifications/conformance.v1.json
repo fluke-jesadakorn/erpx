@@ -1,0 +1,450 @@
+{
+  "version": 1,
+  "revision": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
+  "node": "v26.11.1",
+  "description": "Actual B0 notification SQL only; no owner permission, PostgreSQL trigger, or release acceptance.",
+  "sources": [
+    {
+      "path": "packages/server-collaboration/src/adapters/maintenance-notifications.ts",
+      "sha256": "ed8ee0a2b1907489fa68e7f4e50595e3fa67869ad594e1380617d692ef654978"
+    },
+    {
+      "path": "packages/server-maintenance/src/adapters/collaboration-notification-snapshot-sources.ts",
+      "sha256": "a55503467a1a39e2679e7270a0ffbe96f6b1a351cfe5e130c1867bb2333d0ea1"
+    }
+  ],
+  "cases": [
+    {
+      "key": "xxxxxxxx",
+      "created": false,
+      "facts": {
+        "id": "work",
+        "company_id": "company",
+        "owner_id": "owner",
+        "version": 8,
+        "updated_at": 1800000000007
+      },
+      "sql": "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,company_id,owner_id,'maintenance_work',id,version,'Asset maintenance work updated: review current next action',updated_at FROM (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"asset_id\", \"title\", \"priority\", \"status\", \"owner_id\", \"scheduled_at\", \"downtime_started_at\", \"downtime_ended_at\", \"blocked_reason\", \"completion_evidence\", \"resulting_condition\", \"version\", \"created_by\", \"created_at\", \"updated_at\" FROM maintenance_work_orders) maintenance_work_orders WHERE id=?",
+      "parameters": [
+        "maintenance-notice-xxxxxxxx",
+        "work"
+      ],
+      "expected": {
+        "id": "maintenance-notice-xxxxxxxx",
+        "company_id": "company",
+        "user_id": "owner",
+        "record_type": "maintenance_work",
+        "record_id": "work",
+        "record_version": 8,
+        "message": "Asset maintenance work updated: review current next action",
+        "created_at": 1800000000007,
+        "read_at": null
+      }
+    },
+    {
+      "key": "xxxxxxxx",
+      "created": false,
+      "facts": {
+        "id": "งาน-🛠",
+        "company_id": "บริษัท",
+        "owner_id": "ผู้รับ",
+        "version": 9007199254740991,
+        "updated_at": 1800000000007
+      },
+      "sql": "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,company_id,owner_id,'maintenance_work',id,version,'Asset maintenance work updated: review current next action',updated_at FROM (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"asset_id\", \"title\", \"priority\", \"status\", \"owner_id\", \"scheduled_at\", \"downtime_started_at\", \"downtime_ended_at\", \"blocked_reason\", \"completion_evidence\", \"resulting_condition\", \"version\", \"created_by\", \"created_at\", \"updated_at\" FROM maintenance_work_orders) maintenance_work_orders WHERE id=?",
+      "parameters": [
+        "maintenance-notice-xxxxxxxx",
+        "งาน-🛠"
+      ],
+      "expected": {
+        "id": "maintenance-notice-xxxxxxxx",
+        "company_id": "บริษัท",
+        "user_id": "ผู้รับ",
+        "record_type": "maintenance_work",
+        "record_id": "งาน-🛠",
+        "record_version": 9007199254740991,
+        "message": "Asset maintenance work updated: review current next action",
+        "created_at": 1800000000007,
+        "read_at": null
+      }
+    },
+    {
+      "key": "xxxxxxxx",
+      "created": true,
+      "facts": {
+        "id": "work",
+        "company_id": "company",
+        "owner_id": "owner",
+        "version": 8,
+        "updated_at": 1800000000007
+      },
+      "sql": "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,company_id,owner_id,'maintenance_work',id,version,'New asset maintenance work: review schedule and condition',updated_at FROM (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"asset_id\", \"title\", \"priority\", \"status\", \"owner_id\", \"scheduled_at\", \"downtime_started_at\", \"downtime_ended_at\", \"blocked_reason\", \"completion_evidence\", \"resulting_condition\", \"version\", \"created_by\", \"created_at\", \"updated_at\" FROM maintenance_work_orders) maintenance_work_orders WHERE id=?",
+      "parameters": [
+        "maintenance-notice-xxxxxxxx",
+        "work"
+      ],
+      "expected": {
+        "id": "maintenance-notice-xxxxxxxx",
+        "company_id": "company",
+        "user_id": "owner",
+        "record_type": "maintenance_work",
+        "record_id": "work",
+        "record_version": 8,
+        "message": "New asset maintenance work: review schedule and condition",
+        "created_at": 1800000000007,
+        "read_at": null
+      }
+    },
+    {
+      "key": "xxxxxxxx",
+      "created": true,
+      "facts": {
+        "id": "งาน-🛠",
+        "company_id": "บริษัท",
+        "owner_id": "ผู้รับ",
+        "version": 9007199254740991,
+        "updated_at": 1800000000007
+      },
+      "sql": "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,company_id,owner_id,'maintenance_work',id,version,'New asset maintenance work: review schedule and condition',updated_at FROM (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"asset_id\", \"title\", \"priority\", \"status\", \"owner_id\", \"scheduled_at\", \"downtime_started_at\", \"downtime_ended_at\", \"blocked_reason\", \"completion_evidence\", \"resulting_condition\", \"version\", \"created_by\", \"created_at\", \"updated_at\" FROM maintenance_work_orders) maintenance_work_orders WHERE id=?",
+      "parameters": [
+        "maintenance-notice-xxxxxxxx",
+        "งาน-🛠"
+      ],
+      "expected": {
+        "id": "maintenance-notice-xxxxxxxx",
+        "company_id": "บริษัท",
+        "user_id": "ผู้รับ",
+        "record_type": "maintenance_work",
+        "record_id": "งาน-🛠",
+        "record_version": 9007199254740991,
+        "message": "New asset maintenance work: review schedule and condition",
+        "created_at": 1800000000007,
+        "read_at": null
+      }
+    },
+    {
+      "key": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "created": false,
+      "facts": {
+        "id": "work",
+        "company_id": "company",
+        "owner_id": "owner",
+        "version": 8,
+        "updated_at": 1800000000007
+      },
+      "sql": "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,company_id,owner_id,'maintenance_work',id,version,'Asset maintenance work updated: review current next action',updated_at FROM (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"asset_id\", \"title\", \"priority\", \"status\", \"owner_id\", \"scheduled_at\", \"downtime_started_at\", \"downtime_ended_at\", \"blocked_reason\", \"completion_evidence\", \"resulting_condition\", \"version\", \"created_by\", \"created_at\", \"updated_at\" FROM maintenance_work_orders) maintenance_work_orders WHERE id=?",
+      "parameters": [
+        "maintenance-notice-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "work"
+      ],
+      "expected": {
+        "id": "maintenance-notice-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "company_id": "company",
+        "user_id": "owner",
+        "record_type": "maintenance_work",
+        "record_id": "work",
+        "record_version": 8,
+        "message": "Asset maintenance work updated: review current next action",
+        "created_at": 1800000000007,
+        "read_at": null
+      }
+    },
+    {
+      "key": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "created": false,
+      "facts": {
+        "id": "งาน-🛠",
+        "company_id": "บริษัท",
+        "owner_id": "ผู้รับ",
+        "version": 9007199254740991,
+        "updated_at": 1800000000007
+      },
+      "sql": "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,company_id,owner_id,'maintenance_work',id,version,'Asset maintenance work updated: review current next action',updated_at FROM (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"asset_id\", \"title\", \"priority\", \"status\", \"owner_id\", \"scheduled_at\", \"downtime_started_at\", \"downtime_ended_at\", \"blocked_reason\", \"completion_evidence\", \"resulting_condition\", \"version\", \"created_by\", \"created_at\", \"updated_at\" FROM maintenance_work_orders) maintenance_work_orders WHERE id=?",
+      "parameters": [
+        "maintenance-notice-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "งาน-🛠"
+      ],
+      "expected": {
+        "id": "maintenance-notice-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "company_id": "บริษัท",
+        "user_id": "ผู้รับ",
+        "record_type": "maintenance_work",
+        "record_id": "งาน-🛠",
+        "record_version": 9007199254740991,
+        "message": "Asset maintenance work updated: review current next action",
+        "created_at": 1800000000007,
+        "read_at": null
+      }
+    },
+    {
+      "key": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "created": true,
+      "facts": {
+        "id": "work",
+        "company_id": "company",
+        "owner_id": "owner",
+        "version": 8,
+        "updated_at": 1800000000007
+      },
+      "sql": "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,company_id,owner_id,'maintenance_work',id,version,'New asset maintenance work: review schedule and condition',updated_at FROM (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"asset_id\", \"title\", \"priority\", \"status\", \"owner_id\", \"scheduled_at\", \"downtime_started_at\", \"downtime_ended_at\", \"blocked_reason\", \"completion_evidence\", \"resulting_condition\", \"version\", \"created_by\", \"created_at\", \"updated_at\" FROM maintenance_work_orders) maintenance_work_orders WHERE id=?",
+      "parameters": [
+        "maintenance-notice-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "work"
+      ],
+      "expected": {
+        "id": "maintenance-notice-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "company_id": "company",
+        "user_id": "owner",
+        "record_type": "maintenance_work",
+        "record_id": "work",
+        "record_version": 8,
+        "message": "New asset maintenance work: review schedule and condition",
+        "created_at": 1800000000007,
+        "read_at": null
+      }
+    },
+    {
+      "key": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "created": true,
+      "facts": {
+        "id": "งาน-🛠",
+        "company_id": "บริษัท",
+        "owner_id": "ผู้รับ",
+        "version": 9007199254740991,
+        "updated_at": 1800000000007
+      },
+      "sql": "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,company_id,owner_id,'maintenance_work',id,version,'New asset maintenance work: review schedule and condition',updated_at FROM (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"asset_id\", \"title\", \"priority\", \"status\", \"owner_id\", \"scheduled_at\", \"downtime_started_at\", \"downtime_ended_at\", \"blocked_reason\", \"completion_evidence\", \"resulting_condition\", \"version\", \"created_by\", \"created_at\", \"updated_at\" FROM maintenance_work_orders) maintenance_work_orders WHERE id=?",
+      "parameters": [
+        "maintenance-notice-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "งาน-🛠"
+      ],
+      "expected": {
+        "id": "maintenance-notice-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "company_id": "บริษัท",
+        "user_id": "ผู้รับ",
+        "record_type": "maintenance_work",
+        "record_id": "งาน-🛠",
+        "record_version": 9007199254740991,
+        "message": "New asset maintenance work: review schedule and condition",
+        "created_at": 1800000000007,
+        "read_at": null
+      }
+    },
+    {
+      "key": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "created": false,
+      "facts": {
+        "id": "work",
+        "company_id": "company",
+        "owner_id": "owner",
+        "version": 8,
+        "updated_at": 1800000000007
+      },
+      "sql": "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,company_id,owner_id,'maintenance_work',id,version,'Asset maintenance work updated: review current next action',updated_at FROM (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"asset_id\", \"title\", \"priority\", \"status\", \"owner_id\", \"scheduled_at\", \"downtime_started_at\", \"downtime_ended_at\", \"blocked_reason\", \"completion_evidence\", \"resulting_condition\", \"version\", \"created_by\", \"created_at\", \"updated_at\" FROM maintenance_work_orders) maintenance_work_orders WHERE id=?",
+      "parameters": [
+        "maintenance-notice-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "work"
+      ],
+      "expected": {
+        "id": "maintenance-notice-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "company_id": "company",
+        "user_id": "owner",
+        "record_type": "maintenance_work",
+        "record_id": "work",
+        "record_version": 8,
+        "message": "Asset maintenance work updated: review current next action",
+        "created_at": 1800000000007,
+        "read_at": null
+      }
+    },
+    {
+      "key": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "created": false,
+      "facts": {
+        "id": "งาน-🛠",
+        "company_id": "บริษัท",
+        "owner_id": "ผู้รับ",
+        "version": 9007199254740991,
+        "updated_at": 1800000000007
+      },
+      "sql": "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,company_id,owner_id,'maintenance_work',id,version,'Asset maintenance work updated: review current next action',updated_at FROM (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"asset_id\", \"title\", \"priority\", \"status\", \"owner_id\", \"scheduled_at\", \"downtime_started_at\", \"downtime_ended_at\", \"blocked_reason\", \"completion_evidence\", \"resulting_condition\", \"version\", \"created_by\", \"created_at\", \"updated_at\" FROM maintenance_work_orders) maintenance_work_orders WHERE id=?",
+      "parameters": [
+        "maintenance-notice-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "งาน-🛠"
+      ],
+      "expected": {
+        "id": "maintenance-notice-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "company_id": "บริษัท",
+        "user_id": "ผู้รับ",
+        "record_type": "maintenance_work",
+        "record_id": "งาน-🛠",
+        "record_version": 9007199254740991,
+        "message": "Asset maintenance work updated: review current next action",
+        "created_at": 1800000000007,
+        "read_at": null
+      }
+    },
+    {
+      "key": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "created": true,
+      "facts": {
+        "id": "work",
+        "company_id": "company",
+        "owner_id": "owner",
+        "version": 8,
+        "updated_at": 1800000000007
+      },
+      "sql": "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,company_id,owner_id,'maintenance_work',id,version,'New asset maintenance work: review schedule and condition',updated_at FROM (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"asset_id\", \"title\", \"priority\", \"status\", \"owner_id\", \"scheduled_at\", \"downtime_started_at\", \"downtime_ended_at\", \"blocked_reason\", \"completion_evidence\", \"resulting_condition\", \"version\", \"created_by\", \"created_at\", \"updated_at\" FROM maintenance_work_orders) maintenance_work_orders WHERE id=?",
+      "parameters": [
+        "maintenance-notice-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "work"
+      ],
+      "expected": {
+        "id": "maintenance-notice-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "company_id": "company",
+        "user_id": "owner",
+        "record_type": "maintenance_work",
+        "record_id": "work",
+        "record_version": 8,
+        "message": "New asset maintenance work: review schedule and condition",
+        "created_at": 1800000000007,
+        "read_at": null
+      }
+    },
+    {
+      "key": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "created": true,
+      "facts": {
+        "id": "งาน-🛠",
+        "company_id": "บริษัท",
+        "owner_id": "ผู้รับ",
+        "version": 9007199254740991,
+        "updated_at": 1800000000007
+      },
+      "sql": "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,company_id,owner_id,'maintenance_work',id,version,'New asset maintenance work: review schedule and condition',updated_at FROM (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"asset_id\", \"title\", \"priority\", \"status\", \"owner_id\", \"scheduled_at\", \"downtime_started_at\", \"downtime_ended_at\", \"blocked_reason\", \"completion_evidence\", \"resulting_condition\", \"version\", \"created_by\", \"created_at\", \"updated_at\" FROM maintenance_work_orders) maintenance_work_orders WHERE id=?",
+      "parameters": [
+        "maintenance-notice-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "งาน-🛠"
+      ],
+      "expected": {
+        "id": "maintenance-notice-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "company_id": "บริษัท",
+        "user_id": "ผู้รับ",
+        "record_type": "maintenance_work",
+        "record_id": "งาน-🛠",
+        "record_version": 9007199254740991,
+        "message": "New asset maintenance work: review schedule and condition",
+        "created_at": 1800000000007,
+        "read_at": null
+      }
+    },
+    {
+      "key": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "created": false,
+      "facts": {
+        "id": "work",
+        "company_id": "company",
+        "owner_id": "owner",
+        "version": 8,
+        "updated_at": 1800000000007
+      },
+      "sql": "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,company_id,owner_id,'maintenance_work',id,version,'Asset maintenance work updated: review current next action',updated_at FROM (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"asset_id\", \"title\", \"priority\", \"status\", \"owner_id\", \"scheduled_at\", \"downtime_started_at\", \"downtime_ended_at\", \"blocked_reason\", \"completion_evidence\", \"resulting_condition\", \"version\", \"created_by\", \"created_at\", \"updated_at\" FROM maintenance_work_orders) maintenance_work_orders WHERE id=?",
+      "parameters": [
+        "maintenance-notice-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "work"
+      ],
+      "expected": {
+        "id": "maintenance-notice-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "company_id": "company",
+        "user_id": "owner",
+        "record_type": "maintenance_work",
+        "record_id": "work",
+        "record_version": 8,
+        "message": "Asset maintenance work updated: review current next action",
+        "created_at": 1800000000007,
+        "read_at": null
+      }
+    },
+    {
+      "key": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "created": false,
+      "facts": {
+        "id": "งาน-🛠",
+        "company_id": "บริษัท",
+        "owner_id": "ผู้รับ",
+        "version": 9007199254740991,
+        "updated_at": 1800000000007
+      },
+      "sql": "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,company_id,owner_id,'maintenance_work',id,version,'Asset maintenance work updated: review current next action',updated_at FROM (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"asset_id\", \"title\", \"priority\", \"status\", \"owner_id\", \"scheduled_at\", \"downtime_started_at\", \"downtime_ended_at\", \"blocked_reason\", \"completion_evidence\", \"resulting_condition\", \"version\", \"created_by\", \"created_at\", \"updated_at\" FROM maintenance_work_orders) maintenance_work_orders WHERE id=?",
+      "parameters": [
+        "maintenance-notice-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "งาน-🛠"
+      ],
+      "expected": {
+        "id": "maintenance-notice-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "company_id": "บริษัท",
+        "user_id": "ผู้รับ",
+        "record_type": "maintenance_work",
+        "record_id": "งาน-🛠",
+        "record_version": 9007199254740991,
+        "message": "Asset maintenance work updated: review current next action",
+        "created_at": 1800000000007,
+        "read_at": null
+      }
+    },
+    {
+      "key": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "created": true,
+      "facts": {
+        "id": "work",
+        "company_id": "company",
+        "owner_id": "owner",
+        "version": 8,
+        "updated_at": 1800000000007
+      },
+      "sql": "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,company_id,owner_id,'maintenance_work',id,version,'New asset maintenance work: review schedule and condition',updated_at FROM (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"asset_id\", \"title\", \"priority\", \"status\", \"owner_id\", \"scheduled_at\", \"downtime_started_at\", \"downtime_ended_at\", \"blocked_reason\", \"completion_evidence\", \"resulting_condition\", \"version\", \"created_by\", \"created_at\", \"updated_at\" FROM maintenance_work_orders) maintenance_work_orders WHERE id=?",
+      "parameters": [
+        "maintenance-notice-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "work"
+      ],
+      "expected": {
+        "id": "maintenance-notice-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "company_id": "company",
+        "user_id": "owner",
+        "record_type": "maintenance_work",
+        "record_id": "work",
+        "record_version": 8,
+        "message": "New asset maintenance work: review schedule and condition",
+        "created_at": 1800000000007,
+        "read_at": null
+      }
+    },
+    {
+      "key": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "created": true,
+      "facts": {
+        "id": "งาน-🛠",
+        "company_id": "บริษัท",
+        "owner_id": "ผู้รับ",
+        "version": 9007199254740991,
+        "updated_at": 1800000000007
+      },
+      "sql": "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,company_id,owner_id,'maintenance_work',id,version,'New asset maintenance work: review schedule and condition',updated_at FROM (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"asset_id\", \"title\", \"priority\", \"status\", \"owner_id\", \"scheduled_at\", \"downtime_started_at\", \"downtime_ended_at\", \"blocked_reason\", \"completion_evidence\", \"resulting_condition\", \"version\", \"created_by\", \"created_at\", \"updated_at\" FROM maintenance_work_orders) maintenance_work_orders WHERE id=?",
+      "parameters": [
+        "maintenance-notice-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "งาน-🛠"
+      ],
+      "expected": {
+        "id": "maintenance-notice-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "company_id": "บริษัท",
+        "user_id": "ผู้รับ",
+        "record_type": "maintenance_work",
+        "record_id": "งาน-🛠",
+        "record_version": 9007199254740991,
+        "message": "New asset maintenance work: review schedule and condition",
+        "created_at": 1800000000007,
+        "read_at": null
+      }
+    }
+  ]
+}

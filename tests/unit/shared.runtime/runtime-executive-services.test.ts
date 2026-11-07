@@ -61,6 +61,18 @@ describe('Executive metrics keep exact calculations separate from source adapter
  test('unsafe floating point source values fail rather than round silently',()=>{expect(()=>exactInteger(Number.MAX_SAFE_INTEGER+1)).toThrow();expect(()=>exactInteger('1.5')).toThrow();});
  test('large integer totals remain exact beyond JavaScript number precision',()=>{expect(sumExact(['9007199254740993','9007199254740993'])).toBe('18014398509481986');});
  test('weighted percentage totals use summed numerators and denominators',async()=>{const result=await metricApp([{label:'one',numerator:'1',denominator:'2'},{label:'two',numerator:'9',denominator:'10'}]).queryMetric(metricActor,'hotel-occupancy',metricFilters);expect(result).toMatchObject({total:'8333',rows:[{label:'one',value:'5000'},{label:'two',value:'9000'}]});});
+ test('native Field completion facts retain the original report values and forbidden-module error',async()=>{
+  // Source membership/current authorization/audits execute in the native
+  // PostgreSQL case. This existing presentation port keeps its public wire values.
+  const fieldActor={...metricActor,modules:['field_service']};
+  for(const [breakdown,raw,rows]of [
+   ['default',[{label:'Field visits',numerator:'1',denominator:'2'}],[{label:'Field visits',value:'5000'}]],
+   ['month',[{label:'2026-10',numerator:'1',denominator:'2'}],[{label:'2026-10',value:'5000'}]],
+   ['status',[{label:'completed',numerator:'1',denominator:'1'},{label:'scheduled',numerator:'0',denominator:'1'}],[{label:'completed',value:'10000'},{label:'scheduled',value:'0'}]],
+  ] as const){const report=await metricApp([...raw]).queryMetric(fieldActor,'field-visit-completion',metricFilters,breakdown);expect(report).toMatchObject({total:'5000',rows});}
+  const read=vi.fn(async()=>{throw Error('Forbidden Field reader must not run');});
+  await expect(metricApp([],{read}).queryMetric({...fieldActor,modules:['support']},'field-visit-completion',metricFilters)).rejects.toMatchObject({code:'METRIC_FORBIDDEN'});expect(read).not.toHaveBeenCalled();
+ });
  test('invalid percentages are rejected with their stable business error',()=>{expect(()=>percentHundredths('11','10')).toThrow();expect(()=>percentHundredths('-1','10')).toThrow();expect(percentHundredths('0','0')).toBe('0');});
  test('money ratios round positive and negative half values symmetrically',()=>{expect(moneyRatioMinor('5','2')).toBe('3');expect(moneyRatioMinor('-5','2')).toBe('-3');expect(moneyRatioMinor('5','0')).toBe('0');});
  test('incompatible product units have no synthetic combined total',async()=>{const result=await metricApp([{label:'water',value:'1200',unit:'litre'},{label:'bolts',value:'4500',unit:'piece'}]).queryMetric(metricActor,'available-stock',metricFilters);expect(result).toMatchObject({total:null,valueScale:3,rows:[{label:'water',value:'1200',unit:'litre'},{label:'bolts',value:'4500',unit:'piece'}]});});

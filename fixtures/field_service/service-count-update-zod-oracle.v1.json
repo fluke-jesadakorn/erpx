@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "name": "defaults",
+      "raw": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"  first count  \",\"lines\":[{\"productId\":\"p\",\"countedQuantity\":\"2.00\"}]}",
+      "normalized": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"first count\",\"lines\":[{\"productId\":\"p\",\"countedQuantity\":\"2.00\",\"allocations\":[]}]}"
+    },
+    {
+      "name": "integer-float",
+      "raw": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"  first count  \",\"expectedVersion\":1.0,\"lines\":[{\"productId\":\"p\",\"countedQuantity\":\"2.00\"}]}",
+      "normalized": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"first count\",\"expectedVersion\":1,\"lines\":[{\"productId\":\"p\",\"countedQuantity\":\"2.00\",\"allocations\":[]}]}"
+    },
+    {
+      "name": "duplicate",
+      "raw": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"  first count  \",\"expectedVersion\":2,\"expectedVersion\":3,\"lines\":[{\"productId\":\"p\",\"countedQuantity\":\"2.00\"}]}",
+      "normalized": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"first count\",\"expectedVersion\":3,\"lines\":[{\"productId\":\"p\",\"countedQuantity\":\"2.00\",\"allocations\":[]}]}"
+    },
+    {
+      "name": "trim-feff",
+      "raw": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"\\ufeff First count \\ufeff\",\"lines\":[{\"productId\":\"p\",\"countedQuantity\":\"2.00\"}]}",
+      "normalized": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"First count\",\"lines\":[{\"productId\":\"p\",\"countedQuantity\":\"2.00\",\"allocations\":[]}]}"
+    },
+    {
+      "name": "preserve-nel",
+      "raw": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"\\u0085First count\\u0085\",\"lines\":[{\"productId\":\"p\",\"countedQuantity\":\"2.00\"}]}",
+      "normalized": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"First count\",\"lines\":[{\"productId\":\"p\",\"countedQuantity\":\"2.00\",\"allocations\":[]}]}"
+    },
+    {
+      "name": "surrogate",
+      "raw": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"  first count  \",\"lines\":[{\"productId\":\"\\ud800\",\"countedQuantity\":\"2.00\"}]}",
+      "normalized": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"first count\",\"lines\":[{\"productId\":\"\\ud800\",\"countedQuantity\":\"2.00\",\"allocations\":[]}]}"
+    },
+    {
+      "name": "unknown",
+      "raw": "{\"unknown\":{},\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"  first count  \",\"lines\":[{\"ignored\":true,\"productId\":\"p\",\"countedQuantity\":\"2.00\"}]}",
+      "normalized": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"first count\",\"lines\":[{\"productId\":\"p\",\"countedQuantity\":\"2.00\",\"allocations\":[]}]}"
+    },
+    {
+      "name": "unknown-surrogate-root",
+      "raw": "{\"\\ud800\":1,\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"  first count  \",\"lines\":[{\"productId\":\"p\",\"countedQuantity\":\"2.00\"}]}",
+      "normalized": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"first count\",\"lines\":[{\"productId\":\"p\",\"countedQuantity\":\"2.00\",\"allocations\":[]}]}"
+    },
+    {
+      "name": "unknown-surrogate-line",
+      "raw": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"  first count  \",\"lines\":[{\"\\ud800\":1,\"productId\":\"p\",\"countedQuantity\":\"2.00\"}]}",
+      "normalized": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"first count\",\"lines\":[{\"productId\":\"p\",\"countedQuantity\":\"2.00\",\"allocations\":[]}]}"
+    },
+    {
+      "name": "unknown-surrogate-lot",
+      "raw": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"  first count  \",\"lines\":[{\"productId\":\"p\",\"countedQuantity\":\"2.00\",\"allocations\":[{\"\\ud800\":1,\"lotCode\":\" A \",\"countedQuantity\":\"2.00\",\"unitCost\":\"1.50\"}]}]}",
+      "normalized": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"first count\",\"lines\":[{\"productId\":\"p\",\"countedQuantity\":\"2.00\",\"allocations\":[{\"lotCode\":\"A\",\"manufacturedDate\":\"\",\"expiryDate\":\"\",\"countedQuantity\":\"2.00\",\"unitCost\":\"1.50\"}]}]}"
+    },
+    {
+      "name": "nested-lots",
+      "raw": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"  first count  \",\"lines\":[{\"productId\":\"p\",\"countedQuantity\":\"2.00\",\"allocations\":[{\"lotCode\":\" A \",\"countedQuantity\":\"2.00\",\"unitCost\":\"1.50\",\"ignored\":true}]}]}",
+      "normalized": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"first count\",\"lines\":[{\"productId\":\"p\",\"countedQuantity\":\"2.00\",\"allocations\":[{\"lotCode\":\"A\",\"manufacturedDate\":\"\",\"expiryDate\":\"\",\"countedQuantity\":\"2.00\",\"unitCost\":\"1.50\"}]}]}"
+    },
+    {
+      "name": "two-lines",
+      "raw": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"  first count  \",\"lines\":[{\"productId\":\"p\",\"countedQuantity\":\"2.00\"},{\"productId\":\"p2\",\"countedQuantity\":\"0\"}]}",
+      "normalized": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"first count\",\"lines\":[{\"productId\":\"p\",\"countedQuantity\":\"2.00\",\"allocations\":[]},{\"productId\":\"p2\",\"countedQuantity\":\"0\",\"allocations\":[]}]}"
+    },
+    {
+      "name": "invalid-date",
+      "raw": "{\"warehouseId\":\"w\",\"countDate\":\"2026-02-30\",\"reason\":\"  first count  \",\"lines\":[{\"productId\":\"p\",\"countedQuantity\":\"2.00\"}]}",
+      "normalized": null
+    },
+    {
+      "name": "invalid-decimal",
+      "raw": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"  first count  \",\"lines\":[{\"productId\":\"p\",\"countedQuantity\":\"2.0001\"}]}",
+      "normalized": null
+    },
+    {
+      "name": "invalid-null",
+      "raw": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"  first count  \",\"expectedVersion\":null,\"lines\":[{\"productId\":\"p\",\"countedQuantity\":\"2.00\"}]}",
+      "normalized": null
+    },
+    {
+      "name": "unsafe-version",
+      "raw": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"  first count  \",\"expectedVersion\":9007199254740992,\"lines\":[{\"productId\":\"p\",\"countedQuantity\":\"2.00\"}]}",
+      "normalized": null
+    },
+    {
+      "name": "empty-lines",
+      "raw": "{\"warehouseId\":\"w\",\"countDate\":\"2026-09-01\",\"reason\":\"  first count  \",\"lines\":[]}",
+      "normalized": null
+    }
+  ]
+}

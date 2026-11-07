@@ -1,7 +1,7 @@
 import "server-only";
 import { createHash, createHmac } from "node:crypto";
 import type { PoolClient } from "pg";
-import { peopleAccessChange, type PeopleAccessChange, type PeopleAccessSnapshot, type PeopleAccessPreview, type AccessSubject } from "@erpx/feature-identity_access/lib/people-access";
+import { peopleAccessChange, type PeopleAccessChange, type PeopleAccessSnapshot, type PeopleAccessPreview, type AccessSubject, type PeopleRelationshipsSnapshot } from "@erpx/feature-identity_access/lib/people-access";
 import { permissionCatalog, hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { transactionDatabase, type PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
@@ -11,7 +11,7 @@ import { internalAccessPeople } from "@erpx/server-people_payroll/public/iam-sub
 import { accessUnitFacts } from "@erpx/server-organization/public/iam-unit-facts";
 import { stageInvitationPersonLinks } from "@erpx/server-people_payroll/public/identity-person-link-effects";
 import type { Invitation } from "@erpx/server-identity_access/domain/account-access";
-import { requireExternalReady, requireDelegatedRole, requireAccessDeadline } from "@erpx/server-identity_access/domain/people-access";
+import { requireDelegatedRole, requireAccessDeadline } from "@erpx/server-identity_access/domain/people-access";
 import type { IamActor } from "@erpx/server-identity_access/domain/iam-actor";
 import { assertCompanyScope } from "@erpx/server-identity_access/public/iam-context";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
@@ -24,10 +24,10 @@ import {validateIamGrant,insertIamGrant} from '@erpx/server-identity_access/publ
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 const json = <T,>(value: T | string): T => typeof value === "string" ? JSON.parse(value) : value;
 const unavailable = () => new ApiError(404, "ACCESS_OBJECT_UNAVAILABLE", "This object is unavailable in your selected Company.");
-function authorize(actor: IamActor, write = false) {
+function authorize(actor: IamActor, write = false, relationships = false) {
   if (actor.platform) throw new ApiError(403, "COMPANY_SCOPE_REQUIRED", "Select a Company workspace for People access.");
   assertCompanyScope(actor);
-  requirePermission(actor, write ? "iam.access.apply" : "iam.read");
+  requirePermission(actor, relationships ? write ? "people.relationships.manage" : "people.relationships.read" : write ? "iam.access.apply" : "iam.read");
 }
 async function snapshot(client: PoolClient, actor: IamActor): Promise<PeopleAccessSnapshot> {
   const db = transactionDatabase(client), company = actor.companyId;
@@ -39,20 +39,28 @@ async function snapshot(client: PoolClient, actor: IamActor): Promise<PeopleAcce
     client.query(`SELECT r.id,r.name,r.built_in AS "builtIn",r.published_revision AS revision,v.permissions_json AS permissions,v.grantable_json AS grantable,v.scopes_json AS scopes FROM iam_roles r JOIN iam_role_revisions v ON v.company_id=r.company_id AND v.role_id=r.id AND v.revision=r.published_revision WHERE r.company_id IN ('*',$1) AND r.status='active' ORDER BY r.name,r.id`, [company]),
     client.query(`SELECT id,user_id AS "userId",role AS "roleId",scope_kind AS "scopeKind",scope_node_id AS "scopeNodeId",valid_until AS "validUntil",version,iam_assignment_active(id,$2) AS active FROM assignments WHERE company_id=$1 AND revoked_at IS NULL ORDER BY user_id,id`, [company, Date.now()]),
     client.query(`SELECT valid_until FROM assignments WHERE id=$1 AND company_id=$2`, [actor.assignmentId, company]),
-    client.query(`SELECT user_id,person_id FROM iam_members WHERE company_id=$1`, [company]),
-    client.query(`SELECT id,status,user_id FROM iam_access_subjects WHERE company_id=$1 AND kind='internal'`, [company]),
+    client.query(`SELECT user_id,person_id,login_policy FROM iam_members WHERE company_id=$1`, [company]),
+    client.query(`SELECT id,status,user_id,name,email,person_id,version FROM iam_access_subjects WHERE company_id=$1 AND kind='internal'`, [company]),
   ]);
   const ceiling = actor.iam?.grantablePermissions ?? [];
   const availableRoles = roles.rows.map(r => ({ ...r, permissions:json<string[]>(r.permissions),grantable:json<string[]>(r.grantable),scopes:json<string[]>(r.scopes) }));
   const employees: AccessSubject[] = internal.map(p => ({ ...p, id: `employee:${p.personId}`, kind: "internal", organizationId: null, teamId: null, sponsorPersonId: null, expiresAt: null, version: 0, status: internalSubjects.rows.find(s => s.id === `employee:${p.personId}`)?.status ?? p.status }));
   const subjects: AccessSubject[] = [...employees, ...external.rows.map(p => ({ ...p, expiresAt: p.expiresAt == null ? null : Number(p.expiresAt) }))];
-  const missingUsers = [...new Set([...assignments.rows.map(a => a.userId), ...members.rows.map(m => m.user_id)])].filter(userId => !subjects.some(s => s.userId === userId));
+  for (const account of internalSubjects.rows.filter(s => !s.person_id && !subjects.some(p => p.userId && p.userId === s.user_id))) {
+    subjects.push({ id: account.id, name: account.name, email: account.email, kind: "unclassified", userId: account.user_id, personId: null, departmentId: null, organizationId: null, teamId: null, sponsorPersonId: null, expiresAt: null, status: account.status, version: account.version });
+  }
+  for (const subject of subjects) {
+    subject.classification = subject.kind === "internal" ? "employee" : subject.kind;
+    subject.linkedUserIds = [...new Set([...(subject.userId ? [subject.userId] : []), ...internal.filter(p => subject.personId && p.personId === subject.personId && p.userId).map(p => p.userId!), ...members.rows.filter(m => subject.personId && m.person_id === subject.personId).map(m => m.user_id)])].sort();
+    subject.accountSource = subject.userId ? members.rows.find(m => m.user_id === subject.userId)?.login_policy === "directory" ? "directory" : "local" : null;
+  }
+  const missingUsers = [...new Set([...assignments.rows.map(a => a.userId), ...members.rows.map(m => m.user_id)])].filter(userId => !subjects.some(s => s.linkedUserIds?.includes(userId)));
   if (missingUsers.length) {
     const env = await runtimeEnv();
     const accounts = (await env.CONTROL_DB.prepare(`SELECT id,name,email FROM "user" WHERE id IN (SELECT jsonb_array_elements_text(?::jsonb)) ORDER BY name,id`).bind(JSON.stringify(missingUsers)).all<{id:string;name:string;email:string}>()).results;
     for (const account of accounts) {
       const personId = members.rows.find(m => m.user_id === account.id)?.person_id ?? null, employee = employees.find(p => p.personId === personId);
-      subjects.push({ id: `account:${account.id}`, name: account.name, email: account.email, userId: account.id, personId, kind: employee ? "internal" : "external", departmentId: employee?.departmentId ?? null, organizationId: null, teamId: null, sponsorPersonId: null, expiresAt: null, status: "active", version: 0 });
+      subjects.push({ id: `account:${hash([company, account.id]).slice(0, 40)}`, name: account.name, email: account.email, userId: account.id, personId, kind: employee ? "internal" : "unclassified", classification: employee ? "employee" : "unclassified", linkedUserIds: [account.id], accountSource: members.rows.find(m => m.user_id === account.id)?.login_policy === "directory" ? "directory" : "local", departmentId: employee?.departmentId ?? null, organizationId: null, teamId: null, sponsorPersonId: null, expiresAt: null, status: "active", version: 0 });
     }
   }
   return {
@@ -64,9 +72,19 @@ async function snapshot(client: PoolClient, actor: IamActor): Promise<PeopleAcce
     canApply: hasPermission(actor, "iam.access.apply"), authorizingUntil: Number(parent.rows[0]?.valid_until ?? 0),
   };
 }
+function relationshipsOnly(data: PeopleAccessSnapshot, actor: IamActor): PeopleRelationshipsSnapshot {
+  return { subjects: data.subjects, organizations: data.organizations, teams: data.teams, units: data.units, canManage: hasPermission(actor, "people.relationships.manage") };
+}
+export async function peopleRelationshipsSnapshot(db: PostgresDatabase, actor: IamActor) {
+  authorize(actor, false, true);
+  return relationshipsOnly(await readSnapshot(db, actor), actor);
+}
 export async function peopleAccessSnapshot(db: PostgresDatabase, actor: IamActor) {
-  db = iamDb(db);
   authorize(actor);
+  return readSnapshot(db, actor);
+}
+async function readSnapshot(db: PostgresDatabase, actor: IamActor) {
+  db = iamDb(db);
   const client = await db.pool.connect();
   try { await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY"); const result = await snapshot(client, actor); await client.query("COMMIT"); return result; }
   catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
@@ -77,7 +95,7 @@ function findSubject(data: PeopleAccessSnapshot, id: string): AccessSubject {
 async function validate(client: PoolClient, actor: IamActor, data: PeopleAccessSnapshot, change: PeopleAccessChange) {
   const now = Date.now();
   if (change.operation === "organization" || change.operation === "team" || change.operation === "subject") {
-    const rows = change.operation === "organization" ? data.organizations : change.operation === "team" ? data.teams : data.subjects.filter(s => s.kind === "external");
+    const rows = change.operation === "organization" ? data.organizations : change.operation === "team" ? data.teams : data.subjects.filter(s => s.kind !== "internal");
     const old = change.id ? rows.find(r => r.id === change.id) : null;
     if (change.id && !old) throw unavailable();
     if (change.expectedVersion !== (old?.version ?? 0)) throw new ApiError(409, "ACCESS_OBJECT_CHANGED", "This record changed. Refresh and preview again.");
@@ -88,9 +106,10 @@ async function validate(client: PoolClient, actor: IamActor, data: PeopleAccessS
       if (change.teamId && !data.teams.some(t => t.id === change.teamId && t.organizationId === change.organizationId)) throw new ApiError(422, "TEAM_ORGANIZATION_MISMATCH", "Choose a team from this external organization.");
       if (change.sponsorPersonId && !data.subjects.some(s => s.kind === "internal" && s.personId === change.sponsorPersonId && s.status === "active")) throw new ApiError(422, "SPONSOR_UNAVAILABLE", "Choose an active employee in this Company.");
       const subject = old as AccessSubject | null;
-      if (subject?.userId && (await client.query("SELECT iam_same_person($1,$2,$3) same", [subject.userId, actor.userId, actor.companyId])).rows[0].same) throw new ApiError(403, "SELF_ACCESS_CHANGE", "Another administrator must change your access.");
-      if (subject?.userId && change.status === "active") requireExternalReady({ ...subject, ...change, kind: "external" }, now);
-      if (change.expiresAt != null && change.expiresAt <= now && change.status === "active") throw new ApiError(422, "EXPIRY_INVALID", "Choose a future relationship expiry.");
+      if (subject?.linkedUserIds?.length && (await client.query("SELECT 1 FROM unnest($1::text[]) account_id WHERE iam_same_person(account_id,$2,$3) LIMIT 1", [subject.linkedUserIds, actor.userId, actor.companyId])).rowCount) throw new ApiError(403, "SELF_ACCESS_CHANGE", "Another administrator must change your access.");
+      if (subject?.linkedUserIds?.length && (await client.query(`SELECT 1 FROM iam_members WHERE company_id=$1 AND user_id=ANY($2::text[]) AND login_policy='emergency' LIMIT 1`, [actor.companyId, subject.linkedUserIds])).rowCount)
+        throw new ApiError(403, "PROTECTED_ACCOUNT", "A protected recovery account cannot be changed through relationship management.");
+
     }
   }
   if (change.operation === "role") {
@@ -121,10 +140,15 @@ async function validate(client: PoolClient, actor: IamActor, data: PeopleAccessS
     if ((await client.query("SELECT iam_same_person($1,$2,$3) same", [assignment.userId, actor.userId, actor.companyId])).rows[0].same) throw new ApiError(403, "SELF_ACCESS_CHANGE", "Another administrator must change your access.");
   }
 }
-export async function previewPeopleAccess(db: PostgresDatabase, actor: IamActor, input: unknown): Promise<PeopleAccessPreview> {
+export async function previewPeopleRelationships(db: PostgresDatabase, actor: IamActor, input: unknown) {
+  return previewPeopleAccess(db, actor, input, true);
+}
+export async function previewPeopleAccess(db: PostgresDatabase, actor: IamActor, input: unknown, relationships = false): Promise<PeopleAccessPreview> {
   db = iamDb(db);
-  authorize(actor, true); await requireFreshMfa(actor);
-  const change = peopleAccessChange.parse(input), token = crypto.randomUUID(), expiresAt = Date.now() + 600000;
+  authorize(actor, true, relationships); await requireFreshMfa(actor);
+  const change = peopleAccessChange.parse(input);
+  if (relationships && !["organization", "team", "subject"].includes(change.operation)) throw new ApiError(403, "RELATIONSHIP_COMMAND_REQUIRED", "People can change relationship details only.");
+  const token = crypto.randomUUID(), expiresAt = Date.now() + 600000;
   const client = await db.pool.connect();
   try {
     await client.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
@@ -135,23 +159,29 @@ export async function previewPeopleAccess(db: PostgresDatabase, actor: IamActor,
     await client.query("COMMIT"); return { token, change, summary, affected, expiresAt };
   } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
 }
-export async function applyPeopleAccess(db: PostgresDatabase, actor: IamActor, token: string, key: string) {
+export async function applyPeopleRelationships(db: PostgresDatabase, actor: IamActor, token: string, key: string) {
+  return applyPeopleAccess(db, actor, token, key, true);
+}
+export async function applyPeopleAccess(db: PostgresDatabase, actor: IamActor, token: string, key: string, relationships = false) {
   db = iamDb(db);
-  authorize(actor, true); await requireFreshMfa(actor);
-  const result = await iamCommand(db, actor, key, "people.access.apply", { token }, "iam.access.apply", async client => {
+  authorize(actor, true, relationships); await requireFreshMfa(actor);
+  const result = await iamCommand(db, actor, key, relationships ? "people.relationships.apply" : "people.access.apply", { token }, relationships ? "people.relationships.manage" : "iam.access.apply", async client => {
     const preview = (await client.query(`SELECT * FROM iam_access_previews WHERE token=$1 AND company_id=$2 AND actor_id=$3 AND assignment_id=$4 AND session_id=$5 AND expires_at>$6 FOR UPDATE`, [token, actor.companyId, actor.userId, actor.assignmentId, actor.sessionId, Date.now()])).rows[0];
     if (!preview) throw new ApiError(409, "PREVIEW_EXPIRED", "Preview this change again.");
     const data = await snapshot(client, actor), change = peopleAccessChange.parse(json(preview.change));
+    if (relationships && !["organization", "team", "subject"].includes(change.operation)) throw new ApiError(403, "RELATIONSHIP_COMMAND_REQUIRED", "People can change relationship details only.");
     if (preview.fingerprint !== hash(data)) throw new ApiError(409, "PREVIEW_CHANGED", "People or permissions changed. Refresh and preview again.");
     await validate(client, actor, data, change);
     const id = "id" in change && change.id ? change.id : `${change.operation === "role" ? "custom_" : "iam-" + change.operation + "-"}${crypto.randomUUID()}`;
-    if (change.operation === "organization") {
+    if (change.operation === "account") {
+      await client.query(`INSERT INTO iam_access_subjects(id,company_id,kind,name,email) VALUES($1,$2,'internal',$3,$4)`, [id, actor.companyId, change.name, change.email]);
+    } else if (change.operation === "organization") {
       await client.query(`INSERT INTO iam_external_organizations(id,company_id,name,kind) VALUES($1,$2,$3,$4) ON CONFLICT(id) DO UPDATE SET name=$3,kind=$4,version=iam_external_organizations.version+1`, [id, actor.companyId, change.name, change.kind]);
     } else if (change.operation === "team") {
       await client.query(`INSERT INTO iam_external_teams(id,company_id,organization_id,name,department_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(id) DO UPDATE SET organization_id=$3,name=$4,department_id=$5,version=iam_external_teams.version+1`, [id, actor.companyId, change.organizationId, change.name, change.departmentId]);
     } else if (change.operation === "subject") {
       const old = data.subjects.find(s => s.id === change.id);
-      await client.query(`INSERT INTO iam_access_subjects(id,company_id,kind,name,email,organization_id,team_id,sponsor_person_id,expires_at,status,user_id,person_id) VALUES($1,$2,'external',$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(id) DO UPDATE SET name=$3,email=$4,organization_id=$5,team_id=$6,sponsor_person_id=$7,expires_at=$8,status=$9,version=iam_access_subjects.version+1`, [id, actor.companyId, change.name, change.email, change.organizationId, change.teamId, change.sponsorPersonId, change.expiresAt, change.status, old?.userId ?? null, old?.personId ?? null]);
+      await client.query(`INSERT INTO iam_access_subjects(id,company_id,kind,name,email,organization_id,team_id,sponsor_person_id,expires_at,status,user_id,person_id) VALUES($1,$2,'external',$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(id) DO UPDATE SET kind='external',name=$3,email=$4,organization_id=$5,team_id=$6,sponsor_person_id=$7,expires_at=$8,status=$9,version=iam_access_subjects.version+1`, [id, actor.companyId, change.name, change.email, change.organizationId, change.teamId, change.sponsorPersonId, change.expiresAt, change.status, old?.userId ?? null, old?.personId ?? null]);
     } else if (change.operation === "role") {
       await client.query(`INSERT INTO iam_roles(company_id,id,name,built_in) VALUES($1,$2,$3,false) ON CONFLICT(company_id,id) DO UPDATE SET name=$3`, [actor.companyId, id, change.name]);
       const revision = Number((await client.query("SELECT COALESCE(max(revision),0)+1 next FROM iam_role_revisions WHERE company_id=$1 AND role_id=$2", [actor.companyId, id])).rows[0].next);
@@ -176,7 +206,7 @@ export async function applyPeopleAccess(db: PostgresDatabase, actor: IamActor, t
       }
       const userId = subject.userId ?? existingUserId ?? `usr_invite_${invitationId}`;
       if (invitationId) {
-        if (subject.kind === "internal") {
+        if (subject.kind !== "external") {
           await client.query(`INSERT INTO iam_access_subjects(id,company_id,kind,name,email,user_id,person_id,status) VALUES($1,$2,'internal',$3,$4,$5,$6,'invited') ON CONFLICT(id) DO UPDATE SET user_id=$5,status='invited',version=iam_access_subjects.version+1`, [subject.id, actor.companyId, subject.name, subject.email, userId, subject.personId]);
         } else await client.query("UPDATE iam_access_subjects SET user_id=$3,status='invited',version=version+1 WHERE id=$1 AND company_id=$2", [subject.id, actor.companyId, userId]);
         await client.query(`INSERT INTO iam_members(company_id,user_id,principal_id,person_id) VALUES($1,$2,$3,$4)`, [actor.companyId, userId, `principal-${invitationId}`, subject.personId]);
@@ -224,7 +254,7 @@ export async function directInvitationEligible(db: SqlDatabase, row: Invitation,
     .first<{kind:string;person_id:string|null;sponsor_person_id:string|null;author_role:string;state:string}>();
   if (!invitation) return null;
   const internal = await internalAccessPeople(db, row.company_id);
-  if (invitation.kind === "internal" && !internal.some(p => p.personId === invitation.person_id && p.status === "active" && (!p.userId || p.userId === userId))) return null;
+  if (invitation.kind === "internal" && invitation.person_id && !internal.some(p => p.personId === invitation.person_id && p.status === "active" && (!p.userId || p.userId === userId))) return null;
   if (invitation.kind === "external" && !internal.some(p => p.personId === invitation.sponsor_person_id && p.status === "active")) return null;
   return { role: invitation.author_role };
 }
@@ -236,7 +266,7 @@ export async function activateDirectInvitation(db: PostgresDatabase, row: Invita
     if (!await directInvitationEligible(tx, row, userId, now)) throw new ApiError(409, "INVITATION_NO_LONGER_ELIGIBLE", "The relationship or authorizing access is no longer active.");
     const record = (await client.query("SELECT i.state,s.kind,s.person_id FROM iam_access_invitations i JOIN iam_access_subjects s ON s.id=i.subject_id AND s.company_id=i.company_id WHERE i.id=$1 AND i.company_id=$2 FOR UPDATE OF i,s", [row.id, row.company_id])).rows[0];
     if (record.state !== "accepted") {
-      if (record.kind === "internal") await tx.batch(stageInvitationPersonLinks(tx, userId, record.person_id, now));
+      if (record.kind === "internal" && record.person_id) await tx.batch(stageInvitationPersonLinks(tx, userId, record.person_id, now));
       await client.query("UPDATE iam_access_subjects SET status='active',version=version+1 WHERE id=$1 AND company_id=$2", [row.person_id, row.company_id]);
       await client.query("UPDATE iam_access_invitations SET state='accepted' WHERE id=$1 AND company_id=$2", [row.id, row.company_id]);
       await client.query("INSERT INTO iam_audit VALUES($1,$2,$3,$4,'invitation.accept',$5,$6,$7)", [crypto.randomUUID(), row.company_id, userId, row.assignment_id, row.id, { subjectId: row.person_id, method: "direct-invitation" }, now]);

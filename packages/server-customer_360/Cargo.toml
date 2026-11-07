@@ -1,0 +1,45 @@
+[package]
+name = "erpx-server-customer-360"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+erpx-server-shared.workspace = true
+erpx-server-runtime.workspace = true
+sqlx.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+uuid.workspace = true
+
+[[test]]
+name = "customer_directory"
+path = "../../tests/unit/customer_360/rust-customer-directory.test.rs"
+
+[[test]]
+name = "customer_timeline"
+path = "../../tests/unit/customer_360/rust-customer-timeline.test.rs"
+
+[[test]]
+name = "customer_timeline_http"
+path = "../../tests/integration/customer_360/rust-customer-timeline-http.test.rs"
+
+[[test]]
+name = "customer_directory_postgres"
+path = "../../tests/integration/customer_360/rust-customer-directory-postgres.test.rs"
+
+[[test]]
+name = "customer_timeline_postgres"
+path = "../../tests/integration/customer_360/rust-customer-timeline-postgres.test.rs"
+
+[lints]
+workspace = true

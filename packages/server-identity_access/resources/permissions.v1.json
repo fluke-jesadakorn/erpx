@@ -1,0 +1,3410 @@
+[
+  {
+    "id": "manage_erpx.access",
+    "label": "Access Manage ERPX",
+    "module": "manage_erpx",
+    "roles": [
+      "holding_owner"
+    ],
+    "conditions": [
+      "ERPX Holding and active Platform assignment"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding"
+    ]
+  },
+  {
+    "id": "billing.usage.read",
+    "label": "View measured usage",
+    "module": "billing",
+    "roles": [
+      "holding_owner",
+      "operations_manager"
+    ],
+    "conditions": [
+      "Holding owners see their Holding; branch operations managers see only their selected Branch"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "inbox.notice.broadcast",
+    "label": "Broadcast a staff notice",
+    "module": "collaboration",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "support_manager",
+      "quality_manager",
+      "legal_manager",
+      "pms_manager",
+      "pos_manager",
+      "people_manager",
+      "sales_manager",
+      "purchasing_manager",
+      "warehouse_manager",
+      "operations_manager"
+    ],
+    "conditions": [
+      "Current Company, Branch, or Department assignment scope"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "support.read",
+    "label": "Support read",
+    "module": "support",
+    "roles": [
+      "holding_owner",
+      "support_agent",
+      "support_manager",
+      "sales_operator",
+      "sales_manager"
+    ],
+    "conditions": [
+      "Source scope; current eligible owner; independent recorded customer confirmation"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "support.create",
+    "label": "Support create",
+    "module": "support",
+    "roles": [
+      "holding_owner",
+      "support_agent",
+      "support_manager",
+      "sales_operator",
+      "sales_manager"
+    ],
+    "conditions": [
+      "Source scope; current eligible owner; independent recorded customer confirmation"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "support.work",
+    "label": "Support work",
+    "module": "support",
+    "roles": [
+      "holding_owner",
+      "support_agent",
+      "support_manager"
+    ],
+    "conditions": [
+      "Source scope; current eligible owner; independent recorded customer confirmation"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "support.manage",
+    "label": "Support manage",
+    "module": "support",
+    "roles": [
+      "holding_owner",
+      "support_manager"
+    ],
+    "conditions": [
+      "Source scope; current eligible owner; independent recorded customer confirmation"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "legal.destroy",
+    "label": "Authorize Legal destruction",
+    "module": "legal",
+    "roles": [
+      "holding_owner",
+      "legal_manager"
+    ],
+    "conditions": [
+      "Independent approval; no active hold; approved retention policy"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "legal.read",
+    "label": "Legal: read",
+    "module": "legal",
+    "roles": [
+      "holding_owner",
+      "legal_counsel",
+      "legal_manager",
+      "legal_requester"
+    ],
+    "conditions": [
+      "Explicit membership for confidential and restricted records; requesters may access only their own requests"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "legal.create",
+    "label": "Legal: create",
+    "module": "legal",
+    "roles": [
+      "holding_owner",
+      "legal_counsel",
+      "legal_manager",
+      "legal_requester"
+    ],
+    "conditions": [
+      "Explicit membership for confidential and restricted records; requesters may access only their own requests"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "legal.edit",
+    "label": "Legal: edit",
+    "module": "legal",
+    "roles": [
+      "holding_owner",
+      "legal_counsel",
+      "legal_manager",
+      "legal_requester"
+    ],
+    "conditions": [
+      "Explicit membership for confidential and restricted records; requesters may access only their own requests"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "legal.review",
+    "label": "Legal: review",
+    "module": "legal",
+    "roles": [
+      "holding_owner",
+      "legal_counsel",
+      "legal_manager"
+    ],
+    "conditions": [
+      "Explicit membership for confidential and restricted records; requesters may access only their own requests"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "legal.approve",
+    "label": "Legal: approve",
+    "module": "legal",
+    "roles": [
+      "holding_owner",
+      "legal_counsel",
+      "legal_manager"
+    ],
+    "conditions": [
+      "Explicit membership for confidential and restricted records; requesters may access only their own requests"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "legal.sign",
+    "label": "Legal: sign",
+    "module": "legal",
+    "roles": [
+      "holding_owner",
+      "legal_counsel",
+      "legal_manager"
+    ],
+    "conditions": [
+      "Explicit membership for confidential and restricted records; requesters may access only their own requests"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "legal.share",
+    "label": "Legal: share",
+    "module": "legal",
+    "roles": [
+      "holding_owner",
+      "legal_counsel",
+      "legal_manager"
+    ],
+    "conditions": [
+      "Explicit membership for confidential and restricted records; requesters may access only their own requests"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "legal.export",
+    "label": "Legal: export",
+    "module": "legal",
+    "roles": [
+      "holding_owner",
+      "legal_counsel",
+      "legal_manager"
+    ],
+    "conditions": [
+      "Explicit membership for confidential and restricted records; requesters may access only their own requests"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "legal.hold",
+    "label": "Legal: hold",
+    "module": "legal",
+    "roles": [
+      "holding_owner",
+      "legal_counsel",
+      "legal_manager"
+    ],
+    "conditions": [
+      "Explicit membership for confidential and restricted records; requesters may access only their own requests"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "legal.hold.release",
+    "label": "Legal: hold.release",
+    "module": "legal",
+    "roles": [
+      "holding_owner",
+      "legal_counsel",
+      "legal_manager"
+    ],
+    "conditions": [
+      "Explicit membership for confidential and restricted records; requesters may access only their own requests"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "legal.manage",
+    "label": "Legal: manage",
+    "module": "legal",
+    "roles": [
+      "holding_owner",
+      "legal_manager"
+    ],
+    "conditions": [
+      "Explicit membership for confidential and restricted records; requesters may access only their own requests"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "legal.ai",
+    "label": "Legal: ai",
+    "module": "legal",
+    "roles": [
+      "holding_owner",
+      "legal_counsel",
+      "legal_manager"
+    ],
+    "conditions": [
+      "Explicit membership for confidential and restricted records; requesters may access only their own requests"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "iam.read",
+    "label": "View identities and access",
+    "module": "identity_access",
+    "roles": [
+      "holding_owner",
+      "it_admin",
+      "auditor"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "iam.manage",
+    "label": "Manage identities and assignments",
+    "module": "identity_access",
+    "roles": [
+      "holding_owner",
+      "it_admin"
+    ],
+    "conditions": [],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "iam.roles.manage",
+    "label": "Create and revise custom roles",
+    "module": "identity_access",
+    "roles": [
+      "holding_owner",
+      "it_admin"
+    ],
+    "conditions": [],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding"
+    ]
+  },
+  {
+    "id": "iam.directory.manage",
+    "label": "Manage directory connections",
+    "module": "identity_access",
+    "roles": [
+      "holding_owner",
+      "it_admin"
+    ],
+    "conditions": [],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding"
+    ]
+  },
+  {
+    "id": "iam.directory.apply",
+    "label": "Apply directory and resource changes",
+    "module": "identity_access",
+    "roles": [
+      "holding_owner",
+      "it_admin"
+    ],
+    "conditions": [
+      "Preview and fresh MFA"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding"
+    ]
+  },
+  {
+    "id": "people.relationships.read",
+    "label": "Read people relationships",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "it_admin"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding"
+    ]
+  },
+  {
+    "id": "people.relationships.manage",
+    "label": "Maintain people relationships",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "it_admin"
+    ],
+    "conditions": [
+      "Company scope; relationship metadata only"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding"
+    ]
+  },
+  {
+    "id": "iam.access.apply",
+    "label": "Apply People identities and access",
+    "module": "identity_access",
+    "roles": [
+      "holding_owner",
+      "it_admin"
+    ],
+    "conditions": [
+      "Preview and fresh MFA; delegated ceiling"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding"
+    ]
+  },
+  {
+    "id": "iam.attributes.manage",
+    "label": "Manage custom field definitions and access",
+    "module": "identity_access",
+    "roles": [
+      "holding_owner"
+    ],
+    "conditions": [
+      "Field ownership and access policy"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding"
+    ]
+  },
+  {
+    "id": "iam.review",
+    "label": "Review sensitive access changes",
+    "module": "identity_access",
+    "roles": [
+      "holding_owner"
+    ],
+    "conditions": [
+      "Independent reviewer and fresh MFA"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "iam.export",
+    "label": "Export access evidence",
+    "module": "identity_access",
+    "roles": [
+      "holding_owner",
+      "auditor"
+    ],
+    "conditions": [],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "iam.recovery",
+    "label": "Manage emergency access",
+    "module": "identity_access",
+    "roles": [
+      "holding_owner"
+    ],
+    "conditions": [
+      "Fresh MFA and independent review"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding"
+    ]
+  },
+  {
+    "id": "iam.self",
+    "label": "View own access and sessions",
+    "module": "identity_access",
+    "roles": [
+      "holding_owner",
+      "support_agent",
+      "support_manager",
+      "quality_inspector",
+      "quality_manager",
+      "legal_counsel",
+      "legal_manager",
+      "legal_requester",
+      "executive_author",
+      "pms_reservation",
+      "pms_frontdesk",
+      "pms_cashier",
+      "pms_housekeeping",
+      "pms_supervisor",
+      "pms_maintenance",
+      "pms_night_auditor",
+      "pms_manager",
+      "pos_cashier",
+      "pos_server",
+      "pos_kitchen",
+      "pos_manager",
+      "it_admin",
+      "employee",
+      "people_manager",
+      "hr_admin",
+      "payroll_preparer",
+      "payroll_approver",
+      "finance_preparer",
+      "finance_approver",
+      "treasury",
+      "sales_operator",
+      "sales_manager",
+      "purchasing_operator",
+      "purchasing_manager",
+      "warehouse_manager",
+      "operations_manager",
+      "auditor"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "identityBased": true
+  },
+  {
+    "id": "company.owner",
+    "label": "Company ownership administration",
+    "module": "organization",
+    "roles": [
+      "holding_owner"
+    ],
+    "conditions": [],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding"
+    ]
+  },
+  {
+    "id": "organization.manage",
+    "label": "Manage organization and approval templates",
+    "module": "organization",
+    "roles": [
+      "holding_owner",
+      "hr_admin"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "people.read",
+    "label": "View employee directory",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "people_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "people.manage",
+    "label": "Maintain employee details",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "people_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "people.custom_attributes.write",
+    "label": "Edit person custom attribute values",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "people_manager",
+      "it_admin"
+    ],
+    "conditions": [
+      "Person in selected Company; field access rules"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "people.documents.read",
+    "label": "Read restricted employee documents",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin"
+    ],
+    "conditions": [
+      "Exact employee scope and purpose policy"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "people.documents.manage",
+    "label": "Manage restricted employee documents",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin"
+    ],
+    "conditions": [
+      "Exact employee scope, purpose policy and current record state"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "payroll.documents.read",
+    "label": "Read restricted payroll documents",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "payroll_preparer",
+      "payroll_approver",
+      "auditor"
+    ],
+    "conditions": [
+      "Holding scope and exact payroll record"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding"
+    ]
+  },
+  {
+    "id": "payroll.documents.manage",
+    "label": "Manage restricted payroll documents",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "payroll_preparer"
+    ],
+    "conditions": [
+      "Holding scope and exact payroll record"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding"
+    ]
+  },
+  {
+    "id": "talent.documents.read",
+    "label": "Read restricted talent documents",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "people_manager"
+    ],
+    "conditions": [
+      "Assigned requisition or candidate scope and exact document purpose"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "talent.documents.manage",
+    "label": "Manage restricted talent documents",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin"
+    ],
+    "conditions": [
+      "Assigned requisition or candidate scope and exact document purpose"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "learning.documents.read",
+    "label": "Read learning documents",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "people_manager"
+    ],
+    "conditions": [
+      "Exact course, enrollment or employee scope"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "learning.documents.manage",
+    "label": "Manage learning documents",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin"
+    ],
+    "conditions": [
+      "Exact course, enrollment or employee scope"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "benefits.review",
+    "label": "Review benefit records",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "people_manager"
+    ],
+    "conditions": [
+      "Exact benefit record and independent workflow step"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "benefits.documents.read",
+    "label": "Read restricted benefit documents",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin"
+    ],
+    "conditions": [
+      "Exact benefit record; employee ownership never grants access to internal HR documents"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "benefits.documents.manage",
+    "label": "Manage restricted benefit documents",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin"
+    ],
+    "conditions": [
+      "Exact benefit record and purpose policy"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "people.compensation.read",
+    "label": "View compensation",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "payroll_preparer",
+      "payroll_approver"
+    ],
+    "conditions": [
+      "Own record or authorized staff scope"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "payroll.read",
+    "label": "View payroll",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "payroll_preparer",
+      "payroll_approver",
+      "finance_approver",
+      "people_manager",
+      "auditor"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "payroll.prepare",
+    "label": "Prepare payroll",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "payroll_preparer"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "payroll.approve",
+    "label": "Approve payroll",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "people_manager",
+      "payroll_approver"
+    ],
+    "conditions": [
+      "Assigned reviewer; different preparer"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "finance.read",
+    "label": "View finance",
+    "module": "finance",
+    "roles": [
+      "holding_owner",
+      "finance_preparer",
+      "finance_approver",
+      "treasury",
+      "auditor"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "finance.write",
+    "label": "Prepare accounting records",
+    "module": "finance",
+    "roles": [
+      "holding_owner",
+      "finance_preparer",
+      "finance_approver",
+      "treasury"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "finance.approve",
+    "label": "Approve and post accounting records",
+    "module": "finance",
+    "roles": [
+      "holding_owner",
+      "finance_approver"
+    ],
+    "conditions": [
+      "Independent approver; open period and valid workflow"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "finance.pay",
+    "label": "Execute treasury payments",
+    "module": "finance",
+    "roles": [
+      "holding_owner",
+      "finance_approver",
+      "treasury"
+    ],
+    "conditions": [
+      "Approved obligation and independent payer"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "expense.read",
+    "label": "View expense accounting",
+    "module": "finance",
+    "roles": [
+      "holding_owner",
+      "finance_preparer",
+      "finance_approver",
+      "treasury",
+      "auditor"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "expense.prepare",
+    "label": "Prepare expense accounting",
+    "module": "finance",
+    "roles": [
+      "finance_preparer"
+    ],
+    "conditions": [
+      "Assigned accounting preparer"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "expense.approve",
+    "label": "Approve expense accounting",
+    "module": "finance",
+    "roles": [
+      "holding_owner",
+      "finance_approver"
+    ],
+    "conditions": [
+      "Assigned independent accounting approver"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "expense.pay",
+    "label": "Execute expense payments",
+    "module": "finance",
+    "roles": [
+      "treasury"
+    ],
+    "conditions": [
+      "Assigned independent treasury operator"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "spending.approve",
+    "label": "Approve staff spending requests",
+    "module": "people_payroll",
+    "roles": [
+      "people_manager"
+    ],
+    "conditions": [
+      "Saved reporting route and independent person"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "commerce.read",
+    "label": "View business operations",
+    "module": "sales",
+    "roles": [
+      "holding_owner",
+      "finance_preparer",
+      "finance_approver",
+      "treasury",
+      "auditor",
+      "sales_manager",
+      "sales_operator",
+      "purchasing_manager",
+      "purchasing_operator",
+      "warehouse_manager",
+      "operations_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "commerce.sales",
+    "label": "Prepare sales orders",
+    "module": "sales",
+    "roles": [
+      "holding_owner",
+      "sales_manager",
+      "sales_operator"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "commerce.purchase",
+    "label": "Prepare purchasing orders",
+    "module": "procurement",
+    "roles": [
+      "holding_owner",
+      "purchasing_manager",
+      "purchasing_operator"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "commerce.approve",
+    "label": "Approve commercial orders",
+    "module": "sales",
+    "roles": [
+      "holding_owner",
+      "sales_manager",
+      "purchasing_manager"
+    ],
+    "conditions": [
+      "Order state and independent reviewer"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "inventory.read",
+    "label": "View inventory counts",
+    "module": "inventory",
+    "roles": [
+      "holding_owner",
+      "warehouse_manager",
+      "operations_manager",
+      "finance_preparer",
+      "finance_approver",
+      "treasury",
+      "auditor"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "inventory.prepare",
+    "label": "Prepare inventory operations",
+    "module": "inventory",
+    "roles": [
+      "holding_owner",
+      "warehouse_manager",
+      "operations_manager"
+    ],
+    "conditions": [
+      "Branch scope; department scope unavailable"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "inventory.approve",
+    "label": "Approve inventory adjustments",
+    "module": "inventory",
+    "roles": [
+      "holding_owner",
+      "finance_approver"
+    ],
+    "conditions": [
+      "Company scope and independent reviewer"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding"
+    ]
+  },
+  {
+    "id": "inventory.transfer.review",
+    "label": "Review stock transfers",
+    "module": "inventory",
+    "roles": [
+      "holding_owner",
+      "warehouse_manager",
+      "operations_manager",
+      "finance_approver"
+    ],
+    "conditions": [
+      "Target branch or company scope; independent reviewer"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "quality.read",
+    "label": "quality read",
+    "module": "quality",
+    "roles": [
+      "holding_owner",
+      "warehouse_manager",
+      "operations_manager",
+      "quality_inspector",
+      "quality_manager",
+      "auditor"
+    ],
+    "conditions": [
+      "Whole warehouse/product scope; independent inspection and release"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "quality.hold",
+    "label": "quality hold",
+    "module": "quality",
+    "roles": [
+      "holding_owner",
+      "warehouse_manager",
+      "operations_manager",
+      "quality_inspector",
+      "quality_manager"
+    ],
+    "conditions": [
+      "Whole warehouse/product scope; independent inspection and release"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "quality.inspect",
+    "label": "quality inspect",
+    "module": "quality",
+    "roles": [
+      "holding_owner",
+      "quality_inspector",
+      "quality_manager"
+    ],
+    "conditions": [
+      "Whole warehouse/product scope; independent inspection and release"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "quality.release",
+    "label": "quality release",
+    "module": "quality",
+    "roles": [
+      "holding_owner",
+      "quality_manager"
+    ],
+    "conditions": [
+      "Whole warehouse/product scope; independent inspection and release"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "records.review",
+    "label": "Review module records",
+    "module": "collaboration",
+    "roles": [
+      "holding_owner",
+      "people_manager"
+    ],
+    "conditions": [
+      "Independent reviewer and record scope"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "ai.manage",
+    "label": "Manage AI provider connections",
+    "module": "collaboration",
+    "roles": [
+      "holding_owner",
+      "it_admin"
+    ],
+    "conditions": [],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "executive.access",
+    "label": "Open Executive",
+    "module": "collaboration",
+    "roles": [
+      "holding_owner",
+      "executive_author"
+    ],
+    "conditions": [
+      "Current executive eligibility; private ownership and source policies still apply"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "executive.report.create",
+    "label": "Create executive reports",
+    "module": "collaboration",
+    "roles": [
+      "holding_owner",
+      "executive_author"
+    ],
+    "conditions": [
+      "Current executive eligibility; private ownership and source policies still apply"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "executive.report.edit",
+    "label": "Edit executive reports",
+    "module": "collaboration",
+    "roles": [
+      "holding_owner",
+      "executive_author"
+    ],
+    "conditions": [
+      "Current executive eligibility; private ownership and source policies still apply"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "executive.report.share",
+    "label": "Share executive reports",
+    "module": "collaboration",
+    "roles": [
+      "holding_owner",
+      "executive_author"
+    ],
+    "conditions": [
+      "Current executive eligibility; private ownership and source policies still apply"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "executive.data.distribute",
+    "label": "Distribute selected executive aggregates",
+    "module": "collaboration",
+    "roles": [
+      "holding_owner"
+    ],
+    "conditions": [
+      "Current executive eligibility; private ownership and source policies still apply"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "ai.context.cross",
+    "label": "Continue AI conversations across authorized pages",
+    "module": "collaboration",
+    "roles": [
+      "holding_owner",
+      "executive_author"
+    ],
+    "conditions": [
+      "Current assignment and source permissions still apply"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "module.support.read",
+    "label": "Open support",
+    "module": "support",
+    "roles": [
+      "holding_owner",
+      "support_agent",
+      "support_manager",
+      "sales_operator",
+      "sales_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "module.quality.read",
+    "label": "Open quality",
+    "module": "quality",
+    "roles": [
+      "holding_owner",
+      "quality_inspector",
+      "quality_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "module.legal.read",
+    "label": "Open legal",
+    "module": "legal",
+    "roles": [
+      "holding_owner",
+      "legal_counsel",
+      "legal_manager",
+      "legal_requester"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "module.collaboration.read",
+    "label": "Open collaboration",
+    "module": "collaboration",
+    "roles": [
+      "holding_owner",
+      "legal_counsel",
+      "legal_manager",
+      "legal_requester",
+      "executive_author",
+      "it_admin",
+      "employee",
+      "people_manager",
+      "hr_admin"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "module.pms.read",
+    "label": "Open pms",
+    "module": "pms",
+    "roles": [
+      "holding_owner",
+      "pms_reservation",
+      "pms_frontdesk",
+      "pms_cashier",
+      "pms_housekeeping",
+      "pms_supervisor",
+      "pms_maintenance",
+      "pms_night_auditor",
+      "pms_manager",
+      "finance_approver"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "module.pos.read",
+    "label": "Open pos",
+    "module": "pos",
+    "roles": [
+      "holding_owner",
+      "pos_cashier",
+      "pos_server",
+      "pos_kitchen",
+      "pos_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "module.inventory.read",
+    "label": "Open inventory",
+    "module": "inventory",
+    "roles": [
+      "holding_owner",
+      "pos_manager",
+      "sales_operator",
+      "sales_manager",
+      "purchasing_operator",
+      "purchasing_manager",
+      "warehouse_manager",
+      "operations_manager",
+      "auditor"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "module.people_payroll.read",
+    "label": "Open people payroll",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "employee",
+      "people_manager",
+      "hr_admin",
+      "payroll_preparer",
+      "payroll_approver",
+      "treasury",
+      "auditor",
+      "finance_approver"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "module.finance.read",
+    "label": "Open finance",
+    "module": "finance",
+    "roles": [
+      "holding_owner",
+      "finance_preparer",
+      "finance_approver",
+      "treasury",
+      "auditor"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "module.sales.read",
+    "label": "Open sales",
+    "module": "sales",
+    "roles": [
+      "holding_owner",
+      "sales_operator",
+      "sales_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "module.crm.read",
+    "label": "Open crm",
+    "module": "crm",
+    "roles": [
+      "holding_owner",
+      "sales_operator",
+      "sales_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "module.customer_360.read",
+    "label": "Open customer 360",
+    "module": "customer_360",
+    "roles": [
+      "holding_owner",
+      "sales_operator",
+      "sales_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "module.marketing.read",
+    "label": "Open marketing",
+    "module": "marketing",
+    "roles": [
+      "holding_owner",
+      "sales_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "module.procurement.read",
+    "label": "Open procurement",
+    "module": "procurement",
+    "roles": [
+      "holding_owner",
+      "purchasing_operator",
+      "purchasing_manager",
+      "operations_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "module.operations.read",
+    "label": "Open operations",
+    "module": "operations",
+    "roles": [
+      "holding_owner",
+      "warehouse_manager",
+      "operations_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "records.read",
+    "label": "Read live module records",
+    "module": "collaboration",
+    "roles": [
+      "holding_owner",
+      "support_agent",
+      "support_manager",
+      "quality_inspector",
+      "quality_manager",
+      "legal_counsel",
+      "legal_manager",
+      "legal_requester",
+      "executive_author",
+      "pms_reservation",
+      "pms_frontdesk",
+      "pms_cashier",
+      "pms_housekeeping",
+      "pms_supervisor",
+      "pms_maintenance",
+      "pms_night_auditor",
+      "pms_manager",
+      "pos_cashier",
+      "pos_server",
+      "pos_kitchen",
+      "pos_manager",
+      "it_admin",
+      "employee",
+      "people_manager",
+      "hr_admin",
+      "payroll_preparer",
+      "payroll_approver",
+      "finance_preparer",
+      "finance_approver",
+      "treasury",
+      "sales_operator",
+      "sales_manager",
+      "purchasing_operator",
+      "purchasing_manager",
+      "warehouse_manager",
+      "operations_manager",
+      "auditor"
+    ],
+    "conditions": [
+      "Live module entitlement and record scope"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "records.write",
+    "label": "Create and edit live module records",
+    "module": "collaboration",
+    "roles": [
+      "holding_owner",
+      "support_agent",
+      "support_manager",
+      "quality_inspector",
+      "quality_manager",
+      "legal_counsel",
+      "legal_manager",
+      "legal_requester",
+      "executive_author",
+      "pms_reservation",
+      "pms_frontdesk",
+      "pms_cashier",
+      "pms_housekeeping",
+      "pms_supervisor",
+      "pms_maintenance",
+      "pms_night_auditor",
+      "pms_manager",
+      "pos_cashier",
+      "pos_server",
+      "pos_kitchen",
+      "pos_manager",
+      "it_admin",
+      "employee",
+      "people_manager",
+      "hr_admin",
+      "payroll_preparer",
+      "payroll_approver",
+      "finance_preparer",
+      "finance_approver",
+      "treasury",
+      "sales_operator",
+      "sales_manager",
+      "purchasing_operator",
+      "purchasing_manager",
+      "warehouse_manager",
+      "operations_manager",
+      "auditor"
+    ],
+    "conditions": [
+      "Live module entitlement, record state and scope"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.holding_owner",
+    "label": "Participate as holding owner in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "holding_owner"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.support_agent",
+    "label": "Participate as support agent in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "support_agent"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.support_manager",
+    "label": "Participate as support manager in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "support_manager"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.quality_inspector",
+    "label": "Participate as quality inspector in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "quality_inspector"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.quality_manager",
+    "label": "Participate as quality manager in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "quality_manager"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.legal_counsel",
+    "label": "Participate as legal counsel in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "legal_counsel"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.legal_manager",
+    "label": "Participate as legal manager in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "legal_manager"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.legal_requester",
+    "label": "Participate as legal requester in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "legal_requester"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.executive_author",
+    "label": "Participate as executive author in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "executive_author"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.pms_reservation",
+    "label": "Participate as pms reservation in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "pms_reservation"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.pms_frontdesk",
+    "label": "Participate as pms frontdesk in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "pms_frontdesk"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.pms_cashier",
+    "label": "Participate as pms cashier in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "pms_cashier"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.pms_housekeeping",
+    "label": "Participate as pms housekeeping in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "pms_housekeeping"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.pms_supervisor",
+    "label": "Participate as pms supervisor in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "pms_supervisor"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.pms_maintenance",
+    "label": "Participate as pms maintenance in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "pms_maintenance"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.pms_night_auditor",
+    "label": "Participate as pms night auditor in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "pms_night_auditor"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.pms_manager",
+    "label": "Participate as pms manager in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "pms_manager"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.pos_cashier",
+    "label": "Participate as pos cashier in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "pos_cashier"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.pos_server",
+    "label": "Participate as pos server in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "pos_server"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.pos_kitchen",
+    "label": "Participate as pos kitchen in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "pos_kitchen"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.pos_manager",
+    "label": "Participate as pos manager in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "pos_manager"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.it_admin",
+    "label": "Participate as it admin in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "it_admin"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.employee",
+    "label": "Participate as employee in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "employee"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.people_manager",
+    "label": "Participate as people manager in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "people_manager"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.hr_admin",
+    "label": "Participate as hr admin in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "hr_admin"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.payroll_preparer",
+    "label": "Participate as payroll preparer in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "payroll_preparer"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.payroll_approver",
+    "label": "Participate as payroll approver in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "payroll_approver"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.finance_preparer",
+    "label": "Participate as finance preparer in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "finance_preparer"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.finance_approver",
+    "label": "Participate as finance approver in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "finance_approver"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.treasury",
+    "label": "Participate as treasury in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "treasury"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.sales_operator",
+    "label": "Participate as sales operator in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "sales_operator"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.sales_manager",
+    "label": "Participate as sales manager in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "sales_manager"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.purchasing_operator",
+    "label": "Participate as purchasing operator in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "purchasing_operator"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.purchasing_manager",
+    "label": "Participate as purchasing manager in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "purchasing_manager"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.warehouse_manager",
+    "label": "Participate as warehouse manager in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "warehouse_manager"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.operations_manager",
+    "label": "Participate as operations manager in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "operations_manager"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "workflow.auditor",
+    "label": "Participate as auditor in assigned workflows",
+    "module": "workflow",
+    "roles": [
+      "auditor"
+    ],
+    "conditions": [
+      "Saved workflow route, current staff eligibility, scope and independent person"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "people.compensation.payroll",
+    "label": "Read compensation for payroll",
+    "module": "people_payroll",
+    "roles": [
+      "payroll_preparer",
+      "payroll_approver"
+    ],
+    "conditions": [
+      "Authorized staff scope"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "people.payroll.details",
+    "label": "Read staff and payroll details",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "people_manager",
+      "payroll_preparer",
+      "payroll_approver"
+    ],
+    "conditions": [
+      "Staff record scope"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "people.compensation.approve",
+    "label": "Approve compensation and statutory configuration",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "payroll_approver"
+    ],
+    "conditions": [
+      "Independent reviewer and record state"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "people.time.manage",
+    "label": "Manage time and payroll preparation",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "people_manager",
+      "payroll_preparer"
+    ],
+    "conditions": [
+      "Active staff scope"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "payroll.configuration.read",
+    "label": "Read statutory payroll configuration",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "payroll_preparer",
+      "payroll_approver",
+      "auditor"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "payroll.calculate",
+    "label": "Calculate payroll preview",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "payroll_preparer",
+      "payroll_approver",
+      "finance_preparer"
+    ],
+    "conditions": [
+      "Valid run state and assigned preparer"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "payroll.payment.prepare",
+    "label": "Prepare approved payroll payment",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "treasury",
+      "finance_approver",
+      "payroll_preparer"
+    ],
+    "conditions": [
+      "Approved payroll run posted to the Finance ledger"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "payroll.payment.execute",
+    "label": "Execute approved payroll payment",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "treasury"
+    ],
+    "conditions": [
+      "Approved payment; independent payer"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "payroll.payment.read",
+    "label": "Read payroll payment runs",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "treasury",
+      "finance_approver",
+      "auditor"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "expense.review.read",
+    "label": "Read routed expense accounting",
+    "module": "finance",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "finance_preparer",
+      "finance_approver",
+      "treasury"
+    ],
+    "conditions": [
+      "Saved workflow visibility and record scope"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "expense.audit.read",
+    "label": "Inspect expenses in accounting scope",
+    "module": "finance",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "finance_preparer",
+      "finance_approver",
+      "treasury",
+      "auditor"
+    ],
+    "conditions": [
+      "Expense scope"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "finance.period.select",
+    "label": "Select an open accounting period",
+    "module": "finance",
+    "roles": [
+      "holding_owner",
+      "finance_preparer",
+      "finance_approver"
+    ],
+    "conditions": [
+      "Open period"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "self.requests",
+    "label": "Participate in own requests",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "support_agent",
+      "support_manager",
+      "quality_inspector",
+      "quality_manager",
+      "legal_counsel",
+      "legal_manager",
+      "legal_requester",
+      "executive_author",
+      "pms_reservation",
+      "pms_frontdesk",
+      "pms_cashier",
+      "pms_housekeeping",
+      "pms_supervisor",
+      "pms_maintenance",
+      "pms_night_auditor",
+      "pms_manager",
+      "pos_cashier",
+      "pos_server",
+      "pos_kitchen",
+      "pos_manager",
+      "it_admin",
+      "employee",
+      "people_manager",
+      "hr_admin",
+      "payroll_preparer",
+      "payroll_approver",
+      "finance_preparer",
+      "finance_approver",
+      "treasury",
+      "sales_operator",
+      "sales_manager",
+      "purchasing_operator",
+      "purchasing_manager",
+      "warehouse_manager",
+      "operations_manager",
+      "auditor"
+    ],
+    "conditions": [
+      "Linked person owns or participates in this request; active staff eligibility where required"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "identityBased": true
+  },
+  {
+    "id": "self.tasks",
+    "label": "Participate in assigned tasks",
+    "module": "collaboration",
+    "roles": [
+      "holding_owner",
+      "support_agent",
+      "support_manager",
+      "quality_inspector",
+      "quality_manager",
+      "legal_counsel",
+      "legal_manager",
+      "legal_requester",
+      "executive_author",
+      "pms_reservation",
+      "pms_frontdesk",
+      "pms_cashier",
+      "pms_housekeeping",
+      "pms_supervisor",
+      "pms_maintenance",
+      "pms_night_auditor",
+      "pms_manager",
+      "pos_cashier",
+      "pos_server",
+      "pos_kitchen",
+      "pos_manager",
+      "it_admin",
+      "employee",
+      "people_manager",
+      "hr_admin",
+      "payroll_preparer",
+      "payroll_approver",
+      "finance_preparer",
+      "finance_approver",
+      "treasury",
+      "sales_operator",
+      "sales_manager",
+      "purchasing_operator",
+      "purchasing_manager",
+      "warehouse_manager",
+      "operations_manager",
+      "auditor"
+    ],
+    "conditions": [
+      "Named assignee, requester or service team membership; current workflow state"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "identityBased": true
+  },
+  {
+    "id": "pms.read",
+    "label": "View hotel operations",
+    "module": "pms",
+    "roles": [
+      "holding_owner",
+      "pms_reservation",
+      "pms_frontdesk",
+      "pms_cashier",
+      "pms_housekeeping",
+      "pms_supervisor",
+      "pms_maintenance",
+      "pms_night_auditor",
+      "pms_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "pms.configure",
+    "label": "Configure hotel rooms and rates",
+    "module": "pms",
+    "roles": [
+      "holding_owner",
+      "pms_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "pms.reservations",
+    "label": "Manage hotel reservations",
+    "module": "pms",
+    "roles": [
+      "holding_owner",
+      "pms_reservation",
+      "pms_frontdesk",
+      "pms_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "pms.frontdesk",
+    "label": "Check in and check out guests",
+    "module": "pms",
+    "roles": [
+      "holding_owner",
+      "pms_frontdesk",
+      "pms_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "pms.cashier",
+    "label": "Manage Guest Accounts and receipts",
+    "module": "pms",
+    "roles": [
+      "holding_owner",
+      "pms_cashier",
+      "pms_frontdesk",
+      "pms_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "pms.housekeeping",
+    "label": "Work on hotel rooms and supplies",
+    "module": "pms",
+    "roles": [
+      "holding_owner",
+      "pms_housekeeping",
+      "pms_supervisor",
+      "pms_maintenance",
+      "pms_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "pms.inspect",
+    "label": "Inspect hotel room readiness",
+    "module": "pms",
+    "roles": [
+      "holding_owner",
+      "pms_supervisor",
+      "pms_manager"
+    ],
+    "conditions": [
+      "Independent room inspection"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "pms.maintenance",
+    "label": "Manage hotel maintenance blocks",
+    "module": "pms",
+    "roles": [
+      "holding_owner",
+      "pms_maintenance",
+      "pms_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "pms.audit",
+    "label": "Run hotel end of day",
+    "module": "pms",
+    "roles": [
+      "holding_owner",
+      "pms_night_auditor",
+      "pms_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "pms.approve",
+    "label": "Review hotel refunds, credit and cash differences",
+    "module": "pms",
+    "roles": [
+      "holding_owner",
+      "pms_manager"
+    ],
+    "conditions": [
+      "Independent reviewer"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "pms.accounting.prepare",
+    "label": "Prepare PMS accounting mappings",
+    "module": "pms",
+    "roles": [
+      "holding_owner",
+      "finance_preparer"
+    ],
+    "conditions": [],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "pms.accounting.approve",
+    "label": "Approve PMS accounting mappings",
+    "module": "pms",
+    "roles": [
+      "holding_owner",
+      "finance_approver"
+    ],
+    "conditions": [
+      "Independent reviewer"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "pms.reports",
+    "label": "View PMS financial reports",
+    "module": "pms",
+    "roles": [
+      "holding_owner",
+      "pms_manager",
+      "pms_night_auditor",
+      "holding_owner",
+      "finance_preparer",
+      "finance_approver",
+      "treasury",
+      "auditor"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "pos.read",
+    "label": "View point of sale",
+    "module": "pos",
+    "roles": [
+      "holding_owner",
+      "pos_cashier",
+      "pos_server",
+      "pos_kitchen",
+      "pos_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "pos.sell",
+    "label": "Sell and manage POS shifts",
+    "module": "pos",
+    "roles": [
+      "holding_owner",
+      "pos_cashier",
+      "pos_server",
+      "pos_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "pos.kitchen",
+    "label": "Operate POS kitchen",
+    "module": "pos",
+    "roles": [
+      "holding_owner",
+      "pos_kitchen",
+      "pos_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "pos.approve",
+    "label": "Review POS refunds and cash differences",
+    "module": "pos",
+    "roles": [
+      "holding_owner",
+      "pos_manager"
+    ],
+    "conditions": [
+      "Independent reviewer"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "pos.configure",
+    "label": "Configure POS products, menus, tables and registers",
+    "module": "pos",
+    "roles": [
+      "holding_owner",
+      "pos_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "pos.accounting.prepare",
+    "label": "Prepare POS accounting mappings",
+    "module": "pos",
+    "roles": [
+      "holding_owner",
+      "finance_preparer"
+    ],
+    "conditions": [],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding"
+    ]
+  },
+  {
+    "id": "pos.accounting.approve",
+    "label": "Approve POS accounting mappings",
+    "module": "pos",
+    "roles": [
+      "holding_owner",
+      "finance_approver"
+    ],
+    "conditions": [
+      "Independent reviewer"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding"
+    ]
+  },
+  {
+    "id": "pos.payments.configure",
+    "label": "Connect company Stripe account",
+    "module": "pos",
+    "roles": [
+      "holding_owner",
+      "finance_approver"
+    ],
+    "conditions": [],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding"
+    ]
+  },
+  {
+    "id": "pos.reports",
+    "label": "Read POS financial reports",
+    "module": "pos",
+    "roles": [
+      "holding_owner",
+      "pos_manager",
+      "holding_owner",
+      "finance_preparer",
+      "finance_approver",
+      "treasury",
+      "auditor"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding",
+      "branch"
+    ]
+  },
+  {
+    "id": "leave.self",
+    "label": "Use personal leave self-service",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "support_agent",
+      "support_manager",
+      "quality_inspector",
+      "quality_manager",
+      "legal_counsel",
+      "legal_manager",
+      "legal_requester",
+      "executive_author",
+      "pms_reservation",
+      "pms_frontdesk",
+      "pms_cashier",
+      "pms_housekeeping",
+      "pms_supervisor",
+      "pms_maintenance",
+      "pms_night_auditor",
+      "pms_manager",
+      "pos_cashier",
+      "pos_server",
+      "pos_kitchen",
+      "pos_manager",
+      "it_admin",
+      "employee",
+      "people_manager",
+      "hr_admin",
+      "payroll_preparer",
+      "payroll_approver",
+      "finance_preparer",
+      "finance_approver",
+      "treasury",
+      "sales_operator",
+      "sales_manager",
+      "purchasing_operator",
+      "purchasing_manager",
+      "warehouse_manager",
+      "operations_manager",
+      "auditor"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "identityBased": true
+  },
+  {
+    "id": "leave.policy.manage",
+    "label": "Manage company leave policies",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin"
+    ],
+    "conditions": [],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer",
+    "permittedScopes": [
+      "holding"
+    ]
+  },
+  {
+    "id": "leave.evidence.read",
+    "label": "Read restricted leave evidence",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin"
+    ],
+    "conditions": [
+      "Requester, current eligible approver, recorded decision maker, or authorized HR only"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "calendar.availability.read",
+    "label": "View availability dates without private details",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "people_manager",
+      "operations_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "calendar.appointments.manage",
+    "label": "Manage appointments in scope",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "people_manager",
+      "operations_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "calendar.announcements.publish",
+    "label": "Publish scoped announcements",
+    "module": "collaboration",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "people_manager",
+      "operations_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "roster.read",
+    "label": "View team rosters",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "people_manager",
+      "operations_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "roster.manage",
+    "label": "Create and publish team rosters",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "people_manager",
+      "operations_manager"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "roster.approve",
+    "label": "Approve roster changes independently",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "hr_admin",
+      "people_manager",
+      "operations_manager"
+    ],
+    "conditions": [
+      "Independent manager in roster scope"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer"
+  },
+  {
+    "id": "self.roster",
+    "label": "Participate in own roster",
+    "module": "people_payroll",
+    "roles": [
+      "holding_owner",
+      "support_agent",
+      "support_manager",
+      "quality_inspector",
+      "quality_manager",
+      "legal_counsel",
+      "legal_manager",
+      "legal_requester",
+      "executive_author",
+      "pms_reservation",
+      "pms_frontdesk",
+      "pms_cashier",
+      "pms_housekeeping",
+      "pms_supervisor",
+      "pms_maintenance",
+      "pms_night_auditor",
+      "pms_manager",
+      "pos_cashier",
+      "pos_server",
+      "pos_kitchen",
+      "pos_manager",
+      "it_admin",
+      "employee",
+      "people_manager",
+      "hr_admin",
+      "payroll_preparer",
+      "payroll_approver",
+      "finance_preparer",
+      "finance_approver",
+      "treasury",
+      "sales_operator",
+      "sales_manager",
+      "purchasing_operator",
+      "purchasing_manager",
+      "warehouse_manager",
+      "operations_manager",
+      "auditor"
+    ],
+    "conditions": [
+      "Active staff in the roster department"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "customer",
+    "identityBased": true
+  },
+  {
+    "id": "preview.brand",
+    "label": "Brand (preview)",
+    "module": "brand",
+    "namespace": "customer",
+    "availability": "preview",
+    "risk": "normal",
+    "roles": [],
+    "conditions": []
+  },
+  {
+    "id": "preview.commercial",
+    "label": "Commercial (preview)",
+    "module": "commercial",
+    "namespace": "customer",
+    "availability": "preview",
+    "risk": "normal",
+    "roles": [],
+    "conditions": []
+  },
+  {
+    "id": "preview.organization",
+    "label": "Organization (preview)",
+    "module": "organization",
+    "namespace": "customer",
+    "availability": "preview",
+    "risk": "normal",
+    "roles": [],
+    "conditions": []
+  },
+  {
+    "id": "preview.platform_administration",
+    "label": "Platform Admin (preview)",
+    "module": "platform_administration",
+    "namespace": "customer",
+    "availability": "preview",
+    "risk": "normal",
+    "roles": [],
+    "conditions": []
+  },
+  {
+    "id": "preview.quality",
+    "label": "Quality (preview)",
+    "module": "quality",
+    "namespace": "customer",
+    "availability": "preview",
+    "risk": "normal",
+    "roles": [],
+    "conditions": []
+  },
+  {
+    "id": "preview.manage_erpx",
+    "label": "ERPX Management (preview)",
+    "module": "manage_erpx",
+    "namespace": "customer",
+    "availability": "preview",
+    "risk": "normal",
+    "roles": [],
+    "conditions": []
+  },
+  {
+    "id": "platform.iam.read",
+    "label": "View identities and access",
+    "module": "identity_access",
+    "roles": [
+      "platform_admin",
+      "platform_auditor"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "platform"
+  },
+  {
+    "id": "platform.iam.manage",
+    "label": "Manage identities and assignments",
+    "module": "identity_access",
+    "roles": [
+      "platform_admin"
+    ],
+    "conditions": [],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "platform"
+  },
+  {
+    "id": "platform.iam.roles.manage",
+    "label": "Create and revise custom roles",
+    "module": "identity_access",
+    "roles": [
+      "platform_admin"
+    ],
+    "conditions": [],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "platform"
+  },
+  {
+    "id": "platform.iam.directory.manage",
+    "label": "Manage directory connections",
+    "module": "identity_access",
+    "roles": [
+      "platform_admin"
+    ],
+    "conditions": [],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "platform"
+  },
+  {
+    "id": "platform.iam.directory.apply",
+    "label": "Apply directory and resource changes",
+    "module": "identity_access",
+    "roles": [
+      "platform_admin"
+    ],
+    "conditions": [
+      "Preview and fresh MFA"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "platform"
+  },
+  {
+    "id": "platform.iam.review",
+    "label": "Review sensitive access changes",
+    "module": "identity_access",
+    "roles": [
+      "platform_admin"
+    ],
+    "conditions": [
+      "Independent reviewer and fresh MFA"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "platform"
+  },
+  {
+    "id": "platform.iam.export",
+    "label": "Export access evidence",
+    "module": "identity_access",
+    "roles": [
+      "platform_admin",
+      "platform_auditor"
+    ],
+    "conditions": [],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "platform"
+  },
+  {
+    "id": "platform.iam.recovery",
+    "label": "Manage emergency access",
+    "module": "identity_access",
+    "roles": [
+      "platform_admin"
+    ],
+    "conditions": [
+      "Fresh MFA and independent review"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "platform"
+  },
+  {
+    "id": "platform.iam.self",
+    "label": "View own access and sessions",
+    "module": "identity_access",
+    "roles": [
+      "platform_admin",
+      "platform_auditor"
+    ],
+    "conditions": [],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "platform",
+    "identityBased": true
+  },
+  {
+    "id": "platform.commercial.read",
+    "label": "Review Company package grants",
+    "module": "commercial",
+    "roles": [
+      "platform_admin",
+      "platform_auditor"
+    ],
+    "conditions": [
+      "Current Platform authority"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "platform",
+    "permittedScopes": [
+      "platform"
+    ]
+  },
+  {
+    "id": "platform.commercial.manage",
+    "label": "Apply reviewed Company package grants",
+    "module": "commercial",
+    "roles": [
+      "platform_admin"
+    ],
+    "conditions": [
+      "Current Platform authority, reviewed preview and fresh MFA"
+    ],
+    "risk": "privileged",
+    "availability": "live",
+    "namespace": "platform",
+    "permittedScopes": [
+      "platform"
+    ]
+  },
+  {
+    "id": "platform.executive.read",
+    "label": "View Platform Executive insights",
+    "module": "platform_administration",
+    "roles": [
+      "platform_admin",
+      "platform_auditor"
+    ],
+    "conditions": [
+      "PlatformContext and control-plane data only"
+    ],
+    "risk": "normal",
+    "availability": "live",
+    "namespace": "platform",
+    "permittedScopes": [
+      "platform"
+    ]
+  }
+]

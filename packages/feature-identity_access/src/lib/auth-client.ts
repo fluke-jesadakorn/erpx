@@ -1,7 +1,4 @@
 "use client";
-import { createAuthClient } from "better-auth/react";
-import { multiSessionClient } from "better-auth/client/plugins";
+import { createAccountAuthHttpPort } from "../adapters/http/account-auth";
 
-export const authClient = createAuthClient({
-  plugins: [multiSessionClient()],
-});
+export const authClient = createAccountAuthHttpPort();

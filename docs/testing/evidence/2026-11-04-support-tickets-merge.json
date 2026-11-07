@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Support tickets workflow merged; Support owner remains partial",
+  "capability": "support-tickets-merge",
+  "integrationTarget": "codex/rust-backend-migration",
+  "pullRequest": {
+    "number": 20,
+    "url": "https://github.com/fluke-jesadakorn/erpx/pull/20",
+    "state": "MERGED",
+    "mergedAt": "2026-11-03T19:09:07Z",
+    "base": "4857abf81c8ffdc1757799c51e07bfaf9b7fe22b",
+    "head": "991c73548f3af59ea8b43cc0336f0c7d51d78562",
+    "mergeCommit": "555eb0b04f53dbd41cddb34979b3e274eb0d189a",
+    "mergeMethod": "merge commit"
+  },
+  "scope": {
+    "workflow": "support/tickets",
+    "changedFiles": 27,
+    "nativeWriter": "src/composition/src/support_ticket_command.rs",
+    "http": "src/composition/src/support_ticket_http.rs",
+    "transport": "packages/feature-support/src/adapters/server/native-support.ts",
+    "excluded": ["support/sla-watch", "support/incidents", "support/feature-support-sessions", "support/feature-capabilities", "support/feature-attachments"]
+  },
+  "verification": {
+    "postgres": "support.rust-support-ticket-command-postgres.integration 2/2",
+    "unit": "erpx-server-support 10/10",
+    "transport": "support.native-support-transport.unit 5/5",
+    "gates": "cargo clippy, typecheck, structure, architecture, docs, catalogue (33 modules, 772 suites), rust-architecture 7/7",
+    "browser": "Desktop/mobile general lifecycle closed v5 with five events and five receipts/audit/outbox; desktop/mobile employee report cancelled v4 with four events; desktop order-backed customer-note confirm closed v4 with four events."
+  },
+  "register": {
+    "ownersComplete": 0,
+    "ownersTotal": 41,
+    "workflowsVerified": 7,
+    "workflowsPartial": 6,
+    "workflowsMerged": 7,
+    "workflowsTotal": 206
+  },
+  "limits": [
+    "The Support owner remains partial: SLA watch, incidents, sessions, capabilities and attachments are separate workflows.",
+    "The asset visibility negative remains a read-layer case; the native writer's asset source create is PostgreSQL-tested.",
+    "The Support app logs React hydration console warnings; pageErrors stay 0."
+  ]
+}

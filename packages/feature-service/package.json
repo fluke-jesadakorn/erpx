@@ -19,13 +19,20 @@
     "./routes/api/v1/holdings/[holdingSlug]/field-service/customer-preparation/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/field-service/customer-preparation/[[...path]]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/field-service/initial-physical-stock/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/field-service/initial-physical-stock/[[...path]]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/field-service/parts-setup/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/field-service/parts-setup/[[...path]]/route.ts",
-    "./routes/api/v1/holdings/[holdingSlug]/field-service/route": "./src/routes/api/v1/holdings/[holdingSlug]/field-service/route.ts"
+    "./routes/api/v1/holdings/[holdingSlug]/field-service/route": "./src/routes/api/v1/holdings/[holdingSlug]/field-service/route.ts",
+    "./routes/api/v1/holdings/[holdingSlug]/field-service/collaboration/route": "./src/routes/api/v1/holdings/[holdingSlug]/field-service/collaboration/route.ts",
+    "./routes/holdings/[holdingSlug]/services/field-service/collaboration/page": "./src/routes/holdings/[holdingSlug]/services/field-service/collaboration/page.tsx",
+    "./routes/holdings/[holdingSlug]/services/field-service/support/[ticketId]/page": "./src/routes/holdings/[holdingSlug]/services/field-service/support/[ticketId]/page.tsx",
+    "./routes/api/v1/holdings/[holdingSlug]/field-service/operations/route": "./src/routes/api/v1/holdings/[holdingSlug]/field-service/operations/route.ts",
+    "./routes/holdings/[holdingSlug]/services/field-service/operations/page": "./src/routes/holdings/[holdingSlug]/services/field-service/operations/page.tsx",
+    "./routes/holdings/[holdingSlug]/services/field-service/operations/[id]/page": "./src/routes/holdings/[holdingSlug]/services/field-service/operations/[id]/page.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
     "lint": "eslint src"
   },
   "dependencies": {
+    "@erpx/contracts": "workspace:*",
     "@erpx/feature-field_service": "workspace:*",
     "@erpx/feature-records": "workspace:*",
     "@erpx/feature-work_projection": "workspace:*",
@@ -38,6 +45,8 @@
     "@erpx/server-runtime": "workspace:*",
     "@erpx/server-work_projection": "workspace:*",
     "@erpx/workplace": "workspace:*",
-    "next": "16.4.0"
+    "next": "16.4.3",
+    "@erpx/feature-collaboration": "workspace:*",
+    "@erpx/feature-operations": "workspace:*"
   }
 }

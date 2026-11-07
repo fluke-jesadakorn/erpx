@@ -17,7 +17,7 @@ import {
   revokeEmergency,
 } from "@erpx/server-identity_access/public/iam-recovery";
 import "server-only";
-import { peopleAccessSnapshot, previewPeopleAccess, applyPeopleAccess } from "@erpx/server-identity_access/public/people-access";
+import { peopleRelationshipsSnapshot, previewPeopleRelationships, applyPeopleRelationships, peopleAccessSnapshot, previewPeopleAccess, applyPeopleAccess } from "@erpx/server-identity_access/public/people-access";
 import { z } from "zod";
 import { currentSession,requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import {bindIamReviewEvidence,bindIamMigrationEvidence} from "@erpx/server-platform_administration/public/system-evidence";
@@ -35,13 +35,21 @@ import {
   proposeEmergency,
   applyEmergency,
 } from "@erpx/server-identity_access/public/iam-migrations";
-import { beginMfa, verifyMfa, requireFreshMfa } from "@erpx/server-identity_access/public/iam-mfa";
+import { requireFreshMfa } from "@erpx/server-identity_access/public/iam-mfa";
+import {nativeAccountHttp} from "@erpx/server-identity_access/public/native-account-http";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { iamCommand } from "@erpx/server-identity_access/public/iam-transactions";
 import { iamDb } from "@erpx/server-identity_access/public/iam-db";
 import { runtimeEnv, activeHoldingBindings, holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import { iamPermission } from "@erpx/server-identity_access/public/iam-context";
+import {
+  createNativeIamAssignmentsClient,
+  nativeIamAssignmentsFailure,
+  nativeIamAssignmentsConfiguration,
+  NativeIamAssignmentsError,
+  type NativeIamPageContext,
+} from "../public/native-iam-assignments";
 
 const versionInput = z.object({
   expectedVersion: z.number().int().positive(),
@@ -56,7 +64,85 @@ function sameOrigin(request: Request) {
       "Use the ERPX application to submit this request.",
     );
 }
+
+async function nativeIamAssignmentRevoke(
+  actor: {
+    userId: string;
+    holdingId: string | null;
+    companyId: string;
+    branchId: string | null;
+    departmentId: string | null;
+    assignmentId: string;
+    role: string;
+    scopeKind: string;
+    platform: boolean;
+    authority?: { revision: number; assignmentVersion: number };
+    iam?: { permissions: readonly string[] };
+  },
+  holdingSlug: string | null,
+  request: Request,
+  id: string,
+  version: number,
+  reason: string,
+  key: string,
+) {
+  if (process.env.ERPX_NATIVE_IDENTITY_ACCESS_CONFIG === undefined || actor.platform)
+    return undefined;
+  if (!/^[A-Za-z0-9:_.-]{8,180}$/.test(key))
+    throw new ApiError(
+      422,
+      "COMMAND_KEY_REQUIRED",
+      "A valid Idempotency-Key is required.",
+    );
+  if (!holdingSlug || !actor.holdingId || !actor.authority || !actor.iam)
+    throw new NativeIamAssignmentsError("NATIVE_IAM_ASSIGNMENTS_CONTEXT_CHANGED");
+  const page: NativeIamPageContext = {
+    userId: actor.userId,
+    holdingId: actor.holdingId,
+    holdingSlug,
+    companyId: actor.companyId,
+    branchId: actor.branchId,
+    departmentId: actor.departmentId,
+    assignmentId: actor.assignmentId,
+    role: actor.role,
+    assignmentScope: actor.scopeKind,
+    authority: actor.authority,
+    iam: { permissions: actor.iam.permissions },
+  };
+  const raw = process.env.ERPX_NATIVE_IDENTITY_ACCESS_CONFIG;
+  try {
+    const client = createNativeIamAssignmentsClient(
+      nativeIamAssignmentsConfiguration(raw),
+    );
+    return await client.revoke(
+      request.headers,
+      page,
+      id,
+      JSON.stringify({ expectedVersion: version, reason }),
+      key,
+      {
+        holdingSlug,
+        expected: {
+          companyId: page.companyId,
+          assignmentId: page.assignmentId,
+          revision: page.authority.revision,
+          assignmentVersion: page.authority.assignmentVersion,
+        },
+      },
+    );
+  } catch (error) {
+    const failure = nativeIamAssignmentsFailure(error);
+    if (failure) throw new ApiError(failure.status, failure.code, failure.message);
+    throw error;
+  }
+}
 export async function iamAccountApi(request: Request, path: string[]) {
+  if(path.join('/')==='mfa/enroll'||path.join('/')==='mfa/verify'){
+    // Static logical path from this owned entry, independent of the external
+    // Holding namespace. Rust owns authentication, rate/counter and writes.
+    const url=new URL(request.url);url.pathname='/api/v1/account/iam/'+path.join('/');
+    return nativeAccountHttp(new Request(url,request));
+  }
   try {
     sameOrigin(request);
     const { session } = await currentSession(),
@@ -104,15 +190,6 @@ export async function iamAccountApi(request: Request, path: string[]) {
           actor,
           emergencyRevocationInput.parse(input),
           request.headers.get("Idempotency-Key") ?? "",
-        ),
-      }));
-    if (path.join("/") === "mfa/enroll")
-      return Response.json(canonicalDestinationLinks({ data: await beginMfa(actor) }));
-    if (path.join("/") === "mfa/verify")
-      return Response.json(canonicalDestinationLinks({
-        data: await verifyMfa(
-          actor,
-          z.object({ code: z.string() }).parse(input).code,
         ),
       }));
     if (path.join("/") === "sessions/revoke") {
@@ -170,6 +247,7 @@ export async function iamApi(
       route = path.join("/"),
       key = request.headers.get("Idempotency-Key") ?? "";
     if (request.method === "GET") {
+      if (route === "people-relationships") return Response.json({ data: await peopleRelationshipsSnapshot(db, actor) }, { headers: { "Cache-Control": "private, no-store" } });
       if (route === "people-access") return Response.json(canonicalDestinationLinks({ data: await peopleAccessSnapshot(db, actor) }), { headers: { "Cache-Control": "no-store" } });
       if (route === "audit") {
         const params = new URL(request.url).searchParams;
@@ -272,7 +350,9 @@ export async function iamApi(
     sameOrigin(request);
     const input = await request.json();
     let result: unknown;
-    if (route === "people-access/preview") result = await previewPeopleAccess(db, actor, input.change);
+    if (route === "people-relationships/preview") result = await previewPeopleRelationships(db, actor, input.change);
+    else if (route === "people-relationships/apply") result = await applyPeopleRelationships(db, actor, z.string().uuid().parse(input.previewToken), key);
+    else if (route === "people-access/preview") result = await previewPeopleAccess(db, actor, input.change);
     else if (route === "people-access/apply") result = await applyPeopleAccess(db, actor, z.string().uuid().parse(input.previewToken), key);
     else if(holdingSlug&&path.length===3&&path[2]==='evidence'&&path[0]==='reviews')
       result=await bindIamReviewEvidence(db,await requireWorkContext(holdingSlug),path[1],input,key);
@@ -289,14 +369,24 @@ export async function iamApi(
     else if(path[0]==="access-reviews"&&path[2]==="cancel"){const v=versionInput.parse(input);result=await cancelAccessReviewCampaign(db,actor,path[1],v.expectedVersion,v.reason,key);}
     else if (path[0] === "assignments" && path[2] === "revoke") {
       const v = versionInput.parse(input);
-      result = await revokeIamAssignment(
-        db,
-        actor,
-        path[1],
-        v.expectedVersion,
-        v.reason,
-        key,
-      );
+      result =
+        (await nativeIamAssignmentRevoke(
+          actor,
+          holdingSlug,
+          request,
+          path[1],
+          v.expectedVersion,
+          v.reason,
+          key,
+        )) ??
+        (await revokeIamAssignment(
+          db,
+          actor,
+          path[1],
+          v.expectedVersion,
+          v.reason,
+          key,
+        ));
     } else if (route === "connections")
       result = await saveConnection(
         db,

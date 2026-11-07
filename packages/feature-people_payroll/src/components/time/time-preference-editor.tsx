@@ -1,4 +1,5 @@
 "use client";
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 import { InlineNotice } from "@erpx/ui/components/foundation";
 
 import { Button, Field, Select, TextInput } from "@erpx/ui/components/foundation";
@@ -39,7 +40,7 @@ export function TimePreferenceEditor() {
     setBusy(true);
     setMessage("");
     try {
-      const response = await fetch("/api/v1/account/time-preference", {
+      const response = await holdingFetch("/api/v1/account/time-preference", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

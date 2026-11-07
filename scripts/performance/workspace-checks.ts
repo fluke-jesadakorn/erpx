@@ -26,7 +26,7 @@ for (const plan of plans) {
   for (const iteration of [0, 1]) {
     const commands = [
       { phase: 'lint-typecheck', args: [process.execPath, join(root, 'node_modules/turbo/bin/turbo'), 'run', 'lint', 'typecheck', `--filter=@erpx/app-${plan.app}`, '--cache=local:rw', '--concurrency=2', '--output-logs=errors-only'] },
-      { phase: 'test-typecheck', args: [node, '--max-old-space-size=8192', join(root,'node_modules/typescript/bin/tsc'), '--noEmit', '--project', selectedTypecheckConfig(plan.suites.flatMap(suite=>suite.files))] },
+      { phase: 'test-typecheck', args: [node, '--max-old-space-size=8192', join(root,'node_modules/@typescript/native/bin/tsc'), '--noEmit', '--project', selectedTypecheckConfig(plan.suites.flatMap(suite=>suite.files))] },
       { phase: 'unit', args: [process.execPath, 'scripts/testing/test.ts', 'unit', ...plan.suites.map(suite => `--suite=${suite.id}`)] },
     ];
     for (const command of commands) {

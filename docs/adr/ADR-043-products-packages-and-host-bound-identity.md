@@ -1,5 +1,7 @@
 # Products, packages and host-bound identity
 
+> Partially superseded: [ADR-049](ADR-049-product-app-workspaces-and-development-verification.md) owns independent application topology, [ADR-050](ADR-050-apps-feed-and-work-retirement.md) retires the Work app, and [ADR-051](ADR-051-holding-addresses-and-workspace-paths.md) replaces development product origins with Holding addresses. Product/package/Module distinctions and owner authority remain; the original decision below is retained.
+
 The accepted product-separation design keeps one runtime, existing module owners and Holding write transactions while giving each product its own workspace and origin. Product is a presentation boundary; Commercial Package is a versioned purchase; Module retains process/data ownership. Buying a package never assigns a role or certifies release readiness.
 
 Account becomes the development identity issuer. Products exchange a five-minute browser transaction and a hashed, single-use, 60-second grant for a host-only, audience-bound child session. Children retain their parent's authentication time and expire no later than the parent or the existing twelve-hour cap. Existing sessions remain legacy; request origin cannot upgrade them. This adds a small server exchange rather than a shared `jesadakorn.com` cookie, avoiding sibling-host cookie authority and token-bearing app links.

@@ -45,12 +45,15 @@ import {
 } from "@erpx/server-legal/public/legal/documents";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { holdingResources } from "../../../../../../../../../../packages/server-runtime/src/public/runtime";
-import { legalData, legalWorkspaceDetail as detail, legalCommand } from "@erpx/server-legal/public/legal/service";
+import { legalData, legalRecordData, legalWorkspaceDetail as detail, legalCommand } from "@erpx/server-legal/public/legal/service";
 import { sendEnvelope, signingAction } from "@erpx/server-legal/public/legal/signing";
 import { errorResponse, ApiError } from "@erpx/server-runtime/public/http";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
+import { legalReadScope } from "@erpx/server-legal/public/purchases";
+import { nativeLegalAvailable, nativeLegalCommand, nativeLegalCommandSelected, nativeLegalDetail, nativeLegalFailure, nativeLegalRegister } from "@erpx/feature-legal/lib/native-legal";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
+function nativeFailure(error: unknown): never { const failure = nativeLegalFailure(error); if (failure) throw new ApiError(failure.status, failure.code, failure.message); throw error; }
 export async function GET(request: Request, ctx: Context) {
   try {
     const { holdingSlug, path = [] } = await ctx.params,
@@ -191,6 +194,21 @@ export async function GET(request: Request, ctx: Context) {
       );
     if (path.length > 1)
       throw new ApiError(404, "NOT_FOUND", "Resource not found.");
+    if (nativeLegalAvailable() && path.length === 0) {
+      const native = await nativeLegalRegister(a, holdingSlug, Object.fromEntries(query), request.headers).catch(nativeFailure);
+      if (native) {
+        const shell = await legalRecordData(write, a);
+        const purchases = (await legalReadScope(write, a)).purchases;
+        return Response.json(canonicalDestinationLinks({ data: { ...shell, items: native.records, total: native.total, page: native.page, counts: native.counts, enabled: native.enabled, purchases } }), { headers: { "Cache-Control": "private, no-store" } });
+      }
+    }
+    if (nativeLegalAvailable() && path.length === 1) {
+      const native = await nativeLegalDetail(a, holdingSlug, path[0], request.headers).catch(nativeFailure);
+      if (native) {
+        const purchases = (await legalReadScope(write, a)).purchases;
+        return Response.json(canonicalDestinationLinks({ data: { ...native, purchases } }), { headers: { "Cache-Control": "private, no-store" } });
+      }
+    }
     return Response.json(
       canonicalDestinationLinks({
         data: path.length
@@ -271,6 +289,10 @@ export async function POST(request: Request, ctx: Context) {
       raw = JSON.parse(text);
     } catch {
       throw new ApiError(422, "INVALID_JSON", "Invalid JSON.");
+    }
+    if (path.length === 0 && nativeLegalAvailable() && nativeLegalCommandSelected(raw)) {
+      const data = await nativeLegalCommand(a, holdingSlug, raw, key, request.headers).catch(nativeFailure);
+      if (data) return Response.json(canonicalDestinationLinks({ data }), { headers: { "Cache-Control": "private, no-store" } });
     }
     if (path[0] === "release-acceptance") {
       if (path.length === 3 && ["review", "revoke"].includes(path[2])) {

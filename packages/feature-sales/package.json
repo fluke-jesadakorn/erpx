@@ -9,6 +9,26 @@
     "./components/customers/hub-form": "./src/components/customers/hub-form.tsx",
     "./components/customers/hub-shell": "./src/components/customers/hub-shell.tsx",
     "./components/customers/sales-views": "./src/components/customers/sales-views.tsx",
+    "./public/native-sales-documents": "./src/public/native-sales-documents.ts",
+    "./public/native-sales-documents-page": "./src/public/native-sales-documents-page.ts",
+    "./public/native-sales-pricing": "./src/public/native-sales-pricing.ts",
+    "./adapters/server/next-native-sales-documents": "./src/adapters/server/next-native-sales-documents.ts",
+    "./public/native-ecommerce-catalog": "./src/public/native-ecommerce-catalog.ts",
+    "./public/native-ecommerce-catalog-page": "./src/public/native-ecommerce-catalog-page.ts",
+    "./adapters/server/next-native-ecommerce-catalog": "./src/adapters/server/next-native-ecommerce-catalog.ts",
+    "./public/native-crm-command": "./src/public/native-crm-command.ts",
+    "./public/native-crm-pipeline": "./src/public/native-crm-pipeline.ts",
+    "./public/native-crm-pipeline-page": "./src/public/native-crm-pipeline-page.ts",
+    "./adapters/server/next-native-crm-pipeline": "./src/adapters/server/next-native-crm-pipeline.ts",
+    "./public/native-marketing-campaign": "./src/public/native-marketing-campaign.ts",
+    "./public/native-marketing-campaign-page": "./src/public/native-marketing-campaign-page.ts",
+    "./adapters/server/next-native-marketing-campaign": "./src/adapters/server/next-native-marketing-campaign.ts",
+    "./public/native-customer-access": "./src/public/native-customer-access.ts",
+    "./public/native-customer-access-page": "./src/public/native-customer-access-page.ts",
+    "./adapters/server/next-native-customer-access": "./src/adapters/server/next-native-customer-access.ts",
+    "./public/native-customer-timeline": "./src/public/native-customer-timeline.ts",
+    "./public/native-customer-timeline-page": "./src/public/native-customer-timeline-page.ts",
+    "./adapters/server/next-native-customer-timeline": "./src/adapters/server/next-native-customer-timeline.ts",
     "./components/customers/hub-list": "./src/components/customers/hub-list.tsx",
     "./components/sales-goods-posting-setup": "./src/components/sales-goods-posting-setup.tsx",
     "./components/use-pricing-command": "./src/components/use-pricing-command.ts",
@@ -115,14 +135,13 @@
     "./routes/api/v1/holdings/[holdingSlug]/marketing/route": "./src/routes/api/v1/holdings/[holdingSlug]/marketing/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/customer-access/route": "./src/routes/api/v1/holdings/[holdingSlug]/customer-access/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/reports/crm-marketing/route": "./src/routes/api/v1/holdings/[holdingSlug]/reports/crm-marketing/route.ts",
-    "./lib/navigation": "./src/lib/navigation.ts"
+    "./public/native-commerce-orders-page": "./src/public/native-commerce-orders-page.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
     "lint": "eslint src"
   },
   "dependencies": {
-    "@erpx/contracts": "workspace:*",
     "@erpx/feature-commerce": "workspace:*",
     "@erpx/feature-crm": "workspace:*",
     "@erpx/feature-customer_360": "workspace:*",
@@ -152,7 +171,7 @@
     "@erpx/server-work_projection": "workspace:*",
     "@erpx/ui": "workspace:*",
     "@erpx/workplace": "workspace:*",
-    "next": "16.4.0",
-    "react": "19.3.0"
+    "next": "16.4.3",
+    "react": "19.3.1"
   }
 }

@@ -1,0 +1,152 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Benefits now has a bounded native enrollment-workspace read: Company-scoped plans and enrollment windows, the current worker's dependents, reviewer-or-self enrollments with the retained People legal-name projection, package history enforcement and the retained write/review/document flags. The owner also has an owner-local HTTP router, a strict Next transport with personal-view forwarding, SSR/GET cutover and fail-closed native configuration. The Benefits owner remains pending overall: workspace membership, shared composition mounting, enrollment detail history/payroll, every plan/window/dependent/election command, attachments, learning eligibility, provider acknowledgement, payroll release, finance effects, jobs and browser acceptance remain open.",
+  "capability": "benefits-owner-workspace-read-closure",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "8c2f8d66e",
+  "scope": {
+    "workflows": [
+      "benefits/dependents",
+      "benefits/coverage",
+      "benefits/feature-plans",
+      "benefits/feature-enrollment-windows",
+      "benefits/feature-provider-payroll"
+    ],
+    "workflowBoundary": "The qualified slice is the Benefits workspace read used by the plans/enrollments/mine list views and the GET API: Company plans, enrollment windows, the active worker's dependents, reviewer-or-self enrollment rows, package history controls and the current write/review/document flags. Enrollment detail (history, payroll input, owner/provider document visibility), all plan/window/dependent/election commands, provider acknowledgement, payroll release, learning eligibility, attachments, finance effects and browser journeys remain retained TypeScript.",
+    "domain": "Current actor policy (records.read, explicit benefits module, work-context expiry, opaque 64-hex presentation context), exact Company scope, exact plan row shape (provider, coverage, currency, minor-unit money, effective range, status, version, reviewer, eligibility requirement), exact window row shape (ordered ISO dates, status, version, reviewer), exact dependent row shape (worker ownership, relationship, birth date, status, version), exact enrollment row shape (plan/window versions, coverage, money, effective range, status, version, plan name and People legal name), unique ids, deterministic updated_at-descending/id-ascending order, and explicit 500-plan / 500-window / 200-dependent / 1,000-election bounds that fail closed instead of truncating.",
+    "application": "One benefits_workspace use case checks the current actor before any package, worker or owner read; requires the current people.benefits history entitlement through a public Commercial port before source access; resolves the current active worker/engagement through a public People Payroll port; skips dependent reads when no worker exists; uses reviewer scope only for non-personal reads with benefits.review; always uses the current worker for the personal 'mine' view; requests the legal names of every distinct enrolled person once and requires a complete unique name projection; validates every row against the actor Company, worker and reviewer scope before presentation. Repository SQL stays on the caller's retained serializable Holding transaction.",
+    "adapters": "Read-only SQL over Benefits-owned benefit_plans, benefit_enrollment_windows, benefit_dependents and benefit_elections plus the Benefits-owned plan-name join. People worker and legal-name facts arrive only through the public BenefitsPeoplePort; no hr_people or hr_engagements SQL is authored here. Every read requires an existing transaction whose isolation is serializable; no transaction is opened, committed or retried. The adapter never creates, publishes, retires, verifies, submits, acknowledges, releases or deletes a Benefits or cross-owner row.",
+    "http": "Owner-local GET /api/v1/holdings/{holding_slug}/benefits. Exact registered Host/Holding target keys and exact HTTPS origins, duplicate Host rejection, no query string, no request body, a strict optional x-erpx-benefits-personal: 1 scope flag with duplicate/unknown-value rejection, private/no-store plus no-referrer/nosniff responses, and bounded BusinessError status mapping. The composition backend receives transport facts only and must supply the normal Account session, live IAM authority, current Company/branch/department scope, package admission and serializable owner unit.",
+    "transport": "ERPX_NATIVE_BENEFITS_CONFIG is strictly validated: loopback-only private base, explicit port excluding 3000/3001/3100/3101/3103/5432/5433/5435/8080 and 3200-3299, exact HTTPS Holding origins, unique hosts/slugs, 250..30000 ms timeout, bounded cookie/context/workspace headers, exact plan/window/dependent/enrollment/purchase/context shapes, Company and worker-scope coherence, unique ordered rows, deterministic ordering, a 2 MiB response bound and no fallback on any configured failure.",
+    "ssr": "The workplace Benefits list page and the feature-people /benefits GET route use the native workspace when ERPX_NATIVE_BENEFITS_CONFIG is present. An unset configuration retains benefitsWorkspace; once configured, a malformed or failed native read is surfaced through the existing page/route error policy rather than silently replaced. The enrollment detail page, its benefitDetail history/payroll read, all POST commands and the BenefitsConsole document/command panels remain retained.",
+    "purchaseAndIdentity": "The native application requires the current people.benefits history entitlement through a public Commercial port when enforcement is enabled and projects the newWork/settleExisting/history/revision controls consumed by the retained console. This is a read projection, not an atomic owner unit; composition must repeat live IAM authority, the assignment module predicate, selected scope and purchase admission inside its own serializable owner transaction.",
+    "writeBoundary": "This slice is read-only. Versions are projected and validated, but there is no CAS mutation, idempotency receipt, audit event, outbox event, attachment binding, learning consumption, People Payroll handoff or Finance deferred effect in the native path. The retained TypeScript commands keep their current receipts, versions/CAS, idempotency, same-transaction People/Payroll/Finance guards, audit/outbox and rollback behavior.",
+    "notClaimed": "No browser journey, authenticated page render, shared composition mount, root workspace membership, catalogue acceptance qualification, enrollment detail/history/payroll read, command, provider acknowledgement, payroll release, attachment, learning eligibility, finance effect, job, staging, private production or Cloudflare verification."
+  },
+  "changedFiles": [
+    "packages/server-benefits/Cargo.toml",
+    "packages/server-benefits/src/lib.rs",
+    "packages/server-benefits/src/domain/mod.rs",
+    "packages/server-benefits/src/domain/workspace.rs",
+    "packages/server-benefits/src/application/mod.rs",
+    "packages/server-benefits/src/application/workspace.rs",
+    "packages/server-benefits/src/adapters/mod.rs",
+    "packages/server-benefits/src/adapters/workspace.rs",
+    "packages/server-benefits/src/adapters/workspace_http.rs",
+    "packages/server-benefits/src/public/mod.rs",
+    "packages/server-benefits/src/public/workspace.rs",
+    "packages/server-benefits/src/public/workspace_http.rs",
+    "packages/feature-benefits/package.json",
+    "packages/feature-benefits/src/public/native-benefits-workspace.ts",
+    "packages/feature-benefits/src/public/native-benefits-workspace-page.ts",
+    "packages/feature-benefits/src/adapters/server/next-native-benefits-workspace.ts",
+    "packages/feature-people/package.json",
+    "packages/feature-people/src/routes/api/v1/holdings/[holdingSlug]/benefits/route.ts",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/benefits/screen.tsx",
+    ".env.example",
+    "tests/unit/benefits/rust-benefits-workspace.test.rs",
+    "tests/integration/benefits/rust-benefits-workspace-http.test.rs",
+    "tests/integration/benefits/rust-benefits-workspace-postgres.test.rs",
+    "tests/unit/benefits/native-benefits-workspace-transport.test.ts",
+    "tests/catalogue/suite-manifest.json",
+    "docs/testing/evidence/2026-11-04-benefits-owner-closure.json"
+  ],
+  "verification": {
+    "cargo": {
+      "command": "ERPX_TEST_ADMIN_URL=<local test admin> cargo test -p erpx-server-benefits --locked -- --test-threads=1",
+      "workingDirectory": "isolated mirror of the repository root containing the current root Cargo.toml with only packages/server-benefits added to members",
+      "result": "20 passed, 0 failed, 0 ignored across 3 test targets plus the empty lib/doc targets (lib 0, benefits_workspace 13, benefits_workspace_http 2, benefits_workspace_postgres 5, doc-tests 0)",
+      "workspaceNote": "packages/server-benefits is not listed in the root Cargo.toml workspace members, which this subagent is prohibited from editing. The exact --locked command was executed against a transient .scratch mirror containing a copy of the current root Cargo.toml with only packages/server-benefits added to members, a mirror-local Cargo.lock updated only for that added member, and symlinked real packages/tests/migrations/src trees. The mirror was removed after verification. The repository root Cargo.toml and Cargo.lock were not modified by this subagent. The workspace owner must register the package and regenerate the lock before the command is reproducible directly from the repository root.",
+      "targets": {
+        "benefits_workspace": "13 passed: records.read/module/context/package checks before worker and source; reviewer/employee/personal repository scope; missing-worker dependent and election behavior; exact flags/context/purchase wire shape; plan scope/id/name/provider/coverage/currency/money/date/range/status/version/creator/reviewer/timestamp/eligibility negatives; plan duplicate/order/bound; window and dependent shape/order/bound; enrollment shape/person/order/bound; unique distinct legal-name request with missing/extra/duplicate/invalid-name negatives; repository and People failure propagation; disabled-enforcement purchase nullness; valid default rows",
+        "benefits_workspace_http": "2 passed: exact distinct Host/Holding/HTTPS target configuration, actual loopback GET forwarding with and without the personal flag, private/no-store/no-referrer/nosniff headers, query/body/duplicate-or-invalid-personal rejection, duplicate Host rejection, unknown Host/Holding 404, conflict mapping and proof that rejected requests never reach the backend",
+        "benefits_workspace_postgres": "5 passed: Company-scoped plan/window/dependent/enrollment ordering and persisted readback with enriched People legal names; reviewer reading all Company enrollments while personal forces the current worker; foreign Company isolation; transaction/serializable guards, rollback and unchanged owner row counts; permission and package denial before owner source reads"
+      }
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-benefits --all-targets --locked -- -D warnings",
+      "result": "pass; no erpx-server-benefits warning"
+    },
+    "rustfmt": {
+      "command": "rustfmt --edition 2024 --check on every changed Rust source and test file",
+      "result": "pass"
+    },
+    "postgres": {
+      "suite": "benefits_workspace_postgres (raw migrated PostgreSQL, disposable leased erpx_dev_rust_* database)",
+      "fixture": "Real migrated PostgreSQL with synthetic Company/foreign Company, active workers and engagements, plans, enrollment windows, dependents and enrollments. The qualified read path writes no Benefits or cross-owner row; the only writes are rolled-back fixtures used to prove visibility and rollback."
+    },
+    "typescript": {
+      "typechecks": [
+        "tsc --noEmit --project packages/feature-benefits/tsconfig.json: pass",
+        "tsc --noEmit --project packages/feature-people/tsconfig.json: pass",
+        "tsc --noEmit --project tests/config/tsconfig.json: pass",
+        "targeted tsc --noEmit over the Benefits workplace page, native transport/page/adapter and feature-people Benefits route using a transient .scratch project: pass"
+      ],
+      "workplaceTypecheckLimit": "The full packages/workplace typecheck currently fails only on concurrently added packages/workplace/src/lib/native-learning.ts (missing nativeLearningFailure export from the concurrent server-learning slice). No Benefits file appears in the failure. The Benefits page was verified through the targeted project above and the earlier full workplace typecheck before the concurrent learning files appeared.",
+      "eslint": "targeted changed TypeScript files: pass (the repository's existing pages-directory warning only)"
+    },
+    "vitest": {
+      "command": "ERPX_SELECTED_TEST_FILES='[\"tests/unit/benefits/native-benefits-workspace-transport.test.ts\"]' vitest run --config tests/config/vitest.unit.config.mts",
+      "result": "11 passed, 0 failed",
+      "existingBenefitsRegression": "ERPX_SELECTED_TEST_FILES='[\"tests/unit/benefits/benefits-services.test.ts\"]' vitest run --config tests/config/vitest.unit.config.mts: 21 passed, 0 failed",
+      "cases": [
+        "forwards exact Host/Holding/session/context CAS and the workspace route with no idempotency key",
+        "forwards the personal view together with selected branch and department workspace slugs",
+        "returns enabled package controls unchanged",
+        "surfaces a bounded owner PACKAGE_REQUIRED error with status, code and message",
+        "rejects foreign Company, invalid/reversed dates, bad currency, duplicate/unordered rows, extra keys, changed flags/actor, malformed purchase and context/scope mismatch",
+        "bounds an oversized owner response and rejects a non-JSON success body",
+        "rejects a host, Holding or actor that is not the configured exact authority plus malformed branch/revision inputs",
+        "fails closed when the native configuration is absent",
+        "does not fall back when the configured selector is malformed",
+        "rejects reserved ports, insecure Holding origins and malformed configuration",
+        "maps context/request/authority/owner failures to the retained page/route status policy"
+      ]
+    },
+    "structure": {
+      "command": "node_modules/.bin/tsx scripts/testing/layout.ts",
+      "result": "pass"
+    },
+    "architecture": {
+      "command": "node_modules/.bin/tsx scripts/architecture/check.ts",
+      "result": "exit 0; the printed owner/module-private-import findings are pre-existing files outside this slice and no packages/server-benefits or native-benefits-workspace path appears"
+    },
+    "catalogue": {
+      "targeted": "A direct validateCargoSuite + file/package-name check over the four new benefits suites in tests/catalogue/suite-manifest.json passed: benefits_workspace, benefits_workspace_http, benefits_workspace_postgres and the vitest transport suite.",
+      "full": "not claimed as passing: the full catalogue validator currently fails first at INVALID_SUITE_VERIFICATION_INPUT:customer_360.rust-customer-timeline.unit from concurrent work. No benefits suite appears in the failure."
+    },
+    "browser": "not run; no Next dev server, authenticated page render, public URL or browser acceptance was executed. No workflow is claimed browser-verified."
+  },
+  "sharedCompositionAndSchema": {
+    "schemaDelta": "none; no migration, table, column, index, trigger or constraint was added or changed",
+    "dependencyDelta": "no new external dependency or version; the new crate uses the existing workspace shared/runtime/serde/serde_json/sqlx set. Only internal workspace package edges were added: feature-benefits -> server-identity_access/server-runtime/next (already pinned), feature-people -> feature-benefits. No root Cargo.toml, root Cargo.lock, bun.lock or other lockfile was authored by this subagent.",
+    "compositionDelta": "No src/composition change and no composition backend mount. The owner-local router and public ports are ready for a composition backend but are not mounted here. Root workspace registration for packages/server-benefits is also not authored here.",
+    "publicPortsRequiredByComposition": [
+      "erpx_server_benefits::public::workspace::{BenefitsActor, BenefitsWorkspaceRepository, BenefitsPeoplePort, BenefitsEntitlementPort, PgBenefitsWorkspaceRead, benefits_workspace}",
+      "erpx_server_benefits::public::workspace_http::{benefits_workspace_http_router, BenefitsWorkspaceHttpTarget, BenefitsWorkspaceHttpBackend, BenefitsWorkspaceHttpReadRequest, BenefitsWorkspaceHttpResponse}"
+    ],
+    "backendRequired": "Implement BenefitsWorkspaceHttpBackend in src/composition: parse the normal Account/Holding request, resolve the current live IAM authority rather than trusting the rendered WorkContext, require records.read, the benefits module and the assignment module predicate, require the configured Holding/Company and selected branch/department, run the retained feature-release and people.benefits admission inside one serializable Holding transaction, compute the same opaque presentation context as benefitPresentationContext, build BenefitsActor, implement BenefitsPeoplePort through public People Payroll worker/active-engagement and legal-name facts, implement BenefitsEntitlementPort through public Commercial purchase admission, call benefits_workspace with PgBenefitsWorkspaceRead, and map PgTransactionError to BusinessError.",
+    "privateDevelopmentApi": [
+      "Build one BenefitsWorkspaceHttpTarget per registered Holding with exact host, slug and https origin.",
+      "router = router.merge(erpx_server_benefits::public::workspace_http::benefits_workspace_http_router(targets).map_err(|_| \"PRIVATE_API_BENEFITS_CONFIGURATION_INVALID\")?);",
+      "Listen only on an owned loopback port outside 3000/3001/3100/3101/3103/5432/5433/5435/8080 and 3200-3299, and configure ERPX_NATIVE_BENEFITS_CONFIG with that privateBaseUrl."
+    ],
+    "concurrentWorktreeNote": "The working tree contains uncommitted changes from other agents (customer_authority, learning, talent and related composition/lockfile/package updates). Those changes are not authored by this slice and were left untouched."
+  },
+  "legacy": {
+    "removedFromConfiguredReadPath": [
+      "workplace Benefits list SSR benefitsWorkspace plans/windows/dependents/elections read when ERPX_NATIVE_BENEFITS_CONFIG is present",
+      "feature-people GET /api/v1/holdings/{holding_slug}/benefits workspace read when ERPX_NATIVE_BENEFITS_CONFIG is present"
+    ],
+    "retained": [
+      "benefitDetail enrollment history and payroll input read",
+      "createBenefitPlan/createBenefitWindow/createBenefitDependent/createBenefitElection and changeBenefitRecord commands",
+      "command receipts, idempotency keys, versions/CAS, audit/outbox, same-transaction People/Payroll/Finance guards and rollback",
+      "learning benefit eligibility consumption, attachment bindings and provider documents",
+      "benefitsWorkspace fallback when ERPX_NATIVE_BENEFITS_CONFIG is unset",
+      "jobs, staging and private production paths"
+    ],
+    "nextAction": "Register packages/server-benefits in the root workspace and implement the composition backend mount. Then implement the native enrollment detail/history/payroll read before any command slice; a command slice must carry the retained idempotency receipt, versions/CAS, same-transaction People/Payroll/Finance guards, audit/outbox and rollback into the owner unit rather than weakening them."
+  }
+}

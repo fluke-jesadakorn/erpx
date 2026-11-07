@@ -1,0 +1,44 @@
+[package]
+name = "erpx-server-quality"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+futures-util.workspace = true
+sha2.workspace = true
+url.workspace = true
+erpx-server-shared.workspace = true
+erpx-server-runtime.workspace = true
+erpx-server-files.workspace = true
+sqlx.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+uuid.workspace = true
+
+[lints]
+workspace = true
+
+[[test]]
+name = "consumption_postgres"
+path = "../../tests/integration/quality/rust-consumption-holds-postgres.test.rs"
+
+[[test]]
+name = "quality_decisions"
+path = "../../tests/unit/quality/rust-quality-decisions.test.rs"
+
+[[test]]
+name = "quality_read_cancel_postgres"
+path = "../../tests/integration/quality/rust-quality-read-cancel-postgres.test.rs"
+
+[[test]]
+name = "quality_http"
+path = "../../tests/integration/quality/rust-quality-http.test.rs"

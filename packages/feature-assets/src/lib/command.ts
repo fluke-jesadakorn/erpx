@@ -3,7 +3,7 @@ export type AssetCommandPath="assets"|"maintenance"|"maintenance/plans";
 export type AssetPurchase={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 export type AssetPurchases=Partial<Record<string,AssetPurchase>>|undefined;
 export type AssetCommandAttempt={path:AssetCommandPath;body:string;context:string;key:string;completion?:WorkCommandCompletion};
-export function assetCommandContext(){const node=typeof document==="undefined"?null:document.querySelector<HTMLElement>("[data-work-revision]");return node?[node.dataset.workUser,node.dataset.workRevision,node.dataset.workCompany,node.dataset.workAssignment].join(":"):"server";}
+export function assetCommandContext(){const node=typeof document==="undefined"?null:document.querySelector<HTMLElement>("[data-work-revision]");return node?JSON.stringify([node.dataset.workUser,node.dataset.workRevision,node.dataset.workCompany,node.dataset.workAssignment,node.dataset.workAssignmentVersion]):"server";}
 export function assetFormUnchanged(completion:WorkCommandCompletion|undefined){return !completion||completion.form.isConnected&&completion.form.getAttribute("data-erpx-edit-version")===completion.formEditVersion;}
 export function assetCommandAllowed(path:AssetCommandPath,input:{action?:string;id?:string},purchases:AssetPurchases){
  const capability=path==="assets"?(input.action==="place"?"assets.custody":"assets.register"):path==="maintenance/plans"?"assets.preventive":input.action==="issue-part"?"assets.parts-costs":"assets.maintenance",settlement=path==="assets"?!!input.id&&input.action!=="place":path==="maintenance/plans"?["pause","cancel"].includes(input.action??""):!!input.id;

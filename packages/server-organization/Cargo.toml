@@ -1,0 +1,64 @@
+[package]
+name = "erpx-server-organization"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+erpx-server-runtime.workspace = true
+erpx-server-shared.workspace = true
+erpx-server-workflow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+uuid.workspace = true
+
+[[test]]
+name = "hierarchy"
+path = "../../tests/unit/organization/rust-hierarchy.test.rs"
+
+[[test]]
+name = "hierarchy_postgres"
+path = "../../tests/integration/organization/rust-hierarchy-postgres.test.rs"
+
+[[test]]
+name = "organization_nodes"
+path = "../../tests/unit/organization/rust-organization-nodes.test.rs"
+
+[[test]]
+name = "organization_nodes_postgres"
+path = "../../tests/integration/organization/rust-organization-nodes-postgres.test.rs"
+
+[[test]]
+name = "organization_setup"
+path = "../../tests/unit/organization/rust-organization-setup.test.rs"
+
+[[test]]
+name = "organization_setup_postgres"
+path = "../../tests/integration/organization/rust-organization-setup-postgres.test.rs"
+
+[[test]]
+name = "organization_setup_http_postgres"
+path = "../../tests/integration/organization/rust-organization-setup-http-postgres.test.rs"
+
+[lints]
+workspace = true
+
+
+[[test]]
+name = "journal_flow_department"
+path = "../../tests/unit/organization/rust-journal-flow-department.test.rs"
+
+[[test]]
+name = "journal_flow_department_postgres"
+path = "../../tests/integration/organization/rust-journal-flow-department-postgres.test.rs"

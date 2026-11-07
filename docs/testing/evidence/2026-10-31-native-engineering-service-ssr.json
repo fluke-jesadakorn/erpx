@@ -1,0 +1,259 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-31T01:54:10.407119+00:00",
+  "integrationBase": "4e6afe011483590f40a400dd8bbf4925fd55d945",
+  "scope": "Explicit isolated native eight-lease engineering profile and compiled Service admission; retained Account/Apps development renderers. No new business-owner completion.",
+  "sourceFiles": {
+    "apps/account/turbo.json": "30c05391bc561c0686c0411d112a11bdd4422ec1ce55a962cee31464b7559466",
+    "apps/admin/turbo.json": "d4e6c58abfa3b90fac6fff2b37aaf656b8536efb95f162148bc6c6563009e58f",
+    "apps/assets/turbo.json": "d1a6f8f5775fc871ef9f9fb940beaedb3047f24d9db52b6987e6323f89fc473b",
+    "apps/booking/turbo.json": "4e74d826387a986032dc668f8ded5010f67352c27f83114427cc672167a18b45",
+    "apps/finance/turbo.json": "96fef583a5797f0aa8b0357745b923c6a0e469928ed68a7ca94aba46626f232f",
+    "apps/forms/turbo.json": "e78b6a89f487d9995885e6b0fa78eb8bd2f0aa929c7ef5eb75d98a76001e595f",
+    "apps/launcher/turbo.json": "ddb44c8f4c8593a44eac29144d7b473b2b79a823d091121219c003dc4500c8b7",
+    "apps/learn/turbo.json": "6b099da79312ebf2b2df65e8db991384068b4acf21df4ab3a9f85abfc02fd3e7",
+    "apps/legal-portal/turbo.json": "13f1ea9048b601333786662da36f980e5b69ff63112133cb231fc21f36f08f63",
+    "apps/legal/turbo.json": "6da8d2684b9b78518d19b16cec769ad64af039f62983c5f7ff70e58a2afc4b64",
+    "apps/manufacturing/turbo.json": "2e7de102ebe6de979c49edc18e2df7bcb9d9e96b5193efaca4622eddedba7acb",
+    "apps/people/turbo.json": "e5a9fde8f74837c0a4833da8a4c5d79492485f69413f07d00e252618890e22fd",
+    "apps/pms/turbo.json": "5dc4de56ed094abfa8f199dd08967c397bf1fc04585afdffba117b213f949d7e",
+    "apps/portal/turbo.json": "e8c4a261bb247b2763dac3cc24e2b026436a42492678026ab8aeb25b91e11f5c",
+    "apps/pos/turbo.json": "a5cc9eba276623ae1e5a9b0b7e39c9aa184494de56060bcd4df96320664a3df9",
+    "apps/projects/turbo.json": "db8c6cc0e74102cd23ff49c74e6dc220230440f10ac4183a7d065fcf6b0a2b62",
+    "apps/recruit/turbo.json": "3378a1f18898df9c88cfa37a2c725a194a619b35841841b11b08cdd4c0b40d4f",
+    "apps/sales/turbo.json": "74082ca8ae8e3fc1e53dc85655060d579093c5635acb128977bee0181aa5926c",
+    "apps/service/turbo.json": "8e17be1ecd8a252aaba54dbd5b57465925a094f15a8136c9e913d1fe1fc48035",
+    "apps/supply/turbo.json": "fd3b7d19adee9b6cf15f7e6b38b7c110f7e8b2d9fa3082026b8ff0d33f9fb1b8",
+    "apps/support/turbo.json": "7a89e868284c57ef13b816862cdeb3f445f532314bfc750ede47755bbb438b61",
+    "packages/server-platform_administration/src/adapters/engineering-verification.ts": "f02e3d8398d0490ac1109793c4c0aaeb3ecd285e1aa9fa440beaf2806cde345f",
+    "packages/server-platform_administration/src/application/engineering-verification.ts": "449e6f70683691b64be305ffe2da880408ea0adf3fd98a4e61944c0ae57864ce",
+    "packages/server-platform_administration/src/domain/engineering-verification.ts": "55324ad8369ffde9889a4d44ca943d48c8deb6373cc92b6f42761e47b144c3fe",
+    "packages/server-runtime/package.json": "58acfdd5da7eef32c7b8a17939770fdc1c87e86d8313fe190ef8eeda23311f46",
+    "packages/server-runtime/src/adapters/runtime/env.ts": "ef43f44c9c34cb237038d0e88410cfea3a1e3699474bfac7571ecf09b0064128",
+    "packages/server-runtime/src/adapters/runtime/postgres.ts": "58229057ed34af8c3793ddaeaf1b45da4a4f3597122c040277dd5f48199b6181",
+    "packages/server-runtime/src/domain/native-engineering-roster.ts": "811f55f6dcba2f3585bb4617219aad36a68fd23401290e9ea47f76321b6af400",
+    "packages/server-runtime/src/public/native-engineering-roster.ts": "3ca3e1d40e90e003710781ccef370018254295b40b1e3ab8aa5c9d6dae60b6d2",
+    "scripts/local/isolated-app-build.ts": "b082dad6a868cd515e95252b884cdbdf731cb909839e95bba1261cc35c25160d",
+    "scripts/testing/engineering/immutable-app-vendor.ts": "95f79714682d1067974eb97d9d93cb9cff7de452d90581759c9616eb0297d4f9",
+    "scripts/testing/engineering/native-catalog-grants.ts": "82ada13376600b14a0250e90952d3c7b6086c159831d8c12440c9484c67e8909",
+    "scripts/testing/engineering/native-cohort-browser-qualification.mjs": "10b8cd7b391a75fe7eb169415c5ec0bc1c44f1cf8658e1918d98ab8897bb6dcb",
+    "scripts/testing/engineering/native-cohort-dev-apps.mjs": "ab85c964b39c5f78a72caa07478132171adcf1b00b71da49afd81d81c3ee8d6b",
+    "scripts/testing/engineering/native-cohort-driver.ts": "526ffb0ef85ad80eb93228883569a7d38fa74440a776b277c797b4a2543d1021",
+    "scripts/testing/engineering/native-cohort-enroll.ts": "9ddf4c8371b864b8b5b4bdc1199342a86a355f447dd5001dd2c9244087e00e7f",
+    "scripts/testing/engineering/native-cohort-fixture-launcher.ts": "e3353f8f618a8655f204ef26b3a4eb773be7719bc4ef3fc7d9e62ff1cc5c823d",
+    "scripts/testing/engineering/native-cohort-gateway.mjs": "2609517abf07918c9c6be2ed290b7e15defd9f4c9460ac7891ce5483024892e5",
+    "scripts/testing/engineering/native-cohort-parts-browser.mjs": "fe6961f9d696c296c34f38ccfa2591f054e5c3036a8ee54121476005bf47de6b",
+    "scripts/testing/engineering/native-cohort-parts-continue.mjs": "e013dca9303ae8945bbd1a1e268ae651b2e9b926dafbe04d62368263a81d3d71",
+    "scripts/testing/engineering/native-cohort-parts-seed.ts": "df027f2553b30450cd72bc2cc981074d9ff6ea77a697e4848ee9c74f94b5c4df",
+    "scripts/testing/engineering/native-cohort-reconcile-witness.ts": "b6cb25595bbad745762f394facf4d6aacfde23cf04bdb4536a2aa624c811eb31",
+    "scripts/testing/engineering/native-cohort-reconcile.ts": "7319b66f87392ebcf8611875267d4cd0bf0e43ce24f205a5c6b6b95fd237f4b4",
+    "scripts/testing/engineering/native-cohort-runtime-holder.ts": "6d39dc1263d1e8b2e6a5d8379ae5e47fcb03d7306dd3c23f183ee1a82e269971",
+    "scripts/testing/engineering/native-cohort.ts": "4d05548bcadd79f5ca1060c6214a773bd6f7fae99b56e99cffa89a35b5e5e739",
+    "scripts/testing/engineering/native-fence-probe.ts": "d3e14a02d10e82612ba04fe7890ca3bbbaf87becd19fff4388aadc5018f05d28",
+    "scripts/testing/engineering/native-release-service-build.ts": "605d291d75d7e4d80ca39a589c9f4c630fe435edbbf09dd1e30d7673a49d4cb8",
+    "scripts/testing/engineering/native-service-child-proof.ts": "b7ed25bcc948018af5014fd2e25008b263f39beb0a2de59798c436ab8d908a2c",
+    "scripts/testing/engineering/native-service-child.ts": "28a34cffbb34ef4da1f0dd5a07558953e0bd7b099e063cdfb6a3982816a0b32d",
+    "tests/catalogue/suite-manifest.json": "635bd376e181d86e73f0b5efeb00ab6de5e34ba4ce978cfc3fc9ffc5036744bb",
+    "tests/integration/shared.evidence/engineering-verification.test.ts": "92e4c54a18a8cf87a8915fb7c90d29b0e12d36fdc298414d218e395000e12d8a",
+    "tests/support/files/rust-field-engineering-cohort.rs": "dd11f9c2946caa814b7f804d71639ca1ab6aba7e6bb15d824bc3b7ed62308f00",
+    "tests/support/files/rust-field-files-vitest-held-provider.rs": "c5b20595fdaace7b0cf7f9b9734676d06f570914479c763062c38cbb63957278",
+    "tests/support/runtime/immutable-app-vendor-probe.ts": "6c55084196419dba36072d456873d0ddbf4888f9cfa24c12e3a12e94ed25293c",
+    "tests/support/runtime/native-engineering-cohort-holder.ts": "3e67f3b2ed3f43dd411ab97656787e64cc597ee6876cb5a70d8dd89a40646a29",
+    "tests/support/runtime/native-engineering-fence-probe.ts": "41d1af48c6c30f13796d1df5d743f2e35f51a676e3df10bde6ed8f311abfddfd",
+    "tests/support/runtime/native-engineering-platform-probe.ts": "4c630e7b513c2a886c526b13894c9d6e31914b7b80553deae582832f582d9caa",
+    "tests/support/runtime/native-service-child-probe.ts": "b3839d1f15b6bd30d831747ddc1f05d15e1f646f9f7c142a332a806520b6643a",
+    "tests/unit/platform_administration/platform-administration-application.test.ts": "06f514f7c76a4a138aa15ce800905d43bc36839a6b34005e4a629bf2691d9580"
+  },
+  "compiledService": {
+    "preparedSourceFingerprint": "da36e6030ce7637de35b13298b283604fcf4253c877c2c2a39c9d57640c209d9",
+    "fileManifestSha256": "1a7c2e3b2dff932cca8687a5b00989ab1a9f854d8568cab144ff63a3e09fb4ff",
+    "port": 3213,
+    "gatewayPort": 3104,
+    "entryBinding": "In-process argv/private descriptor and manifest; kernel title alone does not independently reveal original argv."
+  },
+  "checks": {
+    "actualNativeEightDistinctLeases": true,
+    "catalogLocksAndMarkedPlatformPredicate": true,
+    "retainedClientReloadAndDriftRollback": true,
+    "strictChildEntryAndNegativeCases": true,
+    "immutableVendorSourceClosureAndTamperProbe": "8 actual Linux cases; independently reviewed",
+    "defaultBuilderRegressions": "74 cases pass on final tooling source; tool session83554 exit0",
+    "platformUnit": "18 cases pass",
+    "toolsAndTestsTypecheck": true,
+    "realFixtureCompileAndActivation": true,
+    "normalFormSSOCompanyAndAssignment": true,
+    "nativePartsMastersDraftCountAndReadback": true,
+    "acknowledgedCommands": 17,
+    "canonicalReceipts": 17,
+    "audits": 17,
+    "outbox": 17,
+    "count": "draft version1; no post or worker projection claim in this case",
+    "secondReadOnlySSOReadback": true,
+    "finalCountAndReadbackPageConsoleHttpErrors": 0,
+    "ownedEightLeaseCleanup": true,
+    "contributorNormalSSOReadbackAndCAHealthRestored": true,
+    "architectureLayoutCatalogueDocumentation": "Pass; generated task/catalogue refresh leaves runtime fingerprint1c9413ebb6b5d0bf7c8761c626790521343dc792431401d29acca335aa2315aa unchanged",
+    "independentReview": "No remaining bounded correctness findings; limitations retained",
+    "globalLint": "Exit0 with1148warnings; ten changed-helper unused warnings then removed and focused changed-source lint passed. Unrelated global warnings retained."
+  },
+  "privateEvidence": [
+    {
+      "path": ".scratch/dev/native-cohort-fence-proof-16.json",
+      "sha256": "58ab2d46f64a82d49a65af4e08d242a0dff91b9f62ef500a96475e399fce8edd",
+      "bytes": 2366,
+      "preservedPrivateCopy": ".scratch/dev/native-service-child-accepted-evidence/58ab2d46f64a82d49a65af4e08d242a0dff91b9f62ef500a96475e399fce8edd.json"
+    },
+    {
+      "path": ".scratch/dev/immutable-app-vendor-review-proof-final.json",
+      "sha256": "9e1f5ec4de60d3cbf382d929cd6172385622fe1e38b2ab8d370de4695e81ed81",
+      "bytes": 1699,
+      "preservedPrivateCopy": ".scratch/dev/native-service-child-accepted-evidence/9e1f5ec4de60d3cbf382d929cd6172385622fe1e38b2ab8d370de4695e81ed81.json"
+    },
+    {
+      "path": ".scratch/dev/native-service-child-build-identity.json",
+      "sha256": "c0db722b1ac975e7fc72edd1690147aba5c7142b8c01df653fc417b137e17c7f",
+      "bytes": 572,
+      "preservedPrivateCopy": ".scratch/dev/native-service-child-accepted-evidence/c0db722b1ac975e7fc72edd1690147aba5c7142b8c01df653fc417b137e17c7f.json"
+    },
+    {
+      "path": ".scratch/dev/native-engineering-service-child-source-overlay.json",
+      "sha256": "de1cc7c9ec48b793f212765f4d076af290f2593b806ba275549637d9c685d230",
+      "bytes": 2211,
+      "preservedPrivateCopy": ".scratch/dev/native-service-child-accepted-evidence/de1cc7c9ec48b793f212765f4d076af290f2593b806ba275549637d9c685d230.json"
+    },
+    {
+      "path": ".scratch/dev/native-cohort-fixture-crate-checksums.json",
+      "sha256": "216471319e4a9366b08360d642f98da0bc09ba8a67ae1fc6ceb6463073257478",
+      "bytes": 1259,
+      "preservedPrivateCopy": ".scratch/dev/native-service-child-accepted-evidence/216471319e4a9366b08360d642f98da0bc09ba8a67ae1fc6ceb6463073257478.json"
+    },
+    {
+      "path": ".scratch/dev/native-cohort-service-child-reconciliation.json",
+      "sha256": "f69bca158f5c45313262ac0f8f2266af631544e1178fa1deac56ca0ec6e0ecd8",
+      "bytes": 311,
+      "preservedPrivateCopy": ".scratch/dev/native-service-child-accepted-evidence/f69bca158f5c45313262ac0f8f2266af631544e1178fa1deac56ca0ec6e0ecd8.json"
+    },
+    {
+      "path": ".scratch/dev/native-cohort-service-child-sql-witness-v2.json",
+      "sha256": "3f875c63a5e918af6b23e91cf0688ca0ba224c79ee73a7c48a800913649ca310",
+      "bytes": 22823,
+      "preservedPrivateCopy": ".scratch/dev/native-service-child-accepted-evidence/3f875c63a5e918af6b23e91cf0688ca0ba224c79ee73a7c48a800913649ca310.json"
+    },
+    {
+      "path": ".scratch/dev/native-cohort-service-child-mutation-journal.json",
+      "sha256": "4ba43a37a2c01be4a63022492d234b3c4992d867a51f7e063ca4ffb58bf144e0",
+      "bytes": 5871,
+      "preservedPrivateCopy": ".scratch/dev/native-service-child-accepted-evidence/4ba43a37a2c01be4a63022492d234b3c4992d867a51f7e063ca4ffb58bf144e0.json"
+    },
+    {
+      "path": ".scratch/dev/native-cohort-service-child-count-journal.json",
+      "sha256": "5930416b77a225662ffc1d7b51893f9ac7d334f9afa9d6301c07ace5069f47db",
+      "bytes": 369,
+      "preservedPrivateCopy": ".scratch/dev/native-service-child-accepted-evidence/5930416b77a225662ffc1d7b51893f9ac7d334f9afa9d6301c07ace5069f47db.json"
+    },
+    {
+      "path": ".scratch/dev/native-cohort-service-child-provenance.json",
+      "sha256": "24d95708387e36d4ba106c169b66e75b18b9a3fa8b386d2362afcb46414ab08f",
+      "bytes": 926,
+      "preservedPrivateCopy": ".scratch/dev/native-service-child-accepted-evidence/24d95708387e36d4ba106c169b66e75b18b9a3fa8b386d2362afcb46414ab08f.json"
+    },
+    {
+      "path": ".scratch/dev/native-cohort-service-child-cleanup.json",
+      "sha256": "0b2f901a057b044913d9097777e9ce5c5adf06c63e6735f95a583da2b47ac12b",
+      "bytes": 200,
+      "preservedPrivateCopy": ".scratch/dev/native-service-child-accepted-evidence/0b2f901a057b044913d9097777e9ce5c5adf06c63e6735f95a583da2b47ac12b.json"
+    },
+    {
+      "path": ".scratch/dev/native-service-child-final-build.log",
+      "sha256": "9cf5ef1ff4750b8de70cfdd7c3e8a3b50630d3af4a3accf86ca463f9b62aeafd",
+      "bytes": 5412,
+      "preservedPrivateCopy": ".scratch/dev/native-service-child-accepted-evidence/9cf5ef1ff4750b8de70cfdd7c3e8a3b50630d3af4a3accf86ca463f9b62aeafd.log"
+    },
+    {
+      "path": ".scratch/dev/native-service-child-proof.log",
+      "sha256": "957e65c1b1ff3bf1d044c1cd1368855f21316be879b23f96bf12541d643a1646",
+      "bytes": 45,
+      "preservedPrivateCopy": ".scratch/dev/native-service-child-accepted-evidence/957e65c1b1ff3bf1d044c1cd1368855f21316be879b23f96bf12541d643a1646.log"
+    },
+    {
+      "path": ".scratch/dev/service-parts-dev-qualification/evidence/engineering-compiled-parts.json",
+      "sha256": "8c3c2662960659d20feadf4d0fb7b405027dc7bcadc446af4ff63ac92017b4f6",
+      "bytes": 65746,
+      "preservedPrivateCopy": ".scratch/dev/native-service-child-accepted-evidence/8c3c2662960659d20feadf4d0fb7b405027dc7bcadc446af4ff63ac92017b4f6.json"
+    },
+    {
+      "path": ".scratch/dev/service-parts-dev-qualification/evidence/engineering-compiled-count.json",
+      "sha256": "813b77f5e468e38d6927f1a510392ba2a79c7bdc8872a4f4d81c58d248705a0f",
+      "bytes": 5651,
+      "preservedPrivateCopy": ".scratch/dev/native-service-child-accepted-evidence/813b77f5e468e38d6927f1a510392ba2a79c7bdc8872a4f4d81c58d248705a0f.json"
+    },
+    {
+      "path": ".scratch/dev/service-parts-dev-qualification/evidence/engineering-compiled-count.png",
+      "sha256": "d815825e122b9fa36255cbcc753165e3a0e3656c319208541ae5b2505255d624",
+      "bytes": 121499,
+      "preservedPrivateCopy": ".scratch/dev/native-service-child-accepted-evidence/d815825e122b9fa36255cbcc753165e3a0e3656c319208541ae5b2505255d624.png"
+    },
+    {
+      "path": ".scratch/dev/service-parts-dev-qualification/evidence/engineering-compiled-readback.json",
+      "sha256": "a872c389ee870c8ad16236ea2e27f0f7d8191e040cdaa94bdc9c779efda66dac",
+      "bytes": 4947,
+      "preservedPrivateCopy": ".scratch/dev/native-service-child-accepted-evidence/a872c389ee870c8ad16236ea2e27f0f7d8191e040cdaa94bdc9c779efda66dac.json"
+    },
+    {
+      "path": ".scratch/dev/service-parts-dev-qualification/evidence/engineering-compiled-readback.png",
+      "sha256": "445e9140e23c2b9cb47b7047188531978f9f4dc25b3417b985a6fee0af1f09cd",
+      "bytes": 95191,
+      "preservedPrivateCopy": ".scratch/dev/native-service-child-accepted-evidence/445e9140e23c2b9cb47b7047188531978f9f4dc25b3417b985a6fee0af1f09cd.png"
+    },
+    {
+      "path": ".scratch/dev/service-parts-dev-qualification/evidence/engineering-browser-source.sha256",
+      "sha256": "8cadeeca9fe7aae2f22ea74008eb1e78e3819d5850381363f235a4dab6607583",
+      "bytes": 750,
+      "preservedPrivateCopy": ".scratch/dev/native-service-child-accepted-evidence/8cadeeca9fe7aae2f22ea74008eb1e78e3819d5850381363f235a4dab6607583.sha256"
+    },
+    {
+      "path": ".scratch/dev/service-parts-dev-qualification/evidence/browser-restored-after-compiled.json",
+      "sha256": "2f554c939b10d6f3797717a27b9a53f46e475dc236fd38df2db34c8a756ad309",
+      "bytes": 664,
+      "preservedPrivateCopy": ".scratch/dev/native-service-child-accepted-evidence/2f554c939b10d6f3797717a27b9a53f46e475dc236fd38df2db34c8a756ad309.json"
+    },
+    {
+      "path": ".scratch/dev/service-parts-dev-qualification/evidence/restore-after-compiled-ssr.log",
+      "sha256": "6ba09ed4cb4796708d4cf80c5b101c4bac0dac20f23bf64e04864f39f46078ec",
+      "bytes": 39,
+      "preservedPrivateCopy": ".scratch/dev/native-service-child-accepted-evidence/6ba09ed4cb4796708d4cf80c5b101c4bac0dac20f23bf64e04864f39f46078ec.log"
+    },
+    {
+      "path": ".scratch/dev/service-parts-dev-qualification/evidence/executed-parts-source/native-cohort-parts-browser.mjs",
+      "sha256": "dc7e84d357417f24ea3690c1f39c52c29b4f5b5a764de60bc836f978d2a371b3",
+      "bytes": 13794,
+      "preservedPrivateCopy": ".scratch/dev/native-service-child-accepted-evidence/dc7e84d357417f24ea3690c1f39c52c29b4f5b5a764de60bc836f978d2a371b3.mjs"
+    },
+    {
+      "path": ".scratch/dev/service-parts-dev-qualification/evidence/executed-parts-source/native-cohort-parts-continue.mjs",
+      "sha256": "92ecbdc8a2cef3979e0258ebf907bf96f5dfa27f721de55d05dbfe3b6557e4b1",
+      "bytes": 8420,
+      "preservedPrivateCopy": ".scratch/dev/native-service-child-accepted-evidence/92ecbdc8a2cef3979e0258ebf907bf96f5dfa27f721de55d05dbfe3b6557e4b1.mjs"
+    }
+  ],
+  "retainedBoundaries": [
+    "BetterAuth/Drizzle direct Control pool, raw Account/IAM and migration boundaries retain their original behavior. Marked engineering SQL on unfenced instrumented clients rejects.",
+    "Fenced units lock catalogs and check file currentness; live identity predicates are marked Holding write queries. All8 identity checks occur during verified bootstrap/grant.",
+    "Node admission and Rust business transactions are separate; no distributed or whole-request transaction claim.",
+    "Retained generic legacy consumers and withdrawals are unchanged from native Parts/Count contracts. No business implementation is newly replaced by this tooling delivery."
+  ],
+  "limitations": [
+    "Only Service is compiled; Account/Apps remain declared development endpoints.",
+    "Global Service health remained503/degraded for retained TypeScript attachment/jobs readiness; no healthy/readiness claim.",
+    "Visible narrow header/title overlap is an open Field UI blocker. No clean visual or full Field16 claim.",
+    "Earlier failed/aborted attempts remain preserved, including proxy-metadata rejection and incorrect HMR/launch routing in test gateway. Final successful results do not erase them.",
+    "The original temporary creation-driver hash was recorded but its exact bytes were not retained; browser/screenshots/journals/SQL remain. The later readback source is retained. Future UI reruns must preserve exact executed driver bytes before execution.",
+    "No Count approve/post, projector, complete workflow/owner, all-app release, ARM64-to-AMD64 or production privilege claim.",
+    "Normal ordered cleanup is qualified; abruptSIGKILL/SIGTERM crash cleanup and active-connection fault matrix remain unqualified.",
+    "No public Tunnel cutover, staging/private-production change, deployment, image publication or development merge.",
+    "Hosted CI unavailable; no success status fabricated.",
+    "Nested writable-mount rejection is implemented and source-reviewed; the actual8-case Linux fault probe did not inject a nested writable mount."
+  ],
+  "integrationStatusAtRecording": "Bounded local qualification/review complete; final scoped PR pending.",
+  "sourceDelta": "Two preparation helper files had unused imports/bindings removed after execution. Exact executed preparation source copies are retained separately; actual awaits/assertions/commands are unchanged, syntax/focusedlint and independent behavior delta review passed. No product/runtime source change or new browser command."
+}

@@ -1,0 +1,7683 @@
+{
+  "version": 1,
+  "sourceCommit": "a5ed8737a2f05eff1ee9841fda4a094b3926d732",
+  "sources": [
+    {
+      "path": "packages/server-shared/src/domain/error.ts",
+      "sha256": "ff9c315f159f7adcff264d6637617b80760f758c7cb0b19e1896f85bb51b798c"
+    },
+    {
+      "path": "packages/feature-finance/src/lib/finance-money.ts",
+      "sha256": "c36415b741869d868e321634749ddd97854ccf81dfb32740a0c41789488651b8"
+    },
+    {
+      "path": "packages/feature-commerce/src/lib/commerce-math.ts",
+      "sha256": "ac385a1604df6e125a3fed58ea5ee52b43459bbb898c280f7b874ae1996d9221"
+    },
+    {
+      "path": "packages/server-inventory/src/domain/landed-costs.ts",
+      "sha256": "9992054d91f4c813bcd02e92837d565f8a80974825696be40f9faa10892ad3c9"
+    },
+    {
+      "path": "packages/server-inventory/src/domain/transit.ts",
+      "sha256": "d23c109072477e514f63ddb962bac14b9d21ae9abec762cd5852b92c0613d6ce"
+    },
+    {
+      "path": "packages/server-inventory/src/domain/reorder-quantity.ts",
+      "sha256": "affc253999cc4649704255b84daf26f3779bd5a23f187df940fb275ce84d00ab"
+    },
+    {
+      "path": "packages/server-inventory/src/application/consumption.ts",
+      "sha256": "12f2906f33b342abf67a6a130753e91c9a88dc63c72b48ea8ece64f8d2b95bf3"
+    }
+  ],
+  "oracle": "Exact B0 helper and application function slices; Node 26.11.1; synthetic planning ports only; no PostgreSQL/authority acceptance",
+  "node": "v26.11.1",
+  "allocations": [
+    {
+      "total": 0,
+      "weights": [],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "LANDED_COST_ALLOCATION_UNAVAILABLE",
+          "message": "The selected allocation basis has no positive quantity or receipt value."
+        }
+      }
+    },
+    {
+      "total": 0,
+      "weights": [
+        0
+      ],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "LANDED_COST_ALLOCATION_UNAVAILABLE",
+          "message": "The selected allocation basis has no positive quantity or receipt value."
+        }
+      }
+    },
+    {
+      "total": 0,
+      "weights": [
+        1
+      ],
+      "expected": {
+        "value": [
+          0
+        ]
+      }
+    },
+    {
+      "total": 0,
+      "weights": [
+        1,
+        1
+      ],
+      "expected": {
+        "value": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "total": 0,
+      "weights": [
+        1,
+        1,
+        1
+      ],
+      "expected": {
+        "value": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "total": 0,
+      "weights": [
+        0,
+        1,
+        0,
+        1
+      ],
+      "expected": {
+        "value": [
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "total": 0,
+      "weights": [
+        1,
+        2,
+        3
+      ],
+      "expected": {
+        "value": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "total": 0,
+      "weights": [
+        333,
+        333,
+        334
+      ],
+      "expected": {
+        "value": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "total": 0,
+      "weights": [
+        9007199254740990,
+        1
+      ],
+      "expected": {
+        "value": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "total": 1,
+      "weights": [],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "LANDED_COST_ALLOCATION_UNAVAILABLE",
+          "message": "The selected allocation basis has no positive quantity or receipt value."
+        }
+      }
+    },
+    {
+      "total": 1,
+      "weights": [
+        0
+      ],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "LANDED_COST_ALLOCATION_UNAVAILABLE",
+          "message": "The selected allocation basis has no positive quantity or receipt value."
+        }
+      }
+    },
+    {
+      "total": 1,
+      "weights": [
+        1
+      ],
+      "expected": {
+        "value": [
+          1
+        ]
+      }
+    },
+    {
+      "total": 1,
+      "weights": [
+        1,
+        1
+      ],
+      "expected": {
+        "value": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "total": 1,
+      "weights": [
+        1,
+        1,
+        1
+      ],
+      "expected": {
+        "value": [
+          0,
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "total": 1,
+      "weights": [
+        0,
+        1,
+        0,
+        1
+      ],
+      "expected": {
+        "value": [
+          0,
+          1,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "total": 1,
+      "weights": [
+        1,
+        2,
+        3
+      ],
+      "expected": {
+        "value": [
+          0,
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "total": 1,
+      "weights": [
+        333,
+        333,
+        334
+      ],
+      "expected": {
+        "value": [
+          0,
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "total": 1,
+      "weights": [
+        9007199254740990,
+        1
+      ],
+      "expected": {
+        "value": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "total": 2,
+      "weights": [],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "LANDED_COST_ALLOCATION_UNAVAILABLE",
+          "message": "The selected allocation basis has no positive quantity or receipt value."
+        }
+      }
+    },
+    {
+      "total": 2,
+      "weights": [
+        0
+      ],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "LANDED_COST_ALLOCATION_UNAVAILABLE",
+          "message": "The selected allocation basis has no positive quantity or receipt value."
+        }
+      }
+    },
+    {
+      "total": 2,
+      "weights": [
+        1
+      ],
+      "expected": {
+        "value": [
+          2
+        ]
+      }
+    },
+    {
+      "total": 2,
+      "weights": [
+        1,
+        1
+      ],
+      "expected": {
+        "value": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "total": 2,
+      "weights": [
+        1,
+        1,
+        1
+      ],
+      "expected": {
+        "value": [
+          1,
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "total": 2,
+      "weights": [
+        0,
+        1,
+        0,
+        1
+      ],
+      "expected": {
+        "value": [
+          0,
+          1,
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "total": 2,
+      "weights": [
+        1,
+        2,
+        3
+      ],
+      "expected": {
+        "value": [
+          0,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "total": 2,
+      "weights": [
+        333,
+        333,
+        334
+      ],
+      "expected": {
+        "value": [
+          1,
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "total": 2,
+      "weights": [
+        9007199254740990,
+        1
+      ],
+      "expected": {
+        "value": [
+          2,
+          0
+        ]
+      }
+    },
+    {
+      "total": 3,
+      "weights": [],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "LANDED_COST_ALLOCATION_UNAVAILABLE",
+          "message": "The selected allocation basis has no positive quantity or receipt value."
+        }
+      }
+    },
+    {
+      "total": 3,
+      "weights": [
+        0
+      ],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "LANDED_COST_ALLOCATION_UNAVAILABLE",
+          "message": "The selected allocation basis has no positive quantity or receipt value."
+        }
+      }
+    },
+    {
+      "total": 3,
+      "weights": [
+        1
+      ],
+      "expected": {
+        "value": [
+          3
+        ]
+      }
+    },
+    {
+      "total": 3,
+      "weights": [
+        1,
+        1
+      ],
+      "expected": {
+        "value": [
+          2,
+          1
+        ]
+      }
+    },
+    {
+      "total": 3,
+      "weights": [
+        1,
+        1,
+        1
+      ],
+      "expected": {
+        "value": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "total": 3,
+      "weights": [
+        0,
+        1,
+        0,
+        1
+      ],
+      "expected": {
+        "value": [
+          0,
+          2,
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "total": 3,
+      "weights": [
+        1,
+        2,
+        3
+      ],
+      "expected": {
+        "value": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "total": 3,
+      "weights": [
+        333,
+        333,
+        334
+      ],
+      "expected": {
+        "value": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "total": 3,
+      "weights": [
+        9007199254740990,
+        1
+      ],
+      "expected": {
+        "value": [
+          3,
+          0
+        ]
+      }
+    },
+    {
+      "total": 5,
+      "weights": [],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "LANDED_COST_ALLOCATION_UNAVAILABLE",
+          "message": "The selected allocation basis has no positive quantity or receipt value."
+        }
+      }
+    },
+    {
+      "total": 5,
+      "weights": [
+        0
+      ],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "LANDED_COST_ALLOCATION_UNAVAILABLE",
+          "message": "The selected allocation basis has no positive quantity or receipt value."
+        }
+      }
+    },
+    {
+      "total": 5,
+      "weights": [
+        1
+      ],
+      "expected": {
+        "value": [
+          5
+        ]
+      }
+    },
+    {
+      "total": 5,
+      "weights": [
+        1,
+        1
+      ],
+      "expected": {
+        "value": [
+          3,
+          2
+        ]
+      }
+    },
+    {
+      "total": 5,
+      "weights": [
+        1,
+        1,
+        1
+      ],
+      "expected": {
+        "value": [
+          2,
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "total": 5,
+      "weights": [
+        0,
+        1,
+        0,
+        1
+      ],
+      "expected": {
+        "value": [
+          0,
+          3,
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "total": 5,
+      "weights": [
+        1,
+        2,
+        3
+      ],
+      "expected": {
+        "value": [
+          1,
+          2,
+          2
+        ]
+      }
+    },
+    {
+      "total": 5,
+      "weights": [
+        333,
+        333,
+        334
+      ],
+      "expected": {
+        "value": [
+          2,
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "total": 5,
+      "weights": [
+        9007199254740990,
+        1
+      ],
+      "expected": {
+        "value": [
+          5,
+          0
+        ]
+      }
+    },
+    {
+      "total": 99,
+      "weights": [],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "LANDED_COST_ALLOCATION_UNAVAILABLE",
+          "message": "The selected allocation basis has no positive quantity or receipt value."
+        }
+      }
+    },
+    {
+      "total": 99,
+      "weights": [
+        0
+      ],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "LANDED_COST_ALLOCATION_UNAVAILABLE",
+          "message": "The selected allocation basis has no positive quantity or receipt value."
+        }
+      }
+    },
+    {
+      "total": 99,
+      "weights": [
+        1
+      ],
+      "expected": {
+        "value": [
+          99
+        ]
+      }
+    },
+    {
+      "total": 99,
+      "weights": [
+        1,
+        1
+      ],
+      "expected": {
+        "value": [
+          50,
+          49
+        ]
+      }
+    },
+    {
+      "total": 99,
+      "weights": [
+        1,
+        1,
+        1
+      ],
+      "expected": {
+        "value": [
+          33,
+          33,
+          33
+        ]
+      }
+    },
+    {
+      "total": 99,
+      "weights": [
+        0,
+        1,
+        0,
+        1
+      ],
+      "expected": {
+        "value": [
+          0,
+          50,
+          0,
+          49
+        ]
+      }
+    },
+    {
+      "total": 99,
+      "weights": [
+        1,
+        2,
+        3
+      ],
+      "expected": {
+        "value": [
+          17,
+          33,
+          49
+        ]
+      }
+    },
+    {
+      "total": 99,
+      "weights": [
+        333,
+        333,
+        334
+      ],
+      "expected": {
+        "value": [
+          33,
+          33,
+          33
+        ]
+      }
+    },
+    {
+      "total": 99,
+      "weights": [
+        9007199254740990,
+        1
+      ],
+      "expected": {
+        "value": [
+          99,
+          0
+        ]
+      }
+    },
+    {
+      "total": 100,
+      "weights": [],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "LANDED_COST_ALLOCATION_UNAVAILABLE",
+          "message": "The selected allocation basis has no positive quantity or receipt value."
+        }
+      }
+    },
+    {
+      "total": 100,
+      "weights": [
+        0
+      ],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "LANDED_COST_ALLOCATION_UNAVAILABLE",
+          "message": "The selected allocation basis has no positive quantity or receipt value."
+        }
+      }
+    },
+    {
+      "total": 100,
+      "weights": [
+        1
+      ],
+      "expected": {
+        "value": [
+          100
+        ]
+      }
+    },
+    {
+      "total": 100,
+      "weights": [
+        1,
+        1
+      ],
+      "expected": {
+        "value": [
+          50,
+          50
+        ]
+      }
+    },
+    {
+      "total": 100,
+      "weights": [
+        1,
+        1,
+        1
+      ],
+      "expected": {
+        "value": [
+          33,
+          34,
+          33
+        ]
+      }
+    },
+    {
+      "total": 100,
+      "weights": [
+        0,
+        1,
+        0,
+        1
+      ],
+      "expected": {
+        "value": [
+          0,
+          50,
+          0,
+          50
+        ]
+      }
+    },
+    {
+      "total": 100,
+      "weights": [
+        1,
+        2,
+        3
+      ],
+      "expected": {
+        "value": [
+          17,
+          33,
+          50
+        ]
+      }
+    },
+    {
+      "total": 100,
+      "weights": [
+        333,
+        333,
+        334
+      ],
+      "expected": {
+        "value": [
+          33,
+          34,
+          33
+        ]
+      }
+    },
+    {
+      "total": 100,
+      "weights": [
+        9007199254740990,
+        1
+      ],
+      "expected": {
+        "value": [
+          100,
+          0
+        ]
+      }
+    },
+    {
+      "total": 101,
+      "weights": [],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "LANDED_COST_ALLOCATION_UNAVAILABLE",
+          "message": "The selected allocation basis has no positive quantity or receipt value."
+        }
+      }
+    },
+    {
+      "total": 101,
+      "weights": [
+        0
+      ],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "LANDED_COST_ALLOCATION_UNAVAILABLE",
+          "message": "The selected allocation basis has no positive quantity or receipt value."
+        }
+      }
+    },
+    {
+      "total": 101,
+      "weights": [
+        1
+      ],
+      "expected": {
+        "value": [
+          101
+        ]
+      }
+    },
+    {
+      "total": 101,
+      "weights": [
+        1,
+        1
+      ],
+      "expected": {
+        "value": [
+          51,
+          50
+        ]
+      }
+    },
+    {
+      "total": 101,
+      "weights": [
+        1,
+        1,
+        1
+      ],
+      "expected": {
+        "value": [
+          34,
+          33,
+          34
+        ]
+      }
+    },
+    {
+      "total": 101,
+      "weights": [
+        0,
+        1,
+        0,
+        1
+      ],
+      "expected": {
+        "value": [
+          0,
+          51,
+          0,
+          50
+        ]
+      }
+    },
+    {
+      "total": 101,
+      "weights": [
+        1,
+        2,
+        3
+      ],
+      "expected": {
+        "value": [
+          17,
+          34,
+          50
+        ]
+      }
+    },
+    {
+      "total": 101,
+      "weights": [
+        333,
+        333,
+        334
+      ],
+      "expected": {
+        "value": [
+          34,
+          33,
+          34
+        ]
+      }
+    },
+    {
+      "total": 101,
+      "weights": [
+        9007199254740990,
+        1
+      ],
+      "expected": {
+        "value": [
+          101,
+          0
+        ]
+      }
+    },
+    {
+      "total": 9007199254740991,
+      "weights": [],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "LANDED_COST_ALLOCATION_UNAVAILABLE",
+          "message": "The selected allocation basis has no positive quantity or receipt value."
+        }
+      }
+    },
+    {
+      "total": 9007199254740991,
+      "weights": [
+        0
+      ],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "LANDED_COST_ALLOCATION_UNAVAILABLE",
+          "message": "The selected allocation basis has no positive quantity or receipt value."
+        }
+      }
+    },
+    {
+      "total": 9007199254740991,
+      "weights": [
+        1
+      ],
+      "expected": {
+        "value": [
+          9007199254740991
+        ]
+      }
+    },
+    {
+      "total": 9007199254740991,
+      "weights": [
+        1,
+        1
+      ],
+      "expected": {
+        "value": [
+          4503599627370496,
+          4503599627370495
+        ]
+      }
+    },
+    {
+      "total": 9007199254740991,
+      "weights": [
+        1,
+        1,
+        1
+      ],
+      "expected": {
+        "value": [
+          3002399751580330,
+          3002399751580331,
+          3002399751580330
+        ]
+      }
+    },
+    {
+      "total": 9007199254740991,
+      "weights": [
+        0,
+        1,
+        0,
+        1
+      ],
+      "expected": {
+        "value": [
+          0,
+          4503599627370496,
+          0,
+          4503599627370495
+        ]
+      }
+    },
+    {
+      "total": 9007199254740991,
+      "weights": [
+        1,
+        2,
+        3
+      ],
+      "expected": {
+        "value": [
+          1501199875790165,
+          3002399751580331,
+          4503599627370495
+        ]
+      }
+    },
+    {
+      "total": 9007199254740991,
+      "weights": [
+        333,
+        333,
+        334
+      ],
+      "expected": {
+        "value": [
+          2999397351828750,
+          2999397351828750,
+          3008404551083491
+        ]
+      }
+    },
+    {
+      "total": 9007199254740991,
+      "weights": [
+        9007199254740990,
+        1
+      ],
+      "expected": {
+        "value": [
+          9007199254740990,
+          1
+        ]
+      }
+    }
+  ],
+  "transit": [
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 1,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 1,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 1
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 1,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 1
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 1,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 2,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 1,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 1,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 1,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 1,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 2,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 1,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 1,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 1,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 1,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 2,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 5,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 5,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 5
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 5,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 5
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 5,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 2,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 5,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 5,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 5,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 5,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 2,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 5,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 5,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 5,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 5,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 2,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 101,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 101,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 101
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 101,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 101
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 101,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 2,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 101,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 101,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 101,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 101,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 2,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 101,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 101,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 101,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 101,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 2,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 9007199254740991,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 9007199254740991,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 9007199254740991
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 9007199254740991,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 9007199254740991
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 9007199254740991,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 2,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 9007199254740991,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 9007199254740991,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 9007199254740991,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 9007199254740991,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 2,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 9007199254740991,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 9007199254740991,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 9007199254740991,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1,
+        "value_minor": 9007199254740991,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 2,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 1,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 1,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 0
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 1,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 3,
+      "expected": {
+        "value": 1
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 1,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 4,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 1,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 1,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 1
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 1,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 2,
+      "expected": {
+        "value": 1
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 1,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 4,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 1,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 1,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 1
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 1,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 1
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 1,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 4,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 5,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 5,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 2
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 5,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 3,
+      "expected": {
+        "value": 5
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 5,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 4,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 5,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 5,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 3
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 5,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 2,
+      "expected": {
+        "value": 5
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 5,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 4,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 5,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 5,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 5
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 5,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 5
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 5,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 4,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 101,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 101,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 34
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 101,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 3,
+      "expected": {
+        "value": 101
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 101,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 4,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 101,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 101,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 67
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 101,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 2,
+      "expected": {
+        "value": 101
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 101,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 4,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 101,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 101,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 101
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 101,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 101
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 101,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 4,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 9007199254740991,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 9007199254740991,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 3002399751580330
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 9007199254740991,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 3,
+      "expected": {
+        "value": 9007199254740991
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 9007199254740991,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 4,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 9007199254740991,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 9007199254740991,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 6004799503160661
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 9007199254740991,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 2,
+      "expected": {
+        "value": 9007199254740991
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 9007199254740991,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 4,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 9007199254740991,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 9007199254740991,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 9007199254740991
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 9007199254740991,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 9007199254740991
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 3,
+        "value_minor": 9007199254740991,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 4,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 1,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 1,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 0
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 1,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1000,
+      "expected": {
+        "value": 1
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 1,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1001,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 1,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 1,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 0
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 1,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 999,
+      "expected": {
+        "value": 1
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 1,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1001,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 1,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 1,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 0
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 1,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 998,
+      "expected": {
+        "value": 1
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 1,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1001,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 5,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 5,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 0
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 5,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1000,
+      "expected": {
+        "value": 5
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 5,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1001,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 5,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 5,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 0
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 5,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 999,
+      "expected": {
+        "value": 5
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 5,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1001,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 5,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 5,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 0
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 5,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 998,
+      "expected": {
+        "value": 5
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 5,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1001,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 101,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 101,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 0
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 101,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1000,
+      "expected": {
+        "value": 101
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 101,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1001,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 101,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 101,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 0
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 101,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 999,
+      "expected": {
+        "value": 101
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 101,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1001,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 101,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 101,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 0
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 101,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 998,
+      "expected": {
+        "value": 101
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 101,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1001,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 9007199254740991,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 9007199254740991,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 9007199254741
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 9007199254740991,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1000,
+      "expected": {
+        "value": 9007199254740991
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 9007199254740991,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1001,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 9007199254740991,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 9007199254740991,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 18014398509482
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 9007199254740991,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 999,
+      "expected": {
+        "value": 9007199254740991
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 9007199254740991,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1001,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 9007199254740991,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 9007199254740991,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 27021597764223
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 9007199254740991,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 998,
+      "expected": {
+        "value": 9007199254740991
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 1000,
+        "value_minor": 9007199254740991,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1001,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 1,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 1,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 0
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 1,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 10000,
+      "expected": {
+        "value": 1
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 1,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 10001,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 1,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 1,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 0
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 1,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 9999,
+      "expected": {
+        "value": 1
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 1,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 10001,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 1,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 1,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 0
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 1,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 9998,
+      "expected": {
+        "value": 1
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 1,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 10001,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 5,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 5,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 0
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 5,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 10000,
+      "expected": {
+        "value": 5
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 5,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 10001,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 5,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 5,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 0
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 5,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 9999,
+      "expected": {
+        "value": 5
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 5,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 10001,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 5,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 5,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 0
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 5,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 9998,
+      "expected": {
+        "value": 5
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 5,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 10001,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 0
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 10000,
+      "expected": {
+        "value": 101
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 10001,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 0
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 9999,
+      "expected": {
+        "value": 101
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 10001,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 0
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 9998,
+      "expected": {
+        "value": 101
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 10001,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 9007199254740991,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 9007199254740991,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 900719925474
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 9007199254740991,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 10000,
+      "expected": {
+        "value": 9007199254740991
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 9007199254740991,
+        "received_milli": 0,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 10001,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 9007199254740991,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 9007199254740991,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 1801439850948
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 9007199254740991,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 9999,
+      "expected": {
+        "value": 9007199254740991
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 9007199254740991,
+        "received_milli": 1,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 10001,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 9007199254740991,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 9007199254740991,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 2702159776422
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 9007199254740991,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 9998,
+      "expected": {
+        "value": 9007199254740991
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10000,
+        "value_minor": 9007199254740991,
+        "received_milli": 2,
+        "lost_milli": 0,
+        "pending_loss_milli": 0,
+        "settled_value_minor": 0
+      },
+      "quantity": 10001,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10,
+        "value_minor": 101,
+        "received_milli": 3,
+        "lost_milli": 2,
+        "pending_loss_milli": 2,
+        "settled_value_minor": 51
+      },
+      "quantity": 0,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10,
+        "value_minor": 101,
+        "received_milli": 3,
+        "lost_milli": 2,
+        "pending_loss_milli": 2,
+        "settled_value_minor": 51
+      },
+      "quantity": 1,
+      "expected": {
+        "value": 10
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10,
+        "value_minor": 101,
+        "received_milli": 3,
+        "lost_milli": 2,
+        "pending_loss_milli": 2,
+        "settled_value_minor": 51
+      },
+      "quantity": 2,
+      "expected": {
+        "value": 20
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10,
+        "value_minor": 101,
+        "received_milli": 3,
+        "lost_milli": 2,
+        "pending_loss_milli": 2,
+        "settled_value_minor": 51
+      },
+      "quantity": 3,
+      "expected": {
+        "value": 30
+      }
+    },
+    {
+      "line": {
+        "quantity_milli": 10,
+        "value_minor": 101,
+        "received_milli": 3,
+        "lost_milli": 2,
+        "pending_loss_milli": 2,
+        "settled_value_minor": 51
+      },
+      "quantity": 4,
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "TRANSIT_QUANTITY_EXCEEDED",
+          "message": "Use a positive quantity within the unreceived, unreserved transport balance."
+        }
+      }
+    }
+  ],
+  "dates": [
+    {
+      "document": {
+        "status": "awaiting_dispatch",
+        "dispatch_date": "2026-01-02"
+      },
+      "date": "2026-01-01",
+      "expected": {
+        "error": {
+          "status": 409,
+          "code": "TRANSIT_NOT_DISPATCHED",
+          "message": "Record outcomes against goods currently in transit."
+        }
+      }
+    },
+    {
+      "document": {
+        "status": "awaiting_dispatch",
+        "dispatch_date": "2026-01-02"
+      },
+      "date": "2026-01-02",
+      "expected": {
+        "error": {
+          "status": 409,
+          "code": "TRANSIT_NOT_DISPATCHED",
+          "message": "Record outcomes against goods currently in transit."
+        }
+      }
+    },
+    {
+      "document": {
+        "status": "awaiting_dispatch",
+        "dispatch_date": "2026-01-02"
+      },
+      "date": "2026-01-03",
+      "expected": {
+        "error": {
+          "status": 409,
+          "code": "TRANSIT_NOT_DISPATCHED",
+          "message": "Record outcomes against goods currently in transit."
+        }
+      }
+    },
+    {
+      "document": {
+        "status": "in_transit",
+        "dispatch_date": "2026-01-02"
+      },
+      "date": "2026-01-01",
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "RECEIPT_DATE_INVALID",
+          "message": "Receipt or discrepancy cannot precede dispatch."
+        }
+      }
+    },
+    {
+      "document": {
+        "status": "in_transit",
+        "dispatch_date": "2026-01-02"
+      },
+      "date": "2026-01-02",
+      "expected": {
+        "value": true
+      }
+    },
+    {
+      "document": {
+        "status": "in_transit",
+        "dispatch_date": "2026-01-02"
+      },
+      "date": "2026-01-03",
+      "expected": {
+        "value": true
+      }
+    },
+    {
+      "document": {
+        "status": "completed",
+        "dispatch_date": "2026-01-02"
+      },
+      "date": "2026-01-01",
+      "expected": {
+        "error": {
+          "status": 409,
+          "code": "TRANSIT_NOT_DISPATCHED",
+          "message": "Record outcomes against goods currently in transit."
+        }
+      }
+    },
+    {
+      "document": {
+        "status": "completed",
+        "dispatch_date": "2026-01-02"
+      },
+      "date": "2026-01-02",
+      "expected": {
+        "error": {
+          "status": 409,
+          "code": "TRANSIT_NOT_DISPATCHED",
+          "message": "Record outcomes against goods currently in transit."
+        }
+      }
+    },
+    {
+      "document": {
+        "status": "completed",
+        "dispatch_date": "2026-01-02"
+      },
+      "date": "2026-01-03",
+      "expected": {
+        "error": {
+          "status": 409,
+          "code": "TRANSIT_NOT_DISPATCHED",
+          "message": "Record outcomes against goods currently in transit."
+        }
+      }
+    },
+    {
+      "document": {
+        "status": "cancelled",
+        "dispatch_date": "2026-01-02"
+      },
+      "date": "2026-01-01",
+      "expected": {
+        "error": {
+          "status": 409,
+          "code": "TRANSIT_NOT_DISPATCHED",
+          "message": "Record outcomes against goods currently in transit."
+        }
+      }
+    },
+    {
+      "document": {
+        "status": "cancelled",
+        "dispatch_date": "2026-01-02"
+      },
+      "date": "2026-01-02",
+      "expected": {
+        "error": {
+          "status": 409,
+          "code": "TRANSIT_NOT_DISPATCHED",
+          "message": "Record outcomes against goods currently in transit."
+        }
+      }
+    },
+    {
+      "document": {
+        "status": "cancelled",
+        "dispatch_date": "2026-01-02"
+      },
+      "date": "2026-01-03",
+      "expected": {
+        "error": {
+          "status": 409,
+          "code": "TRANSIT_NOT_DISPATCHED",
+          "message": "Record outcomes against goods currently in transit."
+        }
+      }
+    }
+  ],
+  "reorder": [
+    {
+      "input": "0",
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "REORDER_POINT_INVALID",
+          "message": "The reorder point must fit a positive inventory quantity."
+        }
+      }
+    },
+    {
+      "input": "0.000",
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "REORDER_POINT_INVALID",
+          "message": "The reorder point must fit a positive inventory quantity."
+        }
+      }
+    },
+    {
+      "input": "0.001",
+      "expected": {
+        "value": "1"
+      }
+    },
+    {
+      "input": "1",
+      "expected": {
+        "value": "1000"
+      }
+    },
+    {
+      "input": "0001.230",
+      "expected": {
+        "value": "1230"
+      }
+    },
+    {
+      "input": "999999999999.999",
+      "expected": {
+        "value": "999999999999999"
+      }
+    },
+    {
+      "input": "12.1",
+      "expected": {
+        "value": "12100"
+      }
+    },
+    {
+      "input": "12.01",
+      "expected": {
+        "value": "12010"
+      }
+    },
+    {
+      "input": "12.001",
+      "expected": {
+        "value": "12001"
+      }
+    }
+  ],
+  "consumption": [
+    {
+      "id": "untracked-partial",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3333,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 34,
+          "currency": "THB",
+          "lots": []
+        }
+      }
+    },
+    {
+      "id": "untracked-full",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 10000,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 101,
+          "currency": "THB",
+          "lots": []
+        }
+      }
+    },
+    {
+      "id": "no-stock",
+      "stock": null,
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3333,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock"
+      ],
+      "expected": {
+        "error": {
+          "status": 409,
+          "code": "PART_STOCK_UNAVAILABLE",
+          "message": "Choose available spare stock from the service branch warehouse."
+        }
+      }
+    },
+    {
+      "id": "insufficient-stock",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 10001,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock"
+      ],
+      "expected": {
+        "error": {
+          "status": 409,
+          "code": "PART_STOCK_UNAVAILABLE",
+          "message": "Choose available spare stock from the service branch warehouse."
+        }
+      }
+    },
+    {
+      "id": "no-config",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": null,
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3333,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config"
+      ],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "PART_FUNCTIONAL_CURRENCY_REQUIRED",
+          "message": "Review the functional-currency inventory and service expense adapter before consuming parts."
+        }
+      }
+    },
+    {
+      "id": "foreign-functional-currency",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "USD",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3333,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config"
+      ],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "PART_FUNCTIONAL_CURRENCY_REQUIRED",
+          "message": "Review the functional-currency inventory and service expense adapter before consuming parts."
+        }
+      }
+    },
+    {
+      "id": "no-period",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3333,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "error": {
+          "status": 409,
+          "code": "PART_POSTING_PERIOD_REQUIRED",
+          "message": "Choose a date in one open Finance period."
+        }
+      }
+    },
+    {
+      "id": "ambiguous-periods",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "a"
+        },
+        {
+          "id": "b"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3333,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "error": {
+          "status": 409,
+          "code": "PART_POSTING_PERIOD_REQUIRED",
+          "message": "Choose a date in one open Finance period."
+        }
+      }
+    },
+    {
+      "id": "zero-value",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 0,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3333,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "PART_VALUATION_REQUIRED",
+          "message": "Reconcile positive spare valuation before posting its service cost."
+        }
+      }
+    },
+    {
+      "id": "untracked-lot-rejected",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3333,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": [
+          {
+            "lotId": "lot-a",
+            "quantityMilli": 3333,
+            "balanceVersion": 1
+          }
+        ]
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "PART_LOT_NOT_ALLOWED",
+          "message": "This spare does not use lot or serial tracking."
+        }
+      }
+    },
+    {
+      "id": "lot-partial",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "version": 2,
+        "tracking_mode": "lot",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {
+        "lot-a": {
+          "quantity_milli": 6000,
+          "value_minor": 61,
+          "version": 3,
+          "tracking_mode": "lot",
+          "expiry_date": null,
+          "status": "active"
+        }
+      },
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3000,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": [
+          {
+            "lotId": "lot-a",
+            "quantityMilli": 3000,
+            "balanceVersion": 3
+          }
+        ]
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods",
+        "lot:lot-a"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 31,
+          "currency": "THB",
+          "lots": [
+            {
+              "lotId": "lot-a",
+              "quantityMilli": 3000,
+              "balanceVersion": 3,
+              "value": 31
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "lot-full",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "version": 2,
+        "tracking_mode": "lot",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {
+        "lot-a": {
+          "quantity_milli": 6000,
+          "value_minor": 61,
+          "version": 3,
+          "tracking_mode": "lot",
+          "expiry_date": null,
+          "status": "active"
+        }
+      },
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 6000,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": [
+          {
+            "lotId": "lot-a",
+            "quantityMilli": 6000,
+            "balanceVersion": 3
+          }
+        ]
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods",
+        "lot:lot-a"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 61,
+          "currency": "THB",
+          "lots": [
+            {
+              "lotId": "lot-a",
+              "quantityMilli": 6000,
+              "balanceVersion": 3,
+              "value": 61
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "no-allocations",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "version": 2,
+        "tracking_mode": "lot",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {
+        "lot-a": {
+          "quantity_milli": 6000,
+          "value_minor": 61,
+          "version": 3,
+          "tracking_mode": "lot",
+          "expiry_date": null,
+          "status": "active"
+        }
+      },
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3000,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "PART_LOT_ALLOCATION_REQUIRED",
+          "message": "Select the full spare quantity from distinct available lots or serials."
+        }
+      }
+    },
+    {
+      "id": "quantity-mismatch",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "version": 2,
+        "tracking_mode": "lot",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {
+        "lot-a": {
+          "quantity_milli": 6000,
+          "value_minor": 61,
+          "version": 3,
+          "tracking_mode": "lot",
+          "expiry_date": null,
+          "status": "active"
+        }
+      },
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3001,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": [
+          {
+            "lotId": "lot-a",
+            "quantityMilli": 3000,
+            "balanceVersion": 3
+          }
+        ]
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "PART_LOT_ALLOCATION_REQUIRED",
+          "message": "Select the full spare quantity from distinct available lots or serials."
+        }
+      }
+    },
+    {
+      "id": "duplicate-allocation",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "version": 2,
+        "tracking_mode": "lot",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {
+        "lot-a": {
+          "quantity_milli": 6000,
+          "value_minor": 61,
+          "version": 3,
+          "tracking_mode": "lot",
+          "expiry_date": null,
+          "status": "active"
+        }
+      },
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 6000,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": [
+          {
+            "lotId": "lot-a",
+            "quantityMilli": 3000,
+            "balanceVersion": 3
+          },
+          {
+            "lotId": "lot-a",
+            "quantityMilli": 3000,
+            "balanceVersion": 3
+          }
+        ]
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "PART_LOT_ALLOCATION_REQUIRED",
+          "message": "Select the full spare quantity from distinct available lots or serials."
+        }
+      }
+    },
+    {
+      "id": "lot-missing",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "version": 2,
+        "tracking_mode": "lot",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3000,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": [
+          {
+            "lotId": "lot-a",
+            "quantityMilli": 3000,
+            "balanceVersion": 3
+          }
+        ]
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods",
+        "lot:lot-a"
+      ],
+      "expected": {
+        "error": {
+          "status": 409,
+          "code": "PART_LOT_CHANGED",
+          "message": "Reload an available unexpired spare lot or whole serial."
+        }
+      }
+    },
+    {
+      "id": "lot-change-0",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "version": 2,
+        "tracking_mode": "lot",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {
+        "lot-a": {
+          "quantity_milli": 6000,
+          "value_minor": 61,
+          "version": 4,
+          "tracking_mode": "lot",
+          "expiry_date": null,
+          "status": "active"
+        }
+      },
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3000,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": [
+          {
+            "lotId": "lot-a",
+            "quantityMilli": 3000,
+            "balanceVersion": 3
+          }
+        ]
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods",
+        "lot:lot-a"
+      ],
+      "expected": {
+        "error": {
+          "status": 409,
+          "code": "PART_LOT_CHANGED",
+          "message": "Reload an available unexpired spare lot or whole serial."
+        }
+      }
+    },
+    {
+      "id": "lot-change-1",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "version": 2,
+        "tracking_mode": "lot",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {
+        "lot-a": {
+          "quantity_milli": 6000,
+          "value_minor": 61,
+          "version": 3,
+          "tracking_mode": "lot",
+          "expiry_date": null,
+          "status": "depleted"
+        }
+      },
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3000,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": [
+          {
+            "lotId": "lot-a",
+            "quantityMilli": 3000,
+            "balanceVersion": 3
+          }
+        ]
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods",
+        "lot:lot-a"
+      ],
+      "expected": {
+        "error": {
+          "status": 409,
+          "code": "PART_LOT_CHANGED",
+          "message": "Reload an available unexpired spare lot or whole serial."
+        }
+      }
+    },
+    {
+      "id": "lot-change-2",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "version": 2,
+        "tracking_mode": "lot",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {
+        "lot-a": {
+          "quantity_milli": 2999,
+          "value_minor": 61,
+          "version": 3,
+          "tracking_mode": "lot",
+          "expiry_date": null,
+          "status": "active"
+        }
+      },
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3000,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": [
+          {
+            "lotId": "lot-a",
+            "quantityMilli": 3000,
+            "balanceVersion": 3
+          }
+        ]
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods",
+        "lot:lot-a"
+      ],
+      "expected": {
+        "error": {
+          "status": 409,
+          "code": "PART_LOT_CHANGED",
+          "message": "Reload an available unexpired spare lot or whole serial."
+        }
+      }
+    },
+    {
+      "id": "lot-change-3",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "version": 2,
+        "tracking_mode": "lot",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {
+        "lot-a": {
+          "quantity_milli": 6000,
+          "value_minor": 61,
+          "version": 3,
+          "tracking_mode": "lot",
+          "expiry_date": "2026-01-01",
+          "status": "active"
+        }
+      },
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3000,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": [
+          {
+            "lotId": "lot-a",
+            "quantityMilli": 3000,
+            "balanceVersion": 3
+          }
+        ]
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods",
+        "lot:lot-a"
+      ],
+      "expected": {
+        "error": {
+          "status": 409,
+          "code": "PART_LOT_CHANGED",
+          "message": "Reload an available unexpired spare lot or whole serial."
+        }
+      }
+    },
+    {
+      "id": "lot-change-4",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "version": 2,
+        "tracking_mode": "lot",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {
+        "lot-a": {
+          "quantity_milli": 6000,
+          "value_minor": 0,
+          "version": 3,
+          "tracking_mode": "lot",
+          "expiry_date": null,
+          "status": "active"
+        }
+      },
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3000,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": [
+          {
+            "lotId": "lot-a",
+            "quantityMilli": 3000,
+            "balanceVersion": 3
+          }
+        ]
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods",
+        "lot:lot-a"
+      ],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "PART_VALUATION_REQUIRED",
+          "message": "Reconcile positive spare valuation before posting its service cost."
+        }
+      }
+    },
+    {
+      "id": "lot-change-5",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "version": 2,
+        "tracking_mode": "lot",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {
+        "lot-a": {
+          "quantity_milli": 6000,
+          "value_minor": 61,
+          "version": 3,
+          "tracking_mode": "lot",
+          "expiry_date": "2026-01-02",
+          "status": "active"
+        }
+      },
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3000,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": [
+          {
+            "lotId": "lot-a",
+            "quantityMilli": 3000,
+            "balanceVersion": 3
+          }
+        ]
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods",
+        "lot:lot-a"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 31,
+          "currency": "THB",
+          "lots": [
+            {
+              "lotId": "lot-a",
+              "quantityMilli": 3000,
+              "balanceVersion": 3,
+              "value": 31
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "two-ordered-lots",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "version": 2,
+        "tracking_mode": "lot",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {
+        "lot-a": {
+          "quantity_milli": 6000,
+          "value_minor": 61,
+          "version": 3,
+          "tracking_mode": "lot",
+          "expiry_date": null,
+          "status": "active"
+        },
+        "lot-b": {
+          "quantity_milli": 6000,
+          "value_minor": 41,
+          "version": 2,
+          "tracking_mode": "lot",
+          "expiry_date": null,
+          "status": "active"
+        }
+      },
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 6000,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": [
+          {
+            "lotId": "lot-a",
+            "quantityMilli": 3000,
+            "balanceVersion": 3
+          },
+          {
+            "lotId": "lot-b",
+            "quantityMilli": 3000,
+            "balanceVersion": 2
+          }
+        ]
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods",
+        "lot:lot-a",
+        "lot:lot-b"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 52,
+          "currency": "THB",
+          "lots": [
+            {
+              "lotId": "lot-a",
+              "quantityMilli": 3000,
+              "balanceVersion": 3,
+              "value": 31
+            },
+            {
+              "lotId": "lot-b",
+              "quantityMilli": 3000,
+              "balanceVersion": 2,
+              "value": 21
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "serial-1",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "version": 2,
+        "tracking_mode": "serial",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {
+        "lot-a": {
+          "quantity_milli": 2000,
+          "value_minor": 61,
+          "version": 3,
+          "tracking_mode": "serial",
+          "expiry_date": null,
+          "status": "active"
+        }
+      },
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 1,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": [
+          {
+            "lotId": "lot-a",
+            "quantityMilli": 1,
+            "balanceVersion": 3
+          }
+        ]
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods",
+        "lot:lot-a"
+      ],
+      "expected": {
+        "error": {
+          "status": 409,
+          "code": "PART_LOT_CHANGED",
+          "message": "Reload an available unexpired spare lot or whole serial."
+        }
+      }
+    },
+    {
+      "id": "serial-999",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "version": 2,
+        "tracking_mode": "serial",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {
+        "lot-a": {
+          "quantity_milli": 2000,
+          "value_minor": 61,
+          "version": 3,
+          "tracking_mode": "serial",
+          "expiry_date": null,
+          "status": "active"
+        }
+      },
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 999,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": [
+          {
+            "lotId": "lot-a",
+            "quantityMilli": 999,
+            "balanceVersion": 3
+          }
+        ]
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods",
+        "lot:lot-a"
+      ],
+      "expected": {
+        "error": {
+          "status": 409,
+          "code": "PART_LOT_CHANGED",
+          "message": "Reload an available unexpired spare lot or whole serial."
+        }
+      }
+    },
+    {
+      "id": "serial-1000",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "version": 2,
+        "tracking_mode": "serial",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {
+        "lot-a": {
+          "quantity_milli": 2000,
+          "value_minor": 61,
+          "version": 3,
+          "tracking_mode": "serial",
+          "expiry_date": null,
+          "status": "active"
+        }
+      },
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 1000,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": [
+          {
+            "lotId": "lot-a",
+            "quantityMilli": 1000,
+            "balanceVersion": 3
+          }
+        ]
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods",
+        "lot:lot-a"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 31,
+          "currency": "THB",
+          "lots": [
+            {
+              "lotId": "lot-a",
+              "quantityMilli": 1000,
+              "balanceVersion": 3,
+              "value": 31
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "serial-2000",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 101,
+        "version": 2,
+        "tracking_mode": "serial",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {
+        "lot-a": {
+          "quantity_milli": 2000,
+          "value_minor": 61,
+          "version": 3,
+          "tracking_mode": "serial",
+          "expiry_date": null,
+          "status": "active"
+        }
+      },
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 2000,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": [
+          {
+            "lotId": "lot-a",
+            "quantityMilli": 2000,
+            "balanceVersion": 3
+          }
+        ]
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods",
+        "lot:lot-a"
+      ],
+      "expected": {
+        "error": {
+          "status": 409,
+          "code": "PART_LOT_CHANGED",
+          "message": "Reload an available unexpired spare lot or whole serial."
+        }
+      }
+    },
+    {
+      "id": "cost-maintenance-1-1",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 1,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 1,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "PART_VALUATION_REQUIRED",
+          "message": "Reconcile positive spare valuation before posting its service cost."
+        }
+      }
+    },
+    {
+      "id": "cost-maintenance-1-3333",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 1,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3333,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "PART_VALUATION_REQUIRED",
+          "message": "Reconcile positive spare valuation before posting its service cost."
+        }
+      }
+    },
+    {
+      "id": "cost-maintenance-1-10000",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 1,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 10000,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 1,
+          "currency": "THB",
+          "lots": []
+        }
+      }
+    },
+    {
+      "id": "cost-maintenance-2-1",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 2,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 1,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "PART_VALUATION_REQUIRED",
+          "message": "Reconcile positive spare valuation before posting its service cost."
+        }
+      }
+    },
+    {
+      "id": "cost-maintenance-2-3333",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 2,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3333,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 1,
+          "currency": "THB",
+          "lots": []
+        }
+      }
+    },
+    {
+      "id": "cost-maintenance-2-10000",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 2,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 10000,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 2,
+          "currency": "THB",
+          "lots": []
+        }
+      }
+    },
+    {
+      "id": "cost-maintenance-3-1",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 3,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 1,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "PART_VALUATION_REQUIRED",
+          "message": "Reconcile positive spare valuation before posting its service cost."
+        }
+      }
+    },
+    {
+      "id": "cost-maintenance-3-3333",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 3,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3333,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 1,
+          "currency": "THB",
+          "lots": []
+        }
+      }
+    },
+    {
+      "id": "cost-maintenance-3-10000",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 3,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 10000,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 3,
+          "currency": "THB",
+          "lots": []
+        }
+      }
+    },
+    {
+      "id": "cost-maintenance-999999999999-1",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 999999999999,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 1,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 100000000,
+          "currency": "THB",
+          "lots": []
+        }
+      }
+    },
+    {
+      "id": "cost-maintenance-999999999999-3333",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 999999999999,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3333,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 333300000000,
+          "currency": "THB",
+          "lots": []
+        }
+      }
+    },
+    {
+      "id": "cost-maintenance-999999999999-10000",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 999999999999,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 10000,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 999999999999,
+          "currency": "THB",
+          "lots": []
+        }
+      }
+    },
+    {
+      "id": "cost-maintenance-9007199254740991-1",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 9007199254740991,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 1,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 900719925474,
+          "currency": "THB",
+          "lots": []
+        }
+      }
+    },
+    {
+      "id": "cost-maintenance-9007199254740991-3333",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 9007199254740991,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3333,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 3002099511605172,
+          "currency": "THB",
+          "lots": []
+        }
+      }
+    },
+    {
+      "id": "cost-maintenance-9007199254740991-10000",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 9007199254740991,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "maintenance",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 10000,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 9007199254740991,
+          "currency": "THB",
+          "lots": []
+        }
+      }
+    },
+    {
+      "id": "cost-field_service-1-1",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 1,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "field_service",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 1,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "PART_VALUATION_REQUIRED",
+          "message": "Reconcile positive spare valuation before posting its service cost."
+        }
+      }
+    },
+    {
+      "id": "cost-field_service-1-3333",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 1,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "field_service",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3333,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "PART_VALUATION_REQUIRED",
+          "message": "Reconcile positive spare valuation before posting its service cost."
+        }
+      }
+    },
+    {
+      "id": "cost-field_service-1-10000",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 1,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "field_service",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 10000,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 1,
+          "currency": "THB",
+          "lots": []
+        }
+      }
+    },
+    {
+      "id": "cost-field_service-2-1",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 2,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "field_service",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 1,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "PART_VALUATION_REQUIRED",
+          "message": "Reconcile positive spare valuation before posting its service cost."
+        }
+      }
+    },
+    {
+      "id": "cost-field_service-2-3333",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 2,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "field_service",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3333,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 1,
+          "currency": "THB",
+          "lots": []
+        }
+      }
+    },
+    {
+      "id": "cost-field_service-2-10000",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 2,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "field_service",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 10000,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 2,
+          "currency": "THB",
+          "lots": []
+        }
+      }
+    },
+    {
+      "id": "cost-field_service-3-1",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 3,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "field_service",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 1,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "error": {
+          "status": 422,
+          "code": "PART_VALUATION_REQUIRED",
+          "message": "Reconcile positive spare valuation before posting its service cost."
+        }
+      }
+    },
+    {
+      "id": "cost-field_service-3-3333",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 3,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "field_service",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3333,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 1,
+          "currency": "THB",
+          "lots": []
+        }
+      }
+    },
+    {
+      "id": "cost-field_service-3-10000",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 3,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "field_service",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 10000,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 3,
+          "currency": "THB",
+          "lots": []
+        }
+      }
+    },
+    {
+      "id": "cost-field_service-999999999999-1",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 999999999999,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "field_service",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 1,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 100000000,
+          "currency": "THB",
+          "lots": []
+        }
+      }
+    },
+    {
+      "id": "cost-field_service-999999999999-3333",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 999999999999,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "field_service",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3333,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 333300000000,
+          "currency": "THB",
+          "lots": []
+        }
+      }
+    },
+    {
+      "id": "cost-field_service-999999999999-10000",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 999999999999,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "field_service",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 10000,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 999999999999,
+          "currency": "THB",
+          "lots": []
+        }
+      }
+    },
+    {
+      "id": "cost-field_service-9007199254740991-1",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 9007199254740991,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "field_service",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 1,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 900719925474,
+          "currency": "THB",
+          "lots": []
+        }
+      }
+    },
+    {
+      "id": "cost-field_service-9007199254740991-3333",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 9007199254740991,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "field_service",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 3333,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 3002099511605172,
+          "currency": "THB",
+          "lots": []
+        }
+      }
+    },
+    {
+      "id": "cost-field_service-9007199254740991-10000",
+      "stock": {
+        "quantity_milli": 10000,
+        "value_minor": 9007199254740991,
+        "version": 2,
+        "tracking_mode": "none",
+        "branch_id": "branch"
+      },
+      "config": {
+        "chart_id": "chart",
+        "currency": "THB",
+        "base_currency": "THB",
+        "inventory_account_id": "inventory-account",
+        "cogs_account_id": "expense-account"
+      },
+      "periods": [
+        {
+          "id": "period"
+        }
+      ],
+      "lots": {},
+      "input": {
+        "key": "inventory:test:consume",
+        "sourceKind": "field_service",
+        "sourceId": "source-work",
+        "sourceVersion": 1,
+        "branchId": "branch",
+        "departmentId": null,
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "quantityMilli": 10000,
+        "entryDate": "2026-01-02",
+        "reason": "Recorded spare consumption",
+        "allocations": []
+      },
+      "queries": [
+        "stock",
+        "config",
+        "periods"
+      ],
+      "expected": {
+        "value": {
+          "valueMinor": 9007199254740991,
+          "currency": "THB",
+          "lots": []
+        }
+      }
+    }
+  ]
+}

@@ -61,7 +61,9 @@
     "./lib/executive/numbers": "./src/lib/executive/numbers.ts",
     "./lib/executive/coverage": "./src/lib/executive/coverage.ts",
     "./lib/executive/connections": "./src/lib/executive/connections.ts",
-    "./lib/executive/theme": "./src/lib/executive/theme.ts"
+    "./lib/executive/theme": "./src/lib/executive/theme.ts",
+    "./components/hospitality/grouped-navigation": "./src/components/hospitality/grouped-navigation.tsx",
+    "./components/use-recoverable-draft": "./src/components/use-recoverable-draft.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -87,9 +89,9 @@
     "@erpx/server-runtime": "workspace:*",
     "@erpx/ui": "workspace:*",
     "@erpx/workplace": "workspace:*",
-    "lucide-react": "1.41.0",
-    "next": "16.4.0",
-    "react": "19.3.0",
-    "zod": "4.5.4"
+    "lucide-react": "1.61.0",
+    "next": "16.4.3",
+    "react": "19.3.1",
+    "zod": "4.6.7"
   }
 }

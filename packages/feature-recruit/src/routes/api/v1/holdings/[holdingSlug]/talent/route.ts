@@ -13,6 +13,7 @@ import {
   talentDetail,
   talentWorkspace,
 } from "@erpx/server-talent/public/talent";
+import {nativeTalentRequisitionCommand,nativeTalentWorkspace} from "@erpx/feature-talent/public/native-talent-page";
 import { candidatePrivacySchema,changeCandidatePrivacy } from "@erpx/server-people_payroll/public/people-handoffs";
 type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
@@ -34,8 +35,19 @@ export async function GET(r: Request, c: C) {
   try {
     const a = await requireWorkContext((await c.params).holdingSlug),
       id = new URL(r.url).searchParams.get("id");
+    if (!id) {
+      const workspace = await talentWorkspace(a),
+        native = await nativeTalentWorkspace(a),
+        data = native
+          ? {
+              ...workspace,
+              requisitions: native.requisitions as unknown as typeof workspace.requisitions,
+            }
+          : workspace;
+      return Response.json(canonicalDestinationLinks({ data }), { headers });
+    }
     return Response.json(
-      canonicalDestinationLinks({ data: id ? await talentDetail(a, id) : await talentWorkspace(a) }),
+      canonicalDestinationLinks({ data: await talentDetail(a, id) }),
       { headers },
     );
   } catch (e) {
@@ -63,7 +75,9 @@ export async function POST(r: Request, c: C) {
     const a = await requireWorkContext((await c.params).holdingSlug),
       i = await readInput(r);
     let data;
-    if (i.entity === "candidate-privacy") {
+    const native = await nativeTalentRequisitionCommand(a, i, key);
+    if (native) data = native;
+    else if (i.entity === "candidate-privacy") {
       const privacy = candidatePrivacyRequestSchema.parse(i);
       data = await changeCandidatePrivacy(
         a,

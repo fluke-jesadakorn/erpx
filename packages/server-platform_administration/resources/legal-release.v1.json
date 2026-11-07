@@ -1,0 +1,38 @@
+{
+  "schema": "erpx-legal-release/v1",
+  "source": {
+    "path": "packages/catalogue/src/production-scope.ts",
+    "sha256": "d67d9c7bdb16a59fa4119e27e1a6a170242beae4995eff6ae4258c77da21faf3"
+  },
+  "scopeVersion": "legal-th-operations-v1",
+  "criteria": [
+    {
+      "id": "legal_workflows",
+      "permission": "legal.manage"
+    },
+    {
+      "id": "legal_content",
+      "permission": "legal.manage"
+    },
+    {
+      "id": "legal_access",
+      "permission": "organization.manage"
+    },
+    {
+      "id": "legal_documents",
+      "permission": "legal.manage"
+    },
+    {
+      "id": "legal_ai",
+      "permission": "legal.manage"
+    },
+    {
+      "id": "legal_release",
+      "permission": "organization.manage"
+    },
+    {
+      "id": "legal_operations",
+      "permission": "organization.manage"
+    }
+  ]
+}

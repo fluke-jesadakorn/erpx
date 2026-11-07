@@ -1,5 +1,5 @@
-import {holdingHostForHost,holdingRoutingEnabled,parseHoldingRoute,holdingUiUrl,holdingFrontUiUrl} from '@erpx/contracts/holding-hosts';
-import {requestProductOrigin,ssoAudienceForHost} from '@erpx/feature-runtime/lib/product-hosts';
+import {holdingHostForHost,holdingRoutingEnabled,parseHoldingRoute,holdingUiUrl,holdingFrontUiUrl} from '@erpx/feature-runtime/lib/holding-hosts';
+import {requestProductOrigin} from '@erpx/feature-runtime/lib/product-hosts';
 import 'server-only';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -91,7 +91,7 @@ export async function roleSelectionRequest(request: Request) {
     }
     const workspace = (await workspaces()).find(choice => choice.key === input.workspaceKey);
     if (!workspace || typeof input.version !== 'number') throw new ApiError(409,'WORK_CONTEXT_CHANGED','Your workspace access changed. Review the current choices.');
-    await withCurrentWorkSelectionSession({ userId: session.user.id, sessionId: session.session.id, email: session.user.email, audience: ssoAudienceForHost(request.headers.get('host')) }, async assertCurrent => {
+    await withCurrentWorkSelectionSession({ userId: session.user.id, sessionId: session.session.id, email: session.user.email, audience }, async assertCurrent => {
       await assertCurrent();
       if (workspace.kind === 'front') {
         const parts = frontParts(workspace), state = await frontRoleState(parts.holding, workspace.companyId, parts.app, parts.location);

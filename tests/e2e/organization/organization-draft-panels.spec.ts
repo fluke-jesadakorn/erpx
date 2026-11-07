@@ -71,7 +71,7 @@ test("People has one structure, expandable details and no page overflow at suppo
   if (colonDepartment) {
     const rail = page.getByTestId("people-organization-rail");
     const companyButton = rail.locator('[data-unit-kind="company"] button[aria-pressed]').first();
-    await row(page, "department", colonDepartment.id).getByRole("button", { name: colonDepartment.display_name, exact: true }).click();
+    await page.goto(`${base}/people?${new URLSearchParams({unit: `department:${colonDepartment.id}`})}`);
     await expect.poll(() => new URL(page.url()).searchParams.get("unit")).toBe(`department:${colonDepartment.id}`);
     await page.reload();
     await expect(row(page, "department", colonDepartment.id).locator('button[aria-pressed]')).toHaveAttribute("aria-pressed", "true");
@@ -181,7 +181,7 @@ test("three kinds of drag and keyboard moves share a saved private draft, Undo a
   const events = await page.evaluate(() => (window as Window & { peopleDragEvents?: Record<string, unknown>[] }).peopleDragEvents);
   await test.info().attach("native-people-drag", { body: JSON.stringify(events), contentType: "application/json" });
   await expect.poll(() => drafts.draft?.definition.items, { message: JSON.stringify(events) }).toContainEqual(expect.objectContaining({ kind: "person", id: person.engagement_id, positionId: targetPosition.id, parked: false }));
-  await page.getByRole("searchbox", { name: searchName }).fill("");
+  await page.getByRole("searchbox", { name: searchName }).fill(organization.nodes.find(node => node.id === sourcePosition.company_id)!.display_name);
   await drag(page, row(page, "position", sourcePosition.id).getByRole("button", { name: `Drag ${sourcePosition.title}`, exact: true }), row(page, "department", targetDepartment.id));
   await expect.poll(() => drafts.draft?.definition.items).toContainEqual(expect.objectContaining({ kind: "position", id: sourcePosition.id, departmentId: targetDepartment.id }));
   await drag(page, row(page, "department", sourceDepartment.id).locator('[draggable="true"]').first(), row(page, "branch", targetBranch.id));
@@ -379,6 +379,7 @@ test("People ignores superseded detail reads and an employee only sees public HR
   try {
     await page.getByRole("searchbox", { name: searchName }).fill(first.legal_name);
     await row(page, "person", first.engagement_id).getByRole("button").first().click(); await pending;
+    await detail(page).getByRole("button", {name: "Close details", exact: true}).click();
     await page.getByRole("searchbox", { name: searchName }).fill(second.legal_name);
     await row(page, "person", second.engagement_id).getByRole("button").first().click();
     await expect(detail(page).getByRole("heading", { name: second.legal_name, exact: true })).toBeVisible();

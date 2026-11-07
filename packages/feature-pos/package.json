@@ -53,6 +53,7 @@
     "./lib/room-charge-review-command": "./src/lib/room-charge-review-command.ts",
     "./lib/receipt-route": "./src/lib/receipt-route.ts",
     "./lib/workspace-command": "./src/lib/workspace-command.ts",
+    "./adapters/server/native-pos-cash": "./src/adapters/server/native-pos-cash.ts",
     "./routes/holdings/[holdingSlug]/pos/receipts/[id]/[recordSection]/page": "./src/routes/holdings/[holdingSlug]/pos/receipts/[id]/[recordSection]/page.tsx",
     "./routes/holdings/[holdingSlug]/pos/receipts/[id]/page": "./src/routes/holdings/[holdingSlug]/pos/receipts/[id]/page.tsx",
     "./routes/holdings/[holdingSlug]/pos/settings/initial-stock/[id]/page": "./src/routes/holdings/[holdingSlug]/pos/settings/initial-stock/[id]/page.tsx",
@@ -74,7 +75,8 @@
     "./routes/api/v1/holdings/[holdingSlug]/pos/route": "./src/routes/api/v1/holdings/[holdingSlug]/pos/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/pos/startup/[...path]/route": "./src/routes/api/v1/holdings/[holdingSlug]/pos/startup/[...path]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/pos/startup/route": "./src/routes/api/v1/holdings/[holdingSlug]/pos/startup/route.ts",
-    "./routes/api/pos/stripe/webhook/route": "./src/routes/api/pos/stripe/webhook/route.ts"
+    "./routes/api/pos/stripe/webhook/route": "./src/routes/api/pos/stripe/webhook/route.ts",
+    "./routes/holdings/[holdingSlug]/pos/approvals/shifts/page": "./src/routes/holdings/[holdingSlug]/pos/approvals/shifts/page.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -102,10 +104,10 @@
     "@erpx/server-work_projection": "workspace:*",
     "@erpx/ui": "workspace:*",
     "@erpx/workplace": "workspace:*",
-    "lucide-react": "1.41.0",
-    "next": "16.4.0",
+    "lucide-react": "1.61.0",
+    "next": "16.4.3",
     "qrcode": "1.5.4",
-    "react": "19.3.0",
-    "zod": "4.5.4"
+    "react": "19.3.1",
+    "zod": "4.6.7"
   }
 }

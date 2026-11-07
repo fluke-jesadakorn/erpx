@@ -5,6 +5,7 @@ import { FinanceWorkspace, financeStyles as styles } from "@erpx/feature-finance
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import {reportDateSchema} from '@erpx/server-finance/public/finance';
+import {nativeFinanceReport} from "@erpx/feature-finance/lib/native-finance-report";
 import { ledgerWorkspace } from "@erpx/server-finance/public/ledger";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { StandardFinanceReportingConsole } from "@erpx/feature-finance/components/standard-finance-reporting-console";
@@ -28,7 +29,8 @@ export default async function ReportsPage({
     periodId?: string;
   }>;
 }) {
-  const actor = await requireWorkContext((await params).holdingSlug),
+  const holdingSlug = (await params).holdingSlug,
+    actor = await requireWorkContext(holdingSlug),
     base = workspaceBase(publicScope(actor)),
     query = await searchParams,
     data = await ledgerWorkspace(actor, query.chart, {
@@ -38,13 +40,45 @@ export default async function ReportsPage({
         startDate: query.startDate || undefined,
         endDate: query.endDate || undefined,
       }),
-    }),
-    report = data.report;
+    });
+  const nativeActor = actor.authority && actor.iam
+    ? {
+        userId: actor.userId,
+        holdingId: actor.holdingId,
+        holdingSlug,
+        companyId: actor.companyId,
+        branchId: actor.branchId,
+        departmentId: actor.departmentId,
+        assignmentId: actor.assignmentId,
+        role: actor.role,
+        assignmentScope: actor.assignmentScope,
+        scope:
+          actor.scope.kind === "holding"
+            ? { kind: "holding" as const }
+            : actor.scope.kind === "branch"
+              ? { kind: "branch" as const, branchSlug: actor.scope.branchSlug ?? "" }
+              : {
+                  kind: "department" as const,
+                  branchSlug: actor.scope.branchSlug ?? undefined,
+                  departmentSlug: actor.scope.departmentSlug ?? "",
+                },
+        authority: { revision: actor.authority.revision, assignmentVersion: actor.authority.assignmentVersion },
+        modules: actor.modules,
+        iam: { permissions: actor.iam.permissions },
+      }
+    : undefined;
+  const nativeReport = await nativeFinanceReport(nativeActor, holdingSlug, {
+    chartId: String(data.chart.id),
+    periodId: query.periodId || undefined,
+    startDate: query.startDate || undefined,
+    endDate: query.endDate || undefined,
+  });
+  const report = nativeReport ?? data.report;
   const reporting = !actor.branchId && !actor.departmentId ? await reportingWorkspace(actor,String(data.chart.id)) : null;
   const planning = !actor.branchId && !actor.departmentId ? await financePlanningWorkspace(actor,String(data.chart.id)) : null;
   const planningEnabled=(await financeCompanyTools(actor)).some(r=>r.tool==="planning"&&r.enabled===1);
   const selectedPeriod = data.periods.find((period) => period.id === query.periodId);
-  const accountingHref = canonicalUiHref(`${base}/finance/accounting/journals?chart=${encodeURIComponent(String(data.chart.id))}#journal-entries`);
+  const accountingHref = canonicalUiHref(`${base}/finance/accounting?chart=${encodeURIComponent(String(data.chart.id))}#journal-entries`);
   const cards = [
     ["Assets", report.balanceSheet.assets],
     ["Liabilities", report.balanceSheet.liabilities],

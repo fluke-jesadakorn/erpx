@@ -5,6 +5,7 @@ import { requireWorkContext, publicScope } from "@erpx/server-identity_access/pu
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { customerAccessHistory, customerPortalInvitationHistory } from "@erpx/server-customer_authority/public/customer-access";
+import { nativeCustomerAccessDetail } from "@erpx/feature-sales/public/native-customer-access-page";
 import { CustomerAccessConsole } from "@erpx/feature-records/components/loaders/modules--customer-access-console";
 import { PageContent, Card } from "@erpx/ui/components/foundation";
 
@@ -16,11 +17,12 @@ export default async function Page({ params }: { params: Promise<{ holdingSlug: 
   const base = workspaceBase(publicScope(actor));
   let data: Awaited<ReturnType<typeof customerAccessHistory>> & Awaited<ReturnType<typeof customerPortalInvitationHistory>>;
   try {
-    const [access, invitations] = await Promise.all([
-      customerAccessHistory(actor, id),
+    const [nativeAccess, invitations] = await Promise.all([
+      nativeCustomerAccessDetail(actor, id),
       customerPortalInvitationHistory(actor, id),
     ]);
-    data = { ...access, ...invitations };
+    const access = nativeAccess ?? (await customerAccessHistory(actor, id));
+    data = { ...access, ...invitations } as typeof data;
   } catch (error) {
     return pageError(error, holdingSlug);
   }

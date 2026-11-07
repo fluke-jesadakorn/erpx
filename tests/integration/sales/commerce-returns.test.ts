@@ -655,15 +655,32 @@ it('Company Service cash preparation rolls back deferred receipt account owner I
   }
   expect(await db.prepare("SELECT state,version FROM company_package_grants WHERE company_id=? AND package_id='sales'").bind(s.z.company).first()).toEqual({state:'active',version:1});
   // Original expiry is draining, which deliberately retains settle-existing.
-  // Record native times on both sides of the real deadline, not only JS time.
-  const endsAt=Date.now()+2500;await s.z.store.apply({expectedVersion:1,idempotencyKey:key(),grant:{...s.z.grant,version:2,endsAt,reason:'Actual Sales expiry retains this original unsettled refund',evidence:'test:service-cash-expiry-settlement'}});
+  // Prepare independent work before starting the real grant's expiry window.
+  const stages:Record<string,number>={preparationStart:performance.now()};
   const command=key(),body=await s.input(),fault=`service_cash_expiry_${key().replaceAll('-','')}`;
+  stages.bodyReady=performance.now();
   await db.exec(`CREATE SEQUENCE ${fault};CREATE SEQUENCE ${fault}_after;CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM setval('${fault}',floor(extract(epoch from clock_timestamp())*1000)::bigint);PERFORM pg_sleep(2.7);PERFORM setval('${fault}_after',floor(extract(epoch from clock_timestamp())*1000)::bigint);RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON command_receipts DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${fault}()`);
+  stages.ddlReady=performance.now();
+  let preparation:ReturnType<typeof s.refunds.prepareRefundInstruction>|undefined;
   try{
-    const prepared=await s.refunds.prepareRefundInstruction(s.z.treasury,s.refundId,body,command);expect(prepared).toMatchObject({obligationId:s.refundId,status:'prepared',version:1});
-    expect(Number(await db.prepare(`SELECT last_value::text value FROM ${fault}`).first('value')),'native effects began before actual expiry').toBeLessThan(endsAt);expect(Number(await db.prepare(`SELECT last_value::text value FROM ${fault}_after`).first('value')),'native effects finished after actual expiry').toBeGreaterThan(endsAt);
+    const endsAt=Date.now()+2500;stages.grantApplyStart=performance.now();
+    await s.z.store.apply({expectedVersion:1,idempotencyKey:key(),grant:{...s.z.grant,version:2,endsAt,reason:'Actual Sales expiry retains this original unsettled refund',evidence:'test:service-cash-expiry-settlement'}});
+    stages.grantApplied=performance.now();
+    const persisted=await db.prepare("SELECT ends_at::text ends_at,version FROM company_package_grants WHERE company_id=? AND package_id='sales'").bind(s.z.company).first<{ends_at:string;version:number}>();
+    stages.grantReadback=performance.now();
+    expect(persisted,'actual version 2 Sales expiry').toEqual({ends_at:String(endsAt),version:2});
+    stages.constructorStart=performance.now();
+    preparation=s.refunds.prepareRefundInstruction(s.z.treasury,s.refundId,body,command);
+    const prepared=await preparation.finally(()=>{stages.constructorSettled=performance.now();});expect(prepared).toMatchObject({obligationId:s.refundId,status:'prepared',version:1});
+    const nativeStart=await db.prepare(`SELECT last_value::text value,is_called FROM ${fault}`).first<{value:string;is_called:boolean}>(),nativeEnd=await db.prepare(`SELECT last_value::text value,is_called FROM ${fault}_after`).first<{value:string;is_called:boolean}>();
+    expect(nativeStart?.is_called,'native start trigger ran').toBe(true);expect(nativeEnd?.is_called,'native end trigger ran').toBe(true);
+    expect(Number(nativeStart?.value),'native effects began before actual expiry').toBeLessThan(Number(persisted!.ends_at));expect(Number(nativeEnd?.value),'native effects finished after actual expiry').toBeGreaterThan(Number(persisted!.ends_at));
     const committed=await companyServiceCashImage(s,command);expect(await s.refunds.prepareRefundInstruction(s.z.treasury,s.refundId,body,command)).toEqual(prepared);expect(await companyServiceCashImage(s,command)).toEqual(committed);
-  }finally{await db.exec(`DROP TRIGGER ${fault} ON command_receipts;DROP FUNCTION ${fault}();DROP SEQUENCE ${fault};DROP SEQUENCE ${fault}_after`);}
+  }finally{
+    if(preparation) await preparation.catch(()=>{});
+    console.info('sales service cash expiry monotonic stages (ms)',stages);
+    await db.exec(`DROP TRIGGER ${fault} ON command_receipts;DROP FUNCTION ${fault}();DROP SEQUENCE ${fault};DROP SEQUENCE ${fault}_after`);
+  }
 });
 
 async function anotherCompanyServiceReceipt(s:Awaited<ReturnType<typeof companyServiceCashFixture>>){

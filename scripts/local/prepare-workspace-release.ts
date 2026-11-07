@@ -41,7 +41,7 @@ export async function buildWorkspaceReleaseTool(snapshot:string,output:string,ro
  if(!bundle.success)throw new Error(bundle.logs.map(log=>log.message).join('\n'));
  if(role==='jobs'){
   await vendorPackage(snapshot,output,'pg');
-  for(const name of ['migrations/postgres','scripts/legal','public/fonts','ops/macos/clamav'])await cp(join(snapshot,name),join(output,name),{recursive:true,mode:constants.COPYFILE_FICLONE});
+  for(const name of ['migrations/postgres','public/fonts','ops/macos/clamav'])await cp(join(snapshot,name),join(output,name),{recursive:true,mode:constants.COPYFILE_FICLONE});
   const extractor=await Bun.build({entrypoints:[join(snapshot,'scripts/legal/extract_docx.mjs')],outdir:join(output,'scripts/legal'),naming:'extract_docx.mjs',target:'node',format:'esm',env:'disable',define:{'process.env.NODE_ENV':JSON.stringify('production')}});
   if(!extractor.success)throw new Error('JOBS_LEGAL_EXTRACTOR_BUILD_FAILED');
  }

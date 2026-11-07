@@ -316,6 +316,21 @@
   align-items: center;
   min-width: 0;
 }
+.workspaceMenuFallback,
+.sourceWorkspace {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sourceBreadcrumb {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .workspaceSymbol {
   display: grid;
   place-items: center;
@@ -495,6 +510,19 @@
   align-items: center;
   gap: 15px;
   flex-shrink: 0;
+}
+@media (min-width: 1101px) {
+  .workspace {
+    min-width: 112px;
+  }
+  .actions {
+    min-width: 0;
+    flex-shrink: 1;
+  }
+  .actions > :global(.account-switcher) {
+    min-width: 90px;
+    flex: 0 1 auto;
+  }
 }
 .role {
   font-size: 10px;
@@ -1279,6 +1307,23 @@ a.workspaceChoice:hover {
     grid-column: 1;
     grid-row: 1;
   }
+  .workspaceMenuFallback,
+  .sourceWorkspace {
+    grid-column: 2 / -1;
+    grid-row: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sourceBreadcrumb {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .workspaceTrigger {
     grid-column: 2;
     grid-row: 1;
@@ -1290,6 +1335,11 @@ a.workspaceChoice:hover {
   .searchButton > span,
   .searchButton kbd {
     display: none;
+  }
+  .workspace:has(.sourceWorkspace) + .actions {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    justify-self: end;
   }
   .actions {
     grid-column: 3;
@@ -1368,7 +1418,7 @@ a.workspaceChoice:hover {
 }
 .nav button.navCategoryButton[data-slot="button"] {
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) 20px;
+  grid-template-columns: 28px minmax(0, 1fr) 20px;
   width: 100%;
   min-height: 44px;
   align-items: center;
@@ -1422,7 +1472,7 @@ a.workspaceChoice:hover {
 .nav .navAppLink {
   min-height: 44px;
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
+  grid-template-columns: 28px minmax(0, 1fr);
   align-items: center;
   gap: 9px;
   padding: 8px 10px;
@@ -1486,7 +1536,7 @@ a.workspaceChoice:hover {
   justify-content: center;
   padding: 10px;
 }
-.nav[data-rail="true"] > a > span:not(.navBadge),
+.nav[data-rail="true"] > a > span:not(.navBadge):not([data-sidebar-icon]),
 .nav[data-rail="true"] > .navLabel {
   display: none;
 }
@@ -1522,3 +1572,29 @@ a.workspaceChoice:hover {
     display: none;
   }
 }
+
+/* Shared sidebar rhythm; category colors come from the presentation catalogue. */
+@media (max-width: 1000px) {
+  .workspace > [data-apps-launcher-trigger] {
+    grid-column: 2;
+    grid-row: 1;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    padding: 8px;
+  }
+  .workspace > [data-apps-launcher-trigger] > span,
+  .workspace > [data-apps-launcher-trigger] > svg:last-child { display: none; }
+}
+@media (max-width: 650px) {
+  .actions > .notificationShortcut { display: none; }
+}
+.navCategoryButton { position: relative; }
+.navCategory[data-active="true"] > .navCategoryButton { color: var(--ui-brand-strong); }
+.nav a[aria-current="page"] { position: relative; }
+.nav a[aria-current="page"]::before { content: ""; position: absolute; inset: 10px auto 10px 0; width: 3px; border-radius: 3px; background: var(--ui-brand); }
+.nav .navAppLink { grid-template-columns: 28px minmax(0, 1fr); min-height: 44px; }
+.nav > a { font-size: 13px; min-height: 44px; }
+
+.nav { scrollbar-width: thin; scrollbar-color: var(--ui-line) transparent; }
+.nav .navAppLink[target="_blank"] { grid-template-columns: 28px minmax(0, 1fr) 14px; }

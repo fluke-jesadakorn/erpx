@@ -1,7 +1,7 @@
 import type { ProductId } from './product-registry.ts';
 
 const enforcementOwners: Record<ProductId,string> = {
- work:'WORK',pos:'POS',pms:'PMS',finance:'FINANCE',people:'PEOPLE',sales:'COMMERCE',supply:'COMMERCE',
+ apps:'APPS',pos:'POS',pms:'PMS',finance:'FINANCE',people:'PEOPLE',sales:'COMMERCE',supply:'COMMERCE',
  assets:'ASSETS',projects:'PROJECTS',recruit:'TALENT',learn:'LEARNING',support:'SUPPORT',service:'SERVICE',legal:'LEGAL',manufacturing:'MANUFACTURING',
 };
 

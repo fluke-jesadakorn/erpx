@@ -1,4 +1,5 @@
 'use client';
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 import {useEffect,useLayoutEffect,useRef,useState} from 'react';
 import {contextGeneration,contextIsSwitching} from '@erpx/feature-work_projection/lib/context-switch';
 import {useRouter} from '@erpx/feature-shared/lib/destination-router';
@@ -18,7 +19,7 @@ export function PortalSupportAcknowledgement({holdingSlug,bindingId,bindingVersi
   if(captured.purchase?.history===false||captured.purchase?.settleExisting===false&&!attempt.uncertain){setError('This document is currently available for history.');return;}
   pending.current=true;setBusy(true);setError('');setNotice('');let unknown=true;
   try{
-   const response=await fetch(`/api/customer-portal/${encodeURIComponent(holdingSlug)}`,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':attempt.key},body:attempt.body}),body=await response.json() as {data?:unknown;error?:{message?:string}};
+   const response=await holdingFetch(`/api/customer-portal/${encodeURIComponent(holdingSlug)}`,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':attempt.key},body:attempt.body}),body=await response.json() as {data?:unknown;error?:{message?:string}};
    // ORIGINAL JSON may complete after a new response, binding or account was
    // rendered. Keep that exact attempt until it is reviewed in a live source.
    if(!current())throw Error('The customer account or response changed. Retry the original acknowledgement in the current document.');

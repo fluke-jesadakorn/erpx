@@ -1,6 +1,6 @@
 import { isEngineeringVerificationOrigin } from "@erpx/server-platform_administration/public/engineering-verification";
 import { productHostForHost } from "@erpx/feature-runtime/lib/product-hosts";
-import {holdingFrontUiUrl} from '@erpx/contracts/holding-hosts';
+import {holdingFrontUiUrl} from '@erpx/feature-runtime/lib/holding-hosts';
 
 export type FrontHostApp = "pms" | "pos";
 

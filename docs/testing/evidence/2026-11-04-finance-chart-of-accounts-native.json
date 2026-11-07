@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Finance chart-of-accounts management verified on desktop and mobile; finance/feature-chart-of-accounts closes",
+  "capability": "finance-chart-of-accounts-native",
+  "base": "a169022c6d51e31b70109ad2b9c037beef2eb830",
+  "branch": "codex/finance-chart-of-accounts-native",
+  "sourceCommit": "71d8a6de0d0dc927bff8f011e697e5a47abac58a",
+  "implementation": {
+    "adapter": "packages/server-finance/src/adapters/finance_setup.rs",
+    "public": "packages/server-finance/src/public/finance_setup.rs",
+    "composition": "src/composition/src/finance_journal_detail.rs (finance_chart_accounts/create_chart/create_account/import_accounts/change_account_status/create_period)",
+    "http": "src/composition/src/finance_journal_detail_http.rs",
+    "boundary": "src/composition/src/private_development_api.rs (finance_setup)",
+    "transport": "packages/feature-finance/src/adapters/server/native-finance-setup.ts",
+    "screens": [
+      "packages/workplace/src/routes/holdings/[holdingSlug]/finance/setup/chart/_screen.tsx",
+      "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance/setup/screen.tsx"
+    ]
+  },
+  "behavior": {
+    "read": "charts/{id}/accounts returns the selected chart, its accounts ordered by code and the Company periods; the chart page uses this native read",
+    "chart": "create chart validates name/ISO currency/basis, unique Company name, inserts the active chart and writes finance.chart.create receipt/audit/outbox",
+    "account": "create account validates chart, code/name/category/control kind, unique code, defaults currency to the chart base and writes finance.account.create",
+    "import": "import up to 500 validated rows under one finance.account.import receipt, rejecting duplicate codes inside the import or against the chart",
+    "status": "expectedVersion guard, unchanged-status conflict, inactive blocks draft journals and open invoices, writes finance.account.active/inactive",
+    "period": "create period validates the calendar range and unique Company date range, writes an open period with finance.period.create",
+    "scope": "Company scope only; current Account/Holding authority, rendered-context CAS, finance.read/finance.write, module.finance.read and the finance.accounting or finance.sales-posting purchase",
+    "atomicity": "serializable transaction with finance_charts/accounts/periods share-row-exclusive locks and row locks for status"
+  },
+  "checks": {
+    "postgres": "finance.rust-finance-setup-postgres.integration 4/4",
+    "cases": [
+      "chart/account/period read for the selected chart",
+      "chart create with receipt/audit/outbox, replay and duplicate-name conflict",
+      "account create with default currency, control account, duplicate-code conflict",
+      "two-row import and duplicate-code rejection",
+      "status active -> inactive -> unchanged conflict -> stale conflict -> active with versions 2 and 3",
+      "inactive blocked by a draft journal and by an open invoice",
+      "period create, duplicate date range and invalid range",
+      "HTTP chart/account/period create and chart accounts read with real cookie/CAS/key"
+    ],
+    "regressions": "finance.rust-invoice-read-postgres 3/3; finance.rust-sales-invoice-edit-postgres 4/4; finance.rust-sales-receipt-postgres 2/2; finance.rust-sales-defaults-postgres 3/3; finance.rust-sales-invoice-create-postgres 3/3; finance.rust-sales-invoice-list-postgres 3/3; finance.rust-journal-list-postgres 2/2",
+    "gates": "cargo clippy private-field-api, typecheck, structure, architecture, docs, catalogue (33 modules, 794 suites), rust-runtime-foundation 6/6, finance unit transport suites 4/4"
+  },
+  "browser": {
+    "desktop": {
+      "viewport": "1280x900",
+      "chart": {
+        "postStatus": 201,
+        "id": "chart-1ad84522-6649-4213-9e0c-c01cbcad2e4f",
+        "name": "Browser setup ledger 982899",
+        "baseCurrency": "THB",
+        "accountingBasis": "IFRS"
+      },
+      "account": {
+        "postStatus": 201,
+        "id": "acct-566827a5-53f0-42f6-89d5-54cae53ab753",
+        "code": "192899",
+        "currency": "THB"
+      },
+      "period": {
+        "postStatus": 201,
+        "id": "period-d19b7b97-2391-46ec-a7cd-d51a65bd2d62",
+        "name": "Browser period 982899",
+        "range": "2049-04-01..2049-04-28"
+      },
+      "import": {
+        "postStatus": 201,
+        "count": 1,
+        "code": "182899"
+      },
+      "status": {
+        "postStatus": 200,
+        "status": "inactive",
+        "version": 2
+      },
+      "readback": "Charts & accounts showed the new chart selected, the 192899 account inactive and the imported 182899 account",
+      "pageErrors": 0,
+      "consoleErrors": 32
+    },
+    "mobile": {
+      "viewport": "390x844",
+      "chart": {
+        "postStatus": 201,
+        "id": "chart-c74bced7-14cc-4b4a-811e-7e8d4e6c5cf5",
+        "name": "Browser setup ledger 043322"
+      },
+      "account": {
+        "postStatus": 201,
+        "code": "193322"
+      },
+      "period": {
+        "postStatus": 201,
+        "name": "Browser period 043322",
+        "range": "2032-03-01..2032-03-28"
+      },
+      "import": {
+        "postStatus": 201,
+        "count": 1
+      },
+      "status": {
+        "postStatus": 200,
+        "status": "inactive",
+        "version": 2
+      },
+      "pageErrors": 0,
+      "consoleErrors": 32
+    },
+    "persisted": {
+      "chart": "Browser setup ledger 982899 / THB / IFRS / active / version 1 / created by the owner",
+      "accounts": "192899 inactive v2; 182899 imported active v1",
+      "period": "Browser period 982899 / 2049-04-01..2049-04-28 / open",
+      "commands": "one finance.chart.create, finance.account.create, finance.account.import, finance.account.inactive and finance.period.create receipt plus matching audit/outbox"
+    }
+  },
+  "limits": [
+    "The broader Finance setup readiness/profile/books/tools/opening projections remain TS and belong to other workflows; this slice covers the chart page read and the chart/account/period management.",
+    "Branch/department Finance setup falls back to the legacy read; native setup requires a Company assignment.",
+    "The Finance app still logs pre-existing hydration/work-source console errors; pageErrors stay 0."
+  ]
+}

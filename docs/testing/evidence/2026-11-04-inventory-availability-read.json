@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Inventory availability read verified on desktop and mobile",
+  "capability": "inventory-availability-read",
+  "base": "d18678e85a3b5127187cb30cb307b1ca9e7cb6d9",
+  "branch": "codex/inventory-availability-read",
+  "sourceCommit": "0c7a991e7c626048961501bbfa9b362b88a57c2b",
+  "implementation": {
+    "domain": "packages/server-inventory/src/domain/availability.rs",
+    "adapter": "packages/server-inventory/src/adapters/availability_read.rs",
+    "composition": "src/composition/src/inventory_availability_read.rs",
+    "http": "src/composition/src/inventory_availability_http.rs",
+    "transport": "packages/feature-inventory/src/adapters/server/native-availability.ts",
+    "page": "packages/workplace/src/routes/holdings/[holdingSlug]/inventory-quality/stock/_screen.tsx"
+  },
+  "behavior": {
+    "facts": "commerce_stock joined to commerce_products/commerce_warehouses with inventory_active_reservations, inventory_quarantined_quantity and in-transit lines",
+    "available": "max(0, on_hand - max(reserved, quarantined)); in-transit is reported separately",
+    "scope": "current Account/Holding authority, rendered-context CAS, inventory.read, inventory.stock-core purchase, Company and optional branch scope",
+    "atomicity": "serializable read with source share locks",
+    "pageFallback": "The stock view renders from the native read when Commerce posting setup is absent; order posting setup is not an Inventory availability prerequisite."
+  },
+  "checks": {
+    "postgres": "inventory.rust-inventory-availability-read-postgres.integration 3/3",
+    "cases": [
+      "owner facts: on hand, active reservation, whole-stock quarantine, in-transit and value",
+      "branch scope filters to the selected branch",
+      "another Company sees no rows",
+      "stale rendered-context CAS is rejected",
+      "missing inventory.stock-core purchase is rejected",
+      "HTTP read with the real cookie/CAS returns context, currency and rows; a foreign origin is 403"
+    ],
+    "unit": "inventory.native-inventory-availability-transport.unit 4/4",
+    "domain": "erpx-server-inventory availability 2/2",
+    "gates": "cargo clippy private-field-api, typecheck, structure, architecture, docs, catalogue (33 modules, 783 suites), rust-runtime-foundation 6/6"
+  },
+  "browser": {
+    "desktop": {
+      "viewport": "1280x900",
+      "url": "https://acme.jesadakorn.com/zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e-branch/supply/inventory-quality/stock",
+      "row": [
+        "BROWSER-P · Browser stock product",
+        "Browser warehouse",
+        "None",
+        "10 pcs",
+        "3",
+        "0",
+        "0",
+        "7",
+        "10.00"
+      ],
+      "currency": "THB",
+      "pageErrors": 0,
+      "consoleErrors": 1
+    },
+    "mobile": {
+      "viewport": "390x844",
+      "url": "https://acme.jesadakorn.com/zero-service-parts-d0f627fa-f317-440f-ab49-34173813570e-branch/supply/inventory-quality/stock",
+      "row": [
+        "BROWSER-P · Browser stock product",
+        "Browser warehouse",
+        "None",
+        "10 pcs",
+        "3",
+        "0",
+        "0",
+        "7",
+        "10.00"
+      ],
+      "currency": "THB",
+      "pageErrors": 0,
+      "consoleErrors": 1
+    },
+    "persisted": {
+      "warehouse": "browser-wh",
+      "product": "browser-product",
+      "sku": "BROWSER-P",
+      "onHandMilli": 10000,
+      "reservedMilli": 3000,
+      "quarantinedMilli": 0,
+      "inTransitMilli": 0,
+      "availableMilli": 7000,
+      "valueMinor": 1000,
+      "chartCurrency": "THB"
+    },
+    "ui": "Normal Account sign-in, branch workspace selection, then the stock page. The table shows the native availability row and the native THB valuation currency; the page renders even though Commerce posting settings are absent."
+  },
+  "limits": [
+    "The stock page still falls back to the legacy commercePage stock rows when ERPX_NATIVE_INVENTORY_AVAILABILITY_CONFIG is absent.",
+    "The browser exercised the branch scope; holding scope is covered by the PostgreSQL read.",
+    "The supply app logs React hydration console warnings; pageErrors stay 0."
+  ]
+}

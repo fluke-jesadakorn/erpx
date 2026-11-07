@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Finance Setup readiness is owner/HTTP/SSR qualified and surfaced in the setup pages; billing/business-contract commands, controlled-payment allocate/reverse and browser acceptance remain open",
+  "capability": "finance-native-setup",
+  "integrationTarget": "codex/rust-backend-migration",
+  "scope": {
+    "read": "Finance setup checklist, chart/party projections and independent preparer/approver facts through the existing native setup read route.",
+    "http": "GET /finance/charts/{chartId}/accounts?view=setup serves the FinanceSetupWorkspace through the existing native ingress.",
+    "frontend": "Finance setup presenter and setup area pages consume the native readiness workspace when configured."
+  },
+  "tests": [
+    "finance.rust-finance-setup-postgres.integration: 6 passed (readiness facts, independent authority, account import/status guards, chart replay, period/HTTP, inactive-account guards)",
+    "cargo test -p erpx-server-finance: all targets pass",
+    "cargo test -p erpx-server-finance --test service_invoice_posting: 12 passed including the finance_setup_readiness module",
+    "tests/unit/finance/native-service-invoice.test.ts: 37 passed",
+    "feature-finance and workplace typechecks: pass"
+  ],
+  "limits": [
+    "Branch/department setup intentionally falls back to the legacy TypeScript read; native setup requires a Company assignment.",
+    "ledgerWorkspace and the profile/books/tools/AI/starter setup surfaces remain explicit non-native reads or writers.",
+    "Billing/business contracts/corrections are not native in this slice.",
+    "Controlled payment create/approve/release/confirm are native; allocate and reverse remain missing, and reverse still needs private-API admission.",
+    "No browser acceptance for this setup slice; staging/production were not accessed."
+  ]
+}

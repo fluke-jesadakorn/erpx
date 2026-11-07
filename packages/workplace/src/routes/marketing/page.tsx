@@ -1,6 +1,6 @@
+import {AppsHomeLink} from "@erpx/workplace/components/product-link-context";
 import { ActionAnchor as UiActionAnchor } from "@erpx/ui/components/foundation";
 import type { Metadata } from "next";
-import Link from "@erpx/workplace/components/workspace-link";
 import { cookies, headers } from "next/headers";
 import {
   ArrowRight,
@@ -159,9 +159,9 @@ export default async function MarketingPage() {
       </a>
       <header className={styles.header}>
         <div className={styles.container}>
-          <Link href="/" className={styles.brandLink} aria-label="ERPX home">
+          <AppsHomeLink className={styles.brandLink}>
             <ProductBrand className={styles.brand} />
-          </Link>
+          </AppsHomeLink>
           <nav aria-label="Sections">
             <a href="#work">Work</a>
             <a href="#people">People</a>

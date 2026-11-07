@@ -1,0 +1,39 @@
+[package]
+name = "erpx-server-learning"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+erpx-server-shared.workspace = true
+erpx-server-runtime.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+
+[dev-dependencies]
+erpx-server-workflow.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+uuid.workspace = true
+
+[[test]]
+name = "learning"
+path = "../../tests/unit/learning/rust-learning.test.rs"
+
+[[test]]
+name = "learning_http"
+path = "../../tests/unit/learning/rust-learning-http.test.rs"
+
+[[test]]
+name = "learning_postgres"
+path = "../../tests/integration/learning/rust-learning-postgres.test.rs"
+
+[lints]
+workspace = true

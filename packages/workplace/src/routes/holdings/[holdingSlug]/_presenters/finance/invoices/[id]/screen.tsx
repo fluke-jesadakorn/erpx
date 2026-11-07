@@ -1,4 +1,4 @@
-import {serviceNoChargeControls} from "@erpx/server-finance/public/service-no-charge";
+import {nativeServiceInvoiceWorkspace,nativeJournalPageFailure} from "@erpx/feature-finance/public/server";
 import {ServiceNoChargeConfirmation} from "@erpx/feature-finance/components/service-no-charge-confirmation";
 import {financeProductPresentationOptions} from "@erpx/server-finance/public/product-presentation-request";
 import {servicePaymentControls} from "@erpx/server-finance/public/service-payment-purchases";
@@ -6,7 +6,7 @@ import {supplierInvoiceCorrections} from "@erpx/server-finance/public/supplier-p
 import {SupplierPaymentCorrectionPreparation} from "@erpx/feature-finance/components/supplier-payment-correction";
 import {SupplierBatchPreparation} from "@erpx/feature-procurement/components/supplier-batch-console";
 import {supplierInvoiceBatchWorkspace} from "@erpx/server-procurement/public/supplier-payments";
-import {financeActionAllowed} from "@erpx/server-finance/public/rules/purchase-controls";
+import {financeActionAllowed} from "@erpx/contracts/finance-purchase-controls";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {financeDocumentPostAccess} from "@erpx/server-finance/public/document-purchases";
 import { commercePurchaseControls } from "@erpx/server-commerce/public/purchase-controls";
@@ -56,27 +56,28 @@ export default async function InvoiceDetail({ params, searchParams }: { params: 
   const actor = await requireWorkContext(holdingSlug);
   const query = await searchParams, printing = query.print === "1";
   let data;
-  try { data = await invoiceRecordWorkspace(actor, id); } catch (error) { return pageError(error, actor.holdingSlug); }
+  let native;
+  try { native = await nativeServiceInvoiceWorkspace(actor, holdingSlug, id); data = native ?? await invoiceRecordWorkspace(actor, id); } catch (error) { const mapped=nativeJournalPageFailure(error); return pageError(mapped?new ApiError(mapped.status,mapped.code,mapped.message.replaceAll('Journal','Invoice').replaceAll('journal','invoice')):error, actor.holdingSlug); }
   const base = workspaceBase(publicScope(actor));
-  const noCharge=await serviceNoChargeControls(actor,id);
-  const servicePaymentPurchase=await servicePaymentControls(actor,{kind:"invoice",id});
-  const supplierCorrections=await supplierInvoiceCorrections(actor,id);
-  const invoice = data.invoice,purchases=await financePurchaseControls(actor),presentation=await financeDocumentPresentationAccess(actor,"invoice",id,await financeProductPresentationOptions());
+  const noCharge=native?.noCharge??null;
+  const servicePaymentPurchase=native?native.sourcePurchase:await servicePaymentControls(actor,{kind:"invoice",id});
+  const supplierCorrections=native?null:await supplierInvoiceCorrections(actor,id);
+  const invoice = data.invoice,purchases=native?native.purchaseControls:await financePurchaseControls(actor),presentation=native?{sourceOnly:native.sourceOnly,historyOnly:!financeActionAllowed(purchases,"settle-existing")}:await financeDocumentPresentationAccess(actor,"invoice",id,await financeProductPresentationOptions());
   const supplierCandidate=!printing&&invoice.kind==="payable"&&["posted","partially_paid"].includes(String(invoice.status))&&Number(invoice.outstanding_minor)>0&&hasPermission(actor,"finance.write")&&!actor.branchId&&!actor.departmentId;
   const supplierAccess=supplierCandidate?await financePurchaseControls(actor,["finance.banking","finance.inventory-valuation"]):undefined;
   const supplierPreparation=supplierCandidate&&(financeActionAllowed(supplierAccess,"settle-existing","finance.banking")||financeActionAllowed(supplierAccess,"settle-existing","finance.inventory-valuation"))?await supplierInvoiceBatchWorkspace(actor,id).catch(error=>{if(error instanceof ApiError&&error.status===403&&error.code==="PACKAGE_REQUIRED")return null;return pageError(error,holdingSlug);}):null;
-  const documentPost = invoice.status === "draft" ? await financeDocumentPostAccess(actor,"invoice",id) : undefined;
+  const documentPost = invoice.status === "draft" ? native?{canPost:native.canPost}:await financeDocumentPostAccess(actor,"invoice",id) : undefined;
   const commercePurchase = invoice.source_type === "commerce_fulfillment" ? await commercePurchaseControls(actor,{type:"invoice",id}) : undefined;
-  const matched=await (await procurementPresentationQueries(actor.holdingId)).procurementInvoiceMatchForFinance(id, actor.companyId);
+  const matched=native?null:await (await procurementPresentationQueries(actor.holdingId)).procurementInvoiceMatchForFinance(id, actor.companyId);
   const options=data.options;
   const owningAccount=options.accounts.find(account=>account.id===invoice.debit_account_id),owningChart=options.charts.find(chart=>chart.id===owningAccount?.chart_id);
   const expense=invoice.source_type==="expense_claim"?await getExpense(actor,String(invoice.source_id)):null;
   const canSettle=commercePermissions(actor).finance&&(invoice.kind!=="payable"||(hasPermission(actor,"finance.pay")&&invoice.created_by!==actor.userId))&&(!expense||![expense.created_by,expense.prepared_by,expense.claimant_user_id].includes(actor.userId));
   const bankAccounts=options.accounts.filter(account=>account.chart_id===owningChart?.id&&account.category==="asset"&&account.control_kind==="bank"&&account.currency===invoice.currency);
-  const flow = await financeDocumentFlow(actor,"invoice",id);
+  const flow = native?native.flow:await financeDocumentFlow(actor,"invoice",id);
   const canIssueThaiVat=(invoice.source_type==="commerce_fulfillment"||invoice.source_type==="standalone"&&invoice.line_mode==="native_lines")&&invoice.kind==="receivable"&&invoice.currency==="THB"&&["posted","partially_paid","paid"].includes(String(invoice.status))&&hasPermission(actor,"finance.approve")&&invoice.created_by!==actor.userId&&!actor.branchId&&!actor.departmentId&&data.thaiDocuments.length===0;
   const taxIdentities=canIssueThaiVat?await taxIdentityWorkspace(actor).catch(error=>pageError(error,actor.holdingSlug)):null;
-  const customerReceipts = invoice.kind === "receivable" ? await invoiceCustomerReceipts(actor, id) : [];
+  const customerReceipts = native?native.customerReceipts:invoice.kind === "receivable" ? await invoiceCustomerReceipts(actor, id) : [];
   const completionEvidence = invoice.source_type === "standalone" ? await invoiceSalesCompletion(actor, id) : null;
   return (
     <FeaturePage className="ui-page-content" data-source="live" data-module="finance" data-print-document={printing || undefined}><FinanceRecordWorkspace sourceHistory={presentation.sourceOnly} purchases={purchases} base={base} context={owningChart?{chartId:String(owningChart.id),chartName:String(owningChart.name),currency:String(owningChart.base_currency)}:undefined} active={invoice.kind==="payable"?"payables":"receivables"} title={String(invoice.invoice_number)} description={`${invoice.party_name} · ${invoice.kind} · ${invoice.currency}`} actions={<StatusBadge appearance="standard" status={String(invoice.status)}/>}><WorkReturn base={base}/>
@@ -114,6 +115,6 @@ export default async function InvoiceDetail({ params, searchParams }: { params: 
         <p className="muted">{data.allocations.length} allocated payments</p>
         {data.allocations.length === 0 ? <p className="muted">No payments have been allocated to this invoice.</p> : data.allocations.map((allocation) => <div className="ui-record-item" key={String(allocation.id)}><div className="row-main"><Link className="row-title" href={canonicalUiHref(`${base}/finance/payments/${allocation.payment_id}`)}>{String(allocation.payment_number)}</Link>{!!allocation.payment_slip_id&&<a href={`/api/v1${base}/attachments/${allocation.payment_slip_id}/content`}>Bank payment slip</a>}<span className="muted">{String(allocation.status)} · <TimeText appearance="standard" value={Number(allocation.created_at)}/></span></div><strong>{String(invoice.currency)} {minorToDecimal(Number(allocation.amount_minor))}<ArrowUpRight size={14} /></strong></div>)}
       </FeatureWidget>
-    <details><summary>Accounting & audit details</summary><DocumentPostingPreview actor={actor} kind="invoice" id={id}/></details><FlowPanel flow={flow} actor={actor} kind="invoice" id={id} base={base}/></WidgetGrid></FinanceRecordWorkspace></FeaturePage>
+    <details><summary>Accounting & audit details</summary><DocumentPostingPreview actor={actor} kind="invoice" id={id} preview={native?.postingPreview}/></details><FlowPanel flow={flow} actor={actor} kind="invoice" id={id} base={base}/></WidgetGrid></FinanceRecordWorkspace></FeaturePage>
   );
 }

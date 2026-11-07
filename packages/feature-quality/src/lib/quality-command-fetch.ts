@@ -3,7 +3,7 @@ import { announceWorkChange } from "@erpx/feature-work_projection/lib/work-refre
 
 export function qualityCommandContext() {
   const node = typeof document === "undefined" ? null : document.querySelector<HTMLElement>("[data-work-revision]");
-  return node ? [node.dataset.workUser, node.dataset.workRevision, node.dataset.workCompany, node.dataset.workAssignment].join(":") : "server";
+  return node ? JSON.stringify([node.dataset.workUser, node.dataset.workRevision, node.dataset.workCompany, node.dataset.workAssignment,node.dataset.workAssignmentVersion]) : "server";
 }
 export function captureQualityForm(): WorkCommandCompletion | undefined {
   const form = typeof document === "undefined" ? null : document.activeElement?.closest<HTMLFormElement>("form[data-quality-draft]");

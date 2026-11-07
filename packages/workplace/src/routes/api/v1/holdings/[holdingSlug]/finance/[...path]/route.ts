@@ -1,6 +1,11 @@
+import {nativeFieldJournalWorkspaceReadback,nativeFieldJournalLegacyUnavailable} from '@erpx/feature-finance/public/server';
+import {nativeServicePaymentReadback,nativeServiceInvoiceReadback} from '@erpx/feature-finance/public/server';
+import {nativeFinanceBankCommand} from '@erpx/feature-finance/lib/native-finance-bank';
+import {nativeFinanceBankHttpGet} from '@erpx/feature-finance/lib/native-finance-bank-read';
+import {isNativeServicePaymentRequest,nativeServicePaymentCommand} from '@erpx/feature-finance/public/server';
+import { nativeServiceNoCharge,nativeServiceInvoicePost, nativeJournalEdit, nativeJournalEditReadback, nativeJournalCreate, nativeJournalCreateReadback, nativeJournalPost, nativeJournalPostReadback, nativeJournalReverse, nativeJournalReverseReadback, nativeSalesInvoiceEdit, nativeSalesInvoiceVoid, nativeSupplierBillCreate, nativeSupplierBillEdit, nativeSupplierBillPost, nativeSupplierBillDetail, nativeSupplierBillVoid, nativePeriodClose, nativePeriodCloseWorkspace, nativeFinanceSetupCommand, nativeOpeningBalance } from "@erpx/feature-finance/public/server";
 import {expensePostingPrerequisites,createExpensePostingChart,createExpensePostingAccount,createExpensePostingPeriod,confirmExpensePostingRate,expensePostingPrerequisiteConfirmation,expensePostingChartSchema,expensePostingAccountSchema,expensePostingPeriodSchema,expensePostingRateSchema,expensePostingPrerequisiteConfirmationSchema} from '@erpx/server-finance/public/expense-posting-prerequisites';
 import {expensePostingSetup,initializeExpensePostingSetup,expensePostingSetupSchema} from '@erpx/server-commerce/public/expense-posting-setup';
-import {confirmServiceNoCharge} from "@erpx/server-finance/public/service-no-charge";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import {editManualDraft,manualDraftEditSchema} from "@erpx/server-finance/public/finance-manual-drafts";
 import {financeEntrypointQueries} from "@erpx/server-finance/public/entrypoint-queries";
@@ -82,8 +87,34 @@ type FinanceRouteContext = { params: Promise<{ holdingSlug: string; path: string
 export async function GET(request: Request, context: FinanceRouteContext) {
   try {
     const { holdingSlug, path } = await context.params;
+    const parts = segments(path);
+    if (parts.length === 3 && parts[0] === "journals" && parts[2] === "edit-workspace") {
+      const response = await nativeJournalEditReadback(request, holdingSlug, parts[1]);
+      if (response) return response;
+      throw new ApiError(404, "NOT_FOUND", "Journal not found.");
+    }
+    if (parts.length === 3 && parts[0] === "journals" && parts[2] === "create-workspace") {
+      const response = await nativeJournalCreateReadback(request, holdingSlug, parts[1]);
+      if (response) return response;
+      throw new ApiError(404, "NOT_FOUND", "Journal not found.");
+    }
+    if (parts.length === 3 && parts[0] === "journals" && parts[2] === "reversal-workspace") {
+      const response = await nativeJournalReverseReadback(request, holdingSlug, parts[1]);
+      if (response) return response;
+      throw new ApiError(404, "NOT_FOUND", "Journal not found.");
+    }
+    if (parts.length === 3 && parts[0] === "journals" && parts[2] === "workspace") {
+      const actor=requirePermission(await requireWorkContext(holdingSlug),"finance.read");
+      const field=await nativeFieldJournalWorkspaceReadback(request,actor,holdingSlug,parts[1]);if(field)return field;
+      const response = await nativeJournalPostReadback(request, holdingSlug, parts[1]);
+      if (response) return response;
+    }
     const actor = requirePermission(await requireWorkContext(holdingSlug),"finance.read");
-    const parts = segments(path); const search = new URL(request.url).searchParams;
+    if(parts.length===1&&parts[0]==="bank"){
+      const native=await nativeFinanceBankHttpGet(request,actor,holdingSlug);
+      if(native)return native;
+    }
+    const search = new URL(request.url).searchParams;
     if(parts[0]?.startsWith('expense-setup')){
       if(parts[0]!=='expense-setup'||parts.length!==1)throw new ApiError(404,'NOT_FOUND','Expense setup resource not found.');
       if([...search.keys()].length)throw new ApiError(422,'VALIDATION_FAILED','Expense setup uses the current Company without a query selector.');
@@ -155,8 +186,23 @@ export async function GET(request: Request, context: FinanceRouteContext) {
       if (!projectId) throw new ApiError(422, "PROJECT_ID_REQUIRED", "Select a project for posted cost sources.");
       return Response.json(canonicalDestinationLinks({ data: await listProjectCostSources(actor, projectId) }));
     }
-    if (parts[0] === "invoices") return parts[1] ? Response.json(canonicalDestinationLinks({ data: await getInvoice(actor, parts[1]) })) : Response.json(canonicalDestinationLinks({ data: await listInvoices(actor) }));
-    if (parts[0] === "payments") return parts[1] ? Response.json(canonicalDestinationLinks({ data: await getPayment(actor, parts[1]) })) : Response.json(canonicalDestinationLinks({ data: await listPayments(actor) }));
+    if (parts[0] === "invoices") {
+      if(parts[1]){const native=await nativeServiceInvoiceReadback(request,actor,holdingSlug,parts[1]);if(native)return native;return Response.json(canonicalDestinationLinks({data:await getInvoice(actor,parts[1])}));}
+      return Response.json(canonicalDestinationLinks({data:await listInvoices(actor)}));
+    }
+    if(parts[0]==="payables"&&parts.length===2){
+      const native=await nativeSupplierBillDetail(request,actor,holdingSlug,parts[1]);
+      if(native)return native;
+      return Response.json(canonicalDestinationLinks({data:await getInvoice(actor,parts[1])}));
+    }
+    if(parts[0]==="periods"&&parts.length===3&&parts[2]==="workspace"){
+      const native=await nativePeriodCloseWorkspace(request,actor,holdingSlug,parts[1]);
+      if(native)return native;
+    }
+    if (parts[0] === "payments") {
+      if(parts[1]){const native=await nativeServicePaymentReadback(request,actor,holdingSlug,parts[1]);if(native)return native;return Response.json(canonicalDestinationLinks({data:await getPayment(actor,parts[1])}));}
+      return Response.json(canonicalDestinationLinks({data:await listPayments(actor)}));
+    }
     if (parts[0] === "trial-balance") return Response.json(canonicalDestinationLinks({ data: await trialBalance(actor, search.get("periodId") ?? undefined,search.get("chartId")??undefined,reportDateSchema.parse({startDate:search.get("startDate")??undefined,endDate:search.get("endDate")??undefined})) }));
     if (parts[0] === "statements") return Response.json(canonicalDestinationLinks({ data: await statements(actor, search.get("periodId") ?? undefined,search.get("chartId")??undefined,reportDateSchema.parse({startDate:search.get("startDate")??undefined,endDate:search.get("endDate")??undefined})) }));
     if (parts[0] === "aging") { const kind = search.get("kind"); if (kind !== "payable" && kind !== "receivable") throw new ApiError(422, "INVALID_AGING_KIND", "kind must be payable or receivable."); return Response.json(canonicalDestinationLinks({ data: await aging(actor, kind, search.get("asOf") ?? new Date().toISOString().slice(0, 10),search.get("chartId")??undefined) })); }
@@ -174,8 +220,83 @@ export async function POST(request: Request, context: FinanceRouteContext) {
   try {
     const origin=request.headers.get("origin");if(origin&&origin!==requestPublicOrigin(request))throw new ApiError(403,"ORIGIN_FORBIDDEN","Use the application origin.");
     const { holdingSlug, path } = await context.params;
+    const parts = segments(path);
+    if (parts.length === 3 && parts[0] === "journals" && parts[2] === "edit") {
+      const response = await nativeJournalEdit(request, holdingSlug, parts[1]);
+      if (response) return response;
+    }
+    if (parts.length === 1 && parts[0] === "journals") {
+      const response = await nativeJournalCreate(request, holdingSlug);
+      if (response) return response;
+    }
+    if (parts.length === 3 && parts[0] === "journals" && parts[2] === "reverse") {
+      const response = await nativeJournalReverse(request, holdingSlug, parts[1]);
+      if (response) return response;
+      const actor=requirePermission(await requireWorkContext(holdingSlug),"finance.read");
+      const field=await nativeFieldJournalLegacyUnavailable(request,actor,holdingSlug,parts[1]);if(field)return field;
+    }
+    if (parts.length === 3 && parts[0] === "journals" && parts[2] === "post") {
+      const response = await nativeJournalPost(request, holdingSlug, parts[1]);
+      if (response) return response;
+      const actor=requirePermission(await requireWorkContext(holdingSlug),"finance.read");
+      const field=await nativeFieldJournalLegacyUnavailable(request,actor,holdingSlug,parts[1]);if(field)return field;
+    }
+    if (parts.length === 3 && parts[0] === "invoices" && parts[2] === "post") {
+      const response = await nativeServiceInvoicePost(request, holdingSlug, parts[1]);
+      if (response) return response;
+    }
+    if(parts.length===3&&parts[0]==="invoices"&&parts[2]==="confirm-no-charge")return nativeServiceNoCharge(request,holdingSlug,parts[1]);
+    if(parts.length===2&&parts[0]==="invoices"){
+      const response=await nativeSalesInvoiceEdit(request.clone(),holdingSlug,parts[1]);
+      if(response)return response;
+    }
+    if(parts.length===3&&parts[0]==="invoices"&&parts[2]==="void"){
+      const response=await nativeSalesInvoiceVoid(request.clone(),holdingSlug,parts[1]);
+      if(response)return response;
+    }
+    if(parts.length===1&&parts[0]==="payables"){
+      const response=await nativeSupplierBillCreate(request.clone(),holdingSlug);
+      if(response)return response;
+    }
+    if(parts.length===2&&parts[0]==="payables"){
+      const response=await nativeSupplierBillEdit(request.clone(),holdingSlug,parts[1]);
+      if(response)return response;
+    }
+    if(parts.length===3&&parts[0]==="payables"&&parts[2]==="post"){
+      const response=await nativeSupplierBillPost(request.clone(),holdingSlug,parts[1]);
+      if(response)return response;
+    }
+    if(parts.length===3&&parts[0]==="payables"&&parts[2]==="void"){
+      const response=await nativeSupplierBillVoid(request.clone(),holdingSlug,parts[1]);
+      if(response)return response;
+    }
+    if(parts.length===3&&parts[0]==="periods"&&["begin-close","cancel-close","close","reopen"].includes(parts[2])){
+      const response=await nativePeriodClose(request.clone(),holdingSlug,parts[1],parts[2] as "begin-close"|"cancel-close"|"close"|"reopen");
+      if(response)return response;
+    }
     const actor = requirePermission(await requireWorkContext(holdingSlug),"finance.read");
-    const parts = segments(path); const input = await body(request);
+    if(parts[0]==="opening-balances"&&parts[1]==="preview"){
+      const native=await nativeOpeningBalance(request.clone(),holdingSlug,"preview");
+      if(native)return native;
+    }
+    if(parts[0]==="opening-balances"&&parts[1]==="import"){
+      const native=await nativeOpeningBalance(request.clone(),holdingSlug,"import");
+      if(native)return native;
+    }
+    const rawPayment=isNativeServicePaymentRequest(parts)?request.clone():null;
+    const rawBank=parts[0]==="bank"?request.clone():null;
+    const input = await body(request).catch(error=>{void rawPayment?.body?.cancel().catch(()=>undefined);void rawBank?.body?.cancel().catch(()=>undefined);throw error;});
+    if(rawBank){try{const native=await nativeFinanceBankCommand(rawBank,actor,holdingSlug,parts,input);if(native)return native;}finally{void rawBank.body?.cancel().catch(()=>undefined);}}
+    if(rawPayment){try{const native=await nativeServicePaymentCommand(rawPayment,actor,holdingSlug,parts,input);if(native)return native;}finally{void rawPayment.body?.cancel().catch(()=>undefined);}}
+    if(parts[0]==="charts"&&parts.length===1){const native=await nativeFinanceSetupCommand(request,holdingSlug,{kind:"chart",input:input as Record<string,unknown>});if(native)return native;}
+    if(parts[0]==="charts"&&parts[1]==="import"){
+      const normalized=typeof input==="object"&&input!==null&&"csv" in input&&typeof (input as Record<string,unknown>).csv==="string"?{...(input as Record<string,unknown>),rows:csvRows((input as Record<string,unknown>).csv as string)}:input;
+      const parsed=z.object({chartId:z.string().min(1),rows:z.array(z.object({code:z.string(),name:z.string(),category:z.enum(["asset","liability","equity","revenue","expense","other_income","other_expense"]),currency:z.string().optional(),controlKind:z.enum(["none","receivable","payable","bank"]).optional()})).min(1)}).safeParse(normalized);
+      if(parsed.success){const native=await nativeFinanceSetupCommand(request,holdingSlug,{kind:"import",input:parsed.data as Record<string,unknown>});if(native)return native;}
+    }
+    if(parts[0]==="charts"&&parts[2]==="accounts"&&parts.length===3){const native=await nativeFinanceSetupCommand(request,holdingSlug,{kind:"account",chartId:parts[1],input:{...(input as Record<string,unknown>),chartId:parts[1]}});if(native)return native;}
+    if(parts[0]==="charts"&&parts[2]==="accounts"&&parts[4]==="status"&&parts.length===5){const native=await nativeFinanceSetupCommand(request,holdingSlug,{kind:"status",chartId:parts[1],accountId:parts[3],input:input as Record<string,unknown>});if(native)return native;}
+    if(parts[0]==="periods"&&parts.length===1){const native=await nativeFinanceSetupCommand(request,holdingSlug,{kind:"period",input:input as Record<string,unknown>});if(native)return native;}
     if(parts[0]?.startsWith('expense-setup')){
       if(parts[0]!=='expense-setup'||parts.length!==2)throw new ApiError(404,'NOT_FOUND','Expense setup resource not found.');
       const key=needCommand(request);
@@ -324,9 +445,11 @@ export async function POST(request: Request, context: FinanceRouteContext) {
     if (parts[0] === "parties" && parts.length === 1) { const parsed = partySchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid party."); return Response.json(canonicalDestinationLinks({ data: await createParty(actor, parsed.data, needCommand(request)) }), { status: 201 }); }
     if (parts[0] === "invoices" && parts.length === 1) { const parsed = invoiceSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid invoice."); return Response.json(canonicalDestinationLinks({ data: await createInvoice(actor, parsed.data, needCommand(request)) }), { status: 201 }); }
     if(parts[0]==="invoices"&&parts.length===2){const parsed=invoiceSchema.safeParse(input);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0].message);return Response.json(canonicalDestinationLinks({data:await createInvoice(actor,parsed.data,needCommand(request),parts[1])}));}
-    if(parts[0]==="invoices"&&parts.length===3&&parts[2]==="confirm-no-charge")return Response.json(canonicalDestinationLinks({data:await confirmServiceNoCharge(actor,parts[1],input,needCommand(request))}));
     if(parts[0]==="invoices"&&parts[2]==="void"){const data=z.object({expectedVersion:z.number().int().positive()}).parse(input);return Response.json(canonicalDestinationLinks({data:await voidDraftInvoice(actor,parts[1],data.expectedVersion,needCommand(request))}));}
     if (parts[0] === "invoices" && parts[2] === "post") { const parsed = invoicePostingSchema.extend({expectedVersion:z.number().int().positive()}).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Posting period, date and a valid exchange rate are required."); return Response.json(canonicalDestinationLinks({ data: await postInvoice(actor, parts[1], parsed.data, needCommand(request)) })); }
+    if(parts[0]==="payables"&&parts.length===1){const parsed=invoiceSchema.safeParse({...input,kind:"payable"});if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Invalid supplier bill.");return Response.json(canonicalDestinationLinks({data:await createInvoice(actor,parsed.data,needCommand(request))}),{status:201});}
+    if(parts[0]==="payables"&&parts.length===2){const parsed=invoiceSchema.safeParse({...input,kind:"payable"});if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Invalid supplier bill.");return Response.json(canonicalDestinationLinks({data:await createInvoice(actor,parsed.data,needCommand(request),parts[1])}));}
+    if(parts[0]==="payables"&&parts.length===3&&parts[2]==="post"){const parsed=invoicePostingSchema.extend({expectedVersion:z.number().int().positive()}).safeParse(input);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED","Posting period, date and a valid exchange rate are required.");return Response.json(canonicalDestinationLinks({data:await postInvoice(actor,parts[1],parsed.data,needCommand(request))}));}
     if (parts[0] === "payments" && parts.length === 1) { const parsed = z.object({ partyId: z.string().optional(), kind: z.enum(["payment", "receipt", "refund"]), paymentNumber: z.string(), paymentDate: z.string().date(), currency: z.string().length(3), amount: z.string(), bankAccount: z.string().optional(), settlementInvoiceId:z.string().min(1).max(128).optional(),correctionPaymentId:z.string().min(1).max(128).optional() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Invalid payment."); return Response.json(canonicalDestinationLinks({ data: await createPayment(actor, parsed.data, needCommand(request)) }), { status: 201 }); }
     if (parts[0] === "payments" && parts[2] === "approve") { const parsed = z.object({ expectedVersion: z.number().int().positive(), proof: z.string() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Payment approval evidence is required."); return Response.json(canonicalDestinationLinks({ data: await approvePayment(actor, parts[1], parsed.data, needCommand(request)) })); }
     if (parts[0] === "payments" && parts[2] === "release") { const parsed = z.object({ expectedVersion: z.number().int().positive(), proof: z.string() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Payment release evidence is required."); return Response.json(canonicalDestinationLinks({ data: await releasePayment(actor, parts[1], parsed.data, needCommand(request)) })); }

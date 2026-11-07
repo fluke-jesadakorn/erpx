@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "finance/feature-payments verified on current source with normal-auth desktop and mobile browser settlement",
+  "capability": "finance-payment-verified",
+  "integrationTarget": "codex/rust-backend-migration",
+  "sourceCommit": "28783d0cd",
+  "journey": {
+    "bill": "invoice-0290be89-68c2-4119-82b5-dd6835e286e5 / BILL-1793795279234 posted v2",
+    "payment": "pay-3c4cf0c7-70a6-4825-aa78-c72627f619a0 / PAY-1793795358959 draft v1 -> approved v2 -> released v3 -> settled v4",
+    "bank": "statement-bc07624c-7b03-4098-aa9a-86bc13dc0863 row bankrow-...-0 imported 201 then matched v2",
+    "postingJournal": "journal-54565826-1aa1-479b-abf6-e64905552cc3",
+    "settlementJournal": "journal-c6a1dd94-e582-45de-a058-96722df6a8e9",
+    "journalLines": "2100 debit 1250000; 1100 credit 1250000; balanced",
+    "invoice": "paid v3, outstanding 0",
+    "desktopMobile": "8 captures, 200, 0 console/page/HTTP errors"
+  },
+  "tests": [
+    "finance.rust-generic-payment-http-postgres.integration 1/1",
+    "finance.rust-generic-payment-postgres.integration 6/6",
+    "native-service-invoice transport 37/37",
+    "private API boundary 11/11"
+  ],
+  "limits": [
+    "Refund and supplier-instruction exception paths remain with their own owners.",
+    "Manual bank workspace reconcile of an independently posted payment is a separate workflow gap.",
+    "Screenshots are private ignored artifacts under .scratch/dev/agents/browser-brand-finance/evidence-v9.",
+    "Hosted CI, staging and installed production were not accessed."
+  ]
+}

@@ -1,3 +1,4 @@
+import {holdingRoutingEnabled,holdingHosts} from '@erpx/contracts/holding-hosts';
 import { ownedReleaseReadDiagnostics } from "@erpx/server-runtime/adapters/runtime/read-request";
 import {expect,it,vi} from "vitest";
 import {pmsPackageCommandAllowed} from "@erpx/feature-pms/lib/package-access";
@@ -367,7 +368,7 @@ it("the actual PMS worker uses Booking for newly reconciled guest mail while pre
   if(name.endsWith('/pms'))return {drainPms:drain};
   throw Error('Unexpected worker module: '+name);
  };
- const run=new Function('activeSlots','registeredResources','applicationOrigin','modules',code+';return pmsWork;')(async()=>[{id:'H001',beta:false}],()=>({write:db}),applicationOrigin,modules) as (env:Record<string,unknown>)=>Promise<void>;
+ const run=new Function('activeSlots','registeredResources','applicationOrigin','holdingRoutingEnabled','holdingHosts','modules',code+';return pmsWork;')(async()=>[{id:'H001',beta:false}],()=>({write:db}),applicationOrigin,holdingRoutingEnabled,holdingHosts,modules) as (env:Record<string,unknown>)=>Promise<void>;
  const legacy='https://console-dev-erpx.jesadakorn.com';
  try{
   vi.stubEnv('ERPX_PUBLIC_ORIGIN',legacy);vi.stubEnv('ERPX_ENVIRONMENT','local');vi.stubEnv('ERPX_PRODUCT_ENVIRONMENT','development');vi.stubEnv('ERPX_PRODUCT_ROUTING','enabled');vi.stubEnv('ERPX_PRODUCT_SSO','enabled');

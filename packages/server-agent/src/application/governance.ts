@@ -97,21 +97,25 @@ const r=await ports.repository(a);
   const session=await r.activePrivateSession(governance.sessionId,a.companyId,a.userId,a.assignmentId,ports.clock.now());
   if(!session)throw new BusinessRuleError(409,"AI_SESSION_EXPIRED","This private session expired. Ask again to start a new session; retained evidence stays private.");
 }
-async function agentWorkspace(a: WorkContext) {
+async function agentWorkspace(a: WorkContext, includeEvidence = true) {
   access(a);
   const r = await ports.repository(a),
-    [agents, versions, pools, assignments, invocations, people, members, poolHistory, sessions] =
+    [agents, versions, pools, assignments, people, members, poolHistory] =
       await Promise.all([
         r.workspaceAgents(a.companyId),
         r.workspaceVersions(a.companyId),
         r.workspacePools(a.companyId),
         r.workspaceAssignments(a.companyId),
-        r.workspaceInvocations(a.companyId),
         r.workspacePeople(a.companyId,ports.clock.now()),
         r.workspaceMembers(a.companyId),
         r.workspacePoolHistory(a.companyId),
-        r.workspaceSessions(a.companyId,a.userId,hasPermission(a,"ai.manage")?1:0),
       ]);
+  const [invocations, sessions]: [Row[], Row[]] = includeEvidence
+    ? await Promise.all([
+        r.workspaceInvocations(a.companyId),
+        r.workspaceSessions(a.companyId,a.userId,hasPermission(a,"ai.manage")?1:0),
+      ])
+    : [[], []];
   return {
     agents: agents,
     versions: versions,

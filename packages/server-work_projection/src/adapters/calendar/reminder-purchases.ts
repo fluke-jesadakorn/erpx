@@ -3,7 +3,7 @@ import {randomUUID} from 'node:crypto';
 import type {Row} from '@erpx/server-work_projection/domain/calendar/reminders';
 import {calendarManualSourceReadLocks,requireCalendarReminderRecordAuthority} from '@erpx/server-work_projection/adapters/calendar/purchases';
 import {calendarReminderConfiguration,requireCalendarReminderBinding,type CalendarReminderAuthorization} from '@erpx/server-work_projection/adapters/calendar/reminder-authority';
-import {workPackageEnforcementMode,checkPurchasedCapability,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
+import {appsPackageEnforcementMode,checkPurchasedCapability,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
@@ -12,7 +12,7 @@ import {localDateTimeToInstant} from '@erpx/feature-work_projection/lib/calendar
  * recipient role. The complete ledger and private notification stay inside
  * this fresh source-leased Holding transaction until final validation. */
 export async function withCalendarReminderDelivery(owner:SqlDatabase,row:Row,occurrence:{key:string;startsAt:number;due:number;now:number},run:(database:SqlDatabase)=>Promise<boolean>){
- const mode=await workPackageEnforcementMode();if(mode!=='enforced')return run(owner);
+ const mode=await appsPackageEnforcementMode();if(mode!=='enforced')return run(owner);
  if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,'CALENDAR_REMINDER_UNIT_REQUIRED','Calendar reminders require their complete owned Holding transaction.');
  try{return await owner.transaction(async database=>{
   await calendarManualSourceReadLocks(database,row.company_id);

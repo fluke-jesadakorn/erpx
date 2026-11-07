@@ -2,7 +2,7 @@ import {ssoAudienceForHost} from '@erpx/feature-runtime/lib/product-hosts';
 import 'server-only';
 import { productIds } from '@erpx/contracts/product-registry';
 import { productHostForHost } from '@erpx/feature-runtime/lib/product-hosts';
-import { sessionFromRequest } from '@erpx/server-identity_access/adapters/auth';
+import { sessionFromRequest } from '@erpx/server-identity_access/public/account-session';
 import { providerContextStore } from '@erpx/server-identity_access/adapters/provider-context-store';
 import { runtimeEnv } from '../../../../packages/server-runtime/src/public/runtime';
 import { isTransactionalSqlDatabase } from '@erpx/server-runtime/public/runtime/types';

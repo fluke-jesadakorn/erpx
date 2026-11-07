@@ -26,6 +26,7 @@ import {
   peopleIamDestination,
 } from "@erpx/feature-people_payroll/lib/people-lifecycle";
 import { iamDb } from "@erpx/server-identity_access/public/iam-db";
+import {PostgresDatabase} from '@erpx/server-runtime/public/runtime/postgres';
 import { iamActorFromWork } from "@erpx/server-identity_access/public/iam-context";
 import { loadIamAuthority } from "@erpx/server-identity_access/public/iam-store";
 import { selectWorkRole } from "@erpx/server-work_projection/public/work-role-store";
@@ -58,6 +59,10 @@ beforeAll(async () => {
   enableAttachmentV2ForTest();
 });
 afterEach(()=>vi.unstubAllEnvs());
+it('drains scheduled People work with the single connection used by development jobs',async()=>{
+ const single=new PostgresDatabase({...db.pool.options,max:1,connectionTimeoutMillis:250});
+ try{expect(await drainPeopleLifecycle(single,0)).toBe(0);}finally{await single.pool.end();}
+});
 async function purchaseCorePeople(companyId:string,state:'active'|'draining'='active',endsAt:number|null=null){const store=packageGrantStore(raw,{authorize:async(_tx,company)=>{if(company!==companyId)throw Error('ISOLATED_PEOPLE_PROVIDER_SCOPE');return {userId:'isolated-people-lifecycle-provider'};},obligations:async()=>{throw Error('No inactive cutover witness');}}),previous=(await readCompanyPackageGrants(raw,companyId)).find(row=>row.packageId==='people');return store.apply({expectedVersion:previous?.version??0,idempotencyKey:key(),grant:{companyId:companyId,packageId:'people',packageVersion:1,state,startsAt:0,endsAt,version:(previous?.version??0)+1,reason:'Isolated actual People lifecycle owner purchase',evidence:'test:people-lifecycle-purchase-owner'}});}
 async function authorize(a: WorkContext) {
   const sessionId = key();
@@ -556,7 +561,7 @@ it("requires independent personal reviews and does not grant before the effectiv
   ).toBe(true);
 });
 it("routes Company IAM aliases to the current People and Technology owners", () => {
-  for (const section of ["users", "overview", "my-access"]) expect(peopleIamDestination(section)).toBe("people");
+  for (const section of ["users", "overview", "my-access"]) expect(peopleIamDestination(section)).toBe("technology?view=resources&section=accounts");
   expect(peopleIamDestination("connections")).toBe("technology?view=directory&section=connections");
   // Legacy IAM mappings are access-group mappings, distinct from Directory field mappings.
   expect(peopleIamDestination("mappings")).toBe("technology?view=settings&section=groups");
@@ -1563,7 +1568,9 @@ it.each(['source','source-payload','authority','expiry'] as const)('People core 
  const f=await fixture(),effectiveAt=Date.now()+1000,input=lifecycleInput.parse({expectedVersion:0,kind:'transfer',personId:f.person,engagementId:f.engagement,positionId:f.position,managerPersonId:`person-${f.owner.userId}`,effectiveAt,reason:'Actual queued placement with final source and authority fence'});await purchaseCorePeople(f.company);vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');const preview=await previewLifecycle(raw,f.hr,input,true),created=await saveLifecycle(raw,f.hr,input,key(),true,preview.token,true),before=await raw.prepare('SELECT position_id,status,version FROM hr_engagements WHERE id=?').bind(f.engagement).first(),authority=await raw.prepare('SELECT revoked_at,version FROM assignments WHERE id=?').bind(f.hr.assignmentId).first(),fn=`people_job_${key().replaceAll('-','')}`;
  if(change==='expiry')await purchaseCorePeople(f.company,'active',Date.now()+1300);
  const effect=change==='source'?`UPDATE people_lifecycle_cases SET kind='offboarding' WHERE id='${created.id}'`:change==='source-payload'?`UPDATE people_lifecycle_cases SET definition=jsonb_set(definition,'{reason}','\"Changed after queued effects\"'::jsonb),authorizing_assignment_id='${f.owner.assignmentId}' WHERE id='${created.id}'`:change==='authority'?`UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${f.hr.assignmentId}'`:'PERFORM pg_sleep(1.4)';await raw.exec(`CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN ${effect};RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fn} AFTER INSERT ON outbox_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.aggregate_id='${created.id}' AND NEW.event_type='people.lifecycle.applied') EXECUTE FUNCTION ${fn}()`);
- try{expect(await drainPeopleLifecycle(raw,effectiveAt+20)).toBe(0);}finally{await raw.exec(`DROP TRIGGER ${fn} ON outbox_events;DROP FUNCTION ${fn}()`);}
+ // Other fictional Companies can have eligible retry jobs from earlier cases.
+ // The assertions below fence this exact source, authority and outbox.
+ try{await drainPeopleLifecycle(raw,effectiveAt+20);}finally{await raw.exec(`DROP TRIGGER ${fn} ON outbox_events;DROP FUNCTION ${fn}()`);}
  expect(await raw.prepare('SELECT position_id,status,version FROM hr_engagements WHERE id=?').bind(f.engagement).first()).toEqual(before);expect(await raw.prepare('SELECT revoked_at,version FROM assignments WHERE id=?').bind(f.hr.assignmentId).first()).toEqual(authority);expect(await raw.prepare('SELECT kind,status,version,attempts,last_error FROM people_lifecycle_cases WHERE id=?').bind(created.id).first()).toMatchObject({kind:'transfer',status:'scheduled',version:1,attempts:1,last_error:change.startsWith('source')?'LIFECYCLE_PURCHASE_SOURCE_CHANGED':change==='authority'?'LIFECYCLE_AUTHORITY_CHANGED':'PACKAGE_CAPABILITY_CHANGED'});expect(await raw.prepare("SELECT COUNT(*) n FROM outbox_events WHERE aggregate_id=? AND event_type='people.lifecycle.applied'").bind(created.id).first('n')).toBe(0);
 });
 

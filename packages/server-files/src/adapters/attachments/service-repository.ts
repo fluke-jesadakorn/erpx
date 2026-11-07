@@ -773,6 +773,8 @@ export function repository(db: SqlDatabase) {
             alt_text: string;
             revision: number;
         }>(); },
+        legacyScanGuard: (facts: {sourceId:string;jobId:string;lease:string}) => db.prepare('SELECT erpx_files_assert_legacy_scan(?,?,?)').bind(facts.sourceId,facts.jobId,facts.lease),
+        legacyScanMark: (facts: {sourceId:string}) => db.prepare("UPDATE attachments SET source_state='scanning' WHERE id=? AND source_state IN ('quarantined','scan_error')").bind(facts.sourceId),
         readAttachmentScanAttempts106: (facts: {
             now: number;
             arg2: number;
@@ -780,9 +782,7 @@ export function repository(db: SqlDatabase) {
             arg4: string | null;
             arg5: string | null;
         }) => {
-            return db.prepare(`UPDATE attachment_scan_attempts SET state='running',claimed_at=?,claim_until=?,lease_token=? WHERE id=(
-    SELECT id FROM attachment_scan_attempts WHERE state IN ('pending','running') AND created_at<=? AND (claim_until IS NULL OR claim_until<?) AND (?::text IS NULL OR attachment_id=?) ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 1)
-    RETURNING *`).bind(facts.now, facts.arg2, facts.lease, facts.now, facts.now, facts.arg4, facts.arg5).first<Record<string, unknown>>();
+            return db.prepare('SELECT * FROM erpx_files_claim_legacy_scan(?,?,?,?)').bind(facts.now, facts.arg2, facts.lease, facts.arg4).first<Record<string, unknown>>();
         },
         readAttachments107: (facts: {
             attachment_id: unknown;
@@ -924,7 +924,7 @@ export function repository(db: SqlDatabase) {
             now: number;
         }) => {
             return db.prepare(`UPDATE attachment_links link SET state='expired' FROM attachment_sets set_row
-    WHERE link.set_id=set_row.id AND set_row.target_type<>'leave_request' AND link.state='draft' AND link.expires_at<=?
+    WHERE link.set_id=set_row.id AND set_row.target_type<>'leave_request' AND erpx_files_legacy_cleanup_set_allowed(set_row.id) AND link.state='draft' AND link.expires_at<=?
     RETURNING link.id,link.set_id,link.attachment_id`).bind(facts.now).all<{
                 id: string;
                 set_id: string;
@@ -945,13 +945,13 @@ export function repository(db: SqlDatabase) {
             now: number;
         }) => {
             return db.prepare(`UPDATE upload_intents intent SET status='expired',updated_at=? WHERE intent.attachment_set_id IS NOT NULL AND intent.status='pending' AND intent.expires_at<=?
-    AND NOT EXISTS(SELECT 1 FROM attachment_sets set_row WHERE set_row.id=intent.attachment_set_id AND set_row.target_type='leave_request')`).bind(facts.now, facts.now).run();
+    AND erpx_files_legacy_cleanup_set_allowed(intent.attachment_set_id) AND NOT EXISTS(SELECT 1 FROM attachment_sets set_row WHERE set_row.id=intent.attachment_set_id AND set_row.target_type='leave_request')`).bind(facts.now, facts.now).run();
         },
         readAttachmentSets130: (facts: {
             now: number;
             arg2: number;
         }) => {
-            return db.prepare(`UPDATE attachment_sets s SET state='expired',updated_at=? WHERE s.state='draft' AND s.target_type<>'leave_request'
+            return db.prepare(`UPDATE attachment_sets s SET state='expired',updated_at=? WHERE s.state='draft' AND s.target_type<>'leave_request' AND erpx_files_legacy_cleanup_set_allowed(s.id)
     AND NOT EXISTS(SELECT 1 FROM attachment_links active WHERE active.set_id=s.id AND active.state IN ('draft','bound'))
     AND ((EXISTS(SELECT 1 FROM attachment_links any_link WHERE any_link.set_id=s.id)
       AND NOT EXISTS(SELECT 1 FROM attachment_links future_link WHERE future_link.set_id=s.id AND future_link.expires_at>?))
@@ -974,7 +974,7 @@ export function repository(db: SqlDatabase) {
         }) => {
             return db.prepare(`UPDATE attachment_links link SET state='expired' FROM attachment_sets set_row
         WHERE link.set_id=set_row.id AND set_row.company_id=? AND set_row.target_type='leave_request' AND set_row.target_id=?
-          AND set_row.state='draft' AND link.state='draft' AND link.expires_at<=?
+          AND set_row.state='draft' AND erpx_files_legacy_cleanup_set_allowed(set_row.id) AND link.state='draft' AND link.expires_at<=?
         RETURNING link.id,link.set_id,link.attachment_id`).bind(facts.company_id, facts.target_id, facts.now).all<{
                 id: string;
                 set_id: string;
@@ -996,7 +996,7 @@ export function repository(db: SqlDatabase) {
         }) => {
             return db.prepare(`UPDATE upload_intents intent SET status='expired',updated_at=? FROM attachment_sets set_row
         WHERE intent.attachment_set_id=set_row.id AND set_row.company_id=? AND set_row.target_type='leave_request' AND set_row.target_id=?
-          AND set_row.state='draft' AND intent.status='pending' AND intent.expires_at<=?`).bind(facts.now, facts.company_id, facts.target_id, facts.now).run();
+          AND set_row.state='draft' AND erpx_files_legacy_cleanup_set_allowed(set_row.id) AND intent.status='pending' AND intent.expires_at<=?`).bind(facts.now, facts.company_id, facts.target_id, facts.now).run();
         },
         readAttachmentSets136: (facts: {
             now: number;
@@ -1005,7 +1005,7 @@ export function repository(db: SqlDatabase) {
             arg4: number;
         }) => {
             return db.prepare(`UPDATE attachment_sets set_row SET state='expired',updated_at=?
-        WHERE set_row.company_id=? AND set_row.target_type='leave_request' AND set_row.target_id=? AND set_row.state='draft'
+        WHERE set_row.company_id=? AND set_row.target_type='leave_request' AND set_row.target_id=? AND set_row.state='draft' AND erpx_files_legacy_cleanup_set_allowed(set_row.id)
           AND NOT EXISTS(SELECT 1 FROM attachment_links active WHERE active.set_id=set_row.id AND active.state IN ('draft','bound'))
           AND ((EXISTS(SELECT 1 FROM attachment_links any_link WHERE any_link.set_id=set_row.id)
             AND NOT EXISTS(SELECT 1 FROM attachment_links future_link WHERE future_link.set_id=set_row.id AND future_link.expires_at>?))
@@ -1024,7 +1024,7 @@ export function repository(db: SqlDatabase) {
         readAttachments138: (facts: {
             now: number;
         }) => {
-            return db.prepare(`SELECT a.id FROM attachments a WHERE a.company_id IS NOT NULL AND a.legal_hold=0 AND a.source_state='available'
+            return db.prepare(`SELECT a.id FROM attachments a WHERE a.company_id IS NOT NULL AND a.legal_hold=0 AND a.source_state='available' AND NOT erpx_files_field_attachment_owned(a.id)
     AND EXISTS(SELECT 1 FROM attachment_links closed WHERE closed.attachment_id=a.id AND closed.state IN ('expired','withdrawn') AND closed.expires_at<=?)
     AND NOT EXISTS(SELECT 1 FROM attachment_links l WHERE l.attachment_id=a.id AND l.state IN ('draft','bound'))
     AND NOT EXISTS(SELECT 1 FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.attachment_id=a.id AND s.retention_policy_key IS NOT NULL
@@ -1063,11 +1063,12 @@ export function repository(db: SqlDatabase) {
             now: number;
         }) => { return db.prepare("INSERT INTO attachment_events(id,company_id,attachment_id,actor_id,action,details_json,created_at) VALUES(?,?,?,'system:jobs','source.destroyed','{}',?)").bind(facts.arg1, facts.company_id, facts.id, facts.now).run(); },
         readAttachments145: () => {
-            return db.prepare(`SELECT a.id,a.object_key,a.preview_object_key FROM attachments a
-    WHERE a.source_state='destroyed' AND a.legal_hold=0
+            return db.prepare(`SELECT a.id,a.company_id,a.object_key,a.preview_object_key FROM attachments a
+    WHERE a.source_state='destroyed' AND a.legal_hold=0 AND NOT erpx_files_field_attachment_owned(a.id)
       AND NOT EXISTS(SELECT 1 FROM attachment_events e WHERE e.attachment_id=a.id AND e.action='source.bytes_deleted')
     ORDER BY a.destroyed_at,a.id LIMIT 100`).bind().all<{
                 id: string;
+                company_id: string;
                 object_key: string;
                 preview_object_key: string | null;
             }>();

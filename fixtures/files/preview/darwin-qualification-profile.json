@@ -1,0 +1,241 @@
+{
+  "platform": "darwin-arm64",
+  "workerProfileOnly": true,
+  "qualifiedLinux": false,
+  "buildJobs": 2,
+  "artifacts": [
+    {
+      "artifact": "heif-dec",
+      "bytes": 133984,
+      "sha256": "52cdc18c633a91f0dc6dffaeedd0530410f09eb068acdc497fae2fc0a432dcd7",
+      "dependencyArtifacts": [
+        "libjpeg.8.3.2.dylib",
+        "libpng16.16.dylib",
+        "libsharpyuv.0.1.2.dylib",
+        "libtiff.6.dylib",
+        "libwebp.7.2.0.dylib",
+        "libwebpmux.3.1.2.dylib"
+      ],
+      "origin": "existing-host-read-only"
+    },
+    {
+      "artifact": "libaom.3.15.2.dylib",
+      "bytes": 4332176,
+      "sha256": "e9b56267bdbb79f4a86d0c47b1bd5ea930e6f30644ebf8c03c57cf63b979b369",
+      "dependencyArtifacts": [
+        "libvmaf.3.dylib"
+      ],
+      "origin": "existing-host-read-only"
+    },
+    {
+      "artifact": "libde265.0.2.3.dylib",
+      "bytes": 347632,
+      "sha256": "a7978d2a721469e601172951ed9d9821fdccf8b814ef7fe0907ab320b38159c1",
+      "dependencyArtifacts": [],
+      "origin": "existing-host-read-only"
+    },
+    {
+      "artifact": "libexif.12.dylib",
+      "bytes": 268592,
+      "sha256": "fa30e598bab9a6293a5da53b6d7a627c80cf8d67645f349f0953d1b52af3d3eb",
+      "dependencyArtifacts": [],
+      "origin": "isolated-source-build"
+    },
+    {
+      "artifact": "libgio-2.0.0.dylib",
+      "bytes": 2039024,
+      "sha256": "c0b56d9bafbe1cda7cb0044ecbf88de57afbeafe2b27b1ede20f26365f24b461",
+      "dependencyArtifacts": [
+        "libglib-2.0.0.dylib",
+        "libgmodule-2.0.0.dylib",
+        "libgobject-2.0.0.dylib",
+        "libintl.8.dylib"
+      ],
+      "origin": "existing-host-read-only"
+    },
+    {
+      "artifact": "libglib-2.0.0.dylib",
+      "bytes": 1362816,
+      "sha256": "9ccb24305a227967f6c13eec59c3469228e600236664e3710ab92d6228e938eb",
+      "dependencyArtifacts": [
+        "libintl.8.dylib",
+        "libpcre2-8.0.dylib"
+      ],
+      "origin": "existing-host-read-only"
+    },
+    {
+      "artifact": "libgmodule-2.0.0.dylib",
+      "bytes": 53600,
+      "sha256": "0389190ada2c5c2dd86fc213d33ea7fb531f63b2dd247c44dba181799d88bb4d",
+      "dependencyArtifacts": [
+        "libglib-2.0.0.dylib"
+      ],
+      "origin": "existing-host-read-only"
+    },
+    {
+      "artifact": "libgobject-2.0.0.dylib",
+      "bytes": 399616,
+      "sha256": "befcb5f07aa26c057163f188b4389e1923da882e6f1ea87ff5156fd27383fc4f",
+      "dependencyArtifacts": [
+        "libglib-2.0.0.dylib"
+      ],
+      "origin": "existing-host-read-only"
+    },
+    {
+      "artifact": "libheif.1.23.6.dylib",
+      "bytes": 1855248,
+      "sha256": "4590dbc3d1ca0d307d0fa6cc9a0c8a9d5b887124c5985129237a0c4bd4937819",
+      "dependencyArtifacts": [
+        "libaom.3.15.2.dylib",
+        "libde265.0.2.3.dylib",
+        "libsharpyuv.0.1.2.dylib",
+        "libx265.217.dylib"
+      ],
+      "origin": "existing-host-read-only"
+    },
+    {
+      "artifact": "libintl.8.dylib",
+      "bytes": 228800,
+      "sha256": "0c6d618e75fea85cc3d631e164a71766fba9341d19ce1f723300c52e63037c51",
+      "dependencyArtifacts": [],
+      "origin": "existing-host-read-only"
+    },
+    {
+      "artifact": "libjpeg.8.3.2.dylib",
+      "bytes": 472240,
+      "sha256": "e17205913bfdb5535bbdbc7127d0eeb0970f5e6c85f68f0c75a1e711878e1e3a",
+      "dependencyArtifacts": [],
+      "origin": "existing-host-read-only"
+    },
+    {
+      "artifact": "liblcms2.2.dylib",
+      "bytes": 340256,
+      "sha256": "b43de9af9f34128b5c5d12a37510383208e96d352147d31f486cf01341fd16cb",
+      "dependencyArtifacts": [],
+      "origin": "existing-host-read-only"
+    },
+    {
+      "artifact": "liblzma.5.dylib",
+      "bytes": 167520,
+      "sha256": "1b2e12cc1b920264f3dd15eeba22e85b8afd589595d8945d1d12a52afa694b09",
+      "dependencyArtifacts": [],
+      "origin": "existing-host-read-only"
+    },
+    {
+      "artifact": "libpcre2-8.0.dylib",
+      "bytes": 574096,
+      "sha256": "1c0890a01bd446b5174e4ce7c35e1e14f39d2e88b7b5160572198ec26647d2da",
+      "dependencyArtifacts": [],
+      "origin": "existing-host-read-only"
+    },
+    {
+      "artifact": "libpng16.16.dylib",
+      "bytes": 191344,
+      "sha256": "90d0355e32b2a6bda0d9556b7f93b7c0cadc99815944ba83145c901b4787ae73",
+      "dependencyArtifacts": [],
+      "origin": "existing-host-read-only"
+    },
+    {
+      "artifact": "libsharpyuv.0.1.2.dylib",
+      "bytes": 69856,
+      "sha256": "755e13860aa122e98f1be1bb7d5fcf47b496ae27d5787fe783af3909721d2321",
+      "dependencyArtifacts": [],
+      "origin": "existing-host-read-only"
+    },
+    {
+      "artifact": "libtiff.6.dylib",
+      "bytes": 528560,
+      "sha256": "ed5a54e3e8a621ba58f51ce632debb3f8d0ef068faf5bee887672581698e4cc1",
+      "dependencyArtifacts": [
+        "libjpeg.8.3.2.dylib",
+        "liblzma.5.dylib",
+        "libwebp.7.2.0.dylib",
+        "libzstd.1.5.7.dylib"
+      ],
+      "origin": "existing-host-read-only"
+    },
+    {
+      "artifact": "libvips.42.dylib",
+      "bytes": 2339872,
+      "sha256": "fed9866ca49a86a614806da620bcb2fc329cc38afac501448628dc8c03820962",
+      "dependencyArtifacts": [
+        "libexif.12.dylib",
+        "libgio-2.0.0.dylib",
+        "libglib-2.0.0.dylib",
+        "libgobject-2.0.0.dylib",
+        "libheif.1.23.6.dylib",
+        "libjpeg.8.3.2.dylib",
+        "liblcms2.2.dylib",
+        "libpng16.16.dylib",
+        "libwebp.7.2.0.dylib",
+        "libwebpdemux.2.0.17.dylib",
+        "libwebpmux.3.1.2.dylib"
+      ],
+      "origin": "isolated-source-build"
+    },
+    {
+      "artifact": "libvmaf.3.dylib",
+      "bytes": 901792,
+      "sha256": "a825cdd3ff46fa6282aa1cb9328c701e9950e944f2c8821d88481779b3472d46",
+      "dependencyArtifacts": [],
+      "origin": "existing-host-read-only"
+    },
+    {
+      "artifact": "libwebp.7.2.0.dylib",
+      "bytes": 354272,
+      "sha256": "f42f3e0687cf1f7fd5a42c608152e0d4187540ac2e6675cb8af297e7befc4258",
+      "dependencyArtifacts": [],
+      "origin": "existing-host-read-only"
+    },
+    {
+      "artifact": "libwebpdemux.2.0.17.dylib",
+      "bytes": 53360,
+      "sha256": "d8b4a387561fd4c28aa7590fb41f62fbd6363f4c303d8cde2d2a971af4b6d699",
+      "dependencyArtifacts": [],
+      "origin": "existing-host-read-only"
+    },
+    {
+      "artifact": "libwebpmux.3.1.2.dylib",
+      "bytes": 73552,
+      "sha256": "6e370882a34fe4f026e9c5cd614588d511e2f48664364b26eb5a93cb4942ec73",
+      "dependencyArtifacts": [],
+      "origin": "existing-host-read-only"
+    },
+    {
+      "artifact": "libx265.217.dylib",
+      "bytes": 7637936,
+      "sha256": "77c26ea29afca3c99cdc45354539eca99c1bbd902d6c1e08f7f5ab0156c11cb0",
+      "dependencyArtifacts": [],
+      "origin": "existing-host-read-only"
+    },
+    {
+      "artifact": "libzstd.1.5.7.dylib",
+      "bytes": 649648,
+      "sha256": "e2847c4613b386683c234913ae3b7b04299254096caf7616e3b3cd9bb97a39ab",
+      "dependencyArtifacts": [],
+      "origin": "existing-host-read-only"
+    },
+    {
+      "artifact": "pdftoppm",
+      "bytes": 75504,
+      "sha256": "c4a597b71ecb039c1d38dfa7c956acd8ff648b82147a4f47be97842dcef4c3f6",
+      "dependencyArtifacts": [
+        "liblcms2.2.dylib"
+      ],
+      "origin": "existing-host-read-only"
+    },
+    {
+      "artifact": "vips",
+      "bytes": 54840,
+      "sha256": "2e53eca3130062bd805ffc2ee82cea8cc091dda8d0bb42aa8620ac9ac1abfd69",
+      "dependencyArtifacts": [
+        "libglib-2.0.0.dylib",
+        "libgobject-2.0.0.dylib",
+        "libintl.8.dylib",
+        "libvips.42.dylib"
+      ],
+      "origin": "isolated-source-build"
+    }
+  ],
+  "systemLibraries": "macOS system libraries are outside this private prefix; no claim of redistributable Linux equivalence"
+}

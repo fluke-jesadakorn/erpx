@@ -10,45 +10,65 @@ import { Button, Field, Select, TextArea, TextInput } from "@erpx/ui/components/
 import { useRef, useState } from "react";
 import { useRouter } from "@erpx/feature-shared/lib/destination-router";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
+import {captureWorkCommandContext,captureWorkCommandCompletion} from "@erpx/feature-work_projection/lib/command-context";
+import {announceWorkChange} from "@erpx/feature-work_projection/lib/work-refresh";
 import { PreferredDateTimeField } from "@erpx/feature-people_payroll/components/time/preferred-date-time-field";
-import type { collaborationWorkspace } from "@erpx/server-collaboration/public/collaboration-work";
+import { matchesCollaborationReceipt, type CollaborationWorkReadModel } from "@erpx/feature-collaboration/lib/collaboration-work-read-model";
 import { FormLayout } from "@erpx/ui/components/foundation";
 export function CollaborationWorkConsole({
   base,
   data,
+  commandUrl,
+  exportHref,
 }: {
   base: string;
-  data: Awaited<ReturnType<typeof collaborationWorkspace>>;
+  data: CollaborationWorkReadModel;
+  commandUrl?: string;
+  exportHref?: string | null;
 }) {
   const router = useRouter(),
-    last = useRef<{ key: string; body: string } | null>(null),
+    last = useRef<{ key: string; body: string; assertCurrent: () => void; complete:()=>void; uncertain: boolean } | null>(null),
+    inFlight = useRef(false),
     [busy, setBusy] = useState(false),
+    [pending, setPending] = useState(false),
     [error, setError] = useState(""),
     [cardActions, setCardActions] = useState<Record<string, string>>({});
-  async function send(input: unknown) {
-    const body = JSON.stringify(input);
-    if (last.current?.body !== body) last.current = { key: crypto.randomUUID(), body };
+  async function send(input: unknown, retry = false) {
+    if (inFlight.current) return;
+    const body = retry && last.current ? last.current.body : JSON.stringify(input);
+    if (body === undefined) return;
+    if (last.current && last.current.body !== body) {
+      setError("Confirm the original action first. Your newer entries remain unsent.");
+      return;
+    }
+    if (!last.current) { last.current = { key: crypto.randomUUID(), body, assertCurrent: captureWorkCommandContext(), complete:captureWorkCommandCompletion(), uncertain: false }; setPending(true); }
+    const command = last.current, priorUncertain = command.uncertain;
+    let sent = false;
+    inFlight.current = true;
     setBusy(true);
     setError("");
     try {
-      const response = await workFetch(`/api/v1${base}/collaboration`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Idempotency-Key": last.current.key,
-          },
-          body,
-        }),
-        result = await response.json();
+      command.assertCurrent();
+      sent = true;
+      const response = await workFetch(commandUrl ?? `/api/v1${base}/collaboration`, {
+        method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": command.key }, body: command.body,
+      }, undefined, "caller");
+      const result = await response.json();
+      command.assertCurrent();
       if (!response.ok) {
-        if (response.status < 500) last.current = null;
+        if (!priorUncertain && response.status < 500 && result.error?.code !== 'WORK_CONTEXT_CHANGED' && last.current === command) { last.current = null; setPending(false); }
         throw new Error(result.error?.message ?? "Unable to update collaboration work.");
       }
-      last.current = null;
-      router.refresh();
+      if (!matchesCollaborationReceipt(command.body, command.key, result.data)) throw new Error("The acknowledgement is incomplete. Confirm the original action.");
+      if (last.current === command) { last.current = null; setPending(false); command.complete(); announceWorkChange(); router.refresh(); }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Retry this action.");
+      if (last.current === command) {
+        if (!sent && !priorUncertain) { last.current = null; setPending(false); }
+        else command.uncertain = true;
+      }
+      try { command.assertCurrent(); setError(e instanceof Error ? e.message : "Confirm the original action."); } catch { /* The original attempt stays bound to its original work identity. */ }
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
@@ -56,14 +76,15 @@ export function CollaborationWorkConsole({
   return (
     <>
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+      {error && pending && <Button appearance="standard" clientManaged disabled={busy} onClick={() => void send(undefined, true)}>Confirm original action</Button>}
       <p>
         <WorkspaceLink href={canonicalUiHref(`${base}/inbox`)}>Open conversations and authorized thread files</WorkspaceLink>
       </p>
-      <p>
-        <a href={`/api/v1${base}/collaboration?format=csv`} download>
+      {exportHref !== null && <p>
+        <a href={exportHref ?? `/api/v1${base}/collaboration?format=csv`} download>
           Download authorized CSV export
         </a>
-      </p>
+      </p>}
       {data.canWrite && (
         <>
           <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Link records</summary><FormLayout
@@ -77,6 +98,7 @@ export function CollaborationWorkConsole({
             }}
           >
             <h2>Link records</h2>
+            {data.fieldOnlyRelations&&<p>Relations must include a Field Service order. Support sources keep their own access rules.</p>}
             <Field appearance="standard">
               Source type
               <Select appearance="standard" name="sourceType">
@@ -130,7 +152,7 @@ export function CollaborationWorkConsole({
             <Field appearance="standard">
               Source type
               <Select appearance="standard" name="sourceType">
-                {types.map((x) => (
+                {(data.cardSourceTypes??types).map((x) => (
                   <option key={x}>{x}</option>
                 ))}
               </Select>

@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Finance payment allocation and independent reversal are PostgreSQL-qualified; HTTP/IAM/Workflow composition, the Next command cutover and the authenticated browser journey remain open",
+  "capability": "finance-payment-correction-native",
+  "integrationTarget": "codex/rust-backend-migration",
+  "scope": {
+    "domain": "Positive allocation, settled/posted payment source, independent approver, open period, reversal-before-source rejection, allocation-required and credited-source guards.",
+    "application": "Allocate part of a settled payment to one open invoice; reverse a settled allocated payment by a different finance approver, restoring invoice balances and writing the correction record.",
+    "adapters": "Serializable Company-scoped reads and writer transitions over finance_payments, finance_invoices, finance_journals, finance_journal_lines, finance_allocations, finance_payment_reversals, finance_periods, finance_bank_transactions and finance_billing_corrections. Deterministic allocation and reversal IDs, version CAS, journal line swap, bank unmatch and persisted readback.",
+    "frontend": "No native HTTP/Next/SSR cutover yet; the retained Finance route still calls the TypeScript allocate/reverse commands."
+  },
+  "tests": [
+    "finance.rust-payment-correction-postgres.integration: 3 passed",
+    "Coverage: allocation updates payment and invoice outstanding/version and persists the allocation; reversal restores the invoice, marks the original journal reversed, posts balanced swapped lines, unmatches the bank row, voids the payment and persists finance_payment_reversals; creator, closed-period and stale-version denials return the retained business codes.",
+    "cargo check -p erpx-server-finance --locked: pass",
+    "cargo test -p erpx-service --test payment_correction_postgres --features existing-business --locked: 3 passed"
+  ],
+  "limits": [
+    "No HTTP/router, IAM purchase, Workflow receipt/audit/outbox, Next transport or UI cutover in this slice; Finance payments remains partial.",
+    "No authenticated browser journey; the identity/authorization checks are adapter-level and the caller must still enforce finance.write/finance.approve plus the independent-person rule.",
+    "FX reversal journals are copied when present, but realized-FX withholding/money-snapshot reversal is not yet ported.",
+    "Hosted CI, staging and installed production were not accessed."
+  ]
+}

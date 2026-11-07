@@ -4,7 +4,7 @@ import type {DocumentVersion} from "@erpx/server-legal/domain/model";
 import type {PortalActor} from "@erpx/server-legal/domain/portal";
 import {refuseLegalSigning} from "@erpx/server-legal/domain/signing";
 import type {PortalAttachment,PortalScope} from "@erpx/server-legal/domain/portal-attachments";
-import {legalPortalUploadFingerprintInput,type LegalPortalUploadNotApplied} from '@erpx/server-legal/domain/portal-upload-recovery';
+import {legalPortalUploadFingerprintInput,type LegalPortalUploadNotApplied} from '@erpx/contracts/legal-portal-upload';
 import type {PortalAttachmentStageScope,PortalAttachmentRecoverySource} from '@erpx/server-legal/application/portal-attachments';
 export type LegalPortalWrite={owner:"legal"};
 export type LegalPortalRows<Row>={results:Row[]};

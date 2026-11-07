@@ -19,6 +19,6 @@
     "@erpx/server-marketing": "workspace:*",
     "@erpx/server-runtime": "workspace:*",
     "@erpx/ui": "workspace:*",
-    "next": "16.4.0"
+    "next": "16.4.3"
   }
 }

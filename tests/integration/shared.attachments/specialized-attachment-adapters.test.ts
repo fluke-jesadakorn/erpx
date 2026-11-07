@@ -307,8 +307,8 @@ describe("specialized canonical attachment adapters", () => {
     const legal=await legalCommand(db,manager,{action:'create',item:{kind:'contract',title:'Original Task evidence preservation',ownerId:manager.userId,data:{contractType:'Evidence',parties:'Original Company'}}},key());
     const task=await saveTask(db,fixture.owner,null,taskSchema.parse({title:'Canonical Task evidence for Legal',assigneeUserId:manager.userId,startApprovers:[],completionApprovers:[]}),key());
     for(const packageId of ['work','legal'])await packageGrantStore(db,{authorize:async()=>({userId:'isolated-legal-preservation-provider'}),obligations:async()=>{throw Error('PRESERVATION_FIXTURE_CANNOT_INACTIVATE');}}).apply({expectedVersion:0,idempotencyKey:key(),grant:{companyId:fixture.company,packageId,packageVersion:1,state:'active',startsAt:0,endsAt:null,version:1,reason:'Actual independent owner preservation fixture',evidence:'test:task-legal-owner'}});
-    const previous={work:process.env.ERPX_WORK_PACKAGE_ENFORCEMENT,legal:process.env.ERPX_LEGAL_PACKAGE_ENFORCEMENT};
-    process.env.ERPX_WORK_PACKAGE_ENFORCEMENT=mode;process.env.ERPX_LEGAL_PACKAGE_ENFORCEMENT=mode;
+    const previous={work:process.env.ERPX_APPS_PACKAGE_ENFORCEMENT,legal:process.env.ERPX_LEGAL_PACKAGE_ENFORCEMENT};
+    process.env.ERPX_APPS_PACKAGE_ENFORCEMENT=mode;process.env.ERPX_LEGAL_PACKAGE_ENFORCEMENT=mode;
     try{
       const bytes=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQaEj4D8IMMAYAQaQH3RNNL/AAAAAASUVORK5CYII=','base64'),checksum=createHash('sha256').update(bytes).digest('hex');
       const set=await createAttachmentSet(db,manager,{targetType:'staff_task',targetId:String(task.id),componentKind:'action',componentRef:'legal-preservation',purposeKey:'task_evidence',expectedTargetVersion:1},key()),reserved=await reserveAttachmentFile(db,manager,set.id,{filename:'original-task.png',mediaType:'image/png',bytes:bytes.byteLength},key()),uploaded=await completeAttachmentUpload(db,env.H001_FILES,manager,reserved.uploadIntentId,Uint8Array.from(bytes).buffer);
@@ -327,7 +327,7 @@ describe("specialized canonical attachment adapters", () => {
       const document=await db.prepare('SELECT checksum,object_key,attachment_link_id FROM legal_documents WHERE item_id=?').bind(legal.id).first<{checksum:string;object_key:string;attachment_link_id:string}>();expect(document?.checksum).toBe(checksum);expect(Buffer.from(await(await env.H001_FILES.get(document!.object_key))!.arrayBuffer())).toEqual(bytes);
       await expect(db.transaction(async tx=>{await tx.prepare('SELECT 1').first();return attachmentContent(tx,env.H001_FILES,manager,uploaded.attachmentLinkId,'original');})).rejects.toMatchObject({code:'WORK_TASK_FILE_READ_TRANSACTION_REQUIRED'});
       const {prepareWorkTaskAttachmentParentRead}=await import('@erpx/server-operations/public/task-attachment-read');await expect(db.transaction(async tx=>{await tx.prepare('SELECT 1').first();return prepareWorkTaskAttachmentParentRead(tx,manager);})).rejects.toMatchObject({code:'LEGAL_ATTACHMENT_READ_PREPARATION_REQUIRED'});
-    }finally{for(const [name,value] of [['ERPX_WORK_PACKAGE_ENFORCEMENT',previous.work],['ERPX_LEGAL_PACKAGE_ENFORCEMENT',previous.legal]] as const){if(value===undefined)delete process.env[name];else process.env[name]=value;}}
+    }finally{for(const [name,value] of [['ERPX_APPS_PACKAGE_ENFORCEMENT',previous.work],['ERPX_LEGAL_PACKAGE_ENFORCEMENT',previous.legal]] as const){if(value===undefined)delete process.env[name];else process.env[name]=value;}}
   });
   it("keeps Messaging CSV pending until clean, then binds it atomically and hides guessed links", async () => {
     const wrongContextTeam = await createMessagingTeam(

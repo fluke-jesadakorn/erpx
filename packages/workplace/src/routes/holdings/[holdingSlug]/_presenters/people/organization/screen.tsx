@@ -23,38 +23,40 @@ export default async function OrganizationPage({
 }) {
   const actor = await requireWorkContext((await params).holdingSlug),
     base = workspaceBase(publicScope(actor));
-  const presentation = await organizationPresentationQueries(actor.holdingId),
-    query = await searchParams;
-  const authority = await presentation.appointmentOverview(actor);
+  const query = await searchParams;
   const canReadOrganization = ["people.read", "people.manage", "iam.read", "organization.manage"].some(
       (permission) => hasPermission(actor, permission),
     );
-  if (!canReadOrganization && (authority.canPublishDepartmentIds.length || authority.canAppointKinds.length)) {
-    // Appointed department heads still use their existing focused approval tool.
-    // The main People panel cannot replace this workflow until authority-specific
-    // access has been moved there.
-    const roster = await presentation.organizationRoster(actor.companyId);
-    return (
-      <FeaturePage className="ui-page-content" data-source="live">
-        <Link href={canonicalUiHref(`${base}/work`)}>← Work</Link>
-        <PageHeader appearance="standard"
-          title="Appointments & department flows"
-          description="Publish ordered approvers for new department requests."
-        />
-        <DepartmentAuthorityWorkspace appearance="standard"
-          holdingSlug={actor.holdingSlug}
-          initial={
-            authority as Parameters<
-              typeof DepartmentAuthorityWorkspace
-            >[0]["initial"]
-          }
-          people={roster.people}
-          positions={roster.positions}
-        />
-      </FeaturePage>
-    );
-  }
+  // Only the appointment-only fallback still needs retained presentation
+  // queries; the organization page read itself is owned by its presenter.
   if (!canReadOrganization) {
+    const presentation = await organizationPresentationQueries(actor.holdingId);
+    const authority = await presentation.appointmentOverview(actor);
+    if (authority.canPublishDepartmentIds.length || authority.canAppointKinds.length) {
+      // Appointed department heads still use their existing focused approval tool.
+      // The main People panel cannot replace this workflow until authority-specific
+      // access has been moved there.
+      const roster = await presentation.organizationRoster(actor.companyId);
+      return (
+        <FeaturePage className="ui-page-content" data-source="live">
+          <Link href={canonicalUiHref(`${base}/work`)}>← Work</Link>
+          <PageHeader appearance="standard"
+            title="Appointments & department flows"
+            description="Publish ordered approvers for new department requests."
+          />
+          <DepartmentAuthorityWorkspace appearance="standard"
+            holdingSlug={actor.holdingSlug}
+            initial={
+              authority as Parameters<
+                typeof DepartmentAuthorityWorkspace
+              >[0]["initial"]
+            }
+            people={roster.people}
+            positions={roster.positions}
+          />
+        </FeaturePage>
+      );
+    }
     forbidden();
   }
   const destination: Record<string, string | null> = {};

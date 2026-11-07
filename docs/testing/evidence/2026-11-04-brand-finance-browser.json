@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Authenticated current-source browser evidence collected for native Brand draft save/readback and Finance controlled payment/bank settlement; canonical Admin redirect and bank manual-match gaps remain",
+  "capability": "brand-finance-browser",
+  "integrationTarget": "codex/rust-backend-migration",
+  "sourceCommit": "971e34ba0",
+  "runtime": {
+    "auth": "normal Account sign-in, SSO and Company/role selection; no cookie injection",
+    "privateApi": "current-source erpx-server private-api on loopback, current Next account/admin/finance apps",
+    "tenant": "leased h001 zero-service-parts fixture",
+    "projects": [
+      "desktop",
+      "mobile"
+    ]
+  },
+  "journeys": {
+    "brandDraftDesktop": {
+      "result": "pass",
+      "route": "/holdings/acme/administration/brand/identity",
+      "status": 200,
+      "redirects": "normal SSO handoff only",
+      "draft": "brand-draft-45ca502d-a3c9-44e1-8e21-502a711bcc20",
+      "readback": "draft retained after reload",
+      "pageErrors": 0,
+      "consoleErrors": 0,
+      "httpErrors": 0
+    },
+    "brandDraftMobile": {
+      "result": "pass",
+      "status": 200,
+      "reload": 200,
+      "draft": "brand-draft-45ca502d-a3c9-44e1-8e21-502a711bcc20",
+      "readback": "draft retained after reload",
+      "pageErrors": 0,
+      "consoleErrors": 0,
+      "httpErrors": 0
+    },
+    "controlledPayment": {
+      "result": "pass",
+      "payment": "pay-ed72c6aa",
+      "states": [
+        "approved",
+        "released",
+        "settled"
+      ],
+      "journal": "journal-60417188",
+      "invoice": "field-invoice-ee073098",
+      "invoiceStatus": "paid"
+    },
+    "bankImport": {
+      "result": "pass",
+      "post": 201,
+      "statement": "statement-99adebc5-a442-4e05-9db5-9474d13419f5",
+      "statementNumber": "STMT-NATIVE-1793780392593",
+      "row": "bankrow-99adebc5-a442-4e05-9db5-9474d13419f5-0",
+      "externalId": "BANK-NATIVE-1793780392593",
+      "amountMinor": 10000,
+      "status": "unmatched",
+      "uiWarning": "removed after null settlementPaymentId fix",
+      "desktopReadback": 200,
+      "mobileReadback": 200,
+      "pageErrors": 0,
+      "consoleErrors": 0,
+      "httpErrors": 0
+    },
+    "bankReadback": {
+      "result": "pass",
+      "desktop": true,
+      "mobile": true,
+      "row": "bankrow-exact-import-1793779177950-0",
+      "status": "matched"
+    }
+  },
+  "nativeChecks": [
+    "private API 11/11",
+    "bank HTTP 1/1",
+    "bank workspace PostgreSQL 4/4 (concurrent slice)",
+    "finance bank command transport 3/3",
+    "finance-bank-command 41/41"
+  ],
+  "limits": [
+    "Manual bank workspace reconcile of an independently posted payment was not exercised; the payment settlement match used the normal confirm flow.",
+    "Brand category locks and published identity were not browser-exercised; only the draft workspace is verified.",
+    "Screenshots/logs are private ignored artifacts under .scratch/dev/agents/browser-brand-finance/evidence-v3.",
+    "Hosted CI, staging and installed production were not accessed."
+  ],
+  "followUpCommit": "3e72d9a69"
+}

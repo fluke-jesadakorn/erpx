@@ -40,6 +40,7 @@ export function productWorkspaceCandidates(choices: readonly WorkspaceChoice[]):
 
 export function createProductLauncher(ports: {
   holdingAddresses?:boolean;
+  holdingFrontUrl?(value:string, app:'pos'|'pms'):string|null;
   commercialAdmissionDeferred?(id:ProductId):boolean;
   choices(): Promise<WorkspaceChoice[]>;
   access(scope: HoldingWorkspaceScope, options: { companyId: string }): Promise<AccountAccessContext>;
@@ -99,7 +100,7 @@ export function createProductLauncher(ports: {
         for (const assignment of applicable) {
           if (!authority.permissionsByAssignment.has(assignment.id)) continue;
           const modules = authority.presentationModulesByAssignment.get(assignment.id) ?? [];
-          const ready = (await Promise.all([...new Set([...modules, ...(definition.id === "work" ? ["operations"] : [])])]
+          const ready = (await Promise.all([...new Set([...modules, ...(definition.id === "apps" ? ["operations"] : [])])]
             .map(async id => await readyModule(id) ? id : null))).filter((id): id is string => id !== null);
           let roleLanding: string | null = null;
           let includedPurpose: CapabilityPurpose | null = null;
@@ -189,7 +190,7 @@ export function createProductLauncher(ports: {
           target = select.pathname + select.search;
         }
         if(ports.holdingAddresses){
-          const front=definition.id==='pos'||definition.id==='pms'?holdingFrontUiUrl(target,definition.id):null;
+          const front=definition.id==='pos'||definition.id==='pms'?(ports.holdingFrontUrl ?? holdingFrontUiUrl)(target,definition.id):null;
           result.push({...candidate,productId:definition.id,href:front??new URL(target,origin).href,purchasePurpose,...(sourceRecord?{sourceRecord:true as const}:{})});continue;
         }
         const href = new URL("/sso/start", origin);

@@ -1,12 +1,42 @@
 # ERPX documentation index
 
-Reviewed 2026-10-23. This is the single entry point. [Production plan](production-plan.md) owns delivery scope; contracts own current behavior; recorded evidence identifies the source, environment and date it actually verified.
+Reviewed 2026-10-29. This is the single entry point. The [production plan](production-plan.md) owns current delivery scope and remaining work; [owner contracts](contracts/next/README.md) define behavior. Dated evidence certifies only the source, environment and scope it actually inspected.
 
 ## Current system
 
-- [Development Holding addresses and workspace paths](contracts/next/holding-addresses.md) and [ADR-051](adr/ADR-051-holding-addresses-and-workspace-paths.md)
+- [Active Rust/Next.js delivery plan](production-plan.md), [owner migration register](status/rust-backend-migration.json), [capability bundles and 206-workflow mapping](status/rust-delivery-bundles.json), [architecture decision](adr/ADR-052-rust-backend-and-domain-aligned-frontend.md) and [PDF policy exception](adr/ADR-053-explicit-pdf-seed-key-usage-prohibitions.md).
+- [Build-time module registration and explicit proof limits](contracts/next/build-time-modules.md).
+- [Native Files original-read migration contract](contracts/next/rust-files-migration.md).
+- [Native Commercial purchase migration contract](contracts/next/rust-commercial-migration.md).
+- [Native scheduled Legal release evidence](contracts/next/rust-release-readiness.md) and [Legal processing/polling boundary](contracts/next/rust-legal-processing.md).
+- [Native Workflow command ledger and receipt compatibility](contracts/next/rust-workflow-migration.md).
+- [Service Count delivery boundary and legacy withdrawal](contracts/next/rust-service-count-delivery.md).
+- [Field visit Files candidate ownership and remaining gates](contracts/next/field-visit-files-native.md).
+- [Native preview platform parity and portable color-management dependency](contracts/next/native-preview-platform-parity.md).
+- [Field Files native images, explicit Compose inputs and local qualification](contracts/next/field-files-native-container.md).
+- [Field Files contributor lifecycle, persistent objects and source-edit qualification](contracts/next/field-files-devcontainer.md).
+- [Service Parts preparation native writer closure and admission checklist](contracts/next/service-parts-native-closure.md).
+- [Shared minimal native Parts/Count image and local runtime qualification](contracts/next/service-parts-containers.md).
+- [Service Parts contributor container qualification and limitations](contracts/next/service-parts-devcontainer.md).
+- [Native eight-lease engineering profile and compiled Service qualification](contracts/next/native-engineering-service-ssr.md).
+- [Native Service Count container boundary and qualification](contracts/next/rust-service-count-containers.md).
+- [Service Count outbox ownership and recovery](contracts/next/rust-service-count-outbox.md).
+- [Native private business HTTP component contract](contracts/next/rust-business-http.md) and [development session/SSR boundary](contracts/next/rust-private-session-api.md).
+- [Native Finance journal detail component contract](contracts/next/rust-finance-journal-detail.md).
+- [Native Maintenance Work component](contracts/next/rust-maintenance-migration.md).
+- [Native Field Service reserve/issue parts component](contracts/next/rust-field-service-migration.md).
+- [Inactive native Field Service shared HTTP parts boundary](contracts/next/rust-field-service-http.md).
+- [Native selected Identity ingress](contracts/next/rust-selected-ingress.md).
+- [Inactive native Payroll accounting projection](contracts/next/rust-payroll-projection.md).
+- [Native Maintenance notification and Inbox component](contracts/next/rust-maintenance-notifications.md).
+- [Native Finance owned parts Draft component](contracts/next/rust-finance-parts-draft.md).
+- [Native Directory scope and expiring credential decision](adr/ADR-055-native-directory-scope-and-credential-witness.md).
+- [Durable Directory observation provenance](adr/ADR-056-durable-directory-observation-provenance.md).
+- [Native Inventory valuation and consumption planning](contracts/next/rust-inventory-migration.md).
 
-- [Product separation: registry, packages and SSO implementation boundary](contracts/next/product-separation.md), [22-host desired-state manifest](contracts/next/product-registry.generated.json), [development rollout/rollback](../ops/macos/product-development.md)
+- [Open-source preparation and provenance](community/open-source.md), [contributing](../CONTRIBUTING.md), [governance](../GOVERNANCE.md), [security reporting](../SECURITY.md), [licensing scope](../LICENSING.md).
+
+
 - [Development Commercial permission-evidence checkpoint](testing/commercial-compatibility-2026-10-14.md): exact-source native/build/browser evidence; implementation-only Admin receipts and remaining acceptance
 - [Development product navigation checkpoint](testing/product-navigation-2026-10-14.md): shared dirty confirmation, fifteen Company previews, exact-source full native lane and remaining migration gates
 - [Development product-entry checkpoint](testing/product-entry-2026-10-15.md): per-role landings, explicit role selection, private server time preferences and current verification limits
@@ -19,14 +49,9 @@ Reviewed 2026-10-23. This is the single entry point. [Production plan](productio
 - [Development Helpdesk surface purchase checkpoint](testing/support-surfaces-corrected-2026-10-15.md): owner controls/Work/files/jobs, Calendar/customer evidence, repaired GET alias and current native/build/browser limits
 - [Development Helpdesk command purchase checkpoint](testing/support-commands-2026-10-15.md): transaction purchase guards, shadow/expiry/replay/lock order and current full-native/build limits
 - [Development navigation boundary checkpoint](testing/ui-boundaries-2026-10-15.md): explicit caller appearance, preserved legacy scope, exact native viewport/theme/SSR proof and remaining frozen acceptance
-- [Product migration acceptance register: 33 modules, owner workflows and seven shared/public surfaces](status/product-migration-acceptance.json), [active v2 current-source receipts](status/product-migration-receipts-v2.json), [dated v1 receipt history](status/product-migration-receipts.json)
 - [Development Company package Preview/Apply and rollback](../ops/macos/commercial-development-migration.md)
 
-- [Start and verify](../README.md), [developer instructions](../AGENTS.md), [local development seed](local-seed.md)
-- [Current owner contracts](contracts/next/README.md), [33-module catalogue workflows](contracts/next/catalogue.md), [route reference](contracts/next/route-table.md)
-- [Service boundaries and isolated verification](contracts/next/service-boundaries.md)
-- [Executive remote MCP and agent connection guide](contracts/next/executive-mcp.md)
-- [Record detail drawers](contracts/next/record-drawers.md), [record/table coverage](contracts/next/record-drawer-inventory.json)
+- [Native Rust runtime and retained request leases](contracts/next/rust-runtime.md), [native Account credential migration and remaining parity](contracts/next/rust-account-migration.md)
 - [Hospitality ownership and Guest Accounts](adr/ADR-040-hospitality-module-ownership-and-guest-accounts.md) · [development verification](testing/hospitality-boundaries-2026-10-08.md)
 - [Canonical receipt storage](adr/ADR-042-canonical-command-receipt-partitions.md)
 - [Command guard transaction scope](adr/ADR-041-transaction-local-command-assertions.md)
@@ -34,48 +59,49 @@ Reviewed 2026-10-23. This is the single entry point. [Production plan](productio
 - [Source-bound worker preparation foundation](adr/ADR-047-source-bound-worker-preparation-foundation.md)
 - [Ticket-bound Support Portal](adr/ADR-048-ticket-bound-support-portal.md)
 - [Product app workspaces and development verification](adr/ADR-049-product-app-workspaces-and-development-verification.md)
+
+
+ERPX has15 products,21 active application workspaces and33 modules. `apps/compat` is retained non-product compatibility source. Development has three exact Holding hosts plus central Account; application identities are distinct from public host registrations.
+
+- [Service Count contributor Dev Container](contracts/next/service-count-devcontainer.md): scoped Linux-volume onboarding, HTTPS, native runtime and cache/recovery lifecycle
+- [Start and verify](../README.md), [developer instructions](../AGENTS.md), [local fictional seed](local-seed.md)
+- [Holding addresses and workspace paths](contracts/next/holding-addresses.md), [ADR-051](adr/ADR-051-holding-addresses-and-workspace-paths.md), [development operations](../ops/macos/holding-development.md), [live infrastructure receipt](../ops/macos/holding-development-live.json)
+- [Independent apps, packages and SSO](contracts/next/product-separation.md), [generated product/host manifest](contracts/next/product-registry.generated.json), [Apps Feed and retired Work decision](adr/ADR-050-apps-feed-and-work-retirement.md)
+- [Current owner contracts](contracts/next/README.md), [33-module workflow catalogue](contracts/next/catalogue.md), [route reference](contracts/next/route-table.md), [service boundaries](contracts/next/service-boundaries.md)
+- [People relationships and independent account administration](contracts/next/people-external-access.md), [Skills, Performance & Compensation](contracts/next/people-evaluation.md)
+- [Executive MCP and agent connections](contracts/next/executive-mcp.md), [record drawers](contracts/next/record-drawers.md), [generated drawer inventory](contracts/next/record-drawer-inventory.json)
 - [Business glossary](../CONTEXT.md), [architecture decisions](adr/README.md), [contract compatibility policy](../CONTRACT_POLICY.md)
-- [Operations](../ops/README.md), [private production runtime](../ops/macos/README.md), [incident](../ops/runbooks/nextjs-incident.md), [recovery](../ops/runbooks/nextjs-recovery.md)
-- [Workplace routes and handoffs](journeys/2026-09-26-workplace-journey-inventory.md), [UI components](ux-ui/component-inventory.md), [UI migration evidence](ux-ui/ui-migration-2026-10-02.md), [UI standardization status and coverage](ux-ui/ui-standardization.md)
-- [Product brand guide](brand/ERPX-brand-guide.md), [runtime brand assets](../public/brand/)
+- [Operations](../ops/README.md), [private production runtime](../ops/macos/README.md), [incident handling](../ops/runbooks/nextjs-incident.md), [recovery](../ops/runbooks/nextjs-recovery.md)
+- [UI components](ux-ui/component-inventory.md), [UI standardization status](ux-ui/ui-standardization.md), [product brand guide](brand/ERPX-brand-guide.md), [runtime brand assets](../public/brand/)
+
+Normal development entry uses [Acme](https://acme.jesadakorn.com/), [Northstar](https://northstar.jesadakorn.com/) or [ERPX Internal](https://erpx-internal.jesadakorn.com/), with central [Account](https://account-dev-erpx.jesadakorn.com/). Former app hosts return generic404; Console retains exact health/ready reads only. The old product-host rollout runbook is superseded for current routing.
 
 ## Verification and acceptance
 
-- [People: HR employee directory and IT external access](contracts/next/people-external-access.md)
+- [Product migration coverage](status/product-migration-acceptance.json), [v2 receipt index](status/product-migration-receipts-v2.json)
+- [Verification commands and evidence rules](testing/README.md), [E2E specification](testing/e2e-specification.md), [isolated browser fixtures](testing/isolated-browser-simulation.md), [working demo](testing/working-demo-company.md), [generated route inventory](testing/uat-route-inventory.md)
+- [Engineering scenarios](../tests/catalogue/engineering-scenarios.json), [gate scenarios](../tests/catalogue/engineering-gate-scenarios.json), [Legal engineering UAT](../tests/catalogue/legal-uat-engineering-cases.json), [attachment owner cases](../tests/catalogue/engineering-attachment-owner-cases.json)
+- [Independent engineering/provider/release inventory](status/capability-delivery-matrix.md), [Company release criteria](contracts/next/business-readiness.md), [explicit gate reviews](status/capability-gate-reviews.json), [generated acceptance manifest](status/business-acceptance-manifest.json)
+- [Checksum evidence ledger](status/business-acceptance-evidence.json), [durable dated evidence](testing/evidence), [2026-10-03 engineering baseline](testing/evidence/2026-10-03-engineering-completion.json), [Finance expansion](testing/evidence/2026-10-05-finance-expansion.md)
+- [Company package Preview/Apply and rollback](../ops/macos/commercial-development-migration.md), [investor capture](testing/investor-capture.md)
 
-- [Repository file placement and relocation verification — 2026-10-13](testing/repository-file-organization-2026-10-13.md)
-- [Required browser verification round and incomplete coverage — 2026-10-13](testing/repository-required-browser-verification-2026-10-13.md)
-- [Attribution of the 70 browser failures — 2026-10-14](testing/repository-failure-attribution-2026-10-14.md)
+Development verification is not full acceptance. Full acceptance is reserved for intentional production preparation on a frozen candidate and is deferred during this migration. Old counts, gaps, hostnames and successful runs in `testing/` or dated research are observations of that original candidate; they are not current delivery instructions or provider/Company approvals.
 
-- [Independent engineering/provider/release inventory](status/capability-delivery-matrix.md)
-- [Dated engineering completion receipt — 2026-10-03](testing/evidence/2026-10-03-engineering-completion.json): recorded 33/33 modules, 187/187 capabilities and 12/12 engineering gates; scoped to its original source/candidate
-- [Finance expansion evidence — 2026-10-05](testing/evidence/2026-10-05-finance-expansion.md): completed scoped FE-01..07 engineering acceptance, native desktop/mobile proof and independent accounting goldens; separate from the 187-capability baseline; [current check receipt](testing/evidence/2026-10-05-finance-expansion-checkpoint.json)
-- [Engineering scenario register](../tests/catalogue/engineering-scenarios.json), [required gate scenarios](../tests/catalogue/engineering-gate-scenarios.json), [Legal engineering UAT](../tests/catalogue/legal-uat-engineering-cases.json), [attachment owner cases](../tests/catalogue/engineering-attachment-owner-cases.json)
-- [Company release acceptance](contracts/next/business-readiness.md), [explicit inventory reviews](status/capability-gate-reviews.json), [generated inventory manifest](status/business-acceptance-manifest.json)
-- [Checksum evidence ledger](status/business-acceptance-evidence.json), [verification guide](testing/README.md), [durable evidence](testing/evidence)
-- [Home and menu streaming measurements — 2026-10-09](testing/home-menu-streaming-2026-10-09.json)
-- [Investor capture and offline gallery](testing/investor-capture.md)
-- [E2E specification](testing/e2e-specification.md), [isolated browser simulation](testing/isolated-browser-simulation.md), [working demo](testing/working-demo-company.md), [generated source-route inventory](testing/uat-route-inventory.md)
-- Dated official-source reviews: [Thai payroll](research/thai-payroll-rules-2026-10-02.md), [Thai Finance tax](research/thai-finance-tax-rules-2026-10-03.md), [Thai accounting](research/thai-accounting-research-2026-09-30.md), [NPAEs reporting](testing/npaes-reporting-2026-10-03.md)
-
-Engineering results do not certify a provider, Company release, statutory filing, bank/device or production operation. A later documentation or generator revision does not restamp the earlier engineering run. Reports under `testing/` retain dated findings; their old gaps and hostname observations are not current delivery instructions.
+Dated source reviews remain available for [Thai payroll](research/thai-payroll-rules-2026-10-02.md), [Thai Finance tax](research/thai-finance-tax-rules-2026-10-03.md), [Thai accounting](research/thai-accounting-research-2026-09-30.md) and [NPAEs reporting](testing/npaes-reporting-2026-10-03.md). Cleanup does not renew their effective dates or statutory verification.
 
 ## Maintenance and recovery
 
-Edit the owner contract and the production plan when their facts change. Regenerate catalogue/status artifacts with `bun run status:capabilities`; verify with `bun scripts/docs/generate-capability-matrix.ts --check`. Run `bun run docs:check` for links, anchors and source references. Do not hand-edit generated artifacts or infer gate reviews from observations.
+Update the owning contract and active production plan when current facts change. Generate capability/status artifacts with `bun run status:capabilities` and product coverage with `bun run products:manifest`; never edit generated counts or infer gate reviews from observations. Run `bun run docs:check`, `bun run products:check`, `bun run structure:check`, `bun run test:catalogue` and `bun run architecture:check` for repository integrity.
 
-Superseded plans, duplicated Rust maps and completed documentation-triage tickets were removed after consolidating surviving ownership/control requirements into the catalogue and owner contracts. [Cutover and verified Git recovery references](../README.md#recovery) retain their recovery boundary. [Archived immutable Rust evidence](archive/README.md) remains date-scoped; it does not describe the current stack.
+`docs:check` checks root Markdown, current documentation and the archive navigation index; it preserves immutable evidence/link topology and verifies checksum-ledger files. Existing tracked files under ignored `.scratch/` or `.tmp/` are rejected. Keep snapshots, private credentials, logs and temporary plans outside Git. Domain/issue-tracker templates and per-app generated Next.js instructions are intentional copies, not duplicate cleanup targets.
 
-Staging operations are documented in the [staging runbook](../ops/macos/staging.md) and require an explicit staging request. Normal development verification uses [the development console](https://console-dev-erpx.jesadakorn.com/).
+Superseded plans, obsolete review prose and completed documentation-triage tickets are recoverable through [verified Git references](../README.md#recovery). [Archived engineering inputs](archive/README.md) retain the 2026-10-03 generated inputs. The [2026-10-13 relocation receipt](testing/repository-file-organization-2026-10-13.md) and [dated workplace journey inventory](journeys/2026-09-26-workplace-journey-inventory.md) remain historical evidence, not current source maps.
 
-- [People evaluation: Skills, Performance & Compensation](contracts/next/people-evaluation.md) — annual evidence, scoped comparisons and reviewed compensation.
+Staging requires an explicit staging request; normal development verification does not authorize its hosts, services, databases or deployment directories.
 
 ### PMS design, vendor comparison and 2026-10-09 implementation
 
-- [Official PMS research and three-year TCO inputs](research/pms-market-research-2026-10-09.md)
-- [Per-feature ownership and acceptance register](testing/pms-feature-register-2026-10-09.md)
-- [Implementation checks and remaining acceptance](testing/pms-implementation-2026-10-09.md)
-- [Mock pilot inputs, reviewers and reconciliation checks](testing/pms-mock-pilot-2026-10-09.md)
-- [67-capability mock engineering review register](testing/pms-feature-review-2026-10-11.md)
+- [Official research and TCO inputs](research/pms-market-research-2026-10-09.md), [feature ownership register](testing/pms-feature-register-2026-10-09.md)
+- [Dated implementation checks](testing/pms-implementation-2026-10-09.md), [mock-pilot inputs](testing/pms-mock-pilot-2026-10-09.md), [67-capability review](testing/pms-feature-review-2026-10-11.md)
 
-The active delivery checklist remains [production plan](production-plan.md).
+Current remaining work and the limits of the completed mock engineering scope are consolidated in the [production plan](production-plan.md#recorded-milestones-and-deferred-work).

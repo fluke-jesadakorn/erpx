@@ -59,19 +59,21 @@ it('blocks nonattested production alert creation and mail claims without consumi
  expect(await counts(enabled)).toEqual({alerts:0,notifications:0,mail:{status:'pending',attempts:0,provider_message_id:null}});
  await expect(updateCustomerNotificationSettings(enabled.reviewer,{expectedVersion:1,adapter:'resend'},key())).rejects.toMatchObject({code:'FEATURE_COMING_SOON'});
 });
-it('delivers only the attested Company Quality and all three reservation sources once while disabled sources and certification remain unchanged',async()=>{
+it('delivers only the attested Company Quality and the remaining Commerce/Manufacturing reservation sources once while disabled sources and certification remain unchanged',async()=>{
  const stockBefore=await Promise.all([enabled,disabled].map(stockAndDeliveryJournal));
  for(const [index,s] of [enabled,disabled].entries()){
   expect(stockBefore[index]).toMatchObject({physicalStockMinor:5400,postedInventoryMinor:5400,journal:{status:'posted',version:2,source_type:'delivery',source_id:s.fulfillmentId,created_by:s.f.owner.userId,posted_by:s.reviewer.userId}});
   expect(s.reviewer.userId).not.toBe(s.f.owner.userId);
   expect(stockBefore[index].movements).toHaveLength(3);
  }
- expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:1,overdue:1});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:5,expired:0});await drainCustomerNotifications(db,{},now+10000);
+ expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:1,overdue:1});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:3,expired:0});await drainCustomerNotifications(db,{},now+10000);
  const reservations=(await db.prepare("SELECT record_type,record_id,user_id FROM staff_notifications WHERE company_id=? AND message LIKE 'Stock reservation%' ORDER BY record_type,user_id").bind(enabled.f.company).all<{record_type:string;record_id:string;user_id:string}>()).results;
- expect(reservations).toHaveLength(5);expect(reservations.filter(row=>row.record_type==='field_service_order').map(row=>row.user_id).sort()).toEqual([enabled.f.owner.userId,enabled.f.claimant.userId].sort());
+ // The two Field recipients, deterministic phase IDs and native acknowledgement
+ // retention/rollback assertions live in the Rust scheduled Field case, not this TS worker.
+ expect(reservations).toHaveLength(3);expect(reservations.filter(row=>row.record_type==='field_service_order')).toEqual([]);
  expect(reservations.filter(row=>row.record_type==='commerce_order').map(row=>row.user_id)).toEqual([enabled.f.owner.userId]);
  expect(reservations.filter(row=>row.record_type==='manufacturing_order').map(row=>row.user_id).sort()).toEqual([enabled.reviewer.userId,enabled.f.owner.userId].sort());
- expect(reservations.map(row=>row.record_id)).toEqual(expect.arrayContaining([enabled.salesId,enabled.fieldId,enabled.productionId]));
+ expect(reservations.map(row=>row.record_id)).toEqual(expect.arrayContaining([enabled.salesId,enabled.productionId]));
  expect((await counts(enabled)).mail).toEqual({status:'sent',attempts:1,provider_message_id:`sandbox-${enabled.messageId}`});
  expect(await counts(disabled)).toEqual({alerts:0,notifications:0,mail:{status:'pending',attempts:0,provider_message_id:null}});
  const before=await counts(enabled);expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:0,expired:0});await drainCustomerNotifications(db,{},now+10000);expect(await counts(enabled)).toEqual(before);
@@ -84,7 +86,7 @@ it('rechecks Company withdrawal and expiry before each worker write and resumes 
  expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:0,expired:0});await drainCustomerNotifications(db,{},now+10000);
  expect(await counts(enabled)).toEqual({alerts:0,notifications:0,mail:{status:'pending',attempts:0,provider_message_id:null}});
  await db.prepare('UPDATE engineering_verification_contexts SET enabled=true WHERE company_id=? AND run_id=?').bind(enabled.f.company,run).run();
- expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:1,overdue:1});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:5,expired:0});await drainCustomerNotifications(db,{},now+10000);
+ expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:1,overdue:1});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:3,expired:0});await drainCustomerNotifications(db,{},now+10000);
  const before=await counts(enabled);await db.prepare('UPDATE engineering_verification_contexts SET expires_at=? WHERE company_id=? AND run_id=?').bind(Date.now()-1,enabled.f.company,run).run();
  expect(await drainQualityAlerts(db,now+2*86400000)).toEqual({dueSoon:0,overdue:0});expect(await escalateInventoryReservations(db,now+2*86400000)).toEqual({expiring:0,expired:0});expect(await counts(enabled)).toEqual(before);
 });

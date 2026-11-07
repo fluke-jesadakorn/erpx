@@ -2,7 +2,7 @@ import { commercePurchaseControls } from "@erpx/server-commerce/public/purchase-
 import { CommerceEnvironment } from "@erpx/feature-commerce/components/purchase-context";
 import {DestinationFilterForm} from "@erpx/ui/components/destination-filter-form";
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
-import Link from "@erpx/workplace/components/workspace-link";
+import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { FeaturePage } from "@erpx/feature-shared/components/features/feature-page";
 import { FinanceWorkspace } from "@erpx/feature-finance/components/finance-workspace";
 import { SalesInvoiceEditor, IssueCustomerReceipt } from "@erpx/feature-finance/components/sales-controls";
@@ -16,6 +16,7 @@ import { firstPageSearchValues, type PageSearchParams } from "@erpx/feature-shar
 import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import {salesWorkspace,salesDefaultsWorkspace} from '@erpx/server-finance/public/sales';
+import { nativeSalesInvoiceList } from "@erpx/feature-finance/lib/native-sales-invoice-list";
 import { financePurchaseControls } from "@erpx/server-finance/public/purchases";
 import { financeSalesInvoiceNewWorkAllowed } from "@erpx/server-finance/public/rules/purchase-controls";
 import {commerceOverview} from '@erpx/server-commerce/public/commerce';
@@ -25,7 +26,48 @@ import styles from "@erpx/feature-finance/components/sales-workspace.module.css"
 export const dynamic = "force-dynamic";
 export default async function SalesPage({ params, searchParams }: { params: Promise<{ holdingSlug: string }>; searchParams: Promise<PageSearchParams> }) {
   const { holdingSlug } = await params, actor = await requireWorkContext(holdingSlug), base = workspaceBase(publicScope(actor)), search = firstPageSearchValues(await searchParams);
-  const data = await salesWorkspace(actor, search).catch(error => pageError(error, holdingSlug));
+  const nativeInvoices = search.tab === "invoices"
+    ? await nativeSalesInvoiceList(
+        actor.authority && actor.iam
+          ? {
+              userId: actor.userId,
+              holdingId: actor.holdingId,
+              holdingSlug,
+              companyId: actor.companyId,
+              branchId: actor.branchId,
+              departmentId: actor.departmentId,
+              assignmentId: actor.assignmentId,
+              role: actor.role,
+              assignmentScope: actor.assignmentScope,
+              scope:
+                actor.scope.kind === "holding"
+                  ? { kind: "holding" }
+                  : actor.scope.kind === "branch"
+                    ? { kind: "branch", branchSlug: actor.scope.branchSlug ?? "" }
+                    : {
+                        kind: "department",
+                        branchSlug: actor.scope.branchSlug ?? undefined,
+                        departmentSlug: actor.scope.departmentSlug ?? "",
+                      },
+              authority: { revision: actor.authority.revision, assignmentVersion: actor.authority.assignmentVersion },
+              modules: actor.modules,
+              iam: { permissions: actor.iam.permissions },
+            }
+          : undefined,
+        holdingSlug,
+        {
+          tab: "invoices",
+          q: search.q,
+          status: search.status,
+          startDate: search.startDate,
+          endDate: search.endDate,
+          currency: search.currency,
+          queue: search.queue,
+          cursor: search.cursor,
+        },
+      ).catch(error => pageError(error, holdingSlug))
+    : undefined;
+  const data = nativeInvoices ?? (await salesWorkspace(actor, search).catch(error => pageError(error, holdingSlug)));
   const tab = data.query.tab, local = !!actor.branchId || !!actor.departmentId;
   const setup = !local ? await salesDefaultsWorkspace(actor) : null;
   const approved = setup?.editions.filter(row => setup.usableDefaults.includes(row.id)) ?? [];
@@ -43,7 +85,7 @@ export default async function SalesPage({ params, searchParams }: { params: Prom
   const metric = (label: string, kind: "awaiting" | "overdue" | "received") => <Card as="section" appearance="standard" className={styles.metric}><h2>{label}</h2>{(kind === "received" ? data.received : data.summary).length ? (kind === "received" ? data.received : data.summary).map(row => <Link key={String(row.currency)} href={url({ tab: kind === "received" ? "receipts" : "invoices", currency: String(row.currency), queue: kind, status: "" })}><span>{String(row.currency)}</span><span>{minorToDecimal(Number(row[`${kind === "awaiting" ? "awaiting" : kind}_minor`]))}</span></Link>) : <span>—</span>}</Card>;
   return <FeaturePage className="ui-page-content" data-source="live"><FinanceWorkspace base={base} active="finance-sales" title="Sales & collections" description="Quote, deliver, invoice and collect customer payments." actions={<Link href={canonicalUiHref(`${base}/finance/sales/settings`)}>Sales settings</Link>}>
     <div className={styles.workspace}><div className={styles.metrics}>{metric("Awaiting payment", "awaiting")}{metric("Overdue", "overdue")}{metric("Received", "received")}</div>
-      <nav className={styles.tabs} aria-label="Sales documents">{[["quotations","Quotations"],["orders","Sales orders"],["invoices","Invoices"],["receipts","Receipts"]].map(([id,label]) => <Link className={styles.tab} key={id} aria-current={tab === id ? "page" : undefined} href={url({ tab:id, status:"", queue:"", currency:"" })}>{label}</Link>)}</nav>
+
       <DestinationFilterForm className={styles.filters}><input type="hidden" name="tab" value={tab} /><Field appearance="standard">Search<TextInput appearance="standard" name="q" placeholder="Customer or document number" defaultValue={search.q ?? ""} /></Field><Field appearance="standard">From<TextInput appearance="standard" type="date" name="startDate" defaultValue={search.startDate} /></Field><Field appearance="standard">To<TextInput appearance="standard" type="date" name="endDate" defaultValue={search.endDate} /></Field><Field appearance="standard">Status<Select appearance="standard" name="status" defaultValue={search.status ?? ""}><option value="">All statuses</option>{statuses.map(status => <option key={status} value={status}>{status==="no_charge_confirmed"?"No-charge confirmed":status.replaceAll("_"," ")}</option>)}</Select></Field><Button appearance="standard" type="submit">Search</Button></DestinationFilterForm>
       {(search.queue || search.currency) && <p>Showing {search.queue ?? "all documents"} · {search.currency ?? "all currencies"} <Link href={url({ queue:"", currency:"" })}>Clear amount filter</Link></p>}
       {!local && !approved.length && <InlineNotice tone="warning">Sales account defaults need independent Finance approval. <Link href={canonicalUiHref(`${base}/finance/sales/settings`)}>Configure sales defaults</Link>. <Link href={canonicalUiHref(`${base}/finance/setup`)}>Open Finance setup</Link>.</InlineNotice>}
@@ -51,7 +93,7 @@ export default async function SalesPage({ params, searchParams }: { params: Prom
       {commerceSetupRequired && <InlineNotice tone="warning">Approve Company sales accounts before preparing quotations or orders. <Link href={canonicalUiHref(`${base}/finance/sales/settings`)}>Open sales settings</Link> · <Link href={canonicalUiHref(`${base}/finance/setup`)}>Create ledgers and accounts</Link>.</InlineNotice>}
       {canInvoice && !invoiceNewWorkAllowed && <InlineNotice tone="info">Invoice preparation is unavailable while neither Finance Accounting nor Sales posting allows new work.</InlineNotice>}
       <FormActions>{canSales && quotePurchase?.newWork !== false && <Link href={url({ tab:"quotations",new:"quotation" })}>New quotation</Link>}{canSales && salesPurchase?.newWork !== false && tab === "orders" && <Link href={url({new:"order"})}>New sales order</Link>}{canInvoice && invoiceNewWorkAllowed && approved.length > 0 && tab === "invoices" && <Link href={url({new:"invoice"})}>Invoice completed services</Link>}<Link href={canonicalUiHref(`${base}/commerce?view=products`)}>Items & services</Link><Link href={canonicalUiHref(`${base}/commerce?view=parties&kind=customer`)}>Customers</Link></FormActions>
-      {data.permissionRequired ? <InlineNotice tone="warning">A Commerce read assignment is required to view quotations and sales orders.</InlineNotice> : <><TableFrame appearance="standard" label="Sales documents"><Table><thead><tr><th>Document</th><th>Customer</th><th>Date</th><th>Status</th><th>Total</th>{tab === "invoices" && <th>Outstanding</th>}</tr></thead><tbody>{rows.map(row => { const href = tab === "receipts" ? row.receipt_id ? canonicalUiHref(`${base}/finance/sales/receipts/${row.receipt_id}`) : null : canonicalUiHref(`${base}/${tab === "invoices" ? "finance/invoices" : "commerce/orders"}/${row.id}`); return <tr key={String(row.id)}><td>{href ? <Link href={href}>{String(row.number)}</Link> : <>{String(row.number)}{canInvoice && <IssueCustomerReceipt base={base} paymentId={String(row.id)} />}</>}</td><td>{String(row.party_name)}</td><td>{String(row.date ?? row.order_date)}</td><td><StatusBadge appearance="standard" status={String(row.status ?? row.state)} /></td><td>{String(row.currency)} {minorToDecimal(Number(row.total_minor ?? Number(row.subtotal_minor) + Number(row.tax_minor)))}</td>{tab === "invoices" && <td>{String(row.currency)} {minorToDecimal(Number(row.outstanding_minor))}</td>}</tr>; })}</tbody></Table></TableFrame>{!rows.length && <p>No documents match these filters.</p>}{data.page && <ListPagination nextCursor={data.page.nextCursor} previousCursor={data.page.previousCursor} query={search} count={rows.length} />}</>}
+      {data.permissionRequired ? <InlineNotice tone="warning">A Commerce read assignment is required to view quotations and sales orders.</InlineNotice> : <><TableFrame appearance="standard" label="Sales documents"><Table><thead><tr><th>Document</th><th>Customer</th><th>Date</th><th>Status</th><th>Total</th>{tab === "invoices" && <th>Outstanding</th>}</tr></thead><tbody>{rows.map(row => { const href = tab === "receipts" ? row.receipt_id ? canonicalUiHref(`${base}/finance/sales/receipts/${row.receipt_id}`) : null : canonicalUiHref(`${base}/${tab === "invoices" ? "finance/invoices" : "commerce/orders"}/${row.id}${tab === "quotations" ? "?type=quote" : ""}`); return <tr key={String(row.id)}><td>{href ? <Link href={href}>{String(row.number)}</Link> : <>{String(row.number)}{canInvoice && <IssueCustomerReceipt base={base} paymentId={String(row.id)} />}</>}</td><td>{String(row.party_name)}</td><td>{String(row.date ?? row.order_date)}</td><td><StatusBadge appearance="standard" status={String(row.status ?? row.state)} /></td><td>{String(row.currency)} {minorToDecimal(Number(row.total_minor ?? Number(row.subtotal_minor) + Number(row.tax_minor)))}</td>{tab === "invoices" && <td>{String(row.currency)} {minorToDecimal(Number(row.outstanding_minor))}</td>}</tr>; })}</tbody></Table></TableFrame>{!rows.length && <p>No documents match these filters.</p>}{data.page && <ListPagination nextCursor={data.page.nextCursor} previousCursor={data.page.previousCursor} query={search} count={rows.length} />}</>}
       {orderOptions && <CommerceEnvironment purchase={tab === "quotations" ? quotePurchase : salesPurchase}><OrderEditor base={base} options={orderOptions} kind={tab === "quotations" ? "quote" : "sales"} initialOpen drawer /></CommerceEnvironment>}
       {search.new === "invoice" && setup && canInvoice && invoiceNewWorkAllowed && approved.length > 0 && <SalesInvoiceEditor base={base} parties={setup.options.parties} defaults={approved} />}
     </div>

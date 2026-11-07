@@ -25,11 +25,65 @@ env:
   ERPX_HEIF_CONVERT: /usr/bin/heif-convert
   ERPX_PDFTOPPM_BIN: /usr/bin/pdftoppm
 jobs:
+  native-worker:
+    name: Explicit native worker compilation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CARGO_BUILD_JOBS: '2'
+      ERPX_CI_CARGO_PROFILE: compact-v1
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.candidate || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26.11.1
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - name: Select the explicit private native prefix
+        shell: bash
+        run: printf 'ERPX_NATIVE_VIPS_PREFIX=%s/erpx-native-vips-8.18.7\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - name: Install explicit native build prerequisites
+        shell: bash
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal --component clippy
+          sudo apt-get update
+          sudo apt-get install -y build-essential binutils pkg-config python3-venv libglib2.0-dev libexpat1-dev libjpeg-dev libpng-dev libwebp-dev libheif-dev libexif-dev liblcms2-dev zlib1g-dev
+      - name: Build the hash-pinned private libvips development prefix
+        shell: bash
+        run: bun scripts/testing/provision-native-worker.ts --prefix="$ERPX_NATIVE_VIPS_PREFIX"
+      - name: Persist exact native compiler link configuration
+        run: bun scripts/testing/native-worker-toolchain.ts export-env
+      - name: Check all native worker targets
+        run: bun scripts/testing/native-worker-toolchain.ts check
+      - name: Require strict native worker Clippy
+        run: bun scripts/testing/native-worker-toolchain.ts clippy
+      - name: Link the actual Rust preview executable
+        run: bun scripts/testing/native-worker-toolchain.ts build
+      - name: Inspect actual ELF RUNPATH and isolated startup
+        run: bun scripts/testing/native-worker-toolchain.ts inspect-linked
+      - name: Retain compile-only native prerequisite receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-worker-compilation-${{ github.sha }}
+          path: .scratch/dev/test-suites/native-worker/
+          if-no-files-found: warn
   verification:
+    env:
+      ERPX_CI_CARGO_PROFILE: compact-v1
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
     name: Affected development verification
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 180
     services:
       postgres:
         image: postgres:18.6
@@ -37,9 +91,11 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: erpx-ci-only
           POSTGRES_DB: postgres
+          # CI-only predicate capacity; keep the existing 32/page-2 promotion thresholds.
+          POSTGRES_INITDB_ARGS: "--set=max_pred_locks_per_transaction=256 --set=max_pred_locks_per_relation=32 --set=max_pred_locks_per_page=2"
         ports: ['5432:5432']
         options: >-
-          --health-cmd 'pg_isready -U postgres -d postgres'
+          --health-cmd "pg_isready -U postgres -d postgres"
           --health-interval 5s --health-timeout 5s --health-retries 12
     steps:
       - uses: actions/checkout@v4
@@ -48,6 +104,11 @@ jobs:
       - uses: ./.github/actions/test-runtime
         with:
           browser: 'true'
+      - name: Install the pinned Rust verification toolchain
+        shell: bash
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          sudo apt-get install -y libssl-dev pkg-config
       - name: Resolve the exact event candidate
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -69,9 +130,40 @@ jobs:
           fi
           echo "ERPX_CI_BASE=$(git rev-parse --verify "$base^{commit}")" >> "$GITHUB_ENV"
           echo "ERPX_CI_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Plan actual selected native compiler prerequisites
+        id: selected-native
+        shell: bash
+        run: bun scripts/testing/native-worker-plan.ts --base="$ERPX_CI_BASE" --head="$ERPX_CI_HEAD"
+      - name: Install selected native development packages
+        if: steps.selected-native.outputs.required == 'true'
+        shell: bash
+        run: sudo apt-get install -y build-essential binutils pkg-config python3-venv libglib2.0-dev libexpat1-dev libjpeg-dev libpng-dev libwebp-dev libheif-dev libexif-dev liblcms2-dev zlib1g-dev
+      - name: Select actual affected-job native paths
+        if: steps.selected-native.outputs.required == 'true'
+        shell: bash
+        run: |
+          printf 'ERPX_NATIVE_VIPS_PREFIX=%s/erpx-selected-vips-8.18.7\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'PKG_CONFIG_PATH=%s/erpx-selected-vips-8.18.7/lib/pkgconfig\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'ERPX_FILES_PREVIEW_BIN=%s/target/debug/erpx-render-preview\n' "$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+          printf 'CARGO_TARGET_DIR=%s/target\n' "$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+      - name: Provision the selected hash-pinned native prefix
+        if: steps.selected-native.outputs.required == 'true'
+        shell: bash
+        run: bun scripts/testing/provision-native-worker.ts --prefix="$ERPX_NATIVE_VIPS_PREFIX"
+      - name: Persist selected compiler link configuration for quality and provider rebuilds
+        if: steps.selected-native.outputs.required == 'true'
+        run: bun scripts/testing/native-worker-toolchain.ts export-env
+      - name: Preflight and link the selected actual preview executable
+        if: steps.selected-native.outputs.required == 'true'
+        run: bun scripts/testing/native-worker-toolchain.ts build
+      - name: Inspect selected actual ELF RUNPATH and isolated startup
+        if: steps.selected-native.outputs.required == 'true'
+        run: bun scripts/testing/native-worker-toolchain.ts inspect-linked
       - name: Run affected checks and development smoke
         shell: bash
-        run: bun run test:ci --base="$ERPX_CI_BASE" --head="$ERPX_CI_HEAD"
+        env:
+          ERPX_CI_POSTGRES_MONITOR_URL: postgresql://postgres:erpx-ci-only@127.0.0.1:5432/postgres
+        run: bun scripts/testing/ci-postgres-resource.ts -- bun run test:ci --base="$ERPX_CI_BASE" --head="$ERPX_CI_HEAD"
       - name: Retain development-only receipts
         if: always()
         uses: actions/upload-artifact@v4
@@ -79,7 +171,11 @@ jobs:
           name: development-verification-${{ github.sha }}
           path: |
             .scratch/dev/test-suites/workspaces/
+            .scratch/dev/test-suites/cargo/
             .scratch/dev/test-suites/browser/
+            .scratch/dev/test-suites/ci-postgres/
+            .scratch/dev/test-suites/ci-prerequisites.json
+            .scratch/dev/test-suites/native-worker/
           if-no-files-found: warn
   acceptance:
     name: Explicit production candidate acceptance
@@ -93,9 +189,11 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: erpx-ci-only
           POSTGRES_DB: postgres
+          # Fresh isolated acceptance service; no shared/local PostgreSQL configuration.
+          POSTGRES_INITDB_ARGS: "--set=max_pred_locks_per_transaction=256 --set=max_pred_locks_per_relation=32 --set=max_pred_locks_per_page=2"
         ports: ['5432:5432']
         options: >-
-          --health-cmd 'pg_isready -U postgres -d postgres'
+          --health-cmd "pg_isready -U postgres -d postgres"
           --health-interval 5s --health-timeout 5s --health-retries 12
     steps:
       - uses: actions/checkout@v4
@@ -105,8 +203,23 @@ jobs:
       - uses: ./.github/actions/test-runtime
         with:
           browser: 'true'
+      - name: Install the pinned Rust acceptance toolchain
+        shell: bash
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          sudo apt-get install -y libssl-dev pkg-config
       - name: Accept the explicitly selected clean candidate
         env:
           CANDIDATE: ${{ inputs.candidate }}
+          ERPX_CI_POSTGRES_MONITOR_URL: postgresql://postgres:erpx-ci-only@127.0.0.1:5432/postgres
         shell: bash
-        run: bun run release:acceptance --candidate="$CANDIDATE"
+        run: bun scripts/testing/ci-postgres-resource.ts -- bun run release:acceptance --candidate="$CANDIDATE"
+      - name: Retain isolated PostgreSQL and prerequisite diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: isolated-runtime-diagnostics-${{ github.sha }}
+          path: |
+            .scratch/dev/test-suites/ci-postgres/
+            .scratch/dev/test-suites/ci-prerequisites.json
+          if-no-files-found: warn

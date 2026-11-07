@@ -98,7 +98,6 @@ export const querySchema = z.object({
 export const procurementQuerySchema = z.object({ metric: z.literal("invoice-match-exceptions"), ...commonFilters }).strict();
 export const salesQuerySchema = z.object({ metric: z.enum(salesMetrics), ...commonFilters }).strict();
 export const salesFulfillmentQuerySchema = z.object({ metric: z.literal(salesFulfillmentMetric), ...commonFilters }).strict();
-export const fieldVisitQuerySchema = z.object({ metric: z.literal(fieldVisitMetric), ...commonFilters }).strict();
 export const manufacturingCostQuerySchema = z.object({ metric: z.literal(manufacturingCostMetric), ...commonFilters }).strict();
 export const qualityQuerySchema = z.object({ metric: z.enum(qualityMetrics), ...commonFilters }).strict();
 export const customerActivityQuerySchema = z.object({ metric: z.literal(customerActivityMetric), ...commonFilters }).strict();
@@ -452,26 +451,6 @@ export type FieldVisitEvidenceRow = {
     status: string;
     version: number;
 };
-export const fieldVisitFields = ["scheduled_at", "visit_completed_at", "status", "version"];
-export function fieldVisitCursorValue(cursor?: string) {
-    if (!cursor)
-        return null;
-    try {
-        const value = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")) as {
-            scheduledAt?: unknown;
-            id?: unknown;
-        };
-        if (typeof value.scheduledAt !== "number" || !Number.isSafeInteger(value.scheduledAt) || typeof value.id !== "string")
-            throw new Error();
-        return { scheduledAt: value.scheduledAt, id: z.string().min(1).max(200).parse(value.id) };
-    }
-    catch {
-        throw new BusinessRuleError(422, "EVIDENCE_CURSOR_INVALID", "The source record cursor is invalid. Refresh the evidence list.");
-    }
-}
-export function encodeFieldVisitCursor(row: Pick<FieldVisitEvidenceRow, "scheduled_at" | "id">) {
-    return Buffer.from(JSON.stringify({ scheduledAt: Number(row.scheduled_at), id: row.id })).toString("base64url");
-}
 export type QualityInspectionRow = {
     id: string;
     hold_id: string;

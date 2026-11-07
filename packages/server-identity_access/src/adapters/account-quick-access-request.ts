@@ -1,3 +1,4 @@
+import {ssoAudienceForHost} from '@erpx/feature-runtime/lib/product-hosts';
 import 'server-only';
 import {currentSession} from '@erpx/server-identity_access/adapters/authorization';
 import {withCurrentSelfAccountPreferences} from '@erpx/server-identity_access/adapters/private-session-preferences';
@@ -27,7 +28,7 @@ export async function accountQuickAccessRequest(request:Request,area:AccountQuic
   surface='account-work-role';contextKey=workspaceBase(parsed.scope);items=accountQuickAccessItems(area,{hasWorkspace:choices.length>0,hasRoles:options.length>0});
  }
  const assertContext=()=>{if(JSON.stringify({session,headers:[...requestHeaders.entries()],url:request.url})!==captured)throw new ApiError(401,'SESSION_REVOKED','The current personal account changed.');};
- return withCurrentSelfAccountPreferences({userId:session.user.id,sessionId:session.session.id,audience:productHostForHost(requestHeaders.get('host'))},async database=>{
+ return withCurrentSelfAccountPreferences({userId:session.user.id,sessionId:session.session.id,audience:ssoAudienceForHost(requestHeaders.get('host'))},async database=>{
   assertContext();return input?saveSessionQuickAccessPreferences(database,{...input,userId:session.user.id,surface,contextKey,availableIds:items.map(item=>item.id)}):readSessionQuickAccessPreferences(database,session.user.id,surface,contextKey);
  },assertContext);
 }

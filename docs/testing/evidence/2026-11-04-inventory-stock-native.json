@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Inventory stock-register reads and goods-receipt source/guards are PostgreSQL/HTTP qualified with opt-in Next SSR; the Commerce receipt command and browser journey remain open",
+  "capability": "inventory-stock-native",
+  "integrationTarget": "codex/rust-backend-migration",
+  "scope": {
+    "domain": "Stock-register row reconciliation across on-hand/reserved/quarantine/lot rows, count lifecycle, receipt Company/order/line/warehouse/tracking guards, stale versions, over-receipt, lot/serial identity, quarantine and value splitting.",
+    "application": "Serializable Company/branch register read and the Inventory-owned receipt source/write seam with deterministic IDs, replay, stale-version and quality-hold guards.",
+    "http": "Registered-Holding GET /inventory/stock-register and /inventory/receipts/{order_id} with normal Account session, workspace CAS, current Inventory purchase and bounded rows.",
+    "frontend": "Opt-in native register reads for the stock and Commerce order pages; the retained receipt drawer still posts to the legacy Commerce command until the Commerce owner calls the Inventory receipt seam in its own transaction."
+  },
+  "tests": [
+    "inventory.rust-stock-register.unit: 4 passed",
+    "inventory.rust-stock-receipt.unit: 4 passed",
+    "inventory.rust-stock-register-postgres.integration: 6 passed",
+    "inventory.rust-stock-receipt-postgres.integration: 4 passed",
+    "inventory.rust-inventory-stock-http-postgres.integration: 1 passed (real cookie/CAS, register + receipt source, wrong origin)",
+    "inventory.native-inventory-stock-transport.unit: 5 passed",
+    "cargo test -p erpx-server-inventory: all registered targets pass"
+  ],
+  "limits": [
+    "The retained inventory/feature-receipts workflow is Commerce-owned; the Inventory receipt seam is not yet called by the native Commerce fulfillment command, so the receipt write journey remains partial.",
+    "Initial physical-stock count create/submit/approve/post writes remain legacy/Supply-owned.",
+    "No authenticated browser journey; inventory/feature-stock-register and feature-receipts are not claimed verified.",
+    "Register reads are bounded to 1000 stock / 2000 lot / 200 count rows and are not cursor-paginated.",
+    "Hosted CI, staging and installed production were not accessed."
+  ]
+}

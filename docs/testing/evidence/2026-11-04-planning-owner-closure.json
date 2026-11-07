@@ -1,0 +1,157 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Planning now has a bounded native demand/supply/capacity workspace read for one Company/branch, an owner-local HTTP router and a strict Next transport/SSR cutover for the Planning scenario, recommendation, resource and calendar lists. The Planning owner remains pending/partial: shared composition mounting, a dedicated Rust package, planning calculate/cancel/release commands, CAS/idempotency receipts, audit/outbox writes, same-transaction Manufacturing/Inventory/Finance/Projects guards and browser acceptance remain open.",
+  "capability": "planning-workspace-native-read",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "d726a0897f853d946c1a0978b1cddeb111357bd8",
+  "branch": "codex/rust-backend-migration",
+  "scope": {
+    "workflows": [
+      "planning/scenarios",
+      "planning/shortages",
+      "planning/recommendations",
+      "planning/feature-capacity",
+      "planning/feature-plan-comparison"
+    ],
+    "workflowBoundary": "The qualified slice reads the current Company/branch planning scenarios with their stored shortage arrays and comparison/capacity context, their one-to-one recommendations, the production resource register, resource-calendar overrides and unreleased planning allocations. It does not calculate a scenario, reserve or release capacity, approve/reject a recommendation, cancel a scenario, create a manufacturing order, post Finance, consume Inventory, write Projects facts or close any of the five workflows.",
+    "domain": "Planning actor policy (`records.read`, exact Planning module, selected-context expiry), exact Company identity, optional branch scope, bounded scenario/recommendation/resource/calendar/allocation counts, exact date/status/version/timestamp shapes, positive quantities and resource versions, bounded weekday arrays, one-to-one scenario/recommendation and resource/calendar coherence, exact shortage arithmetic, exact typed context (demand source, incoming supply, stock witnesses, allocations, operations, comparison) and independent approval state for approved recommendations and owner-cancellation review state for rejected recommendations.",
+    "application": "One `planning_workspace` use case requires the current actor before any repository call, reads only the actor Company/branch planning-owned sources and validates every bounded row before presentation.",
+    "adapters": "Read-only SQL over planning_scenarios, planning_recommendations, production_resources, production_resource_calendar and planning_resource_allocations. The caller's serializable Holding transaction is required. No Manufacturing specification/order, Commerce product, Inventory stock, Finance journal, Projects, Records, IAM or Workflow business row is read or written. No owner write is performed.",
+    "http": "Owner-local GET /api/v1/holdings/{holding_slug}/planning/workspace. Exact Host/Holding targets, exact HTTPS origin validation, duplicate/unknown query rejection, private/no-store plus no-referrer/nosniff responses, exact data envelope validation and bounded BusinessError status mapping. The composition backend receives transport facts only and must supply the normal Account session, current Company/branch/department scope, purchase admission and serializable owner read.",
+    "transport": "ERPX_NATIVE_PLANNING_CONFIG is strictly validated: loopback-only private base, reserved ports 3000/3001/3100/3101/3103/8080 plus 5432/5433/5435 and 3200-3299 excluded, exact HTTPS Holding origins, unique hosts/slugs, 250..30000 ms timeout, bounded cookie/context/workspace headers, exact scenario/recommendation/resource/calendar/allocation/context shapes, unique IDs and references, shortage arithmetic, Company/branch scope and a 2 MiB response bound. A configured failure never falls back to the retained reader.",
+    "ssr": "The Planning presenter uses the native workspace when ERPX_NATIVE_PLANNING_CONFIG is present. Native scenario rows replace the console plan options/cards, native recommendations replace the independent-review list, and native resources/calendar replace the resource configuration/capacity lists. A native register section renders shortages and unreleased capacity allocations. The retained specification, warehouse, product and demand-source labels are still loaded by the retained Planning workspace read and are used only as display labels. An unset configuration retains the legacy lists; once configured, an invalid or failed native read is surfaced rather than silently replaced.",
+    "purchaseAndIdentity": "The Next owned wrapper keeps the retained Planning module, `records.read` and `requireManufacturingPurchasedRead` (module `planning`, capability `planning.basic`) preflight ahead of the native read. This is a preflight, not an atomic owner unit; the composition backend must repeat current authority and purchase admission on its own serializable owner transaction.",
+    "notClaimed": "No planning scenario calculation, scenario cancellation, recommendation approval/rejection, capacity reservation/release, manufacturing-order release, resource/calendar command, CAS write, idempotency receipt, audit/outbox effect, same-transaction cross-owner guard, shared composition mount, dedicated root workspace package, browser journey, staging or production acceptance."
+  },
+  "changedFiles": [
+    "packages/server-manufacturing/Cargo.toml",
+    "packages/server-manufacturing/src/domain/mod.rs",
+    "packages/server-manufacturing/src/domain/planning.rs",
+    "packages/server-manufacturing/src/application/mod.rs",
+    "packages/server-manufacturing/src/application/planning.rs",
+    "packages/server-manufacturing/src/adapters/mod.rs",
+    "packages/server-manufacturing/src/adapters/planning_read.rs",
+    "packages/server-manufacturing/src/adapters/planning_http.rs",
+    "packages/server-manufacturing/src/public/mod.rs",
+    "packages/server-manufacturing/src/public/planning.rs",
+    "packages/server-manufacturing/src/public/planning_http.rs",
+    "packages/feature-manufacturing/package.json",
+    "packages/feature-manufacturing/src/lib/native-planning-types.ts",
+    "packages/feature-manufacturing/src/public/native-planning-workspace.ts",
+    "packages/feature-manufacturing/src/public/native-planning-workspace-page.ts",
+    "packages/feature-manufacturing/src/public/native-planning-workspace-owned.ts",
+    "packages/feature-manufacturing/src/adapters/server/next-native-planning-workspace.ts",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/planning/screen.tsx",
+    ".env.example",
+    "tests/unit/planning/rust-planning-workspace.test.rs",
+    "tests/unit/planning/rust-planning-workspace-http.test.rs",
+    "tests/integration/planning/rust-planning-workspace-postgres.test.rs",
+    "tests/unit/planning/native-planning-workspace-transport.test.ts",
+    "docs/testing/evidence/2026-11-04-planning-owner-closure.json"
+  ],
+  "verification": {
+    "cargo": {
+      "command": "cargo test -p erpx-server-manufacturing --locked",
+      "result": "29 passed, 0 failed, 0 ignored across 6 targets plus the empty lib/doc targets (lib 0, manufacturing_bom 9, manufacturing_bom_http 2, manufacturing_bom_postgres 4, planning_workspace 8, planning_workspace_http 2, planning_workspace_postgres 4)",
+      "packageNote": "The migration register names `erpx-server-planning`, but no Rust crate or workspace member exists at packages/server-planning. The actual writable package that already hosts the Manufacturing/Planning placement is `erpx-server-manufacturing`; the command above is the actual-package command. This subagent is prohibited from editing root Cargo.toml/Cargo.lock, so no dedicated planning crate was registered.",
+      "targets": {
+        "planning_workspace": "8 passed: policy permission/module/context before source reads, exact serialized workspace, foreign Company/branch rejection, duplicate/orphan/incoherent references, shortage and typed-context corruption, independent review state, bounded limits, repository failure propagation and stored JSON parsing negatives",
+        "planning_workspace_http": "2 passed: exact distinct HTTPS targets and actual loopback request/query/error mapping plus private/no-referrer/nosniff headers",
+        "planning_workspace_postgres": "4 passed: current branch scenarios/recommendations/resources/calendar/allocations with shortage/context readback and no owner write, Company-wide read excluding a foreign Company, transaction/serializable guards, policy-before-source, controlled rollback and committed readback with released allocations excluded"
+      }
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-manufacturing --all-targets --locked -- -D warnings",
+      "result": "pass; no erpx-server-manufacturing warning"
+    },
+    "rustfmt": {
+      "command": "rustfmt --edition 2024 --check on every changed Rust file",
+      "result": "pass"
+    },
+    "postgres": {
+      "suite": "planning_workspace_postgres (raw migrated PostgreSQL, disposable leased erpx_dev_rust_* database)",
+      "cases": [
+        "a branch planner reads only its branch scenario, recommendation, resource, calendar override and unreleased allocation; a released allocation is excluded and the seeded row counts do not change",
+        "a Company-wide planner sees both Company branches and never sees the foreign Company; a foreign planner sees only its own scenario/resource/recommendation",
+        "a reader outside a transaction or inside a non-serializable transaction fails closed before any source read",
+        "a missing records.read permission fails before source reads; a scenario inserted inside the owner transaction is visible only to that read and disappears on rollback; committed readback contains only the seeded rows"
+      ],
+      "fixture": "Real migrated PostgreSQL with synthetic Company/branch/product/warehouse/specification/resource/scenario/recommendation/calendar/allocation rows. The adapter reads only planning-owned tables. No owner write occurs in the qualified read path."
+    },
+    "httpRouter": {
+      "tests": [
+        "actual loopback router forwards the exact Holding target and returns owner data plus rendered context",
+        "unknown query is 422 PLANNING_REQUEST_INVALID; unknown Host/Holding is 404; backend conflict is 409 PLANNING_WORKSPACE_SOURCE_CHANGED",
+        "responses carry private/no-store, no-referrer and nosniff headers",
+        "duplicate targets, non-HTTPS origins and malformed Holding slugs fail configuration"
+      ],
+      "limit": "The router test uses a recording backend; it does not prove the shared composition backend or a PostgreSQL-backed HTTP request."
+    },
+    "typescript": {
+      "typechecks": [
+        "node_modules/.bin/tsc --noEmit --project packages/feature-manufacturing/tsconfig.json: pass",
+        "node_modules/.bin/tsc --noEmit --project packages/workplace/tsconfig.json: pass",
+        "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json: pass"
+      ],
+      "eslint": "eslint on the changed TypeScript files: exit 0; the repository's existing pages-directory warning only",
+      "unit": "vitest tests/unit/planning/native-planning-workspace-transport.test.ts: 7 passed, 0 failed (exact forwarding, owner error, changed context/foreign Company/wrong branch/orphan/duplicate/shortage/extra-key negatives, self-review/owner-cancellation distinction and unknown allocation resource negatives, unset selector, reserved-port/insecure-origin/malformed configuration, failure mapping)",
+      "retained": "vitest tests/unit/planning/production-services.test.ts and tests/unit/planning/planning-capacity.test.ts with ERPX_SELECTED_TEST_FILES: 169 passed, 0 failed",
+      "limits": "Bun 1.4.3 is not installed in this worktree, so the Bun catalogue runner was not executed. The new transport test was run with a temporary Vitest config under ignored .scratch/planning/, now removed; the retained planning tests were run through the normal unit config. No catalogue suite-manifest registration was authored by this subagent."
+    },
+    "structure": {
+      "layout": "node_modules/.bin/tsx scripts/testing/layout.ts: exit 0, no output",
+      "diffCheck": "git diff --check on the Planning-owned changed files: pass"
+    },
+    "architecture": {
+      "command": "cargo test -p erpx-server-runtime --test rust_architecture --locked",
+      "result": "not claimed as passing: the shared architecture test reports existing owner violations in server-pos, server-support, server-ecommerce, server-brand, server-manage_erpx, server-platform_administration, server-legal and server-maintenance from other uncommitted work. No packages/server-manufacturing/src/{domain,application,adapters}/planning* path appears in those failures."
+    },
+    "browser": "not run; no Next dev server, authenticated page render, public URL or browser acceptance was executed. No workflow is claimed browser-verified."
+  },
+  "preExistingFailures": {
+    "sharedWorktree": "Other agents were editing the same worktree while this slice ran. Their root Cargo.toml/Cargo.lock member and lock changes, feature-sales/ecommerce files, customer_360 files and workplace ecommerce presenter changes were not edited, reverted or included in this slice. The concurrent Ecommerce env-example block was preserved.",
+    "rootManifests": "The final root Cargo.toml/Cargo.lock contain other agents' concurrent package registrations. This subagent authored neither file; `cargo test -p erpx-server-manufacturing --locked` passes with the current shared manifests.",
+    "catalogue": "tests/catalogue/suite-manifest.json was not edited because shared registers and other agents' files must not be changed by this subagent. The new Rust targets are declared in packages/server-manufacturing/Cargo.toml and were run directly; the new TS test is present and was run with an equivalent temporary config."
+  },
+  "sharedCompositionDelta": {
+    "ownerPublicApi": [
+      "erpx_server_manufacturing::public::planning::{PlanningActor, PlanningWorkspace, PlanningScenario, PlanningRecommendation, PlanningResource, PlanningCalendarDay, PlanningAllocation, PlanningShortage, PlanningContext, PlanningReadFuture, PlanningWorkspaceRepository, PgPlanningWorkspaceRead, planning_workspace, validate_workspace, parse_context, parse_shortages, parse_work_weekdays}",
+      "erpx_server_manufacturing::public::planning_http::{PlanningHttpBackend, PlanningHttpFuture, PlanningHttpRequest, PlanningHttpResponse, PlanningHttpState, PlanningHttpTarget, planning_router}"
+    ],
+    "backendRequired": "Implement PlanningHttpBackend in src/composition: parse the normal Account/Holding request, require `records.read`, the Planning module and the configured Holding/Company/branch/department, run one serializable transaction, build PlanningActor from current authority, call planning_workspace with PgPlanningWorkspaceRead, serialize the workspace, supply the 15-field rendered context, and map PgTransactionError to BusinessError.",
+    "privateDevelopmentApi": [
+      "Build one PlanningHttpTarget per registered Holding with exact host, slug and https origin.",
+      "router = router.merge(erpx_server_manufacturing::public::planning_http::planning_router(targets).map_err(|_| \"PRIVATE_API_PLANNING_CONFIGURATION_INVALID\")?);",
+      "Mount /planning/workspace before the generic 404 fallback."
+    ],
+    "rootWorkspace": "No dedicated Rust planning package is registered. If the migration register is to remain literal, the integration owner should either add packages/server-planning as an owner crate (with its own test targets and root workspace/lock entry) or correct the register's package identity. This subagent did not make that shared edit.",
+    "nextEnvironment": "Set ERPX_NATIVE_PLANNING_CONFIG={\"privateBaseUrl\":\"http://127.0.0.1:<owned-loopback-port>\",\"timeoutMs\":250..30000,\"holdings\":[{\"origin\":\"https://<registered-holding>\",\"holdingSlug\":\"<slug>\",\"holdingId\":\"h00N\"}]} for each affected app.",
+    "schema": "No PostgreSQL schema or migration change is required. No dependency was added or updated; the existing shared/runtime/serde/sqlx workspace set and the existing http_support re-exports are used. No package lockfile was changed."
+  },
+  "legacyInventory": {
+    "removed": [
+      "When ERPX_NATIVE_PLANNING_CONFIG is present, the Planning console plan/option list, independent recommendation review list, production-resource list and calendar list are sourced from native Planning rows instead of the retained `productionWorkspace` lists.",
+      "The native planning register section (scenario shortages, feasible recommendation state and unreleased capacity allocations) exists only with the native configuration.",
+      "No retained TypeScript Planning source file was deleted. Planning scenario calculation/cancellation, recommendation approval/rejection, resource/calendar commands, conflict comparison creation, attachments and record details remain on their existing owner paths."
+    ],
+    "retainedWithConsumers": [
+      "packages/server-planning/src/application/scenarios.ts, resources.ts and capacity.ts retain the Planning commands, capacity planner and existing unit suite.",
+      "packages/server-manufacturing/src/adapters/production.ts and public/production.ts retain productionWorkspace/create/cancel/review entry points used by the planning page and API route.",
+      "packages/feature-manufacturing/src/routes/api/v1/holdings/[holdingSlug]/production/route.ts remains the retained Planning read/command API; the qualified cutover is SSR plus the owner-local native read router.",
+      "The retained specification, warehouse, product and demand-source lists still come from productionWorkspace; they are display labels for native scenario rows, not a fallback for native scenario/recommendation/resource/calendar rows.",
+      "The unset-config fallback keeps the retained Planning lists available so development and existing unit suites remain usable."
+    ],
+    "cutover": "Only the four Planning list reads switch to the native owner when configured. A configured native failure throws through pageError/ApiError and never reads the retained list as a fallback."
+  },
+  "blockersAndNextAction": {
+    "blockers": [
+      "No composition backend implements PlanningHttpBackend, builds the Account/Company/branch context or mounts planning_router",
+      "No dedicated `erpx-server-planning` Rust workspace package exists; the migration register's package identity is not matched by the current Rust tree",
+      "Planning calculate/cancel/release commands, idempotency receipts, versions/CAS writes, audit/outbox and same-transaction Manufacturing/Inventory/Finance/Projects guards remain unimplemented natively",
+      "The shared rust_architecture test is currently red for unrelated owners' uncommitted work",
+      "No authenticated browser or deployment verification was performed; no workflow is accepted"
+    ],
+    "nextAction": "Have the composition owner implement the Planning backend and mount the router behind Account session and current scope, then qualify the highest-risk Planning command (scenario calculate or recommendation approve/release) with idempotency, CAS, audit/outbox and same-transaction cross-owner guards. Resolve the `erpx-server-planning` package identity in the shared workspace/register at the same time. Browser acceptance remains deferred."
+  }
+}

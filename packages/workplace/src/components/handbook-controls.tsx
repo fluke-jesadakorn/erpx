@@ -5,7 +5,7 @@ import { Button, Field, Select, TextArea, TextInput } from "@erpx/ui/components/
 
 import { useRouter } from "@erpx/feature-shared/lib/destination-router";
 import { useHydrated } from "@erpx/ui/components/use-hydrated";
-import { useRecoverableDraft } from "@erpx/ui/components/use-recoverable-draft";
+import { useRecoverableDraft } from "@erpx/feature-shared/components/use-recoverable-draft";
 import {useHandbookCommand} from '@erpx/workplace/components/use-handbook-command';
 import type {HandbookPurchaseControls} from '@erpx/server-collaboration/public/handbook-purchases';
 import {DraftFormDrawer} from '@erpx/ui/components/draft-form-drawer';

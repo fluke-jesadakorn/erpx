@@ -177,6 +177,26 @@ describe("Leave attachment serialization", () => {
     expect(await db.prepare("SELECT count(*)::int count FROM attachment_sets WHERE target_type='leave_request' AND target_id=?").bind(requestId).first("count")).toBe(0);
   });
 
+  it("locks Leave before upload rows when approval races file completion", async () => {
+    const requestId=await leaveRequest();const {reservation}=await stagedReservation(requestId);
+    let releaseApproval!:()=>void,reportLock!:(pid:number)=>void;
+    const locked=new Promise<number>(resolve=>{reportLock=resolve;}),release=new Promise<void>(resolve=>{releaseApproval=resolve;});
+    const approval=db.transaction(async tx=>{
+      const pid=Number(await tx.prepare("SELECT pg_backend_pid() pid").first("pid"));
+      await tx.prepare("SELECT id FROM leave_requests WHERE id=? AND company_id=? FOR UPDATE").bind(requestId,company).run();reportLock(pid);await release;
+      await tx.prepare("UPDATE leave_requests SET state='approved',version=2,updated_at=2 WHERE id=?").bind(requestId).run();
+    });
+    const pid=await locked,content=pdf.buffer.slice(pdf.byteOffset,pdf.byteOffset+pdf.byteLength);
+    const upload=completeAttachmentUpload(db,env.H001_FILES,requester,reservation.uploadIntentId,content).then(value=>({value,error:null}),error=>({value:null,error}));
+    try {
+      await waitUntilBlockedBy(pid);
+      await db.transaction(async tx=>{await tx.prepare("SELECT id FROM upload_intents WHERE id=? FOR UPDATE NOWAIT").bind(reservation.uploadIntentId).run();});
+    } finally {releaseApproval();}
+    await approval;const outcome=await upload;expect(outcome.value).toBeNull();expect(outcome.error).toBeDefined();
+    expect(await db.prepare("SELECT count(*)::int count FROM attachments WHERE upload_id=?").bind(reservation.uploadIntentId).first("count")).toBe(0);
+    expect(await env.H001_FILES.head(`h001/quarantine/${reservation.uploadIntentId}/original`)).toBeNull();
+  });
+
   it("never attaches completed bytes to a set that is already bound", async () => {
     const requestId = await leaveRequest();
     const { set, reservation } = await stagedReservation(requestId);

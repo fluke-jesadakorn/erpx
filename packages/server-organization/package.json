@@ -26,7 +26,6 @@
     "./adapters/executive-metric-projections": "./src/adapters/executive-metric-projections.ts",
     "./adapters/member-profiles": "./src/adapters/member-profiles.ts",
     "./adapters/public-marketing-receiving-branch": "./src/adapters/public-marketing-receiving-branch.ts",
-    "./adapters/work-role-path-facts": "./src/adapters/work-role-path-facts.ts",
     "./adapters/company-acceptance-result-projection": "./src/adapters/company-acceptance-result-projection.ts",
     "./adapters/people-app-entrypoint-facts": "./src/adapters/people-app-entrypoint-facts.ts",
     "./adapters/pos-core-facts": "./src/adapters/pos-core-facts.ts",
@@ -144,7 +143,6 @@
     "./public/authority-contract": "./src/public/authority-contract.ts",
     "./public/draft-contract": "./src/public/draft-contract.ts",
     "./public/public-marketing-receiving-branch": "./src/public/public-marketing-receiving-branch.ts",
-    "./public/work-role-path-facts": "./src/public/work-role-path-facts.ts",
     "./public/company-acceptance-result-projection": "./src/public/company-acceptance-result-projection.ts",
     "./public/people-app-entrypoint-facts": "./src/public/people-app-entrypoint-facts.ts",
     "./public/pos-core-facts": "./src/public/pos-core-facts.ts",
@@ -298,9 +296,9 @@
     "@erpx/server-runtime": "workspace:*",
     "@erpx/server-shared": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
-    "pg": "8.23.0",
-    "react": "19.3.0",
+    "pg": "8.23.1",
+    "react": "19.3.1",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

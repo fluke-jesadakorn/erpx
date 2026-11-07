@@ -12,6 +12,7 @@ export type RecordDocumentPurpose = {
   description: string;
   visibility?: string;
   editable?: boolean;
+  nativeLifecycle?: boolean;
 };
 
 type RecordDocumentPanelProps = {
@@ -22,6 +23,7 @@ type RecordDocumentPanelProps = {
   title?: string;
   purposes: readonly RecordDocumentPurpose[];
   editable?: boolean;
+  nativeLifecycle?: boolean;
 };
 
 export function RecordDocumentPanel(props: (RecordDocumentPanelProps) & { appearance?: UiAppearance }) {
@@ -43,6 +45,7 @@ function RecordDocumentPanelContent({ appearance = "legacy",
   title = "Record documents",
   purposes,
   editable = true,
+  nativeLifecycle = false,
 }: (RecordDocumentPanelProps) & { appearance?: UiAppearance }) {
   const [purposeKey, setPurposeKey] = useState(purposes[0]?.key ?? "");
   const [available, setAvailable] = useState<boolean | null>(null);
@@ -73,6 +76,7 @@ function RecordDocumentPanelContent({ appearance = "legacy",
         description={purpose.description}
         visibility={purpose.visibility}
         bindMode="record"
+        nativeLifecycle={nativeLifecycle}
         readOnly={!editable || purpose.editable === false}
         showHistory
         onAvailabilityChange={setAvailable}

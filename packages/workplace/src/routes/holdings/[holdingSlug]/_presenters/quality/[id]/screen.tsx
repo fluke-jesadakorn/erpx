@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {QualityEnvironment} from "@erpx/feature-quality/components/quality-purchase-context";
 import {qualityPurchaseControls} from "@erpx/server-quality/public/purchases";
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
@@ -12,6 +13,8 @@ import { requireWorkContext, publicScope } from "@erpx/server-identity_access/pu
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { qualityAlerts } from "@erpx/server-quality/public/quality-alerts";
 import { qualityDetail } from "@erpx/server-quality/public/quality";
+import { QualityCancellationHistory } from "@erpx/feature-quality/components/quality-cancellation-history";
+import { nativeQualityAvailable, nativeQualityCancellationHistory, nativeQualityDetailCore } from "@erpx/feature-quality/public/native-quality";
 import { accessPage } from "@erpx/server-work_projection/public/page-error";
 import styles from "@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/quality/[id]/quality-detail.module.css";
 
@@ -39,10 +42,44 @@ export default async function Page({
   const base = workspaceBase(publicScope(actor));
   let data: Awaited<ReturnType<typeof qualityDetail>>;
   let alerts: Awaited<ReturnType<typeof qualityAlerts>>;
+  let cancellationHistory:
+    | Awaited<ReturnType<typeof nativeQualityCancellationHistory>>
+    | undefined;
 
   try {
     data = await qualityDetail(actor, id);
     alerts = (await qualityAlerts(actor)).filter((alert) => alert.hold_id === id);
+    if (nativeQualityAvailable()) {
+      const native = await nativeQualityDetailCore(holdingSlug, id);
+      if (!native)
+        throw new ApiError(
+          503,
+          "NATIVE_QUALITY_UNAVAILABLE",
+          "The native Quality service is unavailable.",
+        );
+      cancellationHistory = await nativeQualityCancellationHistory(holdingSlug, id);
+      if (!cancellationHistory)
+        throw new ApiError(
+          503,
+          "NATIVE_QUALITY_UNAVAILABLE",
+          "The native Quality service is unavailable.",
+        );
+      data = {
+        ...data,
+        cancellations: [],
+        canInspect: native.hold.decision.canInspect,
+        canRelease: native.hold.decision.canRelease,
+        canCancel: native.hold.decision.canCancel,
+        canReviewCancellation: native.hold.decision.canReviewCancellation,
+        canDisposition: native.hold.decision.canDisposition,
+        hold: {
+          ...data.hold,
+          version: native.hold.version,
+          status: native.hold.status,
+          last_result: native.hold.lastResult,
+        },
+      };
+    }
   } catch (error) {
     if (error instanceof ApiError && error.status === 403) {
       return accessPage("permission", actor.holdingSlug);
@@ -276,6 +313,26 @@ export default async function Page({
               </p>
             )}
           </section>
+
+          {cancellationHistory &&
+            (cancellationHistory.items.length > 0 ||
+              status === "cancel_pending" ||
+              status === "cancelled") && (
+              <QualityCancellationHistory
+                holdId={id}
+                endpoint={`/api/v1/holdings/${encodeURIComponent(holdingSlug)}/quality/${encodeURIComponent(id)}/cancellations`}
+                initialPage={cancellationHistory}
+                contextResetKey={
+                  actor.authority
+                    ? createHash("sha256").update(JSON.stringify([
+                        actor.holdingId, actor.companyId, actor.branchId, actor.departmentId,
+                        actor.userId, actor.assignmentId, actor.authority.sessionId,
+                        actor.authority.assignmentVersion, actor.authority.revision,
+                      ])).digest("hex")
+                    : ""
+                }
+              />
+            )}
         </div>
 
         <aside className={styles.workflowColumn} aria-label="Quality workflow">

@@ -1,0 +1,9 @@
+{
+  "provenance": {
+    "envelope": "Node crypto AES-256-GCM; synthetic fixed data key and IV; generated locally. Never operator credentials.",
+    "subscriptionKeys": "Public RFC 8291 Appendix A example",
+    "source": "https://www.rfc-editor.org/rfc/rfc8291.html#appendix-A"
+  },
+  "dataKey": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM",
+  "sealed": "BwcHBwcHBwcHBwcHIiyjKfn_0HKQMcGXdO5sMm8Poc1wGPXMVOpZ2QV-0IE-jVmq1K-IcmS_vH_EMePNYxWoHHkMWAMEDUDkXQWJTd5NpFzxQFeeHyTKRxL6YstpUDOKgL8OvFxykCJYn3AIbczEPOSd2mjPe1NRTxb3ETGuEoJJ8BarDHspWzdV4d-e85G_mOeWOxTGRgw-Fun36WhDg2-rmarj0LiglWzdASDFvkQKO60luZnA3m021ZNYTIneXtoFgz8Ki6Y0U9BfjDYXzcankl80EYYQjTczh7itfZMTlVregvq_en0jrS0"
+}

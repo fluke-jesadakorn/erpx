@@ -792,6 +792,7 @@ export function BackofficePmsWorkspace(props: {
               {p.state === "setup" && (
                 <SetupChecklist
                   title={tr("Hotel readiness")}
+                  labels={{ready:tr("Ready"),review:tr("Review"),setup:tr("Set up"),remaining:count=>language==="th"?`เตรียม ${count} รายการ`:`${count} to prepare`}}
                   items={
                     data.readiness.length
                       ? data.readiness.map((label, index) => ({

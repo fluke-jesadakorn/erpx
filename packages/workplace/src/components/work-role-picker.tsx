@@ -1,4 +1,5 @@
 "use client";
+import {holdingFetch} from '@erpx/contracts/holding-fetch';
 import { InlineNotice } from "@erpx/ui/components/foundation";
 
 import { Button } from "@erpx/ui/components/foundation";
@@ -49,7 +50,7 @@ export function WorkRolePicker({
               from,
               returnTo: from,
               action: async () => {
-                const response = await fetch(`/api/v1${base}/assignments/active`, {
+                const response = await holdingFetch(`/api/v1${base}/assignments/active`, {
                   method: "POST",
                   headers: {
                     "content-type": "application/json",

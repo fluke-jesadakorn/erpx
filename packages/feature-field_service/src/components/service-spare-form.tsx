@@ -7,10 +7,10 @@ import { PreferredDateTimeField } from "@erpx/feature-people_payroll/components/
 import { Button, Field, Select, TextArea, TextInput } from "@erpx/ui/components/foundation";
 import { quantityMilli } from "@erpx/feature-commerce/lib/commerce-math";
 import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
-import type { availableServiceSpares } from "@erpx/server-inventory/public/inventory-consumption";
+import type { FieldDetail } from "@erpx/feature-field_service/lib/workspace";
 import { FormLayout } from "@erpx/ui/components/foundation";
 
-type Spares = Awaited<ReturnType<typeof availableServiceSpares>>;
+type Spares = FieldDetail["spares"];
 type Reservation = { id: string; warehouseId: string; productId: string; remainingMilli: number };
 
 export function ServiceSpareForm({ spares, reservations, busy, onSubmit, mode = "issue" }: {

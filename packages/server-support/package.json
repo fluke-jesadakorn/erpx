@@ -22,10 +22,8 @@
     "./adapters/executive-metric-projections": "./src/adapters/executive-metric-projections.ts",
     "./adapters/support-notification-sources": "./src/adapters/support-notification-sources.ts",
     "./adapters/attachments-portal-facts": "./src/adapters/attachments-portal-facts.ts",
-    "./adapters/field-service-sources": "./src/adapters/field-service-sources.ts",
     "./adapters/attachment-purchases": "./src/adapters/attachment-purchases.ts",
     "./adapters/ticket-portal": "./src/adapters/ticket-portal.ts",
-    "./adapters/service-intake": "./src/adapters/service-intake.ts",
     "./adapters/service-team-reads": "./src/adapters/service-team-reads.ts",
     "./adapters/hospitality-owner-projection-sources": "./src/adapters/hospitality-owner-projection-sources.ts",
     "./adapters/support-recipient": "./src/adapters/support-recipient.ts",
@@ -50,7 +48,6 @@
     "./adapters/incident-attachment-read": "./src/adapters/incident-attachment-read.ts",
     "./adapters/support-ticket-read-sources": "./src/adapters/support-ticket-read-sources.ts",
     "./adapters/commercial-owner-projection-sources": "./src/adapters/commercial-owner-projection-sources.ts",
-    "./adapters/service-package-obligations": "./src/adapters/service-package-obligations.ts",
     "./adapters/ticket-portal-request": "./src/adapters/ticket-portal-request.ts",
     "./adapters/support": "./src/adapters/support.ts",
     "./adapters/support-incidents-notification-sources": "./src/adapters/support-incidents-notification-sources.ts",
@@ -73,10 +70,8 @@
     "./public/executive-metric-projections": "./src/public/executive-metric-projections.ts",
     "./public/support-notification-sources": "./src/public/support-notification-sources.ts",
     "./public/attachments-portal-facts": "./src/public/attachments-portal-facts.ts",
-    "./public/field-service-sources": "./src/public/field-service-sources.ts",
     "./public/attachment-purchases": "./src/public/attachment-purchases.ts",
     "./public/ticket-portal": "./src/public/ticket-portal.ts",
-    "./public/service-intake": "./src/public/service-intake.ts",
     "./public/service-team-reads": "./src/public/service-team-reads.ts",
     "./public/hospitality-owner-projection-sources": "./src/public/hospitality-owner-projection-sources.ts",
     "./public/support-recipient": "./src/public/support-recipient.ts",
@@ -96,7 +91,6 @@
     "./public/attachments-service-facts": "./src/public/attachments-service-facts.ts",
     "./public/incident-attachment-read": "./src/public/incident-attachment-read.ts",
     "./public/commercial-owner-projection-sources": "./src/public/commercial-owner-projection-sources.ts",
-    "./public/service-package-obligations": "./src/public/service-package-obligations.ts",
     "./public/support": "./src/public/support.ts",
     "./public/support-incidents": "./src/public/support-incidents.ts",
     "./public/package-obligations": "./src/public/package-obligations.ts",
@@ -132,7 +126,6 @@
   },
   "dependencies": {
     "@erpx/catalogue": "workspace:*",
-    "@erpx/contracts": "workspace:*",
     "@erpx/feature-identity_access": "workspace:*",
     "@erpx/feature-people_payroll": "workspace:*",
     "@erpx/feature-runtime": "workspace:*",
@@ -159,6 +152,6 @@
     "@erpx/server-shared": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

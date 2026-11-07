@@ -4,6 +4,12 @@ import { requireWorkContext, publicScope } from "@erpx/server-identity_access/pu
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { marketingDetail } from "@erpx/server-marketing/public/marketing";
+import {
+  nativeMarketingLeadDetail,
+  nativeMarketingLeadFailure,
+} from "@erpx/feature-marketing/public/native-marketing-lead";
+import { ApiError } from "@erpx/server-runtime/public/http";
+import { headers } from "next/headers";
 import { MarketingConsole } from "@erpx/feature-records/components/loaders/modules--marketing-console";
 import { PageContent, Card } from "@erpx/ui/components/foundation";
 export const dynamic = "force-dynamic";
@@ -15,7 +21,14 @@ export default async function Page({
   const { holdingSlug, id } = await params,
     a = await requireWorkContext(holdingSlug),
     base = workspaceBase(publicScope(a)),
-    data = await marketingDetail(a, id).catch((e) => pageError(e, holdingSlug)),
+    native = await nativeMarketingLeadDetail(await headers(), a, id).catch((e) => {
+      const failure = nativeMarketingLeadFailure(e);
+      if (failure) throw new ApiError(failure.status, failure.code, failure.message);
+      return pageError(e, holdingSlug);
+    }),
+    data = (native ?? (await marketingDetail(a, id).catch((e) => pageError(e, holdingSlug)))) as Awaited<
+      ReturnType<typeof marketingDetail>
+    >,
     x = data.candidate;
   return (
     <PageContent as="div" className="ui-page-content">

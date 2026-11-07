@@ -21,6 +21,6 @@ export default async function Inbox({params,searchParams}:{ params: Promise<{ ho
       initialPerson={typeof query.person==="string"?query.person:undefined}
       initialRoom={typeof query.room==="string"?query.room:undefined}
       notificationUnread={summary.unread}
-      updates={tab==="updates"?<InboxUpdates base={base} canBroadcast={hasPermission(actor,"inbox.notice.broadcast")}/>:null}/>
+      updates={tab==="updates"?<InboxUpdates key={JSON.stringify([actor.userId,actor.companyId,actor.assignmentId,actor.authority?.revision,actor.authority?.assignmentVersion])} base={base} canBroadcast={hasPermission(actor,"inbox.notice.broadcast")}/>:null}/>
   </PageContent>;
 }

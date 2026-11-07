@@ -1,5 +1,5 @@
+import {nativeFieldFinancialWork} from "@erpx/server-finance/public/native-field-work";
 import {filterWorkTaskWork} from "@erpx/server-operations/public/record-purchases";
-import {filterServiceWork} from "@erpx/server-field_service/public/record-purchases";
 import {filterBenefitWork} from "@erpx/server-benefits/public/record-purchases";
 import {filterWorkforceWork} from "@erpx/server-people_payroll/public/workforce-record-purchases";
 import {filterFollowupPurchasedWork} from "@erpx/server-sales/public/followup-purchases";
@@ -18,7 +18,7 @@ import { BusinessRuleError } from '@erpx/server-shared/index';
 import { requireFlowAccess } from '@erpx/server-workflow/public/flow-access';
 import {resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import { policyRead } from '@erpx/server-identity_access/public/iam-read-snapshot';
-import { createFlowWorkApplication } from '@erpx/server-workflow/application/flow-work';
+import { createFlowWorkApplication,reconcileFieldServiceWork } from '@erpx/server-workflow/application/flow-work';
 import { flowWorkActionKind, workFlowKind } from '@erpx/server-workflow/domain/flow-work';
 import { workflowReferenceRows as commerceReferences } from '@erpx/server-commerce/public/workflow-read-sources';
 import { workflowReferenceRows as financeReferences } from '@erpx/server-finance/public/workflow-document-sources';
@@ -63,11 +63,16 @@ catch (error) {
 } }
 async function currentFinancialItems(actor:WorkContext,items:WorkItem[]):Promise<WorkItem[]>{
  if(!items.some(item=>item.type==="invoice"||item.type==="journal"))return items;
+ const native=await nativeFieldFinancialWork(actor).catch(error=>{if(error instanceof ApiError&&error.status===403)return [];throw error;});
+ const sources=new Map((native??[]).map(item=>[JSON.stringify([item.type,item.id]),item]));
+ items=items.map(item=>sources.get(JSON.stringify([item.type,item.id]))??item);
+ if(items.every(item=>!["invoice","journal"].includes(item.type)||sources.has(JSON.stringify([item.type,item.id]))))return items;
  const database=(await holdingResources(actor.holdingId)).write,access=await financeFlowAccess(database,actor);
  if(access.history&&access.settleExisting)return items;
  const visible:WorkItem[]=[];
  for(const item of items){
   if(item.type!=="invoice"&&item.type!=="journal"){visible.push(item);continue;}
+  if(sources.has(JSON.stringify([item.type,item.id]))){visible.push(sources.get(JSON.stringify([item.type,item.id]))!);continue;}
   if(!access.history){try{await requireFinanceDocumentHistory(database,actor,item.type,item.id);}catch(error){if(error instanceof ApiError&&[403,404].includes(error.status))continue;throw error;}}
   visible.push({...item,canAct:false,actionKind:"work",queue:item.queue==="completed"?"completed":"waiting",nextAction:"Review retained Finance source",flow:item.flow?{...item.flow,canAct:false,canManage:false}:undefined,relationships:(item.relationships??[]).filter(value=>!["assigned","approval"].includes(value))});
  }
@@ -111,7 +116,14 @@ async function currentMarketingItems(actor:WorkContext,items:WorkItem[]){return 
 async function currentFollowupItems(actor:WorkContext,items:WorkItem[]){return items.some(item=>item.type==="customer_followup")?filterFollowupPurchasedWork((await holdingResources(actor.holdingId)).write,actor,items):items;}
 async function currentWorkforceItems(actor:WorkContext,items:WorkItem[]){return items.some(item=>item.type==="leave"||item.type==="overtime")?filterWorkforceWork((await holdingResources(actor.holdingId)).write,actor,items):items;}
 async function currentBenefitItems(actor:WorkContext,items:WorkItem[]){return items.some(item=>item.type==="benefit_enrollment")?filterBenefitWork((await holdingResources(actor.holdingId)).write,actor,items):items;}
-async function currentServiceItems(actor:WorkContext,items:WorkItem[]){return items.some(item=>item.type==="field_service")?filterServiceWork((await holdingResources(actor.holdingId)).write,actor,items):items;}
+async function currentServiceItems(actor:WorkContext,items:WorkItem[]){
+ if(!items.some(item=>item.type==="field_service"))return items;
+ let native;
+ try {native=await (await import('@erpx/server-field_service/public/native-work')).nativeServiceWork(actor);}
+ catch(error){if(error instanceof ApiError&&[403,404].includes(error.status))return items.filter(item=>item.type!=="field_service");throw error;}
+ if(!native)throw new ApiError(503,'NATIVE_SERVICE_WORK_UNAVAILABLE','The native Field Service work source is unavailable.');
+ return reconcileFieldServiceWork(items,native);
+}
 async function currentWorkTaskItems(actor:WorkContext,items:WorkItem[]){return items.some(item=>item.type==="staff_task")?filterWorkTaskWork((await holdingResources(actor.holdingId)).write,actor,items):items;}
 async function currentOwnerItems(actor:WorkContext,items:WorkItem[]){
  for(const filter of [currentFinancialItems,currentPayrollItems,currentCommerceItems,currentCountItems,currentTransferItems,currentPeopleItems,currentProjectItems,currentLearningItems,currentLegalItems,currentCRMItems,currentMarketingItems,currentFollowupItems,currentWorkforceItems,currentBenefitItems,currentServiceItems,currentWorkTaskItems])items=await filter(actor,items);

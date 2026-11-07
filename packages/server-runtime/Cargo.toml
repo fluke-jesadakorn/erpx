@@ -1,0 +1,75 @@
+[package]
+name = "erpx-server-runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[package.metadata.erpx]
+verification-roots = ["../../migrations/postgres"]
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+owned-process = ["dep:nix", "dep:rustix", "dep:tempfile", "dep:sysinfo"]
+
+[dependencies]
+tempfile = { workspace = true, optional = true }
+erpx-server-shared.workspace = true
+axum.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+semver = "=1.0.28"
+tokio.workspace = true
+sqlx.workspace = true
+sha2.workspace = true
+hex.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+tower.workspace = true
+syn.workspace = true
+uuid.workspace = true
+tempfile.workspace = true
+
+[[test]]
+name = "runtime_foundation"
+path = "../../tests/unit/shared.architecture/rust-runtime-foundation.test.rs"
+
+[[test]]
+name = "rust_architecture"
+path = "../../tests/unit/shared.architecture/rust-architecture.test.rs"
+
+[[test]]
+name = "postgres_config"
+path = "../../tests/unit/shared.architecture/rust-postgres-config.test.rs"
+
+[[test]]
+name = "postgres_transactions"
+path = "../../tests/integration/shared.persistence/rust-postgres.test.rs"
+
+[[test]]
+name = "postgres_migrations"
+path = "../../tests/integration/shared.persistence/rust-migrations.test.rs"
+
+[lints]
+workspace = true
+
+[[test]]
+name = "migration_inventory_postgres"
+path = "../../tests/integration/shared.persistence/rust-migration-inventory-postgres.test.rs"
+
+[target.'cfg(unix)'.dependencies]
+nix = { workspace = true, optional = true }
+rustix = { workspace = true, optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+sysinfo = { workspace = true, optional = true }
+
+[[test]]
+name = "owned_process"
+path = "../../tests/unit/shared.architecture/rust-owned-process.test.rs"
+required-features = ["owned-process"]

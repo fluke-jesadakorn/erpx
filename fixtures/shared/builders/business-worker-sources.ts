@@ -13,8 +13,6 @@ import {changeOrderReservation,fulfillOrder,orderSchema,saveMaster,saveOrder,tra
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {createQualityHold} from "@erpx/server-quality/public/quality";
 import {changeManufacturingOrder,createPlanningScenario,createSpecification,reviewPlanningRecommendation,reviewSpecification} from "@erpx/server-manufacturing/public/production";
-import {createSupportTicket} from '@erpx/server-support/public/support';
-import {changeAgreement,changeServiceOrder,createAgreement,createServiceOrder} from "@erpx/server-field_service/public/field-service";
 import {queueDeliveryNotification,updateCustomerNotificationSettings} from "@erpx/server-sales/public/sales-customer-notifications";
 import {createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,drainAttachmentScans} from "@erpx/server-files/public/attachments/service";
 import {saveCount,transitionCount,countSchema} from "@erpx/server-inventory/public/inventory-counts";
@@ -51,11 +49,9 @@ export async function seedBusinessWorkerSources(db:PostgresDatabase,files:FileSt
   if(kind==='sales'){await transitionOrder(f.owner,id,{action:'submit',expectedVersion:1},key());await transitionOrder(reviewer,id,{action:'approve',expectedVersion:2},key());}return getOrder(f.owner,id);
  }
  const sales=await order('sales'),salesId=String(sales.order.id);await changeOrderReservation(f.owner,salesId,{action:'reserve',expectedVersion:3,lineId:String(sales.lines[0].id),quantity:'1',expiresAt:now+3600000,reason:'Native worker fixture dispatch commitment'},key());
- const quote=await order('quote'),ticket=await createSupportTicket(f.owner,{orderId:String(quote.order.id),sourceVersion:1,title:'Declared worker field dispatch',issue:'Native reserved spare is needed for this fictional customer visit.',ownerId:reviewer.userId,dueDate:new Date(now+86400000).toISOString().slice(0,10)},key());
- const agreement=await createAgreement(f.owner,{branchId:f.branch,departmentId:null,customerId:party,assetId:null,title:'Declared worker field coverage',startDate:'2026-01-01',endDate:'2027-12-31',currency:'THB',visitRateMinor:1000,warrantyDiscountBps:0},key());
- await changeAgreement(reviewer,String(agreement.id),{action:'activate',expectedVersion:1,reason:'Different native reviewer confirms fictional coverage'},key());
- const field=await createServiceOrder(f.owner,{ticketId:String(ticket.id),ticketVersion:1,agreementId:String(agreement.id),agreementVersion:2,assetId:null,issue:'Inspect the fictional replacement unit',site:'Declared engineering site',technicianId:f.claimant.userId,scheduledAt:now+60000},key()),fieldId=String(field.id);
- await changeServiceOrder(f.claimant,fieldId,{action:'reserve-part',expectedVersion:1,warehouseId:warehouse,productId:product,quantityMilli:1000,expiresAt:now+3600000,reason:'Native technician reserves the actual spare for the appointment'},key());
+ // Field scheduled recipients, immutable IDs, retry/ack retention and rollback
+ // now execute through Rust in scheduled_field_reservation_alerts_keep_original_phase_identity_and_rollback_sources.
+ // This fixture deliberately seeds only the remaining legacy worker owners.
  const spec=await createSpecification(f.owner,{name:'Declared worker production specification',mode:'bom',outputProductId:output,batchQuantity:'1',expectedYieldBps:10000,lines:[{productId:product,quantity:'1'}]},key());
  await reviewSpecification(reviewer,String(spec.id),{action:'approve',expectedVersion:1,reason:'Independent native material specification review'},key());
  const plan=await createPlanningScenario(f.owner,{warehouseId:warehouse,specificationId:String(spec.id),specificationVersion:2,demandQuantity:'1',dueDate:new Date(now+86400000).toISOString().slice(0,10),capacityMinutes:10},key()),released=await reviewPlanningRecommendation(reviewer,String(plan.recommendationId),{action:'approve',expectedVersion:1,reason:'Independent native demand and capacity review'},key()),productionId=String(released.orderId);
@@ -82,5 +78,5 @@ export async function seedBusinessWorkerSources(db:PostgresDatabase,files:FileSt
  }
  await updateCustomerNotificationSettings(reviewer,{expectedVersion:0,adapter},key());
  const message=await queueDeliveryNotification(f.owner,String(delivery.fulfillmentId),{expectedVersion:1,note:'Declared native delivery notification; sandbox or injected no-network provider only'},key());
- return {f,reviewer,qualityReviewer,party,salesId,fieldId,productionId,openingCounts,evidence,warehouse,heldProduct,holdIds:[String(due.id),String(overdue.id)],messageId:String(message.id),fulfillmentId:String(delivery.fulfillmentId)};
+ return {f,reviewer,qualityReviewer,party,salesId,productionId,openingCounts,evidence,warehouse,heldProduct,holdIds:[String(due.id),String(overdue.id)],messageId:String(message.id),fulfillmentId:String(delivery.fulfillmentId)};
 }

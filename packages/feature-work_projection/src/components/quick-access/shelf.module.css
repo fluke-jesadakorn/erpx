@@ -490,3 +490,9 @@
     animation: none;
   }
 }
+
+/* Navigation placements share the product sidebar's icon and row rhythm. */
+.sidebar .tileLink, .rail .tileLink { min-height: 44px; gap: 10px; padding: 8px 10px; }
+.sidebar .tileLink > [data-sidebar-icon], .rail .tileLink > [data-sidebar-icon] { grid-row: 1 / span 3; }
+.sidebar .tileTitle, .rail .tileTitle { overflow-wrap: anywhere; }
+.sidebar .tileLink:focus-visible, .rail .tileLink:focus-visible { outline: 2px solid var(--ui-brand); outline-offset: -2px; border-radius: 10px; }

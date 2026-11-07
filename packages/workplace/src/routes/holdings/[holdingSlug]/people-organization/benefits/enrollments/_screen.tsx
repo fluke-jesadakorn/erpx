@@ -6,6 +6,7 @@ import { BenefitsConsole } from "@erpx/feature-benefits/components/benefits-cons
 import { ListFilters } from "@erpx/ui/components/list-filters";
 import { requireWorkContext, publicScope } from "@erpx/server-identity_access/public/authorization";
 import { benefitsWorkspace } from "@erpx/server-benefits/public/benefits";
+import { nativeBenefitsWorkspace } from "@erpx/feature-benefits/public/native-benefits-workspace-page";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { sectionWorkspaceTopics, workspaceTopicLinks, workspaceSearchContext } from "@erpx/feature-work_projection/lib/section-workspaces";
@@ -20,7 +21,7 @@ export default async function Benefits({ params, searchParams }: {
     const { holdingSlug } = await params, actor = await requireWorkContext(holdingSlug), base = workspaceBase(publicScope(actor)), query = await searchParams, view = "enrollments";
     if (!sectionWorkspaceTopics.benefits.some(topic => topic.id === view))
         notFound();
-    const data = await benefitsWorkspace(actor, false).catch(error => pageError(error, holdingSlug)), term = typeof query.q === 'string' ? query.q : '';
+    const data = await nativeBenefitsWorkspace(actor, false).catch(error => pageError(error, holdingSlug)) ?? await benefitsWorkspace(actor, false).catch(error => pageError(error, holdingSlug)), term = typeof query.q === 'string' ? query.q : '';
     const matches = (value: unknown) => String(value ?? '').toLocaleLowerCase().includes(term.toLocaleLowerCase()), elections = data.elections.filter(row => !term || matches(row.plan_name) || matches(row.employee_name));
     return <SectionWorkspace title="Benefits" selected={view} items={workspaceTopicLinks(base, query, sectionWorkspaceTopics.benefits)} context={'Scoped enrollments'}>
  <ListFilters appearance="standard" action={canonicalUiHref(`${base}/benefits?view=${view}`)} query={term} placeholder="Search this view" preserve={workspaceSearchContext(query, { view })}/>

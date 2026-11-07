@@ -1,6 +1,6 @@
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { z } from 'zod';
-import { sessionFromRequest } from "@erpx/server-identity_access/public/auth";
+import { sessionFromRequest } from "@erpx/server-identity_access/public/account-session";
 import { holdingBindingBySlug,holdingResources } from "@erpx/server-manage_erpx/public/cloudflare";
 import { requireVerified } from "@erpx/server-manage_erpx/public/beta-onboarding";
 import { acceptMember } from "@erpx/server-manage_erpx/public/beta-team";

@@ -1,0 +1,23 @@
+import {createHash} from 'node:crypto';
+import {execFileSync} from 'node:child_process';
+import {mkdir,readFile,writeFile} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {pathToFileURL} from 'node:url';
+import {createRequire} from 'node:module';
+const baseline='a5ed8737a2f05eff1ee9841fda4a094b3926d732';
+const path='packages/server-identity_access/src/domain/iam-service.ts';
+const bytes=await readFile(path);if(!bytes.equals(execFileSync('git',['show',`${baseline}:${path}`])))throw Error('B0_REVIEW_SCHEMA_CHANGED');
+const require=createRequire(import.meta.url);const zodPath=require.resolve('zod/package.json');const zod=JSON.parse(await readFile(zodPath,'utf8')) as {version:string};if(zod.version!=='4.6.7')throw Error('PINNED_ZOD_REQUIRED');
+const checks=await readFile(resolve(zodPath,'../v4/core/checks.js'));
+const dir=resolve('.scratch/dev/directory-review-reason-oracle');await mkdir(dir,{recursive:true,mode:0o700});const entry=resolve(dir,'actual-review-source.mts');
+await writeFile(entry,`
+import {reviewInput} from ${JSON.stringify(pathToFileURL(resolve(path)).href)};
+const inputs=[['ascii-short','ab'],['ascii-min','abc'],['trim-ascii','  abc  '],['whitespace-only',' \\t\\n '],['trim-bom','\\ufeffabc\\ufeff'],['nel-is-not-trimmed','\\u0085ab'],['astral-plus-one-ascii','🙃a'],['astral-plus-two-ascii','🙃ab'],['astral600','🙃'.repeat(600)],['astral1000','🙃'.repeat(1000)],['astral1001','🙃'.repeat(1001)],['ascii1000','a'.repeat(1000)],['ascii1001','a'.repeat(1001)],['nfd-three-points','e\\u0301x'],['nfc-two-points','éx'],['thai-three-points','ไทย'],['zwsp-not-trimmed','a\\u200bb'],['trim-line-breaks','\\t\\nabc\\r'],['bmp1000','ก'.repeat(1000)]];
+const cases=inputs.map(([id,reason])=>{const actual=reviewInput.safeParse({expectedVersion:1,decision:'approve',reason});return {id,inputJson:JSON.stringify(reason),accepted:actual.success,normalizedJson:actual.success?JSON.stringify(actual.data.reason):null};});
+process.stdout.write(JSON.stringify({node:process.version,cases}));
+`);
+const node=process.env.ERPX_NODE_BIN??'node';if(execFileSync(node,['--version'],{encoding:'utf8'}).trim()!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');
+const output=JSON.parse(execFileSync(node,[entry],{encoding:'utf8',env:{PATH:process.env.PATH??'',TZ:'UTC',LANG:'en_US.UTF-8',NODE_ENV:'test'}}));
+const result=JSON.stringify({sourceCommit:baseline,path,sourceSha256:createHash('sha256').update(bytes).digest('hex'),zod:zod.version,zodChecksSha256:createHash('sha256').update(checks).digest('hex'),scope:'Actual unchanged B0 reviewInput, valid Unicode scalar/non-NUL reason corpus; no copied validator or normalization.',...output},null,2)+'\n';
+const destination=resolve('fixtures/identity_access/directory/source-review-reasons.v1.json');if(process.argv.includes('--check')){if(await readFile(destination,'utf8')!==result)throw Error('DIRECTORY_REVIEW_REASON_ORACLE_DRIFT');}else await writeFile(destination,result);
+console.log(JSON.stringify({cases:output.cases.length,accepted:output.cases.filter((c:{accepted:boolean})=>c.accepted).length,sourceSha256:createHash('sha256').update(bytes).digest('hex')}));

@@ -1,3 +1,6 @@
+import {AppsHomeLink} from "@erpx/workplace/components/product-link-context";
+import {ProductAccountTrigger} from "@erpx/workplace/components/product-account-provider";
+import {AppsSidebar} from "@erpx/workplace/components/apps-sidebar";
 import {cookies,headers} from 'next/headers';
 import {notFound,redirect} from 'next/navigation';
 import Link from 'next/link';
@@ -23,11 +26,12 @@ export default async function ProviderEntryPage(){
  catch(error){if(error instanceof Error&&error.message==='UNAUTHENTICATED'||error instanceof ApiError&&error.status===401)redirect('/sso/start?next=%2Fprovider');throw error;}
  const providerContext=overview?await currentProviderContext():null;
  if(overview&&providerContext&&overview.assignmentId!==providerContext.selectedId)throw new ApiError(409,'PROVIDER_CONTEXT_CHANGED','Reload Administration to review the current Platform role.');
+ const roleLabel=providerContext?.choices.find(choice=>choice.id===providerContext.selectedId)?.label;
  const management=overview?(await adminLaunchChoices()).filter(choice=>choice.kind==='management'):[];
  return <ProductNavigationBoundary language={language}><div className={styles.shell}>
-  <header className={styles.header}><Link data-product-switch href="/" prefetch={false} className={styles.brand}><ProductBrand appearance="standard" variant="symbol" className={styles.mark}/><strong>ERPX Administration</strong></Link>
-   <nav className={styles.links}><a data-product-switch href={configuredProductHandoff('apps')!}>Apps</a><a data-product-switch href={configuredProductHandoff('account')!}>Account</a></nav></header>
-  <PageContent as="main"><Stack><h1>{th?'พื้นที่ผู้ให้บริการ':'Provider administration'}</h1>
+  <header className={styles.header}><AppsHomeLink className={styles.brand}><ProductBrand appearance="standard" variant="symbol" className={styles.mark}/><strong>ERPX Administration</strong></AppsHomeLink>
+   <nav className={styles.links}><a data-product-switch href={configuredProductHandoff('apps')!}>Apps</a><a data-product-switch href={configuredProductHandoff('account')!}>Account</a></nav><ProductAccountTrigger roleLabel={roleLabel} language={language}/></header>
+  <div className={styles.body}><AppsSidebar language={language} roleLabel={roleLabel} items={[{id:"admin",label:"Admin",href:"/",groupId:"administration"},{id:"provider",label:"Platform / Provider",href:"/provider",groupId:"administration"}]}/><PageContent as="main"><Stack><h1>{th?'พื้นที่ผู้ให้บริการ':'Provider administration'}</h1>
    {overview&&providerContext?<ProviderContextBoundary initial={providerContext}><ProviderContextSwitcher/>
     <p>{overview.name} · {overview.role}</p>
     <div className={styles.grid}>
@@ -36,6 +40,6 @@ export default async function ProviderEntryPage(){
     </div>
     {!overview.commercial&&!management.length&&<InlineNotice tone="info">{th?'บทบาท Platform ปัจจุบันไม่มีเครื่องมือจัดการแพ็กเกจหรือ ERPX Management':'Your current Platform role has no package administration or ERPX Management entry.'}</InlineNotice>}
    </ProviderContextBoundary>:<InlineNotice tone="warning">{th?'ต้องใช้สิทธิ์ Platform ปัจจุบันเพื่อเข้าพื้นที่ผู้ให้บริการ':'Current Platform authority is required to enter provider administration.'}</InlineNotice>}
-  </Stack></PageContent>
+  </Stack></PageContent></div>
  </div></ProductNavigationBoundary>;
 }

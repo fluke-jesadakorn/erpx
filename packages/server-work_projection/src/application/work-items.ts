@@ -2,7 +2,7 @@ import type {WorkContext} from "@erpx/server-identity_access/public/authorizatio
 import type {WorkItem} from "@erpx/feature-work_projection/lib/work-item";
 import {mergeWorkItems,type WorkSnapshot} from "@erpx/server-work_projection/domain/work-items";
 import type {getWork} from "@erpx/server-work_projection/public/work";
-export type WorkSource="financeExpansionWork"|"legalWork"|"organizationChangeWork"|"companyBusinessAcceptanceWork"|"posWork"|"crmWork"|"supportAlertWork"|"incidentWork"|"supportPolicyWork"|"supportWork"|"supportSessionWork"|"maintenanceWork"|"preventivePlanWork"|"projectHandoffWork"|"fieldServiceWork"|"collaborationActionWork"|"operationsExceptionWork"|"learningWork"|"benefitWork"|"talentWork"|"marketingWork"|"manufacturingWork"|"customerAccessWork"|"customerDuplicateWork"|"customerIdentityWork"|"customerFollowupWork"|"supplierBillWork"|"landedCostWork"|"rfqWork"|"supplierPromiseWork"|"transitWork"|"qualityWork"|"qualityAlertWork"|"supplierBatchWork"|"refundWork"|"overtimeWork"|"pmsWork"|"employeeRequestWork"|"departmentOverrideWork"|"retirementWork"|"peopleLifecycleWork"|"otherFlowWork";
+export type WorkSource="fieldFinancialWork"|"financeExpansionWork"|"legalWork"|"organizationChangeWork"|"companyBusinessAcceptanceWork"|"posWork"|"crmWork"|"supportAlertWork"|"incidentWork"|"supportPolicyWork"|"supportWork"|"supportSessionWork"|"maintenanceWork"|"preventivePlanWork"|"projectHandoffWork"|"fieldServiceWork"|"collaborationActionWork"|"operationsExceptionWork"|"learningWork"|"benefitWork"|"talentWork"|"marketingWork"|"manufacturingWork"|"customerAccessWork"|"customerDuplicateWork"|"customerIdentityWork"|"customerFollowupWork"|"supplierBillWork"|"landedCostWork"|"rfqWork"|"supplierPromiseWork"|"transitWork"|"qualityWork"|"qualityAlertWork"|"supplierBatchWork"|"refundWork"|"overtimeWork"|"pmsWork"|"employeeRequestWork"|"departmentOverrideWork"|"retirementWork"|"peopleLifecycleWork"|"otherFlowWork";
 export type WorkSnapshotPorts={source(name:WorkSource,actor:WorkContext):Promise<WorkItem[]>;domain(actor:WorkContext,source:"expense"|"stock_count"|"transfer"|"staff_task"):Promise<WorkItem[]>;leave(actor:WorkContext):ReturnType<typeof getWork>;enrich(actor:WorkContext,items:WorkItem[]):Promise<WorkItem[]>;enabledModules(actor:WorkContext):Promise<Set<string>>;production():boolean;monotonic():number;performanceLog():boolean;errorStatus(error:unknown):number|undefined;info(value:string):void;warn(...values:unknown[]):void;cached(actor:WorkContext,load:()=>Promise<WorkSnapshot>):Promise<WorkSnapshot>};
 export function createWorkSnapshot(ports:WorkSnapshotPorts){
 /** Unmemoized reference reader for parity checks and cache fills. */
@@ -109,6 +109,7 @@ async function readWorkSnapshot(actor: WorkContext): Promise<WorkSnapshot> {
   if (!actor.beta) jobs.push({label:"Supplier payment batches",load:async()=>ports.source("supplierBatchWork",actor)});
   if (!actor.beta) jobs.push({label:"Return refunds",load:async()=>ports.source("refundWork",actor)});
   jobs.push({label:"Commercial and financial workflows",load:() => ports.source("otherFlowWork",actor)});
+  if(actor.iam?.permissions.includes("finance.read")&&actor.iam.permissions.includes("module.finance.read"))jobs.push({label:"Field financial workflows",load:()=>ports.source("fieldFinancialWork",actor)});
   if (ports.production()) {
     const enabled = await ports.enabledModules(actor);
     const sources: Record<string,string[]> = {
@@ -132,6 +133,7 @@ async function readWorkSnapshot(actor: WorkContext): Promise<WorkSnapshot> {
       'Stock in transit':['inventory'], 'Quality holds':['quality'], 'Quality escalations':['quality'],
       'Supplier payment batches':['procurement'], 'Return refunds':['sales'],
       'Commercial and financial workflows':['finance'],
+      'Field financial workflows':['finance'],
       'Finance expansion reviews':['finance'],
     };
     for (let index=jobs.length-1;index>=0;index--)

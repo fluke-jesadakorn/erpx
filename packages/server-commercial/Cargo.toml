@@ -1,0 +1,53 @@
+[package]
+name = "erpx-server-commercial"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[package.metadata.erpx]
+verification-roots = ["resources", "licenses", "../../fixtures/commercial/rust-packages", "../../scripts/testing/fixtures/generate-commercial-rust-goldens.ts"]
+
+[dependencies]
+icu_collator.workspace = true
+icu_collator_data.workspace = true
+icu_locale.workspace = true
+erpx-server-shared.workspace = true
+erpx-server-runtime.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+sha2.workspace = true
+hex.workspace = true
+base64.workspace = true
+ring.workspace = true
+ts-rs = { workspace = true, optional = true }
+utoipa = { workspace = true, optional = true }
+
+[features]
+contracts = ["dep:ts-rs", "dep:utoipa"]
+
+[dev-dependencies]
+tokio.workspace = true
+uuid.workspace = true
+
+[[test]]
+name = "package_capabilities"
+path = "../../tests/unit/commercial/rust-package-capabilities.test.rs"
+
+[[test]]
+name = "company_packages"
+path = "../../tests/unit/commercial/rust-company-packages.test.rs"
+
+[[test]]
+name = "company_packages_postgres"
+path = "../../tests/integration/commercial/rust-company-packages-postgres.test.rs"
+
+[[test]]
+name = "purchase_postgres"
+path = "../../tests/integration/commercial/rust-purchase-postgres.test.rs"
+
+[lints]
+workspace = true

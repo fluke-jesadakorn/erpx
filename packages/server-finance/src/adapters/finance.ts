@@ -1,8 +1,7 @@
+import {requireLegacyFinanceJournal} from './document-purchases';
 import{confirmedFunctionalFx,prepareJournal,ensurePeriod,journalPreparation,journalStatements}from '@erpx/server-finance/adapters/journal-planning';
 import{decimalToMinor}from '@erpx/server-finance/public/money-primitives';
 import {resources,financeReadService}from '@erpx/server-finance/adapters/finance-invoice-read';
-import {serviceCustomerSchema} from '@erpx/server-finance/domain/service-customer-preparation';
-import {withServiceCustomerCommand} from '@erpx/server-finance/adapters/service-customer-preparation';
 import {withSupplierReversalMoney,prepareSupplierReversalMoney} from '@erpx/server-finance/adapters/supplier-payment-money';
 import {withJournalReversalMoneyUnit,prepareJournalReversalMoney} from '@erpx/server-finance/adapters/journal-reversal-money';
 import {expensePostingChartSchema,expensePostingAccountSchema,expensePostingPeriodSchema,type ExpensePostingChartResult,type ExpensePostingAccountResult,type ExpensePostingPeriodResult} from '@erpx/server-finance/domain/expense-posting-prerequisites';
@@ -17,11 +16,10 @@ import {refundBankEvidenceSchema} from '@erpx/server-finance/domain/refund-bank-
 import {withRefundBankEvidenceImport,refundBankEvidenceCommandInput,refundBankEvidenceMarker,refundBankEvidenceStoredResult,publicBankImportResult,type RefundBankEvidenceWitness} from '@erpx/server-finance/adapters/refund-bank-evidence';
 import {withSalesReceiptReversal,salesReceiptReversalPurchase} from '@erpx/server-finance/adapters/sales-payment-reversal';
 import {withSupplierPaymentCorrection,supplierPaymentCorrectionPurchase,supplierPaymentCorrectionSourceIds} from "@erpx/server-finance/adapters/supplier-payment-corrections";
-import {withServicePaymentCommand,servicePaymentPurchase} from "@erpx/server-finance/adapters/service-payment-purchases";
+import {withLegacyPaymentCommand,servicePaymentPurchase} from "@erpx/server-finance/adapters/service-payment-purchases";
 import {requireFinanceDocumentHistory,withFinanceDocumentPost} from "@erpx/server-finance/adapters/document-purchases";
 
 import { withFinancePurchasedCommand, requireFinancePurchasedRead, requireFinanceReferenceRead, withFinanceConfigurationCommand } from "@erpx/server-finance/adapters/purchase-boundary";
-import {fieldServiceFinanceRecordSources} from "@erpx/server-field_service/public/finance-record-sources";
 import type {BankImportInput} from "@erpx/server-finance/application/bank";
 import { financePackageEnforcementMode } from "@erpx/server-commercial/public/purchase-command-boundary";
 import { financeTransaction } from "@erpx/server-finance/public/finance-transactions";
@@ -73,7 +71,6 @@ import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
 import { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/service";
 
 import {snapshotMoney,snapshotMoneyCarry,snapshotMoneyReversal} from '@erpx/server-finance/public/company-money';
-import {fieldServiceInvoiceMoneySource} from "@erpx/server-field_service/public/finance-record-sources";
 import { requireFinanceMoneyScale } from "@erpx/server-finance/public/finance-money-policy";
 import {nativeInvoicePosting,prepareInvoiceLineRevision} from '@erpx/server-finance/public/finance-invoice-lines';
 import { readyPaymentWithholding, prepareWithholdingConsumption, prepareWithholdingReversal } from "@erpx/server-finance/public/finance-withholding";
@@ -175,18 +172,21 @@ export async function getPayment(actor: WorkContext, paymentId: string) { const 
  if(sourcePurchase?.capability==='finance.sales-posting'&&access.capability==='finance.sales-posting'){result.invoices=[];result.bankTransactions=[];result.fxAccounts=[];}
  return {...result,...(sourcePurchase?{sourcePurchase}:{})}; }
 export async function reversePayment(actor: WorkContext, paymentId: string, input: z.infer<typeof reversePaymentSchema>, id: string) {
- const original=()=>withSupplierPaymentCorrection(actor,{kind:"payment",id:paymentId},{key:id,operation:"finance.payment.reverse"},tx=>paymentService(tx).reversePayment(actor,paymentId,input,id),()=>withServicePaymentCommand(actor,{kind:"payment",id:paymentId},{key:id,operation:"finance.payment.reverse",purpose:"settle-existing"},tx=>paymentService(tx).reversePayment(actor,paymentId,input,id)));
+ const original=()=>withSupplierPaymentCorrection(actor,{kind:"payment",id:paymentId},{key:id,operation:"finance.payment.reverse"},tx=>paymentService(tx).reversePayment(actor,paymentId,input,id),()=>withLegacyPaymentCommand(actor,{kind:"payment",id:paymentId},{key:id,operation:"finance.payment.reverse",purpose:"settle-existing"},tx=>paymentService(tx).reversePayment(actor,paymentId,input,id)));
  return withSalesReceiptReversal(actor,paymentId,id,tx=>paymentService(tx).reversePayment(actor,paymentId,input,id),()=>withSupplierReversalMoney(actor,paymentId,input,id,database=>withSupplierPaymentCorrection(actor,{kind:"payment",id:paymentId},{key:id,operation:"finance.payment.reverse"},()=>paymentService(database).reversePayment(actor,paymentId,input,id),original,database),original));
 }
 export async function postJournal(actor: WorkContext, journalId: string, id: string, input: {
     expectedVersion: number;
-}) { return withFinanceDocumentPost(actor,"journal",journalId,{key:id,operation:"finance.journal.post"},tx=>journalReviewService(tx).postJournal(actor,journalId,id,input)); }
+}) {
+ await requireLegacyFinanceJournal((await resources(actor)).write,actor,journalId);
+ return withFinanceDocumentPost(actor,"journal",journalId,{key:id,operation:"finance.journal.post"},tx=>journalReviewService(tx).postJournal(actor,journalId,id,input));
+}
 export async function postJournalBatch(actor: WorkContext, input: z.input<typeof journalBatchSchema>, id: string) { return withFinancePurchasedCommand(actor,{key:id,operation:"finance.batch.post",purpose:"settle-existing"},tx=>journalBatchService(tx)(actor,input,id)); }
 export async function reverseJournal(actor: WorkContext, journalId: string, id: string, input: {
     periodId: string;
     entryDate: string;
     memo?: string;
-}) { return withJournalReversalMoneyUnit(actor,journalId,id,input.periodId,database=>withFinancePurchasedCommand(actor,{key:id,operation:"finance.journal.reverse",purpose:"settle-existing"},()=>journalReviewService(database).reverseJournal(actor,journalId,id,input),database)); }
+}) { await requireLegacyFinanceJournal((await resources(actor)).write,actor,journalId); return withJournalReversalMoneyUnit(actor,journalId,id,input.periodId,database=>withFinancePurchasedCommand(actor,{key:id,operation:"finance.journal.reverse",purpose:"settle-existing"},()=>journalReviewService(database).reverseJournal(actor,journalId,id,input),database)); }
 export async function trialBalance(actor: WorkContext, periodId?: string, chartId?: string, dates: ReportDates = {}, options: {
     excludeYearClose?: boolean;
 } = {}) { return purchasedFinanceRead(actor,db=>financeReadService(db).trialBalance(actor,periodId,chartId,dates,options)); }
@@ -244,18 +244,18 @@ export async function createPayment(actor: WorkContext, input: {
     bankAccount?: string;
     settlementInvoiceId?: string;
     correctionPaymentId?: string;
-}, id: string) { if(input.correctionPaymentId){if(!input.settlementInvoiceId)throw new ApiError(422,"SUPPLIER_CORRECTION_SOURCE_REQUIRED","Choose the original purchasing invoice for this correction.");return withSupplierPaymentCorrection(actor,{kind:"create",invoiceId:input.settlementInvoiceId,correctionPaymentId:input.correctionPaymentId},{key:id,operation:"finance.payment.create"},tx=>paymentService(tx).createPayment(actor,input,id),()=>withFinancePurchasedCommand(actor,{key:id,operation:"finance.payment.create",purpose:"settle-existing",capability:"finance.banking"},tx=>paymentService(tx).createPayment(actor,input,id)));}return withServicePaymentCommand(actor,input.settlementInvoiceId?{kind:"invoice",id:input.settlementInvoiceId}:undefined,{key:id,operation:"finance.payment.create",purpose:input.settlementInvoiceId?"settle-existing":"new-work"},tx=>paymentService(tx).createPayment(actor,input,id)); }
+}, id: string) { if(input.correctionPaymentId){if(!input.settlementInvoiceId)throw new ApiError(422,"SUPPLIER_CORRECTION_SOURCE_REQUIRED","Choose the original purchasing invoice for this correction.");return withSupplierPaymentCorrection(actor,{kind:"create",invoiceId:input.settlementInvoiceId,correctionPaymentId:input.correctionPaymentId},{key:id,operation:"finance.payment.create"},tx=>paymentService(tx).createPayment(actor,input,id),()=>withFinancePurchasedCommand(actor,{key:id,operation:"finance.payment.create",purpose:"settle-existing",capability:"finance.banking"},tx=>paymentService(tx).createPayment(actor,input,id)));}return withLegacyPaymentCommand(actor,input.settlementInvoiceId?{kind:"invoice",id:input.settlementInvoiceId}:undefined,{key:id,operation:"finance.payment.create",purpose:input.settlementInvoiceId?"settle-existing":"new-work"},tx=>paymentService(tx).createPayment(actor,input,id)); }
 export async function approvePayment(actor: WorkContext, paymentId: string, input: {
     expectedVersion: number;
     proof: string;
-}, id: string) { return withSupplierPaymentCorrection(actor,{kind:"payment",id:paymentId},{key:id,operation:"finance.payment.approve"},tx=>paymentService(tx).approvePayment(actor,paymentId,input,id),()=>withServicePaymentCommand(actor,{kind:"payment",id:paymentId},{key:id,operation:"finance.payment.approve",purpose:"settle-existing"},tx=>paymentService(tx).approvePayment(actor,paymentId,input,id))); }
+}, id: string) { return withSupplierPaymentCorrection(actor,{kind:"payment",id:paymentId},{key:id,operation:"finance.payment.approve"},tx=>paymentService(tx).approvePayment(actor,paymentId,input,id),()=>withLegacyPaymentCommand(actor,{kind:"payment",id:paymentId},{key:id,operation:"finance.payment.approve",purpose:"settle-existing"},tx=>paymentService(tx).approvePayment(actor,paymentId,input,id))); }
 export async function releasePayment(actor: WorkContext, paymentId: string, input: {
     expectedVersion: number;
     proof: string;
-}, id: string) { return withSupplierPaymentCorrection(actor,{kind:"payment",id:paymentId},{key:id,operation:"finance.payment.release"},tx=>paymentService(tx).releasePayment(actor,paymentId,input,id),()=>withServicePaymentCommand(actor,{kind:"payment",id:paymentId},{key:id,operation:"finance.payment.release",purpose:"settle-existing"},tx=>paymentService(tx).releasePayment(actor,paymentId,input,id))); }
+}, id: string) { return withSupplierPaymentCorrection(actor,{kind:"payment",id:paymentId},{key:id,operation:"finance.payment.release"},tx=>paymentService(tx).releasePayment(actor,paymentId,input,id),()=>withLegacyPaymentCommand(actor,{kind:"payment",id:paymentId},{key:id,operation:"finance.payment.release",purpose:"settle-existing"},tx=>paymentService(tx).releasePayment(actor,paymentId,input,id))); }
 export async function confirmPayment(actor: WorkContext, paymentId: string, input: z.input<typeof confirmPaymentSchema>, key: string) {
  const run=async(owned?:SqlDatabase)=>{const confirm=async(tx:SqlDatabase)=>{const result=await paymentService(tx).confirmPayment(actor,paymentId,input,key);await ensureCustomerReceipt(tx,actor,paymentId);return result;};if(owned)return confirm(owned);return financeTransaction((await resources(actor)).write,confirm);};
- return withSupplierPaymentCorrection(actor,{kind:"payment",id:paymentId},{key,operation:"finance.payment.confirm",bankTransactionId:input.bankTransactionId},run,()=>withServicePaymentCommand(actor,{kind:"payment",id:paymentId},{key,operation:"finance.payment.confirm",purpose:"settle-existing",bankTransactionId:input.bankTransactionId},run));
+ return withSupplierPaymentCorrection(actor,{kind:"payment",id:paymentId},{key,operation:"finance.payment.confirm",bankTransactionId:input.bankTransactionId},run,()=>withLegacyPaymentCommand(actor,{kind:"payment",id:paymentId},{key,operation:"finance.payment.confirm",purpose:"settle-existing"},run));
 }
 export async function allocatePayment(actor: WorkContext, paymentId: string, input: {
     invoiceId: string;
@@ -292,11 +292,10 @@ export async function importBankStatement(actor: WorkContext, input: {
 }, key: string, ownedTransaction?: SqlDatabase) {
  if(input.settlementPaymentId){
   if(ownedTransaction)throw new ApiError(503,"TRANSACTION_OWNERSHIP_REQUIRED","Source-scoped bank evidence uses the normal controlled settlement owner.");
-  return withServicePaymentCommand(actor,{kind:"payment",id:input.settlementPaymentId},{key,operation:"finance.bank.import",purpose:"settle-existing"},async transaction=>{
-   const write=transaction??(await resources(actor)).write;
-   const prior=await replayCommand(write,actor,key,"finance.bank.import",`statement-${key}`,input);if(prior)return prior;
-   await requireServiceBankEvidence(write,actor,input);
-   return bankService(write).importBankStatement(actor,input,key);
+  // Non-Field source-scoped imports never satisfied this Service-only route.
+  // Native Field imports have already left this implementation entirely.
+  return withLegacyPaymentCommand(actor,{kind:"payment",id:input.settlementPaymentId},{key,operation:"finance.bank.import",purpose:"settle-existing"},async()=>{
+   throw new ApiError(422,"SERVICE_PAYMENT_BANK_SOURCE_INVALID","Import one exact bank receipt for the released Service payment's account, currency, date and amount.");
   });
  }
  return ownedTransaction ? bankService(ownedTransaction).importBankStatement(actor,input,key) : withFinancePurchasedCommand(actor,{key,operation:"finance.bank.import",purpose:"settle-existing",capability:"finance.banking"},tx=>bankService(tx).importBankStatement(actor,input,key));
@@ -308,11 +307,6 @@ export async function importRefundBankEvidence(actor:WorkContext,instructionId:s
 }
 /** Closed Payroll owner composition; validates the actual private unit before any import. */
 export function importPayrollOtherBankEvidenceInOwnedUnit(database:SqlDatabase,actor:WorkContext,runId:string,input:PayrollOtherBankEvidenceInput,key:string,contextKey:string){return withPayrollOtherBankEvidence(database,actor,runId,input,key,contextKey,(write,witness,bankInput)=>bankService(write,undefined,witness).importBankStatement(actor,bankInput,key));}
-async function requireServiceBankEvidence(write:SqlDatabase,actor:WorkContext,input:BankImportInput){
- const payment=await write.prepare(`SELECT p.* FROM finance_payments p JOIN (${fieldServiceFinanceRecordSources.payment}) actual ON actual.id=p.id AND actual.company_id=p.company_id WHERE p.id=? AND p.company_id=?`).bind(input.settlementPaymentId!,actor.companyId).first<FinanceRow>();
- const row=input.rows[0];
- if(!payment||payment.status!=="released"||input.rows.length!==1||input.bankAccount!==payment.bank_account||row.currency.toUpperCase()!==payment.currency||decimalToMinor(row.amount)!==Number(payment.amount_minor)||row.transactionDate<String(payment.payment_date))throw new ApiError(422,"SERVICE_PAYMENT_BANK_SOURCE_INVALID","Import one exact bank receipt for the released Service payment's account, currency, date and amount.");
-}
 export async function reconcileBankTransaction(actor: WorkContext, transactionId: string, input: {
     expectedVersion: number;
     matchedType: string;
@@ -467,7 +461,7 @@ async function journalPostStatements(write: SqlDatabase, actor: WorkContext, jou
 function journalReviewService(provided?: SqlDatabase) {
     let pending: Promise<SqlDatabase> | undefined = provided ? Promise.resolve(provided) : undefined;
     const db = (actor: WorkContext) => pending ??= resources(actor).then(r => r.write);
-    return createJournalReview({ error: (...args) => new ApiError(...args), authorize: requirePermission, now: Date.now, ready: async (actor) => { await db(actor); }, replay: async (actor, key, operation, id, input) => replayCommand(await db(actor), actor, key, operation, id, input), journal: async (actor, id) => (await db(actor)).prepare('SELECT * FROM finance_journals WHERE id=? AND company_id=?').bind(id, actor.companyId).first<FinanceRow>(), postedJournal: async (actor, id) => (await db(actor)).prepare("SELECT * FROM finance_journals WHERE id=? AND company_id=? AND status='posted'").bind(id, actor.companyId).first<FinanceRow>(), debit: async (journalId) => (await pending!).prepare('SELECT COALESCE(SUM(debit_minor),0) AS amount FROM finance_journal_lines WHERE journal_id=?').bind(journalId).first<{
+    return createJournalReview({ error: (...args) => new ApiError(...args), authorize: requirePermission, now: Date.now, ready: async (actor) => { await db(actor); }, replay: async (actor, key, operation, id, input) => replayCommand(await db(actor), actor, key, operation, id, input), journal: async (actor, id) => {const database=await db(actor);await requireLegacyFinanceJournal(database,actor,id);return database.prepare('SELECT * FROM finance_journals WHERE id=? AND company_id=?').bind(id, actor.companyId).first<FinanceRow>();}, postedJournal: async (actor, id) => {const database=await db(actor);await requireLegacyFinanceJournal(database,actor,id);return database.prepare("SELECT * FROM finance_journals WHERE id=? AND company_id=? AND status='posted'").bind(id, actor.companyId).first<FinanceRow>();}, debit: async (journalId) => (await pending!).prepare('SELECT COALESCE(SUM(debit_minor),0) AS amount FROM finance_journal_lines WHERE journal_id=?').bind(journalId).first<{
             amount: number;
         }>(), openingAllocated: async (actor, journalId) => !!await (await db(actor)).prepare("SELECT 1 FROM finance_allocations a JOIN finance_invoices i ON i.id=a.invoice_id WHERE i.company_id=? AND i.source_type='opening_import' AND i.source_id=?").bind(actor.companyId, journalId).first(), commitPost: async ({ actor, journalId, id, input, journal, plan }) => { const write = await db(actor); return executeCommand(write, actor, id, 'finance.journal.post', input, journalId, input.expectedVersion + 1, { id: journalId, status: 'posted', version: input.expectedVersion + 1 }, await journalPostStatements(write, actor, journal, id, input, plan)); }, sourceOpening: async (id) => !!await (await pending!).prepare("SELECT 1 FROM finance_journals WHERE id=? AND source_type='opening_import'").bind(id).first(), reversalRoot: async (actor, journalId) => (await db(actor)).prepare("WITH RECURSIVE lineage AS (SELECT id,source_type,source_id,0 depth FROM finance_journals WHERE id=? AND company_id=? UNION ALL SELECT p.id,p.source_type,p.source_id,l.depth+1 FROM finance_journals p JOIN lineage l ON p.id=l.source_id AND l.source_type='reversal' WHERE p.company_id=? AND l.depth<100) SELECT source_type FROM lineage ORDER BY depth DESC LIMIT 1").bind(journalId, actor.companyId, actor.companyId).first<{
             source_type: string;
@@ -491,7 +485,7 @@ function journalReviewService(provided?: SqlDatabase) {
 function journalBatchService(provided?: SqlDatabase) {
     let pending: Promise<SqlDatabase> | undefined;
     const db = (actor: WorkContext) => pending ??= financeOwnedDatabase(actor, provided);
-    return createJournalBatch({ error: (...args) => new ApiError(...args), authorize: requirePermission, now: Date.now, digest: hash, ready: async (actor) => { await db(actor); }, replay: async (actor, key, operation, id, input) => replayCommand(await db(actor), actor, key, operation, id, input), journal: async (actor, id) => (await db(actor)).prepare('SELECT * FROM finance_journals WHERE id=? AND company_id=?').bind(id, actor.companyId).first<FinanceRow>(), lines: async (id) => (await (await pending!).prepare('SELECT id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal FROM finance_journal_lines WHERE journal_id=? ORDER BY ordinal').bind(id).all<FinanceRow>()).results, preparePosting: async (actor, journal) => journalReviewService(await db(actor)).prepareJournalPost(actor, journal), commit: async ({ actor, input, id, batchId, plans, lineCount }) => {
+    return createJournalBatch({ error: (...args) => new ApiError(...args), authorize: requirePermission, now: Date.now, digest: hash, ready: async (actor) => { await db(actor); }, replay: async (actor, key, operation, id, input) => {const database=await db(actor);for(const journal of (input as z.infer<typeof journalBatchSchema>).journals)await requireLegacyFinanceJournal(database,actor,journal.id);return replayCommand(database,actor,key,operation,id,input);}, journal: async (actor, id) => {const database=await db(actor);await requireLegacyFinanceJournal(database,actor,id);return database.prepare('SELECT * FROM finance_journals WHERE id=? AND company_id=?').bind(id, actor.companyId).first<FinanceRow>();}, lines: async (id) => (await (await pending!).prepare('SELECT id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal FROM finance_journal_lines WHERE journal_id=? ORDER BY ordinal').bind(id).all<FinanceRow>()).results, preparePosting: async (actor, journal) => journalReviewService(await db(actor)).prepareJournalPost(actor, journal), commit: async ({ actor, input, id, batchId, plans, lineCount }) => {
             const write = await db(actor);
             const steps: SqlStatement[] = [], posted = [] as Array<{
                 id: string;
@@ -525,13 +519,13 @@ function invoiceService(provided?: SqlDatabase) {
             chart_id: string;
         }>()).results, prepareAiDraft: async (actor, proposalId, invoiceId, input, key) => { aiSteps = await (await import('@erpx/server-finance/public/finance-ai')).financeAiDraftApplication(await db(actor), actor, await (await import('../../../../packages/server-runtime/src/public/runtime')).runtimeEnv(), proposalId, invoiceId, input, key); }, businessBilled: async (actor, id) => !!await (await db(actor)).prepare('SELECT 1 FROM finance_business_billing_runs WHERE invoice_id=? AND company_id=?').bind(id, actor.companyId).first(), editableInvoice: async (actor, id, version) => (await db(actor)).prepare("SELECT line_mode FROM finance_invoices WHERE id=? AND company_id=? AND status='draft' AND version=? AND source_type='standalone'").bind(id, actor.companyId, version).first<{
             line_mode: string;
-        }>(), prepareLines: async (actor, input, id, revision, amounts, key) => { lineRevision = await prepareInvoiceLineRevision(await db(actor), actor, input, id, revision, amounts, key); return { mode: lineRevision.mode, revision: lineRevision.revision, count: lineRevision.count }; }, postableInvoice: async (actor, id) => (await db(actor)).prepare("SELECT * FROM finance_invoices WHERE id=? AND company_id=? AND status='draft' AND source_type!='opening_import'").bind(id, actor.companyId).first<FinanceRow>(), invoiceChart: async (actor, accountId) => (await db(actor)).prepare('SELECT a.chart_id,c.base_currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.id=? AND a.company_id=?').bind(accountId, actor.companyId).first<{
+        }>(), prepareLines: async (actor, input, id, revision, amounts, key) => { lineRevision = await prepareInvoiceLineRevision(await db(actor), actor, input, id, revision, amounts, key); return { mode: lineRevision.mode, revision: lineRevision.revision, count: lineRevision.count }; }, postableInvoice: async (actor, id) => (await db(actor)).prepare("SELECT * FROM finance_invoices WHERE id=? AND company_id=? AND status='draft' AND source_type NOT IN ('opening_import','field_service')").bind(id, actor.companyId).first<FinanceRow>(), invoiceChart: async (actor, accountId) => (await db(actor)).prepare('SELECT a.chart_id,c.base_currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.id=? AND a.company_id=?').bind(accountId, actor.companyId).first<{
             chart_id: string;
             base_currency: string;
         }>(), prepareReviewAttachments: async (actor, invoiceId, version, attachmentSetIds, id) => { attachmentBinding = await prepareAttachmentBinding(await db(actor), actor, { attachmentSetIds, bindingContract: { targetType: 'supplier_bill', bindingType: 'supplier_bill_posting', contexts: [{ purposeKey: 'bill_match_support', componentKind: 'action', componentRef: 'invoice-review' }] }, targetId: invoiceId, expectedTargetVersion: version, commandId: id, bindingId: `${invoiceId}:${version + 1}` }); }, nativeLines: async (actor, invoice, id) => { native = await nativeInvoicePosting(await db(actor), actor, invoice, id); return native ? { lines: native.lines } : null; }, matchedLines: async (actor, invoice, id) => { matched = await (await import('@erpx/server-procurement/public/supplier-bill-matching')).matchedInvoicePosting(await db(actor), actor, invoice, id); return matched ? { lines: matched.lines } : null; }, prepareJournal: async (actor, input, key, status) => { const write = await db(actor), plan = await journalPreparation(write)(actor, input, key, status); journalNative = journalStatements(write, actor, input, key, status, plan); return plan; }, prepareGoods: async (actor, { invoice, key, periodId, entryDate, gainAccountId, lossAccountId }) => { goods = await (await import('@erpx/server-commerce/public/commerce-goods-accounting')).prepareCommerceInvoiceGoods(await db(actor), actor, { invoice, journal: journalNative!, key, periodId, entryDate, gainAccountId, lossAccountId }); }, preparePostedMoney: async (actor, invoiceId, invoice, total) => {
             const write = await db(actor);
             const draftSnapshot = await write.prepare("SELECT 1 FROM money_transaction_snapshots WHERE company_id=? AND source_type='finance_invoice' AND source_id=? AND amount_kind=?").bind(actor.companyId, invoiceId, `draft:v${invoice.line_revision}`).first();
-            const original=draftSnapshot?{sourceType:"finance_invoice",sourceId:invoiceId,amountKind:`draft:v${invoice.line_revision}`} : await fieldServiceInvoiceMoneySource(write,actor.companyId,invoiceId);
+            const original=draftSnapshot?{sourceType:"finance_invoice",sourceId:invoiceId,amountKind:`draft:v${invoice.line_revision}`} : null;
             snapshot = original ? (await snapshotMoneyCarry(write, actor, { sourceType: "finance_invoice", sourceId: invoiceId, amountKind: "total", transactionDate: String(invoice.invoice_date), amountUnits: String(total), original })).statement : await legacyMoneySnapshot(write, actor, { sourceType: "finance_invoice", sourceId: invoiceId, amountKind: "total", transactionDate: String(invoice.invoice_date), currency: String(invoice.currency), amountUnits: total });
         }, commitDraft: async ({ actor, input, id, existingId, invoiceId, operation, subtotal, tax, total, revision, now }) => {
             const write = await db(actor);
@@ -914,12 +908,6 @@ export async function createAssetsPostingChart(actor:WorkContext,raw:unknown,key
 export async function createAssetsPostingAccount(actor:WorkContext,raw:unknown,key:string){const request=assetsPostingAccountSchema.parse(raw);return withAssetsPostingPrerequisiteCommand(actor,'account',request,key,tx=>configurationService(tx,request).createAccount(actor,request.input,key));}
 export async function createAssetsPostingPeriod(actor:WorkContext,raw:unknown,key:string){const request=assetsPostingPeriodSchema.parse(raw);return withAssetsPostingPrerequisiteCommand(actor,'period',request,key,tx=>configurationService(tx,request).createPeriod(actor,request.input,key));}
 
-import {servicePartsChartSchema,servicePartsAccountSchema,servicePartsPeriodSchema} from '@erpx/server-finance/domain/service-parts-prerequisites';
-import {withServicePartsPrerequisiteCommand} from '@erpx/server-finance/adapters/service-parts-prerequisites';
-export async function createServicePartsChart(actor:WorkContext,raw:unknown,key:string){const request=servicePartsChartSchema.parse(raw);return withServicePartsPrerequisiteCommand(actor,'chart',request,key,tx=>configurationService(tx,request).createChart(actor,request.input,key));}
-export async function createServicePartsAccount(actor:WorkContext,raw:unknown,key:string){const request=servicePartsAccountSchema.parse(raw);return withServicePartsPrerequisiteCommand(actor,'account',request,key,tx=>configurationService(tx,request).createAccount(actor,request.input,key));}
-export async function createServicePartsPeriod(actor:WorkContext,raw:unknown,key:string){const request=servicePartsPeriodSchema.parse(raw);return withServicePartsPrerequisiteCommand(actor,'period',request,key,tx=>configurationService(tx,request).createPeriod(actor,request.input,key));}
-
 /** Closed Payroll references retain the original Finance application, native IDs and receipts. */
 export async function createPayrollPostingChart(actor:WorkContext,raw:unknown,key:string):Promise<PayrollPostingChartResult>{const request=payrollPostingChartSchema.parse(raw);return withPayrollPostingPrerequisiteCommand(actor,'chart',request,key,async tx=>{const result=await configurationService(tx,request).createChart(actor,request.input,key);if(result.version!==1)throw new ApiError(409,'PAYROLL_POSTING_SOURCE_CHANGED','The original chart receipt is incomplete.');return {...result,version:result.version};});}
 export async function createPayrollPostingAccount(actor:WorkContext,raw:unknown,key:string):Promise<PayrollPostingAccountResult>{const request=payrollPostingAccountSchema.parse(raw);return withPayrollPostingPrerequisiteCommand(actor,'account',request,key,async tx=>{const result=await configurationService(tx,request).createAccount(actor,request.input,key);if(result.version!==1)throw new ApiError(409,'PAYROLL_POSTING_SOURCE_CHANGED','The original account receipt is incomplete.');return {...result,version:result.version};});}
@@ -929,6 +917,3 @@ export async function createPayrollPostingPeriod(actor:WorkContext,raw:unknown,k
 export async function createExpensePostingChart(actor:WorkContext,raw:unknown,key:string):Promise<ExpensePostingChartResult>{const request=expensePostingChartSchema.parse(raw);return withExpensePostingPrerequisiteCommand(actor,'chart',request,key,async tx=>{const result=await configurationService(tx,request).createChart(actor,request.input,key);if(result.version!==1)throw new ApiError(409,'EXPENSE_POSTING_SOURCE_CHANGED','The original chart receipt is incomplete.');return {...result,version:result.version};});}
 export async function createExpensePostingAccount(actor:WorkContext,raw:unknown,key:string):Promise<ExpensePostingAccountResult>{const request=expensePostingAccountSchema.parse(raw);return withExpensePostingPrerequisiteCommand(actor,'account',request,key,async tx=>{const result=await configurationService(tx,request).createAccount(actor,request.input,key);if(result.version!==1)throw new ApiError(409,'EXPENSE_POSTING_SOURCE_CHANGED','The original account receipt is incomplete.');return {...result,version:result.version};});}
 export async function createExpensePostingPeriod(actor:WorkContext,raw:unknown,key:string):Promise<ExpensePostingPeriodResult>{const request=expensePostingPeriodSchema.parse(raw);return withExpensePostingPrerequisiteCommand(actor,'period',request,key,async tx=>{const result=await configurationService(tx,request).createPeriod(actor,request.input,key);if(result.version!==0||result.state!=='open')throw new ApiError(409,'EXPENSE_POSTING_SOURCE_CHANGED','The original period receipt is incomplete.');return {...result,state:result.state,version:result.version};});}
-
-/** Service customer creation retains the original Finance schema and owner. */
-export async function createServiceCustomer(actor:WorkContext,raw:unknown,key:string){const request=serviceCustomerSchema.parse(raw);return(await withServiceCustomerCommand(actor,request,key,async tx=>{const result=await configurationService(tx,request).createParty(actor,request.input,key);if(result.kind!=='customer')throw new ApiError(409,'SERVICE_CUSTOMER_SOURCE_CHANGED','The original customer receipt is incomplete.');return{...result,kind:result.kind};})).result;}

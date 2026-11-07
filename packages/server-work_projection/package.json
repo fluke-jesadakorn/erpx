@@ -62,7 +62,6 @@
     "./adapters/executive-metric-watermarks": "./src/adapters/executive-metric-watermarks.ts",
     "./adapters/portal-quick-access": "./src/adapters/portal-quick-access.ts",
     "./adapters/navigation-counts": "./src/adapters/navigation-counts.ts",
-    "./adapters/identity-selection-preferences": "./src/adapters/identity-selection-preferences.ts",
     "./adapters/collaboration-inbox-sources": "./src/adapters/collaboration-inbox-sources.ts",
     "./adapters/calendar-index-facts": "./src/adapters/calendar-index-facts.ts",
     "./adapters/front-app": "./src/adapters/front-app.ts",
@@ -75,6 +74,7 @@
     "./adapters/staff-api": "./src/adapters/staff-api.ts",
     "./adapters/front-quick-access": "./src/adapters/front-quick-access.ts",
     "./adapters/identity-access-verified-context-projections": "./src/adapters/identity-access-verified-context-projections.ts",
+    "./adapters/account-switcher": "./src/adapters/account-switcher.ts",
     "./adapters/app-executive-cache-source": "./src/adapters/app-executive-cache-source.ts",
     "./adapters/work-cache": "./src/adapters/work-cache.ts",
     "./public/calendar-reminders-facts": "./src/public/calendar-reminders-facts.ts",
@@ -134,7 +134,6 @@
     "./public/executive-metric-watermarks": "./src/public/executive-metric-watermarks.ts",
     "./public/portal-quick-access": "./src/public/portal-quick-access.ts",
     "./public/navigation-counts": "./src/public/navigation-counts.ts",
-    "./public/identity-selection-preferences": "./src/public/identity-selection-preferences.ts",
     "./public/collaboration-inbox-sources": "./src/public/collaboration-inbox-sources.ts",
     "./public/calendar-index-facts": "./src/public/calendar-index-facts.ts",
     "./public/rules/product-landings": "./src/public/rules/product-landings.ts",
@@ -151,6 +150,7 @@
     "./public/front-quick-access": "./src/public/front-quick-access.ts",
     "./public/work-cards": "./src/public/work-cards.ts",
     "./public/identity-access-verified-context-projections": "./src/public/identity-access-verified-context-projections.ts",
+    "./public/account-switcher": "./src/public/account-switcher.ts",
     "./public/app-executive-cache-source": "./src/public/app-executive-cache-source.ts",
     "./public/work-cache": "./src/public/work-cache.ts",
     "./index": "./src/index.ts",
@@ -194,12 +194,9 @@
     "./application/product-launcher": "./src/application/product-launcher.ts",
     "./application/work-card-preferences": "./src/application/work-card-preferences.ts",
     "./application/work": "./src/application/work.ts",
-    "./application/work-role-options": "./src/application/work-role-options.ts",
     "./application/navigation-counts": "./src/application/navigation-counts.ts",
     "./application/front-app": "./src/application/front-app.ts",
-    "./application/workspace-preferences": "./src/application/workspace-preferences.ts",
     "./application/daily-plan": "./src/application/daily-plan.ts",
-    "./application/work-role-store": "./src/application/work-role-store.ts",
     "./application/staff-api": "./src/application/staff-api.ts",
     "./application/front-quick-access": "./src/application/front-quick-access.ts",
     "./application/work-cache": "./src/application/work-cache.ts",
@@ -225,8 +222,7 @@
     "./domain/work-cards": "./src/domain/work-cards.ts",
     "./domain/front-path": "./src/domain/front-path.ts",
     "./domain/work-cache": "./src/domain/work-cache.ts",
-    "./adapters/account-switcher": "./src/adapters/account-switcher.ts",
-    "./public/account-switcher": "./src/public/account-switcher.ts"
+    "./adapters/native-work-role-transport": "./src/adapters/native-work-role-transport.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -277,10 +273,11 @@
     "@erpx/server-support": "workspace:*",
     "@erpx/server-talent": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
-    "next": "16.4.0",
-    "react": "19.3.0",
+    "next": "16.4.3",
+    "react": "19.3.1",
     "server-only": "0.0.1",
-    "sharp": "0.35.4",
-    "zod": "4.5.4"
+    "sharp": "0.35.5",
+    "zod": "4.6.7",
+    "@erpx/native-sdk": "workspace:*"
   }
 }

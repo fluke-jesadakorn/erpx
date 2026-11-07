@@ -12,6 +12,7 @@
     "./components/support-session-console": "./src/components/support-session-console.tsx",
     "./components/support-evidence-console": "./src/components/support-evidence-console.tsx",
     "./components/support-incident-console": "./src/components/support-incident-console.tsx",
+    "./components/support-workspace": "./src/components/support-workspace.tsx",
     "./lib/ticket-portal-command": "./src/lib/ticket-portal-command.ts",
     "./routes/holdings/[holdingSlug]/customers-sales/customers/service/portal/[bindingId]/page": "./src/routes/holdings/[holdingSlug]/customers-sales/customers/service/portal/[bindingId]/page.tsx",
     "./routes/holdings/[holdingSlug]/customers-sales/customers/service/portal/page": "./src/routes/holdings/[holdingSlug]/customers-sales/customers/service/portal/page.tsx",
@@ -46,7 +47,8 @@
     "./routes/api/v1/holdings/[holdingSlug]/support/sla/route": "./src/routes/api/v1/holdings/[holdingSlug]/support/sla/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/support/incidents/route": "./src/routes/api/v1/holdings/[holdingSlug]/support/incidents/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/service-teams/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/service-teams/[[...path]]/route.ts",
-    "./routes/api/v1/holdings/[holdingSlug]/service-teams/preview/route": "./src/routes/api/v1/holdings/[holdingSlug]/service-teams/preview/route.ts"
+    "./routes/api/v1/holdings/[holdingSlug]/service-teams/preview/route": "./src/routes/api/v1/holdings/[holdingSlug]/service-teams/preview/route.ts",
+    "./lib/native-support-read": "./src/lib/native-support-read.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -67,7 +69,7 @@
     "@erpx/server-work_projection": "workspace:*",
     "@erpx/ui": "workspace:*",
     "@erpx/workplace": "workspace:*",
-    "next": "16.4.0",
-    "react": "19.3.0"
+    "next": "16.4.3",
+    "react": "19.3.1"
   }
 }

@@ -78,7 +78,6 @@
     "./adapters/collaboration-agent-sources": "./src/adapters/collaboration-agent-sources.ts",
     "./adapters/approval-administration": "./src/adapters/approval-administration.ts",
     "./adapters/agent-bootstrap-assertions": "./src/adapters/agent-bootstrap-assertions.ts",
-    "./adapters/work-role-audit": "./src/adapters/work-role-audit.ts",
     "./adapters/technology-provisioning-effects": "./src/adapters/technology-provisioning-effects.ts",
     "./adapters/leave-evidence-decisions": "./src/adapters/leave-evidence-decisions.ts",
     "./adapters/records-record-details-owned-facts": "./src/adapters/records-record-details-owned-facts.ts",
@@ -166,8 +165,8 @@
     "./public/people-evaluation-ai-facts": "./src/public/people-evaluation-ai-facts.ts",
     "./public/collaboration-agent-sources": "./src/public/collaboration-agent-sources.ts",
     "./public/approval-administration": "./src/public/approval-administration.ts",
+    "./public/native-workflow-evidence": "./src/public/native-workflow-evidence.ts",
     "./public/agent-bootstrap-assertions": "./src/public/agent-bootstrap-assertions.ts",
-    "./public/work-role-audit": "./src/public/work-role-audit.ts",
     "./public/technology-provisioning-effects": "./src/public/technology-provisioning-effects.ts",
     "./public/leave-evidence-decisions": "./src/public/leave-evidence-decisions.ts",
     "./public/records-record-details-owned-facts": "./src/public/records-record-details-owned-facts.ts",
@@ -210,6 +209,7 @@
     "@erpx/server-benefits": "workspace:*",
     "@erpx/server-collaboration": "workspace:*",
     "@erpx/server-commerce": "workspace:*",
+    "@erpx/server-commercial": "workspace:*",
     "@erpx/server-crm": "workspace:*",
     "@erpx/server-customer_360": "workspace:*",
     "@erpx/server-field_service": "workspace:*",
@@ -232,8 +232,8 @@
     "@erpx/server-shared": "workspace:*",
     "@erpx/server-support": "workspace:*",
     "@erpx/server-work_projection": "workspace:*",
-    "pg": "8.23.0",
+    "pg": "8.23.1",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

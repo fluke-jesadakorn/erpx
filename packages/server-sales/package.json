@@ -70,7 +70,6 @@
     "lint": "eslint src"
   },
   "dependencies": {
-    "@erpx/contracts": "workspace:*",
     "@erpx/feature-finance": "workspace:*",
     "@erpx/feature-identity_access": "workspace:*",
     "@erpx/feature-sales": "workspace:*",
@@ -91,8 +90,8 @@
     "@erpx/server-support": "workspace:*",
     "@erpx/server-work_projection": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
-    "next": "16.4.0",
+    "next": "16.4.3",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

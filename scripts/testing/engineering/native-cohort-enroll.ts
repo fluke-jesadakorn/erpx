@@ -1,0 +1,8 @@
+/** Enroll only the already seeded Company in the held compiled-engineering cohort. */
+import {readFile} from 'node:fs/promises';
+const run=process.env.ERPX_ENGINEERING_RUN;if(!run||!/^[a-f0-9]{12}$/.test(run))throw Error('ENGINEERING_RUN_REQUIRED');
+const directory=`/case/.runtime/browser/${run}`,release=JSON.parse(await readFile(`${directory}/release/release.json`,'utf8')),fixture=JSON.parse(await readFile(`${directory}/fixture.json`,'utf8'));
+Object.assign(process.env,{NODE_ENV:'production',ERPX_ENVIRONMENT:'local',PORT:'3104',ERPX_BROWSER_SIMULATION_PORT:'3104',ERPX_ENGINEERING_VERIFICATION_RUN:run,ERPX_DATA_DIR:directory,ERPX_DATABASE_MANIFEST:`${directory}/databases.json`,ERPX_PUBLIC_ORIGIN:'http://127.0.0.1:3104',BETTER_AUTH_SECRET:'isolated-test-secret-at-least-thirty-two-characters'});
+const {getRuntime,closeRuntime}=await import('@erpx/server-runtime/adapters/runtime/env');
+const {engineeringVerificationContext,enrollEngineeringVerification,isolatedEngineeringVerification}=await import('@erpx/server-platform_administration/public/engineering-verification');
+try{const context=engineeringVerificationContext(),company=fixture.browser.companyId;if(!context?.nativeRoster||typeof company!=='string')throw Error('ENGINEERING_COHORT_NOT_CURRENT');const db=getRuntime().H001_DB;await enrollEngineeringVerification(db,{run,sourceFingerprint:release.sourceFingerprint,softwareVersion:release.softwareVersion,fileManifestSha256:release.fileManifestSha256,companyIds:[company]});if(!await isolatedEngineeringVerification(db,company))throw Error('ENGINEERING_ENROLLMENT_NOT_CURRENT');console.log('COHORT_ENROLLED');}finally{await closeRuntime();}

@@ -170,6 +170,7 @@
     "./public/attachments/upload": "./src/public/attachments/upload.ts",
     "./public/attachments/scanner": "./src/public/attachments/scanner.ts",
     "./public/attachments/reconciliation-adjudication": "./src/public/attachments/reconciliation-adjudication.ts",
+    "./public/attachments/native-field-attachment": "./src/public/attachments/native-field-attachment.ts",
     "./public/attachments/service": "./src/public/attachments/service.ts",
     "./public/attachments/preview": "./src/public/attachments/preview.ts",
     "./public/legal-portal-binding": "./src/public/legal-portal-binding.ts",
@@ -180,6 +181,7 @@
     "./public/employee-evidence-read": "./src/public/employee-evidence-read.ts",
     "./public/private-attachment-reads": "./src/public/private-attachment-reads.ts",
     "./public/attachment-denied-read-audits": "./src/public/attachment-denied-read-audits.ts",
+    "./public/native-attachments": "./src/public/native-attachments.ts",
     "./public/commercial-usage-facts": "./src/public/commercial-usage-facts.ts",
     "./index": "./src/index.ts",
     "./application/document-derivatives": "./src/application/document-derivatives.ts",
@@ -211,13 +213,18 @@
     "./domain/attachments/policy": "./src/domain/attachments/policy.ts",
     "./domain/attachments/portal-collaboration-policy": "./src/domain/attachments/portal-collaboration-policy.ts",
     "./domain/streamed-file": "./src/domain/streamed-file.ts",
-    "./domain/upload-validation": "./src/domain/upload-validation.ts"
+    "./domain/upload-validation": "./src/domain/upload-validation.ts",
+    "./public/attachments/native-field-bind": "./src/public/attachments/native-field-bind.ts",
+    "./adapters/field-file-writer-owner": "./src/adapters/field-file-writer-owner.ts",
+    "./public/field-file-writer-owner": "./src/public/field-file-writer-owner.ts",
+    "./public/field-outbox-predicate": "./src/public/field-outbox-predicate.generated.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
     "lint": "eslint src"
   },
   "dependencies": {
+    "@erpx/contracts": "workspace:*",
     "@erpx/catalogue": "workspace:*",
     "@erpx/feature-identity_access": "workspace:*",
     "@erpx/feature-people_payroll": "workspace:*",
@@ -232,7 +239,6 @@
     "@erpx/server-customer_360": "workspace:*",
     "@erpx/server-customer_authority": "workspace:*",
     "@erpx/server-ecommerce": "workspace:*",
-    "@erpx/server-field_service": "workspace:*",
     "@erpx/server-finance": "workspace:*",
     "@erpx/server-identity_access": "workspace:*",
     "@erpx/server-inventory": "workspace:*",
@@ -259,6 +265,6 @@
     "@erpx/server-talent": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
     "server-only": "0.0.1",
-    "sharp": "0.35.4"
+    "sharp": "0.35.5"
   }
 }

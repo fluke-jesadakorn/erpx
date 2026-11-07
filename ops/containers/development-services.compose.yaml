@@ -1,0 +1,41 @@
+# Isolated service qualification only. No host ports or operator workspace mounts.
+services:
+  workspace:
+    image: erpx-opensource-dev-toolchain:local
+    init: true
+    command: ["sleep", "infinity"]
+    environment:
+      ERPX_DEV_WORKSPACE_KEY: ${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}
+    volumes:
+      - scanner-socket:/run/erpx-scanner
+      - scanner-definitions:/run/erpx-clamav-definitions:ro
+      - secrets:/run/erpx-secrets:ro
+  postgres:
+    image: postgres:18.6-trixie@sha256:979bccfde35445db618c65107d27d08c6c21339d8dc3ad4c830c6633947be0e4
+    network_mode: service:workspace
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD_FILE: /run/erpx-secrets/postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - secrets:/run/erpx-secrets:ro
+  scanner:
+    image: clamav/clamav:1.5.4-debian13-slim@sha256:cce3e1a43ae2bb40e11335c52c0e1e98273b12fa3d587e617f63a6907cc4b70b
+    network_mode: service:workspace
+    volumes:
+      - scanner-socket:/tmp
+      - scanner-definitions:/var/lib/clamav
+  mailbox:
+    image: axllent/mailpit:v1.28.4@sha256:c6cf0b06eb516a0b80a8a5251f945c131e6beb8396112964404f62856487f5bd
+    network_mode: service:workspace
+volumes:
+  postgres-data:
+    name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}-postgres
+  scanner-socket:
+    name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}-scanner-socket
+  scanner-definitions:
+    name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}-scanner-definitions
+  secrets:
+    external: true
+    name: erpx-dev-${ERPX_DEV_WORKSPACE_KEY:?Set ERPX_DEV_WORKSPACE_KEY}_secrets

@@ -14,4 +14,4 @@ for(const [language,checksum] of Object.entries(expected)){
 }
 await run([process.env.ERPX_TESSERACT_BIN??'/opt/homebrew/bin/tesseract','--tessdata-dir',directory,'--list-langs']);
 await run([python,'scripts/legal/test_validation.py']);
-console.log('Legal Python validator and verified English/Thai OCR data are ready.');
+console.log('Legal Python conformance oracle and verified English/Thai OCR data are ready.');

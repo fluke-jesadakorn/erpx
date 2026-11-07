@@ -1,10 +1,9 @@
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
+import { pinnedNode } from "./app-task";
 
 // Use the production Node HTTPS implementation, including verified DNS pinning.
-const node = resolve(".runtime/node/node-v26.11.1-darwin-arm64/bin/node");
-if (Bun.spawnSync([node, "--version"]).stdout.toString().trim() !== "v26.11.1")
-  throw new Error("NODE_26_11_1_REQUIRED");
+const node = pinnedNode();
 const outdir = resolve(".scratch/dev/worker");
 await mkdir(outdir, { recursive: true });
 const bundle = await Bun.build({

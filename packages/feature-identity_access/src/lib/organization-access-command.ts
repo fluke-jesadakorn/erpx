@@ -9,7 +9,7 @@ type Attempt = {path: string; body: string; key: string; base: string; ownerKey:
 const row = (value: unknown): value is Row => !!value && typeof value === "object" && !Array.isArray(value);
 const positive = (value: unknown) => Number.isSafeInteger(value) && Number(value) > 0;
 const strings = (value: unknown) => Array.isArray(value) && value.every(item => typeof item === "string");
-function owner() {const node = typeof document === "undefined" ? null : document.querySelector<HTMLElement>("[data-work-revision]"); return node ? JSON.stringify([node.dataset.workUser, node.dataset.workCompany, node.dataset.workAssignment]) : "server";}
+function owner() {const node = typeof document === "undefined" ? null : document.querySelector<HTMLElement>("[data-work-revision]"); return node ? JSON.stringify([node.dataset.workUser, node.dataset.workCompany, node.dataset.workAssignment,node.dataset.workAssignmentVersion]) : "server";}
 function changed() {return Object.assign(Error("Your current Organization owner, Company or work role changed. Return to the original owner to recover the request; your draft is retained."), {code: "WORK_CONTEXT_CHANGED"});}
 function preview(path: string) {return path.endsWith("/preview") || path.endsWith("/remove-preview");}
 function route(path: string) {return /^\/technology\/gpo-rules\/(?:preview|remove-preview|publish|remove|not-required|retry-config)$/.test(path) || path === "/technology/position-gpo/retry" || /^\/people\/organization\/position-moves\/(?:preview|submit|[^/]+\/cancel)$/.test(path) || /^\/people\/lifecycle\/placements\/(?:preview|submit)$/.test(path);}

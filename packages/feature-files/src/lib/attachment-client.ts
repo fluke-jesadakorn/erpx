@@ -60,6 +60,8 @@ export type AttachmentStatusDto = {
     attempts: number;
     lastResult?: string | null;
     lastError?: string | null;
+    signature?: string | null;
+    definitionUpdatedAt?: number | null;
     scannedAt?: number | null;
   };
   previewAvailable: boolean;
@@ -160,6 +162,11 @@ export function validateGenericAttachment(
   return null;
 }
 
+export function validateFieldAttachment(file:Pick<File,'name'|'type'|'size'>,purpose:string){
+ if(purpose==='site_photo'&&attachmentMediaType(file)==='application/pdf')return 'Site photos must be an image.';
+ return validateGenericAttachment(file);
+}
+
 export function formatAttachmentBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
@@ -227,6 +234,7 @@ export async function reserveAttachmentFile(
   setId: string,
   input: { filename: string; mediaType: string; bytes: number; caption?: string },
   idempotencyKey: string,
+  acknowledgement: "automatic" | "caller" = "automatic",
 ) {
   const response = await workFetch(
     `${attachmentApiBase(base)}/attachment-sets/${encodeURIComponent(setId)}/files`,
@@ -237,7 +245,7 @@ export async function reserveAttachmentFile(
         "Idempotency-Key": idempotencyKey,
       },
       body: JSON.stringify(input),
-    },
+    }, undefined, acknowledgement,
   );
   return envelope<{
     uploadIntentId: string;
@@ -271,12 +279,13 @@ export async function uploadAttachmentBytes(
   uploadUrl: string,
   file: File,
   mediaType: string,
+  acknowledgement: "automatic" | "caller" = "automatic",
 ) {
   const response = await workFetch(uploadUrl, {
     method: "PUT",
     headers: { "Content-Type": mediaType },
     body: file,
-  });
+  }, undefined, acknowledgement);
   return envelope<{
     uploadIntentId: string;
     attachmentLinkId: string;
@@ -291,6 +300,7 @@ export async function bindRecordAttachmentSet(
   setId: string,
   expectedTargetVersion: number,
   idempotencyKey: string,
+  acknowledgement: "automatic" | "caller" = "automatic",
 ) {
   const response = await workFetch(
     `${attachmentApiBase(base)}/attachment-sets/${encodeURIComponent(setId)}/bind`,
@@ -301,7 +311,7 @@ export async function bindRecordAttachmentSet(
         "Idempotency-Key": idempotencyKey,
       },
       body: JSON.stringify({ expectedTargetVersion }),
-    },
+    }, undefined, acknowledgement,
   );
   return envelope<{
     setId: string;
@@ -330,6 +340,7 @@ export async function withdrawAttachmentLink(
   linkId: string,
   reason: string,
   idempotencyKey: string,
+  acknowledgement: "automatic" | "caller" = "automatic",
 ) {
   const response = await workFetch(
     `${attachmentApiBase(base)}/attachment-links/${encodeURIComponent(linkId)}/withdraw`,
@@ -341,6 +352,8 @@ export async function withdrawAttachmentLink(
       },
       body: JSON.stringify({ reason }),
     },
+    undefined,
+    acknowledgement,
   );
   return envelope<AttachmentStatusDto>(response);
 }

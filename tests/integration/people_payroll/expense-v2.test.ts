@@ -1142,3 +1142,26 @@ it('captures new Expense journal and invoice Money atomically, retains the origi
     expect((await db.prepare('SELECT package_id,state FROM company_package_grants WHERE company_id=? ORDER BY package_id').bind(f.company).all()).results).toEqual([{ package_id: 'people', state: 'active' }, { package_id: 'people-expenses', state: 'active' }]);
   } finally { vi.unstubAllEnvs(); }
 });
+
+it('rechecks the actual Expense purchase when file completion races entitlement withdrawal',async()=>{
+ const {createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload}=await import('@erpx/server-files/public/attachments/service');
+ const id=await f.claim();await expenseBoundaryGrant('people');await expenseBoundaryGrant('people-expenses');
+ vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_ATTACHMENTS_V2','true');
+ const bytes=new TextEncoder().encode('%PDF-1.4\n%%EOF\n');
+ try{
+  const set=await createAttachmentSet(db,f.claimant,{targetType:'expense_claim',targetId:id,componentKind:'record',purposeKey:'receipt',expectedTargetVersion:1},key());
+  const reservation=await reserveAttachmentFile(db,f.claimant,set.id,{filename:'receipt.pdf',mediaType:'application/pdf',bytes:bytes.length},key());
+  let entered!:()=>void,release!:()=>void;const ready=new Promise<void>(resolve=>{entered=resolve;}),resume=new Promise<void>(resolve=>{release=resolve;});
+  const files=new Proxy(env.H001_FILES,{get(target,property,receiver){if(property==='put')return async(...args:Parameters<typeof target.put>)=>{entered();await resume;return target.put(...args);};const value=Reflect.get(target,property,receiver);return typeof value==='function'?value.bind(target):value;}});
+  const upload=completeAttachmentUpload(db,files,f.claimant,reservation.uploadIntentId,bytes.buffer).then(value=>({value,error:null}),error=>({value:null,error}));
+  await ready;
+  let changedBeforeRelease=false;const withdrawal=expenseBoundaryGrant('people-expenses','draining').then(()=>{changedBeforeRelease=true;return {ok:true,error:null};},error=>({ok:false,error}));
+  // If the owner locks win, withdrawal waits for completion; otherwise the
+  // upload must revalidate the changed purchase before it can commit.
+  await new Promise(resolve=>setTimeout(resolve,100));const changed=changedBeforeRelease;release();
+  const [result,grant]=await Promise.all([upload,withdrawal]);expect(grant.ok).toBe(true);
+  const count=Number(await db.prepare('SELECT count(*)::int count FROM attachments WHERE upload_id=?').bind(reservation.uploadIntentId).first('count'));
+  expect(count).toBe(result.value?1:0);if(changed)expect(result.value).toBeNull();
+  if(!result.value)expect(await env.H001_FILES.head(`h001/quarantine/${reservation.uploadIntentId}/original`)).toBeNull();
+ }finally{vi.unstubAllEnvs();}
+});

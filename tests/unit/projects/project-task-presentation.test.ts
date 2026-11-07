@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-const request = vi.hoisted(() => ({ host: "work-dev-erpx.jesadakorn.com", actor: { companyId: "company", assignmentId: "assignment" }, project: vi.fn(), quality: vi.fn() }));
+const request = vi.hoisted(() => ({ host: "apps-dev-erpx.jesadakorn.com", actor: { companyId: "company", assignmentId: "assignment" }, project: vi.fn(), quality: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: request.host }) }));
 vi.mock("@erpx/server-identity_access/public/authorization", () => ({ requireWorkContext: async () => request.actor }));
 vi.mock("@erpx/server-projects/public/product-entry", () => ({ projectTaskSourceRecordBackdrop: request.project }));
@@ -9,14 +9,14 @@ import { sourceRecordPresentation } from "@erpx/feature-records/components/sourc
 
 beforeEach(() => {
   vi.stubEnv("ERPX_ENVIRONMENT", "local"); vi.stubEnv("ERPX_PRODUCT_ENVIRONMENT", "development"); vi.stubEnv("ERPX_PRODUCT_ROUTING", "enabled"); vi.stubEnv("ERPX_PRODUCT_SSO", "enabled");
-  vi.clearAllMocks(); request.host = "work-dev-erpx.jesadakorn.com";
+  vi.clearAllMocks(); request.host = "apps-dev-erpx.jesadakorn.com";
   request.project.mockResolvedValue({ kind: "task", title: "Actual Project source", status: "ready" });
   request.quality.mockResolvedValue({ kind: "hold", title: "Actual Quality source", status: "open" });
 });
 afterEach(() => vi.unstubAllEnvs());
 it("tightens only actual configured Work-host Project Task presentation", async () => {
   expect(await projectTaskProductPresentationOptions()).toEqual({ strictProduct: true });
-  for (const host of ["console-dev-erpx.jesadakorn.com", "projects-dev-erpx.jesadakorn.com", "work-dev-erpx.jesadakorn.com.evil.test", "work-dev-erpx.jesadakorn.com:444"]) {
+  for (const host of ["console-dev-erpx.jesadakorn.com", "projects-dev-erpx.jesadakorn.com", "apps-dev-erpx.jesadakorn.com.evil.test", "apps-dev-erpx.jesadakorn.com:444"]) {
     request.host = host; expect(await projectTaskProductPresentationOptions()).toEqual({});
   }
 });

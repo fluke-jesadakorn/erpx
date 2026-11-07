@@ -41,6 +41,6 @@ This opt-in test makes real changes only in the lab OU: disabled account creatio
 
 Run real writes after package installation has finished. Registering UCS schema extensions temporarily restarts UDM and invalidates availability measurements. The durable application's worker retries transport errors using the same operation ID, verifies results, and stops on a version/identity conflict.
 
-Public UI verification uses the authenticated session at [People connections](https://console-dev-erpx.jesadakorn.com/holdings/acme/people/settings?section=connections) and [Access & devices](https://console-dev-erpx.jesadakorn.com/holdings/acme/people/access?view=devices). A health endpoint alone is insufficient. No real employee access is granted by the lab setup.
+Public UI verification starts through normal authentication at [Acme Holding](https://acme.jesadakorn.com/), then the authorized Company/Administration Directory and access/device surfaces. Use current Holding paths; retired Console links cannot open business pages. A health endpoint alone is insufficient.
 
 API reference: [Univention UDM REST](https://docs.software-univention.de/nubus-customization/1.x/en/api/udm-rest.html). Deferred Windows checks: [Windows runner](../../../ops/windows/README.md).

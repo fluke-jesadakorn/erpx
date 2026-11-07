@@ -47,7 +47,10 @@
     "./lib/messaging-command": "./src/lib/messaging-command.ts",
     "./lib/social-post-editor-state": "./src/lib/social-post-editor-state.ts",
     "./lib/handbook-command": "./src/lib/handbook-command.ts",
-    "./lib/marketing-editor": "./src/lib/marketing-editor.ts"
+    "./lib/native-handbook": "./src/lib/native-handbook.ts",
+    "./lib/native-handbook-page": "./src/lib/native-handbook-page.ts",
+    "./lib/marketing-editor": "./src/lib/marketing-editor.ts",
+    "./lib/collaboration-work-read-model": "./src/lib/collaboration-work-read-model.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -70,16 +73,16 @@
     "@erpx/server-work_projection": "workspace:*",
     "@erpx/ui": "workspace:*",
     "@erpx/workplace": "workspace:*",
-    "@tiptap/extension-table": "3.31.3",
-    "@tiptap/extension-text-align": "3.31.3",
-    "@tiptap/extension-text-style": "3.31.3",
-    "@tiptap/pm": "3.31.3",
-    "@tiptap/react": "3.31.3",
-    "@tiptap/starter-kit": "3.31.3",
-    "lucide-react": "1.41.0",
-    "next": "16.4.0",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
-    "zod": "4.5.4"
+    "@tiptap/extension-table": "3.32.0",
+    "@tiptap/extension-text-align": "3.32.0",
+    "@tiptap/extension-text-style": "3.32.0",
+    "@tiptap/pm": "3.32.0",
+    "@tiptap/react": "3.32.0",
+    "@tiptap/starter-kit": "3.32.0",
+    "lucide-react": "1.61.0",
+    "next": "16.4.3",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "zod": "4.6.7"
   }
 }

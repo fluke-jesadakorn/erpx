@@ -69,9 +69,9 @@ export function deviceAccountStore(owner: TransactionalSqlDatabase, browserId: s
   async function row(database: SqlDatabase, id = browserId) {
     return id ? database.prepare('SELECT * FROM account_device_browsers WHERE id=?').bind(id).first<Browser>() : null;
   }
-  async function snapshot(database: SqlDatabase, browser: Browser | null, proof:readonly string[]): Promise<DeviceAccounts> {
+  async function snapshot(database: SqlDatabase, browser: Browser | null, proof?:readonly string[]): Promise<DeviceAccounts> {
     return { initialized: !!browser, revision: Number(browser?.revision ?? 0), maximum,
-      accounts: browser ? (await saved(database, browser.id)).filter(account=>proof.includes(account.session_id)).map(account => ({ handle: account.handle, name: account.name,
+      accounts: browser ? (await saved(database, browser.id)).filter(account=>!proof||proof.includes(account.session_id)).map(account => ({ handle: account.handle, name: account.name,
         email: account.email, image: account.image, current: account.session_id === browser.active_session_id })) : [] };
   }
   async function children(database:SqlDatabase,parents:readonly string[]){
@@ -130,19 +130,19 @@ export function deviceAccountStore(owner: TransactionalSqlDatabase, browserId: s
     return (await row(database, browser.id))!;
   }
   return {
-    read: (proof:readonly string[]) => owner.transaction(async database => snapshot(database, await row(database),proof)),
+    read: (proof?:readonly string[]) => owner.transaction(async database => snapshot(database, await row(database),proof)),
     initialize: (proof: readonly string[], active: string | null) => owner.transaction(async database => {
       await lease(database); let browser = await ensure(database, proof,active); check(browser);
       // Initialization cannot overwrite a later selection with a stale cookie.
       if (!browser.active_session_id && Number(browser.revision)===0 && active && proof.includes(active) && await live(database, active)) browser = await select(database, browser, active);
-      return { browserId: browser.id, state: await snapshot(database, browser, proof) };
+      return { browserId: browser.id, state: await snapshot(database, browser) };
     }),
     activate: (proof: readonly string[], handle: string, revision: number) => owner.transaction(async database => {
       await lease(database); const browser = await ensure(database, proof); check(browser, revision);
       const account = (await saved(database, browser.id)).find(account => account.handle === handle && proof.includes(account.session_id));
       if (!account) throw new ApiError(401, 'DEVICE_ACCOUNT_EXPIRED', 'This saved account expired. Sign in again.');
       const current = await select(database, browser, account.session_id);
-      return { browserId: browser.id, sessionId: account.session_id, state: await snapshot(database, current, proof) };
+      return { browserId: browser.id, sessionId: account.session_id, state: await snapshot(database, current) };
     }),
     reserve: (proof: readonly string[], email: string, revision?: number, active?:string|null) => owner.transaction(async database => {
       await lease(database); let browser = await ensure(database, proof,active);
@@ -165,7 +165,7 @@ export function deviceAccountStore(owner: TransactionalSqlDatabase, browserId: s
       browser = await ensure(database, proof);
       browser = await select(database, browser, sessionId);
       await database.prepare('UPDATE account_device_browsers SET pending_nonce=NULL,pending_until=NULL WHERE id=?').bind(browser.id).run();
-      return { browserId: browser.id, state: await snapshot(database, browser, proof) };
+      return { browserId: browser.id, state: await snapshot(database, browser) };
     }),
     release: (nonce: string) => owner.prepare('UPDATE account_device_browsers SET pending_nonce=NULL,pending_until=NULL WHERE id=? AND pending_nonce=?').bind(browserId, nonce).run(),
     remove: (proof: readonly string[], handle: string, revision: number) => owner.transaction(async database => {
@@ -176,7 +176,7 @@ export function deviceAccountStore(owner: TransactionalSqlDatabase, browserId: s
       else { await invalidate?.(await children(database,[account.session_id])); await database.prepare('UPDATE account_device_browsers SET revision=revision+1,updated_at=? WHERE id=?').bind(now(), browser.id).run(); browser = (await row(database, browser.id))!; }
       await revokeProductSessionFamily(database, account.session_id, 'development');
       await database.prepare('DELETE FROM account_device_accounts WHERE session_id=? AND browser_id=?').bind(account.session_id, browser.id).run();
-      return { browserId: browser.id, sessionId: account.session_id, state: await snapshot(database, browser, proof) };
+      return { browserId: browser.id, sessionId: account.session_id, state: await snapshot(database, browser) };
     }),
   };
 }

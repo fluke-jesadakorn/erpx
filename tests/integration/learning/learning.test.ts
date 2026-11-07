@@ -534,7 +534,7 @@ async function zeroWorkerLearningCompany(purchased=true){
  const store=packageGrantStore(db,{authorize:async(_tx,id)=>{if(id!==company)throw Error('PROJECT_WORKER_FIXTURE_COMPANY');return {userId:'isolated-learning-worker-provider'};},obligations:async()=>{throw Error('PROJECT_WORKER_FIXTURE_CANNOT_INACTIVATE');}});
  async function purchase(state:'active'|'draining'='active'){const prior=(await readCompanyPackageGrants(db,company)).find(row=>row.packageId==='learn');return store.apply({expectedVersion:prior?.version??0,idempotencyKey:key(),grant:{companyId:company,packageId:'learn',packageVersion:1,state,startsAt:0,endsAt:null,version:(prior?.version??0)+1,reason:'Actual Learning-only worker-reference foundation',evidence:'test:learning-zero-worker-native'}});}
  if(purchased)await purchase();
- vi.stubEnv('ERPX_LEARNING_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_WORK_PACKAGE_ENFORCEMENT','enforced');
+ vi.stubEnv('ERPX_LEARNING_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_APPS_PACKAGE_ENFORCEMENT','enforced');
  const api=await import('@erpx/server-people_payroll/public/learning-worker-startup'),jobs=await import('@erpx/server-people_payroll/public/people-lifecycle-jobs');
  const counts=()=>Promise.all(['hr_people','hr_engagements','employees','people_lifecycle_cases','people_learning_worker_starters','people_learning_worker_placements','staff_projects','finance_charts','finance_accounts','finance_journals','finance_payments','hr_pay_groups','hr_payroll_runs'].map(table=>db.prepare(`SELECT count(*) n FROM ${table} WHERE company_id=?`).bind(company).first<number>('n')));
  expect(await counts()).toEqual(Array(13).fill(0));

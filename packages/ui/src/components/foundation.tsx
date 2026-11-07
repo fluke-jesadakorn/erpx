@@ -1,5 +1,5 @@
 import type { LinkProps } from "next/link";
-import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
+import { NavigationLink as Link } from "@erpx/ui/components/navigation-context";
 import { AlertCircle, CheckCircle2, Info, LoaderCircle, Search, TriangleAlert } from "lucide-react";
 import {
   forwardRef,

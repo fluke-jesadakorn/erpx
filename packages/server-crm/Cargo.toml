@@ -1,0 +1,53 @@
+[package]
+name = "erpx-server-crm"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+erpx-server-shared.workspace = true
+erpx-server-runtime.workspace = true
+sqlx.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+uuid.workspace = true
+
+[[test]]
+name = "crm_pipeline"
+path = "../../tests/unit/crm/rust-crm-pipeline.test.rs"
+
+[[test]]
+name = "crm_accounts"
+path = "../../tests/unit/crm/rust-crm-accounts.test.rs"
+
+[[test]]
+name = "crm_activities"
+path = "../../tests/unit/crm/rust-crm-activities.test.rs"
+
+[[test]]
+name = "crm_leads"
+path = "../../tests/unit/crm/rust-crm-leads.test.rs"
+
+[[test]]
+name = "crm_pipeline_http"
+path = "../../tests/integration/crm/rust-crm-pipeline-http.test.rs"
+
+[[test]]
+name = "crm_command_http"
+path = "../../tests/integration/crm/rust-crm-command-http.test.rs"
+
+[[test]]
+name = "crm_pipeline_postgres"
+path = "../../tests/integration/crm/rust-crm-pipeline-postgres.test.rs"
+
+[lints]
+workspace = true

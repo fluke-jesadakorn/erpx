@@ -9,6 +9,7 @@
     "./adapters/collaboration-home-sources": "./src/adapters/collaboration-home-sources.ts",
     "./adapters/operations-guided-intake-facts": "./src/adapters/operations-guided-intake-facts.ts",
     "./adapters/agent-governance": "./src/adapters/agent-governance.ts",
+    "./adapters/native-agent-evidence": "./src/adapters/native-agent-evidence.ts",
     "./adapters/executive-evidence-sources": "./src/adapters/executive-evidence-sources.ts",
     "./adapters/executive-metric-projections": "./src/adapters/executive-metric-projections.ts",
     "./adapters/ai-transport": "./src/adapters/ai-transport.ts",
@@ -30,6 +31,8 @@
     "./public/collaboration-home-sources": "./src/public/collaboration-home-sources.ts",
     "./public/operations-guided-intake-facts": "./src/public/operations-guided-intake-facts.ts",
     "./public/agent-governance": "./src/public/agent-governance.ts",
+    "./public/native-agent-evidence": "./src/public/native-agent-evidence.ts",
+    "./public/native-agent-evidence-page": "./src/public/native-agent-evidence-page.ts",
     "./public/executive-evidence-sources": "./src/public/executive-evidence-sources.ts",
     "./public/executive-metric-projections": "./src/public/executive-metric-projections.ts",
     "./public/ai-transport": "./src/public/ai-transport.ts",
@@ -89,6 +92,6 @@
     "@erpx/server-work_projection": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
     "server-only": "0.0.1",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }

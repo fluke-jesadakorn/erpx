@@ -142,6 +142,16 @@ type FixtureBrowserReceipt = {
   evidencePath?: string;
 };
 
+/** Independent synthetic case folders can be prepared concurrently. Keep a
+ * fixed bound and settle all writes before validation or fixture cleanup. */
+async function prepareFixtureCases<T>(cases: readonly T[], prepare: (value: T) => Promise<void>) {
+  let next = 0;
+  const results = await Promise.allSettled(Array.from({ length: Math.min(8, cases.length) }, async () => {
+    for (let index = next++; index < cases.length; index = next++) await prepare(cases[index]);
+  }));
+  for (const result of results) if (result.status === "rejected") throw result.reason;
+}
+
 async function writeBrowserIsolationFixture(root: string, runId: string, binding: {
   runtimeFingerprint: string;
   verificationFingerprint: string;
@@ -161,8 +171,8 @@ async function writeBrowserIsolationFixture(root: string, runId: string, binding
     receipt.evidencePath = evidencePath;
     if (groupId === "product-host" && stage !== "probe") {
       const browserReceipt = receipt as FixtureBrowserReceipt;
-      for (const test of browserReceipt.receipts) {
-        if (test.suite !== productHostSuiteId || test.passed !== true || !test.run || !test.file || !test.title) continue;
+      await prepareFixtureCases(browserReceipt.receipts, async test => {
+        if (test.suite !== productHostSuiteId || test.passed !== true || !test.run || !test.file || !test.title) return;
         const casePath = join(evidencePath, test.run), caseDirectory = resolve(root, casePath), artifactDirectory = join(casePath, "artifacts");
         const businessWorkflow = productHostBusinessWorkflowForCase(test.file, test.title);
         const readOnlyWorkflow = productHostReadOnlyWorkflowForCase(test.file, test.title);
@@ -256,7 +266,7 @@ async function writeBrowserIsolationFixture(root: string, runId: string, binding
             bytes: commercialBytes.length,
           };
         }
-      }
+      });
     }
     await writeFixtureFile(root, join(evidencePath, "receipt.json"), JSON.stringify(receipt, null, 2) + "\n");
     return resolve(root, evidencePath);

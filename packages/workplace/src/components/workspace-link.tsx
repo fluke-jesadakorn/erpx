@@ -9,5 +9,6 @@ export default function WorkspaceLink({href,prefetch=false,...props}:ComponentPr
  const scope=useProductNavigationScope(),value=productHrefString(href),destination=value===null?null:productNavigationHref(value,scope);
  const targetHref=typeof href==='string'?destination?.href??canonicalUiHref(href)
   :!scope.audience||!destination||!destination.handoff&&destination.href===value?href:destination.href;
+ if(destination?.handoff&&scope.holdingSlug)return <a {...props as ComponentProps<'a'>} data-product-switch href={destination.href}/>;
  return <NextLink {...props} {...(destination?.handoff?{"data-product-switch":true}:{})} prefetch={destination?.handoff?false:prefetch} href={targetHref}/>;
 }

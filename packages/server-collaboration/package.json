@@ -49,7 +49,6 @@
     "./adapters/staff-notifications": "./src/adapters/staff-notifications.ts",
     "./adapters/hospitality-owner-projection-sources": "./src/adapters/hospitality-owner-projection-sources.ts",
     "./adapters/beta-management-facts": "./src/adapters/beta-management-facts.ts",
-    "./adapters/work-ui-staff-facts": "./src/adapters/work-ui-staff-facts.ts",
     "./adapters/sales-notifications": "./src/adapters/sales-notifications.ts",
     "./adapters/presentation-queries": "./src/adapters/presentation-queries.ts",
     "./adapters/legal-law-source-notifications": "./src/adapters/legal-law-source-notifications.ts",
@@ -153,7 +152,6 @@
     "./public/staff-notifications": "./src/public/staff-notifications.ts",
     "./public/hospitality-owner-projection-sources": "./src/public/hospitality-owner-projection-sources.ts",
     "./public/beta-management-facts": "./src/public/beta-management-facts.ts",
-    "./public/work-ui-staff-facts": "./src/public/work-ui-staff-facts.ts",
     "./public/sales-notifications": "./src/public/sales-notifications.ts",
     "./public/presentation-queries": "./src/public/presentation-queries.ts",
     "./public/legal-law-source-notifications": "./src/public/legal-law-source-notifications.ts",
@@ -249,7 +247,8 @@
     "./domain/ai-contracts": "./src/domain/ai-contracts.ts",
     "./domain/social": "./src/domain/social.ts",
     "./domain/handbook": "./src/domain/handbook.ts",
-    "./domain/social-home": "./src/domain/social-home.ts"
+    "./domain/social-home": "./src/domain/social-home.ts",
+    "./public/field-outbox-predicate": "./src/public/field-outbox-predicate.generated.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -299,8 +298,8 @@
     "@erpx/server-work_projection": "workspace:*",
     "@erpx/server-workflow": "workspace:*",
     "server-only": "0.0.1",
-    "sharp": "0.35.4",
+    "sharp": "0.35.5",
     "web-push": "3.6.7",
-    "zod": "4.5.4"
+    "zod": "4.6.7"
   }
 }
