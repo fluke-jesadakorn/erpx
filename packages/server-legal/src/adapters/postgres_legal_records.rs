@@ -232,7 +232,7 @@ impl<'c> PgLegalRecords<'c> {
         &mut self,
         actor: &LegalRecordsActor,
         plan: &LegalCommandPlan,
-    ) -> Result<(), LegalRecordsError> {
+    ) -> Result<Option<String>, LegalRecordsError> {
         match &plan.effect {
             LegalCommandEffect::AddDocument {
                 document_id,
@@ -558,8 +558,450 @@ impl<'c> PgLegalRecords<'c> {
                 }
             }
             LegalCommandEffect::Archive { .. } => {}
+            LegalCommandEffect::ApprovalOpen {
+                instance_id,
+                document_id,
+                signer_ids,
+                approver_ids,
+                ..
+            } => {
+                let item = sqlx::query(
+                    "SELECT kind,state,branch_id,department_id,created_by FROM legal_items                      WHERE id=$1 AND company_id=$2 FOR UPDATE",
+                )
+                .bind(&plan.item_id)
+                .bind(actor.company_id.as_str())
+                .fetch_optional(&mut *self.connection)
+                .await?
+                .ok_or_else(not_found)?;
+                let kind: String = item.try_get("kind")?;
+                let item_state: String = item.try_get("state")?;
+                let item_created_by: String = item.try_get("created_by")?;
+                let branch_id: Option<String> = item.try_get("branch_id")?;
+                let department_id: Option<String> = item.try_get("department_id")?;
+                if kind != "contract" || !matches!(item_state.as_str(), "draft" | "review" | "approval") {
+                    return Err(BusinessError::new(
+                        FailureKind::Conflict,
+                        "LEGAL_APPROVAL_STATE",
+                        "Return this contract to draft before opening a new approval.",
+                    )
+                    .into());
+                }
+                let document = sqlx::query(
+                    "SELECT checksum,created_by FROM legal_documents WHERE id=$1 AND item_id=$2",
+                )
+                .bind(document_id)
+                .bind(&plan.item_id)
+                .fetch_optional(&mut *self.connection)
+                .await?
+                .ok_or_else(|| invalid("LEGAL_DOCUMENT_REQUIRED", "Select a document from this contract."))?;
+                let document_checksum: String = document.try_get("checksum")?;
+                let document_author: String = document.try_get("created_by")?;
+                let executed: bool = sqlx::query_scalar(
+                    "SELECT EXISTS(SELECT 1 FROM legal_executed_copies WHERE document_id=$1)",
+                )
+                .bind(document_id)
+                .fetch_one(&mut *self.connection)
+                .await?;
+                if executed {
+                    return Err(BusinessError::new(
+                        FailureKind::Conflict,
+                        "LEGAL_APPROVAL_STATE",
+                        "Imported executed copies are reviewed separately from draft approval.",
+                    )
+                    .into());
+                }
+                let last_author: Option<String> = sqlx::query_scalar(
+                    "SELECT actor_id FROM legal_events WHERE item_id=$1 ORDER BY version DESC,created_at DESC LIMIT 1",
+                )
+                .bind(&plan.item_id)
+                .fetch_optional(&mut *self.connection)
+                .await?;
+                for approver in approver_ids {
+                    let eligible: bool = sqlx::query_scalar(
+                        "SELECT legal_person_eligible($1,$2,$3,$4,'legal.approve') AND EXISTS(SELECT 1 FROM legal_members WHERE item_id=$5 AND user_id=$2)",
+                    )
+                    .bind(actor.company_id.as_str())
+                    .bind(approver)
+                    .bind(branch_id.as_deref())
+                    .bind(department_id.as_deref())
+                    .bind(&plan.item_id)
+                    .fetch_one(&mut *self.connection)
+                    .await?;
+                    if !eligible {
+                        return Err(BusinessError::new(
+                            FailureKind::InvalidInput,
+                            "LEGAL_REVIEWER_UNAVAILABLE",
+                            "Reviewer needs explicit record membership and an active Legal approval role.",
+                        )
+                        .into());
+                    }
+                    for author in [actor.user_id.as_str(), item_created_by.as_str(), document_author.as_str()] {
+                        if self
+                            .same_person(approver, author, &actor.company_id)
+                            .await?
+                        {
+                            return Err(BusinessError::new(
+                                FailureKind::Forbidden,
+                                "LEGAL_INDEPENDENT_REVIEW",
+                                "Content authors cannot approve their own work.",
+                            )
+                            .into());
+                        }
+                    }
+                    if let Some(last) = last_author.as_deref() {
+                        if self.same_person(approver, last, &actor.company_id).await? {
+                            return Err(BusinessError::new(
+                                FailureKind::Forbidden,
+                                "LEGAL_INDEPENDENT_REVIEW",
+                                "Content authors cannot approve their own work.",
+                            )
+                            .into());
+                        }
+                    }
+                }
+                for signer in signer_ids {
+                    let access: bool = sqlx::query_scalar(
+                        "SELECT EXISTS(SELECT 1 FROM legal_members WHERE item_id=$1 AND user_id=$2)                          OR EXISTS(SELECT 1 FROM legal_shares WHERE item_id=$1 AND document_id=$3 AND user_id=$2 AND revoked_at IS NULL AND expires_at>$4)",
+                    )
+                    .bind(&plan.item_id)
+                    .bind(signer)
+                    .bind(document_id)
+                    .bind(self.now)
+                    .fetch_one(&mut *self.connection)
+                    .await?;
+                    if !access {
+                        return Err(BusinessError::new(
+                            FailureKind::InvalidInput,
+                            "LEGAL_SIGNER_UNAVAILABLE",
+                            "Each signer must have explicit access to this version.",
+                        )
+                        .into());
+                    }
+                }
+                let cycle: i64 = sqlx::query_scalar(
+                    "SELECT (COALESCE(MAX(cycle),0)+1)::bigint FROM approval_instances WHERE record_type='legal' AND record_id=$1 AND phase='request'",
+                )
+                .bind(&plan.item_id)
+                .fetch_one(&mut *self.connection)
+                .await?;
+                sqlx::query(
+                    "UPDATE approval_instances SET state='superseded',version=version+1,updated_at=$1                      WHERE record_type='legal' AND record_id=$2 AND state IN ('pending','blocked')",
+                )
+                .bind(self.now)
+                .bind(&plan.item_id)
+                .execute(&mut *self.connection)
+                .await?;
+                sqlx::query(
+                    "INSERT INTO approval_instances(id,company_id,branch_id,department_id,record_type,record_id,phase,cycle,requester_user_id,assignee_user_id,state,created_at,updated_at)                      VALUES($1,$2,$3,$4,'legal',$5,'request',$6,$7,NULL,'pending',$8,$8)",
+                )
+                .bind(instance_id)
+                .bind(actor.company_id.as_str())
+                .bind(branch_id.as_deref())
+                .bind(department_id.as_deref())
+                .bind(&plan.item_id)
+                .bind(cycle)
+                .bind(actor.user_id.as_str())
+                .bind(self.now)
+                .execute(&mut *self.connection)
+                .await?;
+                let snapshot = serde_json::to_string(&json!({
+                    "documentId": document_id,
+                    "checksum": document_checksum,
+                    "signers": signer_ids,
+                }))
+                .map_err(|_| invalid("LEGAL_APPROVAL_INVALID", "The approval route is invalid."))?;
+                for (ordinal, approver) in approver_ids.iter().enumerate() {
+                    sqlx::query(
+                        "INSERT INTO approval_steps(id,instance_id,ordinal,approver_user_id,authority,route_snapshot_json)                          VALUES($1,$2,$3,$4,'named',$5)",
+                    )
+                    .bind(format!("{instance_id}-{ordinal}"))
+                    .bind(instance_id)
+                    .bind(ordinal as i64)
+                    .bind(approver)
+                    .bind(&snapshot)
+                    .execute(&mut *self.connection)
+                    .await?;
+                }
+                sqlx::query(
+                    "INSERT INTO legal_approval_routes(item_id,instance_id,document_id,document_hash,signers,source_version,created_by)                      VALUES($1,$2,$3,$4,$5::jsonb,$6,$7)                      ON CONFLICT(item_id) DO UPDATE SET instance_id=excluded.instance_id,document_id=excluded.document_id,document_hash=excluded.document_hash,signers=excluded.signers,source_version=excluded.source_version,created_by=excluded.created_by",
+                )
+                .bind(&plan.item_id)
+                .bind(instance_id)
+                .bind(document_id)
+                .bind(&document_checksum)
+                .bind(serde_json::to_string(signer_ids).map_err(|_| invalid("LEGAL_APPROVAL_INVALID", "The approval route is invalid."))?)
+                .bind(i32_version(plan.next_version)?)
+                .bind(actor.user_id.as_str())
+                .execute(&mut *self.connection)
+                .await?;
+                sqlx::query(
+                    "UPDATE legal_documents SET locked=true WHERE id=$1 AND item_id=$2",
+                )
+                .bind(document_id)
+                .bind(&plan.item_id)
+                .execute(&mut *self.connection)
+                .await?;
+                if let Some(first) = approver_ids.first() {
+                    sqlx::query(
+                        "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)                          VALUES($1,$2,$3,'legal',$4,$5,'Request approval needs your decision',$6) ON CONFLICT DO NOTHING",
+                    )
+                    .bind(format!("legal-approval-{instance_id}-{first}"))
+                    .bind(actor.company_id.as_str())
+                    .bind(first)
+                    .bind(&plan.item_id)
+                    .bind(plan.next_version)
+                    .bind(self.now)
+                    .execute(&mut *self.connection)
+                    .await?;
+                }
+                return Ok(Some("approval".to_owned()));
+            }
+            LegalCommandEffect::ApprovalDecide {
+                decision_id,
+                command_id,
+                decision,
+                reason,
+            } => {
+                let instance = sqlx::query(
+                    "SELECT id,state,current_step::bigint current_step,cycle::bigint cycle                      FROM approval_instances WHERE record_type='legal' AND record_id=$1 AND company_id=$2                      ORDER BY insertion_order DESC LIMIT 1 FOR UPDATE",
+                )
+                .bind(&plan.item_id)
+                .bind(actor.company_id.as_str())
+                .fetch_optional(&mut *self.connection)
+                .await?
+                .ok_or_else(|| invalid("LEGAL_APPROVAL_ROUTE", "No active approval route."))?;
+                let instance_id: String = instance.try_get("id")?;
+                let state: String = instance.try_get("state")?;
+                let current_step: i64 = instance.try_get("current_step")?;
+                let cycle: i64 = instance.try_get("cycle")?;
+                if state != "pending" {
+                    return Err(BusinessError::new(
+                        FailureKind::Conflict,
+                        "LEGAL_APPROVAL_ROUTE",
+                        "No active approval route.",
+                    )
+                    .into());
+                }
+                let step = sqlx::query(
+                    "SELECT id,approver_user_id,state FROM approval_steps WHERE instance_id=$1 AND ordinal=$2 FOR UPDATE",
+                )
+                .bind(&instance_id)
+                .bind(current_step)
+                .fetch_optional(&mut *self.connection)
+                .await?
+                .ok_or_else(|| invalid("LEGAL_APPROVAL_ROUTE", "Approval step unavailable."))?;
+                let step_id: String = step.try_get("id")?;
+                let approver: String = step.try_get("approver_user_id")?;
+                let step_state: String = step.try_get("state")?;
+                if step_state != "pending"
+                    || !self.same_person(actor.user_id.as_str(), &approver, &actor.company_id).await?
+                {
+                    return Err(BusinessError::new(
+                        FailureKind::Forbidden,
+                        "LEGAL_APPROVER",
+                        "This decision is assigned to another reviewer.",
+                    )
+                    .into());
+                }
+                let route = sqlx::query(
+                    "SELECT document_id,document_hash,signers::text signers FROM legal_approval_routes WHERE item_id=$1 AND instance_id=$2",
+                )
+                .bind(&plan.item_id)
+                .bind(&instance_id)
+                .fetch_optional(&mut *self.connection)
+                .await?
+                .ok_or_else(|| invalid("LEGAL_APPROVAL_ROUTE", "Approval snapshot unavailable."))?;
+                let document_id: String = route.try_get("document_id")?;
+                let document_hash: String = route.try_get("document_hash")?;
+                let signers: String = route.try_get("signers")?;
+                let authority = serde_json::to_string(&json!({
+                    "role": actor.role,
+                    "assignmentId": actor.assignment_id.as_str(),
+                    "documentId": document_id,
+                    "documentHash": document_hash,
+                }))
+                .map_err(|_| invalid("LEGAL_APPROVAL_INVALID", "The approval decision is invalid."))?;
+                sqlx::query(
+                    "INSERT INTO approval_decisions(id,instance_id,step_id,action,actor_user_id,previous_approver_user_id,approver_user_id,reason,reviewed_version,command_id,created_at,authority_json)                      VALUES($1,$2,$3,$4,$5,$6,$6,$7,$8,$9,$10,$11)",
+                )
+                .bind(decision_id)
+                .bind(&instance_id)
+                .bind(&step_id)
+                .bind(decision)
+                .bind(actor.user_id.as_str())
+                .bind(&approver)
+                .bind(reason)
+                .bind(plan.expected_version)
+                .bind(command_id)
+                .bind(self.now)
+                .bind(&authority)
+                .execute(&mut *self.connection)
+                .await?;
+                let step_decision = if decision == "approve" { "approved" } else { "rejected" };
+                sqlx::query("UPDATE approval_steps SET state=$1 WHERE id=$2")
+                    .bind(step_decision)
+                    .bind(&step_id)
+                    .execute(&mut *self.connection)
+                    .await?;
+                if decision != "approve" {
+                    sqlx::query(
+                        "UPDATE approval_instances SET state=$1,version=version+1,updated_at=$2 WHERE id=$3",
+                    )
+                    .bind(if decision == "reject" { "rejected" } else { "cancelled" })
+                    .bind(self.now)
+                    .bind(&instance_id)
+                    .execute(&mut *self.connection)
+                    .await?;
+                    return Ok(Some(if decision == "revise" { "draft" } else { "rejected" }.to_owned()));
+                }
+                let next: Option<String> = sqlx::query_scalar(
+                    "SELECT approver_user_id FROM approval_steps WHERE instance_id=$1 AND ordinal=$2",
+                )
+                .bind(&instance_id)
+                .bind(current_step + 1)
+                .fetch_optional(&mut *self.connection)
+                .await?;
+                if let Some(next_approver) = next {
+                    sqlx::query(
+                        "UPDATE approval_instances SET current_step=current_step+1,version=version+1,updated_at=$1 WHERE id=$2",
+                    )
+                    .bind(self.now)
+                    .bind(&instance_id)
+                    .execute(&mut *self.connection)
+                    .await?;
+                    sqlx::query(
+                        "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)                          VALUES($1,$2,$3,'legal',$4,$5,'Request approval needs your decision',$6) ON CONFLICT DO NOTHING",
+                    )
+                    .bind(format!("legal-approval-{instance_id}-{next_approver}"))
+                    .bind(actor.company_id.as_str())
+                    .bind(&next_approver)
+                    .bind(&plan.item_id)
+                    .bind(plan.next_version)
+                    .bind(self.now)
+                    .execute(&mut *self.connection)
+                    .await?;
+                    return Ok(Some("approval".to_owned()));
+                }
+                sqlx::query(
+                    "UPDATE approval_instances SET state='approved',version=version+1,updated_at=$1 WHERE id=$2",
+                )
+                .bind(self.now)
+                .bind(&instance_id)
+                .execute(&mut *self.connection)
+                .await?;
+                sqlx::query(
+                    "INSERT INTO legal_approvals(item_id,cycle,document_id,document_hash,signers,reviewer_id,decision,created_at)                      VALUES($1,$2,$3,$4,$5::jsonb,$6,'approved',$7) ON CONFLICT(item_id,cycle) DO NOTHING",
+                )
+                .bind(&plan.item_id)
+                .bind(i32_version(cycle)?)
+                .bind(document_id)
+                .bind(document_hash)
+                .bind(signers)
+                .bind(actor.user_id.as_str())
+                .bind(self.now)
+                .execute(&mut *self.connection)
+                .await?;
+                return Ok(Some("approved".to_owned()));
+            }
+            LegalCommandEffect::ApprovalReroute {
+                decision_id,
+                command_id,
+                approver_id,
+                reason,
+            } => {
+                let instance = sqlx::query(
+                    "SELECT id,state,current_step::bigint current_step FROM approval_instances                      WHERE record_type='legal' AND record_id=$1 AND company_id=$2 ORDER BY insertion_order DESC LIMIT 1 FOR UPDATE",
+                )
+                .bind(&plan.item_id)
+                .bind(actor.company_id.as_str())
+                .fetch_optional(&mut *self.connection)
+                .await?
+                .ok_or_else(|| invalid("LEGAL_APPROVAL_ROUTE", "No active approval route."))?;
+                let instance_id: String = instance.try_get("id")?;
+                let state: String = instance.try_get("state")?;
+                let current_step: i64 = instance.try_get("current_step")?;
+                if state != "pending" {
+                    return Err(BusinessError::new(
+                        FailureKind::Conflict,
+                        "LEGAL_APPROVAL_ROUTE",
+                        "No active approval route.",
+                    )
+                    .into());
+                }
+                let step = sqlx::query(
+                    "SELECT id,approver_user_id FROM approval_steps WHERE instance_id=$1 AND ordinal=$2 FOR UPDATE",
+                )
+                .bind(&instance_id)
+                .bind(current_step)
+                .fetch_optional(&mut *self.connection)
+                .await?
+                .ok_or_else(|| invalid("LEGAL_APPROVAL_ROUTE", "Approval step unavailable."))?;
+                let step_id: String = step.try_get("id")?;
+                let previous: String = step.try_get("approver_user_id")?;
+                let item_author: String = sqlx::query_scalar(
+                    "SELECT created_by FROM legal_items WHERE id=$1",
+                )
+                .bind(&plan.item_id)
+                .fetch_one(&mut *self.connection)
+                .await?;
+                let eligible: bool = sqlx::query_scalar(
+                    "SELECT legal_person_eligible($1,$2,NULL,NULL,'legal.approve') AND EXISTS(SELECT 1 FROM legal_members WHERE item_id=$3 AND user_id=$2)",
+                )
+                .bind(actor.company_id.as_str())
+                .bind(approver_id)
+                .bind(&plan.item_id)
+                .fetch_one(&mut *self.connection)
+                .await?;
+                if !eligible || self.same_person(approver_id, &item_author, &actor.company_id).await? {
+                    return Err(BusinessError::new(
+                        FailureKind::InvalidInput,
+                        "LEGAL_REVIEWER_UNAVAILABLE",
+                        "The replacement must be an independent eligible reviewer.",
+                    )
+                    .into());
+                }
+                sqlx::query("UPDATE approval_steps SET approver_user_id=$1 WHERE id=$2")
+                    .bind(approver_id)
+                    .bind(&step_id)
+                    .execute(&mut *self.connection)
+                    .await?;
+                sqlx::query(
+                    "INSERT INTO approval_decisions(id,instance_id,step_id,action,actor_user_id,previous_approver_user_id,approver_user_id,reason,reviewed_version,command_id,created_at)                      VALUES($1,$2,$3,'reroute',$4,$5,$6,$7,$8,$9,$10)",
+                )
+                .bind(decision_id)
+                .bind(&instance_id)
+                .bind(&step_id)
+                .bind(actor.user_id.as_str())
+                .bind(&previous)
+                .bind(approver_id)
+                .bind(reason)
+                .bind(plan.expected_version)
+                .bind(command_id)
+                .bind(self.now)
+                .execute(&mut *self.connection)
+                .await?;
+                sqlx::query(
+                    "UPDATE approval_instances SET version=version+1,updated_at=$1 WHERE id=$2",
+                )
+                .bind(self.now)
+                .bind(&instance_id)
+                .execute(&mut *self.connection)
+                .await?;
+                sqlx::query(
+                    "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)                      VALUES($1,$2,$3,'legal',$4,$5,'Request approval needs your decision',$6) ON CONFLICT DO NOTHING",
+                )
+                .bind(format!("legal-approval-{instance_id}-{approver_id}"))
+                .bind(actor.company_id.as_str())
+                .bind(approver_id)
+                .bind(&plan.item_id)
+                .bind(plan.next_version)
+                .bind(self.now)
+                .execute(&mut *self.connection)
+                .await?;
+                return Ok(Some("approval".to_owned()));
+            }
         }
-        Ok(())
+        Ok(None)
     }
 
     async fn expand_and_notify(&mut self, company: &str) -> Result<(), LegalRecordsError> {
@@ -1204,12 +1646,13 @@ impl LegalRecordsPorts for PgLegalRecords<'_> {
             if version != plan.expected_version {
                 return Err(version_conflict().into());
             }
-            self.apply_effect(actor, plan).await?;
+            let effect_state = self.apply_effect(actor, plan).await?;
+            let new_state = effect_state.unwrap_or_else(|| plan.new_state.clone());
             let changed = sqlx::query(
                 "UPDATE legal_items SET state=$1,version=version+1,updated_at=$2 \
                  WHERE id=$3 AND company_id=$4 AND version=$5",
             )
-            .bind(&plan.new_state)
+            .bind(&new_state)
             .bind(self.now)
             .bind(&plan.item_id)
             .bind(actor.company_id.as_str())
@@ -1234,7 +1677,9 @@ impl LegalRecordsPorts for PgLegalRecords<'_> {
             .execute(&mut *self.connection)
             .await?;
             self.expand_and_notify(actor.company_id.as_str()).await?;
-            let result = serde_json::to_value(&plan.result).map_err(|_| {
+            let mut result_view = plan.result.clone();
+            result_view.state = new_state;
+            let result = serde_json::to_value(&result_view).map_err(|_| {
                 unavailable(
                     "LEGAL_RESULT_UNAVAILABLE",
                     "The Legal command result is unavailable.",

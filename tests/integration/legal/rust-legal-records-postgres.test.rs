@@ -288,6 +288,131 @@ async fn count(pool: &DatabasePool, table: &str) -> i64 {
 }
 
 #[tokio::test]
+async fn legal_contract_approval_route_is_native_and_advances_the_contract() {
+    fixture::with_database(6, |pool| async move {
+        setup(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO assignments(id,user_id,role,modules_json,company_id,branch_id,valid_from,valid_until,revoked_at,version,scope_kind,scope_node_id,parent_id,source,source_id) \
+             VALUES('approval-reviewer','reviewer-user','legal_manager','[\"legal\"]','company',NULL,0,9007199254740991,NULL,1,'holding',NULL,NULL,'legacy',NULL);\
+             INSERT INTO legal_members(item_id,user_id,access) VALUES('contract-1','reviewer-user','edit');",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let identity = Arc::new(Identity::default());
+        let notifier = Arc::new(Notifier { fail: false });
+        let opener = actor("legal_counsel", &["legal.read", "legal.edit", "legal.review"]);
+        let open_raw = serde_json::json!({
+            "action":"approval.open",
+            "id":"contract-1",
+            "expectedVersion":1,
+            "documentId":"contract-1-v1",
+            "signerIds":["reviewer-user"],
+            "approverIds":["reviewer-user"],
+            "reason":"Open an independent approval route."
+        });
+        let opened = command(
+            &pool,
+            &opener,
+            &key("legal-approval-open-0001"),
+            &open_raw,
+            notifier.clone(),
+            identity.clone(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(opened["version"], 2);
+        assert_eq!(opened["state"], "approval");
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT state FROM approval_instances WHERE record_type='legal' AND record_id='contract-1'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            "pending"
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT approver_user_id FROM approval_steps WHERE instance_id LIKE 'approval-legal-%'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            "reviewer-user"
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT document_id FROM legal_approval_routes WHERE item_id='contract-1'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            "contract-1-v1"
+        );
+        assert!(
+            sqlx::query_scalar::<_, bool>(
+                "SELECT locked FROM legal_documents WHERE id='contract-1-v1'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap()
+        );
+        let reviewer = LegalRecordsActor {
+            user_id: UserId::new("reviewer-user").unwrap(),
+            ..actor("legal_manager", &["legal.read", "legal.approve"])
+        };
+        let decide_raw = serde_json::json!({
+            "action":"approval.decide",
+            "id":"contract-1",
+            "expectedVersion":2,
+            "decision":"approve",
+            "reason":"Current reviewer approves this locked version."
+        });
+        let decided = command(
+            &pool,
+            &reviewer,
+            &key("legal-approval-decide-0001"),
+            &decide_raw,
+            notifier,
+            identity,
+        )
+        .await
+        .unwrap();
+        assert_eq!(decided["version"], 3);
+        assert_eq!(decided["state"], "approved");
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT state FROM approval_instances WHERE record_type='legal' AND record_id='contract-1'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            "approved"
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT decision FROM legal_approvals WHERE item_id='contract-1' AND cycle=1",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            "approved"
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT count(*) FROM command_receipts WHERE record_id='contract-1' AND operation IN ('legal.approval.open','legal.approval.decide')"
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            2
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn legal_executed_copy_review_is_native_and_replayable() {
     fixture::with_database(5, |pool| async move {
         setup(&pool).await;

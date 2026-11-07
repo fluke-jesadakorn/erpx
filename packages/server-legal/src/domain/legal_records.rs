@@ -353,6 +353,20 @@ pub enum LegalCommand {
         checks: Value,
         reason: String,
     },
+    ApprovalOpen {
+        document_id: String,
+        signer_ids: Vec<String>,
+        approver_ids: Vec<String>,
+        reason: String,
+    },
+    ApprovalDecide {
+        decision: String,
+        reason: String,
+    },
+    ApprovalReroute {
+        approver_id: String,
+        reason: String,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -412,6 +426,25 @@ pub enum LegalCommandEffect {
         executed_copy_id: String,
         decision: String,
         checks: Value,
+        reason: String,
+    },
+    ApprovalOpen {
+        instance_id: String,
+        document_id: String,
+        signer_ids: Vec<String>,
+        approver_ids: Vec<String>,
+        reason: String,
+    },
+    ApprovalDecide {
+        decision_id: String,
+        command_id: String,
+        decision: String,
+        reason: String,
+    },
+    ApprovalReroute {
+        decision_id: String,
+        command_id: String,
+        approver_id: String,
         reason: String,
     },
 }
@@ -478,6 +511,9 @@ pub fn parse_envelope(raw: &Value) -> Result<LegalCommandEnvelope, BusinessError
             | "share.revoke"
             | "member"
             | "executed.review"
+            | "approval.open"
+            | "approval.decide"
+            | "approval.reroute"
     ) {
         return Err(invalid(
             "LEGAL_ACTION_UNSUPPORTED",
@@ -522,6 +558,8 @@ pub fn command_permission(action: &str) -> Result<&'static str, BusinessError> {
         "hold.release" => Ok("legal.hold.release"),
         "share" | "share.revoke" | "member" => Ok("legal.share"),
         "executed.review" => Ok("legal.approve"),
+        "approval.open" => Ok("legal.review"),
+        "approval.decide" | "approval.reroute" => Ok("legal.approve"),
         _ => Err(invalid(
             "LEGAL_ACTION_UNSUPPORTED",
             "This Legal action is not available through the native record command.",
@@ -637,6 +675,53 @@ pub fn parse_command(
                 access: access.to_owned(),
             })
         }
+        "approval.open" => {
+            let document_id = object
+                .get("documentId")
+                .and_then(Value::as_str)
+                .ok_or_else(|| invalid("LEGAL_DOCUMENT_REQUIRED", "Select a document from this contract."))?;
+            if document_id.is_empty() || document_id.len() > 200 || document_id.chars().any(char::is_control) {
+                return Err(invalid("LEGAL_DOCUMENT_REQUIRED", "Select a document from this contract."));
+            }
+            let signer_ids = string_list(object, "signerIds", 1, 20)?;
+            let approver_ids = string_list(object, "approverIds", 1, 10)?;
+            if unique(&signer_ids) && unique(&approver_ids) {
+                Ok(LegalCommand::ApprovalOpen {
+                    document_id: document_id.to_owned(),
+                    signer_ids,
+                    approver_ids,
+                    reason: reason(object)?,
+                })
+            } else {
+                Err(invalid("LEGAL_PEOPLE_REQUIRED", "Signers and approvers must be unique."))
+            }
+        }
+        "approval.decide" => {
+            let decision = object
+                .get("decision")
+                .and_then(Value::as_str)
+                .ok_or_else(|| invalid("LEGAL_DECISION_REQUIRED", "Choose approve, revise or reject."))?;
+            if !matches!(decision, "approve" | "revise" | "reject") {
+                return Err(invalid("LEGAL_DECISION_REQUIRED", "Choose approve, revise or reject."));
+            }
+            Ok(LegalCommand::ApprovalDecide {
+                decision: decision.to_owned(),
+                reason: reason(object)?,
+            })
+        }
+        "approval.reroute" => {
+            let approver_id = object
+                .get("approverId")
+                .and_then(Value::as_str)
+                .ok_or_else(|| invalid("LEGAL_PERSON_REQUIRED", "Choose a replacement reviewer."))?;
+            if approver_id.is_empty() || approver_id.len() > 200 || approver_id.chars().any(char::is_control) {
+                return Err(invalid("LEGAL_PERSON_REQUIRED", "Choose a replacement reviewer."));
+            }
+            Ok(LegalCommand::ApprovalReroute {
+                approver_id: approver_id.to_owned(),
+                reason: reason(object)?,
+            })
+        }
         "executed.review" => {
             let executed_copy_id = object
                 .get("executedCopyId")
@@ -700,6 +785,36 @@ fn hold_id(object: &serde_json::Map<String, Value>) -> Result<String, BusinessEr
     Ok(id.to_owned())
 }
 
+fn string_list(
+    object: &serde_json::Map<String, Value>,
+    key: &str,
+    min: usize,
+    max: usize,
+) -> Result<Vec<String>, BusinessError> {
+    let values = object
+        .get(key)
+        .and_then(Value::as_array)
+        .ok_or_else(|| invalid("LEGAL_PEOPLE_REQUIRED", "Choose at least one current person."))?;
+    if values.len() < min || values.len() > max {
+        return Err(invalid("LEGAL_PEOPLE_REQUIRED", "Choose a bounded set of current people."));
+    }
+    values
+        .iter()
+        .map(|value| {
+            value
+                .as_str()
+                .filter(|id| !id.is_empty() && id.len() <= 200 && !id.chars().any(char::is_control))
+                .map(str::to_owned)
+                .ok_or_else(|| invalid("LEGAL_PEOPLE_REQUIRED", "Choose at least one current person."))
+        })
+        .collect()
+}
+
+fn unique(values: &[String]) -> bool {
+    let mut seen = std::collections::BTreeSet::new();
+    values.iter().all(|value| seen.insert(value))
+}
+
 fn reason(object: &serde_json::Map<String, Value>) -> Result<String, BusinessError> {
     let reason = object
         .get("reason")
@@ -732,6 +847,9 @@ pub fn plan_command(
         LegalCommand::RevokeShare { .. } => "share.revoke",
         LegalCommand::SetMember { .. } => "member",
         LegalCommand::ExecutedReview { .. } => "executed.review",
+        LegalCommand::ApprovalOpen { .. } => "approval.open",
+        LegalCommand::ApprovalDecide { .. } => "approval.decide",
+        LegalCommand::ApprovalReroute { .. } => "approval.reroute",
     })?;
     require(actor, permission)?;
     if actor.is_requester() && !matches!(command, LegalCommand::AddDocument { .. }) {
@@ -986,6 +1104,69 @@ pub fn plan_command(
                 state,
             )
         }
+        LegalCommand::ApprovalOpen {
+            document_id,
+            signer_ids,
+            approver_ids,
+            reason,
+        } => {
+            if !source.documents.iter().any(|document| document == document_id) {
+                return Err(invalid(
+                    "LEGAL_DOCUMENT_REQUIRED",
+                    "Select a document from this contract.",
+                ));
+            }
+            if item.kind != "contract" || !matches!(item.state.as_str(), "draft" | "review" | "approval") {
+                return Err(BusinessError::new(
+                    FailureKind::Conflict,
+                    "LEGAL_APPROVAL_STATE",
+                    "Return this contract to draft before opening a new approval.",
+                ));
+            }
+            (
+                "approval.open".to_owned(),
+                reason.clone(),
+                LegalCommandEffect::ApprovalOpen {
+                    instance_id: derived_id("approval-legal", key),
+                    document_id: document_id.clone(),
+                    signer_ids: signer_ids.clone(),
+                    approver_ids: approver_ids.clone(),
+                    reason: reason.clone(),
+                },
+                None,
+                None,
+                "approval".to_owned(),
+            )
+        }
+        LegalCommand::ApprovalDecide { decision, reason } => (
+            "approval.decide".to_owned(),
+            reason.clone(),
+            LegalCommandEffect::ApprovalDecide {
+                decision_id: derived_id("legal-approval-decision", key),
+                command_id: key.to_owned(),
+                decision: decision.clone(),
+                reason: reason.clone(),
+            },
+            None,
+            None,
+            "approval".to_owned(),
+        ),
+        LegalCommand::ApprovalReroute {
+            approver_id,
+            reason,
+        } => (
+            "approval.reroute".to_owned(),
+            reason.clone(),
+            LegalCommandEffect::ApprovalReroute {
+                decision_id: derived_id("legal-approval-decision", key),
+                command_id: key.to_owned(),
+                approver_id: approver_id.clone(),
+                reason: reason.clone(),
+            },
+            None,
+            None,
+            "approval".to_owned(),
+        ),
     };
     let next_version = envelope.expected_version.checked_add(1).ok_or_else(|| {
         invalid(
@@ -1183,6 +1364,79 @@ mod tests {
             documents: Vec::new(),
             next_document_version: 2,
         }
+    }
+
+    #[test]
+    fn approval_route_commands_require_unique_people_and_current_documents() {
+        let open = json!({"action":"approval.open","id":"item","expectedVersion":1,"documentId":"doc-1","signerIds":["signer"],"approverIds":["approver"],"reason":"Open an independent approval route."});
+        let envelope = parse_envelope(&open).unwrap();
+        let mut source = source("draft");
+        source.documents = vec!["doc-1".into()];
+        let plan = plan_command(
+            &actor("legal_manager", &["legal.read", "legal.review"]),
+            &source,
+            &envelope,
+            &parse_command(&open, &envelope).unwrap(),
+            "legal-approval-open-0001",
+        )
+        .unwrap();
+        assert_eq!(plan.action, "approval.open");
+        assert_eq!(plan.new_state, "approval");
+        assert_eq!(
+            plan.effect,
+            LegalCommandEffect::ApprovalOpen {
+                instance_id: derived_id("approval-legal", "legal-approval-open-0001"),
+                document_id: "doc-1".into(),
+                signer_ids: vec!["signer".into()],
+                approver_ids: vec!["approver".into()],
+                reason: "Open an independent approval route.".into(),
+            }
+        );
+        let duplicate = json!({"action":"approval.open","id":"item","expectedVersion":1,"documentId":"doc-1","signerIds":["signer","signer"],"approverIds":["approver"],"reason":"Open an independent approval route."});
+        let duplicate_envelope = parse_envelope(&duplicate).unwrap();
+        assert_eq!(
+            parse_command(&duplicate, &duplicate_envelope).unwrap_err().code,
+            "LEGAL_PEOPLE_REQUIRED"
+        );
+        let decide = json!({"action":"approval.decide","id":"item","expectedVersion":1,"decision":"approve","reason":"Current reviewer approves this locked version."});
+        let decide_envelope = parse_envelope(&decide).unwrap();
+        let plan = plan_command(
+            &actor("legal_manager", &["legal.read", "legal.approve"]),
+            &source,
+            &decide_envelope,
+            &parse_command(&decide, &decide_envelope).unwrap(),
+            "legal-approval-decide-0001",
+        )
+        .unwrap();
+        assert_eq!(plan.operation, "legal.approval.decide");
+        assert_eq!(
+            plan.effect,
+            LegalCommandEffect::ApprovalDecide {
+                decision_id: derived_id("legal-approval-decision", "legal-approval-decide-0001"),
+                command_id: "legal-approval-decide-0001".into(),
+                decision: "approve".into(),
+                reason: "Current reviewer approves this locked version.".into(),
+            }
+        );
+        let reroute = json!({"action":"approval.reroute","id":"item","expectedVersion":1,"approverId":"replacement","reason":"Replace the current reviewer."});
+        let reroute_envelope = parse_envelope(&reroute).unwrap();
+        let plan = plan_command(
+            &actor("legal_manager", &["legal.read", "legal.approve"]),
+            &source,
+            &reroute_envelope,
+            &parse_command(&reroute, &reroute_envelope).unwrap(),
+            "legal-approval-reroute-0001",
+        )
+        .unwrap();
+        assert_eq!(
+            plan.effect,
+            LegalCommandEffect::ApprovalReroute {
+                decision_id: derived_id("legal-approval-decision", "legal-approval-reroute-0001"),
+                command_id: "legal-approval-reroute-0001".into(),
+                approver_id: "replacement".into(),
+                reason: "Replace the current reviewer.".into(),
+            }
+        );
     }
 
     #[test]
