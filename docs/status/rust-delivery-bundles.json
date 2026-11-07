@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T09:03:29+07:00",
+  "updatedAt": "2026-11-07T09:05:03+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,10 +19,10 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 83,
-    "workflowsVerified": 36,
-    "workflowsMerged": 36,
-    "ownersComplete": 3,
+    "workflowsPartial": 82,
+    "workflowsVerified": 37,
+    "workflowsMerged": 37,
+    "ownersComplete": 4,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
   },
@@ -4631,16 +4631,16 @@
       "kind": "module",
       "owner": "operations",
       "scope": "Operations summary",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "operations-native-summary",
         "operations-native-transport",
         "operations-native-route-cutover"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Native queue summary/read and transport are implemented; summary writes, composition mount complete; browser remains open."
+      "gap": "Closed. The Operations summary is rendered from the native queue read and browser verified: the page showed `1 active \u00b7 0 awaiting review \u00b7 0 escalated \u00b7 0 past target` while the exception was open and `0 active` after it was cancelled, with the source-area count `pos-ops \u00b7 1` during the open state. No separate summary write operation exists in this scope."
     },
     {
       "id": "procurement/requisitions",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T09:03:29+07:00",
-    "sourceHead": "ca9bc8dfc",
+    "generatedAt": "2026-11-07T09:05:03+07:00",
+    "sourceHead": "b1acc7518",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6574,11 +6574,11 @@
       },
       "operations": {
         "workflows": 6,
-        "verified": 5,
-        "partial": 1,
+        "verified": 6,
+        "partial": 0,
         "unstarted": 0,
-        "phase": "partial",
-        "businessMigrationComplete": false
+        "phase": "complete",
+        "businessMigrationComplete": true
       },
       "procurement": {
         "workflows": 5,
@@ -7113,9 +7113,9 @@
       }
     ],
     "nextActions": [
-      "Verify the Operations summary readback and close operations/feature-operations-summary, completing the Operations owner (6/6).",
+      "Continue with the next dependency-ready owner partial; Operations is complete (6/6).",
       "Await the Stripe/Connect test configuration for the remaining POS tender/refund/retry paths.",
-      "Continue with the next dependency-ready owner partial and keep counts tied to browser/HTTP evidence."
+      "Keep counts tied to browser/HTTP evidence and reconcile remote HEAD before each push."
     ],
     "integrationLog": [
       {
@@ -7617,6 +7617,22 @@
           "owners": 3,
           "verified": 36,
           "partial": 83,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T09:05:03+07:00",
+        "commit": "b1acc7518",
+        "bundles": [
+          "Operations summary readback",
+          "owners 4/41"
+        ],
+        "evidence": "browser Operations page summary 1 active while the exception was open and 0 active after cancel; page 200 with native queue read; operations owner 6/6 workflows verified",
+        "counts": {
+          "owners": 4,
+          "verified": 37,
+          "partial": 82,
           "unstarted": 87,
           "total": 206
         }
