@@ -540,6 +540,7 @@ function transportCall(
   base: URL,
   holdings: Map<string, { holdingId: string; holdingSlug: string }>,
   incoming: Pick<Headers, 'get'>,
+  actor: NativeOperationsPageContext,
   input: NativeOperationsReadInput,
   method: 'GET' | 'POST',
   body: string | undefined,
@@ -550,7 +551,9 @@ function transportCall(
   const holding = host ? holdings.get(host) : undefined;
   if (!holding || holding.holdingSlug !== input.holdingSlug)
     return Promise.reject(new NativeOperationsError('NATIVE_OPERATIONS_AUTHORITY_INVALID'));
-  const headers = new Headers({ host: host!, accept: 'application/json', 'cache-control': 'no-cache' });
+  const headers = new Headers({ host: host!, origin: `https://${host}`, accept: 'application/json', 'cache-control': 'no-cache' });
+  headers.set('x-erpx-context-user', actor.userId);
+  headers.set('x-erpx-context-holding', actor.holdingId);
   const cookie = incoming.get('cookie');
   if (cookie) {
     if (new TextEncoder().encode(cookie).length > 8192)
@@ -728,6 +731,7 @@ export function createNativeOperationsClient(
       config.base,
       config.holdings,
       incoming,
+      actor,
       input,
       method,
       body,

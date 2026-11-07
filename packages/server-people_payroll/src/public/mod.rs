@@ -18,3 +18,4 @@ pub mod field_service_workspace;
 pub mod service_count_flow_people;
 pub mod learning_person;
 pub mod benefit_person;
+pub mod operations_people;

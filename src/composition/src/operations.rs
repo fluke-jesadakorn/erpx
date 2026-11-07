@@ -1,12 +1,12 @@
 use crate::business_http::BusinessScopeSlugs;
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
-    account_inbound_http::parse_inbound_account_request,
+    account_inbound_http::{parse_inbound_account_request, unique_request_header},
     effective_authority::{
         AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
         WorkAuthorizationRequest,
     },
-    work_context::{HoldingWorkspaceRequest, WorkScopeKind},
+    work_context::{ExpectedWorkSelection, HoldingWorkspaceRequest, WorkScopeKind},
 };
 use erpx_server_operations::public::field_exceptions::Exception;
 use erpx_server_operations::public::field_policy::{
@@ -23,6 +23,7 @@ use erpx_server_operations::public::operations_http::{
     OperationsHttpFuture, OperationsHttpReadKind, OperationsHttpReadRequest,
     OperationsHttpResponse, OperationsHttpTarget,
 };
+use erpx_server_people_payroll::public::operations_people::read_operations_people;
 use erpx_server_operations::public::queue_read::{
     OperationsPeopleDirectory, OperationsReadActor, OperationsSourceVisibility, PersonOption,
     QueueException, SourceView, operations_detail, operations_workspace,
@@ -31,7 +32,7 @@ use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::record_source_contract::{SourceRecord, SourceReference};
 use erpx_server_shared::public::{
-    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
+    AssignmentId, BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
 };
 use serde_json::Value;
 use sqlx::{Connection, PgConnection};
@@ -131,7 +132,9 @@ impl OperationsSourceVisibility for OperationsSources {
     }
 }
 
-impl OperationsPeopleDirectory for OperationsSources {
+struct OperationsPeopleSnapshot(Vec<PersonOption>);
+
+impl OperationsPeopleDirectory for OperationsPeopleSnapshot {
     type Error = BusinessError;
     fn people(
         &mut self,
@@ -140,19 +143,15 @@ impl OperationsPeopleDirectory for OperationsSources {
         Vec<PersonOption>,
         Self::Error,
     > {
-        // Real People owner port is not wired; fail closed rather than present an
-        // empty directory that silently permits arbitrary owner assignment.
-        Box::pin(async move {
-            Err(BusinessError::new(
-                FailureKind::Unavailable,
-                "OPERATIONS_PEOPLE_UNAVAILABLE",
-                "Operations people directory is not wired.",
-            ))
-        })
+        Box::pin(async move { Ok(self.0.clone()) })
     }
 }
 
-impl OperationsCommandSources for OperationsSources {
+struct OperationsCommandSnapshot {
+    same_person: Option<(String, bool)>,
+}
+
+impl OperationsCommandSources for OperationsCommandSnapshot {
     type Error = BusinessError;
     fn source<'a>(
         &'a mut self,
@@ -187,15 +186,20 @@ impl OperationsCommandSources for OperationsSources {
     fn same_person<'a>(
         &'a mut self,
         _actor: &'a CommandActor,
-        _user_id: &'a str,
+        user_id: &'a str,
     ) -> OperationsCommandFuture<'a, bool, Self::Error> {
-        // Cannot determine identity without a real owner port; fail closed.
         Box::pin(async move {
-            Err(BusinessError::new(
-                FailureKind::Unavailable,
-                "OPERATIONS_SAME_PERSON_UNAVAILABLE",
-                "Operations same-person check is not wired.",
-            ))
+            self.same_person
+                .as_ref()
+                .filter(|(creator, _)| creator == user_id)
+                .map(|(_, same)| *same)
+                .ok_or_else(|| {
+                    BusinessError::new(
+                        FailureKind::Unavailable,
+                        "OPERATIONS_SAME_PERSON_UNAVAILABLE",
+                        "Operations same-person check is not wired.",
+                    )
+                })
         })
     }
 }
@@ -314,7 +318,7 @@ impl<C: Clock + Send + Sync + 'static> OperationsService<C> {
 
     fn access() -> WorkAuthorizationRequest {
         WorkAuthorizationRequest {
-            permission: "operations.read".into(),
+            permission: "module.operations.read".into(),
             module: Some("operations".into()),
             destination: "operations".into(),
             api: true,
@@ -377,15 +381,26 @@ impl<C: Clock + Send + Sync + 'static> OperationsService<C> {
                         {
                             return Err(scope().into());
                         }
-                        current.require_permission("operations.read")?;
+                        current.require_permission("module.operations.read")?;
                         let actor = read_actor(current)?;
                         let now = clock.now().get();
+                        let directory = read_operations_people(connection, &company)
+                            .await
+                            .map_err(business)?;
                         let mut repository =
                             erpx_server_operations::public::queue_read::PgOperationsRead::new(
                                 connection,
                             );
                         let mut sources = OperationsSources;
-                        let mut people = OperationsSources;
+                        let mut people = OperationsPeopleSnapshot(
+                            directory
+                                .into_iter()
+                                .map(|person| PersonOption {
+                                    id: person.id,
+                                    name: person.name,
+                                })
+                                .collect(),
+                        );
                         let data = operations_workspace(
                             &actor,
                             &mut repository,
@@ -435,15 +450,26 @@ impl<C: Clock + Send + Sync + 'static> OperationsService<C> {
                         {
                             return Err(scope().into());
                         }
-                        current.require_permission("operations.read")?;
+                        current.require_permission("module.operations.read")?;
                         let actor = read_actor(current)?;
                         let now = clock.now().get();
+                        let directory = read_operations_people(connection, &company)
+                            .await
+                            .map_err(business)?;
                         let mut repository =
                             erpx_server_operations::public::queue_read::PgOperationsRead::new(
                                 connection,
                             );
                         let mut sources = OperationsSources;
-                        let mut people = OperationsSources;
+                        let mut people = OperationsPeopleSnapshot(
+                            directory
+                                .into_iter()
+                                .map(|person| PersonOption {
+                                    id: person.id,
+                                    name: person.name,
+                                })
+                                .collect(),
+                        );
                         let data = operations_detail(
                             &actor,
                             &mut repository,
@@ -463,7 +489,7 @@ impl<C: Clock + Send + Sync + 'static> OperationsService<C> {
             .await
     }
 
-    async fn command<Input>(
+    pub async fn command<Input>(
         &self,
         host: &str,
         proof: DeviceProof,
@@ -509,8 +535,34 @@ impl<C: Clock + Send + Sync + 'static> OperationsService<C> {
                         current.require_permission("records.write")?;
                         let actor = command_actor(current)?;
                         let now = clock.now().get();
+                        let review_creator = match &command {
+                            OperationsHttpCommand::ReviewPolicy(input) => {
+                                sqlx::query_scalar::<_, String>(
+                                    "SELECT created_by FROM operations_queue_policies WHERE id=$1 AND company_id=$2",
+                                )
+                                .bind(&input.id)
+                                .bind(company.as_str())
+                                .fetch_optional(&mut *connection)
+                                .await?
+                            }
+                            _ => None,
+                        };
+                        let same_person = match review_creator {
+                            Some(creator) => {
+                                let same = sqlx::query_scalar::<_, bool>(
+                                    "SELECT iam_same_person($1,$2,$3)",
+                                )
+                                .bind(actor.user_id.as_str())
+                                .bind(&creator)
+                                .bind(company.as_str())
+                                .fetch_one(&mut *connection)
+                                .await?;
+                                Some((creator, same))
+                            }
+                            None => None,
+                        };
                         let mut repository = PgOperationsCommandRepository { connection };
-                        let mut sources = OperationsSources;
+                        let mut sources = OperationsCommandSnapshot { same_person };
                         let receipt = match command {
                             OperationsHttpCommand::OpenException(input) => {
                                 open_operations_exception(
@@ -607,6 +659,48 @@ impl<C: Clock + Send + Sync + 'static> OperationsBackend<C> {
             },
         ))
     }
+
+    fn command_context(
+        &self,
+        headers: &HeaderMap,
+    ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
+        let (proof, mut selection) = self.context(headers)?;
+        let revision = unique_request_header(headers, "x-erpx-context-revision")?
+            .ok_or_else(|| {
+                BusinessError::invalid("OPERATIONS_CONTEXT_REQUIRED", "Use the current work revision.")
+            })?
+            .parse()
+            .map_err(|_| {
+                BusinessError::invalid("OPERATIONS_CONTEXT_REQUIRED", "Use the current work revision.")
+            })?;
+        let assignment = unique_request_header(headers, "x-erpx-context-assignment")?
+            .ok_or_else(|| {
+                BusinessError::invalid("OPERATIONS_CONTEXT_REQUIRED", "Choose the current assignment.")
+            })?
+            .to_owned();
+        let assignment_version =
+            unique_request_header(headers, "x-erpx-context-assignment-version")?
+                .ok_or_else(|| {
+                    BusinessError::invalid(
+                        "OPERATIONS_CONTEXT_REQUIRED",
+                        "Use the current assignment version.",
+                    )
+                })?
+                .parse()
+                .map_err(|_| {
+                    BusinessError::invalid(
+                        "OPERATIONS_CONTEXT_REQUIRED",
+                        "Use the current assignment version.",
+                    )
+                })?;
+        selection.mutation = true;
+        selection.expected = Some(ExpectedWorkSelection {
+            revision,
+            assignment_id: AssignmentId::new(assignment)?,
+            assignment_version,
+        });
+        Ok((proof, selection))
+    }
 }
 
 impl<C: Clock + Send + Sync + 'static> OperationsHttpBackend for OperationsBackend<C> {
@@ -636,14 +730,17 @@ impl<C: Clock + Send + Sync + 'static> OperationsHttpBackend for OperationsBacke
         request: OperationsHttpCommandRequest<'a>,
     ) -> OperationsHttpFuture<'a, OperationsHttpResponse> {
         Box::pin(async move {
-            let (_proof, _selection) = self.context(request.headers)?;
-            let _ = request.command;
-            let _ = request.key;
-            let _ = request.host;
-            let _ = request.holding_slug;
-            // Native Operations commands remain unavailable until real source/recipient/
-            // same-person owner ports replace fabricated composition stubs (reviewer blocker).
-            Err(command_unavailable())
+            let (proof, selection) = self.command_context(request.headers)?;
+            self.service
+                .command(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.command,
+                    request.key,
+                )
+                .await
+                .map_err(business)
         })
     }
 }

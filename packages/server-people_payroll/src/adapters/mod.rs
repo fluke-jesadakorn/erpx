@@ -16,3 +16,4 @@ pub(crate) mod field_service_workspace;
 pub(crate) mod service_count_flow_people;
 pub(crate) mod learning_person;
 pub(crate) mod benefit_person;
+pub(crate) mod operations_people;
