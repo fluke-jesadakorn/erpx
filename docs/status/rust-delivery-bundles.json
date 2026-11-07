@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T13:30:59+07:00",
+  "updatedAt": "2026-11-07T14:46:50+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -4961,7 +4961,7 @@
         "crm-native-pipeline-http"
       ],
       "sourceRef": "packages/server-crm/src/public/crm.ts",
-      "gap": "Native CRM pipeline read and HTTP/SSR are qualified; lead/opportunity commands, handoff and composition mount complete; browser remains open."
+      "gap": "Native CRM pipeline read/SSR is mounted and browser verified: /sales shows three native rows and the won filter/detail return 200; DB readback confirms the fixture opportunities/leads. The native command transport/composition (create/qualify/win/lose/handoff), directory/entitlement ports and UI command switch remain retained, so the workflow stays partial."
     },
     {
       "id": "crm/feature-sales-handoff",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T13:30:59+07:00",
-    "sourceHead": "a98b021af",
+    "generatedAt": "2026-11-07T14:46:50+07:00",
+    "sourceHead": "045810f14",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7757,6 +7757,21 @@
           "native inspection measurements"
         ],
         "evidence": "browser draft spec create/activate + hold create + measurement inspection; DB active spec v2 metric 2-8C, hold awaiting_release v2/pass, measurement 5/passed, audit/outbox events; quality tests 7/7,10/10,5/5,19/19; quality_commands_postgres 1/1; quality_http_postgres 3/3; typecheck passes",
+        "counts": {
+          "owners": 5,
+          "verified": 44,
+          "partial": 75,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T14:46:50+07:00",
+        "commit": "045810f14",
+        "bundles": [
+          "native CRM pipeline mount"
+        ],
+        "evidence": "browser /sales 3 native rows + won filter + detail 200; native API replay 3 items/forecast; DB crm-fixture-opportunity-1 qualified v2 proposal 150000 THB; CRM tests 10/10,2/2,14/14; typecheck passes",
         "counts": {
           "owners": 5,
           "verified": 44,
