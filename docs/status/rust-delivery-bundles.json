@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-08T03:51:13+07:00",
+  "updatedAt": "2026-11-08T04:01:47+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,10 +19,10 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 66,
-    "workflowsVerified": 53,
-    "workflowsMerged": 53,
-    "ownersComplete": 6,
+    "workflowsPartial": 61,
+    "workflowsVerified": 58,
+    "workflowsMerged": 58,
+    "ownersComplete": 7,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
   },
@@ -5130,70 +5130,70 @@
       "kind": "module",
       "owner": "planning",
       "scope": "Scenarios",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "planning-native-workspace"
       ],
       "sourceRef": "packages/server-manufacturing/src/public/production.ts",
-      "gap": "Native Planning workspace read covers scenarios/shortages/recommendations/capacity/comparison context; calculate/cancel/release and resource/calendar commands plus composition mount complete; browser remains open."
+      "gap": "Closed. The native Planning workspace read is mounted for the keyed workspace and browser verified on /manufacturing/planning. The register shows two Acme desk assembly scenarios, a 0.6-unit shortage, manual capacity assumptions, comparison deltas (feasible 2026-11-22 -> 2026-11-20) and two recommendations; the native API returns 200 with two scenarios and two recommendations. Calculate/cancel/release and resource/calendar commands remain on their existing complete paths."
     },
     {
       "id": "planning/shortages",
       "kind": "module",
       "owner": "planning",
       "scope": "Shortages",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "planning-native-workspace"
       ],
       "sourceRef": "packages/server-manufacturing/src/public/production.ts",
-      "gap": "Native Planning workspace read covers scenarios/shortages/recommendations/capacity/comparison context; calculate/cancel/release and resource/calendar commands plus composition mount complete; browser remains open."
+      "gap": "Closed. The native Planning workspace read is mounted for the keyed workspace and browser verified on /manufacturing/planning. The register shows two Acme desk assembly scenarios, a 0.6-unit shortage, manual capacity assumptions, comparison deltas (feasible 2026-11-22 -> 2026-11-20) and two recommendations; the native API returns 200 with two scenarios and two recommendations. Calculate/cancel/release and resource/calendar commands remain on their existing complete paths."
     },
     {
       "id": "planning/recommendations",
       "kind": "module",
       "owner": "planning",
       "scope": "Recommendations",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "planning-native-workspace"
       ],
       "sourceRef": "packages/server-manufacturing/src/public/production.ts",
-      "gap": "Native Planning workspace read covers scenarios/shortages/recommendations/capacity/comparison context; calculate/cancel/release and resource/calendar commands plus composition mount complete; browser remains open."
+      "gap": "Closed. The native Planning workspace read is mounted for the keyed workspace and browser verified on /manufacturing/planning. The register shows two Acme desk assembly scenarios, a 0.6-unit shortage, manual capacity assumptions, comparison deltas (feasible 2026-11-22 -> 2026-11-20) and two recommendations; the native API returns 200 with two scenarios and two recommendations. Calculate/cancel/release and resource/calendar commands remain on their existing complete paths."
     },
     {
       "id": "planning/feature-capacity",
       "kind": "module",
       "owner": "planning",
       "scope": "Capacity",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "planning-native-workspace"
       ],
       "sourceRef": "packages/server-manufacturing/src/public/production.ts",
-      "gap": "Native Planning workspace read covers scenarios/shortages/recommendations/capacity/comparison context; calculate/cancel/release and resource/calendar commands plus composition mount complete; browser remains open."
+      "gap": "Closed. The native Planning workspace read is mounted for the keyed workspace and browser verified on /manufacturing/planning. The register shows two Acme desk assembly scenarios, a 0.6-unit shortage, manual capacity assumptions, comparison deltas (feasible 2026-11-22 -> 2026-11-20) and two recommendations; the native API returns 200 with two scenarios and two recommendations. Calculate/cancel/release and resource/calendar commands remain on their existing complete paths."
     },
     {
       "id": "planning/feature-plan-comparison",
       "kind": "module",
       "owner": "planning",
       "scope": "Plan comparison",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "planning-native-workspace"
       ],
       "sourceRef": "packages/server-manufacturing/src/public/production.ts",
-      "gap": "Native Planning workspace read covers scenarios/shortages/recommendations/capacity/comparison context; calculate/cancel/release and resource/calendar commands plus composition mount complete; browser remains open."
+      "gap": "Closed. The native Planning workspace read is mounted for the keyed workspace and browser verified on /manufacturing/planning. The register shows two Acme desk assembly scenarios, a 0.6-unit shortage, manual capacity assumptions, comparison deltas (feasible 2026-11-22 -> 2026-11-20) and two recommendations; the native API returns 200 with two scenarios and two recommendations. Calculate/cancel/release and resource/calendar commands remain on their existing complete paths."
     },
     {
       "id": "projects/dependencies",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-08T03:51:13+07:00",
-    "sourceHead": "9d8880dd4",
+    "generatedAt": "2026-11-08T04:01:47+07:00",
+    "sourceHead": "c2080cc50",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6638,11 +6638,11 @@
       },
       "planning": {
         "workflows": 5,
-        "verified": 0,
-        "partial": 5,
+        "verified": 5,
+        "partial": 0,
         "unstarted": 0,
-        "phase": "partial",
-        "businessMigrationComplete": false
+        "phase": "complete",
+        "businessMigrationComplete": true
       },
       "projects": {
         "workflows": 6,
@@ -7946,6 +7946,22 @@
           "owners": 6,
           "verified": 53,
           "partial": 66,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-08T04:01:47+07:00",
+        "commit": "c2080cc50",
+        "bundles": [
+          "native Planning workspace transport",
+          "Planning owner completion"
+        ],
+        "evidence": "browser /manufacturing/planning two scenarios, 0.6-unit shortage, manual capacity, comparison 2026-11-22 -> 2026-11-20, two recommendations; native API 200 two scenarios/two recs; planning HTTP 2/2, manufacturing 4/4,9/9,2/2, unit 8/8; typecheck/structure/health pass",
+        "counts": {
+          "owners": 7,
+          "verified": 58,
+          "partial": 61,
           "unstarted": 87,
           "total": 206
         }
