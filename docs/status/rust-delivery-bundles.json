@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T20:06:05+07:00",
+  "updatedAt": "2026-11-07T21:20:39+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 73,
-    "workflowsVerified": 46,
-    "workflowsMerged": 46,
+    "workflowsPartial": 72,
+    "workflowsVerified": 47,
+    "workflowsMerged": 47,
     "ownersComplete": 5,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -3738,15 +3738,15 @@
       "kind": "module",
       "owner": "platform_administration",
       "scope": "Migration runs",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "platform-native-migration-reads",
         "platform-native-migration-run"
       ],
       "sourceRef": "packages/server-platform_administration/src/public/platform-operations.ts",
-      "gap": "Native migration-run reads and the run command are PostgreSQL/HTTP-qualified; the Next route/page cutover is wired. Browser remains open."
+      "gap": "Closed. Native platform migration run is browser verified from erpx-management: 412\u2192412 with pending 0; platform_migration_runs receipt succeeded for h001, replay returns the same run id with one row; holding migration rows retained. h003 remains excluded from managed Holding databases by existing design."
     },
     {
       "id": "platform_administration/feature-temporary-access",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T20:06:05+07:00",
-    "sourceHead": "85051eb24",
+    "generatedAt": "2026-11-07T21:20:39+07:00",
+    "sourceHead": "9014f6466",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6494,8 +6494,8 @@
       },
       "platform_administration": {
         "workflows": 9,
-        "verified": 0,
-        "partial": 5,
+        "verified": 1,
+        "partial": 4,
         "unstarted": 4,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -7837,6 +7837,21 @@
           "owners": 5,
           "verified": 46,
           "partial": 73,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T21:20:39+07:00",
+        "commit": "9014f6466",
+        "bundles": [
+          "native platform migration run"
+        ],
+        "evidence": "browser erpx-management run succeeded 412\u2192412 pending0; platform_migration_runs succeeded h001 receipt; replay same run id/one row; platform tests 26/26, organization 2/2, typecheck/health pass",
+        "counts": {
+          "owners": 5,
+          "verified": 47,
+          "partial": 72,
           "unstarted": 87,
           "total": 206
         }
