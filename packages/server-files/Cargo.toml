@@ -15,6 +15,7 @@ contracts = []
 preview-provider = ["dep:libvips", "dep:pkg-config", "erpx-server-runtime/owned-process"]
 
 [dependencies]
+futures-util.workspace = true
 time.workspace = true
 uuid.workspace = true
 libvips = { workspace = true, optional = true }
