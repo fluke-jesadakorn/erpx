@@ -203,6 +203,19 @@ pub struct LegalDocumentVersion {
     pub object_key: Option<String>,
 }
 
+#[derive(Clone, Debug, Serialize, Eq, PartialEq)]
+pub struct LegalExport {
+    pub id: String,
+    pub item_id: String,
+    pub name: String,
+    pub media_type: String,
+    pub checksum: String,
+    pub bytes: i64,
+    pub body: String,
+    pub object_key: Option<String>,
+    pub requires_provider: bool,
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct LegalEvent {
     pub id: String,
@@ -501,6 +514,13 @@ pub fn authorize_register(actor: &LegalRecordsActor) -> Result<(), BusinessError
 
 pub fn authorize_detail(actor: &LegalRecordsActor) -> Result<(), BusinessError> {
     require(actor, "legal.read")
+}
+
+/// Export is a read with its own owner permission and an immutable access event.
+/// It never advances the record version or emits a command receipt.
+pub fn authorize_export(actor: &LegalRecordsActor) -> Result<(), BusinessError> {
+    require(actor, "legal.read")?;
+    require(actor, "legal.export")
 }
 
 pub fn require(actor: &LegalRecordsActor, permission: &str) -> Result<(), BusinessError> {

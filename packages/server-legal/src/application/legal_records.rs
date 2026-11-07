@@ -23,6 +23,12 @@ pub trait LegalRecordsPorts {
         actor: &'a LegalRecordsActor,
         id: &'a str,
     ) -> LegalRecordsFuture<'a, LegalDetail>;
+    fn export<'a>(
+        &'a mut self,
+        actor: &'a LegalRecordsActor,
+        id: &'a str,
+        format: Option<&'a str>,
+    ) -> LegalRecordsFuture<'a, LegalExport>;
     fn replay<'a>(
         &'a mut self,
         key: &'a str,
@@ -59,6 +65,27 @@ pub async fn legal_detail<P: LegalRecordsPorts>(
     authorize_detail(actor)?;
     parse_detail_id(id)?;
     ports.detail(actor, id).await
+}
+
+pub async fn legal_export<P: LegalRecordsPorts>(
+    ports: &mut P,
+    actor: &LegalRecordsActor,
+    id: &str,
+    format: Option<&str>,
+) -> Result<LegalExport, LegalRecordsError> {
+    authorize_export(actor)?;
+    parse_detail_id(id)?;
+    if let Some(format) = format {
+        if !matches!(format, "txt" | "pdf" | "docx") {
+            return Err(BusinessError::new(
+                erpx_server_shared::public::FailureKind::InvalidInput,
+                "LEGAL_EXPORT_FORMAT",
+                "Choose the original, text, PDF or DOCX export.",
+            )
+            .into());
+        }
+    }
+    ports.export(actor, id, format).await
 }
 
 /// Replay is deliberately checked before payload validation and current item
@@ -126,6 +153,36 @@ mod tests {
         ) -> LegalRecordsFuture<'a, LegalDetail> {
             self.reads.push("detail");
             let value = self.detail.take();
+            Box::pin(async move {
+                value.ok_or_else(|| {
+                    BusinessError::new(
+                        erpx_server_shared::public::FailureKind::Unavailable,
+                        "LEGAL_READ_UNAVAILABLE",
+                        "Legal records are unavailable.",
+                    )
+                    .into()
+                })
+            })
+        }
+
+        fn export<'a>(
+            &'a mut self,
+            _: &'a LegalRecordsActor,
+            _: &'a str,
+            _: Option<&'a str>,
+        ) -> LegalRecordsFuture<'a, LegalExport> {
+            self.reads.push("export");
+            let value = self.detail.take().map(|_| LegalExport {
+                id: "document".into(),
+                item_id: "item".into(),
+                name: "Document".into(),
+                media_type: "text/plain".into(),
+                checksum: "a".repeat(64),
+                bytes: 1,
+                body: "text".into(),
+                object_key: None,
+                requires_provider: false,
+            });
             Box::pin(async move {
                 value.ok_or_else(|| {
                     BusinessError::new(

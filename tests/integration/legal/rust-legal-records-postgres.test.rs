@@ -143,6 +143,14 @@ impl LegalHttpBackend for HttpBackend {
                         context,
                     })))
                 }
+                LegalHttpRead::Export { id, format } => {
+                    Ok(LegalHttpReadReply::Export(Box::new(LegalExportReply {
+                        data: read_legal_export(&self.pool, &self.actor, &id, format.as_deref())
+                            .await
+                            .map_err(legal_records_business_error)?,
+                        context,
+                    })))
+                }
             }
         })
     }
@@ -408,6 +416,72 @@ async fn legal_contract_approval_route_is_native_and_advances_the_contract() {
             .await
             .unwrap(),
             2
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn legal_export_records_access_without_advancing_the_record() {
+    fixture::with_database(7, |pool| async move {
+        setup(&pool).await;
+        let exporter = actor("legal_counsel", &["legal.read", "legal.export"]);
+        let original = read_legal_export(&pool, &exporter, "contract-1-v1", None)
+            .await
+            .unwrap();
+        assert_eq!(original.item_id, "contract-1");
+        assert_eq!(original.body, "First text");
+        assert_eq!(original.object_key, None);
+        assert!(!original.requires_provider);
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT count(*) FROM legal_access_events WHERE document_id='contract-1-v1' AND action='document.export.original'"
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            1
+        );
+        let provider = read_legal_export(&pool, &exporter, "contract-1-v1", Some("pdf"))
+            .await
+            .unwrap();
+        assert!(provider.requires_provider);
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT count(*) FROM legal_access_events WHERE document_id='contract-1-v1'"
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            1
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT version::bigint FROM legal_items WHERE id='contract-1'")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            code(
+                read_legal_export(
+                    &pool,
+                    &actor("legal_counsel", &["legal.read"]),
+                    "contract-1-v1",
+                    None
+                )
+                .await
+                .unwrap_err()
+            ),
+            Some("PERMISSION_REQUIRED")
+        );
+        assert_eq!(
+            code(
+                read_legal_export(&pool, &exporter, "contract-1-v1", Some("xlsx"))
+                    .await
+                    .unwrap_err()
+            ),
+            Some("LEGAL_EXPORT_FORMAT")
         );
     })
     .await;
@@ -1044,7 +1118,10 @@ async fn native_legal_http_reads_and_commands_through_postgres() {
             origin: "https://acme.example.test".into(),
             backend: Arc::new(HttpBackend {
                 pool: pool.clone(),
-                actor: actor("legal_counsel", &["legal.read", "legal.edit", "legal.hold", "legal.hold.release"]),
+                actor: actor(
+                    "legal_counsel",
+                    &["legal.read", "legal.edit", "legal.export", "legal.hold", "legal.hold.release"],
+                ),
                 identity: Arc::new(Identity::default()),
                 notifier: Arc::new(Notifier { fail: false }),
             }),
@@ -1067,6 +1144,25 @@ async fn native_legal_http_reads_and_commands_through_postgres() {
         assert_eq!(body["data"]["total"], 3);
         assert_eq!(body["context"]["companyId"], "company");
         assert_eq!(body["context"]["assignmentId"], "assignment");
+
+        let response = service
+            .export("acme.example.test", "acme", &headers, "contract-1-v1", None)
+            .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = to_bytes(response.into_body(), 1 << 20).await.unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(body["data"]["id"], "contract-1-v1");
+        assert_eq!(body["data"]["body"], "First text");
+        assert_eq!(body["data"]["requires_provider"], false);
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT count(*) FROM legal_access_events WHERE document_id='contract-1-v1' AND action='document.export.original'"
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            1
+        );
 
         let mut command_headers = headers.clone();
         command_headers.insert(

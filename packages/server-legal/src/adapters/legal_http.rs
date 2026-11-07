@@ -5,7 +5,7 @@
 //! Company/branch/department scope and the serializable owner unit are supplied
 //! by the composition backend, which must implement `LegalHttpBackend`.
 use crate::domain::legal_records::{
-    LegalDetail, LegalRegister, LegalRegisterQuery, REGISTER_MAX_PAGE,
+    LegalDetail, LegalExport, LegalRegister, LegalRegisterQuery, REGISTER_MAX_PAGE,
 };
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Query, Request, Response, Router,
@@ -25,6 +25,7 @@ pub type LegalHttpFuture<'a, T> =
 pub enum LegalHttpRead {
     Register(LegalRegisterQuery),
     Detail(String),
+    Export { id: String, format: Option<String> },
 }
 
 pub struct LegalHttpReadRequest<'a> {
@@ -84,6 +85,12 @@ pub struct LegalDetailReply {
 }
 
 #[derive(Clone, Debug, Serialize)]
+pub struct LegalExportReply {
+    pub data: LegalExport,
+    pub context: LegalRenderedContext,
+}
+
+#[derive(Clone, Debug, Serialize)]
 pub struct LegalCommandReply {
     pub data: Value,
     pub context: LegalRenderedContext,
@@ -94,6 +101,7 @@ pub struct LegalCommandReply {
 pub enum LegalHttpReadReply {
     Register(Box<LegalRegisterReply>),
     Detail(Box<LegalDetailReply>),
+    Export(Box<LegalExportReply>),
 }
 
 pub struct LegalHttpTarget {
@@ -116,6 +124,11 @@ pub struct LegalRegisterQueryWire {
     pub state: Option<String>,
     pub page: Option<i64>,
     pub mine: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct LegalExportQueryWire {
+    pub format: Option<String>,
 }
 
 struct LegalHttpState {
@@ -300,6 +313,44 @@ impl LegalHttpService {
         }
     }
 
+    pub async fn export(
+        &self,
+        host: &str,
+        holding_slug: &str,
+        headers: &HeaderMap,
+        id: &str,
+        format: Option<String>,
+    ) -> Response {
+        let target = match self.target_for_host(headers, holding_slug, host) {
+            Ok(target) => target,
+            Err(error) => return error_response(error),
+        };
+        match target
+            .backend
+            .read(LegalHttpReadRequest {
+                host,
+                holding_slug,
+                headers,
+                read: LegalHttpRead::Export {
+                    id: id.to_owned(),
+                    format,
+                },
+            })
+            .await
+        {
+            Ok(LegalHttpReadReply::Export(reply)) => bounded(&serde_json::json!({
+                "data": reply.data,
+                "context": reply.context,
+            })),
+            Ok(_) => error_response(BusinessError::new(
+                FailureKind::Unavailable,
+                "LEGAL_REPLY_INVALID",
+                "The Legal export reply was invalid.",
+            )),
+            Err(error) => error_response(error),
+        }
+    }
+
     pub async fn command(
         &self,
         host: &str,
@@ -409,6 +460,10 @@ pub fn legal_router(targets: Vec<LegalHttpTarget>) -> Result<Router, BusinessErr
             get(read_detail),
         )
         .route(
+            "/api/v1/holdings/{holding_slug}/legal/documents/{id}",
+            get(read_export),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/legal/commands",
             post(command),
         )
@@ -472,6 +527,22 @@ async fn read_detail(
         .await
 }
 
+async fn read_export(
+    State(state): State<Arc<LegalHttpState>>,
+    Path((holding_slug, id)): Path<(String, String)>,
+    Query(wire): Query<LegalExportQueryWire>,
+    headers: HeaderMap,
+) -> Response {
+    let host = unique_header(&headers, header::HOST)
+        .ok()
+        .flatten()
+        .unwrap_or_default();
+    state
+        .service
+        .export(host, &holding_slug, &headers, &id, wire.format)
+        .await
+}
+
 async fn command(
     State(state): State<Arc<LegalHttpState>>,
     Path(holding_slug): Path<String>,
@@ -520,6 +591,9 @@ mod tests {
             self.reads.lock().unwrap().push(match &request.read {
                 LegalHttpRead::Register(query) => format!("register:{}", query.page),
                 LegalHttpRead::Detail(id) => format!("detail:{id}"),
+                LegalHttpRead::Export { id, format } => {
+                    format!("export:{id}:{}", format.as_deref().unwrap_or("original"))
+                }
             });
             let fail = self.fail.lock().unwrap().clone();
             Box::pin(async move {
@@ -539,6 +613,22 @@ mod tests {
                                 can_hold: true,
                                 can_release_hold: true,
                                 can_share: true,
+                            },
+                            context: test_context(),
+                        }))
+                    }
+                    LegalHttpRead::Export { .. } => {
+                        LegalHttpReadReply::Export(Box::new(LegalExportReply {
+                            data: LegalExport {
+                                id: "document".into(),
+                                item_id: "item".into(),
+                                name: "Document".into(),
+                                media_type: "text/plain".into(),
+                                checksum: "a".repeat(64),
+                                bytes: 1,
+                                body: "text".into(),
+                                object_key: None,
+                                requires_provider: false,
                             },
                             context: test_context(),
                         }))

@@ -7,7 +7,7 @@
 use crate::{
     application::legal_records::{
         LegalRecordsError, LegalRecordsFuture, LegalRecordsPorts, legal_command, legal_detail,
-        legal_register,
+        legal_export, legal_register,
     },
     domain::legal_records::*,
 };
@@ -1798,6 +1798,80 @@ impl LegalRecordsPorts for PgLegalRecords<'_> {
         })
     }
 
+    fn export<'a>(
+        &'a mut self,
+        actor: &'a LegalRecordsActor,
+        id: &'a str,
+        format: Option<&'a str>,
+    ) -> LegalRecordsFuture<'a, LegalExport> {
+        Box::pin(async move {
+            self.transaction()?;
+            let row = sqlx::query(
+                "SELECT d.id,d.item_id,d.version::bigint version,d.name,d.media_type,d.checksum,d.bytes,d.body,d.created_by,d.created_at,d.locked,d.object_key \
+                 FROM legal_documents d JOIN legal_items i ON i.id=d.item_id \
+                 WHERE d.id=$1 AND i.company_id=$2 \
+                   AND ($3::text IS NULL OR i.branch_id=$3) \
+                   AND ($4::text IS NULL OR i.department_id=$4) \
+                   AND (i.classification='internal' OR EXISTS(SELECT 1 FROM legal_members lm WHERE lm.item_id=i.id AND lm.user_id=$5)) \
+                   AND ($6::text<>'legal_requester' OR (i.kind='request' AND i.created_by=$5))",
+            )
+            .bind(id)
+            .bind(actor.company_id.as_str())
+            .bind(actor.branch_id.as_ref().map(|value| value.as_str()))
+            .bind(actor.department_id.as_ref().map(|value| value.as_str()))
+            .bind(actor.user_id.as_str())
+            .bind(actor.role.as_str())
+            .fetch_optional(&mut *self.connection)
+            .await?;
+            let document = row
+                .as_ref()
+                .map(document)
+                .transpose()?
+                .ok_or_else(not_found)?;
+            let requires_provider = document.object_key.is_none()
+                && matches!(format, Some("pdf") | Some("docx"));
+            if !requires_provider {
+                let action = format!(
+                    "document.export.{}",
+                    format.unwrap_or("original")
+                );
+                let event_id = derived_id(
+                    "legal-export",
+                    &format!(
+                        "{}:{}:{}:{}",
+                        document.id,
+                        actor.user_id.as_str(),
+                        self.now,
+                        format.unwrap_or("original")
+                    ),
+                );
+                sqlx::query(
+                    "INSERT INTO legal_access_events(id,item_id,document_id,actor_id,action,created_at) \
+                     VALUES($1,$2,$3,$4,$5,$6)",
+                )
+                .bind(event_id)
+                .bind(&document.item_id)
+                .bind(&document.id)
+                .bind(actor.user_id.as_str())
+                .bind(action)
+                .bind(self.now)
+                .execute(&mut *self.connection)
+                .await?;
+            }
+            Ok(LegalExport {
+                id: document.id,
+                item_id: document.item_id,
+                name: document.name,
+                media_type: document.media_type,
+                checksum: document.checksum,
+                bytes: document.bytes,
+                body: document.body,
+                object_key: document.object_key,
+                requires_provider,
+            })
+        })
+    }
+
     fn replay<'a>(
         &'a mut self,
         key: &'a str,
@@ -2114,6 +2188,29 @@ pub async fn read_legal_detail(
             Box::pin(async move {
                 let mut ports = PgLegalRecords::new(connection, None, None);
                 legal_detail(&mut ports, &actor, &id).await
+            })
+        })
+        .await
+}
+
+pub async fn read_legal_export(
+    pool: &DatabasePool,
+    actor: &LegalRecordsActor,
+    id: &str,
+    format: Option<&str>,
+) -> Result<LegalExport, LegalRecordsError> {
+    let pool = pool.clone();
+    let actor = actor.clone();
+    let id = id.to_owned();
+    let format = format.map(str::to_owned);
+    PgUnitOfWork::new(pool)
+        .run(TransactionOptions::default(), move |connection| {
+            let actor = actor.clone();
+            let id = id.clone();
+            let format = format.clone();
+            Box::pin(async move {
+                let mut ports = PgLegalRecords::new(connection, None, None);
+                legal_export(&mut ports, &actor, &id, format.as_deref()).await
             })
         })
         .await

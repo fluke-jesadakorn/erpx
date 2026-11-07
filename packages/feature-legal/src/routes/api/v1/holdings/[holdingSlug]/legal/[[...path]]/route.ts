@@ -1,3 +1,4 @@
+import {createHash} from "node:crypto";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { legalReferences, addLegalReference } from "@erpx/server-legal/public/legal/references";
 import { legalKnowledge, lawCitation } from "@erpx/server-legal/public/legal/knowledge";
@@ -50,7 +51,7 @@ import { sendEnvelope, signingAction } from "@erpx/server-legal/public/legal/sig
 import { errorResponse, ApiError } from "@erpx/server-runtime/public/http";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { legalReadScope } from "@erpx/server-legal/public/purchases";
-import { nativeLegalAvailable, nativeLegalCommand, nativeLegalCommandSelected, nativeLegalDetail, nativeLegalFailure, nativeLegalRegister } from "@erpx/feature-legal/lib/native-legal";
+import { nativeLegalAvailable, nativeLegalCommand, nativeLegalCommandSelected, nativeLegalDetail, nativeLegalExport, nativeLegalFailure, nativeLegalRegister } from "@erpx/feature-legal/lib/native-legal";
 import { createAttachmentSet, reserveAttachmentFile, completeAttachmentUpload, scanAttachmentNow } from "@erpx/server-files/public/attachments/service";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
@@ -185,14 +186,37 @@ export async function GET(request: Request, ctx: Context) {
         canonicalDestinationLinks({ data: await legalAiHistory(write, a, path[1]) }),
         { headers: { "Cache-Control": "private, no-store" } },
       );
-    if (path.length === 2 && path[0] === "documents")
+    if (path.length === 2 && path[0] === "documents") {
+      const format = new URL(request.url).searchParams.get("format");
+      if (nativeLegalAvailable()) {
+        const native = await nativeLegalExport(a, holdingSlug, path[1], format, request.headers).catch(nativeFailure);
+        if (native && !native.requires_provider) {
+          const headers = {
+            "Content-Type": native.media_type,
+            "Content-Disposition": `attachment; filename="document"; filename*=UTF-8''${encodeURIComponent(native.name)}`,
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+          };
+          if (native.object_key) {
+            const object = await files.get(native.object_key);
+            if (!object)
+              throw new ApiError(404, "LEGAL_DOCUMENT_UNAVAILABLE", "The original document is unavailable.");
+            const bytes = await object.arrayBuffer();
+            if (createHash("sha256").update(new Uint8Array(bytes)).digest("hex") !== native.checksum)
+              throw new ApiError(502, "LEGAL_DOCUMENT_INTEGRITY", "The original document failed its integrity check.");
+            return new Response(bytes, { headers });
+          }
+          return new Response(native.body, { headers });
+        }
+      }
       return await documentExport(
         write,
         files,
         a,
         path[1],
-        new URL(request.url).searchParams.get("format"),
+        format,
       );
+    }
     if (path.length > 1)
       throw new ApiError(404, "NOT_FOUND", "Resource not found.");
     if (nativeLegalAvailable() && path.length === 0) {

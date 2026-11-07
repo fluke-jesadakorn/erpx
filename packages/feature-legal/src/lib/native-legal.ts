@@ -6,6 +6,7 @@ import {
   NativeLegalError,
   type NativeLegalCommandResult,
   type NativeLegalDetail,
+  type NativeLegalExport,
   type NativeLegalPageContext,
   type NativeLegalRegister,
 } from '../adapters/server/native-legal';
@@ -115,6 +116,22 @@ export async function nativeLegalDetail(
   if (actor.holdingSlug !== holdingSlug)
     throw new NativeLegalError('NATIVE_LEGAL_CONTEXT_CHANGED');
   return native.detail(incoming, context(actor), id);
+}
+
+/** Native export access. The Files owner still serves the immutable original
+ * bytes; the Legal owner records the export access event. */
+export async function nativeLegalExport(
+  actor: WorkContext,
+  holdingSlug: string,
+  id: string,
+  format: string | null,
+  incoming: Pick<Headers, 'get'>,
+): Promise<NativeLegalExport | undefined> {
+  const native = client(actor);
+  if (!native) return undefined;
+  if (actor.holdingSlug !== holdingSlug)
+    throw new NativeLegalError('NATIVE_LEGAL_CONTEXT_CHANGED');
+  return native.export(incoming, context(actor), id, format);
 }
 
 /** Bounded document/hold/archive/member/share actions are selected natively.

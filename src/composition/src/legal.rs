@@ -9,11 +9,11 @@ use erpx_server_identity_access::public::{
     work_context::HoldingWorkspaceRequest,
 };
 use erpx_server_legal::public::legal_records::{
-    LegalCommandReply, LegalDetailReply, LegalHoldNotice, LegalHoldNotifier, LegalHttpBackend,
-    LegalHttpCommandRequest, LegalHttpFuture, LegalHttpRead, LegalHttpReadReply,
+    LegalCommandReply, LegalDetailReply, LegalExportReply, LegalHoldNotice, LegalHoldNotifier,
+    LegalHttpBackend, LegalHttpCommandRequest, LegalHttpFuture, LegalHttpRead, LegalHttpReadReply,
     LegalHttpReadRequest, LegalIdentity, LegalRegisterQuery, LegalRegisterReply,
     LegalRenderedContext, LegalRecordsActor, PgLegalFuture, PgLegalRecords, legal_command,
-    legal_detail, legal_register,
+    legal_detail, legal_export, legal_register,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
@@ -361,6 +361,53 @@ impl<C: Clock + Send + Sync + 'static> LegalService<C> {
             .await
     }
 
+    pub async fn export<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        id: String,
+        format: Option<String>,
+    ) -> Result<LegalHttpReadReply, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let holding_slug = self.configuration.holding_slug.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                LegalSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let holding_slug = holding_slug.clone();
+                    let id = id.clone();
+                    let format = format.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("legal.export")?;
+                        let actor = legal_actor(current, &holding_slug)?;
+                        let mut ports = PgLegalRecords::new(connection, None, None);
+                        let data = legal_export(&mut ports, &actor, &id, format.as_deref()).await?;
+                        Ok(LegalHttpReadReply::Export(Box::new(LegalExportReply {
+                            data,
+                            context: rendered_context(current),
+                        })))
+                    })
+                },
+            )
+            .await
+    }
+
     pub async fn command<Input>(
         &self,
         host: &str,
@@ -481,6 +528,11 @@ impl<C: Clock + Send + Sync + 'static> LegalHttpBackend for LegalBackend<C> {
                 LegalHttpRead::Detail(id) => self
                     .service
                     .detail(request.host, proof, move || Ok(selection), id)
+                    .await
+                    .map_err(business),
+                LegalHttpRead::Export { id, format } => self
+                    .service
+                    .export(request.host, proof, move || Ok(selection), id, format)
                     .await
                     .map_err(business),
             }

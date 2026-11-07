@@ -182,6 +182,18 @@ export type NativeLegalCommandResult = {
   jobId?: string;
 };
 
+export type NativeLegalExport = {
+  id: string;
+  item_id: string;
+  name: string;
+  media_type: string;
+  checksum: string;
+  bytes: number;
+  body: string;
+  object_key: string | null;
+  requires_provider: boolean;
+};
+
 export class NativeLegalError extends Error {
   readonly code: string;
   readonly status?: number;
@@ -600,6 +612,35 @@ function detail(value: unknown, actor: NativeLegalPageContext): NativeLegalDetai
   };
 }
 
+function exportDocument(value: unknown, actor: NativeLegalPageContext): NativeLegalExport {
+  if (!exact(value, ['data', 'context']) || !contextMatches(value.context, actor))
+    return fail('NATIVE_LEGAL_RESPONSE_INVALID');
+  const row = fields(value.data, [
+    'id',
+    'item_id',
+    'name',
+    'media_type',
+    'checksum',
+    'bytes',
+    'body',
+    'object_key',
+    'requires_provider',
+  ]);
+  if (
+    !identifier(row.id) ||
+    !identifier(row.item_id) ||
+    !text(row.name, 200) ||
+    !text(row.media_type, 200) ||
+    !/^[a-f0-9]{64}$/.test(String(row.checksum)) ||
+    !integer(row.bytes) ||
+    !text(row.body, 500000) ||
+    !optionalText(row.object_key, 500) ||
+    !boolean(row.requires_provider)
+  )
+    return fail('NATIVE_LEGAL_RESPONSE_INVALID');
+  return row as NativeLegalExport;
+}
+
 function commandResult(value: unknown, actor: NativeLegalPageContext): NativeLegalCommandResult {
   if (!exact(value, ['data', 'context']) || !contextMatches(value.context, actor)) {
     return fail('NATIVE_LEGAL_RESPONSE_INVALID');
@@ -914,6 +955,29 @@ export function createNativeLegalClient(
       if (!identifier(id)) throw new NativeLegalError('NATIVE_LEGAL_REQUEST_INVALID');
       return detail(
         await call(transport, config, incoming, actor, `/records/${encodeURIComponent(id)}`, undefined),
+        actor,
+      );
+    },
+    async export(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeLegalPageContext,
+      id: string,
+      format: string | null,
+      signal?: AbortSignal,
+    ): Promise<NativeLegalExport> {
+      void signal;
+      if (!identifier(id)) throw new NativeLegalError('NATIVE_LEGAL_REQUEST_INVALID');
+      if (format !== null && !['txt', 'pdf', 'docx'].includes(format))
+        throw new NativeLegalError('NATIVE_LEGAL_REQUEST_INVALID');
+      return exportDocument(
+        await call(
+          transport,
+          config,
+          incoming,
+          actor,
+          `/documents/${encodeURIComponent(id)}${format ? `?format=${format}` : ''}`,
+          undefined,
+        ),
         actor,
       );
     },
