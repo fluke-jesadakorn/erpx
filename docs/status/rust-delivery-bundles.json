@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T21:20:39+07:00",
+  "updatedAt": "2026-11-07T22:16:05+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 72,
-    "workflowsVerified": 47,
-    "workflowsMerged": 47,
+    "workflowsPartial": 71,
+    "workflowsVerified": 48,
+    "workflowsMerged": 48,
     "ownersComplete": 5,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -4757,16 +4757,16 @@
       "kind": "module",
       "owner": "quality",
       "scope": "Cancellation",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "quality-native-read",
         "quality-native-cancel",
         "quality-http"
       ],
       "sourceRef": "packages/server-quality/src/public/quality.ts",
-      "gap": "Native cancellation with CAS, independence and persisted event/readback is PostgreSQL-qualified. A composed Quality HTTP route tests the real Account session, current IAM and a same-unit Commercial History check for hard-coded supply.quality over PostgreSQL; this does not establish source-specific receipt or return entitlements, trusted enforcement mode, complete lineage revalidation, concurrent grant fencing, or expiry at final revalidation. The check applies to detail-core and history, not workspace or cancellation: bounded workspace/detail-core reads, paged cancellation history with stale-head/revision 409, independent request/approve with self-approval denial, unique event versions and fresh persisted readback. The owner-level suite additionally covers reject, page traversal, replay and rollback; a single historical row over the 4 MiB page budget remains unavailable. Cancellation composition still lacks the Workflow receipt, notification/outbox and source-specific settlement proof required for production parity. The Next page/route now use the detail-core endpoint (so 200+ event holds are not blocked by the bounded retained array) and render only the native paged history. Company-context denial is proven as a workspace denial (WORK_ROLE_REQUIRED), not through the history route. Browser acceptance remains open; no workflow count changes. Blocker: no generic native cohort release exists for HEAD. A reachable Colima Docker socket has only October field/count case volumes, and the development gateway has no native Quality transport; reusing an old release would verify stale source."
+      "gap": "Closed. Native cancellation request/approve/reject now runs through the Quality workflow ledger in the caller's serializable Holding unit with current authority, supply.quality purchase admission, hold-row CAS, independence checks, one receipt/audit/outbox per action and the Identity recipient witness plus Collaboration staff notification/inbox handoff. Browser verified through the Quality UI: approve path cancel_pending v2 -> cancelled v3; reject path cancel_pending v2 -> held v3; persisted four cancellation events, four receipts/audit/outbox, pending independent quality.release notices and terminal creator notice with inbox deliveries."
     },
     {
       "id": "legal/contracts",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T21:20:39+07:00",
-    "sourceHead": "9014f6466",
+    "generatedAt": "2026-11-07T22:16:05+07:00",
+    "sourceHead": "f796961e1",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6590,8 +6590,8 @@
       },
       "quality": {
         "workflows": 4,
-        "verified": 2,
-        "partial": 2,
+        "verified": 3,
+        "partial": 1,
         "unstarted": 0,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -7852,6 +7852,21 @@
           "owners": 5,
           "verified": 47,
           "partial": 72,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T22:16:05+07:00",
+        "commit": "f796961e1",
+        "bundles": [
+          "native quality cancellation ledger"
+        ],
+        "evidence": "browser Quality UI request/approve cancelled v3 and request/reject held v3; DB 4 cancellation events, 4 receipts/audit/outbox, pending independent quality.release notices + terminal creator notice with inbox deliveries; quality commands 3/3, http 3/3, read/cancel 19/19, http 5/5, decisions 10/10; typecheck/structure/health pass",
+        "counts": {
+          "owners": 5,
+          "verified": 48,
+          "partial": 71,
           "unstarted": 87,
           "total": 206
         }
