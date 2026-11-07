@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T09:05:03+07:00",
+  "updatedAt": "2026-11-07T09:43:10+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 82,
-    "workflowsVerified": 37,
-    "workflowsMerged": 37,
+    "workflowsPartial": 81,
+    "workflowsVerified": 38,
+    "workflowsMerged": 38,
     "ownersComplete": 4,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -4534,15 +4534,15 @@
       "kind": "module",
       "owner": "maintenance",
       "scope": "Maintenance history",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "maintenance-native-read",
         "maintenance-native-http"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Native work/plan detail history reads and transition composition are qualified. Browser remains open."
+      "gap": "Closed. Work and preventive-plan detail/history reads run on the native Maintenance owner and are browser verified in the keyed workspace: the maintenance list rendered AST-ACCEPT \u00b7 Forklift inspection, the work detail drawer showed the immutable history \u201cVersion 1 \u00b7 open \u00b7 Opened for acceptance\u201d, and the plan detail drawer showed the \u201cactivate\u201d history on plan-acceptance. The native router is mounted through maintenanceCompanies and the existing-business feature; create/downtime/completion/blocked-work remain separate partial workflows."
     },
     {
       "id": "operations/feature-exception-queue",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T09:05:03+07:00",
-    "sourceHead": "b1acc7518",
+    "generatedAt": "2026-11-07T09:43:10+07:00",
+    "sourceHead": "da47eadd0",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6566,8 +6566,8 @@
       },
       "maintenance": {
         "workflows": 5,
-        "verified": 0,
-        "partial": 5,
+        "verified": 1,
+        "partial": 4,
         "unstarted": 0,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -7113,9 +7113,9 @@
       }
     ],
     "nextActions": [
-      "Continue with the next dependency-ready owner partial; Operations is complete (6/6).",
+      "Continue the Maintenance owner with the create/completion/downtime/blocked-work native writers, or move to the next dependency-ready non-Stripe owner partial.",
       "Await the Stripe/Connect test configuration for the remaining POS tender/refund/retry paths.",
-      "Keep counts tied to browser/HTTP evidence and reconcile remote HEAD before each push."
+      "Reconcile remote HEAD and keep counts tied to browser/HTTP evidence."
     ],
     "integrationLog": [
       {
@@ -7633,6 +7633,23 @@
           "owners": 4,
           "verified": 37,
           "partial": 82,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T09:43:10+07:00",
+        "commit": "da47eadd0",
+        "bundles": [
+          "maintenanceCompanies private-API mount",
+          "native Maintenance work/plan history",
+          "assets package fixtures"
+        ],
+        "evidence": "browser maintenance list 200 with AST-ACCEPT \u00b7 Forklift inspection; work detail history Version 1 \u00b7 open \u00b7 Opened for acceptance; plan detail history activate; POS history and Operations pages still 200; Maintenance tests 6/6, 3/3, 2/2, 1/1, 1/1, 2/2, 2/2; Assets tests 4/4, 10/10, 17/17, 2/2, 13/13; typecheck passes",
+        "counts": {
+          "owners": 4,
+          "verified": 38,
+          "partial": 81,
           "unstarted": 87,
           "total": 206
         }
