@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-08T05:16:12+07:00",
+  "updatedAt": "2026-11-08T05:24:59+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -4782,7 +4782,7 @@
         "legal-native-archive"
       ],
       "sourceRef": "packages/server-legal/src/public/legal/service.ts",
-      "gap": "Native Legal record register/detail, authored document versions and executed-copy review are implemented; executed review carries current legal.approve authority, explicit contract membership, independence from importer/document authors, current approved-cycle/checksum guards, the five immutable review checks, copy/state advancement and receipt/audit/outbox. Browser verified on legal-item-executed-1: a pending signed original was independently confirmed and an approved contract advanced to executed (v2), then a second copy confirmed at v3. Contract approval route and signed-original import/upload remain retained, so the workflow stays partial."
+      "gap": "Native Legal record register/detail, authored document versions, the contract approval route (open/decide/reroute) and executed-copy review are implemented. The approval writer validates contract/document state, unique people, reviewer eligibility and membership, author independence, signer access and executed-copy separation; it writes approval instances/steps/routes/decisions, notifications and legal approvals with receipt/audit/outbox and locks the approved document. Browser verified: legal-item-acme-1 draft v9 -> approval v10 as creator, then approved v11 by usr_legal_reviewer; executed-copy review separately confirmed a signed original. Signed-original import/upload (Files-backed binary intake) remains retained, so the workflow stays partial."
     },
     {
       "id": "legal/feature-documents",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-08T05:16:12+07:00",
-    "sourceHead": "783a18bd5",
+    "generatedAt": "2026-11-08T05:24:59+07:00",
+    "sourceHead": "435c0b8a6",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -8018,6 +8018,21 @@
           "native Legal executed-copy review"
         ],
         "evidence": "browser legal-item-executed-1 pending signed original confirmed, contract approved v1 -> executed v2; second copy confirmed at v3; DB legal_executed_reviews confirm, copies confirmed, two receipts/audit/outbox; Legal suites pass; typecheck/structure/health pass; counts unchanged because approval route/import/upload remain retained",
+        "counts": {
+          "owners": 7,
+          "verified": 61,
+          "partial": 58,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-08T05:24:59+07:00",
+        "commit": "435c0b8a6",
+        "bundles": [
+          "native Legal contract approval route"
+        ],
+        "evidence": "browser legal-item-acme-1 approval.open draft v9 -> approval v10, approval.decide by usr_legal_reviewer -> approved v11; DB approval instance/step/decisions, legal_approvals cycle 1, two receipts/audit/outbox; legal suites 6/6 etc; typecheck/structure/health pass; counts unchanged because signed-original import/upload remains retained",
         "counts": {
           "owners": 7,
           "verified": 61,
