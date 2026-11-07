@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-08T00:54:15+07:00",
+  "updatedAt": "2026-11-08T02:04:37+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -5973,7 +5973,7 @@
         "pms-native-front-desk"
       ],
       "sourceRef": "packages/server-pms/src/public/pms.ts",
-      "gap": "Native Front Desk arrivals/departures/stay queue and room board are qualified; PMS commands, other sections and composition mount complete; browser remains open."
+      "gap": "Native property/room board and front-desk reads are now reachable through the contributor gateway and browser verified. /pms/rooms renders rooms 101/102/103 with total 3, active 3, clean 1, dirty 1, inspected 1, DND 1 and occupied 2; /pms/housekeeping renders the pending room tasks; /pms/front-desk renders 3 booking records and the room calendar. PMS commands (room status/maintenance, housekeeping tasks, reservations and cashier) remain retained, so this workflow stays partial."
     },
     {
       "id": "pms/rooms",
@@ -5988,7 +5988,7 @@
         "pms-native-http"
       ],
       "sourceRef": "packages/server-pms/src/public/pms.ts",
-      "gap": "Native property/room board read and HTTP/SSR cutover are qualified for Rooms/Housekeeping; PMS commands, other sections and composition mount complete; browser remains open."
+      "gap": "Native property/room board and front-desk reads are now reachable through the contributor gateway and browser verified. /pms/rooms renders rooms 101/102/103 with total 3, active 3, clean 1, dirty 1, inspected 1, DND 1 and occupied 2; /pms/housekeeping renders the pending room tasks; /pms/front-desk renders 3 booking records and the room calendar. PMS commands (room status/maintenance, housekeeping tasks, reservations and cashier) remain retained, so this workflow stays partial."
     },
     {
       "id": "pms/housekeeping",
@@ -6003,7 +6003,7 @@
         "pms-native-http"
       ],
       "sourceRef": "packages/server-pms/src/public/pms.ts",
-      "gap": "Native property/room board read and HTTP/SSR cutover are qualified for Rooms/Housekeeping; PMS commands, other sections and composition mount complete; browser remains open."
+      "gap": "Native property/room board and front-desk reads are now reachable through the contributor gateway and browser verified. /pms/rooms renders rooms 101/102/103 with total 3, active 3, clean 1, dirty 1, inspected 1, DND 1 and occupied 2; /pms/housekeeping renders the pending room tasks; /pms/front-desk renders 3 booking records and the room calendar. PMS commands (room status/maintenance, housekeeping tasks, reservations and cashier) remain retained, so this workflow stays partial."
     },
     {
       "id": "pms/guest-accounts",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-08T00:54:15+07:00",
-    "sourceHead": "1db703441",
+    "generatedAt": "2026-11-08T02:04:37+07:00",
+    "sourceHead": "843c14ed8",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7880,6 +7880,21 @@
           "quality owner completion"
         ],
         "evidence": "browser Quality UI release awaiting_release v2 -> released v3; scrap held v2 -> disposition_pending v3 with count quality-scrap-* submitted, line 5000/1000 -> 3500/700, lot lines retained, disposition event, set/link bound quality_disposition, Finance approver + creator notices; command receipts/audit/outbox; quality commands 4/4, http 4/4, quality suites 7/7,10/10,5/5,19/19; typecheck/structure/health pass",
+        "counts": {
+          "owners": 6,
+          "verified": 49,
+          "partial": 70,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-08T02:04:37+07:00",
+        "commit": "843c14ed8",
+        "bundles": [
+          "native PMS room-board and front-desk read transport"
+        ],
+        "evidence": "browser /pms/rooms 101/102/103 total3 active3 clean1 dirty1 inspected1 dnd1 occupied2; /pms/housekeeping pending room tasks; /pms/front-desk 3 booking records + room calendar; pms_http 7/7, pms suites 4/4,10/10,3/3; unit 11/11; typecheck/structure pass; counts unchanged because commands remain retained",
         "counts": {
           "owners": 6,
           "verified": 49,
