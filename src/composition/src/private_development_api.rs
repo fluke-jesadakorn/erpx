@@ -201,6 +201,8 @@ struct ConfigurationDocument {
     #[serde(default)]
     pos_companies: Vec<FinanceReadDocument>,
     #[serde(default)]
+    crm_companies: Vec<FinanceReadDocument>,
+    #[serde(default)]
     operations_companies: Vec<FinanceReadDocument>,
     #[serde(default)]
     maintenance_companies: Vec<FinanceReadDocument>,
@@ -315,6 +317,7 @@ pub struct DevelopmentApiConfiguration {
     holdings: Vec<HoldingConfiguration>,
     finance_journal_reads: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     pos_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
+    crm_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     operations_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     maintenance_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     finance_field_service_invoice_reads: BTreeSet<HoldingId>,
@@ -640,6 +643,18 @@ impl DevelopmentApiConfiguration {
                 || !pos_companies.entry(holding).or_default().insert(company)
             {
                 return Err("PRIVATE_API_POS_CONFIGURATION_INVALID");
+            }
+        }
+        let mut crm_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>> = BTreeMap::new();
+        for read in doc.crm_companies {
+            let holding = HoldingId::new(&read.holding_id)
+                .map_err(|_| "PRIVATE_API_CRM_CONFIGURATION_INVALID")?;
+            let company = CompanyId::new(&read.company_id)
+                .map_err(|_| "PRIVATE_API_CRM_CONFIGURATION_INVALID")?;
+            if !ids.contains(&read.holding_id)
+                || !crm_companies.entry(holding).or_default().insert(company)
+            {
+                return Err("PRIVATE_API_CRM_CONFIGURATION_INVALID");
             }
         }
         let mut operations_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>> = BTreeMap::new();
@@ -1274,6 +1289,7 @@ impl DevelopmentApiConfiguration {
             holdings,
             finance_journal_reads,
             pos_companies,
+            crm_companies,
             operations_companies,
             maintenance_companies,
             finance_field_service_invoice_reads,
@@ -1743,7 +1759,10 @@ async fn assemble_checked(
             }
         })
         .collect();
-    if !config.finance_journal_reads.is_empty() || !config.pos_companies.is_empty() {
+    if !config.finance_journal_reads.is_empty()
+        || !config.pos_companies.is_empty()
+        || !config.crm_companies.is_empty()
+    {
         let catalogue = Arc::new(
             current_package_catalogue().map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
         );
@@ -1873,6 +1892,44 @@ async fn assemble_checked(
                             backend: pos_backend,
                         },
                     );
+            }
+        }
+        #[cfg(feature = "existing-business")]
+        for (i, holding) in config.holdings.iter().enumerate() {
+            let Some(companies) = config.crm_companies.get(&holding.registration.holding_id) else {
+                continue;
+            };
+            let authorizer = Arc::new(
+                HoldingWorkAuthorizer::new(
+                    pools[0].clone(),
+                    pools[i + 1].clone(),
+                    holding.registration.holding_id.clone(),
+                    (*config.policy).clone(),
+                    clock.clone(),
+                    config.holdings_registry.clone(),
+                )
+                .map_err(|_| "PRIVATE_API_CRM_AUTHORITY_INVALID")?,
+            );
+            for company in companies {
+                crm_targets.push(
+                    erpx_server_crm::public::pipeline_http::CrmPipelineHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::crm::CrmBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::crm::CrmService::new(
+                                authorizer.clone(),
+                                crate::crm::CrmConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
             }
         }
         for (i, holding) in config.holdings.iter().enumerate() {
@@ -2284,26 +2341,6 @@ async fn assemble_checked(
                             Arc::new(crate::ecommerce::EcommerceService::new(
                                 authorizer.clone(),
                                 crate::ecommerce::EcommerceConfiguration::new(
-                                    holding.registration.holding_id.clone(),
-                                    company.clone(),
-                                ),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )),
-                    },
-                );
-                #[cfg(feature = "existing-business")]
-                crm_targets.push(
-                    erpx_server_crm::public::pipeline_http::CrmPipelineHttpTarget {
-                        host: holding.host.clone(),
-                        holding_slug: holding.registration.slug.clone(),
-                        origin: format!("https://{}", holding.host),
-                        backend: Arc::new(crate::crm::CrmBackend::new(
-                            config.policy.clone(),
-                            Arc::new(FinanceJournalReadScopeHeaders),
-                            Arc::new(crate::crm::CrmService::new(
-                                authorizer.clone(),
-                                crate::crm::CrmConfiguration::new(
                                     holding.registration.holding_id.clone(),
                                     company.clone(),
                                 ),
@@ -3203,7 +3240,7 @@ async fn assemble_checked(
         if !crm_targets.is_empty() {
             router = router.merge(
                 erpx_server_crm::public::pipeline_http::crm_pipeline_http_router(crm_targets)
-                    .map_err(|_| "PRIVATE_API_CRM_CONFIGURATION_INVALID")?,
+                    .map_err(|_| "PRIVATE_API_CRM_ROUTER_INVALID")?,
             );
         }
         if !manage_erpx_targets.is_empty() {
@@ -4209,6 +4246,17 @@ async fn assemble_checked(
                     .map(|h| (h.host.clone(), h.registration.slug.clone()))
             })
             .collect(),
+        crm_targets: config
+            .crm_companies
+            .keys()
+            .filter_map(|holding_id| {
+                config
+                    .holdings
+                    .iter()
+                    .find(|h| &h.registration.holding_id == holding_id)
+                    .map(|h| (h.host.clone(), h.registration.slug.clone()))
+            })
+            .collect(),
         #[cfg(feature = "existing-business")]
         brand_targets: config
             .finance_journal_reads
@@ -4398,6 +4446,7 @@ struct Boundary {
     finance_reversal_targets: BTreeSet<(String, String)>,
     pos_targets: BTreeSet<(String, String)>,
     operations_targets: BTreeSet<(String, String)>,
+    crm_targets: BTreeSet<(String, String)>,
     brand_targets: BTreeSet<(String, String)>,
     bank_targets: BTreeSet<(String, String)>,
     generic_payment_targets: BTreeSet<(String, String)>,
@@ -6638,6 +6687,19 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };
+    let crm = request.method() == axum::http::Method::GET
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            ["", "api", "v1", "holdings", slug, "crm", ..] => state
+                .crm_targets
+                .contains(&(host.to_owned(), (*slug).to_owned())),
+            _ => false,
+        };
     let quality = match request
         .uri()
         .path()
@@ -6698,6 +6760,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
     ) || account_mfa
         || pos_command
         || operations
+        || crm
         || maintenance
         || payroll
         || quality

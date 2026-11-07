@@ -85,6 +85,13 @@ fn target_configuration_requires_distinct_exact_holdings() {
         backend: backend.clone(),
     };
     assert!(crm_pipeline_http_router(vec![target()]).is_ok());
+    assert!(
+        crm_pipeline_http_router(vec![CrmPipelineHttpTarget {
+            origin: "https://acme.example.test:3443".into(),
+            ..target()
+        }])
+        .is_ok()
+    );
     assert!(crm_pipeline_http_router(vec![target(), target()]).is_err());
     assert!(
         crm_pipeline_http_router(vec![CrmPipelineHttpTarget {

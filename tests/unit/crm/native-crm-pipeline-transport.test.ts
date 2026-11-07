@@ -150,6 +150,22 @@ describe('native CRM pipeline transport',()=>{
   }
  });
 
+ it('preserves valid ISO year-zero and upper-bound dates and rejects invalid leap days',async()=>{
+  const client=(item:unknown)=>createNativeCrmPipelineClient(
+    nativeCrmPipelineConfiguration(config()),
+    vi.fn().mockResolvedValue(ok(page([item]))),
+  );
+  for(const date of ['0000-01-01','0000-02-29','2000-02-29','9999-12-31']) {
+    const item={...opportunity,due_date:date,close_date:date};
+    await expect(client(item).pipeline(incoming(),actor,{...input,stage:'discovery'}))
+      .resolves.toMatchObject({items:[item]});
+  }
+  for(const date of ['0000-02-30','1900-02-29']) {
+    await expect(client({...opportunity,close_date:date}).pipeline(incoming(),actor,{...input,stage:'discovery'}))
+      .rejects.toMatchObject({code:'NATIVE_CRM_PIPELINE_RESPONSE_INVALID'});
+  }
+ });
+
  it('rejects a host or request that is not the configured exact authority',async()=>{
   const client=createNativeCrmPipelineClient(nativeCrmPipelineConfiguration(config()),vi.fn());
   await expect(client.pipeline(incoming({host:'evil.example.com'}),actor,input))
@@ -180,6 +196,12 @@ describe('native CRM pipeline transport',()=>{
   });
   if(previous===undefined)delete process.env.ERPX_NATIVE_CRM_PIPELINE_CONFIG;
   else process.env.ERPX_NATIVE_CRM_PIPELINE_CONFIG=previous;
+ });
+
+ it('accepts an explicit development port on a registered Holding origin',()=>{
+  expect(()=>createNativeCrmPipelineClient(nativeCrmPipelineConfiguration(config({
+    holdings:[{origin:'https://acme.example.com:3443',holdingSlug:'acme',holdingId:'h001'}],
+  })),vi.fn())).not.toThrow();
  });
 
  it('rejects reserved loopback ports, insecure Holding origins and malformed configuration',()=>{
