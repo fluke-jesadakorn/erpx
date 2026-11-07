@@ -299,6 +299,13 @@ fn configuration_rejects_non_https_and_duplicate_targets() {
         backend: backend.clone(),
     };
     assert!(pms_http_router(vec![target()]).is_ok());
+    assert!(
+        pms_http_router(vec![PmsHttpTarget {
+            origin: "https://acme.example.test:3443".into(),
+            ..target()
+        }])
+        .is_ok()
+    );
     assert!(pms_http_router(vec![target(), target()]).is_err());
     assert!(
         pms_http_router(vec![PmsHttpTarget {
@@ -307,6 +314,20 @@ fn configuration_rejects_non_https_and_duplicate_targets() {
         }])
         .is_err()
     );
+    for origin in [
+        "https://acme.example.test:0",
+        "https://acme.example.test:65536",
+        "https://acme.example.test:abc",
+        "https://acme.example.test:3443:1",
+    ] {
+        assert!(
+            pms_http_router(vec![PmsHttpTarget {
+                origin: origin.into(),
+                ..target()
+            }])
+            .is_err()
+        );
+    }
     assert!(
         pms_http_router(vec![PmsHttpTarget {
             origin: "https://acme.example.test/path".into(),

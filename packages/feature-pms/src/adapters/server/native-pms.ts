@@ -1,3 +1,4 @@
+import { Agent, request } from 'node:http';
 import type { PmsWorkspace } from '@erpx/server-pms/public/pms';
 
 /** Rendering input from the retained page authorization, never a grant. */
@@ -503,10 +504,14 @@ function configuration(raw: NativePmsConfiguration) {
     } catch {
       return failure('NATIVE_PMS_CONFIGURATION_INVALID');
     }
+    const originPort = origin.port;
     if (
       origin.protocol !== 'https:' ||
       holding.origin !== origin.origin ||
-      origin.port ||
+      (originPort !== '' &&
+        (!/^[1-9]\d{0,4}$/.test(originPort) ||
+          Number(originPort) < 1 ||
+          Number(originPort) > 65535)) ||
       origin.username ||
       origin.password ||
       !identifier(holding.holdingId) ||
@@ -550,7 +555,11 @@ function authority(
   input: NativePmsAuthorityInput,
   invalidCode = 'NATIVE_PMS_REQUEST_INVALID',
 ) {
-  const host = incoming.get('host');
+  const forwarded = incoming
+    .get('x-forwarded-host')
+    ?.split(',')[0]
+    ?.trim();
+  const host = forwarded && forwarded.length > 0 ? forwarded : incoming.get('host');
   const holding = host ? holdings.get(host) : undefined;
   if (!holding || holding.holdingSlug !== input.holdingSlug)
     throw new NativePmsError('NATIVE_PMS_AUTHORITY_INVALID');
@@ -744,7 +753,59 @@ async function boundedJson(response: Response): Promise<unknown> {
 }
 
 const directHttp: NativePmsTransport = (method, url, headers, _body, signal) =>
-  fetch(url, { method, headers, cache: 'no-store', redirect: 'error', signal });
+  new Promise((resolve, reject) => {
+    const agent = new Agent({
+      keepAlive: false,
+      maxSockets: 1,
+      maxTotalSockets: 1,
+      proxyEnv: {} as import('node:http').ProxyEnv,
+    });
+    const req = request(
+      url,
+      {
+        method,
+        agent,
+        headers: Object.fromEntries(headers),
+        signal,
+        maxHeaderSize: 8192,
+      },
+      (incoming) => {
+        const chunks: Uint8Array[] = [];
+        let total = 0;
+        incoming.on('data', (chunk: Uint8Array) => {
+          total += chunk.byteLength;
+          if (total > 4 * 1024 * 1024) {
+            incoming.destroy();
+            reject(new Error('NATIVE_PMS_RESPONSE_LIMIT'));
+            return;
+          }
+          chunks.push(chunk);
+        });
+        incoming.on('end', () => {
+          const bytes = new Uint8Array(total);
+          let offset = 0;
+          for (const chunk of chunks) {
+            bytes.set(chunk, offset);
+            offset += chunk.byteLength;
+          }
+          resolve(
+            new Response(bytes, {
+              status: incoming.statusCode ?? 0,
+              headers: new Headers(
+                Object.entries(incoming.headers).flatMap(([key, value]) =>
+                  value === undefined
+                    ? []
+                    : [[key, Array.isArray(value) ? value.join(', ') : value]],
+                ),
+              ),
+            }),
+          );
+        });
+      },
+    );
+    req.on('error', reject);
+    req.end();
+  });
 
 export function createNativePmsClient(
   raw: NativePmsConfiguration,

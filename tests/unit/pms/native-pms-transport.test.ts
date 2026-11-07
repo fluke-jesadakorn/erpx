@@ -182,6 +182,31 @@ describe('native PMS room-board transport',()=>{
   else process.env.ERPX_NATIVE_PMS_CONFIG=previous;
  });
 
+ it('uses the forwarded public host for the registered Holding behind the gateway',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({data:workspace,context}));
+  const client=createNativePmsClient(JSON.parse(config()),transport);
+  await client.roomBoard(
+    incoming({host:'127.0.0.1:3203','x-forwarded-host':'acme.example.com'}),
+    actor,
+    readInput,
+  );
+  const [, , requestHeaders]=transport.mock.calls[0];
+  expect(requestHeaders.get('host')).toBe('acme.example.com');
+ });
+
+ it('accepts one bounded contributor Holding port and rejects malformed ports',()=>{
+  const contributor=config({holdings:[{origin:'https://acme.erpx.localhost:3443',holdingSlug:'acme',holdingId:'h001'}]});
+  expect(()=>createNativePmsClient(JSON.parse(contributor))).not.toThrow();
+  for(const origin of [
+    'https://acme.example.com:0',
+    'https://acme.example.com:65536',
+    'https://acme.example.com:abc',
+    'https://acme.example.com:3443:1',
+  ]) {
+    expect(()=>createNativePmsClient(JSON.parse(config({holdings:[{origin,holdingSlug:'acme',holdingId:'h001'}]})))).toThrowError(NativePmsError);
+  }
+ });
+
  it('rejects configuration that can escape the registered Holding origin',()=>{
   for(const raw of [
     config({privateBaseUrl:'http://127.0.0.1:3100'}),
