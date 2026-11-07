@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T06:49:57+07:00",
+  "updatedAt": "2026-11-07T07:23:11+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T06:49:57+07:00",
-    "sourceHead": "aaad2b219",
+    "generatedAt": "2026-11-07T07:23:11+07:00",
+    "sourceHead": "a13853f4a",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7092,6 +7092,11 @@
     },
     "blockers": [
       {
+        "id": "operations-browser-role-gate",
+        "detail": "The Operations owner is now mounted in the keyed private API through an explicit operationsCompanies binding (no broad finance-read group), with the port-origin and Host-transport bugs fixed (Operations uses node:http because fetch strips Host). The work-routines package and an operations-only synthetic role are seeded. Remaining: the apps product page returns 403 for the operations-only role and the holding_owner path fails closed on the Field Service operational-exceptions read, so no Operations policy browser command has been verified yet.",
+        "unblock": "Map the apps product-page capability/role for the operations-only assignment (or fix the Field operational-exceptions source) and then run the policy publish/retire browser journey."
+      },
+      {
         "id": "pos-stripe-provider-configuration",
         "detail": "The POS Next app in the keyed workspace has no POS_STRIPE_TEST_* or POS_STRIPE_LIVE_* environment (0 keys), and no Connect account/webhook origin is mounted for a native Rust provider port. Stripe tenders, Stripe refunds and payment.retry/payment.cancel cannot be exercised end-to-end without that provider configuration; a mock provider is not accepted as closure evidence.",
         "unblock": "Provide the test-mode Stripe/Connect configuration (test secret, webhook secret, client id and a reachable webhook origin) for the isolated keyed workspace, or explicitly defer Stripe scope."
@@ -7108,9 +7113,9 @@
       }
     ],
     "nextActions": [
-      "Await the Stripe/Connect test configuration to implement and verify the native card/PromptPay tender, refund and retry/cancel provider path.",
-      "Continue with the next dependency-ready non-Stripe owner partial (operations/assets/quality/maintenance) while Stripe configuration is pending.",
-      "Keep counts honest: POS payments/receipts and refunds stay partial until the Stripe path is verified."
+      "Resolve the Operations browser role/product gate, then run the policy publish/retire browser journey with persisted readback.",
+      "Await the Stripe/Connect test configuration for the remaining POS tender/refund/retry paths.",
+      "Continue with the next dependency-ready owner partial while those blockers are pending."
     ],
     "integrationLog": [
       {
@@ -7541,6 +7546,23 @@
           "receipt print/PDF readback"
         ],
         "evidence": "print-media readback of the completed receipt (POS-20261107-ADCDF454, USD 25.00) and generated PDF /tmp/erpx-pos-receipt.pdf 700204 bytes; Stripe env probe: 0 POS_STRIPE_* keys in the keyed POS app",
+        "counts": {
+          "owners": 3,
+          "verified": 31,
+          "partial": 88,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T07:23:11+07:00",
+        "commit": "a13853f4a",
+        "bundles": [
+          "operationsCompanies private-API mount",
+          "Operations node:http host transport",
+          "work-routines contributor package"
+        ],
+        "evidence": "private API builds/starts with operationsCompanies; /api/v1/holdings/acme/operations reached the boundary with audience=true and the correct Host after the transport fix; typecheck passes; browser page still gated (403/Field read)",
         "counts": {
           "owners": 3,
           "verified": 31,
