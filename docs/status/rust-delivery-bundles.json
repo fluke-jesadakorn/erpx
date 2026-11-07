@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-08T03:21:31+07:00",
+  "updatedAt": "2026-11-08T03:24:36+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 69,
-    "workflowsVerified": 50,
-    "workflowsMerged": 50,
+    "workflowsPartial": 68,
+    "workflowsVerified": 51,
+    "workflowsMerged": 51,
     "ownersComplete": 6,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -4837,16 +4837,16 @@
       "kind": "module",
       "owner": "legal",
       "scope": "Archive",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "legal-native-records",
         "legal-native-holds",
         "legal-native-archive"
       ],
       "sourceRef": "packages/server-legal/src/public/legal/service.ts",
-      "gap": "Native archive transition is implemented with CAS/receipt/audit/outbox; composition and browser acceptance remain open."
+      "gap": "Closed. The native Legal archive transition is composed through the owner command transaction and browser verified: completed contract legal-item-archive-1 transitioned to archived (version 1 -> 2) through the Legal workspace Change state form. Persisted one legal.transition command receipt, audit event and outbox event with the current actor. Prior hold create/request-release/release journeys remain closed."
     },
     {
       "id": "people_payroll/employees",
@@ -6456,7 +6456,7 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-08T03:21:31+07:00",
+    "generatedAt": "2026-11-08T03:24:36+07:00",
     "sourceHead": "a5e655b6f",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
@@ -6598,8 +6598,8 @@
       },
       "legal": {
         "workflows": 5,
-        "verified": 1,
-        "partial": 4,
+        "verified": 2,
+        "partial": 3,
         "unstarted": 0,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -7915,6 +7915,21 @@
           "owners": 6,
           "verified": 50,
           "partial": 69,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-08T03:24:36+07:00",
+        "commit": "a5e655b6f",
+        "bundles": [
+          "native Legal archive browser closure"
+        ],
+        "evidence": "browser Legal workspace completed contract -> archived v2; DB legal.transition receipt/audit/outbox; legal crate tests 4/4,7/7,3/3; focused unit pass; typecheck/structure/health pass",
+        "counts": {
+          "owners": 6,
+          "verified": 51,
+          "partial": 68,
           "unstarted": 87,
           "total": 206
         }
