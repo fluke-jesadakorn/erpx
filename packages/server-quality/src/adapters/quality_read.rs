@@ -1090,6 +1090,16 @@ pub struct RetainedQualityCancellation {
 }
 
 impl RetainedQualityCancellation {
+    pub fn receipt(&self) -> &QualityCancellationReceipt {
+        &self.receipt
+    }
+
+    /// The exact saved hold after-image, including the new status, version,
+    /// cancellation requester/approver and cancellation reason fields.
+    pub fn hold(&self) -> &QualityHold {
+        &self.expected_hold
+    }
+
     pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
         require_quality_cancellation_write_locks(c).await?;
         if unit(c).await? != self.unit {
@@ -1151,6 +1161,17 @@ pub async fn prepare_quality_cancellation(
             "Normalize the cancellation reason before fingerprinting.",
         )
         .into());
+    }
+    let locked: Option<String> = sqlx::query_scalar(
+        "SELECT id FROM inventory_quality_holds WHERE id=$1 AND company_id=$2 AND ($3::text IS NULL OR branch_id=$3) FOR UPDATE",
+    )
+    .bind(command.hold_id.as_str())
+    .bind(company.as_str())
+    .bind(branch.map(RecordId::as_str))
+    .fetch_optional(&mut *c)
+    .await?;
+    if locked.is_none() {
+        return Err(hold_not_found().into());
     }
     let source = cancellation_source(c, company, branch, &command.hold_id)
         .await?

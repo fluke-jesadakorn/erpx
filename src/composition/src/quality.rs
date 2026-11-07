@@ -2,6 +2,9 @@
 //! authority remains with the selected coordinator; owner ports supply the
 //! Quality workspace, detail and cancellation facts.
 use crate::business_http::BusinessScopeSlugs;
+use crate::quality_commands::{
+    QualityCommandPreparation, QualityOwnerCommand, execute_quality_command,
+};
 use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
     current_package_catalogue, lock_commercial_authority_sources,
@@ -18,27 +21,26 @@ use erpx_server_identity_access::public::{
 use erpx_server_quality::public::quality_commands::{
     HoldStatus, InspectionResult, QualityInspectionCommand, QualityInspectionReceipt,
     QualitySpecActionCommand, QualitySpecCommand, QualitySpecReceipt, SpecStatus,
-    normalize_quality_inspection, normalize_quality_spec_action, normalize_quality_spec_save,
+    normalize_quality_cancellation, normalize_quality_inspection, normalize_quality_spec_action,
+    normalize_quality_spec_save,
 };
 use erpx_server_quality::public::quality_http::{
-    PgQualityCancellation, PgQualityRead, QualityHttpBackend, QualityHttpCommandRequest,
-    QualityHttpFuture, QualityHttpHistoryReply, QualityHttpHistoryRequest, QualityHttpReadReply,
+    PgQualityRead, QualityHttpBackend, QualityHttpCommandRequest, QualityHttpFuture,
+    QualityHttpHistoryReply, QualityHttpHistoryRequest, QualityHttpReadReply,
     QualityHttpReadRequest, QualityHttpSaveSpecRequest, QualityHttpTarget, parse_cancellation,
     parse_inspection, parse_quality_history_query, parse_spec_action, parse_spec_save,
     quality_router, read_quality_cancellation_history_page, read_quality_detail_core,
 };
 use erpx_server_quality::public::quality_read::{
-    QualityActor, QualityCancellationCommand, QualityCancellationReceipt, cancel_quality_hold,
-    quality_detail_with_same_person, quality_detail_core_with_same_person, quality_workspace_with_same_person,
+    QualityActor, QualityCancellationCommand, QualityCancellationReceipt,
+    quality_detail_core_with_same_person, quality_detail_with_same_person,
+    quality_workspace_with_same_person,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
     AssignmentId, BusinessError, Clock, CompanyId, FailureKind, HoldingId, IdentifierSource,
     RecordId,
-};
-use crate::quality_commands::{
-    QualityCommandPreparation, QualityOwnerCommand, execute_quality_command,
 };
 use sqlx::PgConnection;
 use std::sync::Arc;
@@ -55,6 +57,14 @@ fn scope() -> BusinessError {
 
 fn not_found() -> BusinessError {
     BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.")
+}
+
+fn cancellation_access_changed() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Forbidden,
+        "QUALITY_ACCESS_CHANGED",
+        "Choose a current authorized Quality assignment.",
+    )
 }
 
 fn hold_not_found() -> BusinessError {
@@ -625,35 +635,50 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
         let holding = self.configuration.holding.clone();
         let company = self.configuration.company.clone();
         let clock = self.clock.clone();
-        self.authorizer
-            .execute_with_sources_deferred(
-                host,
-                proof,
-                self.input(input),
-                Self::access(),
-                QualitySources,
-                move |connection, current| {
-                    let holding = holding.clone();
-                    let company = company.clone();
-                    let command = command.clone();
-                    let clock = clock.clone();
-                    Box::pin(async move {
-                        if current.holding_id() != &holding
-                            || current.selection().workspace().company_id != company
-                        {
-                            return Err(scope().into());
-                        }
-                        current.require_permission("quality.read")?;
-                        let actor = quality_actor(current)?;
-                        let mut repository = PgQualityCancellation { connection };
-                        let receipt =
-                            cancel_quality_hold(&actor, command, &mut repository, clock.as_ref())
-                                .await?;
-                        Ok(receipt)
-                    })
-                },
-            )
-            .await
+        {
+            let command = normalize_quality_cancellation(&command)?;
+            self.authorizer
+                .execute_with_sources_deferred(
+                    host,
+                    proof,
+                    self.input(input),
+                    Self::access(),
+                    QualityCommandPreparation::cancellation(),
+                    move |connection, current| {
+                        let holding = holding.clone();
+                        let company = company.clone();
+                        let command = command.clone();
+                        let clock = clock.clone();
+                        Box::pin(async move {
+                            if current.holding_id() != &holding
+                                || current.selection().workspace().company_id != company
+                            {
+                                return Err(scope().into());
+                            }
+                            current.require_permission("quality.read")?;
+                            if current
+                                .require_permission(command.action.permission())
+                                .is_err()
+                            {
+                                return Err(cancellation_access_changed().into());
+                            }
+                            let mut identifiers = QualityIds;
+                            let outcome = execute_quality_command(
+                                connection,
+                                current,
+                                &QualityOwnerCommand::Cancel(command),
+                                PackageEnforcementMode::Enforced,
+                                clock.as_ref(),
+                                clock.as_ref(),
+                                &mut identifiers,
+                            )
+                            .await?;
+                            cancellation_receipt(&outcome).map_err(Into::into)
+                        })
+                    },
+                )
+                .await
+        }
     }
 }
 
@@ -679,6 +704,30 @@ fn spec_receipt(
     Ok(QualitySpecReceipt {
         id: value.id,
         status: SpecStatus::parse(&value.status).ok_or_else(changed_result)?,
+        version: value.version,
+    })
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CancellationReceiptJson {
+    id: String,
+    hold_id: String,
+    cancellation_id: String,
+    status: String,
+    version: i64,
+}
+
+fn cancellation_receipt(
+    outcome: &erpx_server_workflow::public::commands::CommandOutcome,
+) -> Result<QualityCancellationReceipt, BusinessError> {
+    let value: CancellationReceiptJson =
+        serde_json::from_str(outcome.result.as_str()).map_err(|_| changed_result())?;
+    Ok(QualityCancellationReceipt {
+        id: value.id,
+        hold_id: value.hold_id,
+        cancellation_id: value.cancellation_id,
+        status: HoldStatus::parse(&value.status).ok_or_else(changed_result)?,
         version: value.version,
     })
 }

@@ -123,13 +123,16 @@ pub async fn lock_quality_command_sources(c: &mut PgConnection) -> Result<(), Er
     if !c.is_in_transaction() {
         return Err(PersistenceError::new("QUALITY_COMMAND_TRANSACTION_REQUIRED").into());
     }
+    // The hold relation is the common writer entry point for cancellation,
+    // inspection and read sources. Always acquire it first so their combined
+    // command units cannot invert the table-lock order.
     sqlx::query(
-        "LOCK TABLE inventory_quality_specs,inventory_quality_spec_metrics IN SHARE ROW EXCLUSIVE MODE",
+        "LOCK TABLE inventory_quality_holds,inventory_quality_inspections,inventory_quality_measurements,inventory_quality_inspection_attachments IN SHARE ROW EXCLUSIVE MODE",
     )
     .execute(&mut *c)
     .await?;
     sqlx::query(
-        "LOCK TABLE inventory_quality_holds,inventory_quality_inspections,inventory_quality_measurements,inventory_quality_inspection_attachments IN SHARE ROW EXCLUSIVE MODE",
+        "LOCK TABLE inventory_quality_specs,inventory_quality_spec_metrics IN SHARE ROW EXCLUSIVE MODE",
     )
     .execute(&mut *c)
     .await?;

@@ -733,3 +733,402 @@ async fn quality_specification_and_inspection_commands_are_native_and_replayable
     })
     .await;
 }
+
+#[tokio::test]
+async fn quality_cancellation_commands_use_the_workflow_ledger_and_after_image_notifications() {
+    review::account::with_system(|system| async move {
+        let p = review::setup_with_finance(system, false).await;
+        grant_quality(&p).await;
+        seed_quality(&p).await;
+        let db = p.system.holdings[0].raw();
+        let now = p.system.scenario.clock.now().get();
+        // fixture-c is a current Quality recipient without an interactive
+        // session. It proves the terminal creator notice uses the saved
+        // after-image rather than the acting reviewer.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+            "UPDATE assignments SET valid_from=0,valid_until=9007199254740991 WHERE id IN ('finance-fixture-a','finance-fixture-b');\
+             INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind) \
+             VALUES('quality-creator','fixture-c','custom_finance_review','[\"quality\"]','company',0,9007199254740991,1,'holding');\
+             INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,status,created_by,created_at,updated_at,quantity_scope,version) \
+             VALUES('cancel-approve-hold','company','branch','warehouse','product','Review the wrong quality scope','2026-11-10','held','fixture-c',{now},{now},'whole',1),\
+                   ('cancel-reject-hold','company','branch','warehouse','product','Review a disputed quality scope','2026-11-10','held','fixture-c',{now},{now},'whole',1),\
+                   ('cancel-authority-hold','company','branch','warehouse','product','Review a denied authority','2026-11-10','held','fixture-c',{now},{now},'whole',1),\
+                   ('cancel-purchase-hold','company','branch','warehouse','product','Review the current purchase','2026-11-10','held','fixture-c',{now},{now},'whole',1),\
+                   ('cancel-purchase-denied-hold','company','branch','warehouse','product','Review a denied purchase','2026-11-10','held','fixture-c',{now},{now},'whole',1)"
+        )))
+        .execute(db)
+        .await
+        .unwrap();
+        let app = prepared_router(&p);
+
+        let request_key = "quality-cancel-request-http";
+        let request_body = r#"{"expectedVersion":1,"action":"request","reason":"The hold was opened against the wrong quality scope."}"#;
+        let requested = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/cancel-approve-hold/cancel",
+                &p,
+                false,
+                Some(request_key),
+                Some(request_body),
+            ))
+            .await
+            .unwrap();
+        let status = requested.status();
+        let requested = json(requested).await;
+        assert_eq!(status, StatusCode::OK, "{requested}");
+        assert_eq!(requested["data"]["status"], "cancel_pending");
+        assert_eq!(requested["data"]["version"], 2);
+        assert_eq!(
+            requested["data"]["cancellationId"],
+            format!("quality-cancel-{request_key}")
+        );
+
+        let replay = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/cancel-approve-hold/cancel",
+                &p,
+                false,
+                Some(request_key),
+                Some(request_body),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(replay.status(), StatusCode::OK);
+        assert_eq!(json(replay).await["data"]["version"], 2);
+
+        let (receipts, audits, outbox, events): (i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM command_receipts WHERE command_id=$1),\
+                    (SELECT count(*) FROM audit_events WHERE command_id=$1),\
+                    (SELECT count(*) FROM outbox_events WHERE command_id=$1),\
+                    (SELECT count(*) FROM inventory_quality_cancellations WHERE id=$2)",
+        )
+        .bind(request_key)
+        .bind(format!("quality-cancel-{request_key}"))
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(
+            (receipts, audits, outbox, events),
+            (1, 1, 1, 1),
+            "one replay-stable receipt, audit, outbox and owner event"
+        );
+
+        let pending_notice: (String, i64, String) = sqlx::query_as(
+            "SELECT user_id,record_version,record_type FROM staff_notifications WHERE id=$1",
+        )
+        .bind(format!("{request_key}-fixture-b"))
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(pending_notice, ("fixture-b".into(), 2, "quality_hold".into()));
+        let excluded: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM staff_notifications WHERE id IN ($1,$2)",
+        )
+        .bind(format!("{request_key}-fixture-a"))
+        .bind(format!("{request_key}-fixture-c"))
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(excluded, 0, "pending review excludes creator and requester");
+        let pending_bridge: (i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM inbox_events WHERE id=$1),\
+                    (SELECT count(*) FROM inbox_deliveries WHERE id=$2)",
+        )
+        .bind(format!("legacy:{request_key}-fixture-b"))
+        .bind(format!("{request_key}-fixture-b"))
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(pending_bridge, (1, 1));
+
+        let self_review = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/cancel-approve-hold/cancel",
+                &p,
+                false,
+                Some("quality-cancel-self-review"),
+                Some(
+                    r#"{"expectedVersion":2,"action":"approve","reason":"Approving my own cancellation request."}"#,
+                ),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(self_review.status(), StatusCode::FORBIDDEN);
+        assert_eq!(
+            json(self_review).await["error"]["code"],
+            "INDEPENDENT_CANCELLATION_REQUIRED"
+        );
+
+        let approve_key = "quality-cancel-approve-http";
+        let approved = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/cancel-approve-hold/cancel",
+                &p,
+                true,
+                Some(approve_key),
+                Some(
+                    r#"{"expectedVersion":2,"action":"approve","reason":"Independent review confirms the incorrect quality scope."}"#,
+                ),
+            ))
+            .await
+            .unwrap();
+        let status = approved.status();
+        let approved = json(approved).await;
+        assert_eq!(status, StatusCode::OK, "{approved}");
+        assert_eq!(approved["data"]["status"], "cancelled");
+        assert_eq!(approved["data"]["version"], 3);
+
+        let replay = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/cancel-approve-hold/cancel",
+                &p,
+                true,
+                Some(approve_key),
+                Some(
+                    r#"{"expectedVersion":2,"action":"approve","reason":"Independent review confirms the incorrect quality scope."}"#,
+                ),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(replay.status(), StatusCode::OK);
+        assert_eq!(json(replay).await["data"]["version"], 3);
+        let stable: (i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM command_receipts WHERE command_id=$1),\
+                    (SELECT count(*) FROM audit_events WHERE command_id=$1),\
+                    (SELECT count(*) FROM outbox_events WHERE command_id=$1),\
+                    (SELECT count(*) FROM inventory_quality_cancellations WHERE id=$2)",
+        )
+        .bind(approve_key)
+        .bind(format!("quality-cancel-{approve_key}"))
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(stable, (1, 1, 1, 1));
+
+        let terminal_notice: (String, i64) = sqlx::query_as(
+            "SELECT user_id,record_version FROM staff_notifications WHERE id=$1",
+        )
+        .bind(format!("{approve_key}-fixture-c"))
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(terminal_notice, ("fixture-c".into(), 3));
+        let approver_notice: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM staff_notifications WHERE id=$1",
+        )
+        .bind(format!("{approve_key}-fixture-b"))
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(approver_notice, 0, "terminal notice goes to the creator");
+        let terminal_bridge: (i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM inbox_events WHERE id=$1),\
+                    (SELECT count(*) FROM inbox_deliveries WHERE id=$2)",
+        )
+        .bind(format!("legacy:{approve_key}-fixture-c"))
+        .bind(format!("{approve_key}-fixture-c"))
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(terminal_bridge, (1, 1));
+
+        let stale = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/cancel-approve-hold/cancel",
+                &p,
+                true,
+                Some("quality-cancel-stale-approve"),
+                Some(
+                    r#"{"expectedVersion":2,"action":"approve","reason":"A stale version must not apply."}"#,
+                ),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(stale.status(), StatusCode::CONFLICT);
+        assert_eq!(json(stale).await["error"]["code"], "CONFLICT");
+        let stale_rows: (i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM command_receipts WHERE command_id='quality-cancel-stale-approve'),\
+                    (SELECT count(*) FROM inventory_quality_cancellations WHERE hold_id='cancel-approve-hold')",
+        )
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(stale_rows, (0, 2));
+
+        let reject_request_key = "quality-cancel-reject-request";
+        let requested = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/cancel-reject-hold/cancel",
+                &p,
+                false,
+                Some(reject_request_key),
+                Some(
+                    r#"{"expectedVersion":1,"action":"request","reason":"The disputed hold needs independent review."}"#,
+                ),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(requested.status(), StatusCode::OK);
+        assert_eq!(json(requested).await["data"]["version"], 2);
+        let reject_key = "quality-cancel-reject-http";
+        let rejected = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/cancel-reject-hold/cancel",
+                &p,
+                true,
+                Some(reject_key),
+                Some(
+                    r#"{"expectedVersion":2,"action":"reject","reason":"Independent review keeps the quality hold in place."}"#,
+                ),
+            ))
+            .await
+            .unwrap();
+        let status = rejected.status();
+        let rejected = json(rejected).await;
+        assert_eq!(status, StatusCode::OK, "{rejected}");
+        assert_eq!(rejected["data"]["status"], "held");
+        assert_eq!(rejected["data"]["version"], 3);
+        let rejected_event: (String, i64) = sqlx::query_as(
+            "SELECT action,version FROM inventory_quality_cancellations WHERE id=$1",
+        )
+        .bind(format!("quality-cancel-{reject_key}"))
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(rejected_event, ("reject".into(), 3));
+        let reject_notices: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT user_id,record_version FROM staff_notifications WHERE id IN ($1,$2) ORDER BY user_id",
+        )
+        .bind(format!("{reject_key}-fixture-a"))
+        .bind(format!("{reject_key}-fixture-b"))
+        .fetch_all(db)
+        .await
+        .unwrap();
+        assert_eq!(
+            reject_notices,
+            vec![("fixture-a".into(), 3), ("fixture-b".into(), 3)],
+            "reject returns to held and notifies current inspectors"
+        );
+
+        sqlx::query(
+            "INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) \
+             VALUES('*','custom_finance_review',3,'[\"finance.read\",\"quality.read\",\"quality.inspect\",\"quality.release\",\"module.quality.read\"]','[]','[\"holding\",\"branch\"]','fixture',0)",
+        )
+        .execute(db)
+        .await
+        .unwrap();
+        sqlx::query("UPDATE iam_roles SET published_revision=3 WHERE company_id='*' AND id='custom_finance_review'")
+            .execute(db)
+            .await
+            .unwrap();
+        let denied_authority = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/cancel-authority-hold/cancel",
+                &p,
+                false,
+                Some("quality-cancel-denied-authority"),
+                Some(
+                    r#"{"expectedVersion":1,"action":"request","reason":"A missing hold permission must not write."}"#,
+                ),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(denied_authority.status(), StatusCode::FORBIDDEN);
+        assert_eq!(
+            json(denied_authority).await["error"]["code"],
+            "QUALITY_ACCESS_CHANGED"
+        );
+        let authority_rows: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM inventory_quality_cancellations WHERE hold_id='cancel-authority-hold'",
+        )
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(authority_rows, 0);
+        sqlx::query("UPDATE iam_roles SET published_revision=2 WHERE company_id='*' AND id='custom_finance_review'")
+            .execute(db)
+            .await
+            .unwrap();
+
+        let allowed = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/cancel-purchase-hold/cancel",
+                &p,
+                false,
+                Some("quality-cancel-allowed-purchase"),
+                Some(
+                    r#"{"expectedVersion":1,"action":"request","reason":"The current purchase permits the cancellation."}"#,
+                ),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(allowed.status(), StatusCode::OK);
+
+        let mut package = db.begin().await.unwrap();
+        sqlx::query(
+            "UPDATE company_package_grants SET state='inactive',version=version+1,updated_at=$1 WHERE company_id='company' AND package_id='supply-quality'",
+        )
+        .bind(now + 1)
+        .execute(&mut *package)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) \
+             SELECT 'quality-cancel-purchase-inactive','company',package_id,'fixture-a','quality-cancel-purchase-inactive',NULL,\
+                    jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$1 \
+             FROM company_package_grants WHERE company_id='company' AND package_id='supply-quality'",
+        )
+        .bind(now + 1)
+        .execute(&mut *package)
+        .await
+        .unwrap();
+        package.commit().await.unwrap();
+
+        let denied_purchase = app
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/cancel-purchase-denied-hold/cancel",
+                &p,
+                false,
+                Some("quality-cancel-denied-purchase"),
+                Some(
+                    r#"{"expectedVersion":1,"action":"request","reason":"A missing purchase must not write."}"#,
+                ),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(denied_purchase.status(), StatusCode::FORBIDDEN);
+        assert_eq!(
+            json(denied_purchase).await["error"]["code"],
+            "PACKAGE_INACTIVE"
+        );
+        let purchase_rows: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM inventory_quality_cancellations WHERE hold_id='cancel-purchase-denied-hold'",
+        )
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(purchase_rows, 0);
+    })
+    .await;
+}

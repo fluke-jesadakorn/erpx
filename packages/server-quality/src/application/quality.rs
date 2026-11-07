@@ -334,6 +334,13 @@ pub struct QualityCancellationReceipt {
     pub version: i64,
 }
 
+impl QualityCancellationCommand {
+    /// Stable Workflow operation for the exact cancellation decision.
+    pub fn operation(&self) -> String {
+        format!("quality.hold.cancel.{}", self.action.as_str())
+    }
+}
+
 /// Normalize before constructing a Workflow request so its fingerprint and
 /// the owner effect both use the same retained command input.
 pub fn normalize_quality_cancellation(

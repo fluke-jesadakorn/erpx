@@ -306,6 +306,10 @@ async fn quality_http_reads_history_and_cancels_over_the_real_session() {
             .unwrap();
         assert_eq!(restored.status(), StatusCode::OK);
 
+        sqlx::query("UPDATE assignments SET valid_from=0,valid_until=9007199254740991 WHERE id IN ('finance-fixture-a','finance-fixture-b')")
+            .execute(p.system.holdings[0].raw())
+            .await
+            .unwrap();
         let requested = app
             .clone()
             .oneshot(command_request(
@@ -354,6 +358,51 @@ async fn quality_http_reads_history_and_cancels_over_the_real_session() {
         let approved = json(approved).await;
         assert_eq!(approved["data"]["status"], "cancelled");
         assert_eq!(approved["data"]["version"], 3);
+
+        let replay = app
+            .clone()
+            .oneshot(command_request(
+                "/api/v1/holdings/acme/quality/cancel-hold/cancel",
+                &p,
+                true,
+                "quality-history-approve",
+                r#"{"expectedVersion":2,"action":"approve","reason":"Independent review confirms the incorrect quality scope."}"#,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(replay.status(), StatusCode::OK);
+        assert_eq!(json(replay).await["data"]["version"], 3);
+
+        let db = p.system.holdings[0].raw();
+        let (receipts, audits, outbox, events): (i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM command_receipts WHERE command_id IN ('quality-history-request','quality-history-approve')),\
+                    (SELECT count(*) FROM audit_events WHERE command_id IN ('quality-history-request','quality-history-approve')),\
+                    (SELECT count(*) FROM outbox_events WHERE command_id IN ('quality-history-request','quality-history-approve')),\
+                    (SELECT count(*) FROM inventory_quality_cancellations WHERE hold_id='cancel-hold')",
+        )
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(
+            (receipts, audits, outbox, events),
+            (2, 2, 2, 2),
+            "each decision keeps one receipt, audit, outbox and owner event"
+        );
+        let pending_notice: (String, i64) = sqlx::query_as(
+            "SELECT user_id,record_version FROM staff_notifications WHERE id='quality-history-request-fixture-b'",
+        )
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(pending_notice, ("fixture-b".into(), 2));
+        let pending_bridge: (i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM inbox_events WHERE id='legacy:quality-history-request-fixture-b'),\
+                    (SELECT count(*) FROM inbox_deliveries WHERE id='quality-history-request-fixture-b')",
+        )
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(pending_bridge, (1, 1));
 
         let detail = app
             .clone()
