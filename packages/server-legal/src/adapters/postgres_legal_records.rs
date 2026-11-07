@@ -557,6 +557,148 @@ impl<'c> PgLegalRecords<'c> {
                     .into());
                 }
             }
+            LegalCommandEffect::ExecutedImport {
+                command_id,
+                document_id,
+                executed_copy_id,
+                attachment_link_id,
+                metadata,
+            } => {
+                let item = sqlx::query(
+                    "SELECT kind,state FROM legal_items WHERE id=$1 AND company_id=$2 FOR UPDATE",
+                )
+                .bind(&plan.item_id)
+                .bind(actor.company_id.as_str())
+                .fetch_optional(&mut *self.connection)
+                .await?
+                .ok_or_else(not_found)?;
+                let kind: String = item.try_get("kind")?;
+                let item_state: String = item.try_get("state")?;
+                if kind != "contract" || !matches!(item_state.as_str(), "approved" | "executed" | "active") {
+                    return Err(BusinessError::new(
+                        FailureKind::Conflict,
+                        "LEGAL_EXECUTED_STATE",
+                        "Import a signed original against an approved contract.",
+                    )
+                    .into());
+                }
+                let approved_document_id = metadata
+                    .get("approvedDocumentId")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| invalid("LEGAL_IMPORT_REQUIRED", "Choose the approved document version."))?;
+                if metadata
+                    .get("signedDate")
+                    .and_then(Value::as_str)
+                    .is_none_or(|value| value.len() != 10)
+                    || metadata
+                        .get("parties")
+                        .and_then(Value::as_array)
+                        .is_none_or(|values| values.len() < 2 || values.len() > 30)
+                    || metadata
+                        .get("signers")
+                        .and_then(Value::as_array)
+                        .is_none_or(|values| values.is_empty() || values.len() > 30)
+                    || metadata
+                        .get("declaredPageCount")
+                        .and_then(Value::as_i64)
+                        .is_none_or(|value| !(1..=1000).contains(&value))
+                {
+                    return Err(invalid("LEGAL_IMPORT_REQUIRED", "Supply complete executed-copy signing details.").into());
+                }
+                let evidence = erpx_server_files::public::legal_import_evidence::inspect_legal_import_evidence(
+                    &mut *self.connection,
+                    &actor.company_id,
+                    &plan.item_id,
+                    attachment_link_id,
+                )
+                .await?;
+                if evidence.checksum_sha256.len() != 64
+                    || evidence.bytes < 1
+                    || evidence.bytes > 10 * 1024 * 1024
+                    || !matches!(evidence.media_type.as_str(), "application/pdf" | "image/png" | "image/jpeg")
+                {
+                    return Err(invalid("LEGAL_IMPORT_REQUIRED", "Import an executed copy as a PDF or scanned image.").into());
+                }
+                let approval = sqlx::query(
+                    "SELECT cycle::bigint cycle,document_id,document_hash FROM legal_approvals                      WHERE item_id=$1 AND decision='approved' ORDER BY cycle DESC LIMIT 1",
+                )
+                .bind(&plan.item_id)
+                .fetch_optional(&mut *self.connection)
+                .await?
+                .ok_or_else(|| BusinessError::new(FailureKind::Conflict, "LEGAL_APPROVAL_STALE", "The approved version changed. Import against the current approval."))?;
+                let approved_cycle: i64 = approval.try_get("cycle")?;
+                let current_document: String = approval.try_get("document_id")?;
+                let approved_hash: String = approval.try_get("document_hash")?;
+                let locked: bool = sqlx::query_scalar(
+                    "SELECT locked FROM legal_documents WHERE id=$1 AND item_id=$2",
+                )
+                .bind(approved_document_id)
+                .bind(&plan.item_id)
+                .fetch_optional(&mut *self.connection)
+                .await?
+                .ok_or_else(|| invalid("LEGAL_IMPORT_REQUIRED", "Choose the approved document version."))?;
+                if current_document != approved_document_id || !locked {
+                    return Err(BusinessError::new(
+                        FailureKind::Conflict,
+                        "LEGAL_APPROVAL_STALE",
+                        "Choose the current approved document.",
+                    )
+                    .into());
+                }
+                let next_version: i64 = sqlx::query_scalar(
+                    "SELECT (COALESCE(MAX(version),0)+1)::bigint FROM legal_documents WHERE item_id=$1",
+                )
+                .bind(&plan.item_id)
+                .fetch_one(&mut *self.connection)
+                .await?;
+                let name: String = evidence.original_name.chars().take(200).collect::<String>();
+                if name.is_empty() {
+                    return Err(invalid("LEGAL_IMPORT_REQUIRED", "The signed original needs a file name.").into());
+                }
+                sqlx::query(
+                    "INSERT INTO legal_documents(id,item_id,version,name,media_type,checksum,bytes,body,object_key,locked,created_by,created_at,attachment_link_id,attachment_source_id)                      VALUES($1,$2,$3,$4,$5,$6,$7,'',$8,false,$9,$10,$11,$12)",
+                )
+                .bind(document_id)
+                .bind(&plan.item_id)
+                .bind(i32_version(next_version)?)
+                .bind(&name)
+                .bind(&evidence.media_type)
+                .bind(&evidence.checksum_sha256)
+                .bind(evidence.bytes)
+                .bind(&evidence.object_key)
+                .bind(actor.user_id.as_str())
+                .bind(self.now)
+                .bind(attachment_link_id)
+                .bind(&evidence.source_id)
+                .execute(&mut *self.connection)
+                .await?;
+                sqlx::query(
+                    "INSERT INTO legal_executed_copies(id,item_id,document_id,approved_cycle,approved_document_id,approved_hash,executed_hash,metadata,state,imported_by,imported_at,version)                      VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,'pending_review',$9,$10,1)",
+                )
+                .bind(executed_copy_id)
+                .bind(&plan.item_id)
+                .bind(document_id)
+                .bind(i32_version(approved_cycle)?)
+                .bind(approved_document_id)
+                .bind(&approved_hash)
+                .bind(&evidence.checksum_sha256)
+                .bind(metadata.to_string())
+                .bind(actor.user_id.as_str())
+                .bind(self.now)
+                .execute(&mut *self.connection)
+                .await?;
+                evidence
+                    .bind(
+                        &mut *self.connection,
+                        &actor.company_id,
+                        actor.user_id.as_str(),
+                        command_id,
+                        "legal_executed_copy",
+                        executed_copy_id,
+                        self.now,
+                    )
+                    .await?;
+            }
             LegalCommandEffect::Archive { .. } => {}
             LegalCommandEffect::ApprovalOpen {
                 instance_id,

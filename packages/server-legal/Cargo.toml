@@ -59,6 +59,7 @@ time.workspace = true
 tokio = { workspace = true, optional = true }
 tempfile = { workspace = true, optional = true }
 erpx-server-shared.workspace = true
+erpx-server-files.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true

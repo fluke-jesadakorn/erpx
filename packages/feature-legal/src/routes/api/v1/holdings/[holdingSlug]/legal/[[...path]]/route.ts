@@ -51,6 +51,7 @@ import { errorResponse, ApiError } from "@erpx/server-runtime/public/http";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { legalReadScope } from "@erpx/server-legal/public/purchases";
 import { nativeLegalAvailable, nativeLegalCommand, nativeLegalCommandSelected, nativeLegalDetail, nativeLegalFailure, nativeLegalRegister } from "@erpx/feature-legal/lib/native-legal";
+import { createAttachmentSet, reserveAttachmentFile, completeAttachmentUpload, scanAttachmentNow } from "@erpx/server-files/public/attachments/service";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
 function nativeFailure(error: unknown): never { const failure = nativeLegalFailure(error); if (failure) throw new ApiError(failure.status, failure.code, failure.message); throw error; }
@@ -253,7 +254,41 @@ export async function POST(request: Request, ctx: Context) {
         throw new ApiError(422, "EXECUTED_METADATA_REQUIRED", "Supply the signed file and its signing details.");
       let parsed: unknown;
       try { parsed = JSON.parse(metadata); } catch { throw new ApiError(422, "INVALID_JSON", "Signing details are invalid."); }
-      return Response.json(canonicalDestinationLinks({ data: await importExecutedCopy(write, files, a, path[1], Number(form.get("expectedVersion")), parsed, file.name, file.type, new Uint8Array(await file.arrayBuffer()), key) }), { headers: { "Cache-Control": "private, no-store" } });
+      const expectedVersion = Number(form.get("expectedVersion"));
+      const fileBytes = new Uint8Array(await file.arrayBuffer());
+      if (nativeLegalAvailable()) {
+        const set = await createAttachmentSet(write, a, {
+          targetType: "legal_item",
+          targetId: path[1],
+          componentKind: "record",
+          componentRef: `executed:${key}`,
+          purposeKey: "legal_document",
+          expectedTargetVersion: expectedVersion,
+        }, `${key}:set`, { compatibilityAdapter: true });
+        const reserved = await reserveAttachmentFile(write, a, set.id, {
+          filename: file.name,
+          mediaType: file.type,
+          bytes: fileBytes.byteLength,
+        }, `${key}:file`, { compatibilityAdapter: true });
+        const uploaded = await completeAttachmentUpload(write, files, a, reserved.uploadIntentId, fileBytes.buffer as ArrayBuffer, { compatibilityAdapter: true });
+        const sourceState = await scanAttachmentNow(write, files, uploaded.sourceId);
+        if (sourceState !== "available") {
+          throw new ApiError(
+            sourceState === "malware_rejected" ? 422 : 503,
+            sourceState === "malware_rejected" ? "LEGAL_UPLOAD_REJECTED" : "LEGAL_SCAN_UNAVAILABLE",
+            sourceState === "malware_rejected" ? "The upload was rejected by malware scanning." : "The upload could not pass malware scanning.",
+          );
+        }
+        const native = await nativeLegalCommand(a, holdingSlug, {
+          action: "executed.import",
+          id: path[1],
+          expectedVersion,
+          attachmentLinkId: uploaded.attachmentLinkId,
+          metadata: parsed,
+        }, key, request.headers).catch(nativeFailure);
+        if (native) return Response.json(canonicalDestinationLinks({ data: native }), { headers: { "Cache-Control": "private, no-store" } });
+      }
+      return Response.json(canonicalDestinationLinks({ data: await importExecutedCopy(write, files, a, path[1], expectedVersion, parsed, file.name, file.type, fileBytes, key) }), { headers: { "Cache-Control": "private, no-store" } });
     }
     if (path.length === 2 && path[0] === "upload") {
       const body = await boundedBody(request, 10 * 1024 * 1024);

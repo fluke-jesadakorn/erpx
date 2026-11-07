@@ -367,6 +367,10 @@ pub enum LegalCommand {
         approver_id: String,
         reason: String,
     },
+    ExecutedImport {
+        attachment_link_id: String,
+        metadata: Value,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -447,6 +451,13 @@ pub enum LegalCommandEffect {
         approver_id: String,
         reason: String,
     },
+    ExecutedImport {
+        command_id: String,
+        document_id: String,
+        executed_copy_id: String,
+        attachment_link_id: String,
+        metadata: Value,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -514,6 +525,7 @@ pub fn parse_envelope(raw: &Value) -> Result<LegalCommandEnvelope, BusinessError
             | "approval.open"
             | "approval.decide"
             | "approval.reroute"
+            | "executed.import"
     ) {
         return Err(invalid(
             "LEGAL_ACTION_UNSUPPORTED",
@@ -558,6 +570,7 @@ pub fn command_permission(action: &str) -> Result<&'static str, BusinessError> {
         "hold.release" => Ok("legal.hold.release"),
         "share" | "share.revoke" | "member" => Ok("legal.share"),
         "executed.review" => Ok("legal.approve"),
+        "executed.import" => Ok("legal.edit"),
         "approval.open" => Ok("legal.review"),
         "approval.decide" | "approval.reroute" => Ok("legal.approve"),
         _ => Err(invalid(
@@ -722,6 +735,27 @@ pub fn parse_command(
                 reason: reason(object)?,
             })
         }
+        "executed.import" => {
+            let attachment_link_id = object
+                .get("attachmentLinkId")
+                .and_then(Value::as_str)
+                .ok_or_else(|| invalid("LEGAL_IMPORT_REQUIRED", "Choose the ready signed-original attachment."))?;
+            if attachment_link_id.is_empty()
+                || attachment_link_id.len() > 200
+                || attachment_link_id.chars().any(char::is_control)
+            {
+                return Err(invalid("LEGAL_IMPORT_REQUIRED", "Choose the ready signed-original attachment."));
+            }
+            let metadata = object
+                .get("metadata")
+                .filter(|value| value.is_object())
+                .cloned()
+                .ok_or_else(|| invalid("LEGAL_IMPORT_REQUIRED", "Supply the signed-original signing details."))?;
+            Ok(LegalCommand::ExecutedImport {
+                attachment_link_id: attachment_link_id.to_owned(),
+                metadata,
+            })
+        }
         "executed.review" => {
             let executed_copy_id = object
                 .get("executedCopyId")
@@ -850,6 +884,7 @@ pub fn plan_command(
         LegalCommand::ApprovalOpen { .. } => "approval.open",
         LegalCommand::ApprovalDecide { .. } => "approval.decide",
         LegalCommand::ApprovalReroute { .. } => "approval.reroute",
+        LegalCommand::ExecutedImport { .. } => "executed.import",
     })?;
     require(actor, permission)?;
     if actor.is_requester() && !matches!(command, LegalCommand::AddDocument { .. }) {
@@ -1167,6 +1202,32 @@ pub fn plan_command(
             None,
             "approval".to_owned(),
         ),
+        LegalCommand::ExecutedImport {
+            attachment_link_id,
+            metadata,
+        } => {
+            if item.kind != "contract" || !matches!(item.state.as_str(), "approved" | "executed" | "active") {
+                return Err(BusinessError::new(
+                    FailureKind::Conflict,
+                    "LEGAL_EXECUTED_STATE",
+                    "Import a signed original against an approved contract.",
+                ));
+            }
+            (
+                "executed.import".to_owned(),
+                "Signed original imported for review".to_owned(),
+                LegalCommandEffect::ExecutedImport {
+                    command_id: key.to_owned(),
+                    document_id: derived_id("legal-executed-document", key),
+                    executed_copy_id: derived_id("legal-executed-copy", key),
+                    attachment_link_id: attachment_link_id.clone(),
+                    metadata: metadata.clone(),
+                },
+                Some(derived_id("legal-executed-document", key)),
+                None,
+                item.state.clone(),
+            )
+        }
     };
     let next_version = envelope.expected_version.checked_add(1).ok_or_else(|| {
         invalid(
@@ -1194,12 +1255,16 @@ pub fn plan_command(
             hold_id: result_hold,
             executed_copy_id: match command {
                 LegalCommand::ExecutedReview { executed_copy_id, .. } => Some(executed_copy_id.clone()),
+                LegalCommand::ExecutedImport { .. } => {
+                    Some(derived_id("legal-executed-copy", key))
+                }
                 _ => None,
             },
             executed_copy_state: match command {
                 LegalCommand::ExecutedReview { decision, .. } => Some(
                     if decision == "confirm" { "confirmed" } else { "changes_required" }.to_owned(),
                 ),
+                LegalCommand::ExecutedImport { .. } => Some("pending_review".to_owned()),
                 _ => None,
             },
         },
@@ -1219,6 +1284,7 @@ fn result_state(command: &LegalCommand, item: &LegalRecord) -> String {
                 item.state.clone()
             }
         }
+        LegalCommand::ExecutedImport { .. } => item.state.clone(),
         _ => item.state.clone(),
     }
 }
@@ -1467,6 +1533,21 @@ mod tests {
                 reason: "All pages and signatures match the approved draft.".into(),
             }
         );
+        let imported = json!({"action":"executed.import","id":"item","expectedVersion":1,"attachmentLinkId":"link-1","metadata":{"approvedDocumentId":"doc-1","signedDate":"2026-11-08","parties":["Acme","Customer"],"signers":[{"name":"Nisa","party":"Acme","authorityDocumentIds":["doc-1"]}],"declaredPageCount":1,"notes":""}});
+        let imported_envelope = parse_envelope(&imported).unwrap();
+        let plan = plan_command(
+            &actor("legal_manager", &["legal.read", "legal.edit"]),
+            &source("approved"),
+            &imported_envelope,
+            &parse_command(&imported, &imported_envelope).unwrap(),
+            "legal-executed-import-0001",
+        )
+        .unwrap();
+        assert_eq!(plan.action, "executed.import");
+        assert_eq!(plan.operation, "legal.executed.import");
+        assert_eq!(plan.result.document_id.as_deref(), Some(derived_id("legal-executed-document", "legal-executed-import-0001").as_str()));
+        assert_eq!(plan.result.executed_copy_id.as_deref(), Some(derived_id("legal-executed-copy", "legal-executed-import-0001").as_str()));
+        assert_eq!(plan.result.executed_copy_state.as_deref(), Some("pending_review"));
         let incomplete = json!({"action":"executed.review","id":"item","expectedVersion":1,"executedCopyId":"copy-1","decision":"confirm","checks":{"contentMatches":true,"pagesComplete":true,"partiesVerified":true,"signaturesComplete":true,"authorityVerified":false},"reason":"All pages and signatures match the approved draft."});
         let incomplete_envelope = parse_envelope(&incomplete).unwrap();
         assert_eq!(

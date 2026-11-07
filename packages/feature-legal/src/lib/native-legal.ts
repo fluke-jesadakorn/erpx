@@ -132,6 +132,7 @@ const COMMANDS = new Set([
   'approval.open',
   'approval.decide',
   'approval.reroute',
+  'executed.import',
 ]);
 
 export function nativeLegalCommandSelected(body: unknown): boolean {
