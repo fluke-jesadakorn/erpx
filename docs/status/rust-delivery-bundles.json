@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T22:16:05+07:00",
+  "updatedAt": "2026-11-08T00:54:15+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,10 +19,10 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 71,
-    "workflowsVerified": 48,
-    "workflowsMerged": 48,
-    "ownersComplete": 5,
+    "workflowsPartial": 70,
+    "workflowsVerified": 49,
+    "workflowsMerged": 49,
+    "ownersComplete": 6,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
   },
@@ -4741,16 +4741,16 @@
       "kind": "module",
       "owner": "quality",
       "scope": "Release gates",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "quality-native-read",
         "quality-native-cancel",
         "quality-http"
       ],
       "sourceRef": "packages/server-quality/src/public/quality.ts",
-      "gap": "Native decision/read overlay is implemented; release/scrap writers still compose Inventory/Finance and remain retained."
+      "gap": "Closed. Native Quality release and scrap disposition run through the workflow ledger in the caller's serializable Holding unit with current authority, supply.quality plus supply.counts purchase admission, hold-row CAS, independence checks, Inventory draft Count/line/lot snapshots, Finance approver notice, Files disposition evidence binding and receipt/audit/outbox. Browser verified through the Quality UI with independent actors: release awaiting_release v2 -> released v3; scrap held v2 -> disposition_pending v3 with count quality-scrap-* submitted, line 5000/1000 -> 3500/700, lot lines 3000/600 -> 1500/300 and 2000/400 retained, disposition event request, attachment set/link bound as quality_disposition, Finance approver notice and creator terminal notice. Replay/CAS/independence/purchase/lot/evidence boundaries are covered by PostgreSQL and HTTP tests."
     },
     {
       "id": "quality/feature-cancellation",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T22:16:05+07:00",
-    "sourceHead": "f796961e1",
+    "generatedAt": "2026-11-08T00:54:15+07:00",
+    "sourceHead": "1db703441",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6590,11 +6590,11 @@
       },
       "quality": {
         "workflows": 4,
-        "verified": 3,
-        "partial": 1,
+        "verified": 4,
+        "partial": 0,
         "unstarted": 0,
-        "phase": "partial",
-        "businessMigrationComplete": false
+        "phase": "complete",
+        "businessMigrationComplete": true
       },
       "legal": {
         "workflows": 5,
@@ -7113,7 +7113,7 @@
       }
     ],
     "nextActions": [
-      "Continue with people_payroll/feature-payroll-runs or the next dependency-ready non-Stripe owner partial.",
+      "Continue with the next dependency-ready non-Stripe owner partial; Quality is complete 4/4.",
       "Await Stripe/Connect configuration for POS tenders/refunds/retry.",
       "Reconcile remote HEAD and keep counts tied to browser/HTTP evidence."
     ],
@@ -7867,6 +7867,23 @@
           "owners": 5,
           "verified": 48,
           "partial": 71,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-08T00:54:15+07:00",
+        "commit": "1db703441",
+        "bundles": [
+          "native quality release",
+          "native quality scrap disposition",
+          "quality owner completion"
+        ],
+        "evidence": "browser Quality UI release awaiting_release v2 -> released v3; scrap held v2 -> disposition_pending v3 with count quality-scrap-* submitted, line 5000/1000 -> 3500/700, lot lines retained, disposition event, set/link bound quality_disposition, Finance approver + creator notices; command receipts/audit/outbox; quality commands 4/4, http 4/4, quality suites 7/7,10/10,5/5,19/19; typecheck/structure/health pass",
+        "counts": {
+          "owners": 6,
+          "verified": 49,
+          "partial": 70,
           "unstarted": 87,
           "total": 206
         }
