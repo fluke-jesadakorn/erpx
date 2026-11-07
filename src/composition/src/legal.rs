@@ -108,6 +108,46 @@ fn legal_actor(
         department_id: workspace.department_id.clone(),
         role: selected.assignment().role.clone(),
         permissions: current.command_iam_metadata().permissions.iter().cloned().collect(),
+        actor_json: {
+            let workspace = selected.workspace();
+            let assignment = selected.assignment();
+            let scope_kind = if workspace.department_id.is_some() {
+                "department"
+            } else if workspace.branch_id.is_some() {
+                "branch"
+            } else {
+                "holding"
+            };
+            serde_json::json!({
+                "userId": current.user_id().as_str(),
+                "name": "",
+                "email": "",
+                "assignmentId": assignment.id.as_str(),
+                "role": assignment.role,
+                "companyId": workspace.company_id.as_str(),
+                "branchId": workspace.branch_id.as_ref().map(|value| value.as_str()),
+                "departmentId": workspace.department_id.as_ref().map(|value| value.as_str()),
+                "holdingId": current.holding_id().as_str(),
+                "holdingSlug": holding_slug,
+                "holdingName": "",
+                "scope": if scope_kind == "department" {
+                    serde_json::json!({"kind":"department","branchSlug":workspace.branch_slug,"departmentSlug":workspace.department_slug})
+                } else if scope_kind == "branch" {
+                    serde_json::json!({"kind":"branch","branchSlug":workspace.branch_slug})
+                } else {
+                    serde_json::json!({"kind":"holding"})
+                },
+                "assignmentScope": scope_kind,
+                "inherited": false,
+                "modules": current.modules(),
+                "assignments": [],
+                "workspaces": [],
+                "iam": {"permissions": current.command_iam_metadata().permissions},
+                "authority": {"revision": selected.revision(), "assignmentVersion": assignment.version, "sessionId": current.session_id().as_str()},
+                "expiresAt": current.expires_at()
+            })
+            .to_string()
+        },
     })
 }
 

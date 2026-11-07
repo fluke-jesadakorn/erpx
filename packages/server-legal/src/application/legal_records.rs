@@ -205,6 +205,7 @@ mod tests {
                 .iter()
                 .map(|value| (*value).to_owned())
                 .collect(),
+            actor_json: "{}".into(),
         }
     }
 

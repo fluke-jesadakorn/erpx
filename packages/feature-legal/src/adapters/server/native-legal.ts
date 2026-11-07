@@ -179,6 +179,7 @@ export type NativeLegalCommandResult = {
   holdId?: string;
   executedCopyId?: string;
   executedCopyState?: string;
+  jobId?: string;
 };
 
 export class NativeLegalError extends Error {
@@ -605,7 +606,7 @@ function commandResult(value: unknown, actor: NativeLegalPageContext): NativeLeg
   }
   const data = value.data;
   if (!object(data)) return fail('NATIVE_LEGAL_RESPONSE_INVALID');
-  const allowed = ['id', 'version', 'state', 'documentId', 'holdId', 'executedCopyId', 'executedCopyState'];
+  const allowed = ['id', 'version', 'state', 'documentId', 'holdId', 'executedCopyId', 'executedCopyState', 'jobId'];
   if (Object.keys(data).some((key) => !allowed.includes(key)))
     return fail('NATIVE_LEGAL_RESPONSE_INVALID');
   if (
@@ -615,7 +616,8 @@ function commandResult(value: unknown, actor: NativeLegalPageContext): NativeLeg
     (data.documentId !== undefined && !identifier(data.documentId)) ||
     (data.holdId !== undefined && !identifier(data.holdId)) ||
     (data.executedCopyId !== undefined && !identifier(data.executedCopyId)) ||
-    (data.executedCopyState !== undefined && !state(data.executedCopyState))
+    (data.executedCopyState !== undefined && !state(data.executedCopyState)) ||
+    (data.jobId !== undefined && !identifier(data.jobId))
   )
     return fail('NATIVE_LEGAL_RESPONSE_INVALID');
   return data as NativeLegalCommandResult;

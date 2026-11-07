@@ -134,6 +134,7 @@ const COMMANDS = new Set([
   'approval.reroute',
   'executed.import',
   'document.import',
+  'document.inspect',
 ]);
 
 export function nativeLegalCommandSelected(body: unknown): boolean {

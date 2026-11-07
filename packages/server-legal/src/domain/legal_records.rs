@@ -76,6 +76,7 @@ pub struct LegalRecordsActor {
     pub department_id: Option<RecordId>,
     pub role: String,
     pub permissions: BTreeSet<String>,
+    pub actor_json: String,
 }
 
 impl LegalRecordsActor {
@@ -375,6 +376,10 @@ pub enum LegalCommand {
         attachment_link_id: String,
         name: String,
     },
+    Inspect {
+        document_id: String,
+        kind: String,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -391,6 +396,8 @@ pub struct LegalCommandResult {
     pub executed_copy_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub executed_copy_state: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub job_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -468,6 +475,11 @@ pub enum LegalCommandEffect {
         attachment_link_id: String,
         name: String,
     },
+    Inspect {
+        job_id: String,
+        document_id: String,
+        kind: String,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -537,6 +549,7 @@ pub fn parse_envelope(raw: &Value) -> Result<LegalCommandEnvelope, BusinessError
             | "approval.reroute"
             | "executed.import"
             | "document.import"
+            | "document.inspect"
     ) {
         return Err(invalid(
             "LEGAL_ACTION_UNSUPPORTED",
@@ -582,6 +595,7 @@ pub fn command_permission(action: &str) -> Result<&'static str, BusinessError> {
         "share" | "share.revoke" | "member" => Ok("legal.share"),
         "executed.review" => Ok("legal.approve"),
         "executed.import" | "document.import" => Ok("legal.edit"),
+        "document.inspect" => Ok("legal.read"),
         "approval.open" => Ok("legal.review"),
         "approval.decide" | "approval.reroute" => Ok("legal.approve"),
         _ => Err(invalid(
@@ -744,6 +758,26 @@ pub fn parse_command(
             Ok(LegalCommand::ApprovalReroute {
                 approver_id: approver_id.to_owned(),
                 reason: reason(object)?,
+            })
+        }
+        "document.inspect" => {
+            let document_id = object
+                .get("documentId")
+                .and_then(Value::as_str)
+                .ok_or_else(|| invalid("LEGAL_DOCUMENT_REQUIRED", "Choose a document version."))?;
+            if document_id.is_empty() || document_id.len() > 200 || document_id.chars().any(char::is_control) {
+                return Err(invalid("LEGAL_DOCUMENT_REQUIRED", "Choose a document version."));
+            }
+            let kind = object
+                .get("kind")
+                .and_then(Value::as_str)
+                .ok_or_else(|| invalid("LEGAL_INSPECTION_REQUIRED", "Choose OCR or signature verification."))?;
+            if !matches!(kind, "ocr" | "verify") {
+                return Err(invalid("LEGAL_INSPECTION_REQUIRED", "Choose OCR or signature verification."));
+            }
+            Ok(LegalCommand::Inspect {
+                document_id: document_id.to_owned(),
+                kind: kind.to_owned(),
             })
         }
         "document.import" => {
@@ -919,6 +953,7 @@ pub fn plan_command(
         LegalCommand::ApprovalReroute { .. } => "approval.reroute",
         LegalCommand::ExecutedImport { .. } => "executed.import",
         LegalCommand::DocumentImport { .. } => "document.import",
+        LegalCommand::Inspect { .. } => "document.inspect",
     })?;
     require(actor, permission)?;
     if actor.is_requester() && !matches!(command, LegalCommand::AddDocument { .. }) {
@@ -1294,6 +1329,18 @@ pub fn plan_command(
                 item.state.clone(),
             )
         }
+        LegalCommand::Inspect { document_id, kind } => (
+            "document.inspect".to_owned(),
+            format!("Document {kind} queued"),
+            LegalCommandEffect::Inspect {
+                job_id: derived_id("legal-processing", key),
+                document_id: document_id.clone(),
+                kind: kind.clone(),
+            },
+            Some(document_id.clone()),
+            None,
+            item.state.clone(),
+        ),
     };
     let next_version = envelope.expected_version.checked_add(1).ok_or_else(|| {
         invalid(
@@ -1331,6 +1378,10 @@ pub fn plan_command(
                     if decision == "confirm" { "confirmed" } else { "changes_required" }.to_owned(),
                 ),
                 LegalCommand::ExecutedImport { .. } => Some("pending_review".to_owned()),
+                _ => None,
+            },
+            job_id: match command {
+                LegalCommand::Inspect { .. } => Some(derived_id("legal-processing", key)),
                 _ => None,
             },
         },
@@ -1439,6 +1490,7 @@ mod tests {
                 .iter()
                 .map(|value| (*value).to_owned())
                 .collect(),
+            actor_json: "{}".into(),
         }
     }
 

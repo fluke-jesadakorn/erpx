@@ -776,6 +776,34 @@ impl<'c> PgLegalRecords<'c> {
                     )
                     .await?;
             }
+            LegalCommandEffect::Inspect {
+                job_id,
+                document_id,
+                kind,
+            } => {
+                let checksum: String = sqlx::query_scalar(
+                    "SELECT checksum FROM legal_documents WHERE id=$1 AND item_id=$2",
+                )
+                .bind(document_id)
+                .bind(&plan.item_id)
+                .fetch_optional(&mut *self.connection)
+                .await?
+                .ok_or_else(|| invalid("LEGAL_DOCUMENT_REQUIRED", "Choose a document version."))?;
+                sqlx::query(
+                    "INSERT INTO legal_processing_jobs(id,company_id,item_id,document_id,checksum,kind,state,actor_json,created_by,created_at)                      VALUES($1,$2,$3,$4,$5,$6,'queued',$7,$8,$9)",
+                )
+                .bind(job_id)
+                .bind(actor.company_id.as_str())
+                .bind(&plan.item_id)
+                .bind(document_id)
+                .bind(checksum)
+                .bind(kind)
+                .bind(&actor.actor_json)
+                .bind(actor.user_id.as_str())
+                .bind(self.now)
+                .execute(&mut *self.connection)
+                .await?;
+            }
             LegalCommandEffect::Archive { .. } => {}
             LegalCommandEffect::ApprovalOpen {
                 instance_id,

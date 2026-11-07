@@ -185,6 +185,7 @@ fn actor(role: &str, permissions: &[&str]) -> LegalRecordsActor {
             .iter()
             .map(|value| (*value).to_owned())
             .collect(),
+        actor_json: "{}".into(),
     }
 }
 

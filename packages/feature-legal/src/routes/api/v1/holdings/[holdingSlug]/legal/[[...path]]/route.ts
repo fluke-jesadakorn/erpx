@@ -345,10 +345,24 @@ export async function POST(request: Request, ctx: Context) {
       path.length === 3 &&
       path[0] === "documents" &&
       (path[2] === "ocr" || path[2] === "verify")
-    )
+    ) {
+      if (nativeLegalAvailable()) {
+        const source = await write.prepare("SELECT i.id,i.version::int version FROM legal_items i JOIN legal_documents d ON d.item_id=i.id WHERE d.id=? AND i.company_id=?").bind(path[1], a.companyId).first<{ id: string; version: number }>();
+        if (source) {
+          const native = await nativeLegalCommand(a, holdingSlug, {
+            action: "document.inspect",
+            id: source.id,
+            expectedVersion: Number(source.version),
+            documentId: path[1],
+            kind: path[2],
+          }, key, request.headers).catch(nativeFailure);
+          if (native) return Response.json(canonicalDestinationLinks({ data: { id: path[1], jobId: native.jobId, state: "queued" } }), { headers: { "Cache-Control": "private, no-store" } });
+        }
+      }
       return Response.json(canonicalDestinationLinks({
         data: await queueInspection(write, a, path[1], path[2], key),
       }));
+    }
     if (path.length && path[0] !== "release-acceptance")
       throw new ApiError(404, "NOT_FOUND", "Unknown Legal action.");
     const text = new TextDecoder().decode(await boundedBody(request, 500000));
