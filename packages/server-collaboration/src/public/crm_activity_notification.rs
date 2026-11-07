@@ -3,4 +3,6 @@ pub use crate::adapters::crm_activity_notification::{
     CrmActivityNotificationFacts, PgCrmActivityNotificationSource, PreparedCrmActivityNotification,
     RetainedCrmActivityNotification, lock_crm_activity_notifications,
     prepare_crm_activity_notification,
+    CrmLeadNotificationFacts, PgCrmLeadNotificationSource, PreparedCrmLeadNotification,
+    RetainedCrmLeadNotification, prepare_crm_lead_notification,
 };

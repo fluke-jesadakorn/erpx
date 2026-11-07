@@ -389,6 +389,17 @@ async fn page_rows_are_scoped_ordered_unique_and_cursor_bound() {
 }
 
 #[tokio::test]
+async fn page_accepts_iso_year_zero_and_upper_date_boundary() {
+    for date in ["0000-01-01", "0000-02-29", "2000-02-29", "9999-12-31"] {
+        let mut item = opportunity("lead-1", 10, "discovery");
+        item.due_date = date.into();
+        item.close_date = Some(date.into());
+        let mut repo = Repo::new(vec![item], Vec::new());
+        assert!(crm_pipeline(&actor(), &query(), &mut repo, &mut People, &mut Customers, &mut allowed(), NOW).await.is_ok(), "{date}");
+    }
+}
+
+#[tokio::test]
 async fn page_source_negatives_fail_closed() {
     let mut cases: Vec<(CrmPipelineRow, &'static str)> = Vec::new();
 
@@ -427,6 +438,10 @@ async fn page_source_negatives_fail_closed() {
     let mut date = opportunity("lead-1", 10, "discovery");
     date.close_date = Some("2026-02-30".into());
     cases.push((date, "invalid date"));
+
+    let mut year_zero = opportunity("lead-1", 10, "discovery");
+    year_zero.close_date = Some("0000-02-30".into());
+    cases.push((year_zero, "invalid year zero leap day"));
 
     let mut version = row("lead-1", 10);
     version.version = 0;

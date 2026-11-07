@@ -77,6 +77,69 @@ pub async fn inspect_crm_activity_source(
     })
 }
 
+/// Reviewed CRM account link only: this is neither Finance customer status nor
+/// selected-actor authority. Composition must prepare all owner locks before
+/// taking its first snapshot and retain the matching Finance witness as well.
+/// Lock presence cannot prove that the locks preceded that first snapshot.
+pub struct CrmReviewedAccountLinkRequest {
+    pub company_id: CompanyId,
+    pub branch_id: Option<String>,
+    pub department_id: Option<String>,
+    pub lead_id: String,
+    pub finance_party_id: String,
+}
+
+pub struct CurrentCrmReviewedAccountLink {
+    request: CrmReviewedAccountLinkRequest,
+    image: String,
+    unit: Unit,
+}
+
+impl CurrentCrmReviewedAccountLink {
+    pub(crate) fn matches(&self, company: &str, lead: &str, party: &str) -> bool {
+        self.request.company_id.as_str() == company && self.request.lead_id == lead
+            && self.request.finance_party_id == party
+    }
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        if unit(c).await? != self.unit || !reviewed_account_locks_held(c).await?
+            || reviewed_account_link_image(c, &self.request).await?.as_deref()
+                != Some(self.image.as_str())
+        {
+            return Err(changed());
+        }
+        Ok(())
+    }
+}
+
+/// Acquire before any source snapshot; does not grant permission.
+pub async fn lock_crm_reviewed_account_link_sources(c: &mut PgConnection) -> Result<(), Error> {
+    if !c.is_in_transaction() {
+        return Err(invalid());
+    }
+    sqlx::query("LOCK TABLE crm_accounts,crm_leads IN SHARE ROW EXCLUSIVE MODE")
+        .execute(c).await?;
+    Ok(())
+}
+
+pub async fn inspect_crm_reviewed_account_link(
+    c: &mut PgConnection,
+    request: CrmReviewedAccountLinkRequest,
+) -> Result<CurrentCrmReviewedAccountLink, Error> {
+    let unit = unit(c).await?;
+    if !reviewed_account_locks_held(c).await? { return Err(invalid()); }
+    let image = reviewed_account_link_image(c, &request).await?.ok_or_else(not_found)?;
+    Ok(CurrentCrmReviewedAccountLink { request, image, unit })
+}
+
+async fn reviewed_account_locks_held(c: &mut PgConnection) -> Result<bool, Error> {
+    Ok(sqlx::query_scalar("SELECT count(*)=2 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND granted AND mode='ShareRowExclusiveLock' AND relation IN ('crm_accounts'::regclass,'crm_leads'::regclass)").fetch_one(c).await?)
+}
+
+async fn reviewed_account_link_image(c: &mut PgConnection, r: &CrmReviewedAccountLinkRequest) -> Result<Option<String>, Error> {
+    Ok(sqlx::query_scalar("SELECT encode(sha256(convert_to(jsonb_build_array(l.id,l.company_id,l.branch_id,l.department_id,l.account_id,a.id,a.company_id,a.finance_party_id,a.reviewed_by)::text,'UTF8')),'hex') FROM crm_leads l JOIN crm_accounts a ON a.id=l.account_id AND a.company_id=l.company_id WHERE l.id=$1 AND l.company_id=$2 AND ($3::text IS NULL OR l.branch_id=$3) AND ($4::text IS NULL OR l.department_id=$4) AND a.finance_party_id=$5 AND a.reviewed_by IS NOT NULL")
+        .bind(&r.lead_id).bind(r.company_id.as_str()).bind(r.branch_id.as_deref()).bind(r.department_id.as_deref()).bind(&r.finance_party_id).fetch_optional(c).await?)
+}
+
 async fn read(
     c: &mut PgConnection,
     r: &CrmActivitySourceRequest,

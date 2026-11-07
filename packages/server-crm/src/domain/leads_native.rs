@@ -39,7 +39,7 @@ fn valid_date(value: &str) -> bool {
     let year = value[0..4].parse::<u32>().unwrap_or(0);
     let month = value[5..7].parse::<u32>().unwrap_or(0);
     let day = value[8..10].parse::<u32>().unwrap_or(0);
-    if year == 0 || !(1..=12).contains(&month) {
+    if !(1..=12).contains(&month) {
         return false;
     }
     let leap = year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400));
@@ -151,14 +151,20 @@ pub struct LeadChangeInput {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LeadChangePlan {
     pub action: String,
     pub expected_version: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub owner_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub due_date: Option<String>,
     pub reason: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub customer_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub expected_value: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub close_date: Option<String>,
 }
 
@@ -188,19 +194,80 @@ pub struct OpportunityChangeInput {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OpportunityChangePlan {
     pub action: String,
     pub expected_version: i64,
     pub lead_version: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub quote_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub quote_version: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub loss_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sales_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sales_version: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub reservation_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub property_id: Option<String>,
     pub reason: String,
     pub stage: String,
+}
+
+/// Owner-verified change receipt. The wire shape matches the retained Sales
+/// route so the caller can switch transports without changing its UI contract.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct LeadChangeReceipt {
+    pub id: String,
+    pub version: i64,
+    #[serde(rename = "opportunityId")]
+    pub opportunity_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct OpportunityChangeReceipt {
+    pub id: String,
+    pub version: i64,
+    #[serde(rename = "leadVersion")]
+    pub lead_version: i64,
+    pub stage: String,
+}
+
+/// Lead actions whose native owner effect is complete without a missing
+/// cross-owner witness. `qualify` needs current Finance customer status and
+/// Commerce currency composition; it stays retained until those ports exist.
+pub const NATIVE_LEAD_ACTIONS: [&str; 3] = ["reassign", "disqualify", "reopen"];
+
+/// Opportunity actions with the current Commerce order witness composed in
+/// the caller. `win-pms` still needs the PMS reservation witness and is
+/// retained.
+pub const NATIVE_OPPORTUNITY_ACTIONS: [&str; 5] = ["link-quote", "negotiate", "lose", "reopen", "win"];
+
+pub fn native_lead_action(action: &str) -> bool {
+    NATIVE_LEAD_ACTIONS.contains(&action)
+}
+
+pub fn native_opportunity_action(action: &str) -> bool {
+    NATIVE_OPPORTUNITY_ACTIONS.contains(&action)
+}
+
+pub fn lead_operation(action: &str) -> String {
+    format!("crm.lead.{action}")
+}
+
+pub fn opportunity_operation(action: &str) -> String {
+    format!("crm.opportunity.{action}")
+}
+
+pub fn not_native(_action: &str) -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "CRM_COMMAND_NOT_NATIVE",
+        "The CRM command is not native yet.",
+    )
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

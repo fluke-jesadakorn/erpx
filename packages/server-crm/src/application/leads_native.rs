@@ -26,6 +26,11 @@ pub struct OpportunityFacts {
     pub lead_id: String,
     pub stage: String,
     pub version: i64,
+    pub customer_id: String,
+    pub currency: String,
+    pub quote_id: Option<String>,
+    pub quote_version: Option<i64>,
+    pub sales_id: Option<String>,
 }
 
 pub trait LeadRepository: Send {

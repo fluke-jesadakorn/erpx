@@ -101,10 +101,10 @@ export type NativeCrmPipelinePage = Readonly<{
 }>;
 
 export type NativeCrmPipelineTransport = (
-  method: 'GET',
+  method: 'GET' | 'POST',
   url: URL,
   headers: Headers,
-  body: undefined,
+  body: string | undefined,
   signal: AbortSignal,
 ) => Promise<Response>;
 
@@ -641,10 +641,10 @@ export function createNativeCrmPipelineClient(
 
 /** Fresh bounded socket; bypasses patched fetch/HMR and ambient proxies. */
 export function directHttp(
-  method: 'GET',
+  method: 'GET' | 'POST',
   url: URL,
   headers: Headers,
-  body: undefined,
+  body: string | undefined,
   signal: AbortSignal,
 ): Promise<Response> {
   return new Promise((resolve, reject) => {
@@ -681,6 +681,6 @@ export function directHttp(
       agent.destroy();
       reject(error);
     });
-    outgoing.end();
+    outgoing.end(body);
   });
 }

@@ -125,7 +125,7 @@ fn valid_date(value: &str) -> bool {
     let year = value[0..4].parse::<u32>().unwrap_or(0);
     let month = value[5..7].parse::<u32>().unwrap_or(0);
     let day = value[8..10].parse::<u32>().unwrap_or(0);
-    if year == 0 || !(1..=12).contains(&month) {
+    if !(1..=12).contains(&month) {
         return false;
     }
     let leap = year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400));

@@ -32,6 +32,20 @@ fn create() -> ActivityCreateInput {
     .unwrap()
 }
 
+#[test]
+fn activity_create_date_matches_iso_year_zero_and_leap_boundaries() {
+    for date in ["0000-01-01", "0000-02-29", "2000-02-29", "9999-12-31"] {
+        let mut input = create();
+        input.due_date = date.into();
+        assert!(validate_create(&actor(), &input).is_ok(), "{date}");
+    }
+    for date in ["0000-02-30", "1900-02-29"] {
+        let mut input = create();
+        input.due_date = date.into();
+        assert!(validate_create(&actor(), &input).is_err(), "{date}");
+    }
+}
+
 struct Fake {
     lead: Option<LeadFacts>,
     activity: Option<ActivityFacts>,
@@ -120,19 +134,40 @@ fn create_plan_trims_text() {
 }
 
 #[test]
-fn text_validation_matches_javascript_trim_and_utf16_boundaries() {
+fn text_validation_matches_zod_trim_and_unicode_boundaries() {
     let mut input = create();
     input.subject = format!("\u{feff}{}\u{feff}", "ก".repeat(200));
     assert_eq!(
         validate_create(&actor(), &input).unwrap().subject,
         "ก".repeat(200)
     );
-    input.subject = "😀".repeat(101);
+    input.subject = "😀".repeat(2);
     assert!(validate_create(&actor(), &input).is_err());
+    input.subject = "😀".repeat(3);
+    assert!(validate_create(&actor(), &input).is_ok());
+    input.subject = "😀".repeat(200);
+    assert!(validate_create(&actor(), &input).is_ok());
+    input.subject = "😀".repeat(201);
+    assert!(validate_create(&actor(), &input).is_err());
+    input.subject = "valid".into();
+    input.details = "😀".repeat(2000);
+    assert!(validate_create(&actor(), &input).is_ok());
+    input.details = "😀".repeat(2001);
+    assert!(validate_create(&actor(), &input).is_err());
+    input.details = "valid".into();
     input.subject = "ab".into();
     assert!(validate_create(&actor(), &input).is_err());
     input.subject = "\u{0085}ab".into();
     assert!(validate_create(&actor(), &input).is_ok());
+}
+
+#[test]
+fn activity_change_reason_uses_zod_unicode_boundaries() {
+    let mut input=ActivityChangeInput {action:"complete".into(),expected_version:1,reason:"😀".repeat(2)};
+    assert!(validate_change(&actor(),&input,"owner","open").is_err());
+    input.reason="😀".repeat(3);assert!(validate_change(&actor(),&input,"owner","open").is_ok());
+    input.reason="😀".repeat(2000);assert!(validate_change(&actor(),&input,"owner","open").is_ok());
+    input.reason="😀".repeat(2001);assert!(validate_change(&actor(),&input,"owner","open").is_err());
 }
 
 #[test]
