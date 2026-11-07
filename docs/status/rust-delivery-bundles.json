@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-08T04:17:20+07:00",
+  "updatedAt": "2026-11-08T04:30:26+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 61,
-    "workflowsVerified": 58,
-    "workflowsMerged": 58,
+    "workflowsPartial": 59,
+    "workflowsVerified": 60,
+    "workflowsMerged": 60,
     "ownersComplete": 7,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -3843,30 +3843,30 @@
       "kind": "module",
       "owner": "customer_authority",
       "scope": "Access history",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "customer-authority-native-access",
         "customer-authority-native-access-http"
       ],
       "sourceRef": "packages/server-customer_360/src/public/customer-portal.ts",
-      "gap": "Native customer access request/approve/reject/revoke and workspace/detail/history are mounted for the keyed workspace. Native API readback: GET /api/v1/holdings/acme/customer-access returns 200 with one pending binding for commerce-acme-co-customer (canReview/canReject/canRevoke true). The Sales access page still returns its product-route access guard (403) and the query-tab routes return 500, so authenticated page acceptance remains open; invitations/enrollment, portal support and identity changes also remain on their retained paths."
+      "gap": "Closed. Native customer access request/approve/reject/revoke and workspace/detail/history are composed for the keyed workspace. Browser verified on the Sales Access reviews page (the page requires the sales-portal add-on, granted to the dev Company with a recorded grant event): pending binding customer-access-acceptance-1 for Harbor Office Solutions was approved to version 2 by the independent holding owner and then revoked to version 3, with the immutable decision history shown in the drawer. Persisted customer_access_events request/approve/revoke, command receipts and audit/outbox rows for customer.access.approve and customer.access.revoke. Native customer-access HTTP 2/2, PostgreSQL 8/8 and transport unit 11/11 pass. Invitations/enrollment, portal support and identity changes are separate workflows and remain unstarted."
     },
     {
       "id": "customer_authority/feature-authority-bindings",
       "kind": "module",
       "owner": "customer_authority",
       "scope": "Authority bindings",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "customer-authority-native-access",
         "customer-authority-native-access-http"
       ],
       "sourceRef": "packages/server-customer_authority/src/public/customer-access.ts",
-      "gap": "Native customer access request/approve/reject/revoke and workspace/detail/history are mounted for the keyed workspace. Native API readback: GET /api/v1/holdings/acme/customer-access returns 200 with one pending binding for commerce-acme-co-customer (canReview/canReject/canRevoke true). The Sales access page still returns its product-route access guard (403) and the query-tab routes return 500, so authenticated page acceptance remains open; invitations/enrollment, portal support and identity changes also remain on their retained paths."
+      "gap": "Closed. Native customer access request/approve/reject/revoke and workspace/detail/history are composed for the keyed workspace. Browser verified on the Sales Access reviews page (the page requires the sales-portal add-on, granted to the dev Company with a recorded grant event): pending binding customer-access-acceptance-1 for Harbor Office Solutions was approved to version 2 by the independent holding owner and then revoked to version 3, with the immutable decision history shown in the drawer. Persisted customer_access_events request/approve/revoke, command receipts and audit/outbox rows for customer.access.approve and customer.access.revoke. Native customer-access HTTP 2/2, PostgreSQL 8/8 and transport unit 11/11 pass. Invitations/enrollment, portal support and identity changes are separate workflows and remain unstarted."
     },
     {
       "id": "customer_authority/feature-identity-changes",
@@ -6456,7 +6456,7 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-08T04:17:20+07:00",
+    "generatedAt": "2026-11-08T04:30:26+07:00",
     "sourceHead": "ff6c0a191",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
@@ -6510,8 +6510,8 @@
       },
       "customer_authority": {
         "workflows": 4,
-        "verified": 0,
-        "partial": 2,
+        "verified": 2,
+        "partial": 0,
         "unstarted": 2,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -7977,6 +7977,21 @@
           "owners": 7,
           "verified": 58,
           "partial": 61,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-08T04:30:26+07:00",
+        "commit": "ff6c0a191",
+        "bundles": [
+          "customer authority native access browser acceptance"
+        ],
+        "evidence": "browser Sales Access reviews page 200; pending customer-access-acceptance-1 approved v2 then revoked v3 by usr_mali with immutable history; DB customer_access_events v2/v3, command receipts/audit/outbox customer.access.approve+revoke; customer-access HTTP 2/2, PostgreSQL 8/8, transport unit 11/11; typecheck/structure/health pass",
+        "counts": {
+          "owners": 7,
+          "verified": 60,
+          "partial": 59,
           "unstarted": 87,
           "total": 206
         }
