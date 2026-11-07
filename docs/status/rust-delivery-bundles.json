@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T09:58:39+07:00",
+  "updatedAt": "2026-11-07T10:29:48+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,10 +19,10 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 78,
-    "workflowsVerified": 41,
-    "workflowsMerged": 41,
-    "ownersComplete": 4,
+    "workflowsPartial": 77,
+    "workflowsVerified": 42,
+    "workflowsMerged": 42,
+    "ownersComplete": 5,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
   },
@@ -4474,15 +4474,15 @@
       "kind": "module",
       "owner": "maintenance",
       "scope": "Work orders",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "maintenance-native-read",
         "maintenance-native-http"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Native Maintenance reads/HTTP/SSR and schedule/start/block/resume/complete/issue-part/cancel transitions are composed (real Account session + IAM + PostgreSQL); a composed HTTP test proves block, replay and persisted readback. Create remains retained; browser remains open."
+      "gap": "Closed. Native work-order create is mounted and browser verified: the create form returned 200 {id:maintenance-eaaf2f20\u2026, version:1, status:open}; the list shows AST-ACCEPT \u00b7 Native created inspection (high, Mali Srisai) and the detail history shows Version 1 \u00b7 create. Create validates the Asset version, active-work vacancy, operational owner, Commercial new-work purchase and writes the Workflow receipt/audit, create event and notification in one serializable unit. Schedule/start/block/resume/complete/cancel were already native and browser verified."
     },
     {
       "id": "maintenance/downtime",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T09:58:39+07:00",
-    "sourceHead": "8b5b7a77c",
+    "generatedAt": "2026-11-07T10:29:48+07:00",
+    "sourceHead": "da41ac640",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6566,11 +6566,11 @@
       },
       "maintenance": {
         "workflows": 5,
-        "verified": 4,
-        "partial": 1,
+        "verified": 5,
+        "partial": 0,
         "unstarted": 0,
-        "phase": "partial",
-        "businessMigrationComplete": false
+        "phase": "complete",
+        "businessMigrationComplete": true
       },
       "operations": {
         "workflows": 6,
@@ -7113,9 +7113,9 @@
       }
     ],
     "nextActions": [
-      "Implement the native Maintenance work-order create (the only remaining Maintenance workflow), then close the owner.",
+      "Continue with the next dependency-ready non-Stripe owner partial; Maintenance is complete (5/5).",
       "Await the Stripe/Connect test configuration for the remaining POS tender/refund/retry paths.",
-      "Continue with the next dependency-ready non-Stripe owner partial and keep counts tied to browser/HTTP evidence."
+      "Reconcile remote HEAD and keep counts tied to browser/HTTP evidence."
     ],
     "integrationLog": [
       {
@@ -7668,6 +7668,22 @@
           "owners": 4,
           "verified": 41,
           "partial": 78,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T10:29:48+07:00",
+        "commit": "da41ac640",
+        "bundles": [
+          "native Maintenance create",
+          "maintenance owner completion"
+        ],
+        "evidence": "browser create form 200 {id:maintenance-eaaf2f20\u2026,version:1,status:open}; DB row open/v1/usr_mali and event version 1 create; detail history Version 1 \u00b7 create \u00b7 Created natively for the acceptance journey; Maintenance tests 6/6,3/3,2/2,1/1,1/1,2/2,2/2; Assets tests 4/4,10/10,17/17,2/2,13/13; typecheck passes",
+        "counts": {
+          "owners": 5,
+          "verified": 42,
+          "partial": 77,
           "unstarted": 87,
           "total": 206
         }
