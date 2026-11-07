@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-08T04:01:47+07:00",
+  "updatedAt": "2026-11-08T04:17:20+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -3851,7 +3851,7 @@
         "customer-authority-native-access-http"
       ],
       "sourceRef": "packages/server-customer_360/src/public/customer-portal.ts",
-      "gap": "Native access request/approve/reject/revoke, workspace/detail reads and immutable history are PostgreSQL/HTTP-qualified; invitations/enrollment, portal support, identity changes and composition mount complete; browser remains open."
+      "gap": "Native customer access request/approve/reject/revoke and workspace/detail/history are mounted for the keyed workspace. Native API readback: GET /api/v1/holdings/acme/customer-access returns 200 with one pending binding for commerce-acme-co-customer (canReview/canReject/canRevoke true). The Sales access page still returns its product-route access guard (403) and the query-tab routes return 500, so authenticated page acceptance remains open; invitations/enrollment, portal support and identity changes also remain on their retained paths."
     },
     {
       "id": "customer_authority/feature-authority-bindings",
@@ -3866,7 +3866,7 @@
         "customer-authority-native-access-http"
       ],
       "sourceRef": "packages/server-customer_authority/src/public/customer-access.ts",
-      "gap": "Native access request/approve/reject/revoke, workspace/detail reads and immutable history are PostgreSQL/HTTP-qualified; invitations/enrollment, portal support, identity changes and composition mount complete; browser remains open."
+      "gap": "Native customer access request/approve/reject/revoke and workspace/detail/history are mounted for the keyed workspace. Native API readback: GET /api/v1/holdings/acme/customer-access returns 200 with one pending binding for commerce-acme-co-customer (canReview/canReject/canRevoke true). The Sales access page still returns its product-route access guard (403) and the query-tab routes return 500, so authenticated page acceptance remains open; invitations/enrollment, portal support and identity changes also remain on their retained paths."
     },
     {
       "id": "customer_authority/feature-identity-changes",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-08T04:01:47+07:00",
-    "sourceHead": "c2080cc50",
+    "generatedAt": "2026-11-08T04:17:20+07:00",
+    "sourceHead": "ff6c0a191",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7958,6 +7958,21 @@
           "Planning owner completion"
         ],
         "evidence": "browser /manufacturing/planning two scenarios, 0.6-unit shortage, manual capacity, comparison 2026-11-22 -> 2026-11-20, two recommendations; native API 200 two scenarios/two recs; planning HTTP 2/2, manufacturing 4/4,9/9,2/2, unit 8/8; typecheck/structure/health pass",
+        "counts": {
+          "owners": 7,
+          "verified": 58,
+          "partial": 61,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-08T04:17:20+07:00",
+        "commit": "ff6c0a191",
+        "bundles": [
+          "native customer access transport and mount"
+        ],
+        "evidence": "native API 200 one pending binding with canReview/canReject/canRevoke; customer-access HTTP 2/2, PostgreSQL 8/8, transport unit 11/11; typecheck/structure/health pass; Sales access page 403 and tab routes 500 remain open; counts unchanged",
         "counts": {
           "owners": 7,
           "verified": 58,
