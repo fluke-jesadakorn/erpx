@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-08T05:40:31+07:00",
+  "updatedAt": "2026-11-08T05:46:11+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -4798,7 +4798,7 @@
         "legal-native-archive"
       ],
       "sourceRef": "packages/server-legal/src/public/legal/service.ts",
-      "gap": "Native document register/detail/version commands, share/revoke, membership and the two-step Files-backed signed-original import are implemented. Direct new-file document upload, OCR/verify queueing and export writers remain retained, so the workflow stays partial."
+      "gap": "Native document register/detail/version commands, share/revoke, membership, the Files-backed signed-original bridge and direct document upload are implemented. Direct upload now uses the existing Files intake and a native document.import that validates one draft legal_item attachment, inserts the immutable document with link/source, binds the set/link as legal_document and writes receipt/audit/outbox in the same Legal transaction. Browser verified on legal-item-upload-1 with a real PNG: document v1 retained, set/link bound, draft record v2. OCR/verify queueing and export writers remain retained, so the workflow stays partial."
     },
     {
       "id": "legal/feature-legal-holds",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-08T05:40:31+07:00",
-    "sourceHead": "352b70185",
+    "generatedAt": "2026-11-08T05:46:11+07:00",
+    "sourceHead": "ebcc07acc",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -8049,6 +8049,21 @@
           "legal contracts closure"
         ],
         "evidence": "browser legal-item-acme-1 approval v11; Files upload set/link bound legal_executed_copy; native executed.import document v2 pending; independent review confirmed; contract executed v13; DB documents v2 with link/source, executed copy confirmed, set/link bound, two receipts/audit/outbox; legal suites 6/6 etc; typecheck/structure/health pass",
+        "counts": {
+          "owners": 7,
+          "verified": 62,
+          "partial": 57,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-08T05:46:11+07:00",
+        "commit": "ebcc07acc",
+        "bundles": [
+          "native Legal direct document upload"
+        ],
+        "evidence": "browser legal-item-upload-1 uploaded acceptance-upload.png via Files; native document.import 200 document v1, set/link bound legal_document, draft v2; DB document linked+sourced, receipt/audit/outbox; Legal suites 6/6 etc; typecheck/structure/health pass; counts unchanged because OCR/verify/export remain retained",
         "counts": {
           "owners": 7,
           "verified": 62,
