@@ -479,7 +479,7 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
                 proof,
                 selection,
                 Self::command_access("quality.release"),
-                QualityCommandPreparation,
+                QualityCommandPreparation::new(false),
                 move |connection, current| {
                     let holding = holding.clone();
                     let company = company.clone();
@@ -530,7 +530,7 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
                 proof,
                 selection,
                 Self::command_access("quality.release"),
-                QualityCommandPreparation,
+                QualityCommandPreparation::new(false),
                 move |connection, current| {
                     let holding = holding.clone();
                     let company = company.clone();
@@ -581,7 +581,7 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
                 proof,
                 selection,
                 Self::command_access("quality.inspect"),
-                QualityCommandPreparation,
+                QualityCommandPreparation::new(true),
                 move |connection, current| {
                     let holding = holding.clone();
                     let company = company.clone();

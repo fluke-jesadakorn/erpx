@@ -15,6 +15,9 @@ use crate::domain::quality::QualityMetric;
 use crate::domain::quality::{
     HoldStatus, InspectionResult, SpecStatus, evaluate_measurements, quality_measurement_passed,
 };
+use erpx_server_files::public::quality_inspection_evidence::{
+    CurrentQualityInspectionEvidence, inspect_quality_inspection_evidence,
+};
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, RecordId, UserId};
 use sqlx::{Connection, PgConnection, Row};
@@ -98,11 +101,24 @@ fn hold_released() -> BusinessError {
     )
 }
 
-fn evidence_unavailable() -> BusinessError {
-    BusinessError::new(
-        FailureKind::Unavailable,
-        "QUALITY_EVIDENCE_UNAVAILABLE",
-        "Inspection evidence attachments remain on the retained Quality path.",
+fn evidence_invalid() -> BusinessError {
+    invalid(
+        "QUALITY_ATTACHMENT_INVALID",
+        "Choose ready, unbound inspection evidence uploaded by the current inspector.",
+    )
+}
+
+fn evidence_sets_unsupported() -> BusinessError {
+    invalid(
+        "QUALITY_ATTACHMENT_SET_UNSUPPORTED",
+        "Native Quality inspection accepts direct evidence files only; attachment sets remain on the retained path.",
+    )
+}
+
+fn evidence_changed() -> BusinessError {
+    conflict(
+        "QUALITY_ATTACHMENT_CHANGED",
+        "The inspection evidence changed. Reload and review before retrying.",
     )
 }
 
@@ -118,7 +134,7 @@ pub async fn lock_quality_command_sources(c: &mut PgConnection) -> Result<(), Er
     .execute(&mut *c)
     .await?;
     sqlx::query(
-        "LOCK TABLE inventory_quality_holds,inventory_quality_inspections,inventory_quality_measurements IN SHARE ROW EXCLUSIVE MODE",
+        "LOCK TABLE inventory_quality_holds,inventory_quality_inspections,inventory_quality_measurements,inventory_quality_inspection_attachments IN SHARE ROW EXCLUSIVE MODE",
     )
     .execute(&mut *c)
     .await?;
@@ -127,7 +143,7 @@ pub async fn lock_quality_command_sources(c: &mut PgConnection) -> Result<(), Er
 
 async fn require_quality_command_locks(c: &mut PgConnection) -> Result<(), Error> {
     serializable(c).await?;
-    let held: bool = sqlx::query_scalar("SELECT count(DISTINCT relation)=5 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND granted AND mode IN ('ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock') AND relation IN ('inventory_quality_specs'::regclass,'inventory_quality_spec_metrics'::regclass,'inventory_quality_holds'::regclass,'inventory_quality_inspections'::regclass,'inventory_quality_measurements'::regclass)")
+    let held: bool = sqlx::query_scalar("SELECT count(DISTINCT relation)=6 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND granted AND mode IN ('ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock') AND relation IN ('inventory_quality_specs'::regclass,'inventory_quality_spec_metrics'::regclass,'inventory_quality_holds'::regclass,'inventory_quality_inspections'::regclass,'inventory_quality_measurements'::regclass,'inventory_quality_inspection_attachments'::regclass)")
         .fetch_one(&mut *c)
         .await?;
     if !held {
@@ -671,6 +687,46 @@ async fn read_measurements(
         .collect()
 }
 
+async fn read_inspection_attachments(
+    c: &mut PgConnection,
+    inspection_id: &str,
+) -> Result<Vec<(String, i64)>, Error> {
+    let rows = sqlx::query("SELECT attachment_id,ordinal FROM inventory_quality_inspection_attachments WHERE inspection_id=$1 ORDER BY ordinal LIMIT 11")
+        .bind(inspection_id)
+        .fetch_all(&mut *c)
+        .await?;
+    if rows.len() > 10 {
+        return Err(evidence_invalid().into());
+    }
+    rows.iter()
+        .map(|row| {
+            Ok((
+                row.try_get("attachment_id")?,
+                safe(row.try_get("ordinal")?)?,
+            ))
+        })
+        .collect()
+}
+
+async fn evidence_in_use(c: &mut PgConnection, ids: &[String]) -> Result<bool, Error> {
+    if ids.is_empty() {
+        return Ok(false);
+    }
+    Ok(sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM inventory_quality_inspection_attachments WHERE attachment_id=ANY($1::text[]))",
+    )
+    .bind(ids)
+    .fetch_one(&mut *c)
+    .await?)
+}
+
+fn evidence_error(error: Error) -> Error {
+    match error {
+        PgTransactionError::Business(_) => evidence_changed().into(),
+        other => other,
+    }
+}
+
 /// Prepare immutable inspection and measurement rows against the current hold.
 pub struct PreparedQualityInspection {
     unit: Unit,
@@ -678,6 +734,8 @@ pub struct PreparedQualityInspection {
     branch: Option<RecordId>,
     source: crate::application::quality::QualityHold,
     metrics: Vec<QualityMetric>,
+    evidence: Option<CurrentQualityInspectionEvidence>,
+    expected_attachments: Vec<(String, i64)>,
     expected_hold: crate::application::quality::QualityHold,
     expected_inspection: QualityInspection,
     expected_measurements: Vec<QualityMeasurement>,
@@ -687,6 +745,17 @@ pub struct PreparedQualityInspection {
 impl PreparedQualityInspection {
     pub fn receipt(&self) -> &QualityInspectionReceipt {
         &self.receipt
+    }
+
+    pub fn hold(&self) -> &crate::application::quality::QualityHold {
+        &self.expected_hold
+    }
+
+    async fn require_evidence(&self, c: &mut PgConnection) -> Result<(), Error> {
+        if let Some(evidence) = &self.evidence {
+            evidence.require_current(c).await.map_err(evidence_error)?;
+        }
+        Ok(())
     }
 
     pub async fn require_before(&self, c: &mut PgConnection) -> Result<(), Error> {
@@ -709,9 +778,26 @@ impl PreparedQualityInspection {
             || read_inspection(c, &self.company, &self.receipt.inspection_id)
                 .await?
                 .is_some()
+            || !read_inspection_attachments(c, &self.receipt.inspection_id)
+                .await?
+                .is_empty()
         {
             return Err(hold_changed().into());
         }
+        if !self.expected_attachments.is_empty()
+            && evidence_in_use(
+                c,
+                &self
+                    .expected_attachments
+                    .iter()
+                    .map(|(id, _)| id.clone())
+                    .collect::<Vec<_>>(),
+            )
+            .await?
+        {
+            return Err(evidence_changed().into());
+        }
+        self.require_evidence(c).await?;
         Ok(())
     }
 
@@ -729,6 +815,19 @@ impl PreparedQualityInspection {
             .bind(self.expected_inspection.spec_version)
             .execute(&mut *c)
             .await?;
+        for (attachment_id, ordinal) in &self.expected_attachments {
+            let inserted = sqlx::query(
+                "INSERT INTO inventory_quality_inspection_attachments(inspection_id,attachment_id,ordinal) VALUES($1,$2,$3)",
+            )
+            .bind(&self.expected_inspection.id)
+            .bind(attachment_id)
+            .bind(ordinal)
+            .execute(&mut *c)
+            .await?;
+            if inserted.rows_affected() != 1 {
+                return Err(evidence_changed().into());
+            }
+        }
         for measurement in &self.expected_measurements {
             sqlx::query("INSERT INTO inventory_quality_measurements(id,inspection_id,metric_id,code,label,unit,minimum_value,maximum_value,measured_value,passed,ordinal) VALUES($1,$2,$3,$4,$5,$6,$7::numeric,$8::numeric,$9::numeric,$10,$11)")
                 .bind(&measurement.id)
@@ -784,11 +883,14 @@ impl PreparedQualityInspection {
                 .await?
                 .as_ref()
                 != Some(&self.expected_inspection)
+            || read_inspection_attachments(c, &self.receipt.inspection_id).await?
+                != self.expected_attachments
             || read_measurements(c, &self.receipt.inspection_id).await?
                 != self.expected_measurements
         {
             return Err(hold_changed().into());
         }
+        self.require_evidence(c).await?;
         Ok(())
     }
 }
@@ -804,8 +906,8 @@ pub async fn prepare_quality_inspection(
     require_quality_command_locks(c).await?;
     let command =
         crate::application::quality_commands::normalize_quality_inspection(command.clone())?;
-    if !command.attachment_ids.is_empty() || !command.attachment_set_ids.is_empty() {
-        return Err(evidence_unavailable().into());
+    if !command.attachment_set_ids.is_empty() {
+        return Err(evidence_sets_unsupported().into());
     }
     let source = read_holds(
         c,
@@ -834,6 +936,37 @@ pub async fn prepare_quality_inspection(
     if source.version != command.expected_version {
         return Err(hold_changed().into());
     }
+    let (evidence, expected_attachments) = if command.attachment_ids.is_empty() {
+        (None, Vec::new())
+    } else {
+        if evidence_in_use(c, &command.attachment_ids).await? {
+            return Err(evidence_invalid().into());
+        }
+        let hold_branch = RecordId::new(source.branch_id.clone())?;
+        let evidence = match inspect_quality_inspection_evidence(
+            c,
+            company,
+            &hold_branch,
+            &source.id,
+            actor.as_str(),
+            &command.attachment_ids,
+        )
+        .await
+        {
+            Ok(Some(evidence)) => evidence,
+            Ok(None) | Err(PgTransactionError::Business(_)) => {
+                return Err(evidence_invalid().into());
+            }
+            Err(error) => return Err(error),
+        };
+        let expected = command
+            .attachment_ids
+            .iter()
+            .enumerate()
+            .map(|(ordinal, attachment_id)| (attachment_id.clone(), ordinal as i64))
+            .collect();
+        (Some(evidence), expected)
+    };
     let metrics = match source.spec_id.as_deref() {
         Some(spec_id) => spec_metrics(c, company, spec_id).await?,
         None => Vec::new(),
@@ -915,6 +1048,8 @@ pub async fn prepare_quality_inspection(
         branch: branch.cloned(),
         source,
         metrics,
+        evidence,
+        expected_attachments,
         expected_hold,
         expected_inspection,
         expected_measurements,

@@ -131,6 +131,201 @@ fn prepared_router(p: &review::Prepared) -> axum::Router {
 }
 
 #[tokio::test]
+async fn quality_inspection_attachment_evidence_and_staff_handoff_are_native() {
+    review::account::with_system(|system| async move {
+        let p = review::setup_with_finance(system, false).await;
+        grant_quality(&p).await;
+        seed_quality(&p).await;
+        let app = prepared_router(&p);
+        let db = p.system.holdings[0].raw();
+        sqlx::raw_sql(
+            "UPDATE assignments SET valid_from=0,valid_until=9007199254740991 WHERE id IN ('finance-fixture-a','finance-fixture-b');\
+             INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind) \
+             VALUES('quality-evidence-manager','fixture-manager','quality_manager','[]','company',0,9007199254740991,1,'holding')",
+        )
+        .execute(db)
+        .await
+        .unwrap();
+        let now = p.system.scenario.clock.now().get();
+        let expires = now + 3_600_000;
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+            "INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,status,created_by,created_at,updated_at,quantity_scope,version) \
+             VALUES('evidence-hold','company','branch','warehouse','product','Inspect damaged packaging','2026-11-10','held','fixture-a',{now},{now},'whole',1);\
+             INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,actual_bytes,checksum_sha256,staging_key,final_key,status,created_by,expires_at,created_at,updated_at,owner_version,company_id,detected_media_type) \
+             VALUES('evidence-upload','quality_hold','evidence-hold','quality_inspection_evidence','evidence.pdf','application/pdf',12,12,'evidence-checksum','evidence/staging','evidence/object','ready','fixture-b',{expires},{now},{now},1,'company','application/pdf');\
+             INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at,company_id,detected_media_type,source_state,scanned_at,scanner_definition_at) \
+             VALUES('evidence-file','evidence-upload','quality_hold','evidence-hold','quality_inspection_evidence','evidence/object',1,'evidence.pdf','application/pdf',12,'evidence-checksum','fixture-b',{now},'company','application/pdf','available',{now},{now})"
+        )))
+        .execute(db)
+        .await
+        .unwrap();
+
+        let key = "quality-command-evidence";
+        let body = r#"{"expectedVersion":1,"result":"fail","evidence":"Packaging is torn across the seal.","attachmentIds":["evidence-file"],"attachmentSetIds":[]}"#;
+        let inspected = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/evidence-hold/inspect",
+                &p,
+                true,
+                Some(key),
+                Some(body),
+            ))
+            .await
+            .unwrap();
+        let status = inspected.status();
+        let inspected = json(inspected).await;
+        assert_eq!(status, StatusCode::OK, "{inspected}");
+        assert_eq!(inspected["data"]["status"], "held");
+        assert_eq!(inspected["data"]["result"], "fail");
+        assert_eq!(inspected["data"]["version"], 2);
+
+        let refs: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT attachment_id,ordinal FROM inventory_quality_inspection_attachments WHERE inspection_id=$1 ORDER BY ordinal",
+        )
+        .bind(format!("inspection-{key}"))
+        .fetch_all(db)
+        .await
+        .unwrap();
+        assert_eq!(refs, vec![("evidence-file".into(), 0)]);
+        let attachment: (String, String, bool) = sqlx::query_as(
+            "SELECT source_state,owner_id,revoked_at IS NULL FROM attachments WHERE id='evidence-file'",
+        )
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(attachment, ("available".into(), "evidence-hold".into(), true));
+        let notice: (String, i64, String, String) = sqlx::query_as(
+            "SELECT user_id,record_version,record_type,message FROM staff_notifications WHERE id=$1",
+        )
+        .bind(format!("{key}-fixture-b"))
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(
+            notice,
+            (
+                "fixture-b".into(),
+                2,
+                "quality_hold".into(),
+                "Quality handoff: review the source record".into()
+            )
+        );
+        let bridge: (i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM inbox_events WHERE id=$1),(SELECT count(*) FROM inbox_deliveries WHERE id=$2)",
+        )
+        .bind(format!("legacy:{key}-fixture-b"))
+        .bind(format!("{key}-fixture-b"))
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(bridge, (1, 1));
+
+        let replay = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/evidence-hold/inspect",
+                &p,
+                true,
+                Some(key),
+                Some(body),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(replay.status(), StatusCode::OK);
+        let replay = json(replay).await;
+        assert_eq!(replay["data"]["version"], 2);
+        let stable: (i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM inventory_quality_inspection_attachments WHERE inspection_id=$1),(SELECT count(*) FROM staff_notifications WHERE id=$2),(SELECT count(*) FROM inbox_deliveries WHERE id=$2)",
+        )
+        .bind(format!("inspection-{key}"))
+        .bind(format!("{key}-fixture-b"))
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(stable, (1, 1, 1));
+
+        let reused = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/evidence-hold/inspect",
+                &p,
+                true,
+                Some("quality-command-evidence-reuse"),
+                Some(
+                    r#"{"expectedVersion":2,"result":"fail","evidence":"Retry must refuse the bound file.","attachmentIds":["evidence-file"]}"#,
+                ),
+            ))
+            .await
+            .unwrap();
+        let status = reused.status();
+        let reused = json(reused).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{reused}");
+        assert_eq!(reused["error"]["code"], "QUALITY_ATTACHMENT_INVALID");
+
+        let unsupported = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/evidence-hold/inspect",
+                &p,
+                true,
+                Some("quality-command-evidence-set"),
+                Some(
+                    r#"{"expectedVersion":2,"result":"fail","evidence":"Set evidence remains retained.","attachmentSetIds":["evidence-set"]}"#,
+                ),
+            ))
+            .await
+            .unwrap();
+        let status = unsupported.status();
+        let unsupported = json(unsupported).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{unsupported}");
+        assert_eq!(
+            unsupported["error"]["code"],
+            "QUALITY_ATTACHMENT_SET_UNSUPPORTED"
+        );
+
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+            "INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,status,created_by,created_at,updated_at,quantity_scope,version) \
+             VALUES('evidence-pass-hold','company','branch','warehouse','product','Inspect released packaging','2026-11-10','held','fixture-a',{now},{now},'whole',1)"
+        )))
+        .execute(db)
+        .await
+        .unwrap();
+        let passed = app
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/evidence-pass-hold/inspect",
+                &p,
+                true,
+                Some("quality-command-evidence-pass"),
+                Some(
+                    r#"{"expectedVersion":1,"result":"pass","evidence":"Packaging passes independent inspection."}"#,
+                ),
+            ))
+            .await
+            .unwrap();
+        let status = passed.status();
+        let passed = json(passed).await;
+        assert_eq!(status, StatusCode::OK, "{passed}");
+        assert_eq!(passed["data"]["status"], "awaiting_release");
+        let handoff: (i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM staff_notifications WHERE id='quality-command-evidence-pass-fixture-manager'),\
+                    (SELECT count(*) FROM staff_notifications WHERE id='quality-command-evidence-pass-fixture-b'),\
+                    (SELECT count(*) FROM staff_notifications WHERE id='quality-command-evidence-pass-fixture-a')",
+        )
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(handoff, (1, 0, 0));
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn quality_specification_and_inspection_commands_are_native_and_replayable() {
     review::account::with_system(|system| async move {
         let p = review::setup_with_finance(system, false).await;

@@ -16,6 +16,7 @@ sha2.workspace = true
 url.workspace = true
 erpx-server-shared.workspace = true
 erpx-server-runtime.workspace = true
+erpx-server-files.workspace = true
 sqlx.workspace = true
 serde_json.workspace = true
 

@@ -20,6 +20,26 @@ pub enum QualityRecipientStatus {
     CancellationPending,
     Cancelled,
 }
+/// Post-inspection recipient request for the native Quality handoff. The
+/// inspection result creates either a held or an awaiting-release row; the
+/// latter requires `quality.release` and excludes the last inspector.
+#[derive(Clone)]
+pub struct QualityInspectionRecipientRequest {
+    pub company_id: CompanyId,
+    pub branch_id: RecordId,
+    pub creator: String,
+    pub last_inspector: Option<String>,
+    pub status: QualityInspectionRecipientStatus,
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum QualityInspectionRecipientStatus {
+    Held,
+    AwaitingRelease,
+}
+enum RecipientQuery {
+    Cancellation(QualityRecipientRequest),
+    Inspection(QualityInspectionRecipientRequest),
+}
 pub struct QualityRecipientLockPreparation<'a> {
     connection: &'a mut PgConnection,
 }
@@ -58,7 +78,7 @@ pub async fn lock_quality_recipient_sources(
     Ok(QualityRecipientLockPreparation { connection: c })
 }
 pub struct CurrentQualityRecipients {
-    request: QualityRecipientRequest,
+    request: RecipientQuery,
     recipients: Vec<String>,
     unit: Unit,
 }
@@ -161,14 +181,58 @@ pub async fn inspect_quality_recipients(
     if unit != locks.unit {
         return Err(invalid());
     }
-    let recipients = read(c, &request).await?;
+    let query = RecipientQuery::Cancellation(request);
+    let recipients = read(c, &query).await?;
     Ok(CurrentQualityRecipients {
-        request,
+        request: query,
         recipients,
         unit,
     })
 }
-async fn read(c: &mut PgConnection, r: &QualityRecipientRequest) -> Result<Vec<String>, Error> {
+/// Current post-inspection recipients from the real Identity source. The
+/// caller must retain the actual held/awaiting-release Quality row and pass its
+/// creator and last inspector from that after-image.
+pub async fn inspect_quality_inspection_recipients(
+    c: &mut PgConnection,
+    locks: &QualityRecipientSourceLocks,
+    request: QualityInspectionRecipientRequest,
+) -> Result<CurrentQualityRecipients, Error> {
+    let inspector_valid = request
+        .last_inspector
+        .as_ref()
+        .is_none_or(|value| !value.is_empty() && value.len() <= 1024);
+    if request.creator.is_empty()
+        || request.creator.len() > 1024
+        || !inspector_valid
+        || (matches!(
+            request.status,
+            QualityInspectionRecipientStatus::AwaitingRelease
+        ) && request.last_inspector.is_none())
+    {
+        return Err(invalid());
+    }
+    let unit = unit(c).await?;
+    if unit != locks.unit {
+        return Err(invalid());
+    }
+    let query = RecipientQuery::Inspection(request);
+    let recipients = read(c, &query).await?;
+    Ok(CurrentQualityRecipients {
+        request: query,
+        recipients,
+        unit,
+    })
+}
+async fn read(c: &mut PgConnection, query: &RecipientQuery) -> Result<Vec<String>, Error> {
+    match query {
+        RecipientQuery::Cancellation(request) => read_cancellation(c, request).await,
+        RecipientQuery::Inspection(request) => read_inspection(c, request).await,
+    }
+}
+async fn read_cancellation(
+    c: &mut PgConnection,
+    r: &QualityRecipientRequest,
+) -> Result<Vec<String>, Error> {
     let (permission, terminal) = match r.status {
         QualityRecipientStatus::Held => ("quality.inspect", false),
         QualityRecipientStatus::CancellationPending => ("quality.release", false),
@@ -177,6 +241,18 @@ async fn read(c: &mut PgConnection, r: &QualityRecipientRequest) -> Result<Vec<S
     let pending = matches!(r.status, QualityRecipientStatus::CancellationPending);
     let rows:Vec<String>=sqlx::query_scalar("SELECT DISTINCT a.user_id FROM assignments a WHERE a.company_id=$1 AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=$2)) AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(a.role,a.company_id,$3) AND (($4::boolean AND a.user_id=$5) OR (NOT $4::boolean AND NOT iam_same_person(a.user_id,$5,a.company_id) AND (NOT $6::boolean OR NOT iam_same_person(a.user_id,$7,a.company_id)))) ORDER BY a.user_id")
         .bind(r.company_id.as_str()).bind(r.branch_id.as_str()).bind(permission).bind(terminal).bind(&r.creator).bind(pending).bind(r.cancellation_requester.as_deref()).fetch_all(c).await?;
+    Ok(rows)
+}
+async fn read_inspection(
+    c: &mut PgConnection,
+    r: &QualityInspectionRecipientRequest,
+) -> Result<Vec<String>, Error> {
+    let (permission, awaiting) = match r.status {
+        QualityInspectionRecipientStatus::Held => ("quality.inspect", false),
+        QualityInspectionRecipientStatus::AwaitingRelease => ("quality.release", true),
+    };
+    let rows:Vec<String>=sqlx::query_scalar("SELECT DISTINCT a.user_id FROM assignments a WHERE a.company_id=$1 AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=$2)) AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(a.role,a.company_id,$3) AND NOT iam_same_person(a.user_id,$4,a.company_id) AND (NOT $5::boolean OR NOT iam_same_person(a.user_id,$6,a.company_id)) ORDER BY a.user_id")
+        .bind(r.company_id.as_str()).bind(r.branch_id.as_str()).bind(permission).bind(&r.creator).bind(awaiting).bind(r.last_inspector.as_deref()).fetch_all(c).await?;
     Ok(rows)
 }
 async fn unit(c: &mut PgConnection) -> Result<Unit, Error> {

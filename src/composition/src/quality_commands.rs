@@ -3,6 +3,10 @@
 //! The selected Account/Holding context, current IAM permission, Commercial
 //! purchase admission, Commerce master witness, owner effects and Workflow
 //! receipt/audit/outbox share the same serializable Holding unit.
+use erpx_server_collaboration::public::quality_notification::{
+    PgQualityNotificationSource, QualityNotificationFacts, RetainedQualityNotifications,
+    lock_quality_notifications, stage_quality_notifications,
+};
 use erpx_server_commerce::public::quality_masters::{
     CurrentQualityMasters, QualityMasterRequest, inspect_quality_masters, lock_quality_masters,
 };
@@ -13,15 +17,19 @@ use erpx_server_commercial::public::purchases::{
 use erpx_server_identity_access::public::effective_authority::{
     AuthorizedWorkContext, HoldingWorkSourcePreparation,
 };
+use erpx_server_identity_access::public::quality_recipients::{
+    CurrentQualityRecipients, QualityInspectionRecipientRequest, QualityInspectionRecipientStatus,
+    inspect_quality_inspection_recipients, lock_quality_recipient_sources,
+};
 use erpx_server_quality::public::quality_commands::{
-    PreparedQualityInspection, PreparedQualitySpecSave, PreparedQualitySpecTransition,
+    HoldStatus, PreparedQualityInspection, PreparedQualitySpecSave, PreparedQualitySpecTransition,
     QualityInspectionCommand, QualitySpecAction, QualitySpecActionCommand, QualitySpecCommand,
     lock_quality_command_sources, prepare_quality_inspection, prepare_quality_spec_save,
     prepare_quality_spec_transition,
 };
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
-    BusinessError, Clock, CommandKey, FailureKind, IdentifierSource, RecordId,
+    BusinessError, Clock, CommandKey, CompanyId, FailureKind, IdentifierSource, RecordId,
 };
 use erpx_server_workflow::public::commands::{
     CommandActor, CommandDisposition, CommandJson, CommandOutcome, PgCommandAuthority,
@@ -63,14 +71,30 @@ fn product_invalid() -> BusinessError {
 }
 
 /// Utility-only locks acquired before the first Holding snapshot.
-#[derive(Clone)]
-pub struct QualityCommandPreparation;
+#[derive(Clone, Copy)]
+pub struct QualityCommandPreparation {
+    notifications: bool,
+}
+
+impl QualityCommandPreparation {
+    pub const fn new(notifications: bool) -> Self {
+        Self { notifications }
+    }
+}
+
 impl HoldingWorkSourcePreparation for QualityCommandPreparation {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
             lock_commercial_authority_sources(c).await?;
             lock_quality_masters(c).await?;
             lock_quality_command_sources(c).await?;
+            if self.notifications {
+                erpx_server_files::public::quality_inspection_evidence::lock_quality_inspection_evidence_sources(c)
+                    .await?;
+                let mut recipients = lock_quality_recipient_sources(c).await?;
+                lock_quality_notifications(recipients.connection()).await?;
+                recipients.bind().await?;
+            }
             Ok(())
         })
     }
@@ -341,7 +365,56 @@ enum Written {
         master: CurrentQualityMasters,
     },
     Transition(PreparedQualitySpecTransition),
-    Inspection(PreparedQualityInspection),
+    Inspection {
+        prepared: PreparedQualityInspection,
+        recipients: CurrentQualityRecipients,
+        retained: RetainedQualityNotifications,
+    },
+}
+
+/// Collaboration-owned notice source joined to the actual saved Quality
+/// after-image and current Identity recipient witness.
+struct InspectionNotificationSource<'a> {
+    prepared: &'a PreparedQualityInspection,
+    recipients: &'a CurrentQualityRecipients,
+    facts: QualityNotificationFacts,
+}
+
+impl PgQualityNotificationSource for InspectionNotificationSource<'_> {
+    fn facts(&self) -> &QualityNotificationFacts {
+        &self.facts
+    }
+
+    async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        self.prepared.require_after(c).await?;
+        self.recipients.require_current(c).await?;
+        let hold = self.prepared.hold();
+        if self.facts.company_id != hold.company_id
+            || self.facts.hold_id != hold.id
+            || self.facts.version != hold.version
+            || self.facts.updated_at != hold.updated_at
+            || self.facts.recipients != self.recipients.recipients()
+        {
+            return Err(changed().into());
+        }
+        Ok(())
+    }
+}
+
+fn inspection_notification_facts(
+    command: &QualityInspectionCommand,
+    prepared: &PreparedQualityInspection,
+    recipients: &CurrentQualityRecipients,
+) -> QualityNotificationFacts {
+    let hold = prepared.hold();
+    QualityNotificationFacts {
+        command_key: command.key.as_str().to_owned(),
+        company_id: hold.company_id.clone(),
+        hold_id: hold.id.clone(),
+        version: hold.version,
+        updated_at: hold.updated_at,
+        recipients: recipients.recipients().to_vec(),
+    }
 }
 
 struct Effects<'a, W> {
@@ -372,7 +445,9 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W> {
         c: &mut PgConnection,
         _: &WorkflowRequest,
     ) -> Result<(), Error> {
-        QualityCommandPreparation.prepare(c).await
+        QualityCommandPreparation::new(matches!(self.command, QualityOwnerCommand::Inspect(_)))
+            .prepare(c)
+            .await
     }
 
     async fn prepare(
@@ -481,7 +556,43 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W> {
             }
             Prepared::Inspection(prepared) => {
                 prepared.apply(c).await?;
-                self.written = Some(Written::Inspection(prepared));
+                let QualityOwnerCommand::Inspect(command) = self.command else {
+                    return Err(changed().into());
+                };
+                let hold = prepared.hold();
+                let recipient_status = match hold.status {
+                    HoldStatus::Held => QualityInspectionRecipientStatus::Held,
+                    HoldStatus::AwaitingRelease => {
+                        QualityInspectionRecipientStatus::AwaitingRelease
+                    }
+                    _ => return Err(changed().into()),
+                };
+                let mut preparation = lock_quality_recipient_sources(c).await?;
+                let locks = preparation.bind().await?;
+                let recipients = inspect_quality_inspection_recipients(
+                    c,
+                    &locks,
+                    QualityInspectionRecipientRequest {
+                        company_id: CompanyId::new(hold.company_id.clone())?,
+                        branch_id: RecordId::new(hold.branch_id.clone())?,
+                        creator: hold.created_by.clone(),
+                        last_inspector: hold.last_inspector.clone(),
+                        status: recipient_status,
+                    },
+                )
+                .await?;
+                let facts = inspection_notification_facts(command, &prepared, &recipients);
+                let source = InspectionNotificationSource {
+                    prepared: &prepared,
+                    recipients: &recipients,
+                    facts,
+                };
+                let retained = stage_quality_notifications(c, &source).await?;
+                self.written = Some(Written::Inspection {
+                    prepared,
+                    recipients,
+                    retained,
+                });
             }
         }
         Ok(())
@@ -502,7 +613,22 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W> {
                 master.require_current(c).await?;
             }
             Written::Transition(prepared) => prepared.require_after(c).await?,
-            Written::Inspection(prepared) => prepared.require_after(c).await?,
+            Written::Inspection {
+                prepared,
+                recipients,
+                retained,
+            } => {
+                prepared.require_after(c).await?;
+                let QualityOwnerCommand::Inspect(command) = self.command else {
+                    return Err(changed().into());
+                };
+                let source = InspectionNotificationSource {
+                    prepared,
+                    recipients,
+                    facts: inspection_notification_facts(command, prepared, recipients),
+                };
+                retained.require_current(c, &source).await?;
+            }
         }
         Ok(())
     }
