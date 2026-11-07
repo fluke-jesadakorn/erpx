@@ -288,6 +288,103 @@ async fn count(pool: &DatabasePool, table: &str) -> i64 {
 }
 
 #[tokio::test]
+async fn legal_executed_copy_review_is_native_and_replayable() {
+    fixture::with_database(5, |pool| async move {
+        setup(&pool).await;
+        sqlx::raw_sql(
+            "UPDATE legal_items SET state='approved' WHERE id='contract-1';\
+             UPDATE legal_documents SET locked=true WHERE id='contract-1-v1';\
+             INSERT INTO legal_documents(id,item_id,version,name,media_type,checksum,bytes,body,locked,created_by,created_at) \
+             VALUES('contract-1-v2','contract-1',2,'Signed agreement','application/pdf',repeat('b',64),11,'Signed text',false,'importer-user',0);\
+             INSERT INTO legal_approvals(item_id,cycle,document_id,document_hash,signers,reviewer_id,decision,created_at) \
+             VALUES('contract-1',1,'contract-1-v1',repeat('a',64),'[]'::jsonb,'approver-user','approved',0);\
+             INSERT INTO legal_members(item_id,user_id,access) VALUES('contract-1','reviewer-user','edit');\
+             INSERT INTO legal_executed_copies(id,item_id,document_id,approved_cycle,approved_document_id,approved_hash,executed_hash,metadata,state,imported_by,imported_at,version) \
+             VALUES('copy-1','contract-1','contract-1-v2',1,'contract-1-v1',repeat('a',64),repeat('b',64),'{\"approvedDocumentId\":\"contract-1-v1\",\"signedDate\":\"2026-11-08\",\"parties\":[\"Acme\",\"Customer\"],\"signers\":[{\"name\":\"A\",\"party\":\"Acme\",\"authorityDocumentIds\":[\"contract-1-v1\"]}],\"declaredPageCount\":1,\"notes\":\"\"}'::jsonb,'pending_review','importer-user',0,1)",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let identity = Arc::new(Identity::default());
+        let notifier = Arc::new(Notifier { fail: false });
+        let reviewer = LegalRecordsActor {
+            user_id: UserId::new("reviewer-user").unwrap(),
+            ..actor("legal_manager", &["legal.read", "legal.approve"])
+        };
+        let checks = serde_json::json!({
+            "contentMatches":true,
+            "pagesComplete":true,
+            "partiesVerified":true,
+            "signaturesComplete":true,
+            "authorityVerified":true
+        });
+        let raw = serde_json::json!({
+            "action":"executed.review",
+            "id":"contract-1",
+            "expectedVersion":1,
+            "executedCopyId":"copy-1",
+            "decision":"confirm",
+            "checks":checks,
+            "reason":"All pages and signatures match the approved draft."
+        });
+        let result = command(
+            &pool,
+            &reviewer,
+            &key("legal-executed-review-0001"),
+            &raw,
+            notifier.clone(),
+            identity.clone(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result["version"], 2);
+        assert_eq!(result["state"], "executed");
+        assert_eq!(result["executedCopyId"], "copy-1");
+        assert_eq!(result["executedCopyState"], "confirmed");
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT state FROM legal_executed_copies WHERE id='copy-1'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            "confirmed"
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT decision FROM legal_executed_reviews WHERE executed_copy_id='copy-1'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            "confirm"
+        );
+        let replay = command(
+            &pool,
+            &reviewer,
+            &key("legal-executed-review-0001"),
+            &raw,
+            notifier,
+            identity,
+        )
+        .await
+        .unwrap();
+        assert_eq!(replay, result);
+        assert_eq!(count(&pool, "legal_executed_reviews").await, 1);
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT count(*) FROM command_receipts WHERE record_id='contract-1' AND operation='legal.executed.review'"
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            1
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn legal_access_share_and_membership_are_native_and_replayable() {
     fixture::with_database(4, |pool| async move {
         setup(&pool).await;

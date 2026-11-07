@@ -414,6 +414,149 @@ impl<'c> PgLegalRecords<'c> {
                     .await?;
                 }
             }
+            LegalCommandEffect::ExecutedReview {
+                review_id,
+                executed_copy_id,
+                decision,
+                checks,
+                reason,
+            } => {
+                let row = sqlx::query(
+                    "SELECT e.state,e.imported_by,e.approved_cycle::bigint approved_cycle,e.approved_hash,e.executed_hash,\
+                            i.kind,i.state item_state,\
+                            d.created_by document_author,d.checksum document_checksum,\
+                            p.created_by approved_author,p.checksum approved_checksum,p.locked \
+                     FROM legal_executed_copies e \
+                     JOIN legal_items i ON i.id=e.item_id AND i.company_id=$3 \
+                     JOIN legal_documents d ON d.id=e.document_id \
+                     JOIN legal_documents p ON p.id=e.approved_document_id \
+                     WHERE e.id=$1 AND e.item_id=$2",
+                )
+                .bind(executed_copy_id)
+                .bind(&plan.item_id)
+                .bind(actor.company_id.as_str())
+                .fetch_optional(&mut *self.connection)
+                .await?
+                .ok_or_else(|| {
+                    BusinessError::new(
+                        FailureKind::NotFound,
+                        "LEGAL_NOT_FOUND",
+                        "Executed copy unavailable in your current scope.",
+                    )
+                })?;
+                let state: String = row.try_get("state")?;
+                let imported_by: String = row.try_get("imported_by")?;
+                let kind: String = row.try_get("kind")?;
+                let item_state: String = row.try_get("item_state")?;
+                let document_author: String = row.try_get("document_author")?;
+                let approved_author: String = row.try_get("approved_author")?;
+                let document_checksum: String = row.try_get("document_checksum")?;
+                let approved_checksum: String = row.try_get("approved_checksum")?;
+                let approved_hash: String = row.try_get("approved_hash")?;
+                let executed_hash: String = row.try_get("executed_hash")?;
+                let locked: bool = row.try_get("locked")?;
+                let approved_cycle: i64 = row.try_get("approved_cycle")?;
+                if state == "confirmed"
+                    || kind != "contract"
+                    || !matches!(item_state.as_str(), "approved" | "executed" | "active")
+                    || !locked
+                    || approved_checksum != approved_hash
+                    || document_checksum != executed_hash
+                {
+                    return Err(BusinessError::new(
+                        FailureKind::Conflict,
+                        "LEGAL_EXECUTED_STATE",
+                        "Import a new revision to correct a confirmed copy.",
+                    )
+                    .into());
+                }
+                let current_cycle: Option<i64> = sqlx::query_scalar(
+                    "SELECT cycle::bigint FROM legal_approvals WHERE item_id=$1 AND decision='approved' ORDER BY cycle DESC LIMIT 1",
+                )
+                .bind(&plan.item_id)
+                .fetch_optional(&mut *self.connection)
+                .await?;
+                if current_cycle != Some(approved_cycle) {
+                    return Err(BusinessError::new(
+                        FailureKind::Conflict,
+                        "LEGAL_APPROVAL_STALE",
+                        "The approved version changed. Import against the current approval.",
+                    )
+                    .into());
+                }
+                let member: bool = sqlx::query_scalar(
+                    "SELECT EXISTS(SELECT 1 FROM legal_members WHERE item_id=$1 AND user_id=$2)",
+                )
+                .bind(&plan.item_id)
+                .bind(actor.user_id.as_str())
+                .fetch_one(&mut *self.connection)
+                .await?;
+                if !member {
+                    return Err(BusinessError::new(
+                        FailureKind::Forbidden,
+                        "LEGAL_REVIEWER_UNAVAILABLE",
+                        "The reviewer needs explicit contract membership.",
+                    )
+                    .into());
+                }
+                for author in [
+                    imported_by.as_str(),
+                    document_author.as_str(),
+                    approved_author.as_str(),
+                ] {
+                    if self
+                        .same_person(actor.user_id.as_str(), author, &actor.company_id)
+                        .await?
+                    {
+                        return Err(BusinessError::new(
+                            FailureKind::Forbidden,
+                            "LEGAL_INDEPENDENT_REVIEW",
+                            "An independent reviewer must inspect the signed original.",
+                        )
+                        .into());
+                    }
+                }
+                let confirmed = decision == "confirm";
+                sqlx::query(
+                    "INSERT INTO legal_executed_reviews(id,executed_copy_id,item_version,decision,checks,reason,reviewer_id,created_at) \
+                     VALUES($1,$2,$3,$4,$5::jsonb,$6,$7,$8)",
+                )
+                .bind(review_id)
+                .bind(executed_copy_id)
+                .bind(i32_version(plan.expected_version)?)
+                .bind(decision)
+                .bind(checks.to_string())
+                .bind(reason)
+                .bind(actor.user_id.as_str())
+                .bind(self.now)
+                .execute(&mut *self.connection)
+                .await?;
+                let changed = sqlx::query(
+                    "UPDATE legal_executed_copies \
+                     SET state=$1,reviewed_by=$2,reviewed_at=$3,version=version+1 \
+                     WHERE id=$4 AND item_id=$5 AND state<>'confirmed'",
+                )
+                .bind(if confirmed { "confirmed" } else { "changes_required" })
+                .bind(if confirmed {
+                    Some(actor.user_id.as_str())
+                } else {
+                    None
+                })
+                .bind(if confirmed { Some(self.now) } else { None })
+                .bind(executed_copy_id)
+                .bind(&plan.item_id)
+                .execute(&mut *self.connection)
+                .await?
+                .rows_affected();
+                if changed != 1 {
+                    return Err(BusinessError::new(
+                        FailureKind::Conflict,
+                        "LEGAL_EXECUTED_STATE",
+                        "The executed copy changed. Reload before reviewing.",
+                    )
+                    .into());
+                }
+            }
             LegalCommandEffect::Archive { .. } => {}
         }
         Ok(())

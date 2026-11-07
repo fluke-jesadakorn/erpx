@@ -347,6 +347,12 @@ pub enum LegalCommand {
     Share { document_id: String, email: String, expires_at: i64 },
     RevokeShare { share_id: String },
     SetMember { user_id: String, access: String },
+    ExecutedReview {
+        executed_copy_id: String,
+        decision: String,
+        checks: Value,
+        reason: String,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -359,6 +365,10 @@ pub struct LegalCommandResult {
     pub document_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hold_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub executed_copy_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub executed_copy_state: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -396,6 +406,13 @@ pub enum LegalCommandEffect {
     SetMember {
         user_id: String,
         access: String,
+    },
+    ExecutedReview {
+        review_id: String,
+        executed_copy_id: String,
+        decision: String,
+        checks: Value,
+        reason: String,
     },
 }
 
@@ -460,6 +477,7 @@ pub fn parse_envelope(raw: &Value) -> Result<LegalCommandEnvelope, BusinessError
             | "share"
             | "share.revoke"
             | "member"
+            | "executed.review"
     ) {
         return Err(invalid(
             "LEGAL_ACTION_UNSUPPORTED",
@@ -503,6 +521,7 @@ pub fn command_permission(action: &str) -> Result<&'static str, BusinessError> {
         "hold.create" | "hold.request-release" => Ok("legal.hold"),
         "hold.release" => Ok("legal.hold.release"),
         "share" | "share.revoke" | "member" => Ok("legal.share"),
+        "executed.review" => Ok("legal.approve"),
         _ => Err(invalid(
             "LEGAL_ACTION_UNSUPPORTED",
             "This Legal action is not available through the native record command.",
@@ -618,6 +637,51 @@ pub fn parse_command(
                 access: access.to_owned(),
             })
         }
+        "executed.review" => {
+            let executed_copy_id = object
+                .get("executedCopyId")
+                .and_then(Value::as_str)
+                .ok_or_else(|| invalid("LEGAL_EXECUTED_REQUIRED", "Choose a signed original under review."))?;
+            if executed_copy_id.is_empty()
+                || executed_copy_id.len() > 200
+                || executed_copy_id.chars().any(char::is_control)
+            {
+                return Err(invalid("LEGAL_EXECUTED_REQUIRED", "Choose a signed original under review."));
+            }
+            let decision = object
+                .get("decision")
+                .and_then(Value::as_str)
+                .ok_or_else(|| invalid("LEGAL_DECISION_REQUIRED", "Choose confirm or changes requested."))?;
+            if !matches!(decision, "confirm" | "changes_required") {
+                return Err(invalid("LEGAL_DECISION_REQUIRED", "Choose confirm or changes requested."));
+            }
+            let checks = object
+                .get("checks")
+                .ok_or_else(|| invalid("LEGAL_CHECKS_REQUIRED", "Record every executed-copy review check."))?;
+            let Some(checks_object) = checks.as_object() else {
+                return Err(invalid("LEGAL_CHECKS_REQUIRED", "Record every executed-copy review check."));
+            };
+            let keys = ["contentMatches","pagesComplete","partiesVerified","signaturesComplete","authorityVerified"];
+            if checks_object.len() != keys.len()
+                || keys.iter().any(|key| !checks_object.get(*key).is_some_and(Value::is_boolean))
+            {
+                return Err(invalid("LEGAL_CHECKS_REQUIRED", "Record every executed-copy review check."));
+            }
+            let reason = object
+                .get("reason")
+                .and_then(Value::as_str)
+                .map(js_trim)
+                .ok_or_else(|| invalid("LEGAL_REASON_REQUIRED", "Record the executed-copy review reason."))?;
+            if cp_len(reason) < 10 || cp_len(reason) > 4000 {
+                return Err(invalid("LEGAL_REASON_REQUIRED", "Record an executed-copy review reason between 10 and 4000 characters."));
+            }
+            Ok(LegalCommand::ExecutedReview {
+                executed_copy_id: executed_copy_id.to_owned(),
+                decision: decision.to_owned(),
+                checks: checks.clone(),
+                reason: reason.to_owned(),
+            })
+        }
         _ => unreachable!("the envelope rejects unsupported actions"),
     }
 }
@@ -667,6 +731,7 @@ pub fn plan_command(
         LegalCommand::Share { .. } => "share",
         LegalCommand::RevokeShare { .. } => "share.revoke",
         LegalCommand::SetMember { .. } => "member",
+        LegalCommand::ExecutedReview { .. } => "executed.review",
     })?;
     require(actor, permission)?;
     if actor.is_requester() && !matches!(command, LegalCommand::AddDocument { .. }) {
@@ -880,6 +945,47 @@ pub fn plan_command(
                 item.state.clone(),
             )
         }
+        LegalCommand::ExecutedReview {
+            executed_copy_id,
+            decision,
+            checks,
+            reason,
+        } => {
+            if decision == "confirm"
+                && checks
+                    .as_object()
+                    .is_some_and(|checks| checks.values().any(|value| value != &Value::Bool(true)))
+            {
+                return Err(BusinessError::new(
+                    FailureKind::Conflict,
+                    "LEGAL_EXECUTED_INCOMPLETE",
+                    "Confirm content, complete pages, parties, signatures and authority before accepting an executed copy.",
+                ));
+            }
+            let state = if decision == "confirm" && item.state == "approved" {
+                "executed".to_owned()
+            } else {
+                item.state.clone()
+            };
+            (
+                if decision == "confirm" {
+                    "executed.confirm".to_owned()
+                } else {
+                    "executed.changes_required".to_owned()
+                },
+                reason.clone(),
+                LegalCommandEffect::ExecutedReview {
+                    review_id: derived_id("legal-executed-review", key),
+                    executed_copy_id: executed_copy_id.clone(),
+                    decision: decision.clone(),
+                    checks: checks.clone(),
+                    reason: reason.clone(),
+                },
+                None,
+                None,
+                state,
+            )
+        }
     };
     let next_version = envelope.expected_version.checked_add(1).ok_or_else(|| {
         invalid(
@@ -893,7 +999,10 @@ pub fn plan_command(
         next_version,
         new_state,
         action: action.clone(),
-        operation: format!("legal.{action}"),
+        operation: match command {
+            LegalCommand::ExecutedReview { .. } => "legal.executed.review".to_owned(),
+            _ => format!("legal.{action}"),
+        },
         note,
         effect,
         result: LegalCommandResult {
@@ -902,6 +1011,16 @@ pub fn plan_command(
             state: result_state(command, item),
             document_id: result_document,
             hold_id: result_hold,
+            executed_copy_id: match command {
+                LegalCommand::ExecutedReview { executed_copy_id, .. } => Some(executed_copy_id.clone()),
+                _ => None,
+            },
+            executed_copy_state: match command {
+                LegalCommand::ExecutedReview { decision, .. } => Some(
+                    if decision == "confirm" { "confirmed" } else { "changes_required" }.to_owned(),
+                ),
+                _ => None,
+            },
         },
     })
 }
@@ -912,6 +1031,13 @@ fn result_state(command: &LegalCommand, item: &LegalRecord) -> String {
         LegalCommand::Share { .. }
         | LegalCommand::RevokeShare { .. }
         | LegalCommand::SetMember { .. } => item.state.clone(),
+        LegalCommand::ExecutedReview { decision, .. } => {
+            if decision == "confirm" && item.state == "approved" {
+                "executed".to_owned()
+            } else {
+                item.state.clone()
+            }
+        }
         _ => item.state.clone(),
     }
 }
@@ -1057,6 +1183,50 @@ mod tests {
             documents: Vec::new(),
             next_document_version: 2,
         }
+    }
+
+    #[test]
+    fn executed_review_requires_every_check_and_updates_the_contract_state() {
+        let checks = json!({"contentMatches":true,"pagesComplete":true,"partiesVerified":true,"signaturesComplete":true,"authorityVerified":true});
+        let raw = json!({"action":"executed.review","id":"item","expectedVersion":1,"executedCopyId":"copy-1","decision":"confirm","checks":checks,"reason":"All pages and signatures match the approved draft."});
+        let envelope = parse_envelope(&raw).unwrap();
+        let command = parse_command(&raw, &envelope).unwrap();
+        let plan = plan_command(
+            &actor("legal_manager", &["legal.read", "legal.approve"]),
+            &source("approved"),
+            &envelope,
+            &command,
+            "legal-executed-review-0001",
+        )
+        .unwrap();
+        assert_eq!(plan.action, "executed.confirm");
+        assert_eq!(plan.new_state, "executed");
+        assert_eq!(plan.result.executed_copy_id.as_deref(), Some("copy-1"));
+        assert_eq!(plan.result.executed_copy_state.as_deref(), Some("confirmed"));
+        assert_eq!(
+            plan.effect,
+            LegalCommandEffect::ExecutedReview {
+                review_id: derived_id("legal-executed-review", "legal-executed-review-0001"),
+                executed_copy_id: "copy-1".into(),
+                decision: "confirm".into(),
+                checks: checks.clone(),
+                reason: "All pages and signatures match the approved draft.".into(),
+            }
+        );
+        let incomplete = json!({"action":"executed.review","id":"item","expectedVersion":1,"executedCopyId":"copy-1","decision":"confirm","checks":{"contentMatches":true,"pagesComplete":true,"partiesVerified":true,"signaturesComplete":true,"authorityVerified":false},"reason":"All pages and signatures match the approved draft."});
+        let incomplete_envelope = parse_envelope(&incomplete).unwrap();
+        assert_eq!(
+            plan_command(
+                &actor("legal_manager", &["legal.read", "legal.approve"]),
+                &source("approved"),
+                &incomplete_envelope,
+                &parse_command(&incomplete, &incomplete_envelope).unwrap(),
+                "legal-executed-review-0002",
+            )
+            .unwrap_err()
+            .code,
+            "LEGAL_EXECUTED_INCOMPLETE"
+        );
     }
 
     #[test]

@@ -128,6 +128,7 @@ const COMMANDS = new Set([
   'share',
   'share.revoke',
   'member',
+  'executed.review',
 ]);
 
 export function nativeLegalCommandSelected(body: unknown): boolean {
