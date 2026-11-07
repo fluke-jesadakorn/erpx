@@ -8,8 +8,12 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
+use erpx_server_files::public::quality_inspection_evidence::{
+    inspect_quality_inspection_evidence_sets, lock_quality_inspection_evidence_sources,
+};
 use erpx_server_quality::public::quality_http::{QualityHttpTarget, quality_router};
-use erpx_server_shared::public::{Clock, CompanyId, HoldingId};
+use erpx_server_runtime::public::postgres::PgTransactionError;
+use erpx_server_shared::public::{Clock, CompanyId, HoldingId, RecordId};
 use erpx_service::field_service_reservation_read_http::FieldServiceReadScopeHeaders;
 use erpx_service::quality::{QualityBackend, QualityConfiguration, QualityService};
 use std::sync::Arc;
@@ -266,26 +270,214 @@ async fn quality_inspection_attachment_evidence_and_staff_handoff_are_native() {
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{reused}");
         assert_eq!(reused["error"]["code"], "QUALITY_ATTACHMENT_INVALID");
 
-        let unsupported = app
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+            "INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,status,created_by,created_at,updated_at,quantity_scope,version) \
+             VALUES('evidence-set-hold','company','branch','warehouse','product','Inspect set evidence','2026-11-10','held','fixture-a',{now},{now},'whole',1);\
+             INSERT INTO attachment_sets(id,company_id,branch_id,target_type,target_id,component_kind,component_ref,purpose_key,expected_target_version,policy_version,classification,audience_json,required_count,max_files,state,created_by,created_at,updated_at) \
+             VALUES('evidence-set','company','branch','quality_hold','evidence-set-hold','action','inspection','quality_inspection_evidence',1,1,'internal','{{}}',0,10,'draft','fixture-b',{now},{now});\
+             INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,actual_bytes,checksum_sha256,staging_key,final_key,status,created_by,expires_at,created_at,updated_at,owner_version,company_id,detected_media_type,attachment_set_id) \
+             VALUES('set-upload-a','quality_hold','evidence-set-hold','quality_inspection_evidence','set-a.pdf','application/pdf',12,12,repeat('a',64),'set-a/staging','set-a/object','ready','fixture-b',{expires},{now},{now},1,'company','application/pdf','evidence-set'),\
+                   ('set-upload-b','quality_hold','evidence-set-hold','quality_inspection_evidence','set-b.pdf','application/pdf',12,12,repeat('b',64),'set-b/staging','set-b/object','ready','fixture-b',{expires},{now},{now},1,'company','application/pdf','evidence-set');\
+             INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at,company_id,detected_media_type,source_state,scanned_at,scanner_definition_at) \
+             VALUES('set-file-a','set-upload-a','quality_hold','evidence-set-hold','quality_inspection_evidence','set-a/object',1,'set-a.pdf','application/pdf',12,repeat('a',64),'fixture-b',{now},'company','application/pdf','available',{now},{now}),\
+                   ('set-file-b','set-upload-b','quality_hold','evidence-set-hold','quality_inspection_evidence','set-b/object',1,'set-b.pdf','application/pdf',12,repeat('b',64),'fixture-b',{now},'company','application/pdf','available',{now},{now});\
+             INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) \
+             VALUES('set-link-a','evidence-set','set-file-a','draft','fixture-b',{now_two},{expires}),\
+                   ('set-link-b','evidence-set','set-file-b','draft','fixture-b',{now_one},{expires})",
+            now_two = now + 2,
+            now_one = now + 1
+        )))
+        .execute(db)
+        .await
+        .unwrap();
+        let set_key = "quality-command-evidence-set";
+        let set_body = r#"{"expectedVersion":1,"result":"fail","evidence":"Scanned set evidence is torn across the seal.","attachmentSetIds":["evidence-set"]}"#;
+        let inspected = app
             .clone()
             .oneshot(request(
                 "POST",
-                "/api/v1/holdings/acme/quality/evidence-hold/inspect",
+                "/api/v1/holdings/acme/quality/evidence-set-hold/inspect",
                 &p,
                 true,
-                Some("quality-command-evidence-set"),
+                Some(set_key),
+                Some(set_body),
+            ))
+            .await
+            .unwrap();
+        let status = inspected.status();
+        let inspected = json(inspected).await;
+        assert_eq!(status, StatusCode::OK, "{inspected}");
+        assert_eq!(inspected["data"]["version"], 2);
+        let set_refs: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT attachment_id,ordinal FROM inventory_quality_inspection_attachments WHERE inspection_id=$1 ORDER BY ordinal",
+        )
+        .bind(format!("inspection-{set_key}"))
+        .fetch_all(db)
+        .await
+        .unwrap();
+        assert_eq!(
+            set_refs,
+            vec![("set-file-b".into(), 0), ("set-file-a".into(), 1)],
+            "stable set membership order"
+        );
+        let set_state: String =
+            sqlx::query_scalar("SELECT state FROM attachment_sets WHERE id='evidence-set'")
+                .fetch_one(db)
+                .await
+                .unwrap();
+        assert_eq!(set_state, "draft", "membership resolution does not mutate Files");
+        let set_notice: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM staff_notifications WHERE id=$1 AND record_version=2",
+        )
+        .bind(format!("{set_key}-fixture-b"))
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(set_notice, 1);
+
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        lock_quality_inspection_evidence_sources(&mut tx)
+            .await
+            .unwrap();
+        let witness = inspect_quality_inspection_evidence_sets(
+            &mut tx,
+            &CompanyId::new("company").unwrap(),
+            &RecordId::new("branch").unwrap(),
+            "evidence-set-hold",
+            1,
+            &["evidence-set".into()],
+        )
+        .await
+        .unwrap()
+        .expect("current set membership");
+        assert_eq!(
+            witness.attachment_ids(),
+            ["set-file-b".to_string(), "set-file-a".to_string()]
+        );
+        sqlx::query(
+            "INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) \
+             VALUES('set-link-late','evidence-set','evidence-file','draft','fixture-b',$1,$2)",
+        )
+        .bind(now + 3)
+        .bind(expires)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        match witness.require_current(&mut tx).await {
+            Err(PgTransactionError::Business(error)) => {
+                assert_eq!(error.code, "QUALITY_ATTACHMENT_CHANGED")
+            }
+            _ => panic!("late membership change was accepted"),
+        }
+        tx.rollback().await.unwrap();
+
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+            "INSERT INTO attachment_sets(id,company_id,branch_id,target_type,target_id,component_kind,component_ref,purpose_key,expected_target_version,policy_version,classification,audience_json,required_count,max_files,state,created_by,created_at,updated_at) \
+             VALUES('evidence-stale-set','company','branch','quality_hold','evidence-set-hold','action','inspection','quality_inspection_evidence',1,1,'internal','{{}}',0,10,'draft','fixture-a',{now},{now}),\
+                   ('evidence-hold-set','company','branch','quality_hold','evidence-hold','action','inspection','quality_inspection_evidence',2,1,'internal','{{}}',0,10,'draft','fixture-b',{now},{now});\
+             INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) \
+             VALUES('set-link-stale','evidence-stale-set','set-file-a','draft','fixture-b',{expires},{expires})"
+        )))
+        .execute(db)
+        .await
+        .unwrap();
+        let stale = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/evidence-set-hold/inspect",
+                &p,
+                true,
+                Some("quality-command-evidence-set-stale"),
                 Some(
-                    r#"{"expectedVersion":2,"result":"fail","evidence":"Set evidence remains retained.","attachmentSetIds":["evidence-set"]}"#,
+                    r#"{"expectedVersion":2,"result":"fail","evidence":"Stale set evidence must fail.","attachmentSetIds":["evidence-stale-set"]}"#,
                 ),
             ))
             .await
             .unwrap();
-        let status = unsupported.status();
-        let unsupported = json(unsupported).await;
-        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{unsupported}");
+        let status = stale.status();
+        let stale = json(stale).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{stale}");
+        assert_eq!(stale["error"]["code"], "QUALITY_ATTACHMENT_INVALID");
+        let inspections: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM inventory_quality_inspections WHERE hold_id='evidence-set-hold'",
+        )
+        .fetch_one(db)
+        .await
+        .unwrap();
+        assert_eq!(inspections, 1);
+
+        let foreign = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/evidence-set-hold/inspect",
+                &p,
+                true,
+                Some("quality-command-evidence-set-foreign"),
+                Some(
+                    r#"{"expectedVersion":2,"result":"fail","evidence":"Another hold set must fail.","attachmentSetIds":["evidence-hold-set"]}"#,
+                ),
+            ))
+            .await
+            .unwrap();
+        let status = foreign.status();
+        let foreign = json(foreign).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{foreign}");
+        assert_eq!(foreign["error"]["code"], "QUALITY_ATTACHMENT_INVALID");
+
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+            "INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,status,created_by,created_at,updated_at,quantity_scope,version) \
+             VALUES('evidence-mixed-hold','company','branch','warehouse','product','Inspect mixed set evidence','2026-11-10','held','fixture-a',{now},{now},'whole',1);\
+             INSERT INTO attachment_sets(id,company_id,branch_id,target_type,target_id,component_kind,component_ref,purpose_key,expected_target_version,policy_version,classification,audience_json,required_count,max_files,state,created_by,created_at,updated_at) \
+             VALUES('evidence-mixed-set','company','branch','quality_hold','evidence-mixed-hold','action','inspection','quality_inspection_evidence',1,1,'internal','{{}}',0,10,'draft','fixture-b',{now},{now});\
+             INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,actual_bytes,checksum_sha256,staging_key,final_key,status,created_by,expires_at,created_at,updated_at,owner_version,company_id,detected_media_type,attachment_set_id) \
+             VALUES('mixed-upload-a','quality_hold','evidence-mixed-hold','quality_inspection_evidence','mixed-a.pdf','application/pdf',12,12,repeat('c',64),'mixed-a/staging','mixed-a/object','ready','fixture-b',{expires},{now},{now},1,'company','application/pdf','evidence-mixed-set'),\
+                   ('mixed-upload-b','quality_hold','evidence-mixed-hold','quality_inspection_evidence','mixed-b.pdf','application/pdf',12,12,repeat('d',64),'mixed-b/staging','mixed-b/object','ready','fixture-b',{expires},{now},{now},1,'company','application/pdf','evidence-mixed-set');\
+             INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at,company_id,detected_media_type,source_state,scanned_at,scanner_definition_at) \
+             VALUES('mixed-file-a','mixed-upload-a','quality_hold','evidence-mixed-hold','quality_inspection_evidence','mixed-a/object',1,'mixed-a.pdf','application/pdf',12,repeat('c',64),'fixture-b',{now},'company','application/pdf','available',{now},{now}),\
+                   ('mixed-file-b','mixed-upload-b','quality_hold','evidence-mixed-hold','quality_inspection_evidence','mixed-b/object',1,'mixed-b.pdf','application/pdf',12,repeat('d',64),'fixture-b',{now},'company','application/pdf','available',{now},{now});\
+             INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) \
+             VALUES('mixed-link-a','evidence-mixed-set','mixed-file-a','draft','fixture-b',{now},{expires}),\
+                   ('mixed-link-b','evidence-mixed-set','mixed-file-b','draft','fixture-b',{now_one},{expires})",
+            now_one = now + 1
+        )))
+        .execute(db)
+        .await
+        .unwrap();
+        let mixed_key = "quality-command-evidence-mixed";
+        let mixed = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                "/api/v1/holdings/acme/quality/evidence-mixed-hold/inspect",
+                &p,
+                true,
+                Some(mixed_key),
+                Some(
+                    r#"{"expectedVersion":1,"result":"fail","evidence":"Direct and set evidence overlap once.","attachmentIds":["mixed-file-a"],"attachmentSetIds":["evidence-mixed-set"]}"#,
+                ),
+            ))
+            .await
+            .unwrap();
+        let status = mixed.status();
+        let mixed = json(mixed).await;
+        assert_eq!(status, StatusCode::OK, "{mixed}");
+        let mixed_refs: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT attachment_id,ordinal FROM inventory_quality_inspection_attachments WHERE inspection_id=$1 ORDER BY ordinal",
+        )
+        .bind(format!("inspection-{mixed_key}"))
+        .fetch_all(db)
+        .await
+        .unwrap();
         assert_eq!(
-            unsupported["error"]["code"],
-            "QUALITY_ATTACHMENT_SET_UNSUPPORTED"
+            mixed_refs,
+            vec![("mixed-file-a".into(), 0), ("mixed-file-b".into(), 1)],
+            "combined direct and set ids are de-duplicated in stable order"
         );
 
         sqlx::raw_sql(sqlx::AssertSqlSafe(format!(

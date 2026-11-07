@@ -16,7 +16,8 @@ use crate::domain::quality::{
     HoldStatus, InspectionResult, SpecStatus, evaluate_measurements, quality_measurement_passed,
 };
 use erpx_server_files::public::quality_inspection_evidence::{
-    CurrentQualityInspectionEvidence, inspect_quality_inspection_evidence,
+    CurrentQualityInspectionEvidence, CurrentQualityInspectionEvidenceSets,
+    inspect_quality_inspection_evidence, inspect_quality_inspection_evidence_sets,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, RecordId, UserId};
@@ -26,6 +27,7 @@ type Error = PgTransactionError<BusinessError>;
 
 const MAX_SPEC_METRICS: usize = 50;
 const MAX_INSPECTION_MEASUREMENTS: usize = 100;
+const MAX_INSPECTION_ATTACHMENTS: usize = 10;
 
 fn invalid(code: &'static str, message: &'static str) -> BusinessError {
     BusinessError::invalid(code, message)
@@ -105,13 +107,6 @@ fn evidence_invalid() -> BusinessError {
     invalid(
         "QUALITY_ATTACHMENT_INVALID",
         "Choose ready, unbound inspection evidence uploaded by the current inspector.",
-    )
-}
-
-fn evidence_sets_unsupported() -> BusinessError {
-    invalid(
-        "QUALITY_ATTACHMENT_SET_UNSUPPORTED",
-        "Native Quality inspection accepts direct evidence files only; attachment sets remain on the retained path.",
     )
 }
 
@@ -735,6 +730,7 @@ pub struct PreparedQualityInspection {
     source: crate::application::quality::QualityHold,
     metrics: Vec<QualityMetric>,
     evidence: Option<CurrentQualityInspectionEvidence>,
+    evidence_sets: Option<CurrentQualityInspectionEvidenceSets>,
     expected_attachments: Vec<(String, i64)>,
     expected_hold: crate::application::quality::QualityHold,
     expected_inspection: QualityInspection,
@@ -754,6 +750,9 @@ impl PreparedQualityInspection {
     async fn require_evidence(&self, c: &mut PgConnection) -> Result<(), Error> {
         if let Some(evidence) = &self.evidence {
             evidence.require_current(c).await.map_err(evidence_error)?;
+        }
+        if let Some(sets) = &self.evidence_sets {
+            sets.require_current(c).await.map_err(evidence_error)?;
         }
         Ok(())
     }
@@ -906,9 +905,6 @@ pub async fn prepare_quality_inspection(
     require_quality_command_locks(c).await?;
     let command =
         crate::application::quality_commands::normalize_quality_inspection(command.clone())?;
-    if !command.attachment_set_ids.is_empty() {
-        return Err(evidence_sets_unsupported().into());
-    }
     let source = read_holds(
         c,
         company.as_str(),
@@ -936,37 +932,68 @@ pub async fn prepare_quality_inspection(
     if source.version != command.expected_version {
         return Err(hold_changed().into());
     }
-    let (evidence, expected_attachments) = if command.attachment_ids.is_empty() {
-        (None, Vec::new())
-    } else {
-        if evidence_in_use(c, &command.attachment_ids).await? {
-            return Err(evidence_invalid().into());
-        }
-        let hold_branch = RecordId::new(source.branch_id.clone())?;
-        let evidence = match inspect_quality_inspection_evidence(
-            c,
-            company,
-            &hold_branch,
-            &source.id,
-            actor.as_str(),
-            &command.attachment_ids,
-        )
-        .await
-        {
-            Ok(Some(evidence)) => evidence,
-            Ok(None) | Err(PgTransactionError::Business(_)) => {
+    let (evidence, evidence_sets, expected_attachments) =
+        if command.attachment_ids.is_empty() && command.attachment_set_ids.is_empty() {
+            (None, None, Vec::new())
+        } else {
+            let hold_branch = RecordId::new(source.branch_id.clone())?;
+            let mut attachment_ids = command.attachment_ids.clone();
+            let evidence_sets = if command.attachment_set_ids.is_empty() {
+                None
+            } else {
+                match inspect_quality_inspection_evidence_sets(
+                    c,
+                    company,
+                    &hold_branch,
+                    &source.id,
+                    command.expected_version,
+                    &command.attachment_set_ids,
+                )
+                .await
+                {
+                    Ok(Some(sets)) => {
+                        for attachment_id in sets.attachment_ids() {
+                            if !attachment_ids.contains(attachment_id) {
+                                attachment_ids.push(attachment_id.clone());
+                            }
+                        }
+                        Some(sets)
+                    }
+                    Ok(None) | Err(PgTransactionError::Business(_)) => {
+                        return Err(evidence_invalid().into());
+                    }
+                    Err(error) => return Err(error),
+                }
+            };
+            if attachment_ids.is_empty() || attachment_ids.len() > MAX_INSPECTION_ATTACHMENTS {
                 return Err(evidence_invalid().into());
             }
-            Err(error) => return Err(error),
+            if evidence_in_use(c, &attachment_ids).await? {
+                return Err(evidence_invalid().into());
+            }
+            let evidence = match inspect_quality_inspection_evidence(
+                c,
+                company,
+                &hold_branch,
+                &source.id,
+                actor.as_str(),
+                &attachment_ids,
+            )
+            .await
+            {
+                Ok(Some(evidence)) => evidence,
+                Ok(None) | Err(PgTransactionError::Business(_)) => {
+                    return Err(evidence_invalid().into());
+                }
+                Err(error) => return Err(error),
+            };
+            let expected = attachment_ids
+                .iter()
+                .enumerate()
+                .map(|(ordinal, attachment_id)| (attachment_id.clone(), ordinal as i64))
+                .collect();
+            (Some(evidence), evidence_sets, expected)
         };
-        let expected = command
-            .attachment_ids
-            .iter()
-            .enumerate()
-            .map(|(ordinal, attachment_id)| (attachment_id.clone(), ordinal as i64))
-            .collect();
-        (Some(evidence), expected)
-    };
     let metrics = match source.spec_id.as_deref() {
         Some(spec_id) => spec_metrics(c, company, spec_id).await?,
         None => Vec::new(),
@@ -1049,6 +1076,7 @@ pub async fn prepare_quality_inspection(
         source,
         metrics,
         evidence,
+        evidence_sets,
         expected_attachments,
         expected_hold,
         expected_inspection,
