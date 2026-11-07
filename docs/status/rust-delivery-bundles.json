@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T18:43:44+07:00",
+  "updatedAt": "2026-11-07T20:06:05+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 74,
-    "workflowsVerified": 45,
-    "workflowsMerged": 45,
+    "workflowsPartial": 73,
+    "workflowsVerified": 46,
+    "workflowsMerged": 46,
     "ownersComplete": 5,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -5043,12 +5043,12 @@
       "kind": "module",
       "owner": "marketing",
       "scope": "Engagement",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [],
       "sourceRef": "packages/server-marketing/src/public/marketing.ts",
-      "gap": "Native engagement event commands with version guards and history are implemented and owner-qualified; composition mount and browser remain open."
+      "gap": "Closed. Native engagement-event command is mounted and browser verified: POST 200 receipt id marketing-candidate-engagement-demo-2 status pending v2; page shows Version 2 email_reply; DB candidate v2 with form_submit v1 + email_reply v2 and one receipt/audit/outbox. Other Marketing slices remain separate workflows."
     },
     {
       "id": "manufacturing/orders",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T18:43:44+07:00",
-    "sourceHead": "13edca07e",
+    "generatedAt": "2026-11-07T20:06:05+07:00",
+    "sourceHead": "85051eb24",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6622,8 +6622,8 @@
       },
       "marketing": {
         "workflows": 6,
-        "verified": 0,
-        "partial": 1,
+        "verified": 1,
+        "partial": 0,
         "unstarted": 5,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -7822,6 +7822,21 @@
           "owners": 5,
           "verified": 45,
           "partial": 74,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T20:06:05+07:00",
+        "commit": "85051eb24",
+        "bundles": [
+          "native marketing engagement command"
+        ],
+        "evidence": "browser native POST 200 receipt pending v2; page Version 2 email_reply; DB history v1/v2 + receipt/audit/outbox; marketing tests 5+17+19, lead HTTP 4/4; typecheck/structure pass",
+        "counts": {
+          "owners": 5,
+          "verified": 46,
+          "partial": 73,
           "unstarted": 87,
           "total": 206
         }
