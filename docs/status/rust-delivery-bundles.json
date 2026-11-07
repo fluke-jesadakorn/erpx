@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-08T03:24:36+07:00",
+  "updatedAt": "2026-11-08T03:51:13+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 68,
-    "workflowsVerified": 51,
-    "workflowsMerged": 51,
+    "workflowsPartial": 66,
+    "workflowsVerified": 53,
+    "workflowsMerged": 53,
     "ownersComplete": 6,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -3789,30 +3789,30 @@
       "kind": "module",
       "owner": "customer_360",
       "scope": "Service timeline",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "customer-360-native-timeline",
         "customer-360-native-timeline-http"
       ],
       "sourceRef": "packages/server-customer_360/src/public/customer-timeline.ts",
-      "gap": "Native customer timeline read and HTTP/SSR are qualified; directory/profile summary, notes/follow-ups, portal/attachments and composition mount complete; browser remains open."
+      "gap": "Closed. The native Customer 360 timeline is mounted for the keyed workspace and browser verified on the Harbor Office Solutions profile. The Summary view renders the customer profile summary; the History view renders Customer history with 21 native CRM/sales events, and the native timeline API returns 200 with the same 21 items. Retained profile summary, notes/follow-ups and related customer surfaces remain on their existing complete paths."
     },
     {
       "id": "customer_360/feature-customer-profile",
       "kind": "module",
       "owner": "customer_360",
       "scope": "Customer profile",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "customer-360-native-timeline",
         "customer-360-native-timeline-http"
       ],
       "sourceRef": "packages/server-customer_360/src/public/customer-timeline.ts",
-      "gap": "Native customer timeline read and HTTP/SSR are qualified; directory/profile summary, notes/follow-ups, portal/attachments and composition mount complete; browser remains open."
+      "gap": "Closed. The native Customer 360 timeline is mounted for the keyed workspace and browser verified on the Harbor Office Solutions profile. The Summary view renders the customer profile summary; the History view renders Customer history with 21 native CRM/sales events, and the native timeline API returns 200 with the same 21 items. Retained profile summary, notes/follow-ups and related customer surfaces remain on their existing complete paths."
     },
     {
       "id": "customer_360/feature-customer-notes",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-08T03:24:36+07:00",
-    "sourceHead": "a5e655b6f",
+    "generatedAt": "2026-11-08T03:51:13+07:00",
+    "sourceHead": "9d8880dd4",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6502,8 +6502,8 @@
       },
       "customer_360": {
         "workflows": 4,
-        "verified": 0,
-        "partial": 2,
+        "verified": 2,
+        "partial": 0,
         "unstarted": 2,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -7930,6 +7930,22 @@
           "owners": 6,
           "verified": 51,
           "partial": 68,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-08T03:51:13+07:00",
+        "commit": "9d8880dd4",
+        "bundles": [
+          "native Customer 360 timeline transport",
+          "customer profile/history browser closure"
+        ],
+        "evidence": "browser Harbor Office Solutions overview + Customer history 21 native CRM/sales events; native API 200 same 21 items; customer timeline HTTP 2/2, PostgreSQL 7/7, transport unit 12/12; typecheck/structure/health pass",
+        "counts": {
+          "owners": 6,
+          "verified": 53,
+          "partial": 66,
           "unstarted": 87,
           "total": 206
         }
