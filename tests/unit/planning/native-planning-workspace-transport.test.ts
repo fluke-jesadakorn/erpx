@@ -65,6 +65,16 @@ const input={holdingSlug:'acme',branchSlug:'north',
 const ok=(value:unknown)=>new Response(JSON.stringify(value),{status:200,headers:{'content-type':'application/json'}});
 
 describe('native Planning workspace transport',()=>{
+ it('accepts one bounded contributor Holding port and prefers the forwarded host',async()=>{
+  const contributor={...JSON.parse(config()),holdings:[{origin:'https://acme.example.com:3443',holdingSlug:'acme',holdingId:'h001'}]};
+  const transport=vi.fn().mockResolvedValue(ok({data,context}));
+  const client=createNativePlanningClient(nativePlanningConfiguration(JSON.stringify(contributor)),transport);
+  await client.workspace(incoming({host:'127.0.0.1:3215','x-forwarded-host':'acme.example.com:3443'}),actor,input);
+  expect(transport.mock.calls[0][2].get('host')).toBe('acme.example.com:3443');
+  for(const origin of ['https://acme.example.com:0','https://acme.example.com:65536','https://acme.example.com:abc'])
+    expect(()=>createNativePlanningClient(nativePlanningConfiguration(config({holdings:[{origin,holdingSlug:'acme',holdingId:'h001'}]})),vi.fn())).toThrow();
+ });
+
  it('forwards the exact configured Holding, session, context and branch to the owner read',async()=>{
   const transport=vi.fn().mockResolvedValue(ok({data,context}));
   const client=createNativePlanningClient(nativePlanningConfiguration(config()),transport);

@@ -96,14 +96,29 @@ fn target(backend: Arc<dyn PlanningHttpBackend>) -> PlanningHttpTarget {
 fn target_configuration_requires_distinct_exact_https_holdings() {
     let backend = Arc::new(Noop);
     assert!(planning_router(vec![target(backend.clone())]).is_ok());
-    assert!(planning_router(vec![target(backend.clone()), target(backend.clone())]).is_err());
     assert!(
         planning_router(vec![PlanningHttpTarget {
-            origin: "http://acme.example.test".into(),
+            origin: "https://acme.example.test:3443".into(),
             ..target(backend.clone())
         }])
-        .is_err()
+        .is_ok()
     );
+    assert!(planning_router(vec![target(backend.clone()), target(backend.clone())]).is_err());
+    for origin in [
+        "http://acme.example.test",
+        "https://acme.example.test:0",
+        "https://acme.example.test:65536",
+        "https://acme.example.test:abc",
+        "https://acme.example.test:3443:1",
+    ] {
+        assert!(
+            planning_router(vec![PlanningHttpTarget {
+                origin: origin.into(),
+                ..target(backend.clone())
+            }])
+            .is_err()
+        );
+    }
     assert!(
         planning_router(vec![PlanningHttpTarget {
             holding_slug: "Bad Slug".into(),

@@ -2210,6 +2210,25 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                planning_targets.push(
+                    erpx_server_manufacturing::public::planning_http::PlanningHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::manufacturing::ManufacturingBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::manufacturing::ManufacturingService::new(
+                                authorizer.clone(),
+                                crate::manufacturing::ManufacturingConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
             }
         }
         #[cfg(feature = "existing-business")]
@@ -2635,14 +2654,6 @@ async fn assemble_checked(
                     },
                 );
                 #[cfg(feature = "existing-business")]
-                planning_targets.push(
-                    erpx_server_manufacturing::public::planning_http::PlanningHttpTarget {
-                        host: holding.host.clone(),
-                        holding_slug: holding.registration.slug.clone(),
-                        origin: format!("https://{}", holding.host),
-                        backend: manufacturing_backend.clone(),
-                    },
-                );
                 #[cfg(feature = "existing-business")]
                 talent_targets.push(
                     erpx_server_talent::public::requisition_http::TalentRequisitionHttpTarget {
@@ -6932,6 +6943,18 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         }
         _ => false,
     };
+    let planning = match request
+        .uri()
+        .path()
+        .split('/')
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        ["", "api", "v1", "holdings", _, "planning", "workspace"] => {
+            state.policy.audience(host).is_some()
+        }
+        _ => false,
+    };
     let payroll = match request
         .uri()
         .path()
@@ -6992,6 +7015,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || pms
         || legal
         || customer_timeline
+        || planning
         || service_packages
         || field_work_roles
         || field_operations
