@@ -59,6 +59,68 @@ pub async fn lock_maintenance_asset_sources(c: &mut PgConnection) -> Result<(), 
         .await?;
     Ok(())
 }
+
+/// The coordinator must call this before its first data snapshot. This lock
+/// protects only Asset sources; it does not authorize a Maintenance command.
+pub async fn lock_maintenance_creation_asset_sources(c: &mut PgConnection) -> Result<(), Error> {
+    if !c.is_in_transaction() {
+        return Err(PersistenceError::new("ASSET_MAINTENANCE_TRANSACTION_REQUIRED").into());
+    }
+    sqlx::query("LOCK TABLE operational_assets IN SHARE ROW EXCLUSIVE MODE")
+        .execute(c)
+        .await?;
+    Ok(())
+}
+
+/// A scoped source observation, not an authorization or a guarantee that no
+/// open Maintenance work exists. The coordinator must prove those separately.
+pub struct CurrentMaintenanceCreationAsset {
+    source: CurrentMaintenanceAsset,
+    lifecycle: String,
+}
+
+impl CurrentMaintenanceCreationAsset {
+    pub fn facts(&self) -> &MaintenanceAssetFacts { self.source.facts() }
+    pub fn lifecycle(&self) -> &str { &self.lifecycle }
+
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        if transaction(c).await? != self.source.transaction || !creation_lock_held(c).await? {
+            return Err(changed().into());
+        }
+        self.source.require_current(c).await?;
+        let current: Option<String> = sqlx::query_scalar("SELECT lifecycle_status FROM operational_assets WHERE id=$1 AND company_id=$2")
+            .bind(self.source.facts.asset_id.as_str()).bind(self.source.facts.company_id.as_str())
+            .fetch_optional(c).await?;
+        if current.as_deref() != Some(self.lifecycle.as_str()) { return Err(changed().into()); }
+        Ok(())
+    }
+}
+
+/// Retains the legacy create admission fields without materializing unrelated
+/// Asset metadata. Lock timing before the snapshot is a coordinator obligation.
+pub async fn inspect_maintenance_creation_asset(
+    c: &mut PgConnection, holding: &HoldingId, company: &CompanyId,
+    branch: Option<&RecordId>, department: Option<&RecordId>, asset: &RecordId,
+    expected_version: i64,
+) -> Result<Option<CurrentMaintenanceCreationAsset>, Error> {
+    transaction(c).await?;
+    if !creation_lock_held(c).await? { return Err(changed().into()); }
+    let Some(source) = read_current_maintenance_asset(c, holding, company, asset).await? else { return Ok(None) };
+    let facts = source.facts();
+    if facts.version != expected_version || branch.is_some_and(|b| b != &facts.branch_id)
+        || department.is_some_and(|d| Some(d) != facts.department_id.as_ref()) {
+        return Ok(None);
+    }
+    let lifecycle: String = sqlx::query_scalar("SELECT lifecycle_status FROM operational_assets WHERE id=$1 AND company_id=$2")
+        .bind(asset.as_str()).bind(company.as_str()).fetch_one(c).await?;
+    if !matches!(lifecycle.as_str(), "registered" | "in_service" | "maintenance") { return Ok(None); }
+    Ok(Some(CurrentMaintenanceCreationAsset { source, lifecycle }))
+}
+
+async fn creation_lock_held(c: &mut PgConnection) -> Result<bool, Error> {
+    Ok(sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=pg_backend_pid() AND relation='operational_assets'::regclass AND mode='ShareRowExclusiveLock' AND granted)")
+        .fetch_one(c).await?)
+}
 pub async fn read_current_maintenance_asset(
     c: &mut PgConnection,
     holding: &HoldingId,

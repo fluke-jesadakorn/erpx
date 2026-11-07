@@ -2,6 +2,7 @@
 //! with the selected coordinator; owner ports supply the bounded workspace,
 //! detail, preventive plans and cancellation facts.
 use crate::business_http::BusinessScopeSlugs;
+use crate::maintenance_create::{MaintenanceCreationPreparation, execute_maintenance_create};
 use crate::maintenance_parts::{MaintenancePartsSourcePreparation, execute_maintenance_issue_part};
 use crate::maintenance_transitions::{
     MaintenanceTransitionsSourcePreparation, execute_maintenance_transition,
@@ -25,7 +26,7 @@ use erpx_server_maintenance::public::read::{
     read_maintenance_workspace,
 };
 use erpx_server_maintenance::public::{
-    work_commands::MaintenanceWorkCommand, work_wire::MaintenanceChangeAction,
+    work_commands::{MaintenanceWorkCommand, NormalizedMaintenanceCreate}, work_wire::MaintenanceChangeAction,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
@@ -344,6 +345,78 @@ impl<C: Clock + Send + Sync + 'static> MaintenanceService<C> {
             )
             .await
     }
+    /// Native work-order creation. Asset admission, active-work vacancy, owner
+    /// eligibility, purchase, workflow receipt and notification share this unit.
+    pub async fn create(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        mut selection: HoldingWorkspaceRequest,
+        key: erpx_server_shared::public::CommandKey,
+        input: NormalizedMaintenanceCreate,
+    ) -> Result<MaintenanceHttpResponse, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        if selection.company_id != company {
+            return Err(scope().into());
+        }
+        selection.mutation = true;
+        let access = WorkAuthorizationRequest {
+            permission: "records.write".into(),
+            module: Some("maintenance".into()),
+            destination: "maintenance".into(),
+            api: true,
+        };
+        self.authorizer
+            .execute_with_sources(
+                host,
+                proof,
+                selection,
+                access,
+                MaintenanceCreationPreparation,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let key = key.clone();
+                    let input = input.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.write")?;
+                        let mut identifiers = MaintenanceIds;
+                        let outcome = execute_maintenance_create(
+                            connection,
+                            current,
+                            &key,
+                            &input,
+                            PackageEnforcementMode::Enforced,
+                            clock.as_ref(),
+                            clock.as_ref(),
+                            &mut identifiers,
+                        )
+                        .await?;
+                        let data = serde_json::from_str(outcome.result.as_str()).map_err(|_| {
+                            BusinessError::new(
+                                FailureKind::Conflict,
+                                "MAINTENANCE_RESULT_INVALID",
+                                "Refresh the asset before creating work.",
+                            )
+                        })?;
+                        Ok(MaintenanceHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
     /// Native transition/issue-part command. The preparation is selected from
     /// the owner command action before the first Holding snapshot; Account,
     /// current IAM, purchase history and the owner unit stay in one commit.
@@ -584,6 +657,19 @@ impl<C: Clock + Send + Sync + 'static> MaintenanceHttpBackend for MaintenanceBac
     ) -> MaintenanceHttpFuture<'a, MaintenanceHttpResponse> {
         Box::pin(async move {
             let (proof, selection) = self.command_context(request.headers)?;
+            if let Some(create) = request.command.create_input() {
+                return self
+                    .service
+                    .create(
+                        request.host,
+                        proof,
+                        selection,
+                        request.command.key().clone(),
+                        create.clone(),
+                    )
+                    .await
+                    .map_err(business);
+            }
             let Some(command) = request.command.change_command() else {
                 return Err(command_unavailable());
             };

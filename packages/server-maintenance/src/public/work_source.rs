@@ -5,3 +5,4 @@ pub use crate::adapters::work_source::{
     PgMaintenanceIssuePartEffects, PgMaintenanceIssuePartPlan, PgMaintenanceIssuePartReceipt,
     PgMaintenanceTransitionPlan, PgMaintenanceTransitionReceipt, read_current_maintenance_work,
 };
+pub use crate::adapters::work_source::{MaintenanceCreationPlan, insert_maintenance_creation, maintenance_creation_vacancy};
