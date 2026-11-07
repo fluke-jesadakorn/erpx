@@ -96,7 +96,7 @@ fn independent_required() -> BusinessError {
 /// The same stable function already guards the cancelled status in the
 /// database; checking it before the update preserves the owner error code and
 /// also covers the reject transition, which does not change to cancelled.
-async fn same_person(
+pub(crate) async fn same_person(
     c: &mut PgConnection,
     left: &str,
     right: &str,
@@ -116,7 +116,7 @@ async fn same_person(
         .await?)
 }
 
-async fn serializable(c: &mut PgConnection) -> Result<(), Error> {
+pub(crate) async fn serializable(c: &mut PgConnection) -> Result<(), Error> {
     if !c.is_in_transaction() {
         return Err(PersistenceError::new("QUALITY_TRANSACTION_REQUIRED").into());
     }
@@ -130,14 +130,14 @@ async fn serializable(c: &mut PgConnection) -> Result<(), Error> {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct Unit {
+pub(crate) struct Unit {
     database: String,
     backend: i32,
     xid: String,
     postmaster: String,
 }
 
-async fn unit(c: &mut PgConnection) -> Result<Unit, Error> {
+pub(crate) async fn unit(c: &mut PgConnection) -> Result<Unit, Error> {
     let row = sqlx::query(
         "SELECT current_database() database,pg_backend_pid() backend,pg_current_xact_id()::text xid,pg_postmaster_start_time()::text postmaster",
     )
@@ -185,11 +185,11 @@ async fn require_quality_cancellation_write_locks(c: &mut PgConnection) -> Resul
     Ok(())
 }
 
-fn parse_status(value: &str) -> Result<HoldStatus, Error> {
+pub(crate) fn parse_status(value: &str) -> Result<HoldStatus, Error> {
     HoldStatus::parse(value).ok_or_else(|| invalid("A Quality hold status is invalid.").into())
 }
 
-fn parse_result(value: Option<String>) -> Result<Option<InspectionResult>, Error> {
+pub(crate) fn parse_result(value: Option<String>) -> Result<Option<InspectionResult>, Error> {
     value
         .map(|value| {
             InspectionResult::parse(&value)
@@ -203,7 +203,7 @@ fn parse_action(value: &str) -> Result<CancellationAction, Error> {
         .ok_or_else(|| invalid("A Quality cancellation action is invalid.").into())
 }
 
-fn safe(value: i64) -> Result<i64, Error> {
+pub(crate) fn safe(value: i64) -> Result<i64, Error> {
     if (0..=crate::domain::quality::MAX_SAFE_INTEGER).contains(&value) {
         Ok(value)
     } else {
@@ -282,7 +282,7 @@ fn hold_from_row(row: &sqlx::postgres::PgRow) -> Result<QualityHold, Error> {
     })
 }
 
-async fn read_holds(
+pub(crate) async fn read_holds(
     c: &mut PgConnection,
     company: &str,
     branch: Option<&str>,
@@ -301,7 +301,7 @@ async fn read_holds(
     rows.iter().map(hold_from_row).collect()
 }
 
-async fn read_specification_metrics(
+pub(crate) async fn read_specification_metrics(
     c: &mut PgConnection,
     company: &str,
     spec_id: Option<&str>,
@@ -378,7 +378,7 @@ impl CurrentQualityWorkspace {
     }
 
     pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
-        serializable(c).await?;
+        require_quality_detail_core_locks(c).await?;
         if unit(c).await? != self.unit {
             return Err(changed().into());
         }
@@ -402,7 +402,7 @@ pub async fn read_quality_workspace(
     company: &CompanyId,
     branch: Option<&RecordId>,
 ) -> Result<CurrentQualityWorkspace, Error> {
-    serializable(c).await?;
+    require_quality_detail_core_locks(c).await?;
     let data = QualityWorkspaceData {
         holds: read_holds(c, company.as_str(), branch.map(RecordId::as_str), None).await?,
         specification_metrics: read_specification_metrics(c, company.as_str(), None).await?,
@@ -430,7 +430,7 @@ impl CurrentQualityDetail {
     }
 
     pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
-        serializable(c).await?;
+        require_quality_detail_core_locks(c).await?;
         if unit(c).await? != self.unit {
             return Err(changed().into());
         }
@@ -890,7 +890,7 @@ pub async fn read_quality_detail(
     branch: Option<&RecordId>,
     id: &str,
 ) -> Result<Option<CurrentQualityDetail>, Error> {
-    serializable(c).await?;
+    require_quality_detail_core_locks(c).await?;
     let Some(data) = read_detail(c, company.as_str(), branch.map(RecordId::as_str), id).await?
     else {
         return Ok(None);

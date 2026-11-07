@@ -23,6 +23,140 @@ use erpx_server_shared::public::{
 struct FixtureCount;
 struct FixtureCountWitness { request: erpx_server_quality::public::purchase_lineage::CountLineageRequest, tx: String }
 
+// Test-only Inventory source: verifies actual same-transaction lot balance;
+// production still needs the Inventory prepared-allocation owner witness.
+struct FixtureReceiptSource { facts: erpx_server_quality::public::goods_receipt_hold::GoodsReceiptHoldFacts, tx:String }
+impl erpx_server_quality::public::goods_receipt_hold::GoodsReceiptHoldSource for FixtureReceiptSource {
+    fn facts(&self)->&erpx_server_quality::public::goods_receipt_hold::GoodsReceiptHoldFacts { &self.facts }
+    async fn require_before(&self,c:&mut sqlx::PgConnection)->Result<(),PgTransactionError<BusinessError>> {
+        let tx:String=sqlx::query_scalar("SELECT pg_current_xact_id()::text").fetch_one(&mut *c).await?;
+        let found:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM inventory_lots l JOIN inventory_lot_balances b ON b.lot_id=l.id WHERE l.id=$1 AND l.company_id=$2 AND l.product_id=$3 AND b.warehouse_id=$4 AND b.quantity_milli>= $5)").bind(&self.facts.lot_id).bind(&self.facts.company_id).bind(&self.facts.product_id).bind(&self.facts.warehouse_id).bind(self.facts.quantity_milli).fetch_one(c).await?;
+        if tx!=self.tx || !found { return Err(BusinessError::new(FailureKind::Conflict,"TEST_RECEIPT_SOURCE_CHANGED","Receipt source changed.").into()); }
+        Ok(())
+    }
+    async fn require_after(&self,c:&mut sqlx::PgConnection)->Result<(),PgTransactionError<BusinessError>> { self.require_before(c).await }
+}
+
+#[tokio::test]
+async fn receipt_hold_binds_active_spec_source_and_actual_afterimage() {
+    use erpx_server_quality::public::goods_receipt_hold::{GoodsReceiptHoldFacts,lock_goods_receipt_hold_sources,prepare_goods_receipt_hold};
+    fixture::with_database(2, |pool| async move {
+        facts::setup(&pool).await;
+        sqlx::raw_sql("INSERT INTO commerce_products(id,company_id,sku,name,price_minor,tracking_mode) VALUES('receipt-product','company','RECEIPT','Receipt product',1000,'lot'); INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor) VALUES('warehouse','receipt-product',5000,1000); INSERT INTO inventory_lots(id,company_id,product_id,tracking_mode,lot_code,created_by,created_at) VALUES('lot','company','receipt-product','lot','L1','maker',1); INSERT INTO inventory_lot_balances(lot_id,warehouse_id,quantity_milli,value_minor) VALUES('lot','warehouse',5000,1000); INSERT INTO inventory_quality_specs(id,company_id,product_id,name,status,version,created_by,approved_by,approval_reason,created_at,updated_at,activated_at) VALUES('spec','company','receipt-product','Spec','active',2,'maker','reviewer','Approved',1,2,2)").execute(pool.raw()).await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_goods_receipt_hold_sources(&mut tx).await.unwrap();
+        let unit:String=sqlx::query_scalar("SELECT pg_current_xact_id()::text").fetch_one(&mut *tx).await.unwrap();
+        let source=FixtureReceiptSource {tx:unit,facts:GoodsReceiptHoldFacts {command_key:"receipt-key".into(),fulfillment_id:"delivery-key".into(),line_index:0,allocation_index:1,company_id:"company".into(),branch_id:"branch".into(),warehouse_id:"warehouse".into(),product_id:"receipt-product".into(),lot_id:"lot".into(),quantity_milli:1000,reason:"Packaging inspection".into(),due_date:"2026-11-10".into(),actor_id:"receiver".into(),now:7}};
+        let retained=prepare_goods_receipt_hold(&mut tx,&source).await.unwrap().apply(&mut tx).await.unwrap();
+        assert_eq!(retained.hold_id(),"quality-receipt-key-0-1");
+        assert_eq!(retained.notification_key(),"receipt-key-0-1");
+        retained.require_current(&mut tx).await.unwrap();
+        let row:(String,Option<String>,Option<i64>,i64)=sqlx::query_as("SELECT source_id,spec_id,spec_version,held_quantity_milli FROM inventory_quality_holds WHERE id='quality-receipt-key-0-1'").fetch_one(&mut *tx).await.unwrap();
+        assert_eq!(row,("delivery-key-0-1".into(),Some("spec".into()),Some(2),1000));
+        sqlx::query("UPDATE inventory_quality_specs SET status='superseded',version=3 WHERE id='spec'").execute(&mut *tx).await.unwrap();
+        assert!(retained.require_current(&mut tx).await.is_err());
+        tx.rollback().await.unwrap();
+        let count:i64=sqlx::query_scalar("SELECT count(*) FROM inventory_quality_holds WHERE id='quality-receipt-key-0-1'").fetch_one(pool.raw()).await.unwrap();assert_eq!(count,0);
+        let mut none=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *none).await.unwrap();
+        lock_goods_receipt_hold_sources(&mut none).await.unwrap();
+        sqlx::query("UPDATE inventory_quality_specs SET status='superseded',version=3 WHERE id='spec'").execute(&mut *none).await.unwrap();
+        let unit:String=sqlx::query_scalar("SELECT pg_current_xact_id()::text").fetch_one(&mut *none).await.unwrap();
+        let mut absent=source.facts.clone();absent.command_key="without-spec".into();
+        let absent=FixtureReceiptSource {tx:unit,facts:absent};
+        let retained=prepare_goods_receipt_hold(&mut none,&absent).await.unwrap().apply(&mut none).await.unwrap();
+        retained.require_current(&mut none).await.unwrap();
+        let spec:(Option<String>,Option<i64>)=sqlx::query_as("SELECT spec_id,spec_version FROM inventory_quality_holds WHERE id='quality-without-spec-0-1'").fetch_one(&mut *none).await.unwrap();assert_eq!(spec,(None,None));
+        none.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn quality_inspection_attachment_reference_witness_retains_scope_and_absence() {
+    use erpx_server_quality::public::quality_inspection_attachment_refs::{inspect_quality_inspection_attachment_ref_page, inspect_quality_inspection_attachment_refs, lock_quality_inspection_attachment_refs};
+    fixture::with_database(3, |pool| async move {
+        facts::setup(&pool).await;
+        facts::hold(&pool, "refs-hold").await;
+        sqlx::raw_sql("INSERT INTO inventory_quality_inspections(id,hold_id,reviewed_version,result,evidence,inspected_by,created_at) VALUES('refs-inspection','refs-hold',1,'pass','evidence','inspector',1),('refs-inspection-2','refs-hold',1,'pass','evidence','inspector',1); INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,staging_key,status,created_by,expires_at,created_at,updated_at) VALUES('refs-upload','quality_hold','refs-hold','quality_inspection_evidence','evidence.txt','text/plain',1,'refs-staging','ready','inspector',100,1,1),('refs-upload-2','quality_hold','refs-hold','quality_inspection_evidence','evidence2.txt','text/plain',1,'refs-staging-2','ready','inspector',100,1,1); INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at) VALUES('refs-file','refs-upload','quality_hold','refs-hold','quality_inspection_evidence','refs-object',1,'evidence.txt','text/plain',1,'checksum','inspector',1),('refs-file-2','refs-upload-2','quality_hold','refs-hold','quality_inspection_evidence','refs-object-2',1,'evidence2.txt','text/plain',1,'checksum','inspector',1)").execute(pool.raw()).await.unwrap();
+        let hold = RecordId::new("refs-hold").unwrap();
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        assert!(inspect_quality_inspection_attachment_refs(&mut tx, &company(), Some(&branch()), &hold).await.is_err());
+        tx.rollback().await.unwrap();
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_quality_inspection_attachment_refs(&mut tx).await.unwrap();
+        let empty = inspect_quality_inspection_attachment_refs(&mut tx, &company(), Some(&branch()), &hold).await.unwrap();
+        assert!(empty.refs().is_empty());
+        assert!(inspect_quality_inspection_attachment_refs(&mut tx, &CompanyId::new("foreign").unwrap(), None, &hold).await.is_err());
+        assert!(inspect_quality_inspection_attachment_refs(&mut tx, &company(), Some(&RecordId::new("branch-other").unwrap()), &hold).await.is_err());
+        sqlx::query("SAVEPOINT refs_before_insert").execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO inventory_quality_inspection_attachments(inspection_id,attachment_id,ordinal) VALUES('refs-inspection','refs-file',-1)").execute(&mut *tx).await.unwrap();
+        assert!(empty.require_current(&mut tx).await.is_err());
+        let present = inspect_quality_inspection_attachment_refs(&mut tx, &company(), Some(&branch()), &hold).await.unwrap();
+        assert_eq!(present.refs().len(), 1);
+        assert_eq!(present.refs()[0].inspection_id, "refs-inspection");
+        assert_eq!(present.refs()[0].attachment_id, "refs-file");
+        assert_eq!(present.refs()[0].ordinal, -1);
+        present.require_current(&mut tx).await.unwrap();
+        sqlx::query("INSERT INTO inventory_quality_inspection_attachments(inspection_id,attachment_id,ordinal) VALUES('refs-inspection-2','refs-file-2',-1)").execute(&mut *tx).await.unwrap();
+        assert!(present.require_current(&mut tx).await.is_err());
+        let tied = inspect_quality_inspection_attachment_refs(&mut tx, &company(), Some(&branch()), &hold).await.unwrap();
+        assert_eq!(tied.refs().len(), 2);
+        assert!(tied.refs().iter().any(|r| r.inspection_id == "refs-inspection" && r.attachment_id == "refs-file" && r.ordinal == -1));
+        assert!(tied.refs().iter().any(|r| r.inspection_id == "refs-inspection-2" && r.attachment_id == "refs-file-2" && r.ordinal == -1));
+        tied.require_current(&mut tx).await.unwrap();
+        let page = inspect_quality_inspection_attachment_ref_page(&mut tx, &company(), Some(&branch()), &hold, None, None, 1).await.unwrap();
+        assert_eq!(page.refs().len(), 1);
+        let continuation = inspect_quality_inspection_attachment_ref_page(&mut tx, &company(), Some(&branch()), &hold, page.next(), Some(page.revision()), 1).await.unwrap();
+        assert_eq!(continuation.refs().len(), 1);
+        assert_ne!(page.refs()[0].attachment_id, continuation.refs()[0].attachment_id);
+        assert!(continuation.next().is_none());
+        sqlx::query("ROLLBACK TO SAVEPOINT refs_before_insert").execute(&mut *tx).await.unwrap();
+        assert!(page.require_current(&mut tx).await.is_err());
+        empty.require_current(&mut tx).await.unwrap();
+        tx.rollback().await.unwrap();
+        let mut other = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+        lock_quality_inspection_attachment_refs(&mut other).await.unwrap();
+        assert!(empty.require_current(&mut other).await.is_err());
+        other.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn quality_reference_pages_retain_all_raw_refs_before_files_filtering() {
+    use erpx_server_quality::public::quality_inspection_attachment_refs::{inspect_quality_inspection_attachment_ref_page, lock_quality_inspection_attachment_refs};
+    fixture::with_database(2, |pool| async move {
+        facts::setup(&pool).await;
+        facts::hold(&pool, "many-refs-hold").await;
+        sqlx::raw_sql("INSERT INTO inventory_quality_inspections(id,hold_id,reviewed_version,result,evidence,inspected_by,created_at) VALUES('many-inspection','many-refs-hold',1,'pass','evidence','inspector',1);\
+          INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,staging_key,status,created_by,expires_at,created_at,updated_at) SELECT 'many-upload-'||n,'quality_hold','many-refs-hold','quality_inspection_evidence','evidence.txt','text/plain',1,'many-staging-'||n,'ready','inspector',100,1,1 FROM generate_series(1,5001) n;\
+          INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at,revoked_at) SELECT 'many-file-'||n,'many-upload-'||n,'quality_hold','many-refs-hold','quality_inspection_evidence','many-object-'||n,1,'evidence.txt','text/plain',1,'checksum','inspector',1,CASE WHEN n<=5000 THEN 2 ELSE NULL END FROM generate_series(1,5001) n;\
+          INSERT INTO inventory_quality_inspection_attachments(inspection_id,attachment_id,ordinal) SELECT 'many-inspection','many-file-'||n,n FROM generate_series(1,5001) n;").execute(pool.raw()).await.unwrap();
+        let hold = RecordId::new("many-refs-hold").unwrap();
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_quality_inspection_attachment_refs(&mut tx).await.unwrap();
+        let mut cursor = None;
+        let mut revision: Option<String> = None;
+        let mut observed = Vec::new();
+        loop {
+            let page = inspect_quality_inspection_attachment_ref_page(&mut tx, &company(), Some(&branch()), &hold, cursor.as_ref(), revision.as_deref(), 200).await.unwrap();
+            page.require_current(&mut tx).await.unwrap();
+            observed.extend(page.refs().iter().map(|row| row.ordinal));
+            revision = Some(page.revision().to_owned());
+            match page.next() { Some(next) => cursor = Some(next.clone()), None => break }
+        }
+        assert_eq!(observed, (1..=5001).collect::<Vec<i64>>());
+        assert!(inspect_quality_inspection_attachment_ref_page(&mut tx, &CompanyId::new("foreign").unwrap(), Some(&branch()), &hold, None, None, 200).await.is_err());
+        assert!(inspect_quality_inspection_attachment_ref_page(&mut tx, &company(), Some(&branch()), &hold, cursor.as_ref(), None, 200).await.is_err());
+        assert!(inspect_quality_inspection_attachment_ref_page(&mut tx, &company(), Some(&branch()), &hold, None, None, 201).await.is_err());
+        tx.rollback().await.unwrap();
+    }).await;
+}
+
 #[test]
 fn different_parent_id_decompositions_cannot_share_both_lineage_suffixes() {
     // Both parents can produce the same child ID, but their Count suffixes
@@ -882,4 +1016,93 @@ async fn readback_uses_the_owner_transaction_and_persists_the_cancellation_event
         assert_eq!(row.get::<i64, _>("version"), 2);
     })
     .await;
+}
+
+#[tokio::test]
+async fn attachment_hold_retains_scoped_presence_absence_and_stored_lineage_facts() {
+    use erpx_server_quality::public::attachment_hold::*;
+    fixture::with_database(2, |pool| async move {
+        facts::setup(&pool).await;
+        facts::hold(&pool, "attachment-hold").await;
+        let mut unlocked=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unlocked).await.unwrap();
+        assert!(inspect_attachment_hold(&mut unlocked,"company",Some("branch"),"attachment-hold").await.is_err());
+        unlocked.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_attachment_hold_sources(&mut tx).await.unwrap();
+        let source=inspect_attachment_hold(&mut tx,"company",Some("branch"),"attachment-hold").await.unwrap();
+        let data=source.facts().unwrap();
+        assert_eq!((&*data.id,&*data.company_id,&*data.branch_id,data.version,&*data.status), ("attachment-hold","company","branch",1,"held"));
+        assert!(data.source_type.is_none());
+        for (company,branch,id) in [("foreign",Some("branch"),"attachment-hold"),("company",Some("branch-other"),"attachment-hold"),("company",None,"missing")] {
+            let absent=inspect_attachment_hold(&mut tx,company,branch,id).await.unwrap();
+            assert!(absent.facts().is_none()); absent.require_current(&mut tx).await.unwrap();
+        }
+        let missing=inspect_attachment_hold(&mut tx,"company",None,"new-hold").await.unwrap();
+        sqlx::query("INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,created_by,created_at,updated_at,quantity_scope) VALUES('new-hold','company','branch','warehouse','product','fixture','2026-11-10','maker',0,0,'whole')").execute(&mut *tx).await.unwrap();
+        assert!(missing.require_current(&mut tx).await.is_err());
+        sqlx::query("UPDATE inventory_quality_holds SET source_type='goods_receipt',source_id='allocation',version=2 WHERE id='attachment-hold'").execute(&mut *tx).await.unwrap();
+        assert!(source.require_current(&mut tx).await.is_err());
+        let changed=inspect_attachment_hold(&mut tx,"company",None,"attachment-hold").await.unwrap();
+        let data=changed.facts().unwrap();assert_eq!((data.source_type.as_deref(),data.source_id.as_deref(),data.version),(Some("goods_receipt"),Some("allocation"),2));
+        changed.require_current(&mut tx).await.unwrap();
+        tx.rollback().await.unwrap();
+        let mut other=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+        lock_attachment_hold_sources(&mut other).await.unwrap();
+        assert!(changed.require_current(&mut other).await.is_err());
+        other.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn purchase_lineage_requires_and_retains_quality_relation_fences() {
+    use erpx_server_quality::public::purchase_lineage::{QualityLineageRequest,inspect_quality_purchase_lineage,lock_quality_purchase_lineage};
+    fixture::with_database(2, |pool| async move {
+        facts::setup(&pool).await;
+        facts::hold(&pool,"lineage-lock-hold").await;
+        let request=QualityLineageRequest {company_id:company(),branch_id:Some("branch".into()),hold_id:"lineage-lock-hold".into()};
+        let mut no_lock=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *no_lock).await.unwrap();
+        let mut counts=FixtureCount;
+        assert!(matches!(inspect_quality_purchase_lineage(&mut no_lock,&mut counts,request.clone()).await,Err(PgTransactionError::Persistence(ref e)) if e.code=="QUALITY_LINEAGE_LOCKS_REQUIRED"));
+        no_lock.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        sqlx::query("SELECT pg_current_xact_id()").execute(&mut *tx).await.unwrap();
+        sqlx::query("SAVEPOINT before_lineage_locks").execute(&mut *tx).await.unwrap();
+        lock_quality_purchase_lineage(&mut tx).await.unwrap();
+        let witness=inspect_quality_purchase_lineage(&mut tx,&mut counts,request).await.unwrap();
+        witness.require_current(&mut tx,&mut counts).await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT before_lineage_locks").execute(&mut *tx).await.unwrap();
+        assert!(matches!(witness.require_current(&mut tx,&mut counts).await,Err(PgTransactionError::Persistence(ref e)) if e.code=="QUALITY_LINEAGE_LOCKS_REQUIRED"));
+        tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn workspace_and_detail_require_and_retain_quality_read_locks() {
+    fixture::with_database(2, |pool| async move {
+        facts::setup(&pool).await;
+        facts::hold(&pool,"read-lock-hold").await;
+        let mut unlocked=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unlocked).await.unwrap();
+        assert!(matches!(read_quality_workspace(&mut unlocked,&company(),Some(&branch())).await,Err(PgTransactionError::Persistence(ref e)) if e.code=="QUALITY_DETAIL_READ_LOCKS_REQUIRED"));
+        assert!(matches!(read_quality_detail(&mut unlocked,&company(),Some(&branch()),"read-lock-hold").await,Err(PgTransactionError::Persistence(ref e)) if e.code=="QUALITY_DETAIL_READ_LOCKS_REQUIRED"));
+        unlocked.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        sqlx::query("SELECT pg_current_xact_id()").execute(&mut *tx).await.unwrap();
+        sqlx::query("SAVEPOINT before_quality_read_locks").execute(&mut *tx).await.unwrap();
+        lock_quality_read_sources(&mut tx).await.unwrap();
+        let workspace=read_quality_workspace(&mut tx,&company(),Some(&branch())).await.unwrap();
+        let detail=read_quality_detail(&mut tx,&company(),Some(&branch()),"read-lock-hold").await.unwrap().unwrap();
+        workspace.require_current(&mut tx).await.unwrap();
+        detail.require_current(&mut tx).await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT before_quality_read_locks").execute(&mut *tx).await.unwrap();
+        assert!(matches!(workspace.require_current(&mut tx).await,Err(PgTransactionError::Persistence(ref e)) if e.code=="QUALITY_DETAIL_READ_LOCKS_REQUIRED"));
+        assert!(matches!(detail.require_current(&mut tx).await,Err(PgTransactionError::Persistence(ref e)) if e.code=="QUALITY_DETAIL_READ_LOCKS_REQUIRED"));
+        tx.rollback().await.unwrap();
+    }).await;
 }

@@ -81900,6 +81900,102 @@
       ]
     },
     {
+      "id": "quality.rust-quality-commands-postgres.integration",
+      "lane": "integration",
+      "owner": "quality",
+      "modules": [
+        "quality"
+      ],
+      "files": [
+        "tests/integration/quality/rust-quality-commands-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Composed native Quality specification save/update/activation and inspection measurement writes are checked over the real Account session, IAM, Commercial purchase, Workflow receipt and PostgreSQL readback."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "quality_commands_postgres"
+        ],
+        "features": [
+          "existing-business"
+        ]
+      },
+      "apps": [
+        "supply"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-field_service",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-operations",
+        "@erpx/feature-organization",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-service",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-commercial",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-legal",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-platform_administration",
+        "@erpx/server-quality",
+        "@erpx/server-runtime",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/ui"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml",
+        "tests/support/finance/review-composition.rs",
+        "tests/support/rust-account-revocation.rs",
+        "tests/support/rust-account-credentials.rs",
+        "tests/support/rust-account.rs",
+        "tests/support/rust-postgres.rs",
+        "packages/server-quality/Cargo.toml",
+        "packages/server-quality/src/public/quality_commands.rs",
+        "packages/server-quality/src/adapters/quality_commands.rs",
+        "src/composition/src/quality_commands.rs"
+      ]
+    },
+    {
       "id": "quality.rust-quality-read-cancel-postgres.integration",
       "lane": "integration",
       "owner": "quality",

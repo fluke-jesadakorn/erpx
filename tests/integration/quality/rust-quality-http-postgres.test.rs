@@ -391,3 +391,127 @@ async fn quality_http_reads_history_and_cancels_over_the_real_session() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn selected_quality_reads_use_current_hr_fallback_identity_aliases() {
+    review::account::with_system(|system| async move {
+        let p = review::setup_with_finance(system, false).await;
+        grant_quality(&p).await;
+        seed_quality(&p).await;
+        let db = p.system.holdings[0].raw();
+        // fixture-a has no IAM member here. Its person must be resolved through
+        // the actual HR fallback, and these member identities are its aliases.
+        sqlx::raw_sql("INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,created_by,created_at,updated_at) VALUES('quality-person','fixture-a','company','Synthetic person','TH','fixture',0,0); INSERT INTO iam_members(company_id,user_id,principal_id,person_id) VALUES('company','creator-alias','local:creator-alias','quality-person'),('company','inspector-alias','local:inspector-alias','quality-person'),('company','requester-alias','local:requester-alias','quality-person'); INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,status,created_by,last_inspector,last_result,cancel_requested_by,created_at,updated_at,quantity_scope) VALUES('alias-created','company','branch','warehouse','product','Synthetic hold','2026-11-10','held','creator-alias',NULL,NULL,NULL,0,0,'whole'),('alias-inspected','company','branch','warehouse','product','Synthetic hold','2026-11-10','awaiting_release','other-person','inspector-alias','pass',NULL,0,0,'whole'),('alias-requested','company','branch','warehouse','product','Synthetic hold','2026-11-10','cancel_pending','other-person',NULL,NULL,'requester-alias',0,0,'whole')").execute(db).await.unwrap();
+        let member_person: Option<String> = sqlx::query_scalar("SELECT person_id FROM iam_members WHERE company_id='company' AND user_id='fixture-a'").fetch_optional(db).await.unwrap().flatten();
+        assert!(member_person.is_none(), "fixture must use HR fallback");
+        let hr_matches: i64 = sqlx::query_scalar("SELECT count(*) FROM hr_people WHERE company_id='company' AND user_id='fixture-a' AND merged_into_id IS NULL AND id='quality-person'").fetch_one(db).await.unwrap();
+        let all_hr_matches: i64 = sqlx::query_scalar("SELECT count(*) FROM hr_people WHERE company_id='company' AND user_id='fixture-a' AND merged_into_id IS NULL").fetch_one(db).await.unwrap();
+        assert_eq!((hr_matches, all_hr_matches), (1, 1));
+        let app = prepared_router(&p);
+        let reviewer_workspace=app.clone().oneshot(read_request("/api/v1/holdings/acme/quality",&p,true,"company")).await.unwrap();
+        assert_eq!(reviewer_workspace.status(),StatusCode::OK);
+        let reviewer_workspace=json(reviewer_workspace).await;
+        let reviewer_holds=reviewer_workspace["data"]["holds"].as_array().unwrap();
+        let workspace=app.clone().oneshot(read_request("/api/v1/holdings/acme/quality",&p,false,"company")).await.unwrap();
+        assert_eq!(workspace.status(),StatusCode::OK);
+        let workspace=json(workspace).await;
+        let holds=workspace["data"]["holds"].as_array().unwrap();
+        for (id,flag) in [("alias-created","canInspect"),("alias-inspected","canRelease"),("alias-requested","canReviewCancellation")] {
+            let row=holds.iter().find(|row|row["id"]==id).unwrap();
+            assert_eq!(row["decision"][flag],false,"{id} {row}");
+            let reviewer_row=reviewer_holds.iter().find(|row|row["id"]==id).unwrap();
+            assert_eq!(reviewer_row["decision"][flag],true,"unrelated actor {id} {reviewer_row}");
+            for suffix in ["", "/detail-core"] {
+                let response=app.clone().oneshot(read_request(&format!("/api/v1/holdings/acme/quality/{id}{suffix}"),&p,false,"company")).await.unwrap();
+                let status=response.status();let body=json(response).await;
+                assert_eq!(status,StatusCode::OK,"{body}");
+                assert_eq!(body["data"]["hold"]["decision"][flag],false,"{id} {body}");
+            }
+            for suffix in ["", "/detail-core"] {
+                let response=app.clone().oneshot(read_request(&format!("/api/v1/holdings/acme/quality/{id}{suffix}"),&p,true,"company")).await.unwrap();
+                let status=response.status();let body=json(response).await;
+                assert_eq!(status,StatusCode::OK,"{body}");
+                assert_eq!(body["data"]["hold"]["decision"][flag],true,"unrelated actor {id} {body}");
+            }
+        }
+        // A fresh selected request must observe changed actual IAM facts.
+        sqlx::query("UPDATE iam_members SET person_id=NULL WHERE company_id='company' AND user_id='creator-alias'").execute(db).await.unwrap();
+        let response=app.oneshot(read_request("/api/v1/holdings/acme/quality/alias-created/detail-core",&p,false,"company")).await.unwrap();
+        let status=response.status();let body=json(response).await;
+        assert_eq!(status,StatusCode::OK,"{body}");
+        assert_eq!(body["data"]["hold"]["decision"]["canInspect"],true,"{body}");
+    }).await;
+}
+
+#[tokio::test]
+async fn selected_quality_alias_fence_serializes_both_writer_orders() {
+    use std::time::Duration;
+    async fn settle<T>(mut task: tokio::task::JoinHandle<T>) -> Option<Result<T, tokio::task::JoinError>> {
+        match tokio::time::timeout(Duration::from_secs(25), &mut task).await {
+            Ok(result) => Some(result),
+            Err(_) => { task.abort(); let _ = task.await; None }
+        }
+    }
+    review::account::with_system(|system| async move {
+        let p=review::setup_with_finance(system,false).await;
+        grant_quality(&p).await;
+        seed_quality(&p).await;
+        let db=p.system.holdings[0].raw().clone();
+        sqlx::raw_sql("INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,created_by,created_at,updated_at) VALUES('alias-race-person','fixture-a','company','Synthetic person','TH','fixture',0,0); INSERT INTO iam_members(company_id,user_id,principal_id,person_id) VALUES('company','alias-race','local:alias-race','alias-race-person'); INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,status,created_by,created_at,updated_at,quantity_scope) VALUES('alias-race-hold','company','branch','warehouse','product','Synthetic hold','2026-11-10','held','alias-race',0,0,'whole')").execute(&db).await.unwrap();
+        let app=prepared_router(&p);
+        let path="/api/v1/holdings/acme/quality/alias-race-hold/detail-core";
+        // Reader first: stop it at the Quality lock after it has acquired IAM.
+        let mut blocker=db.begin().await.unwrap();
+        sqlx::query("LOCK TABLE inventory_quality_holds IN ROW EXCLUSIVE MODE").execute(&mut *blocker).await.unwrap();
+        let blocker_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *blocker).await.unwrap();
+        let request=read_request(path,&p,false,"company");let router=app.clone();
+        let reader=tokio::spawn(async move { tokio::time::timeout(Duration::from_secs(20),router.oneshot(request)).await });
+        let reader_pid=tokio::time::timeout(Duration::from_secs(5),async {
+            loop {
+                let pids:Vec<i32>=sqlx::query_scalar("SELECT l.pid FROM pg_locks l WHERE l.relation='inventory_quality_holds'::regclass AND l.mode='ShareRowExclusiveLock' AND NOT l.granted AND $1=ANY(pg_blocking_pids(l.pid)) AND EXISTS(SELECT 1 FROM pg_locks i WHERE i.pid=l.pid AND i.relation='iam_members'::regclass AND i.mode='ShareLock' AND i.granted)").bind(blocker_pid).fetch_all(&db).await.unwrap();
+                if pids.len()==1 {break pids[0];} tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        }).await;
+        let (send,receive)=tokio::sync::oneshot::channel();let writer_db=db.clone();
+        let writer=tokio::spawn(async move {
+            let mut tx=writer_db.begin().await.unwrap();
+            sqlx::query("SET LOCAL statement_timeout='15s'").execute(&mut *tx).await.unwrap();
+            let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *tx).await.unwrap();let _=send.send(pid);
+            sqlx::query("UPDATE iam_members SET person_id=NULL WHERE company_id='company' AND user_id='alias-race'").execute(&mut *tx).await.unwrap();
+            tx.commit().await.unwrap();
+        });
+        let writer_pid=tokio::time::timeout(Duration::from_secs(5),receive).await.ok().and_then(Result::ok);
+        let blocked=if let (Ok(reader_pid),Some(writer_pid))=(reader_pid.as_ref(),writer_pid) {
+            tokio::time::timeout(Duration::from_secs(5),async {loop {
+                let yes:bool=sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(*reader_pid).bind(writer_pid).fetch_one(&mut *blocker).await.unwrap();
+                if yes {break;}tokio::time::sleep(Duration::from_millis(10)).await;
+            }}).await.is_ok()
+        } else {false};
+        let rollback_result=blocker.rollback().await;
+        let (reader_result,writer_result)=tokio::join!(settle(reader),settle(writer));
+        rollback_result.unwrap();
+        assert!(reader_pid.is_ok() && blocked,"expected exact Quality reader and IAM writer lock chain");
+        writer_result.expect("writer timed out").expect("writer task failed");
+        let old=reader_result.expect("reader timed out").expect("reader task failed").expect("request timed out").expect("request failed");
+        assert_eq!(old.status(),StatusCode::OK);assert_eq!(json(old).await["data"]["hold"]["decision"]["canInspect"],false);
+        let fresh=app.clone().oneshot(read_request(path,&p,false,"company")).await.unwrap();
+        assert_eq!(fresh.status(),StatusCode::OK);assert_eq!(json(fresh).await["data"]["hold"]["decision"]["canInspect"],true);
+        // Writer first: the selected reader must wait on that writer's actual PID
+        // before taking its snapshot and must observe its committed new alias.
+        let mut writer=db.begin().await.unwrap();
+        let writer_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();
+        sqlx::query("UPDATE iam_members SET person_id='alias-race-person' WHERE company_id='company' AND user_id='alias-race'").execute(&mut *writer).await.unwrap();
+        let router=app.clone();let request=read_request(path,&p,false,"company");
+        let reader=tokio::spawn(async move {tokio::time::timeout(Duration::from_secs(20),router.oneshot(request)).await});
+        let blocked_reader=tokio::time::timeout(Duration::from_secs(5),async {loop {
+            let pids:Vec<i32>=sqlx::query_scalar("SELECT l.pid FROM pg_locks l WHERE l.relation='iam_members'::regclass AND l.mode='ShareLock' AND NOT l.granted AND $1=ANY(pg_blocking_pids(l.pid))").bind(writer_pid).fetch_all(&db).await.unwrap();
+            if pids.len()==1 {break pids[0];}tokio::time::sleep(Duration::from_millis(10)).await;
+        }}).await;
+        let commit_result=writer.commit().await;
+        let reader_result=settle(reader).await;
+        commit_result.unwrap();
+        assert!(blocked_reader.is_ok(),"expected exact IAM writer blocker");
+        let response=reader_result.expect("reader timed out").expect("reader task failed").expect("request timed out").expect("request failed");
+        assert_eq!(response.status(),StatusCode::OK);assert_eq!(json(response).await["data"]["hold"]["decision"]["canInspect"],false);
+    }).await;
+}

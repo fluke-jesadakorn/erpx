@@ -140,6 +140,19 @@ export type NativeQualityReceipt = Readonly<{
   version: number;
 }>;
 
+export type NativeQualitySpecReceipt = Readonly<{
+  id: string;
+  status: string;
+  version: number;
+}>;
+
+export type NativeQualityInspectionReceipt = Readonly<{
+  id: string;
+  status: string;
+  result: 'pass' | 'fail';
+  version: number;
+}>;
+
 type Settings = {
   privateBaseUrl: string;
   timeoutMs: number;
@@ -712,6 +725,85 @@ export function createNativeQualityReader(raw: string, transport: QualityTranspo
         specMetrics: rows(value.specMetrics, metric),
         alerts: rows(value.alerts, alert),
         cancellationHistory: 'paged',
+      };
+    },
+    saveSpecification: async (
+      incoming: Pick<Headers, 'get'>,
+      slug: string,
+      input: unknown,
+      key: string,
+    ): Promise<NativeQualitySpecReceipt> => {
+      const value = await send(
+        'POST',
+        incoming,
+        slug,
+        '/specifications',
+        JSON.stringify(input ?? {}),
+        key,
+      );
+      if (
+        !identifier(value.id) ||
+        !text(value.status) ||
+        !safeInteger(value.version) ||
+        value.version < 1
+      )
+        return fail('NATIVE_QUALITY_RESPONSE_INVALID');
+      return { id: value.id, status: value.status, version: value.version };
+    },
+    transitionSpecification: async (
+      incoming: Pick<Headers, 'get'>,
+      slug: string,
+      id: string,
+      input: unknown,
+      key: string,
+    ): Promise<NativeQualitySpecReceipt> => {
+      if (!identifier(id)) return fail('NATIVE_QUALITY_REQUEST_INVALID', 422);
+      const value = await send(
+        'POST',
+        incoming,
+        slug,
+        `/specifications/${encodeURIComponent(id)}`,
+        JSON.stringify(input ?? {}),
+        key,
+      );
+      if (
+        !identifier(value.id) ||
+        !text(value.status) ||
+        !safeInteger(value.version) ||
+        value.version < 1
+      )
+        return fail('NATIVE_QUALITY_RESPONSE_INVALID');
+      return { id: value.id, status: value.status, version: value.version };
+    },
+    inspect: async (
+      incoming: Pick<Headers, 'get'>,
+      slug: string,
+      id: string,
+      input: unknown,
+      key: string,
+    ): Promise<NativeQualityInspectionReceipt> => {
+      if (!identifier(id)) return fail('NATIVE_QUALITY_REQUEST_INVALID', 422);
+      const value = await send(
+        'POST',
+        incoming,
+        slug,
+        `/${encodeURIComponent(id)}/inspect`,
+        JSON.stringify(input ?? {}),
+        key,
+      );
+      if (
+        !identifier(value.id) ||
+        !text(value.status) ||
+        !resultValue(value.result) ||
+        !safeInteger(value.version) ||
+        value.version < 1
+      )
+        return fail('NATIVE_QUALITY_RESPONSE_INVALID');
+      return {
+        id: value.id,
+        status: value.status,
+        result: value.result,
+        version: value.version,
       };
     },
     cancel: async (

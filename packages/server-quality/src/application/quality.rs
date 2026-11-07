@@ -6,7 +6,8 @@
 //! purchase or Workflow authority.
 use crate::domain::quality::{
     CancellationAction, CancellationPlan, HoldStatus, InspectionResult, QualityDecision,
-    QualityHoldFacts, QualityMetric, evaluate_measurements, next_action, quality_decision,
+    QualityHoldFacts, QualityMetric, evaluate_measurements, next_action,
+    quality_decision_with_same_person,
     validate_reason,
 };
 use erpx_server_shared::public::{
@@ -259,6 +260,15 @@ pub fn quality_detail_core_from_source(
     actor: &QualityActor,
     data: QualityDetailCoreData,
 ) -> Result<QualityDetailCore, BusinessError> {
+    quality_detail_core_with_same_person(actor, data, &|user| actor.user_id.as_str() == user)
+}
+
+/// The predicate is sourced from the selected actor's current Identity facts.
+pub fn quality_detail_core_with_same_person(
+    actor: &QualityActor,
+    data: QualityDetailCoreData,
+    same_person: &dyn Fn(&str) -> bool,
+) -> Result<QualityDetailCore, BusinessError> {
     require_read(actor)?;
     if data.hold.company_id != actor.company_id.as_str()
         || actor
@@ -275,7 +285,7 @@ pub fn quality_detail_core_from_source(
         can_release: actor.can("quality.release"),
         company_scope: actor.branch_id.is_none(),
     };
-    let decision = quality_decision(&data.hold.facts(), &facts);
+    let decision = quality_decision_with_same_person(&data.hold.facts(), &facts, same_person);
     let next_action = next_action(data.hold.status, data.hold.last_result, decision);
     Ok(QualityDetailCore {
         hold: QualityHoldView {
@@ -355,6 +365,15 @@ pub fn quality_workspace<'a, R: QualityReadRepository>(
     actor: &'a QualityActor,
     repository: &'a mut R,
 ) -> QualityFuture<'a, QualityWorkspace> {
+    quality_workspace_with_same_person(actor, repository, move |user: &str| actor.user_id.as_str() == user)
+}
+
+/// The predicate must be bound to retained Identity facts in the caller's unit.
+pub fn quality_workspace_with_same_person<'a, R: QualityReadRepository, P: Fn(&str) -> bool + Send + Sync + 'a>(
+    actor: &'a QualityActor,
+    repository: &'a mut R,
+    same_person: P,
+) -> QualityFuture<'a, QualityWorkspace> {
     Box::pin(async move {
         require_read(actor)?;
         let data = repository
@@ -373,7 +392,7 @@ pub fn quality_workspace<'a, R: QualityReadRepository>(
             .holds
             .into_iter()
             .map(|hold| {
-                let decision = quality_decision(&hold.facts(), &actor_facts);
+                let decision = quality_decision_with_same_person(&hold.facts(), &actor_facts, &same_person);
                 let next_action = next_action(hold.status, hold.last_result, decision);
                 QualityHoldView {
                     hold,
@@ -395,6 +414,16 @@ pub fn quality_detail<'a, R: QualityReadRepository>(
     id: &'a str,
     repository: &'a mut R,
 ) -> QualityFuture<'a, QualityDetail> {
+    quality_detail_with_same_person(actor, id, repository, move |user: &str| actor.user_id.as_str() == user)
+}
+
+/// The predicate must be bound to retained Identity facts in the caller's unit.
+pub fn quality_detail_with_same_person<'a, R: QualityReadRepository, P: Fn(&str) -> bool + Send + Sync + 'a>(
+    actor: &'a QualityActor,
+    id: &'a str,
+    repository: &'a mut R,
+    same_person: P,
+) -> QualityFuture<'a, QualityDetail> {
     Box::pin(async move {
         require_read(actor)?;
         let id = RecordId::new(id)?.as_str().to_owned();
@@ -409,7 +438,7 @@ pub fn quality_detail<'a, R: QualityReadRepository>(
             can_release: actor.can("quality.release"),
             company_scope: actor.branch_id.is_none(),
         };
-        let decision = quality_decision(&data.hold.facts(), &actor_facts);
+        let decision = quality_decision_with_same_person(&data.hold.facts(), &actor_facts, &same_person);
         let next_action = next_action(data.hold.status, data.hold.last_result, decision);
         Ok(QualityDetail {
             hold: QualityHoldView {

@@ -13,21 +13,33 @@ use erpx_server_identity_access::public::{
         AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
         WorkAuthorizationRequest,
     },
-    work_context::HoldingWorkspaceRequest,
+    work_context::{ExpectedWorkSelection, HoldingWorkspaceRequest},
+};
+use erpx_server_quality::public::quality_commands::{
+    HoldStatus, InspectionResult, QualityInspectionCommand, QualityInspectionReceipt,
+    QualitySpecActionCommand, QualitySpecCommand, QualitySpecReceipt, SpecStatus,
+    normalize_quality_inspection, normalize_quality_spec_action, normalize_quality_spec_save,
 };
 use erpx_server_quality::public::quality_http::{
     PgQualityCancellation, PgQualityRead, QualityHttpBackend, QualityHttpCommandRequest,
     QualityHttpFuture, QualityHttpHistoryReply, QualityHttpHistoryRequest, QualityHttpReadReply,
-    QualityHttpReadRequest, QualityHttpTarget, parse_cancellation, parse_quality_history_query,
+    QualityHttpReadRequest, QualityHttpSaveSpecRequest, QualityHttpTarget, parse_cancellation,
+    parse_inspection, parse_quality_history_query, parse_spec_action, parse_spec_save,
     quality_router, read_quality_cancellation_history_page, read_quality_detail_core,
 };
 use erpx_server_quality::public::quality_read::{
     QualityActor, QualityCancellationCommand, QualityCancellationReceipt, cancel_quality_hold,
-    quality_detail, quality_detail_core_from_source, quality_workspace,
+    quality_detail_with_same_person, quality_detail_core_with_same_person, quality_workspace_with_same_person,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
+use erpx_server_shared::public::{
+    AssignmentId, BusinessError, Clock, CompanyId, FailureKind, HoldingId, IdentifierSource,
+    RecordId,
+};
+use crate::quality_commands::{
+    QualityCommandPreparation, QualityOwnerCommand, execute_quality_command,
+};
 use sqlx::PgConnection;
 use std::sync::Arc;
 
@@ -201,7 +213,7 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
                         current.require_permission("quality.read")?;
                         let actor = quality_actor(current)?;
                         let mut repository = PgQualityRead { connection };
-                        let data = quality_workspace(&actor, &mut repository).await?;
+                        let data = quality_workspace_with_same_person(&actor, &mut repository, |user| current.same_person_user_raw(user)).await?;
                         let _ = clock;
                         Ok(QualityHttpReadReply::Workspace(Box::new(data)))
                     })
@@ -242,7 +254,7 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
                         current.require_permission("quality.read")?;
                         let actor = quality_actor(current)?;
                         let mut repository = PgQualityRead { connection };
-                        let data = quality_detail(&actor, &id, &mut repository).await?;
+                        let data = quality_detail_with_same_person(&actor, &id, &mut repository, |user| current.same_person_user_raw(user)).await?;
                         Ok(QualityHttpReadReply::Detail(Box::new(data)))
                     })
                 },
@@ -309,7 +321,7 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
                                 .clone()
                         };
                         let actor = quality_actor(current)?;
-                        let Some(current) = read_quality_detail_core(
+                        let Some(hold_source) = read_quality_detail_core(
                             connection,
                             &actor.company_id,
                             actor.branch_id.as_ref(),
@@ -330,9 +342,10 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
                         .await
                         .map_err(business)?
                         .require_allowed()?;
-                        Ok(quality_detail_core_from_source(
+                        Ok(quality_detail_core_with_same_person(
                             &actor,
-                            current.data().clone(),
+                            hold_source.data().clone(),
+                            &|user| current.same_person_user_raw(user),
                         )?)
                     })
                 },
@@ -436,6 +449,169 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
             .await
     }
 
+    fn command_access(permission: &'static str) -> WorkAuthorizationRequest {
+        WorkAuthorizationRequest {
+            permission: permission.into(),
+            module: Some("quality".into()),
+            destination: "quality".into(),
+            api: true,
+        }
+    }
+
+    pub async fn save_spec(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        mut selection: HoldingWorkspaceRequest,
+        command: QualitySpecCommand,
+    ) -> Result<QualitySpecReceipt, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        if selection.company_id != company {
+            return Err(scope().into());
+        }
+        selection.mutation = true;
+        let command = normalize_quality_spec_save(command)?;
+        self.authorizer
+            .execute_with_sources(
+                host,
+                proof,
+                selection,
+                Self::command_access("quality.release"),
+                QualityCommandPreparation,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        let mut identifiers = QualityIds;
+                        let outcome = execute_quality_command(
+                            connection,
+                            current,
+                            &QualityOwnerCommand::SaveSpec(command),
+                            PackageEnforcementMode::Enforced,
+                            clock.as_ref(),
+                            clock.as_ref(),
+                            &mut identifiers,
+                        )
+                        .await?;
+                        Ok(spec_receipt(&outcome)?)
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn transition_spec(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        mut selection: HoldingWorkspaceRequest,
+        command: QualitySpecActionCommand,
+    ) -> Result<QualitySpecReceipt, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        if selection.company_id != company {
+            return Err(scope().into());
+        }
+        selection.mutation = true;
+        let command = normalize_quality_spec_action(command)?;
+        self.authorizer
+            .execute_with_sources(
+                host,
+                proof,
+                selection,
+                Self::command_access("quality.release"),
+                QualityCommandPreparation,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        let mut identifiers = QualityIds;
+                        let outcome = execute_quality_command(
+                            connection,
+                            current,
+                            &QualityOwnerCommand::TransitionSpec(command),
+                            PackageEnforcementMode::Enforced,
+                            clock.as_ref(),
+                            clock.as_ref(),
+                            &mut identifiers,
+                        )
+                        .await?;
+                        Ok(spec_receipt(&outcome)?)
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn inspect(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        mut selection: HoldingWorkspaceRequest,
+        command: QualityInspectionCommand,
+    ) -> Result<QualityInspectionReceipt, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        if selection.company_id != company {
+            return Err(scope().into());
+        }
+        selection.mutation = true;
+        let command = normalize_quality_inspection(command)?;
+        self.authorizer
+            .execute_with_sources(
+                host,
+                proof,
+                selection,
+                Self::command_access("quality.inspect"),
+                QualityCommandPreparation,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        let inspection_key = command.key.as_str().to_owned();
+                        let mut identifiers = QualityIds;
+                        let outcome = execute_quality_command(
+                            connection,
+                            current,
+                            &QualityOwnerCommand::Inspect(command),
+                            PackageEnforcementMode::Enforced,
+                            clock.as_ref(),
+                            clock.as_ref(),
+                            &mut identifiers,
+                        )
+                        .await?;
+                        Ok(inspection_receipt(&inspection_key, &outcome)?)
+                    })
+                },
+            )
+            .await
+    }
+
     pub async fn cancel<Input>(
         &self,
         host: &str,
@@ -481,6 +657,63 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
     }
 }
 
+struct QualityIds;
+impl IdentifierSource for QualityIds {
+    fn next(&mut self) -> RecordId {
+        RecordId::new(uuid::Uuid::new_v4().to_string()).expect("generated UUID")
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct SpecResultJson {
+    id: String,
+    status: String,
+    version: i64,
+}
+
+fn spec_receipt(
+    outcome: &erpx_server_workflow::public::commands::CommandOutcome,
+) -> Result<QualitySpecReceipt, BusinessError> {
+    let value: SpecResultJson =
+        serde_json::from_str(outcome.result.as_str()).map_err(|_| changed_result())?;
+    Ok(QualitySpecReceipt {
+        id: value.id,
+        status: SpecStatus::parse(&value.status).ok_or_else(changed_result)?,
+        version: value.version,
+    })
+}
+
+#[derive(serde::Deserialize)]
+struct InspectionResultJson {
+    id: String,
+    status: String,
+    result: String,
+    version: i64,
+}
+
+fn inspection_receipt(
+    key: &str,
+    outcome: &erpx_server_workflow::public::commands::CommandOutcome,
+) -> Result<QualityInspectionReceipt, BusinessError> {
+    let value: InspectionResultJson =
+        serde_json::from_str(outcome.result.as_str()).map_err(|_| changed_result())?;
+    Ok(QualityInspectionReceipt {
+        id: value.id,
+        inspection_id: format!("inspection-{key}"),
+        status: HoldStatus::parse(&value.status).ok_or_else(changed_result)?,
+        result: InspectionResult::parse(&value.result).ok_or_else(changed_result)?,
+        version: value.version,
+    })
+}
+
+fn changed_result() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "QUALITY_RESULT_INVALID",
+        "Refresh the Quality record before continuing.",
+    )
+}
+
 pub struct QualityBackend<C> {
     policy: Arc<AccountPolicy>,
     scopes: Arc<dyn BusinessScopeSlugs>,
@@ -520,6 +753,68 @@ impl<C: Clock + Send + Sync + 'static> QualityBackend<C> {
             },
         ))
     }
+
+    fn command_context(
+        &self,
+        headers: &HeaderMap,
+    ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
+        let (proof, mut selection) = self.context(headers)?;
+        let field = |name: &'static str| -> Result<&str, BusinessError> {
+            let mut values = headers.get_all(name).iter();
+            let first = values.next();
+            if values.next().is_some() {
+                return Err(BusinessError::invalid(
+                    "QUALITY_CONTEXT_REQUIRED",
+                    "Use one current work context.",
+                ));
+            }
+            first
+                .and_then(|value| value.to_str().ok())
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    BusinessError::invalid(
+                        "QUALITY_CONTEXT_REQUIRED",
+                        "Use the current work revision and assignment.",
+                    )
+                })
+        };
+        let revision = field("x-erpx-context-revision")?
+            .parse::<i64>()
+            .map_err(|_| {
+                BusinessError::invalid(
+                    "QUALITY_CONTEXT_REQUIRED",
+                    "Use the current work revision.",
+                )
+            })?;
+        if revision < 0 {
+            return Err(BusinessError::invalid(
+                "QUALITY_CONTEXT_REQUIRED",
+                "Use the current work revision.",
+            ));
+        }
+        let assignment_id = AssignmentId::new(field("x-erpx-context-assignment")?)?;
+        let assignment_version = field("x-erpx-context-assignment-version")?
+            .parse::<i64>()
+            .map_err(|_| {
+                BusinessError::invalid(
+                    "QUALITY_CONTEXT_REQUIRED",
+                    "Use the current assignment version.",
+                )
+            })?;
+        if assignment_version < 1 {
+            return Err(BusinessError::invalid(
+                "QUALITY_CONTEXT_REQUIRED",
+                "Use the current assignment version.",
+            ));
+        }
+        selection.expected = Some(ExpectedWorkSelection {
+            revision,
+            assignment_id,
+            assignment_version,
+        });
+        selection.mutation = true;
+        Ok((proof, selection))
+    }
 }
 
 impl<C: Clock + Send + Sync + 'static> QualityHttpBackend for QualityBackend<C> {
@@ -552,6 +847,48 @@ impl<C: Clock + Send + Sync + 'static> QualityHttpBackend for QualityBackend<C> 
             let command = parse_cancellation(request.body, request.id, request.key.clone())?;
             self.service
                 .cancel(request.host, proof, move || Ok(selection), command)
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn save_spec<'a>(
+        &'a self,
+        request: QualityHttpSaveSpecRequest<'a>,
+    ) -> QualityHttpFuture<'a, QualitySpecReceipt> {
+        Box::pin(async move {
+            let (proof, selection) = self.command_context(request.headers)?;
+            let command = parse_spec_save(request.body, request.id, request.key.clone())?;
+            self.service
+                .save_spec(request.host, proof, selection, command)
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn transition_spec<'a>(
+        &'a self,
+        request: QualityHttpCommandRequest<'a>,
+    ) -> QualityHttpFuture<'a, QualitySpecReceipt> {
+        Box::pin(async move {
+            let (proof, selection) = self.command_context(request.headers)?;
+            let command = parse_spec_action(request.body, request.id, request.key.clone())?;
+            self.service
+                .transition_spec(request.host, proof, selection, command)
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn inspect<'a>(
+        &'a self,
+        request: QualityHttpCommandRequest<'a>,
+    ) -> QualityHttpFuture<'a, QualityInspectionReceipt> {
+        Box::pin(async move {
+            let (proof, selection) = self.command_context(request.headers)?;
+            let command = parse_inspection(request.body, request.id, request.key.clone())?;
+            self.service
+                .inspect(request.host, proof, selection, command)
                 .await
                 .map_err(business)
         })

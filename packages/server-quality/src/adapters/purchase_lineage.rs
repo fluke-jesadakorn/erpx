@@ -175,6 +175,13 @@ async fn unit(c: &mut PgConnection) -> Result<Unit, Error> {
     {
         return Err(invalid());
     }
+    // This checks the current fences, not whether they were acquired before
+    // the first snapshot or released and reacquired after a savepoint.
+    let held: bool = sqlx::query_scalar("SELECT count(DISTINCT relation)=2 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND granted AND mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock') AND relation IN ('inventory_quality_holds'::regclass,'inventory_quality_disposition_events'::regclass)")
+        .fetch_one(&mut *c).await?;
+    if !held {
+        return Err(PersistenceError::new("QUALITY_LINEAGE_LOCKS_REQUIRED").into());
+    }
     Ok(sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text").fetch_one(c).await?)
 }
 fn invalid() -> Error {

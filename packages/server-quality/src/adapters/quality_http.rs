@@ -10,8 +10,15 @@ use crate::application::quality::{
     QualityDetail, QualityDetailCore, QualityDisposition, QualityHold, QualityInspection,
     QualityMeasurement, QualityWorkspace,
 };
+use crate::application::quality_commands::{
+    QualityInspectionCommand, QualityInspectionReceipt, QualitySpecAction,
+    QualitySpecActionCommand, QualitySpecCommand, QualitySpecInput, QualitySpecMetricInput,
+    QualitySpecReceipt, normalize_quality_inspection, normalize_quality_spec_action,
+    normalize_quality_spec_save,
+};
 use crate::domain::quality::{
-    CancellationAction, MAX_SAFE_INTEGER, QualityDecision, QualityMetric, validate_reason,
+    CancellationAction, InspectionResult, MAX_SAFE_INTEGER, QualityDecision, QualityMetric,
+    validate_reason,
 };
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
@@ -41,6 +48,17 @@ pub struct QualityHttpCommandRequest<'a> {
     pub holding_slug: &'a str,
     pub headers: &'a HeaderMap,
     pub id: &'a str,
+    pub body: &'a Value,
+    pub key: &'a CommandKey,
+}
+
+/// A new specification draft has no path identifier; its retained record ID is
+/// derived from the command key by the owner.
+pub struct QualityHttpSaveSpecRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub id: Option<&'a str>,
     pub body: &'a Value,
     pub key: &'a CommandKey,
 }
@@ -105,6 +123,42 @@ pub trait QualityHttpBackend: Send + Sync {
                 FailureKind::Unavailable,
                 "QUALITY_DETAIL_UNAVAILABLE",
                 "Quality detail is unavailable.",
+            ))
+        })
+    }
+    fn save_spec<'a>(
+        &'a self,
+        _request: QualityHttpSaveSpecRequest<'a>,
+    ) -> QualityHttpFuture<'a, QualitySpecReceipt> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "QUALITY_SPEC_UNAVAILABLE",
+                "Inspection specification writes are unavailable.",
+            ))
+        })
+    }
+    fn transition_spec<'a>(
+        &'a self,
+        _request: QualityHttpCommandRequest<'a>,
+    ) -> QualityHttpFuture<'a, QualitySpecReceipt> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "QUALITY_SPEC_UNAVAILABLE",
+                "Inspection specification writes are unavailable.",
+            ))
+        })
+    }
+    fn inspect<'a>(
+        &'a self,
+        _request: QualityHttpCommandRequest<'a>,
+    ) -> QualityHttpFuture<'a, QualityInspectionReceipt> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "QUALITY_INSPECTION_UNAVAILABLE",
+                "Inspection writes are unavailable.",
             ))
         })
     }
@@ -203,6 +257,18 @@ pub fn quality_router(targets: Vec<QualityHttpTarget>) -> Result<Router, Busines
         .route(
             "/api/v1/holdings/{holding_slug}/quality/{id}/detail-core",
             get(read_detail_core),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/quality/specifications",
+            post(save_spec),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/quality/specifications/{id}",
+            post(transition_spec),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/quality/{id}/inspect",
+            post(inspect),
         )
         .with_state(Arc::new(QualityHttpState {
             targets: configured,
@@ -439,6 +505,219 @@ fn receipt_json(value: &QualityCancellationReceipt) -> Value {
     })
 }
 
+fn spec_receipt_json(value: &QualitySpecReceipt) -> Value {
+    json!({
+        "data": {
+            "id": value.id,
+            "status": value.status.as_str(),
+            "version": value.version,
+        }
+    })
+}
+
+fn inspection_receipt_json(value: &QualityInspectionReceipt) -> Value {
+    json!({
+        "data": {
+            "id": value.id,
+            "status": value.status.as_str(),
+            "result": value.result.as_str(),
+            "version": value.version,
+        }
+    })
+}
+
+fn command_object(value: &Value) -> Result<&serde_json::Map<String, Value>, BusinessError> {
+    value.as_object().ok_or_else(malformed)
+}
+
+fn command_text<'a>(
+    object: &'a serde_json::Map<String, Value>,
+    name: &str,
+) -> Result<&'a str, BusinessError> {
+    object
+        .get(name)
+        .and_then(Value::as_str)
+        .ok_or_else(malformed)
+}
+
+pub fn parse_spec_save(
+    value: &Value,
+    id: Option<&str>,
+    command_key: CommandKey,
+) -> Result<QualitySpecCommand, BusinessError> {
+    let object = command_object(value)?;
+    let product_id = RecordId::new(command_text(object, "productId")?)?;
+    let name = command_text(object, "name")?.to_owned();
+    let expected_version = object
+        .get("expectedVersion")
+        .map(|value| {
+            json_integer(value, 1)
+                .ok_or_else(|| BusinessError::invalid("VERSION_REQUIRED", "Refresh the draft specification before editing."))
+        })
+        .transpose()?;
+    let metrics = object
+        .get("metrics")
+        .and_then(Value::as_array)
+        .filter(|metrics| !metrics.is_empty() && metrics.len() <= 50)
+        .ok_or_else(|| {
+            BusinessError::invalid(
+                "QUALITY_METRICS_REQUIRED",
+                "Add between one and fifty measurements.",
+            )
+        })?;
+    let metrics = metrics
+        .iter()
+        .map(|value| {
+            let object = command_object(value)?;
+            Ok(QualitySpecMetricInput {
+                code: command_text(object, "code")?.to_owned(),
+                label: command_text(object, "label")?.to_owned(),
+                unit: command_text(object, "unit")?.to_owned(),
+                minimum: Some(command_text(object, "minimum")?.to_owned()),
+                maximum: Some(command_text(object, "maximum")?.to_owned()),
+            })
+        })
+        .collect::<Result<Vec<_>, BusinessError>>()?;
+    normalize_quality_spec_save(QualitySpecCommand {
+        key: command_key,
+        id: id.map(RecordId::new).transpose()?,
+        input: QualitySpecInput {
+            product_id,
+            name,
+            expected_version,
+            metrics,
+        },
+    })
+}
+
+pub fn parse_spec_action(
+    value: &Value,
+    id: &str,
+    command_key: CommandKey,
+) -> Result<QualitySpecActionCommand, BusinessError> {
+    let object = command_object(value)?;
+    let expected_version = json_integer(
+        object
+            .get("expectedVersion")
+            .ok_or_else(|| BusinessError::invalid("VERSION_REQUIRED", "Refresh the draft specification before editing."))?,
+        1,
+    )
+    .ok_or_else(|| BusinessError::invalid("VERSION_REQUIRED", "Refresh the draft specification before editing."))?;
+    let action = object
+        .get("action")
+        .and_then(Value::as_str)
+        .and_then(QualitySpecAction::parse)
+        .ok_or_else(|| {
+            BusinessError::invalid(
+                "QUALITY_SPEC_ACTION",
+                "Choose whether to activate or cancel the draft specification.",
+            )
+        })?;
+    let reason = command_text(object, "reason")?.to_owned();
+    normalize_quality_spec_action(QualitySpecActionCommand {
+        key: command_key,
+        id: RecordId::new(id)?,
+        expected_version,
+        action,
+        reason,
+    })
+}
+
+pub fn parse_inspection(
+    value: &Value,
+    hold_id: &str,
+    command_key: CommandKey,
+) -> Result<QualityInspectionCommand, BusinessError> {
+    let object = command_object(value)?;
+    let expected_version = json_integer(
+        object
+            .get("expectedVersion")
+            .ok_or_else(|| {
+                BusinessError::invalid(
+                    "VERSION_REQUIRED",
+                    "Refresh the quality hold before inspecting.",
+                )
+            })?,
+        1,
+    )
+    .ok_or_else(|| {
+        BusinessError::invalid(
+            "VERSION_REQUIRED",
+            "Refresh the quality hold before inspecting.",
+        )
+    })?;
+    let result = object
+        .get("result")
+        .map(|value| {
+            value
+                .as_str()
+                .and_then(InspectionResult::parse)
+                .ok_or_else(|| {
+                    BusinessError::invalid(
+                        "QUALITY_RESULT_REQUIRED",
+                        "Choose pass or fail for a hold without a structured specification.",
+                    )
+                })
+        })
+        .transpose()?;
+    let evidence = command_text(object, "evidence")?.to_owned();
+    let measurements = object
+        .get("measurements")
+        .map(|value| {
+            value.as_array().filter(|rows| rows.len() <= 100).ok_or_else(|| {
+                BusinessError::invalid(
+                    "QUALITY_MEASUREMENTS_REQUIRED",
+                    "Record one value for every measurement in the held specification.",
+                )
+            })
+        })
+        .transpose()?
+        .map(|rows| {
+            rows.iter()
+                .map(|value| {
+                    let object = command_object(value)?;
+                    Ok(crate::domain::quality::MeasurementInput {
+                        metric_id: command_text(object, "metricId")?.to_owned(),
+                        value: command_text(object, "value")?.to_owned(),
+                    })
+                })
+                .collect::<Result<Vec<_>, BusinessError>>()
+        })
+        .transpose()?
+        .unwrap_or_default();
+    let list = |name: &str| -> Result<Vec<String>, BusinessError> {
+        object
+            .get(name)
+            .map(|value| {
+                value
+                    .as_array()
+                    .filter(|rows| rows.len() <= 10)
+                    .ok_or_else(malformed)?
+                    .iter()
+                    .map(|value| {
+                        value
+                            .as_str()
+                            .filter(|value| !value.is_empty() && value.len() <= 200)
+                            .map(str::to_owned)
+                            .ok_or_else(malformed)
+                    })
+                    .collect::<Result<Vec<_>, BusinessError>>()
+            })
+            .transpose()
+            .map(Option::unwrap_or_default)
+    };
+    normalize_quality_inspection(QualityInspectionCommand {
+        key: command_key,
+        hold_id: RecordId::new(hold_id)?,
+        expected_version,
+        result,
+        evidence,
+        measurements,
+        attachment_ids: list("attachmentIds")?,
+        attachment_set_ids: list("attachmentSetIds")?,
+    })
+}
+
 async fn read_workspace(
     State(state): State<Arc<QualityHttpState>>,
     Path(slug): Path<String>,
@@ -654,6 +933,153 @@ pub fn parse_cancellation(
         action,
         reason,
     })
+}
+
+struct ParsedQualityCommand {
+    headers: HeaderMap,
+    key: CommandKey,
+    body: Value,
+}
+
+async fn parse_quality_command(
+    request: Request,
+    target: &QualityHttpTarget,
+) -> Result<ParsedQualityCommand, BusinessError> {
+    if unique_header(request.headers(), header::ORIGIN)?
+        .is_some_and(|value| value != target.origin)
+    {
+        return Err(BusinessError::new(
+            FailureKind::Forbidden,
+            "ORIGIN_FORBIDDEN",
+            "Use the application origin.",
+        ));
+    }
+    let key = unique_header(
+        request.headers(),
+        HeaderName::from_static("idempotency-key"),
+    )?
+    .filter(|value| !value.is_empty())
+    .ok_or_else(|| {
+        BusinessError::invalid("COMMAND_KEY_REQUIRED", "Idempotency-Key is required.")
+    })
+    .and_then(CommandKey::new)?;
+    if !unique_header(request.headers(), header::CONTENT_TYPE)?.is_some_and(|value| {
+        value
+            .split(';')
+            .next()
+            .is_some_and(|value| value.trim().eq_ignore_ascii_case("application/json"))
+    }) {
+        return Err(malformed());
+    }
+    let headers = request.headers().clone();
+    let body = to_bytes(request.into_body(), BODY_LIMIT)
+        .await
+        .map_err(|_| {
+            BusinessError::invalid("BODY_TOO_LARGE", "Use a smaller Quality command.")
+        })?;
+    let body = serde_json::from_slice::<Value>(&body).map_err(|_| malformed())?;
+    Ok(ParsedQualityCommand { headers, key, body })
+}
+
+async fn save_spec(
+    State(state): State<Arc<QualityHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let target = target(&state, request.headers(), &slug)?;
+        let parsed = parse_quality_command(request, target).await?;
+        let command = parse_spec_save(&parsed.body, None, parsed.key.clone())?;
+        target
+            .backend
+            .save_spec(QualityHttpSaveSpecRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &parsed.headers,
+                id: None,
+                body: &parsed.body,
+                key: &command.key,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(receipt) => bounded(spec_receipt_json(&receipt)),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn transition_spec(
+    State(state): State<Arc<QualityHttpState>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let target = target(&state, request.headers(), &slug)?;
+        let parsed = parse_quality_command(request, target).await?;
+        let id = RecordId::new(id)?;
+        if parsed.body.get("action").is_some() {
+            let command = parse_spec_action(&parsed.body, id.as_str(), parsed.key.clone())?;
+            target
+                .backend
+                .transition_spec(QualityHttpCommandRequest {
+                    host: &target.host,
+                    holding_slug: &target.holding_slug,
+                    headers: &parsed.headers,
+                    id: id.as_str(),
+                    body: &parsed.body,
+                    key: &command.key,
+                })
+                .await
+        } else {
+            let command = parse_spec_save(&parsed.body, Some(id.as_str()), parsed.key.clone())?;
+            target
+                .backend
+                .save_spec(QualityHttpSaveSpecRequest {
+                    host: &target.host,
+                    holding_slug: &target.holding_slug,
+                    headers: &parsed.headers,
+                    id: Some(id.as_str()),
+                    body: &parsed.body,
+                    key: &command.key,
+                })
+                .await
+        }
+    }
+    .await;
+    match result {
+        Ok(receipt) => bounded(spec_receipt_json(&receipt)),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn inspect(
+    State(state): State<Arc<QualityHttpState>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let target = target(&state, request.headers(), &slug)?;
+        let parsed = parse_quality_command(request, target).await?;
+        let id = RecordId::new(id)?;
+        let command = parse_inspection(&parsed.body, id.as_str(), parsed.key.clone())?;
+        target
+            .backend
+            .inspect(QualityHttpCommandRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &parsed.headers,
+                id: id.as_str(),
+                body: &parsed.body,
+                key: &command.key,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(receipt) => bounded(inspection_receipt_json(&receipt)),
+        Err(error) => error_response(error),
+    }
 }
 
 async fn cancel(

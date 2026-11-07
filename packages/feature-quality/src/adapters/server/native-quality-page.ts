@@ -6,7 +6,9 @@ import {
   type NativeQualityDetailCore,
   type NativeQualityCancellationCursor,
   type NativeQualityCancellationPage,
+  type NativeQualityInspectionReceipt,
   type NativeQualityReceipt,
+  type NativeQualitySpecReceipt,
   type NativeQualityWorkspace,
   type QualityTransport,
 } from './native-quality';
@@ -61,6 +63,41 @@ export async function nativeQualityCancellationHistory(
   const native = client(transport);
   if (!native) return undefined;
   return native.cancellationHistory(await headers(), holdingSlug, id, cursor);
+}
+
+export async function nativeQualitySaveSpecification(
+  holdingSlug: string,
+  input: unknown,
+  key: string,
+  transport?: QualityTransport,
+): Promise<NativeQualitySpecReceipt | undefined> {
+  const native = client(transport);
+  if (!native) return undefined;
+  return native.saveSpecification(await headers(), holdingSlug, input, key);
+}
+
+export async function nativeQualityTransitionSpecification(
+  holdingSlug: string,
+  id: string,
+  input: unknown,
+  key: string,
+  transport?: QualityTransport,
+): Promise<NativeQualitySpecReceipt | undefined> {
+  const native = client(transport);
+  if (!native) return undefined;
+  return native.transitionSpecification(await headers(), holdingSlug, id, input, key);
+}
+
+export async function nativeQualityInspect(
+  holdingSlug: string,
+  id: string,
+  input: unknown,
+  key: string,
+  transport?: QualityTransport,
+): Promise<NativeQualityInspectionReceipt | undefined> {
+  const native = client(transport);
+  if (!native) return undefined;
+  return native.inspect(await headers(), holdingSlug, id, input, key);
 }
 
 export async function nativeQualityCancel(

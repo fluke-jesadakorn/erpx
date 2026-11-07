@@ -54,6 +54,35 @@ impl HoldStatus {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SpecStatus {
+    Draft,
+    Active,
+    Superseded,
+    Cancelled,
+}
+
+impl SpecStatus {
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "draft" => Some(Self::Draft),
+            "active" => Some(Self::Active),
+            "superseded" => Some(Self::Superseded),
+            "cancelled" => Some(Self::Cancelled),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Draft => "draft",
+            Self::Active => "active",
+            Self::Superseded => "superseded",
+            Self::Cancelled => "cancelled",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum InspectionResult {
     Pass,
     Fail,
@@ -261,18 +290,26 @@ fn same_person(left: &str, right: &str) -> bool {
 }
 
 fn same_optional(left: &str, right: &Option<String>) -> bool {
-    right
-        .as_deref()
-        .is_some_and(|right| same_person(left, right))
+    right.as_deref().is_some_and(|right| same_person(left, right))
 }
 
 /// Mirrors `qualityDetail` after the caller has already enforced `quality.read`
 /// and rejected a department-scoped assignment.
 pub fn quality_decision(hold: &QualityHoldFacts, actor: &QualityActorFacts) -> QualityDecision {
+    quality_decision_with_same_person(hold, actor, &|user| same_person(&actor.user_id, user))
+}
+
+/// The predicate must come from the current selected actor's retained Identity
+/// facts. This projection does not establish authority or authorize writes.
+pub fn quality_decision_with_same_person(
+    hold: &QualityHoldFacts,
+    actor: &QualityActorFacts,
+    same_person: &dyn Fn(&str) -> bool,
+) -> QualityDecision {
     let status = hold.status;
-    let self_created = same_person(&actor.user_id, &hold.created_by);
-    let self_inspected = same_optional(&actor.user_id, &hold.last_inspector);
-    let self_requested = same_optional(&actor.user_id, &hold.cancel_requested_by);
+    let self_created = same_person(&hold.created_by);
+    let self_inspected = hold.last_inspector.as_deref().is_some_and(same_person);
+    let self_requested = hold.cancel_requested_by.as_deref().is_some_and(same_person);
     QualityDecision {
         can_inspect: status.is_inspectable() && actor.can_inspect && !self_created,
         can_release: status == HoldStatus::AwaitingRelease
@@ -400,8 +437,10 @@ pub fn plan_cancellation(
 }
 
 /// Zod-compatible trimmed text length in UTF-16 code units.
-pub fn validate_reason(
+pub fn validate_text(
     value: &str,
+    minimum: usize,
+    maximum: usize,
     code: &'static str,
     message: &'static str,
 ) -> Result<String, BusinessError> {
@@ -410,8 +449,16 @@ pub fn validate_reason(
         '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' |
         '\u{205f}' | '\u{3000}' | '\u{feff}'));
     let length = value.encode_utf16().count();
-    if !(3..=2000).contains(&length) {
+    if !(minimum..=maximum).contains(&length) {
         return Err(BusinessError::invalid(code, message));
     }
     Ok(value.to_owned())
+}
+
+pub fn validate_reason(
+    value: &str,
+    code: &'static str,
+    message: &'static str,
+) -> Result<String, BusinessError> {
+    validate_text(value, 3, 2000, code, message)
 }

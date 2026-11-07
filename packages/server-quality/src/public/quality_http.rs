@@ -2,8 +2,9 @@
 pub use crate::adapters::quality_http::{
     QualityHistoryCursor, QualityHttpBackend, QualityHttpCommandRequest, QualityHttpFuture,
     QualityHttpHistoryReply, QualityHttpHistoryRequest, QualityHttpReadReply,
-    QualityHttpReadRequest, QualityHttpTarget, json_integer, parse_cancellation,
-    parse_quality_history_query, quality_router,
+    QualityHttpReadRequest, QualityHttpSaveSpecRequest, QualityHttpTarget, json_integer,
+    parse_cancellation, parse_inspection, parse_quality_history_query, parse_spec_action,
+    parse_spec_save, quality_router,
 };
 pub use crate::adapters::quality_read::{
     CurrentQualityCancellationHistoryPage, CurrentQualityDetail, CurrentQualityDetailCore,
