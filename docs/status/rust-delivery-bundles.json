@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-07T16:38:47+07:00",
+  "updatedAt": "2026-11-07T17:41:43+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -4718,7 +4718,7 @@
         "quality-http"
       ],
       "sourceRef": "packages/server-quality/src/public/quality.ts",
-      "gap": "Native Quality spec save/update/activate/cancel and inspection measurement writes are mounted and verified (PostgreSQL/HTTP + browser). Attachment-bearing inspections still divert to the retained TypeScript path and native staff_notification handoff is not mirrored, so the workflow stays partial."
+      "gap": "Native Quality inspection evidence is implemented for direct attachmentIds: Files ownership/metadata validation, bounded/unique attachment refs, staff notification/inbox handoff, receipts/audit/outbox. Browser upload + native inspect 200 persisted the ref/notification. attachmentSetIds still fail closed to retained TS because no Files set-membership port exists for quality_hold evidence."
     },
     {
       "id": "quality/results",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-07T16:38:47+07:00",
-    "sourceHead": "0bc0d9d8d",
+    "generatedAt": "2026-11-07T17:41:43+07:00",
+    "sourceHead": "98c468f3d",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7787,6 +7787,22 @@
           "native CRM command transport"
         ],
         "evidence": "browser lose/reopen/disqualify/reassign/link-quote/negotiate/win all 200 with expected versions/stages; final opportunity won v6 lead v9; receipts/audit/outbox/case events present; CRM tests 2/2,10/10,10/10,2/2,15/15; typecheck passes",
+        "counts": {
+          "owners": 5,
+          "verified": 44,
+          "partial": 75,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-07T17:41:43+07:00",
+        "commit": "98c468f3d",
+        "bundles": [
+          "native quality inspection evidence",
+          "staff notification handoff"
+        ],
+        "evidence": "browser upload + native inspect 200 hold fail v3; attachment ref persisted/available; notifications/inbox at v3; company mismatch 422; set path retained; quality 2/2,3/3,19/19,10/10,5/5; typecheck/structure pass",
         "counts": {
           "owners": 5,
           "verified": 44,
