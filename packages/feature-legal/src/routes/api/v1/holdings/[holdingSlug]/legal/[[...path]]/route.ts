@@ -292,16 +292,51 @@ export async function POST(request: Request, ctx: Context) {
     }
     if (path.length === 2 && path[0] === "upload") {
       const body = await boundedBody(request, 10 * 1024 * 1024);
+      const bytes = new Uint8Array(body);
+      const expectedVersion = Number(request.headers.get("X-Record-Version"));
+      const name = decodeURIComponent(request.headers.get("X-File-Name") ?? "Document");
+      if (nativeLegalAvailable()) {
+        const set = await createAttachmentSet(write, a, {
+          targetType: "legal_item",
+          targetId: path[1],
+          componentKind: "record",
+          componentRef: `document:${key}`,
+          purposeKey: "legal_document",
+          expectedTargetVersion: expectedVersion,
+        }, `${key}:set`, { compatibilityAdapter: true });
+        const reserved = await reserveAttachmentFile(write, a, set.id, {
+          filename: name,
+          mediaType: request.headers.get("Content-Type") ?? "",
+          bytes: bytes.byteLength,
+        }, `${key}:file`, { compatibilityAdapter: true });
+        const uploaded = await completeAttachmentUpload(write, files, a, reserved.uploadIntentId, bytes.buffer as ArrayBuffer, { compatibilityAdapter: true });
+        const sourceState = await scanAttachmentNow(write, files, uploaded.sourceId);
+        if (sourceState !== "available") {
+          throw new ApiError(
+            sourceState === "malware_rejected" ? 422 : 503,
+            sourceState === "malware_rejected" ? "LEGAL_UPLOAD_REJECTED" : "LEGAL_SCAN_UNAVAILABLE",
+            sourceState === "malware_rejected" ? "The upload was rejected by malware scanning." : "The upload could not pass malware scanning.",
+          );
+        }
+        const native = await nativeLegalCommand(a, holdingSlug, {
+          action: "document.import",
+          id: path[1],
+          expectedVersion,
+          attachmentLinkId: uploaded.attachmentLinkId,
+          name,
+        }, key, request.headers).catch(nativeFailure);
+        if (native) return Response.json(canonicalDestinationLinks({ data: native }), { headers: { "Cache-Control": "private, no-store" } });
+      }
       return Response.json(canonicalDestinationLinks({
         data: await uploadDocument(
           write,
           files,
           a,
           path[1],
-          Number(request.headers.get("X-Record-Version")),
-          decodeURIComponent(request.headers.get("X-File-Name") ?? "Document"),
+          expectedVersion,
+          name,
           request.headers.get("Content-Type") ?? "",
-          new Uint8Array(body),
+          bytes,
           key,
         ),
       }));

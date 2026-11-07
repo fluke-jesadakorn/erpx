@@ -371,6 +371,10 @@ pub enum LegalCommand {
         attachment_link_id: String,
         metadata: Value,
     },
+    DocumentImport {
+        attachment_link_id: String,
+        name: String,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -458,6 +462,12 @@ pub enum LegalCommandEffect {
         attachment_link_id: String,
         metadata: Value,
     },
+    DocumentImport {
+        command_id: String,
+        document_id: String,
+        attachment_link_id: String,
+        name: String,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -526,6 +536,7 @@ pub fn parse_envelope(raw: &Value) -> Result<LegalCommandEnvelope, BusinessError
             | "approval.decide"
             | "approval.reroute"
             | "executed.import"
+            | "document.import"
     ) {
         return Err(invalid(
             "LEGAL_ACTION_UNSUPPORTED",
@@ -570,7 +581,7 @@ pub fn command_permission(action: &str) -> Result<&'static str, BusinessError> {
         "hold.release" => Ok("legal.hold.release"),
         "share" | "share.revoke" | "member" => Ok("legal.share"),
         "executed.review" => Ok("legal.approve"),
-        "executed.import" => Ok("legal.edit"),
+        "executed.import" | "document.import" => Ok("legal.edit"),
         "approval.open" => Ok("legal.review"),
         "approval.decide" | "approval.reroute" => Ok("legal.approve"),
         _ => Err(invalid(
@@ -735,6 +746,28 @@ pub fn parse_command(
                 reason: reason(object)?,
             })
         }
+        "document.import" => {
+            let attachment_link_id = object
+                .get("attachmentLinkId")
+                .and_then(Value::as_str)
+                .ok_or_else(|| invalid("LEGAL_IMPORT_REQUIRED", "Choose the ready document attachment."))?;
+            if attachment_link_id.is_empty()
+                || attachment_link_id.len() > 200
+                || attachment_link_id.chars().any(char::is_control)
+            {
+                return Err(invalid("LEGAL_IMPORT_REQUIRED", "Choose the ready document attachment."));
+            }
+            let name = object
+                .get("name")
+                .and_then(Value::as_str)
+                .map(js_trim)
+                .filter(|value| !value.is_empty() && cp_len(value) <= 200 && !value.chars().any(char::is_control))
+                .ok_or_else(|| invalid("LEGAL_DOCUMENT_NAME", "Name the uploaded document version."))?;
+            Ok(LegalCommand::DocumentImport {
+                attachment_link_id: attachment_link_id.to_owned(),
+                name: name.to_owned(),
+            })
+        }
         "executed.import" => {
             let attachment_link_id = object
                 .get("attachmentLinkId")
@@ -885,6 +918,7 @@ pub fn plan_command(
         LegalCommand::ApprovalDecide { .. } => "approval.decide",
         LegalCommand::ApprovalReroute { .. } => "approval.reroute",
         LegalCommand::ExecutedImport { .. } => "executed.import",
+        LegalCommand::DocumentImport { .. } => "document.import",
     })?;
     require(actor, permission)?;
     if actor.is_requester() && !matches!(command, LegalCommand::AddDocument { .. }) {
@@ -1224,6 +1258,38 @@ pub fn plan_command(
                     metadata: metadata.clone(),
                 },
                 Some(derived_id("legal-executed-document", key)),
+                None,
+                item.state.clone(),
+            )
+        }
+        LegalCommand::DocumentImport {
+            attachment_link_id,
+            name,
+        } => {
+            if item.state != "draft" {
+                return Err(BusinessError::new(
+                    FailureKind::Conflict,
+                    "LEGAL_TRANSITION",
+                    "Return to draft before adding a document version.",
+                ));
+            }
+            if !source.editor {
+                return Err(BusinessError::new(
+                    FailureKind::Forbidden,
+                    "LEGAL_EDITOR_REQUIRED",
+                    "An editor membership is required.",
+                ));
+            }
+            (
+                "document.import".to_owned(),
+                format!("Document version imported: {name}"),
+                LegalCommandEffect::DocumentImport {
+                    command_id: key.to_owned(),
+                    document_id: derived_id("legal-upload-document", key),
+                    attachment_link_id: attachment_link_id.clone(),
+                    name: name.clone(),
+                },
+                Some(derived_id("legal-upload-document", key)),
                 None,
                 item.state.clone(),
             )

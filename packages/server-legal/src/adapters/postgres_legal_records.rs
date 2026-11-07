@@ -699,6 +699,83 @@ impl<'c> PgLegalRecords<'c> {
                     )
                     .await?;
             }
+            LegalCommandEffect::DocumentImport {
+                command_id,
+                document_id,
+                attachment_link_id,
+                name,
+            } => {
+                let item = sqlx::query(
+                    "SELECT state FROM legal_items WHERE id=$1 AND company_id=$2 FOR UPDATE",
+                )
+                .bind(&plan.item_id)
+                .bind(actor.company_id.as_str())
+                .fetch_optional(&mut *self.connection)
+                .await?
+                .ok_or_else(not_found)?;
+                if item.try_get::<String, _>("state")? != "draft" {
+                    return Err(BusinessError::new(
+                        FailureKind::Conflict,
+                        "LEGAL_TRANSITION",
+                        "Return to draft before adding a document version.",
+                    )
+                    .into());
+                }
+                let evidence = erpx_server_files::public::legal_import_evidence::inspect_legal_import_evidence(
+                    &mut *self.connection,
+                    &actor.company_id,
+                    &plan.item_id,
+                    attachment_link_id,
+                )
+                .await?;
+                if evidence.checksum_sha256.len() != 64
+                    || evidence.bytes < 1
+                    || evidence.bytes > 10 * 1024 * 1024
+                    || !matches!(
+                        evidence.media_type.as_str(),
+                        "application/pdf"
+                            | "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                            | "image/png"
+                            | "image/jpeg"
+                    )
+                {
+                    return Err(invalid("LEGAL_IMPORT_REQUIRED", "Upload a PDF, DOCX, PNG or JPEG with the current attachment intake.").into());
+                }
+                let next_version: i64 = sqlx::query_scalar(
+                    "SELECT (COALESCE(MAX(version),0)+1)::bigint FROM legal_documents WHERE item_id=$1",
+                )
+                .bind(&plan.item_id)
+                .fetch_one(&mut *self.connection)
+                .await?;
+                sqlx::query(
+                    "INSERT INTO legal_documents(id,item_id,version,name,media_type,checksum,bytes,body,object_key,locked,created_by,created_at,attachment_link_id,attachment_source_id)                      VALUES($1,$2,$3,$4,$5,$6,$7,'',$8,false,$9,$10,$11,$12)",
+                )
+                .bind(document_id)
+                .bind(&plan.item_id)
+                .bind(i32_version(next_version)?)
+                .bind(name)
+                .bind(&evidence.media_type)
+                .bind(&evidence.checksum_sha256)
+                .bind(evidence.bytes)
+                .bind(&evidence.object_key)
+                .bind(actor.user_id.as_str())
+                .bind(self.now)
+                .bind(attachment_link_id)
+                .bind(&evidence.source_id)
+                .execute(&mut *self.connection)
+                .await?;
+                evidence
+                    .bind(
+                        &mut *self.connection,
+                        &actor.company_id,
+                        actor.user_id.as_str(),
+                        command_id,
+                        "legal_document",
+                        document_id,
+                        self.now,
+                    )
+                    .await?;
+            }
             LegalCommandEffect::Archive { .. } => {}
             LegalCommandEffect::ApprovalOpen {
                 instance_id,
