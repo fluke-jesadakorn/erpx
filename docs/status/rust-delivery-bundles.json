@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-08T05:24:59+07:00",
+  "updatedAt": "2026-11-08T05:40:31+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 58,
-    "workflowsVerified": 61,
-    "workflowsMerged": 61,
+    "workflowsPartial": 57,
+    "workflowsVerified": 62,
+    "workflowsMerged": 62,
     "ownersComplete": 7,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -4773,16 +4773,16 @@
       "kind": "module",
       "owner": "legal",
       "scope": "Contracts",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "legal-native-records",
         "legal-native-holds",
         "legal-native-archive"
       ],
       "sourceRef": "packages/server-legal/src/public/legal/service.ts",
-      "gap": "Native Legal record register/detail, authored document versions, the contract approval route (open/decide/reroute) and executed-copy review are implemented. The approval writer validates contract/document state, unique people, reviewer eligibility and membership, author independence, signer access and executed-copy separation; it writes approval instances/steps/routes/decisions, notifications and legal approvals with receipt/audit/outbox and locks the approved document. Browser verified: legal-item-acme-1 draft v9 -> approval v10 as creator, then approved v11 by usr_legal_reviewer; executed-copy review separately confirmed a signed original. Signed-original import/upload (Files-backed binary intake) remains retained, so the workflow stays partial."
+      "gap": "Closed. Native Legal record/document versions, the contract approval route and executed-copy review are implemented. Signed originals use the supported two-step Files bridge: the existing Files intake uploads the file, then a native executed.import validates one draft legal_item attachment, inserts the immutable document/executed copy, binds the set/link and records receipt/audit/outbox in the same Legal transaction. Browser verified on legal-item-acme-1: approval.open draft v9 -> approval v10, independent approval v11, signed PNG imported as document v2 with the set/link bound as legal_executed_copy, then independent review confirmed it and advanced the contract to executed v13. Electronic signing remains intentionally unavailable by the release gate; importing a signed original for independent review is the supported execution path."
     },
     {
       "id": "legal/feature-documents",
@@ -4798,7 +4798,7 @@
         "legal-native-archive"
       ],
       "sourceRef": "packages/server-legal/src/public/legal/service.ts",
-      "gap": "Native document register/detail/version command slice, share/share.revoke and membership are implemented. Direct signed/upload file intake, OCR/verify queue and export writers remain retained on the Files/jobs paths, so the workflow stays partial."
+      "gap": "Native document register/detail/version commands, share/revoke, membership and the two-step Files-backed signed-original import are implemented. Direct new-file document upload, OCR/verify queueing and export writers remain retained, so the workflow stays partial."
     },
     {
       "id": "legal/feature-legal-holds",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-08T05:24:59+07:00",
-    "sourceHead": "435c0b8a6",
+    "generatedAt": "2026-11-08T05:40:31+07:00",
+    "sourceHead": "352b70185",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6598,8 +6598,8 @@
       },
       "legal": {
         "workflows": 5,
-        "verified": 3,
-        "partial": 2,
+        "verified": 4,
+        "partial": 1,
         "unstarted": 0,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -8037,6 +8037,22 @@
           "owners": 7,
           "verified": 61,
           "partial": 58,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-08T05:40:31+07:00",
+        "commit": "352b70185",
+        "bundles": [
+          "native Legal signed-original bridge",
+          "legal contracts closure"
+        ],
+        "evidence": "browser legal-item-acme-1 approval v11; Files upload set/link bound legal_executed_copy; native executed.import document v2 pending; independent review confirmed; contract executed v13; DB documents v2 with link/source, executed copy confirmed, set/link bound, two receipts/audit/outbox; legal suites 6/6 etc; typecheck/structure/health pass",
+        "counts": {
+          "owners": 7,
+          "verified": 62,
+          "partial": 57,
           "unstarted": 87,
           "total": 206
         }
