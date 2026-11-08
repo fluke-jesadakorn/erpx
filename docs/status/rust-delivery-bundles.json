@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-08T22:11:50+07:00",
+  "updatedAt": "2026-11-08T22:23:05+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 46,
-    "workflowsVerified": 73,
-    "workflowsMerged": 73,
+    "workflowsPartial": 45,
+    "workflowsVerified": 74,
+    "workflowsMerged": 74,
     "ownersComplete": 8,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -5527,15 +5527,15 @@
       "kind": "module",
       "owner": "talent",
       "scope": "Requisitions",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "talent-native-requisition",
         "talent-native-requisition-http"
       ],
       "sourceRef": "packages/server-talent/src/public/talent.ts",
-      "gap": "Native requisition draft/approve/reject/open/close/cancel and scoped reads are PostgreSQL/HTTP-qualified; candidate, application, offer, proposal, hire handoff and composition mount complete; browser remains open."
+      "gap": "Closed. The Talent target now mounts for the configured operations Company, the private API boundary admits the requisition GET/POST paths, the owner router and native client accept the registered development Holding port, and the native Talent configuration is present in the dev container. Browser verified desktop and mobile on the Recruitment workspace: the Talent page renders the native workspace with the Senior furniture designer requisition (open, 2 openings) from the native Talent owner. Registered talent.test.ts (30/30) including the requisition/candidate/proposal/offer/hire-handoff case and native transport (11/11) pass; service check, typecheck and structure pass. Candidate privacy, applications, proposals, offers and hire handoffs remain tracked by their own workflows."
     },
     {
       "id": "talent/applications",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-08T22:11:50+07:00",
-    "sourceHead": "aeb9b86ce",
+    "generatedAt": "2026-11-08T22:23:05+07:00",
+    "sourceHead": "1cd03e4ca",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6678,8 +6678,8 @@
       },
       "talent": {
         "workflows": 6,
-        "verified": 0,
-        "partial": 1,
+        "verified": 1,
+        "partial": 0,
         "unstarted": 5,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -8218,6 +8218,21 @@
           "owners": 8,
           "verified": 73,
           "partial": 46,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-08T22:23:05+07:00",
+        "commit": "1cd03e4ca",
+        "bundles": [
+          "native Talent requisition workspace browser acceptance"
+        ],
+        "evidence": "browser desktop+mobile Recruitment page native requisition Senior furniture designer open 2 openings; registered talent.test.ts 30/30; native talent transport 11/11; service check/typecheck/structure pass; dev fixtures recruit grant + talent_requisitions",
+        "counts": {
+          "owners": 8,
+          "verified": 74,
+          "partial": 45,
           "unstarted": 87,
           "total": 206
         }
