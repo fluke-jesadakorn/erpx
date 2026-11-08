@@ -6558,7 +6558,7 @@
       },
       "inventory": {
         "workflows": 5,
-        "verified": 1,
+        "verified": 4,
         "partial": 1,
         "unstarted": 0,
         "phase": "partial",
