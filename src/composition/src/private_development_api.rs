@@ -205,6 +205,8 @@ struct ConfigurationDocument {
     #[serde(default)]
     operations_companies: Vec<FinanceReadDocument>,
     #[serde(default)]
+    commerce_companies: Vec<FinanceReadDocument>,
+    #[serde(default)]
     platform_administration_companies: Vec<FinanceReadDocument>,
     #[serde(default)]
     maintenance_companies: Vec<FinanceReadDocument>,
@@ -321,6 +323,7 @@ pub struct DevelopmentApiConfiguration {
     pos_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     crm_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     operations_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
+    commerce_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     platform_administration_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     maintenance_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     finance_field_service_invoice_reads: BTreeSet<HoldingId>,
@@ -670,6 +673,18 @@ impl DevelopmentApiConfiguration {
                 || !operations_companies.entry(holding).or_default().insert(company)
             {
                 return Err("PRIVATE_API_OPERATIONS_CONFIGURATION_INVALID");
+            }
+        }
+        let mut commerce_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>> = BTreeMap::new();
+        for read in doc.commerce_companies {
+            let holding = HoldingId::new(&read.holding_id)
+                .map_err(|_| "PRIVATE_API_COMMERCE_CONFIGURATION_INVALID")?;
+            let company = CompanyId::new(&read.company_id)
+                .map_err(|_| "PRIVATE_API_COMMERCE_CONFIGURATION_INVALID")?;
+            if !ids.contains(&read.holding_id)
+                || !commerce_companies.entry(holding).or_default().insert(company)
+            {
+                return Err("PRIVATE_API_COMMERCE_CONFIGURATION_INVALID");
             }
         }
         let mut platform_administration_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>> =
@@ -1310,6 +1325,7 @@ impl DevelopmentApiConfiguration {
             pos_companies,
             crm_companies,
             operations_companies,
+            commerce_companies,
             platform_administration_companies,
             maintenance_companies,
             finance_field_service_invoice_reads,
@@ -2655,26 +2671,6 @@ async fn assemble_checked(
                         )),
                     },
                 );
-                #[cfg(feature = "existing-business")]
-                commerce_targets.push(
-                    erpx_server_commerce::public::order_http::CommerceOrderHttpTarget {
-                        host: holding.host.clone(),
-                        holding_slug: holding.registration.slug.clone(),
-                        origin: format!("https://{}", holding.host),
-                        backend: Arc::new(crate::commerce::CommerceBackend::new(
-                            config.policy.clone(),
-                            Arc::new(FinanceJournalReadScopeHeaders),
-                            Arc::new(crate::commerce::CommerceService::new(
-                                authorizer.clone(),
-                                crate::commerce::CommerceConfiguration::new(
-                                    holding.registration.holding_id.clone(),
-                                    company.clone(),
-                                ),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )),
-                    },
-                );
                 manage_erpx_targets.push(
                     erpx_server_manage_erpx::public::onboarding_http::ManageErpxHttpTarget {
                         host: holding.host.clone(),
@@ -3303,6 +3299,47 @@ async fn assemble_checked(
                 erpx_server_commercial::public::purchases::company_package_router(commercial_targets)
                     .map_err(|_| "PRIVATE_API_COMMERCIAL_CONFIGURATION_INVALID")?,
             );
+        }
+        #[cfg(feature = "existing-business")]
+        for (i, holding) in config.holdings.iter().enumerate() {
+            let Some(companies) = config
+                .commerce_companies
+                .get(&holding.registration.holding_id)
+            else {
+                continue;
+            };
+            let authorizer = Arc::new(
+                HoldingWorkAuthorizer::new(
+                    pools[0].clone(),
+                    pools[i + 1].clone(),
+                    holding.registration.holding_id.clone(),
+                    (*config.policy).clone(),
+                    clock.clone(),
+                    config.holdings_registry.clone(),
+                )
+                .map_err(|_| "PRIVATE_API_COMMERCE_CONFIGURATION_INVALID")?,
+            );
+            for company in companies {
+                commerce_targets.push(
+                    erpx_server_commerce::public::order_http::CommerceOrderHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::commerce::CommerceBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::commerce::CommerceService::new(
+                                authorizer.clone(),
+                                crate::commerce::CommerceConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
+            }
         }
         #[cfg(feature = "existing-business")]
         if !commerce_targets.is_empty() {
