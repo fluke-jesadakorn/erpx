@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T04:05:00+07:00",
+  "updatedAt": "2026-11-09T05:15:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 103,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 37,
-    "workflowsVerified": 84,
-    "workflowsMerged": 84,
+    "workflowsPartial": 38,
+    "workflowsVerified": 83,
+    "workflowsMerged": 83,
     "ownersComplete": 8,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -4245,16 +4245,16 @@
       "kind": "module",
       "owner": "sales",
       "scope": "Quotes",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [
         "sales-native-documents",
         "sales-native-documents-http",
         "sales-native-price-lists"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Verified native quotation workflow: price-list draft/update/activate/cancel, quotation list/detail, draft create/update with customer/warehouse/product/version/date guards, active price list/discount/tax integer math, CAS, replay, receipt/audit/outbox, persisted readback, and Finance-owned order/line revision Money snapshots (1+3N) in one serializable unit; quote submit/approve/return/cancel and conversion; desktop and mobile interactive create/edit through the native Next route with the created record and refreshed list. Purchase orders and sales-order approval/cancellation/fulfillment/invoicing/returns are separate workflows or retained operations.",
+      "gap": "Native quotation work has bounded evidence: price-list draft/update/activate/cancel, quotation list/detail, draft create/update with customer/warehouse/product/version/date guards, active price list/discount/tax integer math, CAS, replay, receipt/audit/outbox, persisted readback, and Finance-owned order/line revision Money snapshots (1+3N) in one serializable unit; quote submit/approve/return/cancel and conversion; desktop interactive create/edit and mobile create/readback through the native Next route. Mobile edit, clean full-service integration and remaining strict gates require evidence on the final source before full workflow verification. Purchase orders and sales-order approval/cancellation/fulfillment/invoicing/returns are separate workflows or retained operations.",
       "mergeCommit": "62a9147fb"
     },
     {
@@ -6479,8 +6479,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-09T04:05:00+07:00",
-    "sourceHead": "b932e3781",
+    "generatedAt": "2026-11-09T05:15:00+07:00",
+    "sourceHead": "496932e73",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7138,11 +7138,16 @@
         "id": "private-production-3101",
         "detail": "The installed private production service is not listening on 127.0.0.1:3101 at survey time. This goal does not authorize deploy/release; availability is reported, not changed.",
         "unblock": "Outside this goal; operator action."
+      },
+      {
+        "id": "assets-composition-api-drift",
+        "detail": "The committed Assets Finance handoff now compiles with the shared dyn Clock, but the keyed container cannot rebuild it: its server-assets adapter and composition asset_http.rs come from different uncommitted API revisions (AssetChangeResult/command body decode), and the positive-cost Assets page still returns NATIVE_ASSETS_UNAVAILABLE. Container source was restored to its last building revision; the native Commerce/guard API is healthy.",
+        "unblock": "Integrate the external server-assets/AssetHttp API revision (or rebase the Assets handoff onto the committed server-assets API), add ERPX_NATIVE_ASSETS_CONFIG for the keyed origin, then rebuild and browser-verify a positive-cost registration."
       }
     ],
     "nextActions": [
       "Sales-order approval and confirmed cancellation guards are native-qualified; close sales/orders by porting fulfillment/invoicing/settlement/returns, or provide an independent sales approver session to browser-verify the guarded approval/cancel journeys first.",
-      "Rebuild the keyed container with the Assets/Finance handoff and browser-verify positive-cost Assets registration using the webpack verification bundler if Turbopack prevents hydration.",
+      "Positive-cost Assets is blocked by the server-assets/composition API drift recorded in assets-composition-api-drift; integrate that revision before rebuilding the container and browser-verifying registration.",
       "Integrate the external untracked server-files/field attachment modules so a clean full-service archive build passes.",
       "Await Stripe/Connect configuration for POS tenders/refunds/retry.",
       "Reconcile remote HEAD and keep counts tied to browser/HTTP evidence."
