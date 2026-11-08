@@ -156,6 +156,16 @@ pub trait CommerceOrderCommandRepository: Send {
         Box::pin(async { Err(order_reversal_required().into()) })
     }
 
+    /// Finance-owned order-revision Money for the sales order created by a
+    /// quotation conversion. The default keeps retained callers owner-local.
+    fn snapshot_converted_order_money<'a>(
+        &'a mut self,
+        _converted: &'a ConvertedReadback,
+        _now: TimestampMillis,
+    ) -> CommerceOrderFuture<'a, (), Self::Error> {
+        Box::pin(async { Ok(()) })
+    }
+
     fn insert_receipt<'a>(
         &'a mut self,
         entry: &'a ReceiptEntry<'a>,
@@ -330,6 +340,11 @@ async fn transition_order_with_guard_mode<R: CommerceOrderCommandRepository>(
             .await?
             .ok_or_else(readback_invalid)?;
         validate_conversion_readback(&plan, &order, &converted, copied)?;
+        if guard_mode == TransitionGuardMode::Native {
+            repository
+                .snapshot_converted_order_money(&converted, now)
+                .await?;
+        }
     }
     let receipt = plan.receipt.clone();
     let result_json = serde_json::to_string(&receipt.to_wire()).map_err(|_| request_invalid())?;

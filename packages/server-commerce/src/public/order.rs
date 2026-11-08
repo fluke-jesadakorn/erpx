@@ -20,5 +20,5 @@ pub use crate::domain::order::{
     SaveOrderReceipt, SaveOrderWarehouse, TransitionCommand, TransitionGuardMode, TransitionPlan,
     authorize_transition, authorize_transition_with_guard_mode, build_save_plan,
     idempotency_conflict, replay_save, sales_order_number, save_identity, validate_document,
-    validate_save_readback,
+    validate_save_readback, version_conflict,
 };

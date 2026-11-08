@@ -979,7 +979,7 @@ async fn save_creates_priced_quote_and_cas_updates_in_one_serializable_unit() {
         stale.key = CommandKey::new("commerce-order-create-stale-0001").unwrap();
         stale.input.note = "Stale overwrite".into();
         let stale = run_save_error(&pool, creator(), stale).await;
-        assert_eq!(stale.code, "COMMERCE_ORDER_CHANGED");
+        assert_eq!(stale.code, "CONFLICT");
         let mut wrong_kind = save_command(
             "commerce-order-create-0003",
             Some(&receipt.id),
@@ -1011,7 +1011,7 @@ async fn save_creates_priced_quote_and_cas_updates_in_one_serializable_unit() {
         );
         assert_eq!(
             run_save_error(&pool, creator(), submitted).await.code,
-            "COMMERCE_ORDER_CHANGED"
+            "CONFLICT"
         );
     })
     .await;
@@ -1091,7 +1091,7 @@ async fn save_price_list_and_master_guards_fail_closed() {
         wrong_party.input.party_id = "party-f".into();
         assert_eq!(
             run_save_error(&pool, creator(), wrong_party).await.code,
-            "PARTY_INVALID"
+            "CONFLICT"
         );
         let mut dates = base("commerce-order-guard-0008", "80", 700);
         dates.input.due_date = "2026-11-01".into();
@@ -1399,7 +1399,7 @@ async fn service_completion_writes_fulfillment_receipt_money_and_replay() {
                 .map_err(business)
                 .unwrap_err()
                 .code,
-            "COMMERCE_ORDER_CHANGED"
+            "CONFLICT"
         );
         changed.key = CommandKey::new("service-completion-stock-0001").unwrap();
         changed.order_id = RecordId::new("service-stock-order").unwrap();

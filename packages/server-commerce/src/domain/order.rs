@@ -431,12 +431,10 @@ pub fn not_found() -> BusinessError {
     )
 }
 
+/// A stale version, non-draft state or changed prerequisite reaches the same
+/// generic command-assertion conflict as the original TypeScript boundary.
 pub fn version_conflict() -> BusinessError {
-    BusinessError::new(
-        FailureKind::Conflict,
-        "COMMERCE_ORDER_CHANGED",
-        "The order changed. Reload and try again.",
-    )
+    transition_conflict()
 }
 
 /// Legacy Workflow maps a transition version/state assertion failure to the
@@ -1379,11 +1377,10 @@ pub fn save_setup_required() -> BusinessError {
     )
 }
 
+/// The original save path validates the party through a command assertion, so
+/// a foreign/missing party is a generic conflict, not a field-validation error.
 pub fn party_invalid() -> BusinessError {
-    BusinessError::invalid(
-        "PARTY_INVALID",
-        "Choose an active customer in this Company and currency.",
-    )
+    transition_conflict()
 }
 
 pub fn warehouse_invalid() -> BusinessError {
@@ -1641,46 +1638,24 @@ pub fn save_identity(actor: &CommerceOrderActor, command: &SaveOrderCommand) -> 
     .to_string()
 }
 
-/// Build one exact draft create/update plan after all scoped source facts were
-/// read in the caller's serializable transaction.
-#[allow(clippy::too_many_arguments)]
-pub fn build_save_plan(
-    actor: &CommerceOrderActor,
+#[derive(Debug)]
+pub(crate) struct PreparedSaveValues {
+    pub(crate) subtotal: i128,
+    pub(crate) tax_total: i128,
+    pub(crate) requires_approval: bool,
+    pub(crate) reason: Option<String>,
+    pub(crate) lines: Vec<SaveOrderLinePlan>,
+}
+
+/// Calculate owner facts independently of later party and version guards.
+/// This does not authorize or perform any write.
+pub(crate) fn prepare_save_values(
     command: &SaveOrderCommand,
-    currency: String,
-    existing: Option<SalesOrderRow>,
-    warehouse: Option<SaveOrderWarehouse>,
-    party_valid: bool,
+    warehouse: &Option<SaveOrderWarehouse>,
     products: &[Option<SaveOrderProduct>],
-    price_list: Option<SaveOrderPriceList>,
-    number: String,
-    now: TimestampMillis,
-) -> Result<SaveOrderPlan, BusinessError> {
-    actor.require_write(now)?;
-    command.validate()?;
+    price_list: &Option<SaveOrderPriceList>,
+) -> Result<PreparedSaveValues, BusinessError> {
     let input = &command.input;
-    let create = command.order_id.is_none();
-    let expected_version = match (create, input.expected_version) {
-        (true, _) => None,
-        (false, Some(version)) => Some(version),
-        (false, None) => return Err(version_conflict()),
-    };
-    if let Some(existing) = &existing {
-        if existing.kind() != Some(input.kind) {
-            return Err(order_kind_locked());
-        }
-        if existing.state() != Some(OrderState::Draft) {
-            return Err(version_conflict());
-        }
-        if Some(existing.version) != expected_version {
-            return Err(version_conflict());
-        }
-    } else if !create {
-        return Err(not_found());
-    }
-    if !party_valid {
-        return Err(party_invalid());
-    }
     if input.warehouse_id.is_some() && warehouse.is_none() {
         return Err(warehouse_invalid());
     }
@@ -1772,6 +1747,62 @@ pub fn build_save_plan(
     if subtotal <= 0 || subtotal > MAX_SAFE_INTEGER || total > MAX_SAFE_INTEGER {
         return Err(order_amount_invalid());
     }
+    Ok(PreparedSaveValues {
+        subtotal,
+        tax_total,
+        requires_approval,
+        reason: reason.map(str::to_owned),
+        lines,
+    })
+}
+
+/// Build one exact draft create/update plan after all scoped source facts were
+/// read in the caller's serializable transaction.
+#[allow(clippy::too_many_arguments)]
+pub fn build_save_plan(
+    actor: &CommerceOrderActor,
+    command: &SaveOrderCommand,
+    currency: String,
+    existing: Option<SalesOrderRow>,
+    warehouse: Option<SaveOrderWarehouse>,
+    party_valid: bool,
+    products: &[Option<SaveOrderProduct>],
+    price_list: Option<SaveOrderPriceList>,
+    number: String,
+    now: TimestampMillis,
+) -> Result<SaveOrderPlan, BusinessError> {
+    actor.require_write(now)?;
+    command.validate()?;
+    let input = &command.input;
+    let create = command.order_id.is_none();
+    let expected_version = match (create, input.expected_version) {
+        (true, _) => None,
+        (false, Some(version)) => Some(version),
+        (false, None) => return Err(version_conflict()),
+    };
+    if let Some(existing) = &existing {
+        if existing.kind() != Some(input.kind) {
+            return Err(order_kind_locked());
+        }
+        if existing.state() != Some(OrderState::Draft) {
+            return Err(version_conflict());
+        }
+        if Some(existing.version) != expected_version {
+            return Err(version_conflict());
+        }
+    } else if !create {
+        return Err(not_found());
+    }
+    if !party_valid {
+        return Err(party_invalid());
+    }
+    let PreparedSaveValues {
+        subtotal,
+        tax_total,
+        requires_approval,
+        reason,
+        lines,
+    } = prepare_save_values(command, &warehouse, products, &price_list)?;
     let (branch_id, department_id, created_by, version, order_number) = match &existing {
         Some(existing) => (
             warehouse
@@ -1828,7 +1859,7 @@ pub fn build_save_plan(
         tax_minor: tax_total as i64,
         price_list_id: price_list.as_ref().map(|list| list.id.clone()),
         price_list_version: price_list.as_ref().map(|list| list.version),
-        discount_reason: reason.map(str::to_owned),
+        discount_reason: reason,
         discount_approval_required: i64::from(requires_approval),
         version,
         created_by,
@@ -2066,6 +2097,41 @@ mod tests {
             .unwrap_err()
             .code,
             "DISCOUNT_REASON_REQUIRED"
+        );
+        let ready = command(Some("Strategic launch order approved"));
+        let prepared = prepare_save_values(
+            &ready,
+            &None,
+            &[Some(product.clone())],
+            &Some(price_list.clone()),
+        )
+        .unwrap();
+        assert_eq!((prepared.subtotal, prepared.tax_total), (16_000, 1_120));
+        assert_eq!(prepared.lines[0].discount_bps, 2_380);
+        assert_eq!(
+            prepare_save_values(&ready, &None, &[None], &Some(price_list.clone()))
+                .unwrap_err()
+                .code,
+            "PRODUCT_INVALID"
+        );
+        // The original save path validates the party through a command
+        // assertion, so it is a generic conflict rather than a field error.
+        assert_eq!(
+            build_save_plan(
+                &actor,
+                &ready,
+                "THB".into(),
+                None,
+                None,
+                false,
+                &[None],
+                Some(price_list.clone()),
+                "QT-2026-000001".into(),
+                TimestampMillis::new(1_800_000_000_000)
+            )
+            .unwrap_err()
+            .code,
+            "CONFLICT"
         );
         let plan = build_save_plan(
             &actor,

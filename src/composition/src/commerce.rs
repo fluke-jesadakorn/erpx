@@ -166,6 +166,37 @@ impl CommerceOrderCommandRepository for ComposedCommerceOrders<'_> {
         })
     }
 
+    fn snapshot_converted_order_money<'a>(
+        &'a mut self,
+        converted: &'a ConvertedReadback,
+        now: TimestampMillis,
+    ) -> CommerceOrderFuture<'a, (), Self::Error> {
+        let connection = self.inner.connection();
+        Box::pin(async move {
+            let order = &converted.order;
+            let total = order
+                .subtotal_minor
+                .checked_add(order.tax_minor)
+                .ok_or_else(erpx_server_commerce::public::order::version_conflict)?;
+            let company = CompanyId::new(&order.company_id)
+                .map_err(|_| erpx_server_commerce::public::order::version_conflict())?;
+            let money =
+                erpx_server_finance::public::commerce_order_money::CommerceOrderMoneyInput {
+                    order_id: order.id.clone(),
+                    version: 1,
+                    transaction_date: order.order_date.clone(),
+                    currency: order.currency.clone(),
+                    total,
+                    lines: Vec::new(),
+                };
+            erpx_server_finance::public::commerce_order_money::snapshot_commerce_order_revision(
+                connection, &company, &money, now,
+            )
+            .await?;
+            Ok(())
+        })
+    }
+
     fn insert_receipt<'a>(
         &'a mut self,
         entry: &'a ReceiptEntry<'a>,
@@ -222,6 +253,9 @@ fn request_invalid() -> BusinessError {
 fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
     match error {
         PgTransactionError::Business(error) => error,
+        PgTransactionError::Persistence(error) if matches!(error.sql_state(), Some("23505")) => {
+            erpx_server_commerce::public::order::version_conflict()
+        }
         PgTransactionError::Persistence(_) => unavailable(),
     }
 }
@@ -438,7 +472,9 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
                 proof,
                 self.input(input, true),
                 Self::access(),
-                CommerceSources { money: false },
+                CommerceSources {
+                    money: action == erpx_server_commerce::public::order::OrderAction::Convert,
+                },
                 move |connection, current| {
                     let holding = holding.clone();
                     let companies = companies.clone();

@@ -1,49 +1,159 @@
 //! Commerce HTTP selected-Company composition using real Account sign-in,
 //! Holding SSO, Identity authority and leased PostgreSQL.
 #![allow(dead_code)]
+#[cfg(feature = "private-field-api")]
+#[path = "../../support/runtime/private-session-config.rs"]
+mod private_session_config;
 #[path = "../../support/finance/review-composition.rs"]
 mod review;
-#[cfg(feature="private-field-api")]
-#[path="../../support/runtime/private-session-config.rs"]
-mod private_session_config;
-use axum::{body::{Body,to_bytes},http::{Request,StatusCode}};
-use erpx_server_commerce::public::order_http::{CommerceOrderHttpTarget,commerce_order_http_router};
-use erpx_server_shared::public::{CompanyId,HoldingId};
-use erpx_service::{commerce::{CommerceBackend,CommerceConfiguration,CommerceService},finance_journal_detail_http::FinanceJournalReadScopeHeaders};
+use axum::{
+    body::{Body, to_bytes},
+    http::{Request, StatusCode},
+};
+use erpx_server_commerce::public::order_http::{
+    CommerceOrderHttpTarget, commerce_order_http_router,
+};
+use erpx_server_shared::public::{CompanyId, HoldingId};
+use erpx_service::{
+    commerce::{CommerceBackend, CommerceConfiguration, CommerceService},
+    finance_journal_detail_http::FinanceJournalReadScopeHeaders,
+};
 use std::sync::Arc;
 use tower::ServiceExt;
 
-fn request(token:Option<&str>,company:Option<&str>,assignment:Option<&str>,revision:Option<&str>,assignment_version:Option<&str>,order:&str,write:bool,key:&str)->Request<Body>{
-    let path=if write{format!("/api/v1/holdings/acme/commerce/orders/{order}/transition")}else{format!("/api/v1/holdings/acme/commerce/orders/{order}")};
-    let mut b=Request::builder().method(if write{"POST"}else{"GET"}).uri(path).header("host","acme.example.test").header("origin","https://acme.example.test");
-    if let Some(token)=token{b=b.header("cookie",format!("__Host-erpx-product={token}"));}
-    if let Some(v)=company{b=b.header("x-erpx-context-company",v);}if let Some(v)=assignment{b=b.header("x-erpx-context-assignment",v);}if let Some(v)=revision{b=b.header("x-erpx-context-revision",v);}if let Some(v)=assignment_version{b=b.header("x-erpx-context-assignment-version",v);}
-    if write{b=b.header("content-type","application/json").header("idempotency-key",key);}
-    b.body(Body::from(if write{r#"{"action":"submit","expectedVersion":1}"#}else{""})).unwrap()
+fn request(
+    token: Option<&str>,
+    company: Option<&str>,
+    assignment: Option<&str>,
+    revision: Option<&str>,
+    assignment_version: Option<&str>,
+    order: &str,
+    write: bool,
+    key: &str,
+) -> Request<Body> {
+    let path = if write {
+        format!("/api/v1/holdings/acme/commerce/orders/{order}/transition")
+    } else {
+        format!("/api/v1/holdings/acme/commerce/orders/{order}")
+    };
+    let mut b = Request::builder()
+        .method(if write { "POST" } else { "GET" })
+        .uri(path)
+        .header("host", "acme.example.test")
+        .header("origin", "https://acme.example.test");
+    if let Some(token) = token {
+        b = b.header("cookie", format!("__Host-erpx-product={token}"));
+    }
+    if let Some(v) = company {
+        b = b.header("x-erpx-context-company", v);
+    }
+    if let Some(v) = assignment {
+        b = b.header("x-erpx-context-assignment", v);
+    }
+    if let Some(v) = revision {
+        b = b.header("x-erpx-context-revision", v);
+    }
+    if let Some(v) = assignment_version {
+        b = b.header("x-erpx-context-assignment-version", v);
+    }
+    if write {
+        b = b
+            .header("content-type", "application/json")
+            .header("idempotency-key", key);
+    }
+    b.body(Body::from(if write {
+        r#"{"action":"submit","expectedVersion":1}"#
+    } else {
+        ""
+    }))
+    .unwrap()
 }
-async fn json(response:axum::response::Response)->(StatusCode,serde_json::Value){let status=response.status();let data=to_bytes(response.into_body(),1024*1024).await.unwrap();(status,serde_json::from_slice(&data).unwrap_or_default())}
+async fn json(response: axum::response::Response) -> (StatusCode, serde_json::Value) {
+    let status = response.status();
+    let data = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+    (status, serde_json::from_slice(&data).unwrap_or_default())
+}
 
-async fn snapshot(db:&erpx_server_runtime::public::postgres::DatabasePool,id:&str)->serde_json::Value {
+async fn snapshot(
+    db: &erpx_server_runtime::public::postgres::DatabasePool,
+    id: &str,
+) -> serde_json::Value {
     sqlx::query_scalar("SELECT jsonb_build_object('order',to_jsonb(o),'lines',COALESCE((SELECT jsonb_agg(to_jsonb(l) ORDER BY l.id) FROM public.commerce_order_lines l WHERE l.order_id=o.id),'[]'::jsonb)) FROM public.commerce_orders o WHERE o.id=$1").bind(id).fetch_one(db.raw()).await.unwrap()
 }
-async fn money_snapshot(db:&erpx_server_runtime::public::postgres::DatabasePool,company:&str)->serde_json::Value {
+async fn money_snapshot(
+    db: &erpx_server_runtime::public::postgres::DatabasePool,
+    company: &str,
+) -> serde_json::Value {
     sqlx::query_scalar("SELECT COALESCE(jsonb_agg(jsonb_build_object('source_type',source_type,'source_id',source_id,'amount_kind',amount_kind,'transaction_date',transaction_date::text,'currency',currency,'currency_scale',currency_scale,'amount_units',amount_units::text,'usd_units',usd_units::text,'fx_rate_id',fx_rate_id,'used_latest_fallback',used_latest_fallback) ORDER BY source_type,source_id,amount_kind),'[]'::jsonb) FROM public.money_transaction_snapshots WHERE company_id=$1 AND source_type IN ('commerce_order_revision','commerce_order_line_revision')").bind(company).fetch_one(db.raw()).await.unwrap()
 }
-fn expected_money(id:&str,line:&str,version:i64,rate:&str,usd:&str)->Vec<serde_json::Value> {
-    let mut rows=Vec::new();
-    for (source,source_id,kind,amount,converted) in [("commerce_order_line_revision",format!("{line}:{version}"),"subtotal","1000",usd),("commerce_order_line_revision",format!("{line}:{version}"),"tax","0","0"),("commerce_order_line_revision",format!("{line}:{version}"),"unit_price","1000",usd),("commerce_order_revision",format!("{id}:{version}"),"total","1000",usd)] {
+fn expected_money(
+    id: &str,
+    line: &str,
+    version: i64,
+    rate: &str,
+    usd: &str,
+) -> Vec<serde_json::Value> {
+    let mut rows = Vec::new();
+    for (source, source_id, kind, amount, converted) in [
+        (
+            "commerce_order_line_revision",
+            format!("{line}:{version}"),
+            "subtotal",
+            "1000",
+            usd,
+        ),
+        (
+            "commerce_order_line_revision",
+            format!("{line}:{version}"),
+            "tax",
+            "0",
+            "0",
+        ),
+        (
+            "commerce_order_line_revision",
+            format!("{line}:{version}"),
+            "unit_price",
+            "1000",
+            usd,
+        ),
+        (
+            "commerce_order_revision",
+            format!("{id}:{version}"),
+            "total",
+            "1000",
+            usd,
+        ),
+    ] {
         rows.push(serde_json::json!({"source_type":source,"source_id":source_id,"amount_kind":kind,"transaction_date":"2026-11-10","currency":"THB","currency_scale":2,"amount_units":amount,"usd_units":converted,"fx_rate_id":rate,"used_latest_fallback":false}));
     }
     rows
 }
-async fn assert_saved_effects(db:&erpx_server_runtime::public::postgres::DatabasePool,key:&str,id:&str,company:&str,actor:&str,assignment:&str,operation:&str,version:i64){
+async fn assert_saved_effects(
+    db: &erpx_server_runtime::public::postgres::DatabasePool,
+    key: &str,
+    id: &str,
+    company: &str,
+    actor: &str,
+    assignment: &str,
+    operation: &str,
+    version: i64,
+) {
     let row:(String,String,String,String,serde_json::Value,String,String,String,serde_json::Value)=sqlx::query_as("SELECT r.operation,r.actor_id,r.record_id,r.authority_json::jsonb->>'companyId',r.result_json::jsonb,a.actor_id,a.assignment_id,a.authority_json::jsonb->>'companyId',o.payload_json::jsonb FROM command_receipts r JOIN audit_events a ON a.command_id=r.command_id JOIN outbox_events o ON o.command_id=r.command_id WHERE r.command_id=$1").bind(key).fetch_one(db.raw()).await.unwrap();
-    assert_eq!((&*row.0,&*row.1,&*row.2,&*row.3),(operation,actor,id,company));assert_eq!(row.4["id"],id);assert_eq!(row.4["version"],version);
-    assert_eq!((&*row.5,&*row.6,&*row.7),(actor,assignment,company));assert_eq!(row.8["id"],id);assert_eq!(row.8["companyId"],company);assert_eq!(row.8["version"],version);assert_eq!(row.8["authority"]["assignmentId"],assignment);
+    assert_eq!(
+        (&*row.0, &*row.1, &*row.2, &*row.3),
+        (operation, actor, id, company)
+    );
+    assert_eq!(row.4["id"], id);
+    assert_eq!(row.4["version"], version);
+    assert_eq!((&*row.5, &*row.6, &*row.7), (actor, assignment, company));
+    assert_eq!(row.8["id"], id);
+    assert_eq!(row.8["companyId"], company);
+    assert_eq!(row.8["version"], version);
+    assert_eq!(row.8["authority"]["assignmentId"], assignment);
 }
 
 #[tokio::test]
-async fn two_companies_use_normal_sso_and_selected_context_without_cross_company_effects(){
+async fn two_companies_use_normal_sso_and_selected_context_without_cross_company_effects() {
     review::account::with_system(|system|async move {
         let p=review::setup_with_finance(system,false).await;let db=&p.system.holdings[0];
         // Both accounts have genuine SSO child sessions created by the shared
@@ -59,7 +169,7 @@ async fn two_companies_use_normal_sso_and_selected_context_without_cross_company
         sqlx::raw_sql("INSERT INTO commerce_products(id,company_id,sku,name,unit,price_minor,tax_bps,status,version,tracking_mode,item_type) VALUES('cancel-stock','company','C-STOCK','Cancel stock','each',1000,0,'active',1,'none','stock'); INSERT INTO commerce_warehouses(id,company_id,branch_id,code,name,status,version) VALUES('cancel-warehouse','company','branch','CW','Cancel warehouse','active',1); INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor,version) VALUES('cancel-warehouse','cancel-stock',10000,10000,1); INSERT INTO commerce_orders(id,company_id,branch_id,kind,number,party_id,warehouse_id,currency,order_date,due_date,note,state,subtotal_minor,tax_minor,version,created_by,created_at,updated_at) VALUES('cancel-quote','company','branch','quote','QT-CANCEL','party-a','cancel-warehouse','THB','2026-11-10','2026-11-15','','draft',1000,0,1,'fixture-a',100,100),('cancel-sales','company','branch','sales','SO-CANCEL','party-a','cancel-warehouse','THB','2026-11-10','2026-11-15','','draft',1000,0,1,'fixture-a',100,100); INSERT INTO commerce_order_lines(id,order_id,product_id,description,quantity_milli,fulfilled_milli,price_minor,tax_bps,subtotal_minor,tax_minor,ordinal,item_type) VALUES('cancel-line-q','cancel-quote','cancel-stock','Stock',1000,0,1000,0,1000,0,0,'stock'),('cancel-line-s','cancel-sales','cancel-stock','Stock',1000,0,1000,0,1000,0,0,'stock'); INSERT INTO inventory_order_reservations(id,order_line_id,warehouse_id,product_id,quantity_milli,consumed_milli,released_milli,expires_at,created_by,reason,created_at) VALUES('cancel-res-q','cancel-line-q','cancel-warehouse','cancel-stock',1000,200,100,4102444800000,'fixture-a','source',100),('cancel-res-s','cancel-line-s','cancel-warehouse','cancel-stock',1000,200,100,4102444800000,'fixture-a','source',100)").execute(db.raw()).await.unwrap();
         // An actual Identity member alias refers to the same persisted person
         // as the signed-in selected manager; a different person is a control.
-        sqlx::raw_sql("INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,status,created_by,created_at,updated_at) VALUES('cancel-actor-person','fixture-a','company','Selected manager','TH','active','fixture-a',0,0),('cancel-other-person',NULL,'company','Other creator','TH','active','fixture-a',0,0); UPDATE iam_members SET person_id='cancel-actor-person' WHERE company_id='company' AND user_id='fixture-a'; INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy,version) VALUES('company','fixture-a-alias','local:fixture-a-alias','cancel-actor-person','active','local',1),('company','fixture-other','local:fixture-other','cancel-other-person','active','local',1); INSERT INTO commerce_orders(id,company_id,branch_id,kind,number,party_id,currency,order_date,due_date,note,state,subtotal_minor,tax_minor,version,created_by,created_at,updated_at) VALUES('alias-approve','company','branch','quote','QT-ALIAS-A','party-a','THB','2026-11-10','2026-11-15','','submitted',1000,0,1,'fixture-a-alias',100,100),('alias-cancel','company','branch','quote','QT-ALIAS-C','party-a','THB','2026-11-10','2026-11-15','','confirmed',1000,0,1,'fixture-a-alias',100,100),('other-approve','company','branch','quote','QT-OTHER-A','party-a','THB','2026-11-10','2026-11-15','','submitted',1000,0,1,'fixture-other',100,100)").execute(db.raw()).await.unwrap();
+        sqlx::raw_sql("INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,status,created_by,created_at,updated_at) VALUES('cancel-actor-person','fixture-a','company','Selected manager','TH','active','fixture-a',0,0),('cancel-other-person',NULL,'company','Other creator','TH','active','fixture-a',0,0); UPDATE iam_members SET person_id='cancel-actor-person' WHERE company_id='company' AND user_id='fixture-a'; INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy,version) VALUES('company','fixture-a-alias','local:fixture-a-alias','cancel-actor-person','active','local',1),('company','fixture-other','local:fixture-other','cancel-other-person','active','local',1); INSERT INTO commerce_orders(id,company_id,branch_id,kind,number,party_id,currency,order_date,due_date,note,state,subtotal_minor,tax_minor,version,created_by,created_at,updated_at) VALUES('alias-approve','company','branch','quote','QT-ALIAS-A','party-a','THB','2026-11-10','2026-11-15','','submitted',1000,0,1,'fixture-a-alias',100,100),('alias-cancel','company','branch','quote','QT-ALIAS-C','party-a','THB','2026-11-10','2026-11-15','','confirmed',1000,0,1,'fixture-a-alias',100,100),('other-approve','company','branch','quote','QT-OTHER-A','party-a','THB','2026-11-10','2026-11-15','','submitted',1000,0,1,'fixture-other',100,100); INSERT INTO commerce_order_lines(id,order_id,product_id,description,quantity_milli,fulfilled_milli,price_minor,tax_bps,subtotal_minor,tax_minor,ordinal,item_type) VALUES('alias-cancel-line','alias-cancel','product-a','Service',1000,0,1000,0,1000,0,0,'service')").execute(db.raw()).await.unwrap();
         // Distinct real customer credit limits let the stale-version control
         // reach CAS while the limited customer fails the earlier Finance guard.
         sqlx::raw_sql("INSERT INTO finance_parties(id,company_id,kind,code,name,currency,payment_terms_days,credit_limit_minor,status,version,created_at,updated_at) VALUES('credit-limited','company','customer','CREDIT-LIMIT','Credit limited','THB',30,100,'active',1,0,0); INSERT INTO commerce_orders(id,company_id,branch_id,kind,number,party_id,currency,order_date,due_date,note,state,subtotal_minor,tax_minor,version,created_by,created_at,updated_at) VALUES('credit-stale','company','branch','sales','SO-CREDIT-STALE','credit-limited','THB','2026-11-10','2026-11-15','','submitted',1000,0,2,'fixture-other',100,100),('unlimited-stale','company','branch','sales','SO-UNLIMITED-STALE','party-a','THB','2026-11-10','2026-11-15','','submitted',1000,0,2,'fixture-other',100,100); INSERT INTO commerce_order_lines(id,order_id,product_id,description,quantity_milli,fulfilled_milli,price_minor,tax_bps,subtotal_minor,tax_minor,ordinal,item_type) VALUES('credit-stale-line','credit-stale','product-a','Service',1000,0,1000,0,1000,0,0,'service'),('unlimited-stale-line','unlimited-stale','product-a','Service',1000,0,1000,0,1000,0,0,'service')").execute(db.raw()).await.unwrap();
@@ -104,6 +214,16 @@ async fn two_companies_use_normal_sso_and_selected_context_without_cross_company
             let effects:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id=$1),(SELECT count(*) FROM audit_events WHERE command_id=$1),(SELECT count(*) FROM outbox_events WHERE command_id=$1)").bind(key).fetch_one(db.raw()).await.unwrap();assert_eq!(effects,(0,0,0));
         }
         let (status,approved)=json(app.clone().oneshot(transition("other-approve","approve","other-approved")).await.unwrap()).await;assert_eq!(status,StatusCode::OK,"independent creator control {approved}");assert_eq!(approved["data"]["state"],"confirmed");
+        // A fresh quotation conversion writes the TS-compatible sales-order
+        // revision total in the same unit, replays without duplicates and a
+        // stale conversion leaves both the order and Money unchanged.
+        let (status,converted)=json(app.clone().oneshot(transition("alias-cancel","convert","convert-fresh")).await.unwrap()).await;assert_eq!(status,StatusCode::OK,"fresh conversion {converted}");assert_eq!(converted["data"]["state"],"converted");assert_eq!(converted["data"]["version"],2);let sales_id=converted["data"]["salesId"].as_str().expect("converted sales id").to_owned();
+        let (replay_status,replayed)=json(app.clone().oneshot(transition("alias-cancel","convert","convert-fresh")).await.unwrap()).await;assert_eq!(replay_status,StatusCode::OK,"conversion replay {replayed}");assert_eq!(replayed,converted);
+        let converted_money:Vec<(String,String,String,String,String,String,Option<String>)>=sqlx::query_as("SELECT source_type,source_id,amount_kind,currency,currency_scale::text,amount_units::text,fx_rate_id FROM money_transaction_snapshots WHERE source_type='commerce_order_revision' AND source_id=$1 ORDER BY amount_kind").bind(format!("{sales_id}:1")).fetch_all(db.raw()).await.unwrap();assert_eq!(converted_money,[("commerce_order_revision".into(),format!("{sales_id}:1"),"total".into(),"THB".into(),"2".into(),"1000".into(),Some("commerce-fx-a".into()))]);
+        let sales_row:(String,i64,Option<String>)=sqlx::query_as("SELECT state,version,source_id FROM commerce_orders WHERE id=$1").bind(&sales_id).fetch_one(db.raw()).await.unwrap();assert_eq!(sales_row,("draft".into(),1,Some("alias-cancel".into())));
+        let money_before_stale=money_snapshot(db,"company").await;
+        let (stale_convert_status,stale_convert)=json(app.clone().oneshot(transition("alias-cancel","convert","convert-stale")).await.unwrap()).await;assert_eq!(stale_convert_status,StatusCode::CONFLICT,"stale conversion {stale_convert}");assert_eq!(stale_convert["error"]["code"],"CONFLICT");assert_eq!(money_snapshot(db,"company").await,money_before_stale,"stale conversion leaves Money unchanged");
+        let convert_effects:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id=$1),(SELECT count(*) FROM audit_events WHERE command_id=$1),(SELECT count(*) FROM outbox_events WHERE command_id=$1)").bind("convert-stale").fetch_one(db.raw()).await.unwrap();assert_eq!(convert_effects,(0,0,0));
         // Over-limit credit and stale version are simultaneously true. The
         // unlimited customer is the control proving the stale CAS path.
         for (order,key,code) in [("credit-stale","credit-stale-denied","CONFLICT"),("unlimited-stale","unlimited-stale-denied","CONFLICT")] {
@@ -204,7 +324,9 @@ async fn two_companies_use_normal_sso_and_selected_context_without_cross_company
             let before_negative=snapshot(db,&id).await;assert_eq!(before_negative["lines"].as_array().unwrap().len(),1);
             let line_v1=before_negative["lines"][0]["id"].as_str().unwrap().to_owned();
             let (rate,usd)=if company=="company"{("commerce-fx-race","50")}else{("commerce-fx-b","20")};
-            let money_v1=serde_json::Value::Array(expected_money(&id,&line_v1,1,rate,usd));
+            let converted_row=serde_json::json!({"source_type":"commerce_order_revision","source_id":format!("{sales_id}:1"),"amount_kind":"total","transaction_date":"2026-11-10","currency":"THB","currency_scale":2,"amount_units":"1000","usd_units":"25","fx_rate_id":"commerce-fx-a","used_latest_fallback":false});
+            let mut expected_v1=expected_money(&id,&line_v1,1,rate,usd);if company=="company"{expected_v1.push(converted_row.clone());}expected_v1.sort_by(|a,b|(a["source_type"].as_str(),a["source_id"].as_str(),a["amount_kind"].as_str()).cmp(&(b["source_type"].as_str(),b["source_id"].as_str(),b["amount_kind"].as_str())));
+            let money_v1=serde_json::Value::Array(expected_v1);
             assert_eq!(money_snapshot(db,company).await,money_v1,"create and replay retain exactly 1+3N Money rows");
             let update_body=serde_json::json!({"kind":"quote","partyId":party,"orderDate":"2026-11-10","dueDate":"2026-11-15","note":"Reviewed update","priceListId":list,"expectedVersion":1,"lines":[{"productId":product,"quantity":"1","price":"10","taxBps":0}]});
             let update=|update_key:&str,payload:&serde_json::Value|Request::builder().method("POST").uri(format!("/api/v1/holdings/acme/commerce/orders/{id}")).header("host","acme.example.test").header("origin","https://acme.example.test").header("cookie",format!("__Host-erpx-product={token}")).header("x-erpx-context-company",company).header("x-erpx-context-assignment",assignment).header("x-erpx-context-revision",revision).header("x-erpx-context-assignment-version",version).header("content-type","application/json").header("idempotency-key",update_key).body(Body::from(payload.to_string())).unwrap();
@@ -212,8 +334,8 @@ async fn two_companies_use_normal_sso_and_selected_context_without_cross_company
             let mut party_bad=update_body.clone();party_bad["partyId"]=foreign_party.into();party_bad.as_object_mut().unwrap().remove("priceListId");
             let mut product_bad=update_body.clone();product_bad["lines"][0]["productId"]=foreign_product.into();
             let mut list_bad=update_body.clone();list_bad["priceListId"]=foreign_list.into();
-            let bads=[(format!("foreign-party-{suffix}"),party_bad,"PARTY_INVALID"),(format!("foreign-product-{suffix}"),product_bad,"PRODUCT_INVALID"),(format!("foreign-list-{suffix}"),list_bad,"PRICE_LIST_INVALID")];
-            for (bad_key,payload,code) in &bads {let (status,value)=json(app.clone().oneshot(update(bad_key,payload)).await.unwrap()).await;assert_eq!(status,StatusCode::UNPROCESSABLE_ENTITY,"foreign reference {value}");assert_eq!(value["error"]["code"],*code);let effects:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id=$1),(SELECT count(*) FROM audit_events WHERE command_id=$1),(SELECT count(*) FROM outbox_events WHERE command_id=$1)").bind(bad_key).fetch_one(db.raw()).await.unwrap();assert_eq!(effects,(0,0,0));assert_eq!(snapshot(db,&id).await,before_negative,"all order and line fields must survive {bad_key}");}
+            let bads=[(format!("foreign-party-{suffix}"),party_bad,"CONFLICT"),(format!("foreign-product-{suffix}"),product_bad,"PRODUCT_INVALID"),(format!("foreign-list-{suffix}"),list_bad,"PRICE_LIST_INVALID")];
+            for (bad_key,payload,code) in &bads {let (status,value)=json(app.clone().oneshot(update(bad_key,payload)).await.unwrap()).await;assert_eq!(status,if *code=="CONFLICT"{StatusCode::CONFLICT}else{StatusCode::UNPROCESSABLE_ENTITY},"foreign reference {value}");assert_eq!(value["error"]["code"],*code);let effects:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id=$1),(SELECT count(*) FROM audit_events WHERE command_id=$1),(SELECT count(*) FROM outbox_events WHERE command_id=$1)").bind(bad_key).fetch_one(db.raw()).await.unwrap();assert_eq!(effects,(0,0,0));assert_eq!(snapshot(db,&id).await,before_negative,"all order and line fields must survive {bad_key}");}
             assert_eq!(money_snapshot(db,company).await,money_v1,"failed writes leave Money unchanged");
             let before:(i64,String,i64)=sqlx::query_as("SELECT version,note,(SELECT count(*) FROM commerce_order_lines l WHERE l.order_id=o.id AND l.product_id=$2) FROM commerce_orders o WHERE id=$1").bind(&id).bind(product).fetch_one(db.raw()).await.unwrap();assert_eq!(before,(1,"Reviewed quote".into(),1));
             let update_key=format!("update-company-{suffix}");let (status,updated)=json(app.clone().oneshot(update(&update_key,&update_body)).await.unwrap()).await;assert_eq!(status,StatusCode::OK,"update {updated}");assert_eq!(updated["data"]["id"],id);assert_eq!(updated["data"]["version"],2);
@@ -222,13 +344,14 @@ async fn two_companies_use_normal_sso_and_selected_context_without_cross_company
             let line_v2=after_update["lines"][0]["id"].as_str().unwrap();
             let mut expected=expected_money(&id,&line_v1,1,rate,usd);
             expected.extend(expected_money(&id,line_v2,2,rate,usd));
+            if company=="company"{expected.push(converted_row);}
             expected.sort_by(|a,b| (a["source_type"].as_str(),a["source_id"].as_str(),a["amount_kind"].as_str()).cmp(&(b["source_type"].as_str(),b["source_id"].as_str(),b["amount_kind"].as_str())));
             let money_v2=serde_json::Value::Array(expected);
             assert_eq!(money_snapshot(db,company).await,money_v2,"update and replay retain exactly 1+3N rows per version");
             let mut changed_payload=update_body.clone();changed_payload["note"]="Changed retry intent".into();let (status,conflict)=json(app.clone().oneshot(update(&update_key,&changed_payload)).await.unwrap()).await;assert_eq!(status,StatusCode::CONFLICT,"{conflict}");assert_eq!(conflict["error"]["code"],"IDEMPOTENCY_CONFLICT");assert_eq!(snapshot(db,&id).await,after_update);
             let mut stale_replay=update(&update_key,&update_body);stale_replay.headers_mut().insert("x-erpx-context-revision","6".parse().unwrap());let (status,denied)=json(app.clone().oneshot(stale_replay).await.unwrap()).await;assert_eq!(status,StatusCode::CONFLICT,"{denied}");assert_eq!(denied["error"]["code"],"WORK_CONTEXT_CHANGED");assert_eq!(snapshot(db,&id).await,after_update);
             assert_saved_effects(db,&update_key,&id,company,actor,assignment,"commerce.order.update",2).await;
-            let stale_key=format!("stale-update-{suffix}");let (status,stale)=json(app.clone().oneshot(update(&stale_key,&update_body)).await.unwrap()).await;assert_eq!(status,StatusCode::CONFLICT,"{stale}");assert_eq!(stale["error"]["code"],"COMMERCE_ORDER_CHANGED");assert_eq!(snapshot(db,&id).await,after_update,"stale CAS leaves every order and line field unchanged");
+            let stale_key=format!("stale-update-{suffix}");let (status,stale)=json(app.clone().oneshot(update(&stale_key,&update_body)).await.unwrap()).await;assert_eq!(status,StatusCode::CONFLICT,"{stale}");assert_eq!(stale["error"]["code"],"CONFLICT");assert_eq!(snapshot(db,&id).await,after_update,"stale CAS leaves every order and line field unchanged");
             assert_eq!(money_snapshot(db,company).await,money_v2,"conflicts and stale retries leave Money unchanged");
             let after:(String,String,i64,String,i64)=sqlx::query_as("SELECT company_id,party_id,version,note,(SELECT count(*) FROM commerce_order_lines l WHERE l.order_id=o.id AND l.product_id=$2) FROM commerce_orders o WHERE id=$1").bind(&id).bind(product).fetch_one(db.raw()).await.unwrap();assert_eq!(after,(company.into(),party.into(),2,"Reviewed update".into(),1));
             for (effect_key,n) in [(&update_key,1_i64),(&stale_key,0)]{let effects:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id=$1),(SELECT count(*) FROM audit_events WHERE command_id=$1),(SELECT count(*) FROM outbox_events WHERE command_id=$1)").bind(effect_key).fetch_one(db.raw()).await.unwrap();assert_eq!(effects,(n,n,n));}
