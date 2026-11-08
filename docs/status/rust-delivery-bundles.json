@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-08T23:56:42+07:00",
+  "updatedAt": "2026-11-09T01:20:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -4232,7 +4232,7 @@
         "sales-native-price-lists"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Native price-list draft/update/activate/cancel and sales document list/edit-read plus eligible quote/order transitions are wired through the Commerce public order port. Draft create/update needs a Commerce public port; approval/cancellation retain Finance/Inventory guards; browser remains open."
+      "gap": "Native price-list draft/update/activate/cancel, sales document list/edit-read, eligible quote/order transitions and native draft quote create/update are wired through the Commerce public order port. Draft save enforces customer/warehouse/product/version/active price-list/date guards, integer discount and tax math, CAS, replay, receipt/audit/outbox and readback; purchase, order-revision Money snapshots, approval/cancellation Finance/Inventory guards and the authenticated desktop/mobile save journey remain retained or blocked by the keyed work-role chooser."
     },
     {
       "id": "sales/orders",
@@ -4247,7 +4247,7 @@
         "sales-native-documents-http"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Native quote/order list/edit-read and eligible transitions are wired through the Commerce public order port; draft create/update, fulfillment, confirmed cancellation and approval remain retained; browser remains open."
+      "gap": "Native quote/order list/edit-read, eligible transitions and native draft sales-order create/update are wired through the Commerce public order port with the same customer/warehouse/product/price-list guards, integer totals, CAS, receipt/audit/outbox and readback as quotations. Order-revision Money snapshots, fulfillment, confirmed cancellation, approval and the authenticated desktop/mobile save journey remain retained or blocked by the keyed work-role chooser."
     },
     {
       "id": "sales/fulfillment",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-08T23:56:42+07:00",
-    "sourceHead": "2f9a83f66",
+    "generatedAt": "2026-11-09T01:20:00+07:00",
+    "sourceHead": "80214487b",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7107,12 +7107,19 @@
         "unblock": "Coordinate file ownership before touching those paths; lead integrates after its freeze."
       },
       {
+        "id": "native-work-role-browser-selection",
+        "detail": "The keyed development container accepts the account login but the Sales workspace chooser re-renders/navigates without establishing a selected work role, so the authenticated desktop/mobile Commerce save journey cannot be exercised. Container gateway 3100 and native API 44817 are healthy; this is the same keyed work-role blocker recorded for the prepared browser cohort.",
+        "unblock": "Restore the keyed work-role selection/session path, then replay the native Commerce quote create/edit journey on desktop and mobile."
+      },
+      {
         "id": "private-production-3101",
         "detail": "The installed private production service is not listening on 127.0.0.1:3101 at survey time. This goal does not authorize deploy/release; availability is reported, not changed.",
         "unblock": "Outside this goal; operator action."
       }
     ],
     "nextActions": [
+      "Continue with the next dependency-ready non-browser bundle while sales/quotes and sales/orders retain the new native draft writer as partial.",
+      "Retry the authenticated Commerce quote create/edit desktop+mobile journey when the keyed work-role selection path is restored.",
       "Continue with the next dependency-ready non-Stripe owner partial; Quality is complete 4/4.",
       "Await Stripe/Connect configuration for POS tenders/refunds/retry.",
       "Reconcile remote HEAD and keep counts tied to browser/HTTP evidence."
@@ -8304,6 +8311,21 @@
           "native Account security browser acceptance (verification blocked by external test configuration)"
         ],
         "evidence": "browser desktop+mobile account security: MFA enroll + TOTP verify, second device signed in, all-device revoke redirected current session to login and invalidated second device, reviewer unaffected; deterministic dev MFA keyring + /api/v1/account/security boundary matcher; boundary GET/HEAD method equality fix; registered iam/product-sso suites fail on missing ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG in host test runner; counts unchanged",
+        "counts": {
+          "owners": 8,
+          "verified": 83,
+          "partial": 36,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-09T01:20:00+07:00",
+        "commit": "80214487b",
+        "bundles": [
+          "native Commerce draft quotation/sales-order create and update"
+        ],
+        "evidence": "erpx-server-commerce 57/57 Rust tests (new create/update, price-list, CAS, replay, guard and rollback cases); registered sales-pricing 16/16; native transport 7/7; workspace check, clippy, rustfmt, tsc and eslint pass; keyed container native API rebuilt and gateway restarted, but authenticated Commerce save browser acceptance remains blocked by the work-role chooser; counts unchanged",
         "counts": {
           "owners": 8,
           "verified": 83,
