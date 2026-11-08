@@ -431,3 +431,163 @@ mod tests {
         assert!(!valid_date("2026-02-30"));
     }
 }
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CommerceFulfillmentMoneyLine {
+    pub id: String,
+    pub subtotal: i64,
+    pub tax: i64,
+}
+
+/// Write the exact `commerce_fulfillment_line` Money rows for one service
+/// completion. The caller has locked the Finance sources and owns the
+/// serializable unit.
+pub async fn snapshot_commerce_fulfillment_money(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    transaction_date: &str,
+    currency: &str,
+    lines: &[CommerceFulfillmentMoneyLine],
+    now: TimestampMillis,
+) -> Result<Vec<CommerceOrderMoneyEvidence>, Error> {
+    unit(c).await?;
+    if !valid_date(transaction_date)
+        || currency.len() != 3
+        || !currency.bytes().all(|byte| byte.is_ascii_uppercase())
+        || lines.is_empty()
+        || lines.len() > 200
+        || lines.iter().any(|line| {
+            !valid_identifier(&line.id) || !valid_amount(line.subtotal) || !valid_amount(line.tax)
+        })
+    {
+        return Err(invalid(
+            "COMMERCE_ORDER_MONEY_INVALID",
+            "Provide valid Commerce fulfillment Money facts.",
+        ));
+    }
+    let quote = quote(c, company, currency, transaction_date).await?;
+    let rules = embedded_currency_rules().map_err(|_| {
+        invalid(
+            "CURRENCY_SCALE_REQUIRED",
+            "Use a configured ISO currency scale.",
+        )
+    })?;
+    let scale = rules.scale(currency, quote.scale).map_err(|_| {
+        invalid(
+            "CURRENCY_SCALE_REQUIRED",
+            "Use a configured ISO currency scale.",
+        )
+    })?;
+    if scale != 2 {
+        return Err(invalid(
+            "CURRENCY_SCALE_MISMATCH",
+            "A Commerce fulfillment amount must use the configured two-decimal scale.",
+        ));
+    }
+    let rate = quote.selected.as_ref().ok_or_else(|| {
+        invalid(
+            "MANUAL_RATE_REQUIRED",
+            "A confirmed manual currency/USD rate is required.",
+        )
+    })?;
+    let captured_at = now.get();
+    if !(0..=MAX_SAFE_INTEGER).contains(&captured_at) {
+        return Err(changed());
+    }
+    let mut evidence = Vec::with_capacity(lines.len() * 3);
+    for line in lines {
+        for (amount_kind, amount) in [
+            ("subtotal", line.subtotal),
+            ("tax", line.tax),
+            ("total", line.subtotal.saturating_add(line.tax)),
+        ] {
+            let usd = convert_currency_units(&BigInt::from(amount), scale, 2, &rate.quote, "1")
+                .map_err(|_| {
+                    invalid(
+                        "MONEY_OVERFLOW",
+                        "Money conversion exceeds its exact bounds.",
+                    )
+                })?
+                .to_string();
+            if usd.len() > 38 {
+                return Err(invalid(
+                    "MONEY_OVERFLOW",
+                    "Money evidence exceeds its numeric bounds.",
+                ));
+            }
+            sqlx::query(
+                "INSERT INTO money_transaction_snapshots\
+                 (company_id,source_type,source_id,amount_kind,transaction_date,currency,\
+                 currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at) \
+                 VALUES($1,'commerce_fulfillment_line',$2,$3,$4::date,$5,$6,$7::numeric,$8::numeric,$9,$10,$11)",
+            )
+            .bind(company.as_str())
+            .bind(&line.id)
+            .bind(amount_kind)
+            .bind(transaction_date)
+            .bind(currency)
+            .bind(i32::from(scale))
+            .bind(amount.to_string())
+            .bind(&usd)
+            .bind((rate.id != "USD").then_some(rate.id.as_str()))
+            .bind(rate.fallback)
+            .bind(captured_at)
+            .execute(&mut *c)
+            .await?;
+            evidence.push(CommerceOrderMoneyEvidence {
+                source_type: "commerce_fulfillment_line",
+                source_id: line.id.clone(),
+                amount_kind,
+                transaction_date: transaction_date.into(),
+                currency: currency.into(),
+                currency_scale: i32::from(scale),
+                amount_units: amount.to_string(),
+                usd_units: usd,
+                rate_id: (rate.id != "USD").then(|| rate.id.clone()),
+                used_latest_fallback: rate.fallback,
+                captured_at,
+            });
+        }
+    }
+    let source_ids: Vec<String> = evidence.iter().map(|row| row.source_id.clone()).collect();
+    let stored: Vec<StoredMoneyRow> = sqlx::query_as(
+        "SELECT source_type,source_id,amount_kind,amount_units::text,usd_units::text,\
+             fx_rate_id,used_latest_fallback,captured_at \
+             FROM public.money_transaction_snapshots WHERE company_id=$1 \
+             AND source_type='commerce_fulfillment_line' AND source_id = ANY($2) \
+             ORDER BY source_id,amount_kind",
+    )
+    .bind(company.as_str())
+    .bind(&source_ids)
+    .fetch_all(&mut *c)
+    .await?;
+    let expected: std::collections::BTreeMap<MoneyKey, MoneyValue> = evidence
+        .iter()
+        .map(|row| {
+            (
+                (
+                    row.source_type.to_owned(),
+                    row.source_id.clone(),
+                    row.amount_kind.to_owned(),
+                ),
+                (
+                    row.amount_units.clone(),
+                    row.usd_units.clone(),
+                    row.rate_id.clone(),
+                    row.used_latest_fallback,
+                    row.captured_at,
+                ),
+            )
+        })
+        .collect();
+    if stored.len() != evidence.len()
+        || stored.iter().any(|row| {
+            expected.get(&(row.0.clone(), row.1.clone(), row.2.clone()))
+                != Some(&(row.3.clone(), row.4.clone(), row.5.clone(), row.6, row.7))
+        })
+    {
+        return Err(changed());
+    }
+    unit(c).await?;
+    Ok(evidence)
+}

@@ -27,6 +27,8 @@ pub const RECEIPT_LIMIT: usize = 4 * 1024;
 #[derive(Clone, Debug)]
 pub struct CommerceOrderActor {
     pub user_id: UserId,
+    /// Aliases retained from the server-authorized Identity context.
+    pub person_user_ids: Vec<UserId>,
     pub holding_id: HoldingId,
     pub company_id: CompanyId,
     pub branch_id: Option<RecordId>,
@@ -41,6 +43,14 @@ pub struct CommerceOrderActor {
 }
 
 impl CommerceOrderActor {
+    fn same_person(&self, user_id: &str) -> bool {
+        self.user_id.as_str() == user_id
+            || self
+                .person_user_ids
+                .iter()
+                .any(|alias| alias.as_str() == user_id)
+    }
+
     fn has(&self, permission: &str) -> bool {
         self.permissions.iter().any(|value| value == permission)
     }
@@ -429,6 +439,16 @@ pub fn version_conflict() -> BusinessError {
     )
 }
 
+/// Legacy Workflow maps a transition version/state assertion failure to the
+/// same generic conflict as other failed command assertions.
+pub(crate) fn transition_conflict() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "CONFLICT",
+        "The record changed, a reference is unavailable, or this value already exists. Refresh and review again.",
+    )
+}
+
 pub fn idempotency_conflict() -> BusinessError {
     BusinessError::new(
         FailureKind::Conflict,
@@ -490,12 +510,12 @@ pub fn sales_approval_finance_guard() -> BusinessError {
 pub fn sales_credit_limit_exceeded() -> BusinessError {
     BusinessError::new(
         FailureKind::Conflict,
-        "SALES_ORDER_CREDIT_LIMIT",
-        "This sales order exceeds the customer credit limit.",
+        "CONFLICT",
+        "The record changed, a reference is unavailable, or this value already exists. Refresh and review again.",
     )
 }
 
-fn valid_identifier(value: &str) -> bool {
+pub(crate) fn valid_identifier(value: &str) -> bool {
     RecordId::new(value).is_ok()
 }
 
@@ -887,6 +907,49 @@ pub fn authorize_transition(
     )
 }
 
+/// Match the legacy actor-facing transition checks before version/CAS.
+/// Current database authority is still checked separately by the application.
+pub(crate) fn validate_transition_actor(
+    actor: &CommerceOrderActor,
+    command: &TransitionCommand,
+    order: &SalesOrderRow,
+) -> Result<(), BusinessError> {
+    order.validate(actor)?;
+    let state = order.state().ok_or_else(source_invalid)?;
+    if command.action == OrderAction::Approve
+        && (!actor.has("commerce.approve") || actor.same_person(&order.created_by))
+    {
+        return Err(independent_approver_required());
+    }
+    if command.action == OrderAction::Cancel
+        && matches!(
+            state,
+            OrderState::Confirmed | OrderState::PartiallyFulfilled | OrderState::Fulfilled
+        )
+        && (!actor.has("commerce.approve") || actor.same_person(&order.created_by))
+    {
+        return Err(independent_canceller_required());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_transition_approval_reason(
+    command: &TransitionCommand,
+    order: &SalesOrderRow,
+) -> Result<(), BusinessError> {
+    if command.action == OrderAction::Approve
+        && order.discount_approval_required == 1
+        && !command
+            .reason
+            .as_deref()
+            .map(js_trim)
+            .is_some_and(|r| utf16_len(r) >= DISCOUNT_REASON_MIN && cp_len(r) <= REASON_LIMIT)
+    {
+        return Err(discount_reason_required());
+    }
+    Ok(())
+}
+
 pub fn authorize_transition_with_guard_mode(
     actor: &CommerceOrderActor,
     command: &TransitionCommand,
@@ -897,14 +960,27 @@ pub fn authorize_transition_with_guard_mode(
     guard_mode: TransitionGuardMode,
 ) -> Result<TransitionPlan, BusinessError> {
     actor.require_write(now)?;
-    order.validate(actor)?;
-    if order.version != command.expected_version {
-        return Err(version_conflict());
-    }
-    let kind = order.kind().ok_or_else(source_invalid)?;
+    validate_transition_actor(actor, command, order)?;
+    validate_transition_approval_reason(command, order)?;
     let state = order.state().ok_or_else(source_invalid)?;
+    let kind = order.kind().ok_or_else(source_invalid)?;
+    if command.action == OrderAction::Convert && kind != OrderKind::Quote {
+        return Err(quote_required());
+    }
+    if command.action == OrderAction::Cancel
+        && matches!(
+            state,
+            OrderState::Confirmed | OrderState::PartiallyFulfilled | OrderState::Fulfilled
+        )
+        && fulfillment_count != 0
+    {
+        return Err(order_reversal_required());
+    }
+    if order.version != command.expected_version {
+        return Err(transition_conflict());
+    }
     if state == OrderState::Converted && command.action != OrderAction::Convert {
-        return Err(version_conflict());
+        return Err(transition_conflict());
     }
     let reason = command.reason.as_deref().map(js_trim);
     let expected_state;
@@ -935,7 +1011,7 @@ pub fn authorize_transition_with_guard_mode(
             expected_state = OrderState::Submitted;
             next_state = OrderState::Confirmed;
             actor.require_approve()?;
-            if order.created_by == actor.user_id.as_str() {
+            if actor.same_person(&order.created_by) {
                 return Err(independent_approver_required());
             }
             if order.discount_approval_required == 1 {
@@ -961,7 +1037,7 @@ pub fn authorize_transition_with_guard_mode(
                 expected_state = OrderState::Confirmed;
                 next_state = OrderState::Cancelled;
                 actor.require_approve()?;
-                if order.created_by == actor.user_id.as_str() {
+                if actor.same_person(&order.created_by) {
                     return Err(independent_canceller_required());
                 }
                 if fulfillment_count != 0 {
@@ -970,7 +1046,7 @@ pub fn authorize_transition_with_guard_mode(
             } else if state == OrderState::Confirmed && kind == OrderKind::Sales {
                 return Err(order_reversal_required());
             } else {
-                return Err(version_conflict());
+                return Err(transition_conflict());
             }
         }
         OrderAction::Convert => {
@@ -978,7 +1054,7 @@ pub fn authorize_transition_with_guard_mode(
                 return Err(quote_required());
             }
             if state != OrderState::Confirmed {
-                return Err(version_conflict());
+                return Err(transition_conflict());
             }
             expected_state = OrderState::Confirmed;
             next_state = OrderState::Converted;
@@ -993,7 +1069,7 @@ pub fn authorize_transition_with_guard_mode(
         }
     };
     if order.state() != Some(expected_state) {
-        return Err(version_conflict());
+        return Err(transition_conflict());
     }
     let receipt = CommerceOrderReceipt {
         id: order.id.clone(),
@@ -1445,7 +1521,7 @@ impl SaveOrderCommand {
 /// Parse the bounded decimal strings accepted by the retained Zod schema.
 /// Returns `Ok(None)` when the text does not match the schema and
 /// `Ok(Some(units))` for the exact scaled integer.
-fn parse_decimal_units(value: &str, scale: u32) -> Result<Option<i64>, BusinessError> {
+pub(crate) fn parse_decimal_units(value: &str, scale: u32) -> Result<Option<i64>, BusinessError> {
     let value = js_trim(value);
     let bytes = value.as_bytes();
     if bytes.is_empty() {
@@ -1924,6 +2000,7 @@ mod tests {
     fn save_plan_requires_the_delegated_discount_reason_and_uses_integer_money() {
         let actor = CommerceOrderActor {
             user_id: UserId::new("user").unwrap(),
+            person_user_ids: vec![],
             holding_id: HoldingId::new("h001").unwrap(),
             company_id: CompanyId::new("company").unwrap(),
             branch_id: Some(RecordId::new("branch").unwrap()),
@@ -2043,6 +2120,7 @@ mod tests {
         };
         let actor = CommerceOrderActor {
             user_id: UserId::new("user").unwrap(),
+            person_user_ids: vec![],
             holding_id: HoldingId::new("h001").unwrap(),
             company_id: CompanyId::new("company").unwrap(),
             branch_id: None,

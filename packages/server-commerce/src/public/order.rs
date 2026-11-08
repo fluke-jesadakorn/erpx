@@ -1,9 +1,16 @@
 //! Native Commerce quotation/sales-order read and lifecycle public interface.
 pub use crate::adapters::order::PgCommerceOrders;
+pub use crate::application::fulfillment::{
+    CommerceFulfillmentRepository, ServiceCompletionOutcome, fulfill_service_order,
+};
 pub use crate::application::order::{
     AuditEntry, CommerceOrderCommandRepository, CommerceOrderFuture, CommerceOrderReadRepository,
     CommerceOrderSaveRepository, OutboxEntry, ReceiptEntry, SaveOrderOutcome, order_detail,
     save_order, save_order_outcome, transition_order, transition_order_guarded,
+};
+pub use crate::domain::fulfillment::{
+    ServiceCompletionCommand, ServiceCompletionLineInput, ServiceCompletionPlan,
+    ServiceCompletionReceipt,
 };
 pub use crate::domain::order::{
     CommerceOrderActor, CommerceOrderReceipt, ConvertedReadback, DISCOUNT_REASON_MIN, LINES_LIMIT,

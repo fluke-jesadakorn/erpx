@@ -183,6 +183,29 @@ describe('native Commerce order transport',()=>{
       .rejects.toMatchObject({code:'NATIVE_COMMERCE_ORDER_REQUEST_INVALID'});
   });
 
+  it('forwards one exact service completion body and key',async()=>{
+    const seen:unknown[]=[];
+    const transport=transportFor((_method,url,headers,body)=>{
+      seen.push({path:url.pathname,body,key:headers.get('idempotency-key'),content:headers.get('content-type')});
+      return response(envelope({id:'order-1',fulfillmentId:'delivery-1',version:2,state:'fulfilled'}));
+    });
+    const client=createNativeCommerceOrdersClient(
+      nativeCommerceOrdersConfiguration(config()),transport);
+    const command={
+      expectedVersion:3,date:'2026-11-12',evidenceNote:'Customer accepted the service',
+      lines:[{lineId:'line-1',quantity:'1'}],
+    };
+    expect(await client.fulfill(incoming(),actor,'order-1',command,'commerce-fulfill-0001',input))
+      .toEqual({id:'order-1',fulfillmentId:'delivery-1',version:2,state:'fulfilled'});
+    const body='{"completionMode":"service","expectedVersion":3,"date":"2026-11-12","evidenceNote":"Customer accepted the service","lines":[{"lineId":"line-1","quantity":"1"}]}';
+    expect(seen).toEqual([{
+      path:'/api/v1/holdings/acme/commerce/orders/order-1/fulfill',
+      body,key:'commerce-fulfill-0001',content:'application/json',
+    }]);
+    await expect(client.fulfill(incoming(),actor,'order-1',{...command,lines:[]},'commerce-fulfill-0002',input))
+      .rejects.toMatchObject({code:'NATIVE_COMMERCE_ORDER_REQUEST_INVALID'});
+  });
+
   it('maps owner failures and never falls back after a configured failure',async()=>{
     const owner=createNativeCommerceOrdersClient(
       nativeCommerceOrdersConfiguration(config()),

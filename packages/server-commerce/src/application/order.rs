@@ -12,8 +12,10 @@ use crate::domain::order::{
     TransitionCommand, TransitionGuardMode, TransitionPlan, authorize_transition_with_guard_mode,
     idempotency_conflict, not_found, order_reversal_required, permission_required,
     readback_invalid, replay, replay_save, request_invalid, sales_approval_finance_guard,
-    sales_credit_limit_exceeded, save_identity, transition_identity, validate_conversion_readback,
-    validate_document, validate_hash, validate_readback, validate_save_readback, version_conflict,
+    sales_credit_limit_exceeded, save_identity, transition_conflict, transition_identity,
+    validate_conversion_readback, validate_document, validate_hash, validate_readback,
+    validate_save_readback, validate_transition_actor, validate_transition_approval_reason,
+    version_conflict,
 };
 use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
 use std::future::Future;
@@ -261,11 +263,34 @@ async fn transition_order_with_guard_mode<R: CommerceOrderCommandRepository>(
         .lock_order(actor, command.order_id.as_str())
         .await?
         .ok_or_else(not_found)?;
+    validate_transition_actor(actor, command, &order)?;
     let needs_approver = command.action.needs_approver()
         || (command.action == crate::domain::order::OrderAction::Cancel
-            && order.state() == Some(OrderState::Confirmed));
+            && matches!(
+                order.state(),
+                Some(
+                    OrderState::Confirmed | OrderState::PartiallyFulfilled | OrderState::Fulfilled
+                )
+            ));
     if needs_approver && !repository.current_authority(actor, true, true, now).await? {
         return Err(crate::domain::order::approval_required().into());
+    }
+    validate_transition_approval_reason(command, &order)?;
+    if guard_mode == TransitionGuardMode::Native
+        && command.action == crate::domain::order::OrderAction::Approve
+        && order.kind() == Some(crate::domain::order::OrderKind::Sales)
+        && !repository
+            .sales_order_credit_allows(
+                &actor.company_id,
+                &order.party_id,
+                order
+                    .subtotal_minor
+                    .checked_add(order.tax_minor)
+                    .ok_or_else(crate::domain::order::source_invalid)?,
+            )
+            .await?
+    {
+        return Err(sales_credit_limit_exceeded().into());
     }
     let fulfillment_count = if command.action == crate::domain::order::OrderAction::Cancel {
         repository
@@ -283,30 +308,15 @@ async fn transition_order_with_guard_mode<R: CommerceOrderCommandRepository>(
         now,
         guard_mode,
     )?;
-    if guard_mode == TransitionGuardMode::Native {
-        if command.action == crate::domain::order::OrderAction::Approve
-            && order.kind() == Some(crate::domain::order::OrderKind::Sales)
-            && !repository
-                .sales_order_credit_allows(
-                    &actor.company_id,
-                    &order.party_id,
-                    order.subtotal_minor + order.tax_minor,
-                )
-                .await?
-        {
-            return Err(sales_credit_limit_exceeded().into());
-        }
-        if command.action == crate::domain::order::OrderAction::Cancel
-            && order.kind() == Some(crate::domain::order::OrderKind::Sales)
-            && order.state() == Some(OrderState::Confirmed)
-        {
-            repository
-                .release_confirmed_sales_reservations(&actor.company_id, &order.id)
-                .await?;
-        }
+    if guard_mode == TransitionGuardMode::Native
+        && command.action == crate::domain::order::OrderAction::Cancel
+    {
+        repository
+            .release_confirmed_sales_reservations(&actor.company_id, &order.id)
+            .await?;
     }
     if !repository.transition(&plan).await? {
-        return Err(version_conflict().into());
+        return Err(transition_conflict().into());
     }
     if let Some(sales_id) = &plan.sales_id {
         if !repository.insert_converted_order(&plan).await? {

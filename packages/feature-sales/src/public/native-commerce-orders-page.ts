@@ -14,6 +14,8 @@ import {
   type NativeCommerceOrderReceipt,
   type NativeCommerceOrderSaveInput,
   type NativeCommerceOrderSaveReceipt,
+  type NativeCommerceFulfillmentReceipt,
+  type NativeCommerceServiceCompletionInput,
   type NativeCommerceOrderTransitionInput,
   type NativeCommerceOrdersPageContext,
   type NativeCommerceOrdersReadInput,
@@ -28,6 +30,8 @@ export type {
   NativeCommerceOrderRow,
   NativeCommerceOrderSaveInput,
   NativeCommerceOrderSaveReceipt,
+  NativeCommerceFulfillmentReceipt,
+  NativeCommerceServiceCompletionInput,
   NativeCommerceOrderTransitionInput,
 } from '@erpx/feature-commerce/public/native-commerce-orders';
 
@@ -150,6 +154,37 @@ export async function nativeCommerceOrderSave(
   try {
     const context = nativeCommerceOrdersPageContext(actor);
     return await native.save(await headers(), context, id, input, key, readInput(context));
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+/** Native service-completion gate for the retained fulfill route. */
+export async function nativeCommerceOrderFulfill(
+  actor: WorkContext,
+  id: string,
+  input: NativeCommerceServiceCompletionInput,
+  key: string,
+): Promise<NativeCommerceFulfillmentReceipt | undefined> {
+  const native = client();
+  if (!native) return undefined;
+  let context: NativeCommerceOrdersPageContext;
+  let facts: { kind: string; state: string } | null;
+  try {
+    context = nativeCommerceOrdersPageContext(actor);
+    const write = (await holdingResources(actor.holdingId)).write;
+    facts = await commerceEntrypointFacts(write).orderFacts(id, actor.companyId);
+  } catch {
+    throw new ApiError(
+      503,
+      'NATIVE_COMMERCE_ORDER_UNAVAILABLE',
+      'The native Commerce order service is unavailable.',
+    );
+  }
+  if (!facts || facts.kind !== 'sales' || !['confirmed', 'partially_fulfilled'].includes(facts.state))
+    return undefined;
+  try {
+    return await native.fulfill(await headers(), context, id, input, key, readInput(context));
   } catch (error) {
     return fail(error);
   }

@@ -8,9 +8,13 @@
 //! No Inventory, Finance, Quality, Sales or Files row is mutated. The caller's
 //! serializable Holding transaction is required and no commit is performed
 //! here.
+use crate::application::fulfillment::CommerceFulfillmentRepository;
 use crate::application::order::{
     AuditEntry, CommerceOrderCommandRepository, CommerceOrderFuture, CommerceOrderReadRepository,
     CommerceOrderSaveRepository, OutboxEntry, ReceiptEntry,
+};
+use crate::domain::fulfillment::{
+    ServiceCompletionLinePlan, ServiceCompletionPlan, ServiceLineFact,
 };
 use crate::domain::order::{
     CommerceOrderActor, ConvertedReadback, OrderCommandReceipt, SalesOrderLineRow, SalesOrderRow,
@@ -898,5 +902,204 @@ impl CommerceOrderSaveRepository for PgCommerceOrders<'_> {
         order_id: &'a str,
     ) -> CommerceOrderFuture<'a, Vec<SalesOrderLineRow>, Self::Error> {
         Box::pin(async move { self.select_lines(&actor.company_id, order_id).await })
+    }
+}
+
+impl CommerceFulfillmentRepository for PgCommerceOrders<'_> {
+    fn service_line<'a>(
+        &'a mut self,
+        company: &'a str,
+        order_id: &'a str,
+        line_id: &'a str,
+    ) -> CommerceOrderFuture<'a, Option<ServiceLineFact>, Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            let row = sqlx::query(
+                "SELECT l.id,l.description,l.item_type,l.quantity_milli,l.fulfilled_milli,\
+                 l.price_minor,l.tax_bps,l.subtotal_minor,l.tax_minor,\
+                 COALESCE((SELECT SUM(subtotal_minor) FROM commerce_fulfillment_lines WHERE order_line_id=l.id),0)::bigint prior_subtotal,\
+                 COALESCE((SELECT SUM(tax_minor) FROM commerce_fulfillment_lines WHERE order_line_id=l.id),0)::bigint prior_tax \
+                 FROM commerce_order_lines l JOIN commerce_orders o ON o.id=l.order_id AND o.company_id=$3 \
+                 WHERE l.order_id=$1 AND l.id=$2",
+            )
+            .bind(order_id)
+            .bind(line_id)
+            .bind(company)
+            .fetch_optional(&mut *self.connection)
+            .await?;
+            row.map(|row| {
+                Ok::<_, Error>(ServiceLineFact {
+                    id: row.try_get("id")?,
+                    description: row.try_get("description")?,
+                    item_type: row.try_get("item_type")?,
+                    quantity_milli: row.try_get("quantity_milli")?,
+                    fulfilled_milli: row.try_get("fulfilled_milli")?,
+                    price_minor: row.try_get("price_minor")?,
+                    tax_bps: row.try_get("tax_bps")?,
+                    subtotal_minor: row.try_get("subtotal_minor")?,
+                    tax_minor: row.try_get("tax_minor")?,
+                    prior_subtotal_minor: row.try_get("prior_subtotal")?,
+                    prior_tax_minor: row.try_get("prior_tax")?,
+                })
+            })
+            .transpose()
+        })
+    }
+
+    fn insert_service_fulfillment<'a>(
+        &'a mut self,
+        plan: &'a ServiceCompletionPlan,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            let changed = sqlx::query(
+                "INSERT INTO commerce_fulfillments\
+                 (id,order_id,number,fulfillment_date,created_by,created_at,evidence_note,\
+                 completion_kind,completion_note,journal_id,invoice_id,version) \
+                 VALUES($1,$2,$3,$4,$5,$6,$7,'service',$7,NULL,NULL,1)",
+            )
+            .bind(&plan.id)
+            .bind(&plan.order_id)
+            .bind(&plan.number)
+            .bind(&plan.date)
+            .bind(&plan.actor_id)
+            .bind(plan.now)
+            .bind(&plan.note)
+            .execute(&mut *self.connection)
+            .await?
+            .rows_affected();
+            Ok(changed == 1)
+        })
+    }
+
+    fn insert_service_fulfillment_line<'a>(
+        &'a mut self,
+        plan: &'a ServiceCompletionPlan,
+        line: &'a ServiceCompletionLinePlan,
+    ) -> CommerceOrderFuture<'a, (), Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query(
+                "INSERT INTO commerce_fulfillment_lines\
+                 (id,fulfillment_id,order_line_id,quantity_milli,value_minor,subtotal_minor,\
+                 tax_minor,stock_currency) VALUES($1,$2,$3,$4,0,$5,$6,NULL)",
+            )
+            .bind(&line.id)
+            .bind(&plan.id)
+            .bind(&line.order_line_id)
+            .bind(line.quantity_milli)
+            .bind(line.subtotal_minor)
+            .bind(line.tax_minor)
+            .execute(&mut *self.connection)
+            .await?;
+            Ok(())
+        })
+    }
+
+    fn increment_service_line<'a>(
+        &'a mut self,
+        line_id: &'a str,
+        quantity_milli: i64,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            let changed = sqlx::query(
+                "UPDATE commerce_order_lines SET fulfilled_milli=fulfilled_milli+$1 \
+                 WHERE id=$2 AND fulfilled_milli+$1<=quantity_milli",
+            )
+            .bind(quantity_milli)
+            .bind(line_id)
+            .execute(&mut *self.connection)
+            .await?
+            .rows_affected();
+            Ok(changed == 1)
+        })
+    }
+
+    fn refresh_fulfillment_state<'a>(
+        &'a mut self,
+        plan: &'a ServiceCompletionPlan,
+    ) -> CommerceOrderFuture<'a, Option<String>, Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            Ok(sqlx::query_scalar(
+                "UPDATE commerce_orders SET state=CASE WHEN EXISTS(\
+                 SELECT 1 FROM commerce_order_lines WHERE order_id=$1 AND fulfilled_milli<quantity_milli\
+                 ) THEN 'partially_fulfilled' ELSE 'fulfilled' END,version=version+1,updated_at=$2 \
+                 WHERE id=$1 AND company_id=$3 AND version=$4 RETURNING state",
+            )
+            .bind(&plan.order_id)
+            .bind(plan.now)
+            .bind(&plan.company_id)
+            .bind(plan.expected_version)
+            .fetch_optional(&mut *self.connection)
+            .await?)
+        })
+    }
+
+    fn fulfillment_readback<'a>(
+        &'a mut self,
+        plan: &'a ServiceCompletionPlan,
+    ) -> CommerceOrderFuture<'a, Option<(String, String, i64)>, Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            let row = sqlx::query(
+                "SELECT o.state,f.id,(SELECT count(*) FROM commerce_fulfillment_lines WHERE fulfillment_id=f.id) lines \
+                 FROM commerce_orders o JOIN commerce_fulfillments f ON f.order_id=o.id \
+                 WHERE o.id=$1 AND f.id=$2 AND o.company_id=$3",
+            )
+            .bind(&plan.order_id)
+            .bind(&plan.id)
+            .bind(&plan.company_id)
+            .fetch_optional(&mut *self.connection)
+            .await?;
+            row.map(|row| {
+                Ok::<_, Error>((
+                    row.try_get("state")?,
+                    row.try_get("id")?,
+                    row.try_get("lines")?,
+                ))
+            })
+            .transpose()
+        })
+    }
+    fn fulfillment_money_lines<'a>(
+        &'a mut self,
+        fulfillment_id: &'a str,
+    ) -> CommerceOrderFuture<'a, Vec<(String, i64, i64)>, Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            let rows = sqlx::query(
+                "SELECT id,subtotal_minor,tax_minor FROM commerce_fulfillment_lines \
+                 WHERE fulfillment_id=$1 ORDER BY id",
+            )
+            .bind(fulfillment_id)
+            .fetch_all(&mut *self.connection)
+            .await?;
+            rows.iter()
+                .map(|row| {
+                    Ok::<_, Error>((
+                        row.try_get("id")?,
+                        row.try_get("subtotal_minor")?,
+                        row.try_get("tax_minor")?,
+                    ))
+                })
+                .collect()
+        })
+    }
+
+    fn order_currency<'a>(
+        &'a mut self,
+        order_id: &'a str,
+    ) -> CommerceOrderFuture<'a, Option<String>, Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            Ok(
+                sqlx::query_scalar("SELECT currency FROM commerce_orders WHERE id=$1")
+                    .bind(order_id)
+                    .fetch_optional(&mut *self.connection)
+                    .await?,
+            )
+        })
     }
 }

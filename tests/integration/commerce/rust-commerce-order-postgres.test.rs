@@ -6,9 +6,10 @@
 mod fixture;
 
 use erpx_server_commerce::public::order::{
-    CommerceOrderActor, CommerceOrderReadRepository, OrderAction, PgCommerceOrders,
-    SalesOrderDocument, SaveOrderCommand, SaveOrderInput, SaveOrderLineInput, SaveOrderReceipt,
-    TransitionCommand, order_detail, save_order, save_order_outcome, transition_order,
+    CommerceFulfillmentRepository, CommerceOrderActor, CommerceOrderReadRepository, OrderAction,
+    PgCommerceOrders, SalesOrderDocument, SaveOrderCommand, SaveOrderInput, SaveOrderLineInput,
+    SaveOrderReceipt, ServiceCompletionCommand, ServiceCompletionLineInput, TransitionCommand,
+    fulfill_service_order, order_detail, save_order, save_order_outcome, transition_order,
 };
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
@@ -360,6 +361,7 @@ fn actor(
 ) -> CommerceOrderActor {
     CommerceOrderActor {
         user_id: UserId::new(user).unwrap(),
+        person_user_ids: vec![],
         holding_id: HoldingId::new("h001").unwrap(),
         company_id: CompanyId::new("company").unwrap(),
         branch_id: branch.map(|value| RecordId::new(value).unwrap()),
@@ -689,6 +691,57 @@ async fn run_save_with_money(
             })
         })
         .await
+}
+
+async fn run_service_completion(
+    pool: &DatabasePool,
+    actor: CommerceOrderActor,
+    command: ServiceCompletionCommand,
+) -> Result<
+    erpx_server_commerce::public::order::ServiceCompletionOutcome,
+    PgTransactionError<BusinessError>,
+> {
+    PgUnitOfWork::new(pool.clone())
+        .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+            let actor = actor.clone();
+            let command = command.clone();
+            Box::pin(async move {
+                let now = TimestampMillis::new(NOW);
+                erpx_server_finance::public::commerce_order_money::lock_commerce_order_money_sources(connection).await?;
+                let mut repository = PgCommerceOrders::new(connection);
+                let outcome = fulfill_service_order(&actor, &command, &mut repository, now).await?;
+                if outcome.created {
+                    let lines = repository.fulfillment_money_lines(&outcome.receipt.fulfillment_id).await?;
+                    let currency = repository.order_currency(command.order_id.as_str()).await?.ok_or_else(|| BusinessError::new(erpx_server_shared::public::FailureKind::NotFound, "NOT_FOUND", "Not found."))?;
+                    drop(repository);
+                    let money = lines.into_iter().map(|(id, subtotal, tax)| erpx_server_finance::public::commerce_order_money::CommerceFulfillmentMoneyLine { id, subtotal, tax }).collect::<Vec<_>>();
+                    erpx_server_finance::public::commerce_order_money::snapshot_commerce_fulfillment_money(connection, &actor.company_id, &command.date, &currency, &money, now).await?;
+                }
+                Ok(outcome)
+            })
+        })
+        .await
+}
+
+fn service_command(
+    key: &str,
+    order_id: &str,
+    version: i64,
+    line_id: &str,
+    quantity: &str,
+    note: &str,
+) -> ServiceCompletionCommand {
+    ServiceCompletionCommand {
+        key: CommandKey::new(key).unwrap(),
+        order_id: RecordId::new(order_id).unwrap(),
+        date: "2026-11-12".into(),
+        evidence_note: note.into(),
+        expected_version: version,
+        lines: vec![ServiceCompletionLineInput {
+            line_id: line_id.into(),
+            quantity: quantity.into(),
+        }],
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1234,6 +1287,148 @@ async fn save_outcome_and_finance_money_snapshots_share_one_unit_and_replay_skip
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn service_completion_writes_fulfillment_receipt_money_and_replay() {
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        let key = "service-completion-0001";
+        let command = service_command(
+            key,
+            "sales-confirmed",
+            3,
+            "sales-confirmed-line",
+            "1",
+            "Customer accepted the completed service",
+        );
+        let outcome = run_service_completion(&pool, reviewer(), command.clone())
+            .await
+            .unwrap();
+        let receipt = outcome.receipt.clone();
+        assert!(outcome.created);
+        assert_eq!(receipt.id, "sales-confirmed");
+        assert_eq!(receipt.fulfillment_id, format!("delivery-{key}"));
+        assert_eq!(receipt.version, 4);
+        assert_eq!(receipt.state, "fulfilled");
+        let row = sqlx::query(
+            "SELECT o.state,o.version,l.fulfilled_milli,f.completion_kind,f.completion_note \
+             FROM commerce_orders o JOIN commerce_fulfillments f ON f.order_id=o.id \
+             JOIN commerce_order_lines l ON l.id='sales-confirmed-line' \
+             WHERE o.id='sales-confirmed' AND f.id=$1",
+        )
+        .bind(&receipt.fulfillment_id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(row.get::<String, _>("state"), "fulfilled");
+        assert_eq!(row.get::<i64, _>("version"), 4);
+        assert_eq!(row.get::<i64, _>("fulfilled_milli"), 1_000);
+        assert_eq!(row.get::<String, _>("completion_kind"), "service");
+        assert_eq!(
+            row.get::<String, _>("completion_note"),
+            "Customer accepted the completed service"
+        );
+        let line = sqlx::query(
+            "SELECT quantity_milli,value_minor,subtotal_minor,tax_minor \
+             FROM commerce_fulfillment_lines WHERE fulfillment_id=$1",
+        )
+        .bind(&receipt.fulfillment_id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(line.get::<i64, _>("quantity_milli"), 1_000);
+        assert_eq!(line.get::<i64, _>("value_minor"), 0);
+        assert_eq!(line.get::<i64, _>("subtotal_minor"), 10_000);
+        assert_eq!(line.get::<i64, _>("tax_minor"), 700);
+        assert_eq!(
+            run_service_completion(&pool, reviewer(), command).await.unwrap().receipt,
+            receipt
+        );
+        let count: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM money_transaction_snapshots \
+             WHERE source_type='commerce_fulfillment_line' AND source_id=$1",
+        )
+        .bind(format!("{}-0", receipt.fulfillment_id))
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(count, 3);
+        for (table, count) in [
+            (
+                "command_receipts",
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT count(*) FROM command_receipts WHERE command_id=$1",
+                )
+                .bind(key)
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            ),
+            (
+                "audit_events",
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT count(*) FROM audit_events WHERE command_id=$1",
+                )
+                .bind(key)
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            ),
+            (
+                "outbox_events",
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT count(*) FROM outbox_events WHERE command_id=$1",
+                )
+                .bind(key)
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            ),
+        ] {
+            assert_eq!(count, 1, "{table}");
+        }
+        let mut changed = service_command(
+            "service-completion-0002",
+            "sales-confirmed",
+            4,
+            "sales-confirmed-line",
+            "1",
+            "Second completion",
+        );
+        assert_eq!(
+            run_service_completion(&pool, reviewer(), changed.clone())
+                .await
+                .map_err(business)
+                .unwrap_err()
+                .code,
+            "COMMERCE_ORDER_CHANGED"
+        );
+        changed.key = CommandKey::new("service-completion-stock-0001").unwrap();
+        changed.order_id = RecordId::new("service-stock-order").unwrap();
+        changed.expected_version = 1;
+        changed.lines[0].line_id = "service-stock-line".into();
+        sqlx::raw_sql(
+            "INSERT INTO commerce_products(id,company_id,sku,name,unit,price_minor,tax_bps,status,version,tracking_mode,item_type) \
+             VALUES('product-stock','company','STOCK-1','Stock item','each',1000,0,'active',1,'none','stock');\
+             INSERT INTO commerce_orders(id,company_id,branch_id,kind,number,party_id,warehouse_id,currency,order_date,due_date,note,state,subtotal_minor,tax_minor,version,created_by,created_at,updated_at) \
+             VALUES('service-stock-order','company','branch','sales','SO-STOCK','party-1','warehouse-1','THB','2026-11-01','2026-11-08','','confirmed',1000,0,1,'creator',1,1);\
+             INSERT INTO commerce_order_lines(id,order_id,product_id,description,quantity_milli,fulfilled_milli,price_minor,tax_bps,subtotal_minor,tax_minor,ordinal,item_type) \
+             VALUES('service-stock-line','service-stock-order','product-stock','Stock',1000,0,1000,0,1000,0,0,'stock');",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            run_service_completion(&pool, reviewer(), changed)
+                .await
+                .map_err(business)
+                .unwrap_err()
+                .code,
+            "SERVICE_COMPLETION_REQUIRED"
+        );
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn save_replay_conflict_and_late_failure_roll_back_exactly() {
     use erpx_server_commerce::public::order::OrderKind;
     fixture::with_database(4, |pool| async move {
@@ -1491,7 +1686,7 @@ async fn approve_discount_and_cancel_paths_preserve_independence_and_guards() {
             ),
         )
         .await;
-        assert_eq!(error.code, "COMMERCE_APPROVAL_REQUIRED");
+        assert_eq!(error.code, "INDEPENDENT_APPROVER_REQUIRED");
 
         let error = run_error(
             &pool,
@@ -1706,7 +1901,7 @@ async fn convert_copies_the_quote_into_one_draft_sales_order() {
             ),
         )
         .await;
-        assert_eq!(error.code, "COMMERCE_ORDER_CHANGED");
+        assert_eq!(error.code, "CONFLICT");
     })
     .await;
 }

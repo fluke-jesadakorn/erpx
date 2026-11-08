@@ -6,6 +6,7 @@
 //! normal Account session, current Company/branch/department authority,
 //! feature/package admission and serializable owner unit remain composition
 //! responsibilities supplied through the backend trait.
+use crate::domain::fulfillment::ServiceCompletionLineInput;
 use crate::domain::order::{
     LINES_LIMIT, OrderAction, OrderKind, SAVE_LINES_LIMIT, SaveOrderInput, SaveOrderLineInput,
     request_invalid, source_invalid,
@@ -41,6 +42,42 @@ pub enum CommerceOrderHttpCommand {
         idempotency_key: String,
         input: SaveOrderInput,
     },
+    Fulfill {
+        order_id: String,
+        idempotency_key: String,
+        input: ServiceCompletionInput,
+    },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ServiceCompletionInput {
+    pub date: String,
+    pub evidence_note: String,
+    pub expected_version: i64,
+    pub lines: Vec<ServiceCompletionLineInput>,
+}
+
+/// Selection verification required of the composition backend. This is a
+/// routing classification only: headers are untrusted, and no Account session,
+/// Company membership or authority follows from this value.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CommerceSelectionOperation {
+    RenderedRead,
+    Mutation,
+}
+
+impl CommerceOrderHttpCommand {
+    /// Composition must capture (not resolve) selection headers at ingress,
+    /// authenticate the actual session first, and then ask Identity to resolve
+    /// the full selected context with the appropriate read/mutation rules.
+    pub fn selection_operation(&self) -> CommerceSelectionOperation {
+        match self {
+            Self::Detail { .. } => CommerceSelectionOperation::RenderedRead,
+            Self::Transition { .. } | Self::Save { .. } | Self::Fulfill { .. } => {
+                CommerceSelectionOperation::Mutation
+            }
+        }
+    }
 }
 
 pub struct CommerceOrderHttpRequest<'a> {
@@ -48,6 +85,12 @@ pub struct CommerceOrderHttpRequest<'a> {
     pub holding_slug: &'a str,
     pub headers: &'a HeaderMap,
     pub command: CommerceOrderHttpCommand,
+}
+
+impl CommerceOrderHttpRequest<'_> {
+    pub fn selection_operation(&self) -> CommerceSelectionOperation {
+        self.command.selection_operation()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -122,26 +165,45 @@ fn unique_header<'a>(headers: &'a HeaderMap, name: &str) -> Result<Option<&'a st
         .transpose()
 }
 
-fn valid_origin(origin: &str) -> bool {
-    origin.strip_prefix("https://").is_some_and(|rest| {
-        if rest.is_empty()
-            || rest
-                .bytes()
-                .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'@'))
-        {
-            return false;
-        }
-        // The keyed development container serves exact Holding origins on its
-        // local HTTPS port. Production origins remain port-free.
-        if let Some((host, port)) = rest.rsplit_once(':') {
-            return host.ends_with(".erpx.localhost") && port == "3443";
-        }
-        true
-    })
+/// Explicit trusted configuration about the frontend runtime's NODE_ENV.
+/// This is supplied by composition, never inferred from Host or headers.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CommerceOriginPolicy {
+    Production,
+    NonProduction,
+}
+
+fn valid_origin(origin: &str, host: &str, policy: CommerceOriginPolicy) -> bool {
+    let Ok(parsed) = url::Url::parse(origin) else {
+        return false;
+    };
+    if parsed.scheme() != "https"
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || parsed.origin().ascii_serialization() != origin
+        || origin.strip_prefix("https://") != Some(host)
+    {
+        return false;
+    }
+    match parsed.port() {
+        None => true,
+        Some(3443) if policy == CommerceOriginPolicy::NonProduction => parsed
+            .host_str()
+            .is_some_and(|h| h.ends_with(".erpx.localhost")),
+        _ => false,
+    }
 }
 
 impl CommerceOrderHttpState {
+    /// Existing callers default to the strict production policy. Development
+    /// local-port exceptions require explicit trusted configuration.
     pub fn new(targets: Vec<CommerceOrderHttpTarget>) -> Result<Self, BusinessError> {
+        Self::new_with_origin_policy(targets, CommerceOriginPolicy::Production)
+    }
+    pub fn new_with_origin_policy(
+        targets: Vec<CommerceOrderHttpTarget>,
+        policy: CommerceOriginPolicy,
+    ) -> Result<Self, BusinessError> {
         let mut configured = BTreeMap::new();
         for target in targets {
             if target.host.is_empty()
@@ -152,7 +214,7 @@ impl CommerceOrderHttpState {
                         || byte.is_ascii_digit()
                         || matches!(byte, b'_' | b'-')
                 })
-                || !valid_origin(&target.origin)
+                || !valid_origin(&target.origin, &target.host, policy)
                 || configured
                     .insert((target.host.clone(), target.holding_slug.clone()), target)
                     .is_some()
@@ -375,6 +437,63 @@ impl CommerceOrderHttpState {
         }
         Ok(response.value())
     }
+
+    /// Exact POST handler for one native service completion.
+    pub async fn fulfill(
+        &self,
+        headers: &HeaderMap,
+        holding_slug: &str,
+        order_id: &str,
+        query: Option<&str>,
+        body: &[u8],
+    ) -> Response {
+        match self
+            .fulfill_inner(headers, holding_slug, order_id, query, body)
+            .await
+        {
+            Ok(value) => bounded(value),
+            Err(error) => error_response(error),
+        }
+    }
+
+    async fn fulfill_inner(
+        &self,
+        headers: &HeaderMap,
+        holding_slug: &str,
+        order_id: &str,
+        query: Option<&str>,
+        body: &[u8],
+    ) -> Result<Value, BusinessError> {
+        if query.is_some_and(|value| !value.is_empty()) {
+            return Err(request_invalid());
+        }
+        let target = self.target(headers, holding_slug)?;
+        Self::content_type(headers)?;
+        let key = Self::command_key(headers)?;
+        let order_id = Self::order_id(order_id)?;
+        if body.len() > BODY_LIMIT {
+            return Err(request_invalid());
+        }
+        let input = parse_service_completion(body)?;
+        let response = target
+            .target
+            .backend
+            .execute(CommerceOrderHttpRequest {
+                host: target.host,
+                holding_slug: &target.target.holding_slug,
+                headers,
+                command: CommerceOrderHttpCommand::Fulfill {
+                    order_id,
+                    idempotency_key: key.as_str().to_owned(),
+                    input,
+                },
+            })
+            .await?;
+        if !valid_fulfillment_receipt(&response.data) || !response.context.is_object() {
+            return Err(source_invalid());
+        }
+        Ok(response.value())
+    }
 }
 
 fn valid_document(value: &Value) -> bool {
@@ -473,6 +592,96 @@ fn valid_save_receipt(value: &Value) -> bool {
                 .get("version")
                 .and_then(Value::as_i64)
                 .is_some_and(|value| (1..=9_007_199_254_740_991).contains(&value))
+    })
+}
+
+fn parse_service_completion(body: &[u8]) -> Result<ServiceCompletionInput, BusinessError> {
+    let value: Value = serde_json::from_slice(body).map_err(|_| request_invalid())?;
+    let Some(object) = value.as_object() else {
+        return Err(request_invalid());
+    };
+    const KEYS: [&str; 5] = [
+        "completionMode",
+        "expectedVersion",
+        "date",
+        "evidenceNote",
+        "lines",
+    ];
+    if object.keys().any(|key| !KEYS.contains(&key.as_str()))
+        || object.get("completionMode").and_then(Value::as_str) != Some("service")
+    {
+        return Err(request_invalid());
+    }
+    let expected_version = object
+        .get("expectedVersion")
+        .and_then(Value::as_i64)
+        .filter(|value| (1..=9_007_199_254_740_991).contains(value))
+        .ok_or_else(request_invalid)?;
+    let date = object
+        .get("date")
+        .and_then(Value::as_str)
+        .ok_or_else(request_invalid)?
+        .to_owned();
+    let evidence_note = object
+        .get("evidenceNote")
+        .and_then(Value::as_str)
+        .ok_or_else(request_invalid)?
+        .to_owned();
+    let Some(lines) = object.get("lines").and_then(Value::as_array) else {
+        return Err(request_invalid());
+    };
+    if lines.is_empty() || lines.len() > 20 {
+        return Err(request_invalid());
+    }
+    let mut parsed = Vec::with_capacity(lines.len());
+    for line in lines {
+        let Some(line) = line.as_object() else {
+            return Err(request_invalid());
+        };
+        if line.len() != 2 || !line.contains_key("lineId") || !line.contains_key("quantity") {
+            return Err(request_invalid());
+        }
+        parsed.push(ServiceCompletionLineInput {
+            line_id: line
+                .get("lineId")
+                .and_then(Value::as_str)
+                .filter(|value| !value.is_empty())
+                .ok_or_else(request_invalid)?
+                .to_owned(),
+            quantity: line
+                .get("quantity")
+                .and_then(Value::as_str)
+                .ok_or_else(request_invalid)?
+                .to_owned(),
+        });
+    }
+    Ok(ServiceCompletionInput {
+        date,
+        evidence_note,
+        expected_version,
+        lines: parsed,
+    })
+}
+
+fn valid_fulfillment_receipt(value: &Value) -> bool {
+    value.as_object().is_some_and(|object| {
+        object.len() == 4
+            && object
+                .get("id")
+                .and_then(Value::as_str)
+                .is_some_and(|v| !v.is_empty())
+            && object
+                .get("fulfillmentId")
+                .and_then(Value::as_str)
+                .is_some_and(|v| !v.is_empty())
+            && object
+                .get("version")
+                .and_then(Value::as_i64)
+                .is_some_and(|v| (1..=9_007_199_254_740_991).contains(&v))
+            && matches!(
+                object.get("state").and_then(Value::as_str),
+                Some("partially_fulfilled" | "fulfilled")
+            )
     })
 }
 
@@ -644,6 +853,13 @@ fn bounded(value: Value) -> Response {
 pub fn commerce_order_http_router(
     targets: Vec<CommerceOrderHttpTarget>,
 ) -> Result<Router, BusinessError> {
+    commerce_order_http_router_with_origin_policy(targets, CommerceOriginPolicy::Production)
+}
+
+pub fn commerce_order_http_router_with_origin_policy(
+    targets: Vec<CommerceOrderHttpTarget>,
+    policy: CommerceOriginPolicy,
+) -> Result<Router, BusinessError> {
     Ok(Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/commerce/orders",
@@ -657,7 +873,13 @@ pub fn commerce_order_http_router(
             "/api/v1/holdings/{holding_slug}/commerce/orders/{order_id}/transition",
             post(transition_handler),
         )
-        .with_state(Arc::new(CommerceOrderHttpState::new(targets)?)))
+        .route(
+            "/api/v1/holdings/{holding_slug}/commerce/orders/{order_id}/fulfill",
+            post(fulfill_handler),
+        )
+        .with_state(Arc::new(CommerceOrderHttpState::new_with_origin_policy(
+            targets, policy,
+        )?)))
 }
 
 async fn detail_handler(
@@ -704,6 +926,21 @@ async fn save_update_handler(
             parts.uri.query(),
             &body,
         )
+        .await
+}
+
+async fn fulfill_handler(
+    State(state): State<Arc<CommerceOrderHttpState>>,
+    Path((slug, order_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let (parts, body) = request.into_parts();
+    let body = match to_bytes(body, BODY_LIMIT + 1).await {
+        Ok(body) => body,
+        Err(_) => return error_response(request_invalid()),
+    };
+    state
+        .fulfill(&parts.headers, &slug, &order_id, parts.uri.query(), &body)
         .await
 }
 

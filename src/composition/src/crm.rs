@@ -530,6 +530,7 @@ fn commerce_actor(current: &AuthorizedWorkContext) -> CommerceOrderActor {
     let assignment = selection.assignment();
     CommerceOrderActor {
         user_id: current.user_id().clone(),
+        person_user_ids: current.command_iam_metadata().person_user_ids.clone(),
         holding_id: current.holding_id().clone(),
         company_id: workspace.company_id.clone(),
         branch_id: workspace.branch_id.clone(),

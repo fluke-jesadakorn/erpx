@@ -4,11 +4,13 @@
 use crate::business_http::BusinessScopeSlugs;
 use erpx_server_commerce::public::order::PgCommerceOrders;
 use erpx_server_commerce::public::order::{
-    AuditEntry, CommerceOrderActor, CommerceOrderCommandRepository, CommerceOrderFuture,
-    ConvertedReadback, OrderCommandReceipt, OutboxEntry, ReceiptEntry, SalesOrderLineRow,
-    SalesOrderRow, SaveOrderCommand, SaveOrderInput, TransitionCommand, TransitionPlan,
+    AuditEntry, CommerceFulfillmentRepository, CommerceOrderActor, CommerceOrderCommandRepository,
+    CommerceOrderFuture, ConvertedReadback, OrderCommandReceipt, OutboxEntry, ReceiptEntry,
+    SalesOrderLineRow, SalesOrderRow, SaveOrderCommand, SaveOrderInput, ServiceCompletionCommand,
+    ServiceCompletionLineInput, TransitionCommand, TransitionPlan, fulfill_service_order,
     order_detail, save_order_outcome, transition_order_guarded,
 };
+use erpx_server_commerce::public::order_http::ServiceCompletionInput;
 use erpx_server_commerce::public::order_http::{
     CommerceOrderHttpBackend, CommerceOrderHttpCommand, CommerceOrderHttpFuture,
     CommerceOrderHttpRequest, CommerceOrderHttpResponse, CommerceOrderHttpTarget,
@@ -279,6 +281,7 @@ fn commerce_actor(current: &AuthorizedWorkContext) -> Result<CommerceOrderActor,
     let assignment = selected.assignment();
     Ok(CommerceOrderActor {
         user_id: current.user_id().clone(),
+        person_user_ids: current.command_iam_metadata().person_user_ids.clone(),
         holding_id: current.holding_id().clone(),
         company_id: workspace.company_id.clone(),
         branch_id: workspace.branch_id.clone(),
@@ -479,6 +482,106 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
             .await
     }
 
+    pub async fn fulfill<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        order_id: String,
+        idempotency_key: String,
+        completion: ServiceCompletionInput,
+    ) -> Result<CommerceOrderHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let companies = self.configuration.companies.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input, true),
+                Self::access(),
+                CommerceSources { money: true },
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let companies = companies.clone();
+                    let order_id = order_id.clone();
+                    let idempotency_key = idempotency_key.clone();
+                    let completion = completion.clone();
+                    let clock = clock.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || !companies.contains(&current.selection().workspace().company_id)
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let actor = commerce_actor(current)?;
+                        let order_record = RecordId::new(&order_id).map_err(|_| request_invalid())?;
+                        let command_key =
+                            CommandKey::new(&idempotency_key).map_err(|_| request_invalid())?;
+                        let date = completion.date.clone();
+                        let command = ServiceCompletionCommand {
+                            key: command_key,
+                            order_id: order_record,
+                            date: completion.date,
+                            evidence_note: completion.evidence_note,
+                            expected_version: completion.expected_version,
+                            lines: completion
+                                .lines
+                                .into_iter()
+                                .map(|line| ServiceCompletionLineInput {
+                                    line_id: line.line_id,
+                                    quantity: line.quantity,
+                                })
+                                .collect(),
+                        };
+                        let now = clock.now();
+                        let mut repository = PgCommerceOrders::new(connection);
+                        let outcome =
+                            fulfill_service_order(&actor, &command, &mut repository, now).await?;
+                        if outcome.created {
+                            let money_lines = repository
+                                .fulfillment_money_lines(&outcome.receipt.fulfillment_id)
+                                .await?;
+                            let currency = repository
+                                .order_currency(&order_id)
+                                .await?
+                                .ok_or_else(not_found)?;
+                            drop(repository);
+                            let money = money_lines
+                                .into_iter()
+                                .map(|(id, subtotal, tax)| {
+                                    erpx_server_finance::public::commerce_order_money::CommerceFulfillmentMoneyLine {
+                                        id,
+                                        subtotal,
+                                        tax,
+                                    }
+                                })
+                                .collect::<Vec<_>>();
+                            erpx_server_finance::public::commerce_order_money::snapshot_commerce_fulfillment_money(
+                                connection,
+                                &actor.company_id,
+                                &date,
+                                &currency,
+                                &money,
+                                now,
+                            )
+                            .await
+                            .map_err(business)?;
+                        }
+                        Ok(CommerceOrderHttpResponse {
+                            data: outcome.receipt.to_wire(),
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub async fn save<Input>(
         &self,
@@ -655,6 +758,22 @@ impl<C: Clock + Send + Sync + 'static> CommerceOrderHttpBackend for CommerceBack
                 } => self
                     .service
                     .save(
+                        request.host,
+                        proof,
+                        move || selection?.resolve(),
+                        order_id,
+                        idempotency_key,
+                        input,
+                    )
+                    .await
+                    .map_err(business),
+                CommerceOrderHttpCommand::Fulfill {
+                    order_id,
+                    idempotency_key,
+                    input,
+                } => self
+                    .service
+                    .fulfill(
                         request.host,
                         proof,
                         move || selection?.resolve(),

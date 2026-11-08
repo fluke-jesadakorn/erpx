@@ -123,6 +123,20 @@ export type NativeCommerceOrderSaveReceipt = Readonly<{
   version: number;
 }>;
 
+export type NativeCommerceServiceCompletionInput = Readonly<{
+  expectedVersion: number;
+  date: string;
+  evidenceNote: string;
+  lines: readonly Readonly<{ lineId: string; quantity: string }>[];
+}>;
+
+export type NativeCommerceFulfillmentReceipt = Readonly<{
+  id: string;
+  fulfillmentId: string;
+  version: number;
+  state: 'partially_fulfilled' | 'fulfilled';
+}>;
+
 export type NativeCommerceOrdersReadInput = Readonly<{
   holdingSlug: string;
   branchSlug?: string;
@@ -335,6 +349,49 @@ function saveReceipt(value: unknown): NativeCommerceOrderSaveReceipt {
   if (!exact(value, ['id', 'version']) || !identifier(value.id) || !integer(value.version, 1))
     return failure('NATIVE_COMMERCE_ORDER_RESPONSE_INVALID');
   return value as unknown as NativeCommerceOrderSaveReceipt;
+}
+
+function fulfillmentReceipt(value: unknown): NativeCommerceFulfillmentReceipt {
+  if (
+    !exact(value, ['id', 'fulfillmentId', 'version', 'state']) ||
+    !identifier(value.id) ||
+    !identifier(value.fulfillmentId) ||
+    !integer(value.version, 1) ||
+    (value.state !== 'partially_fulfilled' && value.state !== 'fulfilled')
+  )
+    return failure('NATIVE_COMMERCE_ORDER_RESPONSE_INVALID');
+  return value as unknown as NativeCommerceFulfillmentReceipt;
+}
+
+function serviceCompletionInput(input: NativeCommerceServiceCompletionInput): string {
+  if (
+    !integer(input.expectedVersion, 1) ||
+    !date(input.date) ||
+    typeof input.evidenceNote !== 'string' ||
+    !text(input.evidenceNote, 1000) ||
+    !Array.isArray(input.lines) ||
+    input.lines.length < 1 ||
+    input.lines.length > 20
+  )
+    return failure('NATIVE_COMMERCE_ORDER_REQUEST_INVALID');
+  const ids = new Set<string>();
+  for (const line of input.lines) {
+    if (
+      !identifier(line.lineId) ||
+      ids.has(line.lineId) ||
+      typeof line.quantity !== 'string' ||
+      !/^\d+(\.\d{1,3})?$/.test(line.quantity)
+    )
+      return failure('NATIVE_COMMERCE_ORDER_REQUEST_INVALID');
+    ids.add(line.lineId);
+  }
+  return JSON.stringify({
+    completionMode: 'service',
+    expectedVersion: input.expectedVersion,
+    date: input.date,
+    evidenceNote: input.evidenceNote,
+    lines: input.lines.map((line) => ({ lineId: line.lineId, quantity: line.quantity })),
+  });
 }
 
 function saveInput(input: NativeCommerceOrderSaveInput): string {
@@ -829,6 +886,31 @@ export function createNativeCommerceOrdersClient(
       );
       if (!exact(value, ['data', 'context'])) return failure('NATIVE_COMMERCE_ORDER_RESPONSE_INVALID');
       const data = saveReceipt(value.data);
+      context(value.context, actor, input);
+      return data;
+    },
+    async fulfill(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeCommerceOrdersPageContext,
+      orderId: string,
+      command: NativeCommerceServiceCompletionInput,
+      key: string,
+      input: NativeCommerceOrdersReadInput,
+      signal?: AbortSignal,
+    ): Promise<NativeCommerceFulfillmentReceipt> {
+      if (!identifier(orderId)) return failure('NATIVE_COMMERCE_ORDER_REQUEST_INVALID');
+      const value = await run(
+        incoming,
+        actor,
+        input,
+        `${encodeURIComponent(orderId)}/fulfill`,
+        'POST',
+        serviceCompletionInput(command),
+        key,
+        signal,
+      );
+      if (!exact(value, ['data', 'context'])) return failure('NATIVE_COMMERCE_ORDER_RESPONSE_INVALID');
+      const data = fulfillmentReceipt(value.data);
       context(value.context, actor, input);
       return data;
     },

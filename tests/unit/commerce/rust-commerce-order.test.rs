@@ -193,6 +193,7 @@ fn legacy_fulfillment_workflow_input_fingerprints_match_pinned_node_formatting_o
 fn actor() -> CommerceOrderActor {
     CommerceOrderActor {
         user_id: UserId::new("user").unwrap(),
+        person_user_ids: vec![],
         holding_id: HoldingId::new("h001").unwrap(),
         company_id: CompanyId::new("company").unwrap(),
         branch_id: Some(RecordId::new("branch").unwrap()),
@@ -1031,7 +1032,7 @@ fn native_sales_approval_uses_finance_credit_and_cancel_releases_reservations() 
         )
         .unwrap_err()
         .code,
-        "SALES_ORDER_CREDIT_LIMIT"
+        "CONFLICT"
     );
     assert_eq!(denied.credit_calls, [("party-1".into(), 10_700)]);
     assert!(!denied.calls.contains(&"transition"));
@@ -1109,6 +1110,275 @@ fn native_sales_approval_uses_finance_credit_and_cancel_releases_reservations() 
                 .iter()
                 .position(|call| *call == "transition")
     );
+}
+
+#[test]
+fn sales_credit_guard_precedes_stale_cas_after_authority_and_discount_checks() {
+    let command = TransitionCommand {
+        action: OrderAction::Approve,
+        expected_version: 2,
+        ..submit()
+    };
+    let row = order("sales", "submitted", 3, "creator");
+    let mut denied = CommandProbe::ready(row.clone(), order("sales", "confirmed", 4, "creator"));
+    let error = run_guarded(&mut denied, &actor(), &command).unwrap_err();
+    assert_eq!(error.code, "CONFLICT");
+    assert_eq!(
+        error.kind,
+        erpx_server_shared::public::FailureKind::Conflict
+    );
+    assert_eq!(
+        error.message,
+        "The record changed, a reference is unavailable, or this value already exists. Refresh and review again."
+    );
+    assert_eq!(denied.credit_calls, [("party-1".into(), 10_700)]);
+    assert!(!denied.calls.contains(&"transition"));
+    let mut allowed = CommandProbe::ready(row.clone(), order("sales", "confirmed", 4, "creator"));
+    allowed.credit = true;
+    assert_eq!(
+        run_guarded(&mut allowed, &actor(), &command)
+            .unwrap_err()
+            .code,
+        "CONFLICT"
+    );
+    assert_eq!(allowed.credit_calls, [("party-1".into(), 10_700)]);
+    assert!(!allowed.calls.contains(&"transition"));
+    let mut discount = row.clone();
+    discount.discount_approval_required = 1;
+    let mut invalid = CommandProbe::ready(discount, order("sales", "confirmed", 4, "creator"));
+    assert_eq!(
+        run_guarded(&mut invalid, &actor(), &command)
+            .unwrap_err()
+            .code,
+        "DISCOUNT_APPROVAL_REASON_REQUIRED"
+    );
+    assert!(invalid.credit_calls.is_empty());
+    let mut denied_authority = CommandProbe::ready(row, order("sales", "confirmed", 4, "creator"));
+    denied_authority.approve_authority = false;
+    assert_eq!(
+        run_guarded(&mut denied_authority, &actor(), &command)
+            .unwrap_err()
+            .code,
+        "COMMERCE_APPROVAL_REQUIRED"
+    );
+    assert!(denied_authority.credit_calls.is_empty());
+}
+
+#[test]
+fn retained_identity_aliases_enforce_independent_approval_and_cancellation() {
+    let mut selected = actor();
+    selected.person_user_ids = vec![UserId::new("creator-alias").unwrap()];
+    for (action, state, code) in [
+        (
+            OrderAction::Approve,
+            "submitted",
+            "INDEPENDENT_APPROVER_REQUIRED",
+        ),
+        (
+            OrderAction::Cancel,
+            "confirmed",
+            "INDEPENDENT_CANCELLER_REQUIRED",
+        ),
+    ] {
+        let command = TransitionCommand {
+            action,
+            expected_version: 3,
+            ..submit()
+        };
+        for creator in ["user", "creator-alias"] {
+            let mut repository = CommandProbe::ready(
+                order("quote", state, 3, creator),
+                order("quote", "cancelled", 4, creator),
+            );
+            assert_eq!(
+                run_guarded(&mut repository, &selected, &command)
+                    .unwrap_err()
+                    .code,
+                code,
+                "{state}/{creator}"
+            );
+            assert!(repository.release_calls.is_empty());
+            assert!(!repository.calls.contains(&"transition"));
+        }
+        let next = if action == OrderAction::Approve {
+            "confirmed"
+        } else {
+            "cancelled"
+        };
+        let mut repository = CommandProbe::ready(
+            order("quote", state, 3, "other-person"),
+            order("quote", next, 4, "other-person"),
+        );
+        if action == OrderAction::Approve {
+            repository.readback.as_mut().unwrap().approved_by = Some("user".into());
+        }
+        assert_eq!(
+            run_guarded(&mut repository, &selected, &command).unwrap(),
+            expected_receipt(next, 4, None)
+        );
+    }
+}
+
+#[test]
+fn transition_preconditions_match_actual_ts_before_stale_version_guard() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let module = root.join("packages/server-commerce/src/application/commerce.ts");
+    let script = r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);const cases=[['approve','submitted','alias',true,false,false],['approve','submitted','other',false,false,false],['approve','submitted','other',true,true,false],['approve','submitted','other',true,false,false],['cancel','confirmed','alias',true,false,false],['cancel','confirmed','other',false,false,false],['cancel','partially_fulfilled','other',true,false,true]];const result=[];for(const [action,state,creator,approve,discount,fulfillment] of cases){const actor={userId:'user',companyId:'company',branchId:null,departmentId:null,iam:{permissions:['commerce.sales',...(approve?['commerce.approve']:[])],personUserIds:['alias']}};const row={kind:'quote',state,created_by:creator,discount_approval_required:discount?1:0};const err=(status,code,message)=>Object.assign(new Error(message),{status,code});const writer={replayCommand:async()=>null,readCommerceOrders1:async()=>row,readCommerceFulfillments4:async()=>fulfillment?{id:'f'}:null,guardRule1:()=>({}),prepareInventoryOrderReservations3:()=>({}),prepareCommerceOrders4:()=>({}),executeCommand:async()=>{throw err(409,'CONFLICT','stale')}};const app=m.createCommerceApplication({clock:{now:()=>1},require:a=>a,error:err,hash:async()=>'',forActor:async()=>writer});try{await app.transitionOrder(actor,'order-1',{action,expectedVersion:2},'command-key');result.push('allowed')}catch(e){result.push(e.code)}}process.stdout.write(JSON.stringify(result));"#;
+    let oracle =
+        std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
+            .current_dir(root)
+            .args(["--conditions=react-server", "-e", script])
+            .arg(module)
+            .output()
+            .unwrap();
+    assert!(
+        oracle.status.success(),
+        "actual Commerce TS application oracle: {}",
+        String::from_utf8_lossy(&oracle.stderr)
+    );
+    let expected: Vec<String> = serde_json::from_slice(&oracle.stdout).unwrap();
+    let cases = [
+        (
+            OrderAction::Approve,
+            "submitted",
+            "alias",
+            true,
+            false,
+            false,
+        ),
+        (
+            OrderAction::Approve,
+            "submitted",
+            "other",
+            false,
+            false,
+            false,
+        ),
+        (
+            OrderAction::Approve,
+            "submitted",
+            "other",
+            true,
+            true,
+            false,
+        ),
+        (
+            OrderAction::Approve,
+            "submitted",
+            "other",
+            true,
+            false,
+            false,
+        ),
+        (
+            OrderAction::Cancel,
+            "confirmed",
+            "alias",
+            true,
+            false,
+            false,
+        ),
+        (
+            OrderAction::Cancel,
+            "confirmed",
+            "other",
+            false,
+            false,
+            false,
+        ),
+        (
+            OrderAction::Cancel,
+            "partially_fulfilled",
+            "other",
+            true,
+            false,
+            true,
+        ),
+    ];
+    let mut actual = Vec::new();
+    for (action, state, creator, approve, discount, fulfillment) in cases {
+        let mut selected = actor();
+        selected.person_user_ids = vec![UserId::new("alias").unwrap()];
+        if !approve {
+            selected.permissions.retain(|p| p != "commerce.approve");
+        }
+        let mut row = order("quote", state, 3, creator);
+        row.discount_approval_required = i64::from(discount);
+        let mut repository = CommandProbe::ready(row, order("quote", "cancelled", 4, creator));
+        repository.fulfillments = i64::from(fulfillment);
+        let command = TransitionCommand {
+            action,
+            expected_version: 2,
+            ..submit()
+        };
+        actual.push(
+            run_guarded(&mut repository, &selected, &command)
+                .unwrap_err()
+                .code
+                .to_owned(),
+        );
+        assert!(!repository.calls.contains(&"transition"));
+        assert!(repository.release_calls.is_empty());
+    }
+    assert_eq!(actual, expected);
+}
+
+#[test]
+fn native_cancellation_releases_reservations_for_each_allowed_kind_and_state() {
+    for (kind, state) in [
+        ("quote", "draft"),
+        ("sales", "draft"),
+        ("quote", "confirmed"),
+        ("sales", "confirmed"),
+    ] {
+        let mut repository = CommandProbe::ready(
+            order(kind, state, 3, "creator"),
+            order(kind, "cancelled", 4, "creator"),
+        );
+        let command = TransitionCommand {
+            action: OrderAction::Cancel,
+            expected_version: 3,
+            ..submit()
+        };
+        assert_eq!(
+            run_guarded(&mut repository, &actor(), &command).unwrap(),
+            expected_receipt("cancelled", 4, None),
+            "{kind}/{state}"
+        );
+        assert_eq!(repository.release_calls, ["order-1"], "{kind}/{state}");
+        assert!(
+            repository
+                .calls
+                .iter()
+                .position(|call| *call == "release-reservations")
+                < repository
+                    .calls
+                    .iter()
+                    .position(|call| *call == "transition")
+        );
+    }
+    // The native OrderKind parser currently admits quote/sales only, while
+    // legacy TS also admits purchase. Preserve this gap explicitly rather
+    // than claiming the purchase transition is migrated.
+    for state in ["draft", "confirmed"] {
+        let mut repository = CommandProbe::ready(
+            order("purchase", state, 3, "creator"),
+            order("purchase", "cancelled", 4, "creator"),
+        );
+        let command = TransitionCommand {
+            action: OrderAction::Cancel,
+            expected_version: 3,
+            ..submit()
+        };
+        assert_eq!(
+            run_guarded(&mut repository, &actor(), &command)
+                .unwrap_err()
+                .code,
+            "COMMERCE_ORDER_SOURCE_INVALID"
+        );
+        assert!(repository.release_calls.is_empty());
+        assert!(!repository.calls.contains(&"transition"));
+    }
 }
 
 #[test]
@@ -1262,6 +1532,25 @@ fn conversion_copies_the_quote_into_a_draft_sales_order() {
 }
 
 #[test]
+fn conversion_requires_quote_before_stale_transition_guard() {
+    let command = TransitionCommand {
+        action: OrderAction::Convert,
+        expected_version: 1,
+        ..submit()
+    };
+    for (kind, code) in [("sales", "QUOTE_REQUIRED"), ("quote", "CONFLICT")] {
+        let mut repository = CommandProbe::ready(
+            order(kind, "submitted", 2, "creator"),
+            order(kind, "converted", 3, "creator"),
+        );
+        let error = run_guarded(&mut repository, &actor(), &command).unwrap_err();
+        assert_eq!(error.code, code, "{kind}");
+        assert!(!repository.calls.contains(&"transition"));
+        assert!(!repository.calls.contains(&"insert-converted"));
+    }
+}
+
+#[test]
 fn stale_cas_and_bad_readback_fail_without_a_receipt() {
     let mut stale = CommandProbe::ready(
         order("quote", "draft", 2, "creator"),
@@ -1269,7 +1558,7 @@ fn stale_cas_and_bad_readback_fail_without_a_receipt() {
     );
     assert_eq!(
         run(&mut stale, &actor(), &submit()).unwrap_err().code,
-        "COMMERCE_ORDER_CHANGED"
+        "CONFLICT"
     );
 
     let mut changed = CommandProbe::ready(
@@ -1279,7 +1568,7 @@ fn stale_cas_and_bad_readback_fail_without_a_receipt() {
     changed.transition_ok = false;
     assert_eq!(
         run(&mut changed, &actor(), &submit()).unwrap_err().code,
-        "COMMERCE_ORDER_CHANGED"
+        "CONFLICT"
     );
 
     let mut bad = CommandProbe::ready(
@@ -1404,6 +1693,7 @@ mod purchase_receipt {
     fn actor() -> CommerceOrderActor {
         CommerceOrderActor {
             user_id: UserId::new("receiver").unwrap(),
+            person_user_ids: vec![],
             holding_id: HoldingId::new("holding").unwrap(),
             company_id: CompanyId::new("company").unwrap(),
             branch_id: Some(RecordId::new("branch").unwrap()),

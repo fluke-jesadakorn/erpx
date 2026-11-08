@@ -397,5 +397,8 @@ where
             now,
         )
         .await?;
+    // Receipt/audit/outbox owner effects may invoke database triggers. Retain
+    // Inventory evidence until all of them have completed in this unit.
+    stock.require_applied(c, &prepared.plan, &applied).await?;
     Ok(receipt)
 }
