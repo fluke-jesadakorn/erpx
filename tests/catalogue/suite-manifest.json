@@ -64191,6 +64191,70 @@
       }
     },
     {
+      "id": "finance.rust-commerce-order-money-postgres.integration",
+      "lane": "integration",
+      "owner": "finance",
+      "modules": [
+        "finance",
+        "sales"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "sales"
+      ],
+      "packages": [
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/server-commerce",
+        "@erpx/server-finance",
+        "@erpx/server-runtime",
+        "@erpx/server-shared",
+        "@erpx/server-workflow"
+      ],
+      "ci": {
+        "critical": true,
+        "reason": "Finance-owned Commerce order-revision Money must preserve the exact serializable lock order, configured scale, effective-date quote, 1+3N source keys, replay without duplicates and rollback with the owner unit."
+      },
+      "files": [
+        "tests/integration/finance/rust-commerce-order-money-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-finance",
+        "targets": [
+          "commerce_order_money_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-finance/Cargo.toml",
+        "packages/server-commerce/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/support/rust-postgres.rs",
+        "packages/server-finance/src/adapters/commerce_order_money.rs",
+        "packages/server-finance/src/public/commerce_order_money.rs"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
       "id": "identity_access.rust-directory-policy.unit",
       "lane": "unit",
       "owner": "identity_access",

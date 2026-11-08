@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T02:50:00+07:00",
+  "updatedAt": "2026-11-09T03:10:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -16,12 +16,12 @@
     "interpretation": "The 206 items are catalogue workflows, not the number of bounded flows. Each listed ID occurs once below. A partial item has supporting qualified slices, not whole-workflow verification."
   },
   "counts": {
-    "qualifiedBusinessFlows": 101,
+    "qualifiedBusinessFlows": 102,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 37,
-    "workflowsVerified": 83,
-    "workflowsMerged": 83,
+    "workflowsPartial": 36,
+    "workflowsVerified": 84,
+    "workflowsMerged": 84,
     "ownersComplete": 8,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -3405,6 +3405,17 @@
       "durableContractRefs": [
         "docs/contracts/next/rust-finance-journal-detail.md"
       ]
+    },
+    {
+      "id": "commerce-order-revision-money",
+      "kind": "business-flow-evidence",
+      "status": "flow-complete",
+      "scope": "Finance-owned Commerce order-revision Money: stable serializable locks, configured two-decimal scale, effective-date confirmed rate/FX to USD, 1+3N order-total and line unit-price/subtotal/tax snapshots, replay without duplicates, persisted-row revalidation and rollback with the native Commerce save.",
+      "sourceIdentity": "62a9147fb",
+      "evidenceRef": "docs/testing/evidence/2026-11-09-commerce-order-money-snapshots.json",
+      "durableContractRefs": [
+        "docs/contracts/next/rust-finance-journal-detail.md"
+      ]
     }
   ],
   "workflows": [
@@ -4223,16 +4234,17 @@
       "kind": "module",
       "owner": "sales",
       "scope": "Quotes",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "sales-native-documents",
         "sales-native-documents-http",
         "sales-native-price-lists"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Native price-list draft/update/activate/cancel, sales document list/edit-read, eligible quote/order transitions and native draft quote create/update are wired through the Commerce public order port. Draft save enforces customer/warehouse/product/version/active price-list/date guards, integer discount and tax math, CAS, replay, receipt/audit/outbox and readback. New quotation and Edit draft are browser-verified on desktop and mobile through the webpack development bundler: the created quote and edited quantity/note persisted with exact readback. The Turbopack dev HMR loop was isolated as the hydration blocker. Order-revision Money snapshots, purchase and approval/cancellation Finance/Inventory guards remain retained, so this workflow stays partial."
+      "gap": "Verified native quotation workflow: price-list draft/update/activate/cancel, quotation list/detail, draft create/update with customer/warehouse/product/version/date guards, active price list/discount/tax integer math, CAS, replay, receipt/audit/outbox, persisted readback, and Finance-owned order/line revision Money snapshots (1+3N) in one serializable unit; quote submit/approve/return/cancel and conversion; desktop and mobile interactive create/edit through the native Next route with the created record and refreshed list. Purchase orders and sales-order approval/cancellation/fulfillment/invoicing/returns are separate workflows or retained operations.",
+      "mergeCommit": "62a9147fb"
     },
     {
       "id": "sales/orders",
@@ -4247,7 +4259,7 @@
         "sales-native-documents-http"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Native quote/order list/edit-read, eligible transitions and native draft sales-order create/update are wired through the Commerce public order port with the same customer/warehouse/product/price-list guards, integer totals, CAS, receipt/audit/outbox and readback as quotations. New quotation/Edit draft browser journeys pass on desktop and mobile through the webpack development bundler. Order-revision Money snapshots, purchase, fulfillment, confirmed cancellation, approval and the remaining Commerce scopes stay retained, so this workflow stays partial."
+      "gap": "Native quote/order list/edit-read, eligible transitions and native draft sales-order create/update with Finance order-revision Money snapshots are wired and browser-verified. Sales-order approval still requires the retained Finance credit guard, confirmed cancellation requires the retained Inventory reversal guard, and fulfillment/invoicing/settlement/returns remain retained, so this workflow stays partial."
     },
     {
       "id": "sales/fulfillment",
@@ -6456,8 +6468,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-09T02:50:00+07:00",
-    "sourceHead": "68f7c2700",
+    "generatedAt": "2026-11-09T03:10:00+07:00",
+    "sourceHead": "62a9147fb",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6542,8 +6554,8 @@
       },
       "sales": {
         "workflows": 5,
-        "verified": 0,
-        "partial": 2,
+        "verified": 1,
+        "partial": 1,
         "unstarted": 3,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -7108,8 +7120,8 @@
       },
       {
         "id": "native-work-role-browser-selection",
-        "detail": "The keyed office-shell hydration blocker was isolated to the Turbopack development HMR client: it repeatedly applied full-relaunch updates (restart/handleApply), so the app root never mounted and only the Next devtools portal had a React root. Starting the sales app with the existing supported webpack development bundler mounted the app root, hydrated the New quotation/Edit draft drawer and allowed native create/edit on desktop and mobile. The committed workspace settings still select Turbopack. The Assets app has not yet been re-verified on the webpack path, and the container build does not yet include the Assets/Finance handoff.",
-        "unblock": "Use the webpack development bundler for the remaining interactive browser verification (or fix the Turbopack HMR restart), then replay the Assets registration and any remaining form journeys."
+        "detail": "The keyed office-shell hydration blocker was the Turbopack development HMR restart loop; the webpack development bundler mounts the app root. Commerce quotation create/edit is now browser-verified on desktop and mobile. The Assets app has not been rebuilt with the Assets/Finance handoff in the keyed container, and its positive-cost registration browser journey remains unverified.",
+        "unblock": "Rebuild/restart the keyed container with the Assets/Finance handoff and use the webpack verification bundler for the positive-cost Assets registration."
       },
       {
         "id": "private-production-3101",
@@ -7118,9 +7130,9 @@
       }
     ],
     "nextActions": [
-      "Continue with the next dependency-ready non-browser bundle while sales/quotes and sales/orders retain the new native draft writer as partial.",
-      "Retry the authenticated Commerce quote create/edit desktop+mobile journey when the keyed work-role selection path is restored.",
-      "Continue with the next dependency-ready non-Stripe owner partial; Quality is complete 4/4.",
+      "sales/quotes is verified; close sales/orders next by porting the Finance credit approval guard and Inventory confirmed-cancellation guard, then fulfillment/invoicing/settlement/returns.",
+      "Rebuild the keyed container with the Assets/Finance handoff and browser-verify positive-cost Assets registration using the webpack verification bundler if Turbopack prevents hydration.",
+      "Integrate the external untracked server-files/field attachment modules so a clean full-service archive build passes.",
       "Await Stripe/Connect configuration for POS tenders/refunds/retry.",
       "Reconcile remote HEAD and keep counts tied to browser/HTTP evidence."
     ],
@@ -8376,6 +8388,23 @@
           "verified": 83,
           "partial": 36,
           "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-09T03:10:00+07:00",
+        "commit": "62a9147fb",
+        "bundles": [
+          "Finance Commerce order-revision Money snapshots",
+          "Commerce post-save navigation/list refresh",
+          "sales/quotes closure"
+        ],
+        "evidence": "Finance and Commerce PostgreSQL tests green including 1+3N rows, scale/rate/currency/USD/effective-date/replay/rollback; desktop+mobile native quotation create and desktop edit with persisted Money rows; 84/206 verified, 36 partial, 86 unstarted, 8/41 owners",
+        "counts": {
+          "owners": 8,
+          "verified": 84,
+          "partial": 36,
+          "unstarted": 86,
           "total": 206
         }
       }
