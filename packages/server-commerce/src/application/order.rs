@@ -9,10 +9,11 @@ use crate::domain::order::{
     CommerceOrderActor, CommerceOrderReceipt, ConvertedReadback, OrderCommandReceipt, OrderState,
     SalesOrderDocument, SalesOrderLineRow, SalesOrderRow, SaveOrderCommand, SaveOrderLinePlan,
     SaveOrderPlan, SaveOrderPriceList, SaveOrderProduct, SaveOrderReceipt, SaveOrderWarehouse,
-    TransitionCommand, TransitionPlan, authorize_transition, idempotency_conflict, not_found,
-    permission_required, readback_invalid, replay, replay_save, request_invalid, save_identity,
-    transition_identity, validate_conversion_readback, validate_document, validate_hash,
-    validate_readback, validate_save_readback, version_conflict,
+    TransitionCommand, TransitionGuardMode, TransitionPlan, authorize_transition_with_guard_mode,
+    idempotency_conflict, not_found, order_reversal_required, permission_required,
+    readback_invalid, replay, replay_save, request_invalid, sales_approval_finance_guard,
+    sales_credit_limit_exceeded, save_identity, transition_identity, validate_conversion_readback,
+    validate_document, validate_hash, validate_readback, validate_save_readback, version_conflict,
 };
 use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
 use std::future::Future;
@@ -132,6 +133,27 @@ pub trait CommerceOrderCommandRepository: Send {
         id: &'a str,
     ) -> CommerceOrderFuture<'a, Option<SalesOrderRow>, Self::Error>;
 
+    /// Finance-owned approval guard. The default fails closed so a repository
+    /// without the Finance port cannot approve a sales order.
+    fn sales_order_credit_allows<'a>(
+        &'a mut self,
+        _company: &'a CompanyId,
+        _party_id: &'a str,
+        _order_total_minor: i64,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error> {
+        Box::pin(async { Err(sales_approval_finance_guard().into()) })
+    }
+
+    /// Inventory-owned confirmed-cancellation reservation release. The default
+    /// fails closed with the retained reversal guidance.
+    fn release_confirmed_sales_reservations<'a>(
+        &'a mut self,
+        _company: &'a CompanyId,
+        _order_id: &'a str,
+    ) -> CommerceOrderFuture<'a, (), Self::Error> {
+        Box::pin(async { Err(order_reversal_required().into()) })
+    }
+
     fn insert_receipt<'a>(
         &'a mut self,
         entry: &'a ReceiptEntry<'a>,
@@ -184,6 +206,36 @@ pub async fn transition_order<R: CommerceOrderCommandRepository>(
     repository: &mut R,
     now: TimestampMillis,
 ) -> Result<CommerceOrderReceipt, R::Error> {
+    transition_order_with_guard_mode(
+        actor,
+        command,
+        repository,
+        now,
+        TransitionGuardMode::Retained,
+    )
+    .await
+}
+
+/// Apply one transition with the native Finance/Inventory cross-owner guards.
+/// The repository must provide the real ports; the default trait methods fail
+/// closed. The caller owns the serializable unit.
+pub async fn transition_order_guarded<R: CommerceOrderCommandRepository>(
+    actor: &CommerceOrderActor,
+    command: &TransitionCommand,
+    repository: &mut R,
+    now: TimestampMillis,
+) -> Result<CommerceOrderReceipt, R::Error> {
+    transition_order_with_guard_mode(actor, command, repository, now, TransitionGuardMode::Native)
+        .await
+}
+
+async fn transition_order_with_guard_mode<R: CommerceOrderCommandRepository>(
+    actor: &CommerceOrderActor,
+    command: &TransitionCommand,
+    repository: &mut R,
+    now: TimestampMillis,
+    guard_mode: TransitionGuardMode,
+) -> Result<CommerceOrderReceipt, R::Error> {
     actor.require_write(now)?;
     command.validate()?;
     repository.lock_command(command.key.as_str()).await?;
@@ -222,14 +274,37 @@ pub async fn transition_order<R: CommerceOrderCommandRepository>(
     } else {
         0
     };
-    let plan = authorize_transition(
+    let plan = authorize_transition_with_guard_mode(
         actor,
         command,
         &order,
         fulfillment_count,
         &request_hash,
         now,
+        guard_mode,
     )?;
+    if guard_mode == TransitionGuardMode::Native {
+        if command.action == crate::domain::order::OrderAction::Approve
+            && order.kind() == Some(crate::domain::order::OrderKind::Sales)
+            && !repository
+                .sales_order_credit_allows(
+                    &actor.company_id,
+                    &order.party_id,
+                    order.subtotal_minor + order.tax_minor,
+                )
+                .await?
+        {
+            return Err(sales_credit_limit_exceeded().into());
+        }
+        if command.action == crate::domain::order::OrderAction::Cancel
+            && order.kind() == Some(crate::domain::order::OrderKind::Sales)
+            && order.state() == Some(OrderState::Confirmed)
+        {
+            repository
+                .release_confirmed_sales_reservations(&actor.company_id, &order.id)
+                .await?;
+        }
+    }
     if !repository.transition(&plan).await? {
         return Err(version_conflict().into());
     }

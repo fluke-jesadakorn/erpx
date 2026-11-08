@@ -3,7 +3,7 @@ use erpx_server_commerce::public::order::{
     AuditEntry, CommerceOrderActor, CommerceOrderCommandRepository, CommerceOrderFuture,
     CommerceOrderReadRepository, CommerceOrderReceipt, ConvertedReadback, LINES_LIMIT, OrderAction,
     OrderCommandReceipt, OutboxEntry, ReceiptEntry, SalesOrderLineRow, SalesOrderRow,
-    TransitionCommand, TransitionPlan, order_detail, transition_order,
+    TransitionCommand, TransitionPlan, order_detail, transition_order, transition_order_guarded,
 };
 use erpx_server_shared::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId,
@@ -14,6 +14,181 @@ use serde_json::json;
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
 const KEY: &str = "commerce-order-command-0001";
 const HASH: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+#[test]
+fn legacy_goods_receipt_identity_matches_typescript_key_hash_and_result_order() {
+    use erpx_server_commerce::public::receipt::{
+        legacy_goods_receipt_number, legacy_goods_receipt_result,
+    };
+    for (key, number) in [
+        ("receipt-one", "GR-1623126585A29ED7E9F75697"),
+        ("receipt-two", "GR-2715B4050047A3952DC20E6D"),
+        ("A.b:1-2_3", "GR-39B25FE63A08CB1E4559D957"),
+    ] {
+        let key = CommandKey::new(key).unwrap();
+        assert_eq!(legacy_goods_receipt_number(&key), number);
+    }
+    let key = CommandKey::new("receipt-one").unwrap();
+    let order = RecordId::new("order-1").unwrap();
+    assert_eq!(
+        legacy_goods_receipt_result(&order, &key, 3).unwrap(),
+        r#"{"id":"order-1","fulfillmentId":"delivery-receipt-one","version":4}"#
+    );
+    assert!(legacy_goods_receipt_result(&order, &key, 0).is_err());
+    assert_eq!(
+        legacy_goods_receipt_result(&order, &key, 9_007_199_254_740_991).unwrap(),
+        r#"{"id":"order-1","fulfillmentId":"delivery-receipt-one","version":9007199254740992}"#
+    );
+    assert!(legacy_goods_receipt_result(&order, &key, 9_007_199_254_740_992).is_err());
+}
+
+#[test]
+fn legacy_goods_receipt_identity_matches_pinned_node_for_escaped_ids_and_boundaries() {
+    use erpx_server_commerce::public::receipt::{
+        legacy_goods_receipt_number, legacy_goods_receipt_result,
+    };
+    use std::process::Command;
+    let node = std::env::var_os("ERPX_NODE_BIN")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../.runtime/node/node-v26.11.1-darwin-arm64/bin/node")
+        });
+    let script = r#"if(process.version!=='v26.11.1')throw Error('NODE_VERSION');const c=require('node:crypto');const [id,key,version]=process.argv.slice(1);process.stdout.write('GR-'+c.createHash('sha256').update(key).digest('hex').slice(0,24).toUpperCase()+'\n'+JSON.stringify({id,fulfillmentId:`delivery-${key}`,version:Number(version)+1}));"#;
+    for (id, key, version) in [
+        ("quote\"slash\\id", "receipt-one", 1_i64),
+        ("ชื่อ-東京", "A.b:1-2_3", 3),
+        (
+            "line\u{2028}separator",
+            "receipt-two",
+            9_007_199_254_740_991,
+        ),
+    ] {
+        let output = Command::new(&node)
+            .arg("-e")
+            .arg(script)
+            .arg(id)
+            .arg(key)
+            .arg(version.to_string())
+            .output()
+            .expect("pinned Node executable");
+        assert!(output.status.success(), "Node oracle failed");
+        let observed = String::from_utf8(output.stdout).unwrap();
+        let (number, result) = observed.split_once('\n').unwrap();
+        let key = CommandKey::new(key).unwrap();
+        let id = RecordId::new(id).unwrap();
+        assert_eq!(legacy_goods_receipt_number(&key), number);
+        assert_eq!(
+            legacy_goods_receipt_result(&id, &key, version).unwrap(),
+            result
+        );
+    }
+}
+
+#[test]
+fn legacy_fulfillment_normalization_matches_installed_zod_schema_and_pinned_node() {
+    use erpx_server_commerce::public::receipt::normalize_legacy_fulfillment_input;
+    use std::process::Command;
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let node = std::env::var_os("ERPX_NODE_BIN")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| root.join(".runtime/node/node-v26.11.1-darwin-arm64/bin/node"));
+    let script = r#"if(process.version!=='v26.11.1')throw Error('NODE_VERSION');const fs=require('node:fs'),z=require('zod');if(require('zod/package.json').version!=='4.6.7')throw Error('ZOD_VERSION');const s=fs.readFileSync('packages/server-commerce/src/domain/commerce.ts','utf8');const q=s.slice(s.indexOf('const quantity = z'),s.indexOf('export const orderSchema'));const f=s.slice(s.indexOf('export const fulfillmentSchema'),s.indexOf('export const invoiceFromDeliverySchema')).replace('export const fulfillmentSchema','const fulfillmentSchema');const schema=new Function('z',q+f+';return fulfillmentSchema')(z);const result=schema.safeParse(JSON.parse(process.argv[1]));process.stdout.write(result.success?'ok:'+JSON.stringify(result.data):'invalid');"#;
+    let emoji = "😀".repeat(100);
+    let long_emoji = "😀".repeat(101);
+    let mut cases = vec![
+        serde_json::json!({"expectedVersion":3,"date":"0000-02-29","lines":[{"lineId":"line","quantity":"0001.200"}]}),
+        serde_json::json!({"unknown":"ignored","lines":[{"quantity":"0.001","lineId":" L ","extra":true,"allocations":[{"quantity":"01.0","lotCode":format!("\u{feff} {emoji} \u{feff}"),"lotId":" lot ","serialNumber":"S","disposition":"quarantine","quarantineReason":" \u{feff} ok \u{feff} ","quarantineDueDate":"2026-11-05","ignored":1}]}],"evidenceNote":"  note  ","date":"9999-12-31","expectedVersion":1,"completionMode":"mixed"}),
+        serde_json::json!({"expectedVersion":9_007_199_254_740_991_i64,"date":"2000-02-29","attachmentSetIds":["a","😀"],"evidenceIds":["e"],"lines":[{"lineId":"id","quantity":"123","allocations":[{"quantity":"0","expiryDate":""}]}]}),
+        serde_json::json!({"expectedVersion":1,"date":"0000-02-30","lines":[{"lineId":"x","quantity":"1"}]}),
+        serde_json::json!({"expectedVersion":0,"date":"2026-01-01","lines":[{"lineId":"x","quantity":"1"}]}),
+        serde_json::json!({"expectedVersion":9_007_199_254_740_992_i64,"date":"2026-01-01","lines":[{"lineId":"x","quantity":"1"}]}),
+        serde_json::json!({"expectedVersion":1,"date":"2026-01-01","lines":[{"lineId":"x","quantity":"1","allocations":[{"quantity":"1","lotCode":long_emoji}]}]}),
+        serde_json::json!({"expectedVersion":1,"date":"2026-01-01","lines":[{"lineId":"x","quantity":"1","allocations":[{"quantity":"1","lotId":null}]}]}),
+        serde_json::json!({"expectedVersion":1,"date":"2026-01-01","lines":[{"lineId":"x","quantity":"1.0000"}]}),
+        serde_json::json!({"expectedVersion":1,"date":"2026-01-01","lines":[]}),
+    ];
+    cases.push(serde_json::json!({"expectedVersion":1,"date":"2026-01-01","lines":vec![serde_json::json!({"lineId":"x","quantity":"1"});21]}));
+    cases.push(serde_json::json!({"expectedVersion":1,"date":"2026-01-01","lines":[{"lineId":"x","quantity":"1","allocations":vec![serde_json::json!({"quantity":"1"});200]}]}));
+    cases.push(serde_json::json!({"expectedVersion":1,"date":"2026-01-01","lines":[{"lineId":"x","quantity":"1","allocations":vec![serde_json::json!({"quantity":"1"});201]}]}));
+    let mut raw_cases = cases
+        .into_iter()
+        .map(|case| serde_json::to_string(&case).unwrap())
+        .collect::<Vec<_>>();
+    raw_cases.push(r#"{"expectedVersion":0,"expectedVersion":1e0,"date":"2026-01-01","lines":[{"lineId":"x","quantity":"1"}]}"#.into());
+    raw_cases.push(r#"{"expectedVersion":1,"date":"2026-01-01","evidenceNote":null,"lines":[{"lineId":"x","quantity":"1"}]}"#.into());
+    raw_cases.push(r#"{"\ud800":"ignored\udfff","expectedVersion":1,"date":"2026-01-01","evidenceNote":" \uFEFF\ud800\udfff\ud800 \uFEFF ","evidenceIds":["\udc00"],"lines":[{"lineId":"\ud800","quantity":"1","\udfff":"ignored","allocations":[{"quantity":"1","lotCode":" \uFEFF\udfff \uFEFF "}]}]}"#.into());
+    raw_cases.push(format!(r#"{{"expectedVersion":1,"date":"2026-01-01","lines":[{{"lineId":"x","quantity":"1","allocations":[{{"quantity":"1","lotCode":"{}"}}]}}]}}"#,r"\ud800".repeat(100)));
+    raw_cases.push(format!(r#"{{"expectedVersion":1,"date":"2026-01-01","lines":[{{"lineId":"x","quantity":"1","allocations":[{{"quantity":"1","lotCode":"{}"}}]}}]}}"#,r"\ud800".repeat(101)));
+    for raw in raw_cases {
+        let output = Command::new(&node)
+            .current_dir(&root)
+            .arg("-e")
+            .arg(script)
+            .arg(&raw)
+            .output()
+            .expect("pinned Node/Zod oracle");
+        assert!(output.status.success(), "Node/Zod schema oracle failed");
+        let expected = String::from_utf8(output.stdout).unwrap();
+        let actual = normalize_legacy_fulfillment_input(&raw)
+            .map(|value| format!("ok:{value}"))
+            .unwrap_or_else(|_| "invalid".into());
+        assert_eq!(actual, expected, "input {raw}");
+    }
+}
+
+#[test]
+fn legacy_fulfillment_workflow_input_fingerprints_match_pinned_node_formatting_only() {
+    use erpx_server_commerce::public::receipt::legacy_fulfillment_workflow_input;
+    use erpx_server_workflow::public::commands::{
+        CommandActor, CommandField, WorkAuthority, command_fingerprint,
+    };
+    use std::process::Command;
+    // Synthetic formatting data, not selected authority or replay admission.
+    let actor = CommandActor {
+        user_id: UserId::new("user").unwrap(),
+        assignment_id: AssignmentId::new("assignment").unwrap(),
+        role: "manager".into(),
+        company_id: CompanyId::new("company").unwrap(),
+        branch_id: CommandField::Null,
+        department_id: CommandField::Value("ฝ่าย".into()),
+        authority: CommandField::Value(WorkAuthority {
+            session_id: "session".into(),
+            revision: 7,
+            assignment_version: 3,
+        }),
+        iam: CommandField::Omitted,
+        assignment_scope_kind: "holding".into(),
+        assignment_scope_node_id: None,
+    };
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let node = std::env::var_os("ERPX_NODE_BIN")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| root.join(".runtime/node/node-v26.11.1-darwin-arm64/bin/node"));
+    let script = r#"if(process.version!=='v26.11.1')throw Error('NODE_VERSION');const fs=require('node:fs'),z=require('zod'),c=require('node:crypto');if(require('zod/package.json').version!=='4.6.7')throw Error('ZOD_VERSION');const s=fs.readFileSync('packages/server-commerce/src/domain/commerce.ts','utf8');const q=s.slice(s.indexOf('const quantity = z'),s.indexOf('export const orderSchema'));const f=s.slice(s.indexOf('export const fulfillmentSchema'),s.indexOf('export const invoiceFromDeliverySchema')).replace('export const fulfillmentSchema','const fulfillmentSchema');const schema=new Function('z',q+f+';return fulfillmentSchema')(z);const input=schema.parse(JSON.parse(process.argv[1]));const p={actor:'user',assignment:'assignment',role:'manager',authority:{sessionId:'session',revision:7,assignmentVersion:3},company:'company',branch:null,department:'ฝ่าย',operation:'commerce.order.fulfill',recordId:'ใบสั่ง',input};process.stdout.write(c.createHash('sha256').update(JSON.stringify(p)).digest('hex'));"#;
+    let cases = [
+        r#"{"expectedVersion":3,"date":"0000-02-29","lines":[{"lineId":"line","quantity":"0001.200"}]}"#,
+        r#"{"completionMode":"mixed","expectedVersion":1,"date":"2026-11-04","evidenceNote":" \uFEFF note  ","lines":[{"lineId":"ไทย","quantity":"1.00","allocations":[{"lotId":"lot-1","quantity":"0.500","lotCode":" L-A ","quarantineReason":" review ","disposition":"quarantine"}]}]}"#,
+        r#"{"\udfff":"discard","expectedVersion":1,"date":"2026-11-04","evidenceNote":"\ud800","lines":[{"lineId":"\udfff","quantity":"1"}]}"#,
+        r#"{"\udfff":"discard","expectedVersion":1,"date":"2026-11-04","evidenceNote":"\ud801","lines":[{"lineId":"\udfff","quantity":"1"}]}"#,
+    ];
+    for raw in cases {
+        let output = Command::new(&node)
+            .current_dir(&root)
+            .arg("-e")
+            .arg(script)
+            .arg(raw)
+            .output()
+            .expect("pinned Node/Zod fingerprint oracle");
+        assert!(output.status.success(), "Node fingerprint oracle failed");
+        let expected = String::from_utf8(output.stdout).unwrap();
+        let input = legacy_fulfillment_workflow_input(raw).unwrap();
+        assert_eq!(
+            command_fingerprint(&actor, "commerce.order.fulfill", "ใบสั่ง", &input).unwrap(),
+            expected
+        );
+    }
+}
 
 fn actor() -> CommerceOrderActor {
     CommerceOrderActor {
@@ -182,6 +357,9 @@ struct CommandProbe {
     plans: Vec<TransitionPlan>,
     audited: Vec<(String, String, String, i64)>,
     outboxed: Vec<(String, String, String, i64, String, Option<String>)>,
+    credit: bool,
+    credit_calls: Vec<(String, i64)>,
+    release_calls: Vec<String>,
 }
 
 impl CommandProbe {
@@ -318,6 +496,28 @@ impl CommerceOrderCommandRepository for CommandProbe {
         Box::pin(async move { Ok(readback) })
     }
 
+    fn sales_order_credit_allows<'a>(
+        &'a mut self,
+        _: &'a CompanyId,
+        party_id: &'a str,
+        total: i64,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error> {
+        self.calls.push("credit");
+        self.credit_calls.push((party_id.to_owned(), total));
+        let allowed = self.credit;
+        Box::pin(async move { Ok(allowed) })
+    }
+
+    fn release_confirmed_sales_reservations<'a>(
+        &'a mut self,
+        _: &'a CompanyId,
+        order_id: &'a str,
+    ) -> CommerceOrderFuture<'a, (), Self::Error> {
+        self.calls.push("release-reservations");
+        self.release_calls.push(order_id.to_owned());
+        Box::pin(async move { Ok(()) })
+    }
+
     fn insert_receipt<'a>(
         &'a mut self,
         _: &'a ReceiptEntry<'a>,
@@ -372,6 +572,14 @@ fn run(
     command: &TransitionCommand,
 ) -> Result<CommerceOrderReceipt, BusinessError> {
     sqlx::test_block_on(transition_order(actor, command, probe, NOW))
+}
+
+fn run_guarded(
+    probe: &mut CommandProbe,
+    actor: &CommerceOrderActor,
+    command: &TransitionCommand,
+) -> Result<CommerceOrderReceipt, BusinessError> {
+    sqlx::test_block_on(transition_order_guarded(actor, command, probe, NOW))
 }
 
 #[test]
@@ -806,6 +1014,104 @@ fn sales_approval_and_confirmed_sales_cancellation_fail_closed() {
 }
 
 #[test]
+fn native_sales_approval_uses_finance_credit_and_cancel_releases_reservations() {
+    let mut denied = CommandProbe::ready(
+        order("sales", "submitted", 2, "creator"),
+        order("sales", "confirmed", 3, "creator"),
+    );
+    assert_eq!(
+        run_guarded(
+            &mut denied,
+            &actor(),
+            &TransitionCommand {
+                action: OrderAction::Approve,
+                expected_version: 2,
+                ..submit()
+            }
+        )
+        .unwrap_err()
+        .code,
+        "SALES_ORDER_CREDIT_LIMIT"
+    );
+    assert_eq!(denied.credit_calls, [("party-1".into(), 10_700)]);
+    assert!(!denied.calls.contains(&"transition"));
+
+    let mut approved = CommandProbe::ready(
+        order("sales", "submitted", 2, "creator"),
+        SalesOrderRow {
+            approved_by: Some("user".into()),
+            ..order("sales", "confirmed", 3, "creator")
+        },
+    );
+    approved.credit = true;
+    assert_eq!(
+        run_guarded(
+            &mut approved,
+            &actor(),
+            &TransitionCommand {
+                action: OrderAction::Approve,
+                expected_version: 2,
+                ..submit()
+            }
+        )
+        .unwrap(),
+        expected_receipt("confirmed", 3, None)
+    );
+    assert_eq!(approved.credit_calls, [("party-1".into(), 10_700)]);
+    assert_eq!(approved.plans[0].approved_by.as_deref(), Some("user"));
+
+    let mut fulfilled = CommandProbe::ready(
+        order("sales", "confirmed", 3, "creator"),
+        order("sales", "cancelled", 4, "creator"),
+    );
+    fulfilled.fulfillments = 1;
+    assert_eq!(
+        run_guarded(
+            &mut fulfilled,
+            &actor(),
+            &TransitionCommand {
+                action: OrderAction::Cancel,
+                expected_version: 3,
+                ..submit()
+            }
+        )
+        .unwrap_err()
+        .code,
+        "ORDER_REVERSAL_REQUIRED"
+    );
+    assert!(fulfilled.release_calls.is_empty());
+
+    let mut cancelled = CommandProbe::ready(
+        order("sales", "confirmed", 3, "creator"),
+        order("sales", "cancelled", 4, "creator"),
+    );
+    assert_eq!(
+        run_guarded(
+            &mut cancelled,
+            &actor(),
+            &TransitionCommand {
+                action: OrderAction::Cancel,
+                expected_version: 3,
+                ..submit()
+            }
+        )
+        .unwrap(),
+        expected_receipt("cancelled", 4, None)
+    );
+    assert_eq!(cancelled.release_calls, ["order-1"]);
+    assert!(
+        cancelled
+            .calls
+            .iter()
+            .position(|call| *call == "release-reservations")
+            < cancelled
+                .calls
+                .iter()
+                .position(|call| *call == "transition")
+    );
+}
+
+#[test]
 fn confirmed_quotation_cancel_is_independent_and_requires_no_fulfillment() {
     let mut fulfilled = CommandProbe::ready(
         order("quote", "confirmed", 3, "creator"),
@@ -1088,8 +1394,8 @@ mod purchase_receipt {
     use erpx_server_commerce::public::receipt::{
         CommerceReceipt, CommerceReceiptLine, ReceiptAllocationCommand, ReceiptCommand,
         ReceiptDisposition, ReceiptFulfillmentLinePlan, ReceiptLineCommand, ReceiptOrder,
-        ReceiptOrderLine, expected_fulfilled_lines, expected_order_state, line_value,
-        prior_receipt,
+        ReceiptOrderLine, calculate_legacy_goods_receipt, expected_fulfilled_lines,
+        expected_order_state, line_value, prior_receipt,
     };
     use erpx_server_shared::public::{
         AssignmentId, CommandKey, CompanyId, HoldingId, RecordId, UserId,
@@ -1184,6 +1490,149 @@ mod purchase_receipt {
                 quantity_milli: 1_000,
                 value_minor: 3_333,
             }],
+        }
+    }
+
+    #[test]
+    fn legacy_receipt_calculation_has_no_ledger_effect_and_retains_typed_source() {
+        let input = command(vec![allocation("L-A")]);
+        let source = order("THB", "THB");
+        let calculation = calculate_legacy_goods_receipt(
+            &actor(),
+            &input,
+            &source,
+            erpx_server_shared::public::TimestampMillis::new(7),
+        )
+        .unwrap();
+        assert_eq!(calculation.order, source);
+        assert_eq!(calculation.fulfillment.id, "delivery-receipt-one");
+        assert_eq!(
+            calculation.fulfillment.number,
+            "GR-1623126585A29ED7E9F75697"
+        );
+        assert_eq!(calculation.fulfillment.lines[0].value_minor, 3_333);
+        assert_eq!(calculation.receipt.state, "partially_fulfilled");
+        assert_eq!(
+            calculation.workflow_result_json,
+            r#"{"id":"order-1","fulfillmentId":"delivery-receipt-one","version":4}"#
+        );
+        let mut wrong = source.clone();
+        wrong.id = "other".into();
+        assert_eq!(
+            calculate_legacy_goods_receipt(
+                &actor(),
+                &input,
+                &wrong,
+                erpx_server_shared::public::TimestampMillis::new(7)
+            )
+            .unwrap_err()
+            .code,
+            "COMMERCE_ORDER_CHANGED"
+        );
+        assert_eq!(
+            calculate_legacy_goods_receipt(
+                &actor(),
+                &input,
+                &order("USD", "THB"),
+                erpx_server_shared::public::TimestampMillis::new(7)
+            )
+            .unwrap_err()
+            .code,
+            "RECEIPT_FX_GUARD_REQUIRED"
+        );
+    }
+
+    #[test]
+    fn legacy_receipt_total_checks_safe_integer_across_multiple_lines() {
+        let mut source = order("THB", "THB");
+        let first = &mut source.lines[0];
+        first.tracking_mode = "none".into();
+        first.quantity_milli = 1000;
+        first.subtotal_minor = 9_007_199_254_740_990;
+        first.tax_minor = 0;
+        let mut second = first.clone();
+        second.id = "line-2".into();
+        second.product_id = "product-2".into();
+        second.subtotal_minor = 1;
+        source.lines.push(second);
+        let mut input = command(vec![]);
+        input.lines.push(ReceiptLineCommand {
+            line_id: "line-2".into(),
+            quantity_milli: 1000,
+            allocations: vec![],
+        });
+        let accepted = calculate_legacy_goods_receipt(
+            &actor(),
+            &input,
+            &source,
+            erpx_server_shared::public::TimestampMillis::new(7),
+        )
+        .unwrap();
+        assert_eq!(accepted.receipt.total_value_minor, 9_007_199_254_740_991);
+        source.lines[1].subtotal_minor = 2;
+        assert_eq!(
+            calculate_legacy_goods_receipt(
+                &actor(),
+                &input,
+                &source,
+                erpx_server_shared::public::TimestampMillis::new(7)
+            )
+            .unwrap_err()
+            .code,
+            "MONEY_OVERFLOW"
+        );
+    }
+
+    #[test]
+    fn receipt_rounding_and_prior_remaining_match_installed_typescript_node_oracle() {
+        use std::process::Command;
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let node = std::env::var_os("ERPX_NODE_BIN")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| root.join(".runtime/node/node-v26.11.1-darwin-arm64/bin/node"));
+        let script = r#"if(process.version!=='v26.11.1')throw Error('NODE_VERSION');const fs=require('node:fs'),s=fs.readFileSync('packages/feature-commerce/src/lib/commerce-math.ts','utf8');let a=s.slice(s.indexOf('export function scaledAmount'),s.indexOf('export function lineAmounts')).replace('export function','function').replaceAll(':number','');let b=s.slice(s.indexOf('export function lineAmounts')).replace('export function','function').replaceAll(':number','');const lineAmounts=new Function(a+b+';return lineAmounts')();const [qty,price,taxBps,total,fulfilled,subtotal,tax,priorSubtotal,priorTax]=JSON.parse(process.argv[1]);const amounts=qty===total-fulfilled?{subtotal:subtotal-priorSubtotal,tax:tax-priorTax}:lineAmounts(qty,price,taxBps);process.stdout.write(JSON.stringify(amounts));"#;
+        for (qty, price, tax_bps, total, fulfilled, subtotal, tax, prior_subtotal, prior_tax) in [
+            (1000, 3333, 700, 3000, 0, 10000, 700, 0, 0),
+            (1000, 3333, 700, 3000, 2000, 10000, 700, 6667, 467),
+            (1, 500, 0, 1000, 0, 500, 0, 0, 0),
+        ] {
+            let data = serde_json::json!([
+                qty,
+                price,
+                tax_bps,
+                total,
+                fulfilled,
+                subtotal,
+                tax,
+                prior_subtotal,
+                prior_tax
+            ])
+            .to_string();
+            let result = Command::new(&node)
+                .current_dir(&root)
+                .arg("-e")
+                .arg(script)
+                .arg(data)
+                .output()
+                .expect("pinned Node commerce math oracle");
+            assert!(result.status.success(), "Node commerce math oracle failed");
+            let expected: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
+            let mut source = order("THB", "THB");
+            let line = &mut source.lines[0];
+            line.quantity_milli = total;
+            line.fulfilled_milli = fulfilled;
+            line.price_minor = price;
+            line.tax_bps = tax_bps;
+            line.subtotal_minor = subtotal;
+            line.tax_minor = tax;
+            line.prior_subtotal_minor = prior_subtotal;
+            line.prior_tax_minor = prior_tax;
+            let actual = line_value(&source, &source.lines[0], qty).unwrap();
+            assert_eq!(
+                actual.subtotal_minor,
+                expected["subtotal"].as_i64().unwrap()
+            );
+            assert_eq!(actual.tax_minor, expected["tax"].as_i64().unwrap());
         }
     }
 

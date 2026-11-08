@@ -73,6 +73,10 @@ name = "commerce_order_money_postgres"
 path = "../../tests/integration/finance/rust-commerce-order-money-postgres.test.rs"
 
 [[test]]
+name = "sales_order_credit_postgres"
+path = "../../tests/integration/finance/rust-sales-order-credit-postgres.test.rs"
+
+[[test]]
 name = "journal_wire"
 path = "../../tests/unit/finance/rust-journal-wire.test.rs"
 

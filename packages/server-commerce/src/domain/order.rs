@@ -487,6 +487,14 @@ pub fn sales_approval_finance_guard() -> BusinessError {
     )
 }
 
+pub fn sales_credit_limit_exceeded() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "SALES_ORDER_CREDIT_LIMIT",
+        "This sales order exceeds the customer credit limit.",
+    )
+}
+
 fn valid_identifier(value: &str) -> bool {
     RecordId::new(value).is_ok()
 }
@@ -851,6 +859,15 @@ pub fn transition_identity(actor: &CommerceOrderActor, command: &TransitionComma
 /// Authorize and plan one exact-version transition. This function performs no
 /// I/O; the application has already locked the scoped order and counted
 /// fulfillments.
+/// Which cross-owner guards are available to this transition. `Retained`
+/// keeps the fail-closed quote-only slice; `Native` requires the caller to
+/// provide the Finance credit and Inventory cancellation ports.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TransitionGuardMode {
+    Retained,
+    Native,
+}
+
 pub fn authorize_transition(
     actor: &CommerceOrderActor,
     command: &TransitionCommand,
@@ -858,6 +875,26 @@ pub fn authorize_transition(
     fulfillment_count: i64,
     request_hash: &str,
     now: TimestampMillis,
+) -> Result<TransitionPlan, BusinessError> {
+    authorize_transition_with_guard_mode(
+        actor,
+        command,
+        order,
+        fulfillment_count,
+        request_hash,
+        now,
+        TransitionGuardMode::Retained,
+    )
+}
+
+pub fn authorize_transition_with_guard_mode(
+    actor: &CommerceOrderActor,
+    command: &TransitionCommand,
+    order: &SalesOrderRow,
+    fulfillment_count: i64,
+    request_hash: &str,
+    now: TimestampMillis,
+    guard_mode: TransitionGuardMode,
 ) -> Result<TransitionPlan, BusinessError> {
     actor.require_write(now)?;
     order.validate(actor)?;
@@ -892,7 +929,7 @@ pub fn authorize_transition(
             discount_approved_at = None;
         }
         OrderAction::Approve => {
-            if kind != OrderKind::Quote {
+            if kind != OrderKind::Quote && guard_mode == TransitionGuardMode::Retained {
                 return Err(sales_approval_finance_guard());
             }
             expected_state = OrderState::Submitted;
@@ -918,7 +955,9 @@ pub fn authorize_transition(
             if state == OrderState::Draft {
                 expected_state = OrderState::Draft;
                 next_state = OrderState::Cancelled;
-            } else if state == OrderState::Confirmed && kind == OrderKind::Quote {
+            } else if state == OrderState::Confirmed
+                && (kind == OrderKind::Quote || guard_mode == TransitionGuardMode::Native)
+            {
                 expected_state = OrderState::Confirmed;
                 next_state = OrderState::Cancelled;
                 actor.require_approve()?;

@@ -109,6 +109,12 @@ impl<'c> PgCommerceOrders<'c> {
         Self { connection }
     }
 
+    /// Shared caller-owned transaction for composition-level owner handoffs.
+    /// The connection remains serializable and no commit happens here.
+    pub fn connection(&mut self) -> &mut PgConnection {
+        self.connection
+    }
+
     async fn ready(&mut self) -> Result<(), Error> {
         if !self.connection.is_in_transaction() {
             return Err(PersistenceError::new("COMMERCE_ORDER_TRANSACTION_REQUIRED").into());

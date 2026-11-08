@@ -4,8 +4,10 @@
 use crate::business_http::BusinessScopeSlugs;
 use erpx_server_commerce::public::order::PgCommerceOrders;
 use erpx_server_commerce::public::order::{
-    CommerceOrderActor, SaveOrderCommand, SaveOrderInput, TransitionCommand, order_detail,
-    save_order_outcome, transition_order,
+    AuditEntry, CommerceOrderActor, CommerceOrderCommandRepository, CommerceOrderFuture,
+    ConvertedReadback, OrderCommandReceipt, OutboxEntry, ReceiptEntry, SalesOrderLineRow,
+    SalesOrderRow, SaveOrderCommand, SaveOrderInput, TransitionCommand, TransitionPlan,
+    order_detail, save_order_outcome, transition_order_guarded,
 };
 use erpx_server_commerce::public::order_http::{
     CommerceOrderHttpBackend, CommerceOrderHttpCommand, CommerceOrderHttpFuture,
@@ -23,13 +25,170 @@ use erpx_server_identity_access::public::{
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
-    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, RecordId,
+    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, RecordId, TimestampMillis,
 };
 use serde_json::Value;
 use sqlx::PgConnection;
 use std::sync::Arc;
 
 type Error = PgTransactionError<BusinessError>;
+
+/// Commerce repository wrapper that keeps the owner row adapter unchanged while
+/// supplying the real Finance/Inventory cross-owner guard ports on the same
+/// serializable connection.
+struct ComposedCommerceOrders<'c> {
+    inner: PgCommerceOrders<'c>,
+}
+
+impl<'c> ComposedCommerceOrders<'c> {
+    fn new(connection: &'c mut PgConnection) -> Self {
+        Self {
+            inner: PgCommerceOrders::new(connection),
+        }
+    }
+}
+
+impl CommerceOrderCommandRepository for ComposedCommerceOrders<'_> {
+    type Error = Error;
+
+    fn current_authority<'a>(
+        &'a mut self,
+        actor: &'a CommerceOrderActor,
+        write: bool,
+        approve: bool,
+        now: TimestampMillis,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error> {
+        self.inner.current_authority(actor, write, approve, now)
+    }
+
+    fn lock_command<'a>(&'a mut self, key: &'a str) -> CommerceOrderFuture<'a, (), Self::Error> {
+        self.inner.lock_command(key)
+    }
+
+    fn digest<'a>(&'a mut self, value: &'a str) -> CommerceOrderFuture<'a, String, Self::Error> {
+        self.inner.digest(value)
+    }
+
+    fn receipt<'a>(
+        &'a mut self,
+        key: &'a str,
+    ) -> CommerceOrderFuture<'a, Option<OrderCommandReceipt>, Self::Error> {
+        self.inner.receipt(key)
+    }
+
+    fn lock_order<'a>(
+        &'a mut self,
+        actor: &'a CommerceOrderActor,
+        id: &'a str,
+    ) -> CommerceOrderFuture<'a, Option<SalesOrderRow>, Self::Error> {
+        self.inner.lock_order(actor, id)
+    }
+
+    fn count_fulfillments<'a>(
+        &'a mut self,
+        order_id: &'a str,
+    ) -> CommerceOrderFuture<'a, i64, Self::Error> {
+        self.inner.count_fulfillments(order_id)
+    }
+
+    fn transition<'a>(
+        &'a mut self,
+        plan: &'a TransitionPlan,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error> {
+        self.inner.transition(plan)
+    }
+
+    fn insert_converted_order<'a>(
+        &'a mut self,
+        plan: &'a TransitionPlan,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error> {
+        self.inner.insert_converted_order(plan)
+    }
+
+    fn copy_converted_lines<'a>(
+        &'a mut self,
+        quote_id: &'a str,
+        sales_id: &'a str,
+    ) -> CommerceOrderFuture<'a, u64, Self::Error> {
+        self.inner.copy_converted_lines(quote_id, sales_id)
+    }
+
+    fn converted_readback<'a>(
+        &'a mut self,
+        sales_id: &'a str,
+        company: &'a CompanyId,
+    ) -> CommerceOrderFuture<'a, Option<ConvertedReadback>, Self::Error> {
+        self.inner.converted_readback(sales_id, company)
+    }
+
+    fn readback_order<'a>(
+        &'a mut self,
+        actor: &'a CommerceOrderActor,
+        id: &'a str,
+    ) -> CommerceOrderFuture<'a, Option<SalesOrderRow>, Self::Error> {
+        self.inner.readback_order(actor, id)
+    }
+
+    fn sales_order_credit_allows<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        party_id: &'a str,
+        order_total_minor: i64,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error> {
+        let connection = self.inner.connection();
+        Box::pin(async move {
+            erpx_server_finance::public::sales_order_credit::sales_order_credit_allows(
+                connection,
+                company,
+                party_id,
+                order_total_minor,
+            )
+            .await
+        })
+    }
+
+    fn release_confirmed_sales_reservations<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        order_id: &'a str,
+    ) -> CommerceOrderFuture<'a, (), Self::Error> {
+        let connection = self.inner.connection();
+        Box::pin(async move {
+            erpx_server_inventory::public::commerce_order_cancellation::release_confirmed_sales_order_reservations(
+                connection,
+                company,
+                order_id,
+            )
+            .await
+            .map(|_| ())
+        })
+    }
+
+    fn insert_receipt<'a>(
+        &'a mut self,
+        entry: &'a ReceiptEntry<'a>,
+        now: TimestampMillis,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error> {
+        self.inner.insert_receipt(entry, now)
+    }
+
+    fn audit<'a>(
+        &'a mut self,
+        actor: &'a CommerceOrderActor,
+        entry: &'a AuditEntry<'a>,
+        now: TimestampMillis,
+    ) -> CommerceOrderFuture<'a, (), Self::Error> {
+        self.inner.audit(actor, entry, now)
+    }
+
+    fn outbox<'a>(
+        &'a mut self,
+        entry: &'a OutboxEntry<'a>,
+        now: TimestampMillis,
+    ) -> CommerceOrderFuture<'a, (), Self::Error> {
+        self.inner.outbox(entry, now)
+    }
+}
 
 fn scope() -> BusinessError {
     BusinessError::new(
@@ -66,11 +225,21 @@ fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
 }
 
 #[derive(Clone, Copy)]
-struct CommerceSources;
+struct CommerceSources {
+    money: bool,
+}
 
 impl HoldingWorkSourcePreparation for CommerceSources {
-    fn prepare<'c>(&'c self, _: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
-        Box::pin(async { Ok(()) })
+    fn prepare<'c>(
+        &'c self,
+        connection: &'c mut PgConnection,
+    ) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            if self.money {
+                erpx_server_finance::public::commerce_order_money::lock_commerce_order_money_sources(connection).await?;
+            }
+            Ok(())
+        })
     }
 }
 
@@ -216,7 +385,7 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
                 proof,
                 self.input(input, false),
                 Self::access(),
-                CommerceSources,
+                CommerceSources { money: false },
                 move |connection, current| {
                     let holding = holding.clone();
                     let companies = companies.clone();
@@ -266,7 +435,7 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
                 proof,
                 self.input(input, true),
                 Self::access(),
-                CommerceSources,
+                CommerceSources { money: false },
                 move |connection, current| {
                     let holding = holding.clone();
                     let companies = companies.clone();
@@ -295,10 +464,11 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
                             expected_version,
                             reason,
                         };
-                        let mut repository = PgCommerceOrders::new(connection);
+                        let mut repository = ComposedCommerceOrders::new(connection);
                         let now = clock.now();
                         let receipt =
-                            transition_order(&actor, &command, &mut repository, now).await?;
+                            transition_order_guarded(&actor, &command, &mut repository, now)
+                                .await?;
                         Ok(CommerceOrderHttpResponse {
                             data: receipt.to_wire(),
                             context: context(current),
@@ -331,7 +501,7 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
                 proof,
                 self.input(input, true),
                 Self::access(),
-                CommerceSources,
+                CommerceSources { money: true },
                 move |connection, current| {
                     let holding = holding.clone();
                     let companies = companies.clone();
@@ -360,11 +530,6 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
                             input: save_input,
                         };
                         let now = clock.now();
-                        erpx_server_finance::public::commerce_order_money::lock_commerce_order_money_sources(
-                            connection,
-                        )
-                        .await
-                        .map_err(business)?;
                         let outcome = {
                             let mut repository = PgCommerceOrders::new(connection);
                             save_order_outcome(&actor, &command, &mut repository, now).await?

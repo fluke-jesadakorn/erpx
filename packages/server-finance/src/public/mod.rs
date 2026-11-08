@@ -1,3 +1,4 @@
+pub mod sales_order_credit;
 pub mod asset_acquisition_money;
 pub mod commerce_order_money;
 pub mod journal_review;
