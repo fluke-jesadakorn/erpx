@@ -6990,6 +6990,23 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             }
             _ => false,
         };
+    let account_security = match request
+        .uri()
+        .path()
+        .split('/')
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        ["", "api", "v1", "account", "security"]
+            if matches!(
+                *request.method(),
+                axum::http::Method::GET | axum::http::Method::POST
+            ) =>
+        {
+            state.policy.audience(host).is_some()
+        }
+        _ => false,
+    };
     let talent = match (
         request.method(),
         request
@@ -7149,6 +7166,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || projects
         || talent
         || benefits
+        || account_security
         || customer_access
         || service_packages
         || field_work_roles
@@ -7245,10 +7263,8 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             || field_files
             || field_attachment
             || field_attachment_bind
-            || matches!(
-                *request.method(),
-                axum::http::Method::GET | axum::http::Method::HEAD
-            ));
+            || request.method() == axum::http::Method::GET
+            || request.method() == axum::http::Method::HEAD);
     if !allowed {
         return Err(BoundaryDenial::NotFound);
     }
