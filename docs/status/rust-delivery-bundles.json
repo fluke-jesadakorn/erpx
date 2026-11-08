@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T03:10:00+07:00",
+  "updatedAt": "2026-11-09T04:05:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -16,10 +16,10 @@
     "interpretation": "The 206 items are catalogue workflows, not the number of bounded flows. Each listed ID occurs once below. A partial item has supporting qualified slices, not whole-workflow verification."
   },
   "counts": {
-    "qualifiedBusinessFlows": 102,
+    "qualifiedBusinessFlows": 103,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 36,
+    "workflowsPartial": 37,
     "workflowsVerified": 84,
     "workflowsMerged": 84,
     "ownersComplete": 8,
@@ -3416,6 +3416,17 @@
       "durableContractRefs": [
         "docs/contracts/next/rust-finance-journal-detail.md"
       ]
+    },
+    {
+      "id": "commerce-order-cross-owner-guards",
+      "kind": "business-flow-evidence",
+      "status": "flow-complete",
+      "scope": "Finance-owned sales-order credit exposure and Inventory-owned confirmed-cancellation reservation release wired into the guarded Commerce transition on one serializable unit; retained transition stays fail-closed; tests cover exact formula, release isolation/idempotence and rollback.",
+      "sourceIdentity": "b932e3781",
+      "evidenceRef": "docs/testing/evidence/2026-11-09-commerce-order-cross-owner-guards.json",
+      "durableContractRefs": [
+        "docs/contracts/next/rust-finance-journal-detail.md"
+      ]
     }
   ],
   "workflows": [
@@ -4259,7 +4270,7 @@
         "sales-native-documents-http"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Native quote/order list/edit-read, eligible transitions and native draft sales-order create/update with Finance order-revision Money snapshots are wired and browser-verified. Sales-order approval still requires the retained Finance credit guard, confirmed cancellation requires the retained Inventory reversal guard, and fulfillment/invoicing/settlement/returns remain retained, so this workflow stays partial."
+      "gap": "Native quote/order list/edit-read, eligible transitions, draft create/update and Finance order-revision Money snapshots are wired and browser-verified. Sales-order approval now uses the Finance-owned credit exposure guard and confirmed cancellation uses the Inventory-owned reservation release on the same serializable unit; the guarded behavior is covered by Commerce unit tests and both owner PostgreSQL suites. Fulfillment, invoicing, settlement and returns remain retained, and no independently authenticated sales approver was available for a browser approval journey, so this workflow stays partial."
     },
     {
       "id": "sales/fulfillment",
@@ -4278,12 +4289,12 @@
       "kind": "module",
       "owner": "sales",
       "scope": "Cancellations",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native draft cancellation, independent confirmed quotation cancellation and confirmed sales-order cancellation with the Inventory-owned reservation release are implemented; the release is PostgreSQL-tested for remaining quantity, retained reason, consumed/foreign/other-order isolation, idempotence and rollback. Purchase cancellation, foreign-goods cancellation and an independent browser cancel journey remain open."
     },
     {
       "id": "sales/feature-revenue-handoff",
@@ -6468,8 +6479,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-09T03:10:00+07:00",
-    "sourceHead": "62a9147fb",
+    "generatedAt": "2026-11-09T04:05:00+07:00",
+    "sourceHead": "b932e3781",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6555,8 +6566,8 @@
       "sales": {
         "workflows": 5,
         "verified": 1,
-        "partial": 1,
-        "unstarted": 3,
+        "partial": 2,
+        "unstarted": 2,
         "phase": "partial",
         "businessMigrationComplete": false
       },
@@ -7130,7 +7141,7 @@
       }
     ],
     "nextActions": [
-      "sales/quotes is verified; close sales/orders next by porting the Finance credit approval guard and Inventory confirmed-cancellation guard, then fulfillment/invoicing/settlement/returns.",
+      "Sales-order approval and confirmed cancellation guards are native-qualified; close sales/orders by porting fulfillment/invoicing/settlement/returns, or provide an independent sales approver session to browser-verify the guarded approval/cancel journeys first.",
       "Rebuild the keyed container with the Assets/Finance handoff and browser-verify positive-cost Assets registration using the webpack verification bundler if Turbopack prevents hydration.",
       "Integrate the external untracked server-files/field attachment modules so a clean full-service archive build passes.",
       "Await Stripe/Connect configuration for POS tenders/refunds/retry.",
@@ -8405,6 +8416,23 @@
           "verified": 84,
           "partial": 36,
           "unstarted": 86,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-09T04:05:00+07:00",
+        "commit": "b932e3781",
+        "bundles": [
+          "Finance sales-order credit guard",
+          "Inventory confirmed-cancellation reservation release",
+          "guarded Commerce transition composition"
+        ],
+        "evidence": "Commerce 62/62; Finance credit guard 2/2; Inventory cancellation release 2/2; HTTP sales create/submit/self-approval denial/draft cancellation smoke; counts 84 verified / 37 partial / 85 unstarted / 8 of 41 owners",
+        "counts": {
+          "owners": 8,
+          "verified": 84,
+          "partial": 37,
+          "unstarted": 85,
           "total": 206
         }
       }

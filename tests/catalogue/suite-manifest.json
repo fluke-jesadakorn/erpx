@@ -64255,6 +64255,22 @@
       }
     },
     {
+      "id": "finance.rust-sales-order-credit-postgres.integration",
+      "lane": "integration",
+      "owner": "finance",
+      "modules": ["finance", "sales"],
+      "fixture": "postgres",
+      "requires": {"jobs": false, "scanner": false},
+      "apps": ["sales"],
+      "packages": ["@erpx/server-commerce", "@erpx/server-finance", "@erpx/server-runtime", "@erpx/server-shared"],
+      "ci": {"critical": true, "reason": "Finance-owned sales-order credit exposure must match the retained invoice/order/fulfillment formula and lock the party in the serializable unit."},
+      "files": ["tests/integration/finance/rust-sales-order-credit-postgres.test.rs"],
+      "framework": "cargo",
+      "cargo": {"package": "erpx-server-finance", "targets": ["sales_order_credit_postgres"]},
+      "verificationInputs": ["packages/server-finance/Cargo.toml", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "tests/support/rust-postgres.rs", "packages/server-finance/src/adapters/sales_order_credit.rs"],
+      "postgres": {"mode": "raw", "slots": ["CONTROL_DB", "CONTROL_READ_DB", "H001_DB", "H001_READ_DB", "H002_DB", "H002_READ_DB", "H003_DB", "H003_READ_DB"], "migratedSlots": []}
+    },
+    {
       "id": "identity_access.rust-directory-policy.unit",
       "lane": "unit",
       "owner": "identity_access",
@@ -80773,6 +80789,22 @@
         "@erpx/server-workflow",
         "@erpx/workplace"
       ]
+    },
+    {
+      "id": "inventory.rust-commerce-order-cancellation-postgres.integration",
+      "lane": "integration",
+      "owner": "inventory",
+      "modules": ["inventory", "sales"],
+      "fixture": "postgres",
+      "requires": {"jobs": false, "scanner": false},
+      "apps": ["sales"],
+      "packages": ["@erpx/server-commerce", "@erpx/server-inventory", "@erpx/server-runtime", "@erpx/server-shared"],
+      "ci": {"critical": true, "reason": "Confirmed sales-order cancellation must release only remaining reservations with the retained reason and no consumed-stock change."},
+      "files": ["tests/integration/inventory/rust-commerce-order-cancellation-postgres.test.rs"],
+      "framework": "cargo",
+      "cargo": {"package": "erpx-server-inventory", "targets": ["commerce_order_cancellation_postgres"]},
+      "verificationInputs": ["packages/server-inventory/Cargo.toml", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "tests/support/rust-postgres.rs", "packages/server-inventory/src/adapters/commerce_order_cancellation.rs"],
+      "postgres": {"mode": "raw", "slots": ["CONTROL_DB", "CONTROL_READ_DB", "H001_DB", "H001_READ_DB", "H002_DB", "H002_READ_DB", "H003_DB", "H003_READ_DB"], "migratedSlots": []}
     },
     {
       "id": "inventory.rust-stock-issue-postgres.integration",
