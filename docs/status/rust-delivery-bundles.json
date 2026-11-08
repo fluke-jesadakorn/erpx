@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T05:15:00+07:00",
+  "updatedAt": "2026-11-09T06:10:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -16,12 +16,12 @@
     "interpretation": "The 206 items are catalogue workflows, not the number of bounded flows. Each listed ID occurs once below. A partial item has supporting qualified slices, not whole-workflow verification."
   },
   "counts": {
-    "qualifiedBusinessFlows": 103,
+    "qualifiedBusinessFlows": 104,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 38,
-    "workflowsVerified": 83,
-    "workflowsMerged": 83,
+    "workflowsPartial": 37,
+    "workflowsVerified": 84,
+    "workflowsMerged": 84,
     "ownersComplete": 8,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -3427,6 +3427,17 @@
       "durableContractRefs": [
         "docs/contracts/next/rust-finance-journal-detail.md"
       ]
+    },
+    {
+      "id": "clean-full-service-build-quote-mobile-edit",
+      "kind": "business-flow-evidence",
+      "status": "flow-complete",
+      "scope": "Clean git-archive build of the full private development service after integrating the Files/Workflow field-attachment modules, plus mobile draft quotation edit with exact persisted quantity/note and 1+3N Money rows.",
+      "sourceIdentity": "872da181a",
+      "evidenceRef": "docs/testing/evidence/2026-11-09-clean-build-and-quote-mobile-edit.json",
+      "durableContractRefs": [
+        "docs/contracts/next/rust-finance-journal-detail.md"
+      ]
     }
   ],
   "workflows": [
@@ -4245,16 +4256,16 @@
       "kind": "module",
       "owner": "sales",
       "scope": "Quotes",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "sales-native-documents",
         "sales-native-documents-http",
         "sales-native-price-lists"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Native quotation work has bounded evidence: price-list draft/update/activate/cancel, quotation list/detail, draft create/update with customer/warehouse/product/version/date guards, active price list/discount/tax integer math, CAS, replay, receipt/audit/outbox, persisted readback, and Finance-owned order/line revision Money snapshots (1+3N) in one serializable unit; quote submit/approve/return/cancel and conversion; desktop interactive create/edit and mobile create/readback through the native Next route. Mobile edit, clean full-service integration and remaining strict gates require evidence on the final source before full workflow verification. Purchase orders and sales-order approval/cancellation/fulfillment/invoicing/returns are separate workflows or retained operations.",
+      "gap": "Verified native quotation workflow: price-list draft/update/activate/cancel, quotation list/detail, draft create/update with customer/warehouse/product/version/date guards, active price list/discount/tax integer math, CAS, replay, receipt/audit/outbox, persisted readback and Finance order/line revision Money snapshots (1+3N) in one serializable unit; quote submit/approve/return/cancel and conversion; desktop and mobile create/edit through the native Next route with record/list readback; and a clean full-service archive build after integrating the Files/Workflow field-attachment modules. Purchase orders, sales-order fulfillment/invoicing/settlement/returns and confirmed sales cancellation are separate workflows or retained operations.",
       "mergeCommit": "62a9147fb"
     },
     {
@@ -6479,8 +6490,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-09T05:15:00+07:00",
-    "sourceHead": "496932e73",
+    "generatedAt": "2026-11-09T06:10:00+07:00",
+    "sourceHead": "872da181a",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7146,7 +7157,7 @@
       }
     ],
     "nextActions": [
-      "Sales-order approval and confirmed cancellation guards are native-qualified; close sales/orders by porting fulfillment/invoicing/settlement/returns, or provide an independent sales approver session to browser-verify the guarded approval/cancel journeys first.",
+      "sales/quotes is verified on the clean integration HEAD; port Commerce fulfillment/invoicing/settlement/returns to close sales/orders.",
       "Positive-cost Assets is blocked by the server-assets/composition API drift recorded in assets-composition-api-drift; integrate that revision before rebuilding the container and browser-verifying registration.",
       "Integrate the external untracked server-files/field attachment modules so a clean full-service archive build passes.",
       "Await Stripe/Connect configuration for POS tenders/refunds/retry.",
@@ -8433,6 +8444,23 @@
           "guarded Commerce transition composition"
         ],
         "evidence": "Commerce 62/62; Finance credit guard 2/2; Inventory cancellation release 2/2; HTTP sales create/submit/self-approval denial/draft cancellation smoke; counts 84 verified / 37 partial / 85 unstarted / 8 of 41 owners",
+        "counts": {
+          "owners": 8,
+          "verified": 84,
+          "partial": 37,
+          "unstarted": 85,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-09T06:10:00+07:00",
+        "commit": "872da181a",
+        "bundles": [
+          "Files/Workflow field-attachment integration",
+          "clean full-service archive build",
+          "mobile quotation edit and sales/quotes closure"
+        ],
+        "evidence": "git archive HEAD cargo check full private service PASS; Files/Workflow non-provider suites pass; Commerce 62/62; mobile QT-2026-000010 v3 with quantity 3000 and Money v3; counts 84 verified / 37 partial / 85 unstarted / 8 of 41 owners",
         "counts": {
           "owners": 8,
           "verified": 84,
