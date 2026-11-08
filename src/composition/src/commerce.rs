@@ -569,8 +569,7 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
                                 &money,
                                 now,
                             )
-                            .await
-                            .map_err(business)?;
+                            .await?;
                         }
                         Ok(CommerceOrderHttpResponse {
                             data: outcome.receipt.to_wire(),
@@ -665,8 +664,7 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
                                 &money,
                                 now,
                             )
-                            .await
-                            .map_err(business)?;
+                            .await?;
                         }
                         Ok(CommerceOrderHttpResponse {
                             data: outcome.receipt.to_wire(),

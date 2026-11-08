@@ -547,3 +547,8 @@ required-features = ["existing-business"]
 name = "pos_command_composed_http_postgres"
 path = "../../tests/integration/pos/rust-pos-command-composed-http-postgres.test.rs"
 required-features = ["existing-business"]
+
+[[test]]
+name = "commerce_selected_http_postgres"
+path = "../../tests/integration/commerce/rust-commerce-selected-http-postgres.test.rs"
+required-features = ["existing-business", "private-field-api"]

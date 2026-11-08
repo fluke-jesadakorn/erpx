@@ -53753,6 +53753,21 @@
       }
     },
     {
+      "id": "commerce.rust-commerce-selected-http-postgres.integration",
+      "lane": "integration",
+      "owner": "commerce",
+      "modules": ["commercial", "identity_access", "organization"],
+      "files": ["tests/integration/commerce/rust-commerce-selected-http-postgres.test.rs"],
+      "fixture": "postgres",
+      "requires": {"jobs": false, "scanner": false},
+      "ci": {"critical": true, "reason": "Checks authenticated selected Company and context isolation for native Commerce HTTP."},
+      "framework": "cargo",
+      "cargo": {"package": "erpx-service", "targets": ["commerce_selected_http_postgres"], "features": ["existing-business", "private-field-api"]},
+      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "src/composition/Cargo.toml", "packages/server-commerce/Cargo.toml", "tests/support/finance/review-composition.rs"],
+      "apps": ["commerce"],
+      "packages": ["@erpx/server-commerce", "@erpx/server-identity_access", "@erpx/server-organization", "@erpx/server-runtime"]
+    },
+    {
       "id": "crm.rust-crm-pipeline-postgres.integration",
       "lane": "integration",
       "owner": "crm",
