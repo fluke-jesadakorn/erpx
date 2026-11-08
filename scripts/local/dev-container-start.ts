@@ -34,6 +34,7 @@ env.ERPX_NATIVE_PMS_CONFIG=JSON.stringify({privateBaseUrl:nativeBase,timeoutMs:1
 env.ERPX_NATIVE_LEGAL_RECORDS_CONFIG=JSON.stringify({privateBaseUrl:nativeBase,timeoutMs:10000,holdings:[{origin:holdingOrigins[0],holdingSlug:'acme',holdingId:'h001'}]});
 env.ERPX_NATIVE_CUSTOMER_TIMELINE_CONFIG=JSON.stringify({privateBaseUrl:nativeBase,timeoutMs:10000,holdings:[{origin:holdingOrigins[0],holdingSlug:'acme',holdingId:'h001'}]});
 env.ERPX_NATIVE_PLANNING_CONFIG=JSON.stringify({privateBaseUrl:nativeBase,timeoutMs:10000,holdings:[{origin:holdingOrigins[0],holdingSlug:'acme',holdingId:'h001'}]});
+env.ERPX_NATIVE_MANUFACTURING_CONFIG=JSON.stringify({privateBaseUrl:nativeBase,timeoutMs:10000,holdings:[{origin:holdingOrigins[0],holdingSlug:'acme',holdingId:'h001'}]});
 env.ERPX_NATIVE_CUSTOMER_ACCESS_CONFIG=JSON.stringify({privateBaseUrl:nativeBase,timeoutMs:10000,holdings:[{origin:holdingOrigins[0],holdingSlug:'acme',holdingId:'h001'}]});
 env.ERPX_NATIVE_CRM_PIPELINE_CONFIG=JSON.stringify({privateBaseUrl:nativeBase,timeoutMs:10000,holdings:[{origin:holdingOrigins[0],holdingSlug:'acme',holdingId:'h001'}]});
 env.ERPX_NATIVE_CRM_COMMAND_CONFIG=JSON.stringify({privateBaseUrl:nativeBase,timeoutMs:10000,holdings:[{origin:holdingOrigins[0],holdingSlug:'acme',holdingId:'h001'}]});

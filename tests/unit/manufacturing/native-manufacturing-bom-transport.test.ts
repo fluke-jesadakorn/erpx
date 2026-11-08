@@ -140,6 +140,9 @@ describe('native Manufacturing BOM register transport',()=>{
     holdings:[{origin:'http://acme.example.com',holdingSlug:'acme',holdingId:'h001'}],
   })),vi.fn())).toThrow();
   expect(()=>nativeManufacturingConfiguration('{not-json')).toThrow();
+  expect(()=>createNativeManufacturingBomClient(nativeManufacturingConfiguration(config({
+    holdings:[{origin:'https://acme.example.com:3443',holdingSlug:'acme',holdingId:'h001'}],
+  })),vi.fn())).not.toThrow();
  });
 
  it('maps transport failures to the retained page/route status policy',()=>{

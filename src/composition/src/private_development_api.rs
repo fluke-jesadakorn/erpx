@@ -2157,6 +2157,28 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                #[cfg(feature = "existing-business")]
+                let manufacturing_backend = Arc::new(crate::manufacturing::ManufacturingBackend::new(
+                    config.policy.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    Arc::new(crate::manufacturing::ManufacturingService::new(
+                        authorizer.clone(),
+                        crate::manufacturing::ManufacturingConfiguration::new(
+                            holding.registration.holding_id.clone(),
+                            company.clone(),
+                        ),
+                        Arc::new(SharedClock(clock.clone())),
+                    )),
+                ));
+                #[cfg(feature = "existing-business")]
+                bom_targets.push(
+                    erpx_server_manufacturing::public::bom_http::BomHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: manufacturing_backend.clone(),
+                    },
+                );
                 pms_targets.push(erpx_server_pms::public::pms_http::PmsHttpTarget {
                     host: holding.host.clone(),
                     holding_slug: holding.registration.slug.clone(),
@@ -2630,28 +2652,6 @@ async fn assemble_checked(
                                 Arc::new(SharedClock(clock.clone())),
                             )),
                         )),
-                    },
-                );
-                #[cfg(feature = "existing-business")]
-                let manufacturing_backend = Arc::new(crate::manufacturing::ManufacturingBackend::new(
-                    config.policy.clone(),
-                    Arc::new(FinanceJournalReadScopeHeaders),
-                    Arc::new(crate::manufacturing::ManufacturingService::new(
-                        authorizer.clone(),
-                        crate::manufacturing::ManufacturingConfiguration::new(
-                            holding.registration.holding_id.clone(),
-                            company.clone(),
-                        ),
-                        Arc::new(SharedClock(clock.clone())),
-                    )),
-                ));
-                #[cfg(feature = "existing-business")]
-                bom_targets.push(
-                    erpx_server_manufacturing::public::bom_http::BomHttpTarget {
-                        host: holding.host.clone(),
-                        holding_slug: holding.registration.slug.clone(),
-                        origin: format!("https://{}", holding.host),
-                        backend: manufacturing_backend.clone(),
                     },
                 );
                 #[cfg(feature = "existing-business")]
@@ -6956,6 +6956,19 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         }
         _ => false,
     };
+    let manufacturing = request.method() == axum::http::Method::GET
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            ["", "api", "v1", "holdings", _, "manufacturing", "specifications"] => {
+                state.policy.audience(host).is_some()
+            }
+            _ => false,
+        };
     let customer_access = match request
         .uri()
         .path()
@@ -7029,6 +7042,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || legal
         || customer_timeline
         || planning
+        || manufacturing
         || customer_access
         || service_packages
         || field_work_roles
