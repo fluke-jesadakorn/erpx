@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T06:10:00+07:00",
+  "updatedAt": "2026-11-09T07:05:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -16,12 +16,12 @@
     "interpretation": "The 206 items are catalogue workflows, not the number of bounded flows. Each listed ID occurs once below. A partial item has supporting qualified slices, not whole-workflow verification."
   },
   "counts": {
-    "qualifiedBusinessFlows": 104,
+    "qualifiedBusinessFlows": 105,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 37,
-    "workflowsVerified": 84,
-    "workflowsMerged": 84,
+    "workflowsPartial": 39,
+    "workflowsVerified": 83,
+    "workflowsMerged": 83,
     "ownersComplete": 8,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -3438,6 +3438,17 @@
       "durableContractRefs": [
         "docs/contracts/next/rust-finance-journal-detail.md"
       ]
+    },
+    {
+      "id": "sales-native-service-completion",
+      "kind": "business-flow-evidence",
+      "status": "flow-complete",
+      "scope": "Native Commerce service completion: exact service-only line plan, fulfillment/order state CAS, replay without duplicate effects, receipt/audit/outbox, persisted readback and Finance fulfillment-line Money on one serializable unit, with owner PostgreSQL, HTTP and TS transport tests.",
+      "sourceIdentity": "af556efa6",
+      "evidenceRef": "docs/testing/evidence/2026-11-09-commerce-service-completion.json",
+      "durableContractRefs": [
+        "docs/contracts/next/rust-finance-journal-detail.md"
+      ]
     }
   ],
   "workflows": [
@@ -4256,16 +4267,16 @@
       "kind": "module",
       "owner": "sales",
       "scope": "Quotes",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [
         "sales-native-documents",
         "sales-native-documents-http",
         "sales-native-price-lists"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Verified native quotation workflow: price-list draft/update/activate/cancel, quotation list/detail, draft create/update with customer/warehouse/product/version/date guards, active price list/discount/tax integer math, CAS, replay, receipt/audit/outbox, persisted readback and Finance order/line revision Money snapshots (1+3N) in one serializable unit; quote submit/approve/return/cancel and conversion; desktop and mobile create/edit through the native Next route with record/list readback; and a clean full-service archive build after integrating the Files/Workflow field-attachment modules. Purchase orders, sales-order fulfillment/invoicing/settlement/returns and confirmed sales cancellation are separate workflows or retained operations.",
+      "gap": "Native quotation flows, desktop and mobile create/edit, Money readback and a clean integration build have recorded evidence; mergeCommit identifies an earlier implementation slice, not whole-workflow integration. A later full TypeScript/PostgreSQL oracle exposed save error precedence differences involving stale versions, product, party and immutable Money guards; conversion also needs its Money error precedence checked. The current native source must preserve the original transaction order and pass affected negative, integration and review gates before this whole workflow is verified and integrated.",
       "mergeCommit": "62a9147fb"
     },
     {
@@ -4281,19 +4292,21 @@
         "sales-native-documents-http"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Native quote/order list/edit-read, eligible transitions, draft create/update and Finance order-revision Money snapshots are wired and browser-verified. Sales-order approval now uses the Finance-owned credit exposure guard and confirmed cancellation uses the Inventory-owned reservation release on the same serializable unit; the guarded behavior is covered by Commerce unit tests and both owner PostgreSQL suites. Fulfillment, invoicing, settlement and returns remain retained, and no independently authenticated sales approver was available for a browser approval journey, so this workflow stays partial."
+      "gap": "Native quote/order list/edit-read, eligible transitions, draft create/update, Finance order-revision Money snapshots, Finance sales-order credit approval guard, Inventory confirmed-cancellation reservation release and the native service-completion writer with Finance fulfillment-line Money are wired and PostgreSQL/HTTP/transport tested. Goods delivery, lot/serial allocation, Inventory stock movement, goods journal, invoicing, settlement and returns remain retained; no independently authenticated sales approver or selected-API browser service-completion journey has been verified, so this workflow stays partial."
     },
     {
       "id": "sales/fulfillment",
       "kind": "module",
       "owner": "sales",
       "scope": "Fulfillment",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "sales-native-service-completion"
+      ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native service completion is qualified end to end for confirmed/partially fulfilled sales orders: exact line/quantity/amount guards, fulfillment header/line, fulfilled quantity, CAS state refresh, replay, receipt/audit/outbox, persisted readback and Finance per-line subtotal/tax/total Money rows in the same serializable unit, with HTTP and TS transport tests. Goods delivery, lots/serials, Inventory stock movements, goods journal, invoicing, settlement and returns remain retained; browser service-completion evidence is still required."
     },
     {
       "id": "sales/feature-cancellations",
@@ -6490,8 +6503,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-09T06:10:00+07:00",
-    "sourceHead": "872da181a",
+    "generatedAt": "2026-11-09T07:05:00+07:00",
+    "sourceHead": "af556efa6",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6576,9 +6589,9 @@
       },
       "sales": {
         "workflows": 5,
-        "verified": 1,
-        "partial": 2,
-        "unstarted": 2,
+        "verified": 0,
+        "partial": 4,
+        "unstarted": 1,
         "phase": "partial",
         "businessMigrationComplete": false
       },
@@ -7157,9 +7170,10 @@
       }
     ],
     "nextActions": [
-      "sales/quotes is verified on the clean integration HEAD; port Commerce fulfillment/invoicing/settlement/returns to close sales/orders.",
+      "Reconcile the delivery register's eight catalogue-complete owners with the owner register's three businessMigrationComplete claims and audit retained TypeScript consumers, Finance handoff and strict retirement gates before certifying an owner count for the migration goal.",
+      "Restore sales/quotes verification after matching full TypeScript save and conversion error precedence and completing affected native gates; port Commerce fulfillment/invoicing/settlement/returns to close sales/orders.",
       "Positive-cost Assets is blocked by the server-assets/composition API drift recorded in assets-composition-api-drift; integrate that revision before rebuilding the container and browser-verifying registration.",
-      "Integrate the external untracked server-files/field attachment modules so a clean full-service archive build passes.",
+      "Recheck the integrated Files/Workflow attachment modules and the full service on the final frozen source; the historical clean archive build predates current shared work.",
       "Await Stripe/Connect configuration for POS tenders/refunds/retry.",
       "Reconcile remote HEAD and keep counts tied to browser/HTTP evidence."
     ],
@@ -8466,6 +8480,23 @@
           "verified": 84,
           "partial": 37,
           "unstarted": 85,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-09T07:05:00+07:00",
+        "commit": "af556efa6",
+        "bundles": [
+          "native Commerce service completion",
+          "Finance fulfillment-line Money handoff",
+          "fulfill HTTP/Next/TS transport"
+        ],
+        "evidence": "Commerce 69/69 (including service_completion_writes_fulfillment_receipt_money_and_replay); HTTP/transport exact-body tests; clean staged-tree full-service archive check; 83 verified / 39 partial / 84 unstarted / 8 of 41 owners",
+        "counts": {
+          "owners": 8,
+          "verified": 83,
+          "partial": 39,
+          "unstarted": 84,
           "total": 206
         }
       }
