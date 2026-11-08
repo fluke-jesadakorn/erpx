@@ -740,3 +740,39 @@ pub fn require_current(reader: &AttachmentReader, now: i64) -> Result<(), Busine
         ))
     }
 }
+
+/// Files descriptor-scope projection for an Asset read, after the caller has
+/// validated the exact registered Asset policy and retained a current IAM
+/// permission intersection and an Asset-owned Company-scoped descriptor. This
+/// alone is not authority: Asset source/purchase hooks remain mandatory.
+pub struct AssetReadDescriptor<'a> {
+    pub company_id: &'a str,
+    pub branch_id: Option<&'a str>,
+    pub department_id: Option<&'a str>,
+    /// PostgreSQL bigint; legacy descriptorScope applies JS Number here.
+    pub version: i64,
+}
+#[derive(Debug,PartialEq)]
+pub struct AssetDescriptorReadScope<'a> {
+    pub company_id: &'a str,
+    pub branch_id: Option<&'a str>,
+    pub department_id: Option<&'a str>,
+    pub version: f64,
+    pub editable: bool,
+}
+/// Exact Asset descriptor read decision only. `has_current_records_read` is a
+/// previously retained Identity fact, never a request flag or standalone grant.
+pub fn asset_descriptor_read_scope<'a>(
+    has_current_records_read:bool,
+    has_current_assets_module:bool,
+    actor_branch:Option<&str>,
+    actor_department:Option<&str>,
+    descriptor:Option<AssetReadDescriptor<'a>>,
+)->Result<AssetDescriptorReadScope<'a>,BusinessError>{
+    if !has_current_records_read || !has_current_assets_module{return Err(BusinessError::new(FailureKind::Forbidden,"ATTACHMENT_FORBIDDEN","Your current assignment cannot access assets files."));}
+    let row=descriptor.ok_or_else(||BusinessError::new(FailureKind::NotFound,"ATTACHMENT_TARGET_NOT_FOUND","The file owner was not found in this Company."))?;
+    // JS truthiness applies: an empty string is not an active scope selector.
+    if actor_branch.filter(|s|!s.is_empty()).is_some_and(|a|Some(a)!=row.branch_id){return Err(BusinessError::new(FailureKind::Forbidden,"ATTACHMENT_SCOPE_FORBIDDEN","The file owner is outside your Branch scope."));}
+    if actor_department.filter(|s|!s.is_empty()).is_some_and(|a|Some(a)!=row.department_id){return Err(BusinessError::new(FailureKind::Forbidden,"ATTACHMENT_SCOPE_FORBIDDEN","The file owner is outside your Department scope."));}
+    Ok(AssetDescriptorReadScope{company_id:row.company_id,branch_id:row.branch_id,department_id:row.department_id,version:row.version as f64,editable:false})
+}

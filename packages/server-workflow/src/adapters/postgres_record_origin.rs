@@ -88,6 +88,20 @@ pub async fn lock_record_origin_sources(connection: &mut PgConnection) -> Result
     Ok(())
 }
 
+/// Require the existing record-origin ROW SHARE utility fence without taking
+/// or upgrading a lock. This checks current lock coverage only: it does not
+/// prove acquisition before the first snapshot, protect absent receipts from
+/// inserts, or grant source authority.
+pub async fn require_record_origin_sources_held(connection: &mut PgConnection) -> Result<(), Error> {
+    if !connection.is_in_transaction() {
+        return Err(PersistenceError::new("WORKFLOW_OWNER_TRANSACTION_REQUIRED").into());
+    }
+    let held: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND relation='command_receipts'::regclass AND granted AND mode IN ('RowShareLock','RowExclusiveLock','ShareUpdateExclusiveLock','ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock'))")
+        .fetch_one(connection).await?;
+    if !held { return Err(PersistenceError::new("WORKFLOW_ORIGIN_LOCK_REQUIRED").into()); }
+    Ok(())
+}
+
 pub async fn read_record_origin(
     connection: &mut PgConnection,
     request: RecordOriginRequest,
@@ -582,3 +596,267 @@ pub async fn observe_finance_payment_creation_origin(
     .ok_or_else(invalid)?;
     Ok(Some(source))
 }
+
+/// Workflow receipt candidates for the global 1092 payment lineage predicate.
+/// The relation identifier is generated internally, is transaction-local, and
+/// carries no personal authority. The coordinator must lock all owners before
+/// the first snapshot and must prevent lock release/reacquisition.
+pub struct PaymentOriginCandidates {
+    payment_id:String, relation:String, relation_oid:i64,
+    unit:(String,i32,String,String,String),
+}
+
+pub async fn lock_payment_origin_candidate_sources(c:&mut PgConnection)->Result<(),Error>{
+    if !c.is_in_transaction(){return Err(PersistenceError::new("WORKFLOW_PAYMENT_ORIGIN_TRANSACTION_REQUIRED").into());}
+    sqlx::query("LOCK TABLE command_receipts IN SHARE MODE NOWAIT").execute(c).await.map_err(PersistenceError::pre_snapshot_lock_conflict)?;Ok(())
+}
+async fn payment_origin_unit(c:&mut PgConnection)->Result<(String,i32,String,String,String),Error>{
+    if !c.is_in_transaction() || sqlx::query_scalar::<_,String>("SHOW transaction_isolation").fetch_one(&mut *c).await? != "serializable" {return Err(PersistenceError::new("WORKFLOW_PAYMENT_ORIGIN_SERIALIZABLE_REQUIRED").into());}
+    let held:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=pg_backend_pid() AND relation='command_receipts'::regclass AND granted AND mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock'))").fetch_one(&mut *c).await?;
+    if !held{return Err(PersistenceError::new("WORKFLOW_PAYMENT_ORIGIN_LOCK_REQUIRED").into());}
+    Ok(sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text,current_user::text").fetch_one(c).await?)
+}
+/// Materialize every qualifying receipt in PostgreSQL, without transferring
+/// arbitrarily long candidate text into application memory. SQL/TOAST resource
+/// bounds still depend on PostgreSQL and are not asserted by this port.
+pub async fn inspect_payment_origin_candidates(c:&mut PgConnection,payment_id:&str)->Result<PaymentOriginCandidates,Error>{
+    let unit=payment_origin_unit(&mut *c).await?;
+    let nonce:String=sqlx::query_scalar("SELECT replace(gen_random_uuid()::text,'-','')").fetch_one(&mut *c).await?;
+    if nonce.len()!=32 || !nonce.bytes().all(|b|b.is_ascii_hexdigit() && !b.is_ascii_uppercase()) {return Err(PersistenceError::new("WORKFLOW_PAYMENT_ORIGIN_IDENTIFIER_INVALID").into());}
+    // Only a fixed prefix and validated PostgreSQL-generated lowercase hex are interpolated.
+    let name=format!("erpx_payment_origin_{nonce}");
+    let create=format!("CREATE TEMPORARY TABLE {name} (command_id text NOT NULL, invoice_id text) ON COMMIT DROP");
+    sqlx::query(sqlx::AssertSqlSafe(create.as_str())).execute(&mut *c).await?;
+    let relation=format!("pg_temp.{name}");
+    let insert=format!("INSERT INTO {relation} SELECT command_id,result_json::jsonb->>'settlementInvoiceId' FROM command_receipts WHERE operation='finance.payment.create' AND (record_id=$1 OR result_json::jsonb->>'id'=$1)");
+    sqlx::query(sqlx::AssertSqlSafe(insert.as_str())).bind(payment_id).execute(&mut *c).await?;
+    let oid:i64=sqlx::query_scalar("SELECT c.oid::bigint FROM pg_class c WHERE c.relnamespace=pg_my_temp_schema() AND c.relname=$1 AND c.relkind='r'").bind(&name).fetch_one(&mut *c).await?;
+    Ok(PaymentOriginCandidates{payment_id:payment_id.to_owned(),relation,relation_oid:oid,unit})
+}
+impl PaymentOriginCandidates {
+    /// Exact payment identity used to capture these receipts.
+    pub fn payment_id(&self)->&str{&self.payment_id}
+    /// SQL identifier generated only by this owner, never from request text.
+    /// The consumer must call `require_current` around its same-unit join.
+    pub fn relation_identifier(&self)->&str{&self.relation}
+    pub async fn require_current(&self,c:&mut PgConnection)->Result<(),Error>{
+        if payment_origin_unit(&mut *c).await? != self.unit{return Err(BusinessError::new(FailureKind::Conflict,"WORKFLOW_PAYMENT_ORIGIN_CHANGED","The payment origin source changed.").into());}
+        let oid:Option<i64>=sqlx::query_scalar("SELECT c.oid::bigint FROM pg_class c WHERE c.relnamespace=pg_my_temp_schema() AND c.oid=to_regclass($1) AND c.relkind='r'").bind(&self.relation).fetch_optional(&mut *c).await?;
+        if oid!=Some(self.relation_oid){return Err(BusinessError::new(FailureKind::Conflict,"WORKFLOW_PAYMENT_ORIGIN_CHANGED","The payment origin source changed.").into());}
+        let shape:bool=sqlx::query_scalar("SELECT c.relpersistence='t' AND c.relowner=(current_user::regrole)::oid AND (SELECT count(*)=2 AND bool_and(a.atttypid='text'::regtype AND a.attcollation=(SELECT typcollation FROM pg_type WHERE oid='text'::regtype) AND NOT a.attisdropped AND ((a.attnum=1 AND a.attname='command_id' AND a.attnotnull) OR (a.attnum=2 AND a.attname='invoice_id' AND NOT a.attnotnull))) FROM pg_attribute a WHERE a.attrelid=c.oid AND a.attnum>0) FROM pg_class c WHERE c.oid=$1::bigint::oid").bind(self.relation_oid).fetch_one(&mut *c).await?;
+        if !shape{return Err(BusinessError::new(FailureKind::Conflict,"WORKFLOW_PAYMENT_ORIGIN_CHANGED","The payment origin source changed.").into());}
+        let sql=format!("WITH source AS (SELECT convert_to(command_id,'UTF8') AS command_id,convert_to(result_json::jsonb->>'settlementInvoiceId','UTF8') AS invoice_id FROM command_receipts WHERE operation='finance.payment.create' AND (record_id=$1 OR result_json::jsonb->>'id'=$1)), delta AS ((SELECT * FROM source EXCEPT ALL SELECT convert_to(command_id,'UTF8'),convert_to(invoice_id,'UTF8') FROM {}) UNION ALL (SELECT convert_to(command_id,'UTF8'),convert_to(invoice_id,'UTF8') FROM {} EXCEPT ALL SELECT * FROM source)) SELECT NOT EXISTS(SELECT 1 FROM delta)",self.relation,self.relation);
+        let same:bool=sqlx::query_scalar(sqlx::AssertSqlSafe(sql.as_str())).bind(&self.payment_id).fetch_one(c).await?;
+        if !same{return Err(BusinessError::new(FailureKind::Conflict,"WORKFLOW_PAYMENT_ORIGIN_CHANGED","The payment origin source changed.").into());}Ok(())
+    }
+}
+
+/// Trusted owner-to-owner source only. A request must never choose an
+/// implementation or SQL identifier. This is routing evidence, not authority.
+/// The implementing owner must retain its complete relation, transaction and
+/// source locks, and reject relation replacement or role changes.
+pub trait FieldPaymentTargets: Sync {
+    fn relation_identifier(&self) -> &str;
+    fn require_current<'a>(&'a self, c: &'a mut PgConnection)
+        -> erpx_server_runtime::public::postgres::PgWorkFuture<'a, (), BusinessError>;
+}
+
+fn valid_files_ancestry_relation(name: &str) -> bool {
+    let Some(hex) = name.strip_prefix("pg_temp.\"erpx_files_ancestry_").and_then(|v| v.strip_suffix('"')) else { return false; };
+    hex.len() == 32 && hex.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+/// Complete Workflow receipt half for the six 1093 source/linked paths.
+/// Direct selected-link routing remains a separate obligation. PostgreSQL
+/// TOAST, temporary storage and work-memory usage are not bounded by this API.
+pub struct FieldPaymentReceiptBatch<'a, T: FieldPaymentTargets + ?Sized> {
+    source: &'a T,
+    direct: bool,
+    relation: String,
+    relation_oid: i64,
+    collations: Vec<i64>,
+    search_path: String,
+    unit: (String, i32, String, String, String),
+}
+
+fn field_payment_batch_source(relation: &str, direct: bool) -> String {
+    let paths=if direct {"'direct-set','direct-upload','direct-upload-set'"} else {"'source-attachment','source-upload','source-upload-set','linked-set','linked-upload','linked-upload-set'"};
+    format!("SELECT t.path,t.link_id,t.attachment_id,t.upload_intent_id,t.set_id,t.upload_set_id,t.kind,t.target,r.command_id,r.result_json::jsonb->>'settlementInvoiceId' AS invoice_id FROM {relation} t JOIN command_receipts r ON r.operation='finance.payment.create' AND (r.record_id=t.target OR r.result_json::jsonb->>'id'=t.target) WHERE t.path IN ({paths}) AND t.kind='finance_payment'")
+}
+
+pub async fn inspect_field_payment_receipt_batch<'a, T: FieldPaymentTargets + ?Sized>(
+    c: &mut PgConnection, source: &'a T,
+) -> Result<FieldPaymentReceiptBatch<'a, T>, Error> {
+    inspect_payment_batch(c,source,false).await
+}
+async fn inspect_payment_batch<'a,T:FieldPaymentTargets + ?Sized>(
+    c:&mut PgConnection,source:&'a T,direct:bool,
+)->Result<FieldPaymentReceiptBatch<'a,T>,Error>{
+    let unit = payment_origin_unit(&mut *c).await?;
+    let visible: bool = sqlx::query_scalar("SELECT NOT row_security_active('command_receipts'::regclass)").fetch_one(&mut *c).await?;
+    if !visible { return Err(PersistenceError::new("WORKFLOW_PAYMENT_BATCH_RLS_UNSUPPORTED").into()); }
+    let search_path: String = sqlx::query_scalar("SELECT current_setting('search_path')").fetch_one(&mut *c).await?;
+    source.require_current(&mut *c).await?;
+    let relation = source.relation_identifier();
+    if !valid_files_ancestry_relation(relation) { return Err(PersistenceError::new("WORKFLOW_PAYMENT_BATCH_IDENTIFIER_INVALID").into()); }
+    let nonce: String = sqlx::query_scalar("SELECT replace(gen_random_uuid()::text,'-','')").fetch_one(&mut *c).await?;
+    if nonce.len()!=32 || !nonce.bytes().all(|b|b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) { return Err(PersistenceError::new("WORKFLOW_PAYMENT_BATCH_IDENTIFIER_INVALID").into()); }
+    let name = format!("erpx_payment_batch_{nonce}");
+    let sql = format!("CREATE TEMP TABLE {name} ON COMMIT DROP AS {}", field_payment_batch_source(relation,direct));
+    sqlx::query(sqlx::AssertSqlSafe(sql)).execute(&mut *c).await?;
+    let oid: i64 = sqlx::query_scalar("SELECT oid::bigint FROM pg_class WHERE relnamespace=pg_my_temp_schema() AND relname=$1 AND relkind='r'").bind(&name).fetch_one(&mut *c).await?;
+    let collations: Vec<i64> = sqlx::query_scalar("SELECT attcollation::bigint FROM pg_attribute WHERE attrelid=$1::bigint::oid AND attnum>0 ORDER BY attnum").bind(oid).fetch_all(&mut *c).await?;
+    source.require_current(&mut *c).await?;
+    let result = FieldPaymentReceiptBatch { source, direct, relation: format!("pg_temp.\"{name}\""), relation_oid: oid, collations, search_path, unit };
+    result.require_current(c).await?;
+    Ok(result)
+}
+
+impl<T: FieldPaymentTargets + ?Sized> FieldPaymentReceiptBatch<'_, T> {
+    /// Internal validated identifier; Finance must revalidate around its join.
+    pub fn relation_identifier(&self) -> &str { &self.relation }
+    pub fn source(&self) -> &T { self.source }
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        let changed = || BusinessError::new(FailureKind::Conflict,"WORKFLOW_PAYMENT_ORIGIN_CHANGED","The payment origin source changed.");
+        if payment_origin_unit(&mut *c).await? != self.unit { return Err(changed().into()); }
+        let (visible,search_path):(bool,String)=sqlx::query_as("SELECT NOT row_security_active('command_receipts'::regclass),current_setting('search_path')").fetch_one(&mut *c).await?;
+        if !visible || search_path!=self.search_path { return Err(changed().into()); }
+        self.source.require_current(&mut *c).await?;
+        if !valid_files_ancestry_relation(self.source.relation_identifier()) { return Err(changed().into()); }
+        let shape: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_class c WHERE c.oid=to_regclass($1) AND c.oid=$2::bigint::oid AND c.relnamespace=pg_my_temp_schema() AND c.relkind='r' AND c.relpersistence='t' AND c.relowner=(current_user::regrole)::oid AND NOT c.relrowsecurity AND NOT EXISTS(SELECT 1 FROM pg_trigger t WHERE t.tgrelid=c.oid AND NOT t.tgisinternal) AND NOT EXISTS(SELECT 1 FROM pg_rewrite r WHERE r.ev_class=c.oid) AND (SELECT count(*)=10 AND bool_and(NOT a.attisdropped AND a.attgenerated='' AND a.atttypid='text'::regtype AND a.attcollation::bigint=($3::bigint[])[a.attnum] AND a.attname=(ARRAY['path','link_id','attachment_id','upload_intent_id','set_id','upload_set_id','kind','target','command_id','invoice_id'])[a.attnum]) FROM pg_attribute a WHERE a.attrelid=c.oid AND a.attnum>0))").bind(&self.relation).bind(self.relation_oid).bind(&self.collations).fetch_one(&mut *c).await?;
+        if !shape { return Err(changed().into()); }
+        let fields = "convert_to(path,'UTF8'),convert_to(link_id,'UTF8'),convert_to(attachment_id,'UTF8'),convert_to(upload_intent_id,'UTF8'),convert_to(set_id,'UTF8'),convert_to(upload_set_id,'UTF8'),convert_to(kind,'UTF8'),convert_to(target,'UTF8'),convert_to(command_id,'UTF8'),convert_to(invoice_id,'UTF8')";
+        let sql = format!("WITH source AS ({}), delta AS ((SELECT {fields} FROM source EXCEPT ALL SELECT {fields} FROM {}) UNION ALL (SELECT {fields} FROM {} EXCEPT ALL SELECT {fields} FROM source)) SELECT NOT EXISTS(SELECT 1 FROM delta)",field_payment_batch_source(self.source.relation_identifier(),self.direct),self.relation,self.relation);
+        let same: bool = sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).fetch_one(&mut *c).await?;
+        self.source.require_current(c).await?;
+        if !same { return Err(changed().into()); }
+        Ok(())
+    }
+}
+
+/// Direct selected-link lineage receipt half; distinct from the six source
+/// branches and never a selected authorization.
+pub struct FieldDirectPaymentReceiptBatch<'a,T:FieldPaymentTargets + ?Sized>(FieldPaymentReceiptBatch<'a,T>);
+pub async fn inspect_field_direct_payment_receipt_batch<'a,T:FieldPaymentTargets + ?Sized>(c:&mut PgConnection,source:&'a T)->Result<FieldDirectPaymentReceiptBatch<'a,T>,Error>{
+    Ok(FieldDirectPaymentReceiptBatch(inspect_payment_batch(c,source,true).await?))
+}
+impl<T:FieldPaymentTargets + ?Sized> FieldDirectPaymentReceiptBatch<'_,T>{
+    pub fn relation_identifier(&self)->&str{self.0.relation_identifier()}
+    pub fn source(&self)->&T{self.0.source()}
+    pub async fn require_current(&self,c:&mut PgConnection)->Result<(),Error>{self.0.require_current(c).await}
+}
+
+/// Trusted Files-owned routing source. Implementations are selected by
+/// composition, never by request data; this trait is not an authorization.
+/// The SQL is an immutable owner constant yielding eight Files ancestry columns
+/// with `$1` selected link and `$2` selected Company. It reads canonical public
+/// Holding relations only. A malicious Rust implementation can fabricate facts.
+pub trait FieldAttachmentRoutingSource: Sync {
+    fn selected_link_id(&self) -> &str;
+    fn company_id(&self) -> &str;
+    fn ancestry_sql(&self) -> &'static str;
+    fn require_current<'a>(&'a self,c:&'a mut PgConnection)
+        -> erpx_server_runtime::public::postgres::PgWorkFuture<'a,(),BusinessError>;
+}
+
+/// Acquire before the first Holding snapshot. The enclosing coordinator must
+/// establish a compatible global order and retry the entire unit after 55P03.
+/// This route supports the migration-owned `public` Holding schema only.
+pub async fn lock_field_payment_routing_sources(c:&mut PgConnection)->Result<(),Error>{
+    if !c.is_in_transaction(){return Err(PersistenceError::new("WORKFLOW_PAYMENT_ORIGIN_TRANSACTION_REQUIRED").into());}
+    sqlx::query("LOCK TABLE public.command_receipts IN SHARE MODE NOWAIT").execute(c).await.map_err(PersistenceError::pre_snapshot_lock_conflict)?;
+    Ok(())
+}
+async fn routing_identity(c:&mut PgConnection)->Result<((String,i32,String,String,String),String,i64),Error>{
+    if !c.is_in_transaction() || sqlx::query_scalar::<_,String>("SHOW transaction_isolation").fetch_one(&mut *c).await?!="serializable" {return Err(PersistenceError::new("WORKFLOW_PAYMENT_ORIGIN_SERIALIZABLE_REQUIRED").into());}
+    let (held,visible,oid,path):(bool,bool,i64,String)=sqlx::query_as("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND relation='public.command_receipts'::regclass AND granted AND mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock')),NOT row_security_active('public.command_receipts'::regclass),'public.command_receipts'::regclass::oid::bigint,current_setting('search_path')").fetch_one(&mut *c).await?;
+    if !held{return Err(PersistenceError::new("WORKFLOW_PAYMENT_ORIGIN_LOCK_REQUIRED").into());}
+    if !visible{return Err(PersistenceError::new("WORKFLOW_PAYMENT_BATCH_RLS_UNSUPPORTED").into());}
+    let unit=sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text,current_user::text").fetch_one(c).await?;
+    Ok((unit,path,oid))
+}
+
+/// Workflow owns the receipt CTE, while Files retains the selected source.
+/// This is routing input only: consumers must recompute their complete result
+/// after deferred effects and separately retain selected target authority.
+/// No complete immutable receipt or ancestry image is asserted.
+pub struct CurrentFieldPaymentRouting<'a,T:FieldAttachmentRoutingSource + ?Sized>{
+    source:&'a T,identity:((String,i32,String,String,String),String,i64),
+    link:String,company:String,ancestry_sql:&'static str,
+}
+pub async fn inspect_field_payment_routing<'a,T:FieldAttachmentRoutingSource + ?Sized>(c:&mut PgConnection,source:&'a T)->Result<CurrentFieldPaymentRouting<'a,T>,Error>{
+    let identity=routing_identity(&mut *c).await?;
+    source.require_current(&mut *c).await?;
+    let witness=CurrentFieldPaymentRouting{source,identity,link:source.selected_link_id().to_owned(),company:source.company_id().to_owned(),ancestry_sql:source.ancestry_sql()};
+    witness.require_current(c).await?;Ok(witness)
+}
+impl<T:FieldAttachmentRoutingSource + ?Sized> CurrentFieldPaymentRouting<'_,T>{
+    pub fn source(&self)->&T{self.source}
+    pub fn selected_link_id(&self)->&str{&self.link}
+    pub fn company_id(&self)->&str{&self.company}
+    /// Fixed owner SQL only, composed with the trusted Files owner's static
+    /// SELECT. Bind $1=selected link and $2=Company; never append user SQL.
+    /// The consumer must revalidate this witness around its own query.
+    pub fn payment_cte(&self)->String{
+        format!("WITH file_ancestry AS ({}), payment_receipts AS (SELECT t.path,t.link_id,t.attachment_id,t.upload_intent_id,t.set_id,t.upload_set_id,t.kind,t.target,r.command_id,r.result_json::jsonb->>'settlementInvoiceId' AS invoice_id FROM file_ancestry t JOIN public.command_receipts r ON r.operation='finance.payment.create' AND (r.record_id=t.target OR r.result_json::jsonb->>'id'=t.target) WHERE t.path IN ('direct-set','direct-upload','direct-upload-set','source-attachment','source-upload','source-upload-set','linked-set','linked-upload','linked-upload-set') AND t.kind='finance_payment')",self.ancestry_sql)
+    }
+    pub async fn require_current(&self,c:&mut PgConnection)->Result<(),Error>{
+        let changed=||BusinessError::new(FailureKind::Conflict,"WORKFLOW_PAYMENT_ORIGIN_CHANGED","The payment routing source changed.");
+        if routing_identity(&mut *c).await?!=self.identity || self.source.selected_link_id()!=self.link || self.source.company_id()!=self.company || self.source.ancestry_sql()!=self.ancestry_sql {return Err(changed().into());}
+        self.source.require_current(&mut *c).await?;
+        if routing_identity(c).await?!=self.identity{return Err(changed().into());}Ok(())
+    }
+}
+
+/// Workflow-owned SQL source for the generic Field/Finance History joins.
+/// This fixed, non-materialized CTE never returns receipt payloads to the
+/// application, imposes no candidate cap and does not use a TEMP relation.
+/// The raw JSON text is intentional: consuming joins must apply the same casts
+/// and predicates as their legacy source, without coalescing invalid JSON.
+const FIELD_HISTORY_RECEIPTS_CTE:&str="field_history_receipts AS (SELECT command_id,operation,record_id,actor_id,authority_json,result_json FROM public.command_receipts WHERE operation IN ('field.order.release-billing','field.order.issue-part','finance.payment.create'))";
+type FieldHistoryReceiptUnit=((String,i32,String,String,String),String,i64);
+
+/// Acquire before any protected snapshot, with other owner fences in a
+/// coordinator-reviewed order. A conflict retries the entire unit. This lock
+/// alone is not receipt provenance, a global negative or personal authority.
+pub async fn lock_field_history_receipt_join_sources(c:&mut PgConnection)->Result<(),Error>{
+    if !c.is_in_transaction(){return Err(PersistenceError::new("FIELD_HISTORY_RECEIPT_TRANSACTION_REQUIRED").into());}
+    sqlx::query("LOCK TABLE public.command_receipts IN SHARE MODE NOWAIT").execute(c).await.map_err(PersistenceError::pre_snapshot_lock_conflict)?;Ok(())
+}
+async fn field_history_receipt_join_unit(c:&mut PgConnection)->Result<FieldHistoryReceiptUnit,Error>{
+    if !c.is_in_transaction() || sqlx::query_scalar::<_,String>("SHOW transaction_isolation").fetch_one(&mut *c).await?!="serializable"{return Err(PersistenceError::new("FIELD_HISTORY_RECEIPT_SERIALIZABLE_REQUIRED").into());}
+    let (held,visible,path,oid):(bool,bool,String,i64)=sqlx::query_as("SELECT c.relnamespace='public'::regnamespace AND c.relkind IN ('r','p') AND c.relpersistence='p' AND EXISTS(SELECT 1 FROM pg_locks l WHERE l.pid=pg_backend_pid() AND l.locktype='relation' AND l.relation=c.oid AND l.granted AND l.mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock')),NOT row_security_active(c.oid),current_setting('search_path'),c.oid::bigint FROM pg_class c WHERE c.oid='public.command_receipts'::regclass").fetch_one(&mut *c).await?;
+    if !held{return Err(PersistenceError::new("FIELD_HISTORY_RECEIPT_LOCK_REQUIRED").into());}
+    if !visible{return Err(PersistenceError::new("FIELD_HISTORY_RECEIPT_RLS_UNSUPPORTED").into());}
+    let transaction=sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text,current_user::text").fetch_one(c).await?;Ok((transaction,path,oid))
+}
+/// A same-unit, canonical Workflow join source. `require_current` validates
+/// its identity and fences, not the receipt rows or the result of any join.
+/// Consumers must rerun and compare the complete positive/negative joined
+/// classification after their own late effects, retaining all owner evidence.
+pub struct CurrentFieldHistoryReceiptJoin{unit:FieldHistoryReceiptUnit}
+impl CurrentFieldHistoryReceiptJoin{
+    /// Trusted, fixed CTE fragment. Bind all candidate values separately; never
+    /// substitute request-supplied SQL or use this as an authorization grant.
+    pub fn cte_sql(&self)->&'static str{FIELD_HISTORY_RECEIPTS_CTE}
+    pub async fn require_current(&self,c:&mut PgConnection)->Result<(),Error>{if field_history_receipt_join_unit(c).await?!=self.unit{return Err(BusinessError::new(FailureKind::Conflict,"FIELD_HISTORY_RECEIPT_UNIT_CHANGED","The Workflow History join source changed.").into());}Ok(())}
+}
+pub async fn inspect_field_history_receipt_join(c:&mut PgConnection)->Result<CurrentFieldHistoryReceiptJoin,Error>{Ok(CurrentFieldHistoryReceiptJoin{unit:field_history_receipt_join_unit(c).await?})}
+
+// Fixed SQL source for all actual Count-create receipts. Inventory and Finance
+// join by stored record_id using PostgreSQL semantics and choose marker keys;
+// this source never caps candidates or parses/replaces raw JSON in Rust.
+const INITIAL_COUNT_HISTORY_RECEIPTS_CTE:&str="initial_count_history_receipts AS (SELECT command_id,operation,record_id,actor_id,request_hash,authority_json,result_json FROM public.command_receipts WHERE operation='inventory.count.create'), initial_count_history_support_receipts AS (SELECT command_id,operation,record_id,actor_id,request_hash,authority_json,result_json FROM public.command_receipts WHERE operation IN ('commerce.service-parts-posting-setup.initialize','commerce.service-parts-posting-setup.confirm-existing','inventory.count.post','inventory.count.reject','inventory.count.cancel','attachment.record.bind','attachment.compatibility.bind'))";
+/// The same physical Workflow table fence as the Field invoice/payment join.
+/// Acquire this before any source snapshot and retry the whole unit on 55P03.
+pub async fn lock_initial_count_history_receipt_sources(c:&mut PgConnection)->Result<(),Error>{lock_field_history_receipt_join_sources(c).await}
+/// A canonical same-unit raw receipt join source only. It does not retain
+/// receipt contents, Count ownership, Company authority, a marker decision,
+/// or a global negative. Consumer must recompute its complete joined decision
+/// after all late effects and compare to its separately retained outcome.
+pub struct CurrentInitialCountHistoryReceiptJoin{unit:FieldHistoryReceiptUnit}
+impl CurrentInitialCountHistoryReceiptJoin{
+    pub fn cte_sql(&self)->&'static str{INITIAL_COUNT_HISTORY_RECEIPTS_CTE}
+    pub async fn require_current(&self,c:&mut PgConnection)->Result<(),Error>{if field_history_receipt_join_unit(c).await?!=self.unit{return Err(BusinessError::new(FailureKind::Conflict,"INITIAL_COUNT_HISTORY_RECEIPT_UNIT_CHANGED","The Workflow Count History join source changed.").into());}Ok(())}
+}
+pub async fn inspect_initial_count_history_receipt_join(c:&mut PgConnection)->Result<CurrentInitialCountHistoryReceiptJoin,Error>{Ok(CurrentInitialCountHistoryReceiptJoin{unit:field_history_receipt_join_unit(c).await?})}

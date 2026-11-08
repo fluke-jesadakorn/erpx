@@ -1,4 +1,5 @@
 pub mod legal_import_evidence;
+pub mod count_history_attachment_sources;
 pub mod canonical_original;
 pub mod malware_scanner;
 pub mod media_signature;

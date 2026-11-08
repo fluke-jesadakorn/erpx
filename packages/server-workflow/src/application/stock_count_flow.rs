@@ -199,12 +199,15 @@ fn normalize_assignment(input: &str, generic: bool) -> Result<crate::domain::com
     };
     let flow = number("expectedVersion", 0.0)?;
     let record = number("recordVersion", 1.0)?;
+    // Zod 4 counts Unicode code points: a valid pair is one and an
+    // unpaired UTF-16 unit is one. Keep the original units for fingerprints.
+    let codepoints = |units: &[u16]| char::decode_utf16(units.iter().copied()).count();
     if step.is_empty()
-        || step.len() > 100
+        || codepoints(&step) > 100
         || user.is_empty()
-        || user.len() > 180
-        || reason.len() < 3
-        || reason.len() > 2000
+        || codepoints(&user) > 180
+        || codepoints(reason) < 3
+        || codepoints(reason) > 2000
         || object.property("saveDefault")?.is_some_and(|v| if generic { v.as_str() != "false" && v.as_str() != "true" } else { v.as_str() != "false" })
     {
         return Err(invalid());

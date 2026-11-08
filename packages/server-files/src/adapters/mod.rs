@@ -1,4 +1,5 @@
 pub(crate) mod legal_import_evidence;
+pub(crate) mod count_history_attachment_sources;
 pub mod clamav;
 pub mod local_original_store;
 pub mod postgres_original;
