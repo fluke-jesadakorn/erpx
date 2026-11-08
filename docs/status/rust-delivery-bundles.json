@@ -3443,7 +3443,7 @@
       "id": "sales-native-service-completion",
       "kind": "business-flow-evidence",
       "status": "flow-complete",
-      "scope": "Native Commerce service completion: exact service-only line plan, fulfillment/order state CAS, replay without duplicate effects, receipt/audit/outbox, persisted readback and Finance fulfillment-line Money on one serializable unit, with owner PostgreSQL, HTTP and TS transport tests.",
+      "scope": "Native Commerce service completion: exact service-only line plan, fulfillment/order state CAS, replay without duplicate effects, receipt/audit/outbox, persisted readback and Finance fulfillment-line Money on one serializable unit, verified by owner PostgreSQL, HTTP, TS transport and desktop/mobile selected-route browser journeys.",
       "sourceIdentity": "af556efa6",
       "evidenceRef": "docs/testing/evidence/2026-11-09-commerce-service-completion.json",
       "durableContractRefs": [
@@ -4292,7 +4292,7 @@
         "sales-native-documents-http"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Native quote/order list/edit-read, eligible transitions, draft create/update, Finance order-revision Money snapshots, Finance sales-order credit approval guard, Inventory confirmed-cancellation reservation release and the native service-completion writer with Finance fulfillment-line Money are wired and PostgreSQL/HTTP/transport tested. Goods delivery, lot/serial allocation, Inventory stock movement, goods journal, invoicing, settlement and returns remain retained; no independently authenticated sales approver or selected-API browser service-completion journey has been verified, so this workflow stays partial."
+      "gap": "Native quote/order list/edit-read, eligible transitions, draft create/update, Finance order-revision Money snapshots, Finance sales-order credit approval guard, Inventory confirmed-cancellation reservation release and the native service-completion writer with Finance fulfillment-line Money are wired and PostgreSQL/HTTP/transport tested. Goods delivery, lot/serial allocation, Inventory stock movement, goods journal, invoicing, settlement and returns remain retained; native service completion is desktop and mobile browser verified through the selected Next route with persisted fulfillment/order/Money rows, but no independently authenticated sales approver browser journey exists, so this workflow stays partial."
     },
     {
       "id": "sales/fulfillment",
@@ -4306,7 +4306,7 @@
         "sales-native-service-completion"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Native service completion is qualified end to end for confirmed/partially fulfilled sales orders: exact line/quantity/amount guards, fulfillment header/line, fulfilled quantity, CAS state refresh, replay, receipt/audit/outbox, persisted readback and Finance per-line subtotal/tax/total Money rows in the same serializable unit, with HTTP and TS transport tests. Goods delivery, lots/serials, Inventory stock movements, goods journal, invoicing, settlement and returns remain retained; browser service-completion evidence is still required."
+      "gap": "Native service completion is browser-verified on desktop and mobile through the selected Next route for confirmed/partially fulfilled sales orders, including exact quantities/amounts, fulfillment header/line, delivered quantity, CAS state refresh, receipt/audit/outbox, persisted readback and Finance per-line subtotal/tax/total Money rows in the same serializable unit. Goods delivery, lots/serials, Inventory stock movements, goods journal, invoicing, settlement and returns remain retained."
     },
     {
       "id": "sales/feature-cancellations",
