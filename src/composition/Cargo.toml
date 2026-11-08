@@ -160,6 +160,11 @@ path = "../../tests/integration/inventory/rust-inventory-stock-http-postgres.tes
 required-features = ["existing-business"]
 
 [[test]]
+name = "asset_cost_composition_postgres"
+path = "../../tests/integration/assets/rust-asset-cost-composition-postgres.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
 name = "brand_identity_http_postgres"
 path = "../../tests/integration/brand/rust-brand-identity-http-postgres.test.rs"
 required-features = ["existing-business"]

@@ -733,28 +733,60 @@ fn _assert_backend_send_sync<C: Clock + Send + Sync + 'static>(value: Arc<AssetH
 fn _assert_serializable<T: Serialize>(_: &T) {}
 
 
-/// Composition-level Finance acquisition-cost handoff. The Finance Money
-/// snapshot producer is not yet ported, so a positive acquisition cost fails
-/// closed instead of writing an unbacked asset; zero-cost assets remain
-/// available.
-#[derive(Clone, Copy)]
-pub struct FinanceAssetCost;
+/// Composition-level Finance acquisition-cost handoff. The snapshot is
+/// prepared and persisted by the Finance-owned public port on the same
+/// serializable Holding transaction before the Asset register row is written.
+pub struct FinanceAssetCost<C> {
+    company: CompanyId,
+    clock: Arc<C>,
+}
 
-impl AcquisitionCostProvider for FinanceAssetCost {
+impl<C: Clock + Send + Sync + 'static> FinanceAssetCost<C> {
+    pub fn new(company: CompanyId, clock: Arc<C>) -> Self {
+        Self { company, clock }
+    }
+}
+
+fn asset_cost_error(error: PgTransactionError<BusinessError>) -> BusinessError {
+    match error {
+        PgTransactionError::Business(error) => error,
+        PgTransactionError::Persistence(_) => BusinessError::new(
+            FailureKind::Unavailable,
+            "ASSET_ACQUISITION_COST_UNAVAILABLE",
+            "The Finance acquisition-cost handoff is unavailable.",
+        ),
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> AcquisitionCostProvider for FinanceAssetCost<C> {
     fn prepare<'a>(
         &'a self,
-        _: &'a mut PgConnection,
-        _: &'a str,
+        connection: &'a mut PgConnection,
+        id: &'a str,
         asset: &'a NewAsset,
     ) -> AssetFuture<'a, (), BusinessError> {
         Box::pin(async move {
-            if asset.cost_minor != 0 {
-                return Err(BusinessError::new(
-                    FailureKind::Unavailable,
-                    "ASSET_ACQUISITION_COST_UNAVAILABLE",
-                    "The Finance acquisition-cost handoff is unavailable for positive-cost assets.",
-                ));
-            }
+            erpx_server_finance::public::asset_acquisition_money::lock_asset_acquisition_money_sources(
+                connection,
+            )
+            .await
+            .map_err(asset_cost_error)?;
+            let prepared =
+                erpx_server_finance::public::asset_acquisition_money::prepare_asset_acquisition_money(
+                    connection,
+                    &self.company,
+                    id,
+                    &asset.acquired_date,
+                    &asset.currency,
+                    asset.cost_minor,
+                    &*self.clock,
+                )
+                .await
+                .map_err(asset_cost_error)?;
+            prepared
+                .persist(connection)
+                .await
+                .map_err(asset_cost_error)?;
             Ok(())
         })
     }

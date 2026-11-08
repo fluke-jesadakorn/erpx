@@ -2922,7 +2922,10 @@ async fn assemble_checked(
                             company.clone(),
                         ),
                         Arc::new(SharedClock(clock.clone())),
-                        Arc::new(crate::asset_http::FinanceAssetCost),
+                        Arc::new(crate::asset_http::FinanceAssetCost::new(
+                            company.clone(),
+                            clock.clone(),
+                        )),
                     )),
                 });
                 let configuration = if config
