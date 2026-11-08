@@ -2381,6 +2381,26 @@ async fn assemble_checked(
                         },
                     );
                 }
+                #[cfg(feature = "existing-business")]
+                learning_targets.push(
+                    erpx_server_learning::public::learning_http::LearningHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::learning::LearningBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::learning::LearningService::new(
+                                authorizer.clone(),
+                                crate::learning::LearningConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
                 customer_360_targets.push(
                     erpx_server_customer_360::public::customer_timeline_http::CustomerTimelineHttpTarget {
                         host: holding.host.clone(),
@@ -2578,26 +2598,6 @@ async fn assemble_checked(
                         Arc::new(SharedClock(clock.clone())),
                     )),
                 });
-                #[cfg(feature = "existing-business")]
-                learning_targets.push(
-                    erpx_server_learning::public::learning_http::LearningHttpTarget {
-                        host: holding.host.clone(),
-                        holding_slug: holding.registration.slug.clone(),
-                        origin: format!("https://{}", holding.host),
-                        backend: Arc::new(crate::learning::LearningBackend::new(
-                            config.policy.clone(),
-                            Arc::new(FinanceJournalReadScopeHeaders),
-                            Arc::new(crate::learning::LearningService::new(
-                                authorizer.clone(),
-                                crate::learning::LearningConfiguration::new(
-                                    holding.registration.holding_id.clone(),
-                                    company.clone(),
-                                ),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )),
-                    },
-                );
                 quality_targets.push(
                     erpx_server_quality::public::quality_http::QualityHttpTarget {
                         host: holding.host.clone(),

@@ -816,7 +816,6 @@ function configuration(raw: NativeLearningConfiguration) {
     if (
       origin.protocol !== 'https:' ||
       holding.origin !== origin.origin ||
-      origin.port ||
       origin.username ||
       origin.password ||
       !identifier(holding.holdingId) ||
