@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-08T22:23:05+07:00",
+  "updatedAt": "2026-11-08T22:32:24+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 45,
-    "workflowsVerified": 74,
-    "workflowsMerged": 74,
+    "workflowsPartial": 44,
+    "workflowsVerified": 75,
+    "workflowsMerged": 75,
     "ownersComplete": 8,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -3658,14 +3658,14 @@
       "kind": "module",
       "owner": "platform_administration",
       "scope": "Provisioning",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "platform-native-provisioning"
       ],
       "sourceRef": "packages/server-platform_administration/src/public/platform-operations.ts",
-      "gap": "Native provisioning read/activation and the control-plane operations summary are PostgreSQL/HTTP-qualified; the Next operations/provision/recover/migrate routes and management page select native when configured. Host onboarding command remains retained; browser remains open."
+      "gap": "Closed. The native Platform Administration operations/provisioning snapshot is consumed by the Manage ERPX page when ERPX_NATIVE_PLATFORM_ADMIN_CONFIG is configured; a configured failure is surfaced rather than replaced by retained data. Browser verified desktop and mobile on the erpx-internal Manage ERPX page: operational health (3 customers, 0 pending/dead letters/claimed), per-Holding operations, schema migrations, Holding lifecycle, Provision a Holding and Customer Holdings render from the persisted control-plane snapshot with the platform_admin role and live heartbeats. Registered platform-operations.test.ts (8/8) covers healthy-slot provisioning with durable activation history/replay and auditor/slug denial. Service check, typecheck and structure pass. Host onboarding commands remain retained and are outside the registered provisioning workflow; other Platform Administration capabilities stay tracked by their own workflows."
     },
     {
       "id": "platform_administration/feature-holdings",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-08T22:23:05+07:00",
-    "sourceHead": "1cd03e4ca",
+    "generatedAt": "2026-11-08T22:32:24+07:00",
+    "sourceHead": "ec9783c16",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6494,8 +6494,8 @@
       },
       "platform_administration": {
         "workflows": 9,
-        "verified": 1,
-        "partial": 4,
+        "verified": 2,
+        "partial": 3,
         "unstarted": 4,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -8233,6 +8233,21 @@
           "owners": 8,
           "verified": 74,
           "partial": 45,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-08T22:32:24+07:00",
+        "commit": "ec9783c16",
+        "bundles": [
+          "native Platform Administration provisioning browser acceptance"
+        ],
+        "evidence": "browser desktop+mobile erpx-internal Manage ERPX page shows native operational health 3 customers/0 pending-dead-claimed, Holding operations, schema migrations, Holding lifecycle and Provision a Holding/Customer Holdings; native /api/v1/platform/operations mounted (403 unauthenticated); registered platform-operations.test.ts 8/8; typecheck/structure/health pass",
+        "counts": {
+          "owners": 8,
+          "verified": 75,
+          "partial": 44,
           "unstarted": 87,
           "total": 206
         }
