@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T09:40:00+07:00",
+  "updatedAt": "2026-11-09T10:05:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 106,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 38,
-    "workflowsVerified": 84,
-    "workflowsMerged": 84,
+    "workflowsPartial": 39,
+    "workflowsVerified": 83,
+    "workflowsMerged": 83,
     "ownersComplete": 8,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -4278,16 +4278,16 @@
       "kind": "module",
       "owner": "sales",
       "scope": "Quotes",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [
         "sales-native-documents",
         "sales-native-documents-http",
         "sales-native-price-lists"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Verified native quotation workflow on the clean integration tree: price-list draft/update/activate/cancel, quotation list/detail, draft create/update with customer/warehouse/product/version/date guards, active price list/discount/tax integer math, CAS, replay, receipt/audit/outbox, persisted readback and Finance order/line revision Money snapshots (1+3N) in one serializable unit; original TypeScript save/transition conflict precedence (generic CONFLICT for stale version, non-draft state and foreign/missing party; 422 for product/price-list/warehouse pre-reads); quote submit/approve/return/cancel/conversion with Finance sales-order total on conversion and replay/stale rollback; desktop/mobile create and edit through the native Next route with record/list readback; selected-route Company/context isolation, denial rollback and Money lock/permanent-failure/serialization-retry gates; and a clean full-service archive build/test. Purchase orders, sales-order goods fulfillment/invoicing/settlement/returns and independent sales-approver browser approval remain separate workflows or retained operations.",
+      "gap": "Native quotation, browser, selected-route isolation and Money rollback evidence is recorded; mergeCommit identifies an implementation slice. Before whole-workflow verification, resolve conversion Money validation versus stale-version precedence against the original TypeScript/PostgreSQL oracle, require a real Finance Money port for native conversion, constrain unique-violation mapping to evidenced cases and retain Finance Money sources through deferred effects. Complete affected integration and review gates on the final source.",
       "mergeCommit": "5dfadc0f4"
     },
     {
@@ -6514,8 +6514,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-09T09:40:00+07:00",
-    "sourceHead": "5dfadc0f4",
+    "generatedAt": "2026-11-09T10:05:00+07:00",
+    "sourceHead": "0798c70af",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6600,8 +6600,8 @@
       },
       "sales": {
         "workflows": 5,
-        "verified": 1,
-        "partial": 3,
+        "verified": 0,
+        "partial": 4,
         "unstarted": 1,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -7186,7 +7186,7 @@
       "Recheck the integrated Files/Workflow attachment modules and the full service on the final frozen source; the historical clean archive build predates current shared work.",
       "Await Stripe/Connect configuration for POS tenders/refunds/retry.",
       "Reconcile remote HEAD and keep counts tied to browser/HTTP evidence.",
-      "sales/quotes is verified with original conflict precedence and conversion Money; close sales/orders and sales/fulfillment with goods fulfillment (reservations, stock, lots/serials, goods journal), then invoicing/settlement/returns."
+      "Restore sales/quotes verification after conversion Money precedence, required Finance port and retained-effect gates; close sales/orders and sales/fulfillment with goods fulfillment (reservations, stock, lots/serials, goods journal), then invoicing/settlement/returns."
     ],
     "integrationLog": [
       {

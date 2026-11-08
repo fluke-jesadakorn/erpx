@@ -8,7 +8,8 @@
   "commits": [
     "56538f9075b2ff76424f8fabe67575fc02a745f3",
     "f0a11a74084d78a75b00f6d4c3939228575f9e72",
-    "5dfadc0f45d006f52960336d43c0f771f31c1e4a"
+    "5dfadc0f45d006f52960336d43c0f771f31c1e4a",
+    "0798c70afa1236e305a5391e29b47a85f40fe9d7"
   ],
   "reviewFindingClosed": {
     "finding": "A later full TypeScript/PostgreSQL oracle exposed save error precedence differences involving stale versions, product, party and immutable Money guards; conversion also needed its Money error precedence checked.",
@@ -17,7 +18,7 @@
   "verification": {
     "cleanArchiveTest": "Fresh git archive of 5dfadc0f4: cargo test -p erpx-service --locked --test commerce_selected_http_postgres --features existing-business,private-field-api passed 1/1 in 12.20s.",
     "cleanArchiveBuild": "Fresh git archive of 5dfadc0f4: cargo check -p erpx-service --locked --no-default-features --features private-field-api,files-scan-worker,existing-business passed.",
-    "commerce": "cargo test -p erpx-server-commerce --locked: 69/69 pass after the conflict-code and conversion-Money changes.",
+    "commerce": "cargo test -p erpx-server-commerce --locked: 70/70 pass after the conflict-code, conversion-Money and fail-closed-port tests (5 unit, 8 PostgreSQL, 31 policy/oracle, 8 HTTP, 17 order PostgreSQL, 1 service-count).",
     "frontend": "Desktop create/edit, mobile create and mobile edit were previously browser-verified through the native Next route with persisted order/line/Money readback; the clean integration build now includes the same source plus the selected-route composition fix.",
     "structure": "structure:check and docs:check pass."
   },
