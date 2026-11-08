@@ -2330,6 +2330,26 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                #[cfg(feature = "existing-business")]
+                talent_targets.push(
+                    erpx_server_talent::public::requisition_http::TalentRequisitionHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::talent::TalentBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::talent::TalentService::new(
+                                authorizer.clone(),
+                                crate::talent::TalentConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
                 customer_360_targets.push(
                     erpx_server_customer_360::public::customer_timeline_http::CustomerTimelineHttpTarget {
                         host: holding.host.clone(),
@@ -2706,27 +2726,6 @@ async fn assemble_checked(
                             Arc::new(crate::maintenance::MaintenanceService::new(
                                 authorizer.clone(),
                                 crate::maintenance::MaintenanceConfiguration::new(
-                                    holding.registration.holding_id.clone(),
-                                    company.clone(),
-                                ),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )),
-                    },
-                );
-                #[cfg(feature = "existing-business")]
-                #[cfg(feature = "existing-business")]
-                talent_targets.push(
-                    erpx_server_talent::public::requisition_http::TalentRequisitionHttpTarget {
-                        host: holding.host.clone(),
-                        holding_slug: holding.registration.slug.clone(),
-                        origin: format!("https://{}", holding.host),
-                        backend: Arc::new(crate::talent::TalentBackend::new(
-                            config.policy.clone(),
-                            Arc::new(FinanceJournalReadScopeHeaders),
-                            Arc::new(crate::talent::TalentService::new(
-                                authorizer.clone(),
-                                crate::talent::TalentConfiguration::new(
                                     holding.registration.holding_id.clone(),
                                     company.clone(),
                                 ),
@@ -6976,6 +6975,25 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             }
             _ => false,
         };
+    let talent = match (
+        request.method(),
+        request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) {
+        (
+            &axum::http::Method::GET | &axum::http::Method::POST,
+            ["", "api", "v1", "holdings", _, "talent", "requisitions"],
+        ) => state.policy.audience(host).is_some(),
+        (
+            &axum::http::Method::GET | &axum::http::Method::POST,
+            ["", "api", "v1", "holdings", _, "talent", "requisitions", id],
+        ) if !id.is_empty() => state.policy.audience(host).is_some(),
+        _ => false,
+    };
     let identity_access = match request
         .uri()
         .path()
@@ -7114,6 +7132,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || ecommerce
         || identity_access
         || projects
+        || talent
         || customer_access
         || service_packages
         || field_work_roles
