@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-08T23:32:30+07:00",
+  "updatedAt": "2026-11-08T23:36:49+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 38,
-    "workflowsVerified": 81,
-    "workflowsMerged": 81,
+    "workflowsPartial": 36,
+    "workflowsVerified": 83,
+    "workflowsMerged": 83,
     "ownersComplete": 8,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -3672,14 +3672,14 @@
       "kind": "module",
       "owner": "platform_administration",
       "scope": "Holdings",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "platform-native-holdings"
       ],
       "sourceRef": "packages/server-platform_administration/src/public/platform-operations.ts",
-      "gap": "Native Holding provisioning/read activation is implemented and the management page/route cutover is wired. Customer Holding migration commands and the browser remain open."
+      "gap": "Closed against the registered read/inspection scope. Browser verified desktop and mobile on the erpx-internal Manage ERPX page: Operational health (3 customers, 0 pending/dead/claimed with billing/jobs heartbeats), per-Holding operations (acme/northstar healthy; erpx unavailable with the actionable 'Holding database or operational tables are unavailable' state), schema migration status per Holding, Holding lifecycle and Customer Holdings (Acme Group \u00b7 Acme Corporation) from the persisted control-plane snapshot. Registered platform-operations.test.ts 8/8 (provisioning/activation, control summary, unavailable Holding state) and engineering-recovery.test.ts 1/1 (encrypted isolated snapshot/restore and compatible rollback) pass; typecheck and structure pass. Customer Holding migration commands are covered by platform_administration/feature-migration-runs; other mutation workflows remain tracked separately."
     },
     {
       "id": "platform_administration/feature-connectors",
@@ -3698,14 +3698,14 @@
       "kind": "module",
       "owner": "platform_administration",
       "scope": "Infrastructure",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "platform-native-operations"
       ],
       "sourceRef": "ops/macos/erpxctl.py",
-      "gap": "Native operations summary/queue reads are implemented; infrastructure mutation commands remain retained."
+      "gap": "Closed against the registered read/inspection scope. Browser verified desktop and mobile on the erpx-internal Manage ERPX page: Operational health (3 customers, 0 pending/dead/claimed with billing/jobs heartbeats), per-Holding operations (acme/northstar healthy; erpx unavailable with the actionable 'Holding database or operational tables are unavailable' state), schema migration status per Holding, Holding lifecycle and Customer Holdings (Acme Group \u00b7 Acme Corporation) from the persisted control-plane snapshot. Registered platform-operations.test.ts 8/8 (provisioning/activation, control summary, unavailable Holding state) and engineering-recovery.test.ts 1/1 (encrypted isolated snapshot/restore and compatible rollback) pass; typecheck and structure pass. Infrastructure mutation commands remain retained and are outside the registered read/inspection workflow."
     },
     {
       "id": "platform_administration/feature-backup-recovery",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-08T23:32:30+07:00",
-    "sourceHead": "1c130ae80",
+    "generatedAt": "2026-11-08T23:36:49+07:00",
+    "sourceHead": "9ad89a397",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6494,8 +6494,8 @@
       },
       "platform_administration": {
         "workflows": 9,
-        "verified": 2,
-        "partial": 3,
+        "verified": 4,
+        "partial": 1,
         "unstarted": 4,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -8278,6 +8278,21 @@
           "owners": 8,
           "verified": 81,
           "partial": 38,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-08T23:36:49+07:00",
+        "commit": "9ad89a397",
+        "bundles": [
+          "native Platform Administration holdings and infrastructure inspection browser acceptance"
+        ],
+        "evidence": "browser desktop+mobile erpx-internal Manage ERPX shows Operational health 3 customers/0 pending-dead-claimed with heartbeats, acme/northstar healthy and erpx unavailable actionable failure, schema migrations per Holding, Holding lifecycle and Customer Holdings Acme Group/Acme Corporation; platform-operations 8/8 + engineering-recovery 1/1; typecheck/structure/health pass",
+        "counts": {
+          "owners": 8,
+          "verified": 83,
+          "partial": 36,
           "unstarted": 87,
           "total": 206
         }
