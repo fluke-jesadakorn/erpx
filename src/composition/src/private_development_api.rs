@@ -2274,6 +2274,47 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                #[cfg(feature = "existing-business")]
+                let projects_backend = Arc::new(crate::projects::ProjectsBackend::new(
+                    config.policy.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    Arc::new(crate::projects::ProjectsService::new(
+                        authorizer.clone(),
+                        crate::projects::ProjectsConfiguration::new(
+                            holding.registration.holding_id.clone(),
+                            company.clone(),
+                        ),
+                        Arc::new(SharedClock(clock.clone())),
+                        catalogue.clone(),
+                    )),
+                ));
+                #[cfg(feature = "existing-business")]
+                projects_targets.push(
+                    erpx_server_projects::public::project_wbs_http::ProjectWbsHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: projects_backend.clone(),
+                    },
+                );
+                #[cfg(feature = "existing-business")]
+                project_graph_targets.push(
+                    erpx_server_projects::public::project_graph_http::ProjectGraphHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: projects_backend.clone(),
+                    },
+                );
+                #[cfg(feature = "existing-business")]
+                project_command_targets.push(
+                    erpx_server_projects::public::project_commands_http::ProjectCommandHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: projects_backend.clone(),
+                    },
+                );
                 customer_360_targets.push(
                     erpx_server_customer_360::public::customer_timeline_http::CustomerTimelineHttpTarget {
                         host: holding.host.clone(),
@@ -2770,47 +2811,6 @@ async fn assemble_checked(
                                 Arc::new(SharedClock(clock.clone())),
                             )),
                         )),
-                    },
-                );
-                #[cfg(feature = "existing-business")]
-                let projects_backend = Arc::new(crate::projects::ProjectsBackend::new(
-                    config.policy.clone(),
-                    Arc::new(FinanceJournalReadScopeHeaders),
-                    Arc::new(crate::projects::ProjectsService::new(
-                        authorizer.clone(),
-                        crate::projects::ProjectsConfiguration::new(
-                            holding.registration.holding_id.clone(),
-                            company.clone(),
-                        ),
-                        Arc::new(SharedClock(clock.clone())),
-                        catalogue.clone(),
-                    )),
-                ));
-                #[cfg(feature = "existing-business")]
-                projects_targets.push(
-                    erpx_server_projects::public::project_wbs_http::ProjectWbsHttpTarget {
-                        host: holding.host.clone(),
-                        holding_slug: holding.registration.slug.clone(),
-                        origin: format!("https://{}", holding.host),
-                        backend: projects_backend.clone(),
-                    },
-                );
-                #[cfg(feature = "existing-business")]
-                project_graph_targets.push(
-                    erpx_server_projects::public::project_graph_http::ProjectGraphHttpTarget {
-                        host: holding.host.clone(),
-                        holding_slug: holding.registration.slug.clone(),
-                        origin: format!("https://{}", holding.host),
-                        backend: projects_backend.clone(),
-                    },
-                );
-                #[cfg(feature = "existing-business")]
-                project_command_targets.push(
-                    erpx_server_projects::public::project_commands_http::ProjectCommandHttpTarget {
-                        host: holding.host.clone(),
-                        holding_slug: holding.registration.slug.clone(),
-                        origin: format!("https://{}", holding.host),
-                        backend: projects_backend.clone(),
                     },
                 );
                 people_payroll_targets.push(
@@ -6956,6 +6956,26 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         }
         _ => false,
     };
+    let projects = request.method() == axum::http::Method::GET
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            ["", "api", "v1", "holdings", _, "projects", project_id, "wbs"]
+                if !project_id.is_empty() =>
+            {
+                state.policy.audience(host).is_some()
+            }
+            ["", "api", "v1", "holdings", _, "projects", project_id, "graph"]
+                if !project_id.is_empty() =>
+            {
+                state.policy.audience(host).is_some()
+            }
+            _ => false,
+        };
     let identity_access = match request
         .uri()
         .path()
@@ -7093,6 +7113,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || procurement
         || ecommerce
         || identity_access
+        || projects
         || customer_access
         || service_packages
         || field_work_roles

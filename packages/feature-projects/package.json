@@ -40,7 +40,8 @@
     "./routes/holdings/[holdingSlug]/@record/projects-routines/projects/[id]/page": "./src/routes/holdings/[holdingSlug]/@record/projects-routines/projects/[id]/page.tsx",
     "./routes/api/v1/holdings/[holdingSlug]/projects/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/projects/[[...path]]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/projects/[id]/structure/route": "./src/routes/api/v1/holdings/[holdingSlug]/projects/[id]/structure/route.ts",
-    "./routes/api/v1/holdings/[holdingSlug]/people/project-worker-startup/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/people/project-worker-startup/[[...path]]/route.ts"
+    "./routes/api/v1/holdings/[holdingSlug]/people/project-worker-startup/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/people/project-worker-startup/[[...path]]/route.ts",
+    "./routes/holdings/[holdingSlug]/projects-routines/projects/[id]/wbs/page": "./src/routes/holdings/[holdingSlug]/projects-routines/projects/[id]/wbs/page.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

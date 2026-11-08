@@ -303,7 +303,6 @@ function configuration(raw: NativeProjectsConfiguration) {
     if (
       origin.protocol !== 'https:' ||
       holding.origin !== origin.origin ||
-      origin.port ||
       origin.username ||
       origin.password ||
       !identifier(holding.holdingId) ||
