@@ -2233,6 +2233,28 @@ async fn assemble_checked(
                     )),
                 },
             );
+                #[cfg(feature = "existing-business")]
+                #[cfg(feature = "existing-business")]
+                #[cfg(feature = "existing-business")]
+                ecommerce_targets.push(
+                    erpx_server_ecommerce::public::ecommerce_http::EcommerceHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::ecommerce::EcommerceBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::ecommerce::EcommerceService::new(
+                                authorizer.clone(),
+                                crate::ecommerce::EcommerceConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
                 customer_360_targets.push(
                     erpx_server_customer_360::public::customer_timeline_http::CustomerTimelineHttpTarget {
                         host: holding.host.clone(),
@@ -2553,28 +2575,6 @@ async fn assemble_checked(
                             Arc::new(crate::commerce::CommerceService::new(
                                 authorizer.clone(),
                                 crate::commerce::CommerceConfiguration::new(
-                                    holding.registration.holding_id.clone(),
-                                    company.clone(),
-                                ),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )),
-                    },
-                );
-                #[cfg(feature = "existing-business")]
-                #[cfg(feature = "existing-business")]
-                #[cfg(feature = "existing-business")]
-                ecommerce_targets.push(
-                    erpx_server_ecommerce::public::ecommerce_http::EcommerceHttpTarget {
-                        host: holding.host.clone(),
-                        holding_slug: holding.registration.slug.clone(),
-                        origin: format!("https://{}", holding.host),
-                        backend: Arc::new(crate::ecommerce::EcommerceBackend::new(
-                            config.policy.clone(),
-                            Arc::new(FinanceJournalReadScopeHeaders),
-                            Arc::new(crate::ecommerce::EcommerceService::new(
-                                authorizer.clone(),
-                                crate::ecommerce::EcommerceConfiguration::new(
                                     holding.registration.holding_id.clone(),
                                     company.clone(),
                                 ),
@@ -6956,6 +6956,19 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         }
         _ => false,
     };
+    let ecommerce = request.method() == axum::http::Method::GET
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            ["", "api", "v1", "holdings", _, "ecommerce", "catalog"] => {
+                state.policy.audience(host).is_some()
+            }
+            _ => false,
+        };
     let procurement = request.method() == axum::http::Method::GET
         && match request
             .uri()
@@ -7059,6 +7072,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || planning
         || manufacturing
         || procurement
+        || ecommerce
         || customer_access
         || service_packages
         || field_work_roles

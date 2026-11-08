@@ -108,6 +108,6 @@ export default async function Page({
           </Link>
         ))}
       </Card>
-    <RecordCatalog base={base} kind="ecommerce_channel" title="Channels" rows={workspace.channels} label="name"/><RecordCatalog base={base} kind="ecommerce_cart" title="Carts" rows={data.carts} label="id"/></PageContent>
+    <RecordCatalog base={base} kind="ecommerce_channel" title="Channels" rows={workspace.channels} label="name"/><RecordCatalog base={base} kind="ecommerce_listing" title="Listings" rows={workspace.listings} label="title"/><RecordCatalog base={base} kind="ecommerce_cart" title="Carts" rows={data.carts} label="id"/></PageContent>
   );
 }
