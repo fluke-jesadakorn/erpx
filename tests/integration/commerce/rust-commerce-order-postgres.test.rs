@@ -1241,7 +1241,10 @@ async fn save_outcome_and_finance_money_snapshots_share_one_unit_and_replay_skip
             Some("Strategic launch order approved for commercial review"),
         );
         sqlx::raw_sql(
-            "CREATE FUNCTION commerce_order_money_atomic_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM 1/0; RETURN NEW; END; $$;\
+            "CREATE SEQUENCE commerce_money_lock_calls;\
+             CREATE FUNCTION commerce_order_money_atomic_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN \
+             PERFORM setval('commerce_money_lock_calls',(SELECT count(DISTINCT l.relation) FROM pg_locks l JOIN pg_class c ON c.oid=l.relation WHERE l.pid=pg_backend_pid() AND l.granted AND l.locktype='relation' AND c.oid IN ('public.company_currency_scales'::regclass,'public.company_fx_rates'::regclass,'public.money_transaction_snapshots'::regclass)),true); \
+             PERFORM 1/0; RETURN NEW; END; $$;\
              CREATE CONSTRAINT TRIGGER commerce_order_money_atomic_fault AFTER INSERT ON outbox_events DEFERRABLE INITIALLY DEFERRED \
              FOR EACH ROW WHEN(NEW.command_id='commerce-order-money-atomic-0001') EXECUTE FUNCTION commerce_order_money_atomic_fault();",
         )
@@ -1253,8 +1256,16 @@ async fn save_outcome_and_finance_money_snapshots_share_one_unit_and_replay_skip
                 .await
                 .is_err()
         );
+        // The deferred trigger still sees all three Finance relation locks,
+        // proving the Money sources stay held through deferred effects.
+        let (calls, called): (i64, bool) =
+            sqlx::query_as("SELECT last_value,is_called FROM commerce_money_lock_calls")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        assert!(called && calls == 3, "Finance locks were not retained: {calls}");
         sqlx::raw_sql(
-            "DROP TRIGGER commerce_order_money_atomic_fault ON outbox_events; DROP FUNCTION commerce_order_money_atomic_fault();",
+            "DROP TRIGGER commerce_order_money_atomic_fault ON outbox_events; DROP FUNCTION commerce_order_money_atomic_fault(); DROP SEQUENCE commerce_money_lock_calls;",
         )
         .execute(pool.raw())
         .await
@@ -2025,5 +2036,33 @@ async fn native_conversion_without_finance_money_port_fails_and_rolls_back() {
         let after:(String,i64)=sqlx::query_as("SELECT state,version FROM commerce_orders WHERE id='quote-confirmed'").fetch_one(pool.raw()).await.unwrap();assert_eq!(after,before);
         let after_lines:Vec<(String,i64,i64)>=sqlx::query_as("SELECT id,subtotal_minor,tax_minor FROM commerce_order_lines WHERE order_id='quote-confirmed' ORDER BY ordinal").fetch_all(pool.raw()).await.unwrap();assert_eq!(after_lines,before_lines);
         let effects:(i64,i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM commerce_orders WHERE source_id='quote-confirmed'),(SELECT count(*) FROM command_receipts WHERE command_id=$1),(SELECT count(*) FROM audit_events WHERE command_id=$1),(SELECT count(*) FROM outbox_events WHERE command_id=$1),(SELECT count(*) FROM money_transaction_snapshots WHERE source_id LIKE 'order-commerce-conversion-missing-finance-0001%')").bind(key).fetch_one(pool.raw()).await.unwrap();assert_eq!(effects,(0,0,0,0,0));
+    }).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn conversion_preflight_preserves_actor_replay_and_quote_precedence() {
+    use erpx_server_commerce::public::order::transition_order_guarded;
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        for (actor,order,version,key,code) in [
+            ({let mut a=creator();a.permissions.clear();a},"quote-confirmed",99,"conversion-preflight-no-auth-0001","COMMERCE_PERMISSION_REQUIRED"),
+            (creator(),"sales-draft",99,"conversion-preflight-not-quote-0001","QUOTE_REQUIRED"),
+            (creator(),"quote-confirmed",99,"conversion-preflight-stale-0001","COMMERCE_CONVERSION_MONEY_REQUIRED"),
+        ] {
+            let input=command(order,OrderAction::Convert,version,key);
+            let result=PgUnitOfWork::new(pool.clone()).run::<_,BusinessError,_>(TransactionOptions::default(),move |connection| {
+                let input=input.clone();let actor=actor.clone();Box::pin(async move {let mut repo=PgCommerceOrders::new(connection);transition_order_guarded(&actor,&input,&mut repo,TimestampMillis::new(NOW)).await})
+            }).await;
+            assert_eq!(business(result.unwrap_err()).code,code,"{key}");
+            let effects:(i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM commerce_orders WHERE source_id=$2),(SELECT count(*) FROM command_receipts WHERE command_id=$1),(SELECT count(*) FROM audit_events WHERE command_id=$1),(SELECT count(*) FROM outbox_events WHERE command_id=$1)").bind(key).bind(order).fetch_one(pool.raw()).await.unwrap();assert_eq!(effects,(0,0,0,0));
+        }
+        let replay_key="conversion-preflight-existing-receipt-0001";
+        let cmd=command("quote-confirmed",OrderAction::Convert,3,replay_key);
+        let original=run_transition(&pool,creator(),cmd.clone()).await.unwrap();
+        let replay=PgUnitOfWork::new(pool.clone()).run::<_,BusinessError,_>(TransactionOptions::default(),move |connection| {
+            let cmd=cmd.clone();Box::pin(async move {let mut repo=PgCommerceOrders::new(connection);transition_order_guarded(&creator(),&cmd,&mut repo,TimestampMillis::new(NOW)).await})
+        }).await.unwrap();
+        assert_eq!(replay,original);
+        let count:i64=sqlx::query_scalar("SELECT count(*) FROM commerce_orders WHERE source_id='quote-confirmed'").fetch_one(pool.raw()).await.unwrap();assert_eq!(count,1);
     }).await;
 }

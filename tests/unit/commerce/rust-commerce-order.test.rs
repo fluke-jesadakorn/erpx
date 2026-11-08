@@ -361,6 +361,7 @@ struct CommandProbe {
     credit: bool,
     credit_calls: Vec<(String, i64)>,
     release_calls: Vec<String>,
+    allow_conversion_preflight: bool,
 }
 
 impl CommandProbe {
@@ -382,6 +383,28 @@ impl CommandProbe {
 
 impl CommerceOrderCommandRepository for CommandProbe {
     type Error = BusinessError;
+
+    fn prepare_converted_order_money<'a>(
+        &'a mut self,
+        _: &'a CommerceOrderActor,
+        _: &'a TransitionCommand,
+        _: &'a SalesOrderRow,
+        _: TimestampMillis,
+    ) -> CommerceOrderFuture<'a, (), Self::Error> {
+        self.calls.push("conversion-money-preflight");
+        let allow = self.allow_conversion_preflight;
+        Box::pin(async move {
+            if allow {
+                Ok(())
+            } else {
+                Err(BusinessError::new(
+                    erpx_server_shared::public::FailureKind::Unavailable,
+                    "COMMERCE_CONVERSION_MONEY_REQUIRED",
+                    "The Finance conversion Money source is unavailable.",
+                ))
+            }
+        })
+    }
 
     fn current_authority<'a>(
         &'a mut self,
@@ -1543,8 +1566,10 @@ fn conversion_requires_quote_before_stale_transition_guard() {
             order(kind, "submitted", 2, "creator"),
             order(kind, "converted", 3, "creator"),
         );
+        repository.allow_conversion_preflight = true;
         let error = run_guarded(&mut repository, &actor(), &command).unwrap_err();
         assert_eq!(error.code, code, "{kind}");
+        assert_eq!(repository.calls.contains(&"conversion-money-preflight"), kind == "quote");
         assert!(!repository.calls.contains(&"transition"));
         assert!(!repository.calls.contains(&"insert-converted"));
     }

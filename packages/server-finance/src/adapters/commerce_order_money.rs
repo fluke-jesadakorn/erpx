@@ -71,6 +71,14 @@ fn changed() -> Error {
     )
     .into()
 }
+fn duplicate() -> Error {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "CONFLICT",
+        "The record changed, a reference is unavailable, or this value already exists. Refresh and review again.",
+    )
+    .into()
+}
 
 fn invalid(code: &'static str, message: &'static str) -> Error {
     BusinessError::invalid(code, message).into()
@@ -158,7 +166,7 @@ async fn quote(
     date: &str,
 ) -> Result<Quote, Error> {
     let scale: Option<i64> = sqlx::query_scalar(
-        "SELECT scale::bigint FROM company_currency_scales \
+        "SELECT scale::bigint FROM public.company_currency_scales \
          WHERE company_id=$1 AND currency=$2 FOR SHARE",
     )
     .bind(company.as_str())
@@ -168,7 +176,7 @@ async fn quote(
     let coll = FinanceCollation::english().map_err(|_| changed())?;
     let mut stream = sqlx::query(
         "SELECT id,effective_date::text effective_date,currency_per_usd::text quote,\
-         confirmed_at::bigint confirmed_at FROM company_fx_rates \
+         confirmed_at::bigint confirmed_at FROM public.company_fx_rates \
          WHERE company_id=$1 AND currency=$2 \
          ORDER BY effective_date DESC,confirmed_at DESC,id DESC FOR SHARE",
     )
@@ -237,6 +245,19 @@ fn valid_amount(amount: i64) -> bool {
     (0..=MAX_SAFE_INTEGER).contains(&amount)
 }
 
+async fn ensure_fresh_sources(c:&mut PgConnection,company:&CompanyId,keys:&[(String,String,String)])->Result<(),Error>{
+    let types:Vec<&str>=keys.iter().map(|k|k.0.as_str()).collect();
+    let ids:Vec<&str>=keys.iter().map(|k|k.1.as_str()).collect();
+    let kinds:Vec<&str>=keys.iter().map(|k|k.2.as_str()).collect();
+    if sqlx::query_scalar::<_,bool>("SELECT EXISTS(SELECT 1 FROM public.money_transaction_snapshots WHERE company_id=$1 AND (source_type,source_id,amount_kind) IN (SELECT * FROM unnest($2::text[],$3::text[],$4::text[])))").bind(company.as_str()).bind(&types).bind(&ids).bind(&kinds).fetch_one(c).await? { return Err(duplicate()); }
+    Ok(())
+}
+fn amount_usd(amount:i64,scale:u8,rate:&str)->Result<String,Error>{
+    let usd=convert_currency_units(&BigInt::from(amount),scale,2,rate,"1").map_err(|_|invalid("MONEY_OVERFLOW","Money conversion exceeds its exact bounds."))?.to_string();
+    if usd.len()>38 {return Err(invalid("MONEY_OVERFLOW","Money evidence exceeds its numeric bounds."));}
+    Ok(usd)
+}
+
 /// Write the exact retained Commerce order-revision Money rows. The caller has
 /// already locked the Finance sources and owns the serializable unit.
 pub async fn snapshot_commerce_order_revision(
@@ -245,6 +266,16 @@ pub async fn snapshot_commerce_order_revision(
     input: &CommerceOrderMoneyInput,
     now: TimestampMillis,
 ) -> Result<Vec<CommerceOrderMoneyEvidence>, Error> {
+    let (evidence, _) = write_commerce_order_revision(c, company, input, now, None).await?;
+    Ok(evidence)
+}
+
+async fn prepare_order_money_data(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    input: &CommerceOrderMoneyInput,
+    now: TimestampMillis,
+) -> Result<(Quote, u8), Error> {
     unit(c).await?;
     if !valid_identifier(&input.order_id)
         || input.version < 1
@@ -286,16 +317,36 @@ pub async fn snapshot_commerce_order_revision(
             "A Commerce order amount must use the configured two-decimal scale.",
         ));
     }
-    let rate = quote.selected.as_ref().ok_or_else(|| {
-        invalid(
+    if quote.selected.is_none() {
+        return Err(invalid(
             "MANUAL_RATE_REQUIRED",
             "A confirmed manual currency/USD rate is required.",
-        )
-    })?;
-    let captured_at = now.get();
-    if !(0..=MAX_SAFE_INTEGER).contains(&captured_at) {
+        ));
+    }
+    if !(0..=MAX_SAFE_INTEGER).contains(&now.get()) {
         return Err(changed());
     }
+    let rate=&quote.selected.as_ref().ok_or_else(changed)?.quote;
+    amount_usd(input.total,scale,rate)?;
+    for line in &input.lines { for amount in [line.unit_price,line.subtotal,line.tax] { amount_usd(amount,scale,rate)?; } }
+    Ok((quote, scale))
+}
+
+async fn write_commerce_order_revision(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    input: &CommerceOrderMoneyInput,
+    now: TimestampMillis,
+    prepared_quote: Option<Quote>,
+) -> Result<(Vec<CommerceOrderMoneyEvidence>, Quote), Error> {
+    let (observed, scale) = prepare_order_money_data(&mut *c, company, input, now).await?;
+    let quote = match prepared_quote {
+        Some(expected) if expected == observed => expected,
+        Some(_) => return Err(changed()),
+        None => observed,
+    };
+    let rate = quote.selected.as_ref().ok_or_else(changed)?;
+    let captured_at = now.get();
     let order_source = format!("{}:{}", input.order_id, input.version);
     let mut rows = Vec::with_capacity(1 + input.lines.len() * 3);
     rows.push((
@@ -320,24 +371,13 @@ pub async fn snapshot_commerce_order_revision(
         ));
         rows.push(("commerce_order_line_revision", source, "tax", line.tax));
     }
+    let keys:Vec<(String,String,String)>=rows.iter().map(|row|(row.0.to_owned(),row.1.clone(),row.2.to_owned())).collect();
+    ensure_fresh_sources(c, company, &keys).await?;
     let mut evidence = Vec::with_capacity(rows.len());
     for (source_type, source_id, amount_kind, amount) in rows {
-        let usd = convert_currency_units(&BigInt::from(amount), scale, 2, &rate.quote, "1")
-            .map_err(|_| {
-                invalid(
-                    "MONEY_OVERFLOW",
-                    "Money conversion exceeds its exact bounds.",
-                )
-            })?
-            .to_string();
-        if usd.len() > 38 {
-            return Err(invalid(
-                "MONEY_OVERFLOW",
-                "Money evidence exceeds its numeric bounds.",
-            ));
-        }
+        let usd = amount_usd(amount, scale, &rate.quote)?;
         sqlx::query(
-            "INSERT INTO money_transaction_snapshots\
+            "INSERT INTO public.money_transaction_snapshots\
              (company_id,source_type,source_id,amount_kind,transaction_date,currency,\
              currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at) \
              VALUES($1,$2,$3,$4,$5::date,$6,$7,$8::numeric,$9::numeric,$10,$11,$12)",
@@ -372,15 +412,19 @@ pub async fn snapshot_commerce_order_revision(
     }
     // Re-read the exact persisted rows and the locked transaction identity
     // before the caller continues. Any drift fails the owner unit.
-    let source_ids: Vec<String> = evidence.iter().map(|row| row.source_id.clone()).collect();
+    let source_types:Vec<&str>=evidence.iter().map(|row|row.source_type).collect();
+    let source_ids:Vec<&str>=evidence.iter().map(|row|row.source_id.as_str()).collect();
+    let amount_kinds:Vec<&str>=evidence.iter().map(|row|row.amount_kind).collect();
     let stored: Vec<StoredMoneyRow> = sqlx::query_as(
         "SELECT source_type,source_id,amount_kind,amount_units::text,usd_units::text,\
              fx_rate_id,used_latest_fallback,captured_at \
              FROM public.money_transaction_snapshots WHERE company_id=$1 \
-             AND source_id = ANY($2) ORDER BY source_type,source_id,amount_kind",
+             AND (source_type,source_id,amount_kind) IN (SELECT * FROM unnest($2::text[],$3::text[],$4::text[])) ORDER BY source_type,source_id,amount_kind",
     )
     .bind(company.as_str())
+    .bind(&source_types)
     .bind(&source_ids)
+    .bind(&amount_kinds)
     .fetch_all(&mut *c)
     .await?;
     let expected: std::collections::BTreeMap<MoneyKey, MoneyValue> = evidence
@@ -411,13 +455,219 @@ pub async fn snapshot_commerce_order_revision(
         return Err(changed());
     }
     unit(c).await?;
-    Ok(evidence)
+    Ok((evidence, quote))
+}
+
+/// Exact unit and canonical owner relations held by a retained Money effect.
+type RetainedMoneyUnit = (
+    String,
+    i32,
+    String,
+    String,
+    String,
+    String,
+    String,
+    Vec<i64>,
+);
+async fn retained_unit(c: &mut PgConnection) -> Result<RetainedMoneyUnit, Error> {
+    unit(&mut *c).await?;
+    let ids: Vec<i64> = sqlx::query_scalar("SELECT unnest(ARRAY['public.company_currency_scales'::regclass::oid::bigint,'public.company_fx_rates'::regclass::oid::bigint,'public.money_transaction_snapshots'::regclass::oid::bigint])").fetch_all(&mut *c).await?;
+    let (db,pid,xid,started,role,session,path):(String,i32,String,String,String,String,String) = sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text,current_user::text,session_user::text,current_setting('search_path')").fetch_one(c).await?;
+    Ok((db, pid, xid, started, role, session, path, ids))
+}
+async fn retained_rows(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    evidence: &[CommerceOrderMoneyEvidence],
+) -> Result<Vec<(String, String, String, String)>, Error> {
+    let types:Vec<&str>=evidence.iter().map(|r|r.source_type).collect();
+    let ids:Vec<&str>=evidence.iter().map(|r|r.source_id.as_str()).collect();
+    let kinds:Vec<&str>=evidence.iter().map(|r|r.amount_kind).collect();
+    let rows:Vec<(String,String,String,String)>=sqlx::query_as("SELECT source_type,source_id,amount_kind,to_jsonb(m)::text FROM public.money_transaction_snapshots m WHERE company_id=$1 AND (source_type,source_id,amount_kind) IN (SELECT * FROM unnest($2::text[],$3::text[],$4::text[])) ORDER BY source_type,source_id,amount_kind").bind(company.as_str()).bind(&types).bind(&ids).bind(&kinds).fetch_all(c).await?;
+    if rows.len() != evidence.len() {
+        return Err(changed());
+    }
+    for row in &rows {
+        let Some(expected) = evidence
+            .iter()
+            .find(|e| e.source_type == row.0 && e.source_id == row.1 && e.amount_kind == row.2)
+        else {
+            return Err(changed());
+        };
+        let value: serde_json::Value = serde_json::from_str(&row.3).map_err(|_| changed())?;
+        if value["transaction_date"].as_str() != Some(expected.transaction_date.as_str())
+            || value["currency"].as_str() != Some(expected.currency.as_str())
+            || value["currency_scale"].as_i64() != Some(i64::from(expected.currency_scale))
+            || value["fx_rate_id"].as_str() != expected.rate_id.as_deref()
+            || value["used_latest_fallback"].as_bool() != Some(expected.used_latest_fallback)
+            || value["captured_at"].as_i64() != Some(expected.captured_at)
+        {
+            return Err(changed());
+        }
+    }
+    Ok(rows)
+}
+/// Owner-retained effect: callers must keep this value until all later writes
+/// and deferred effects have run, then call `require_current` in the same unit.
+pub struct RetainedCommerceOrderMoney {
+    unit: RetainedMoneyUnit,
+    company: CompanyId,
+    input: CommerceOrderMoneyInput,
+    quote: Quote,
+    evidence: Vec<CommerceOrderMoneyEvidence>,
+    rows: Vec<(String, String, String, String)>,
+}
+impl RetainedCommerceOrderMoney {
+    pub fn input(&self) -> &CommerceOrderMoneyInput {
+        &self.input
+    }
+    pub fn evidence(&self) -> &[CommerceOrderMoneyEvidence] {
+        &self.evidence
+    }
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        if retained_unit(&mut *c).await? != self.unit {
+            return Err(changed());
+        }
+        if quote(
+            &mut *c,
+            &self.company,
+            &self.input.currency,
+            &self.input.transaction_date,
+        )
+        .await?
+            != self.quote
+            || retained_rows(&mut *c, &self.company, &self.evidence).await? != self.rows
+            || retained_unit(c).await? != self.unit
+        {
+            return Err(changed());
+        }
+        Ok(())
+    }
+}
+/// Uses the existing single writer and retains its exact effects; the caller
+/// must acquire source locks before its first snapshot and owns transaction
+/// rollback and post-deferred-effect revalidation.
+pub async fn snapshot_commerce_order_revision_retained(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    input: &CommerceOrderMoneyInput,
+    now: TimestampMillis,
+) -> Result<RetainedCommerceOrderMoney, Error> {
+    let identity = retained_unit(&mut *c).await?;
+    let (evidence, quote) =
+        write_commerce_order_revision(&mut *c, company, input, now, None).await?;
+    if self::quote(&mut *c, company, &input.currency, &input.transaction_date).await? != quote {
+        return Err(changed());
+    }
+    let rows = retained_rows(&mut *c, company, &evidence).await?;
+    if retained_unit(c).await? != identity {
+        return Err(changed());
+    }
+    Ok(RetainedCommerceOrderMoney {
+        unit: identity,
+        company: company.clone(),
+        input: input.clone(),
+        quote,
+        evidence,
+        rows,
+    })
+}
+
+/// Preflight holds the exact trusted inputs and quote inside one attested unit.
+/// It is not authorization and does not write Money rows.
+pub struct PreparedCommerceOrderMoney {
+    unit: RetainedMoneyUnit,
+    company: CompanyId,
+    input: CommerceOrderMoneyInput,
+    now: TimestampMillis,
+    quote: Quote,
+}
+impl PreparedCommerceOrderMoney {
+    pub fn input(&self) -> &CommerceOrderMoneyInput {
+        &self.input
+    }
+    pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
+        if retained_unit(&mut *c).await? != self.unit
+            || quote(
+                &mut *c,
+                &self.company,
+                &self.input.currency,
+                &self.input.transaction_date,
+            )
+            .await?
+                != self.quote
+            || retained_unit(c).await? != self.unit
+        {
+            return Err(changed());
+        }
+        Ok(())
+    }
+    /// Consumes the preflight; the original quote is the quote used by the one
+    /// writer, and the caller retains its effect through all deferred writes.
+    pub async fn apply(self, c: &mut PgConnection) -> Result<RetainedCommerceOrderMoney, Error> {
+        self.require_current(&mut *c).await?;
+        let (evidence, quote) = write_commerce_order_revision(
+            &mut *c,
+            &self.company,
+            &self.input,
+            self.now,
+            Some(self.quote),
+        )
+        .await?;
+        if self::quote(
+            &mut *c,
+            &self.company,
+            &self.input.currency,
+            &self.input.transaction_date,
+        )
+        .await?
+            != quote
+        {
+            return Err(changed());
+        }
+        let rows = retained_rows(&mut *c, &self.company, &evidence).await?;
+        if retained_unit(c).await? != self.unit {
+            return Err(changed());
+        }
+        Ok(RetainedCommerceOrderMoney {
+            unit: self.unit,
+            company: self.company,
+            input: self.input,
+            quote,
+            evidence,
+            rows,
+        })
+    }
+}
+pub async fn prepare_commerce_order_revision_money(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    input: &CommerceOrderMoneyInput,
+    now: TimestampMillis,
+) -> Result<PreparedCommerceOrderMoney, Error> {
+    let identity = retained_unit(&mut *c).await?;
+    let (quote, _) = prepare_order_money_data(&mut *c, company, input, now).await?;
+    if retained_unit(c).await? != identity {
+        return Err(changed());
+    }
+    Ok(PreparedCommerceOrderMoney {
+        unit: identity,
+        company: company.clone(),
+        input: input.clone(),
+        now,
+        quote,
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    #[test]
+    fn shared_money_conversion_rejects_out_of_bounds_rate_precision() {
+        assert!(amount_usd(1,2,"0.0000000000000000001").is_err());
+        assert!(amount_usd(MAX_SAFE_INTEGER,2,"0.000000000000000001").is_ok());
+    }
     #[test]
     fn identifiers_and_amounts_are_bounded() {
         assert!(valid_identifier("order-1"));
@@ -494,6 +744,8 @@ pub async fn snapshot_commerce_fulfillment_money(
     if !(0..=MAX_SAFE_INTEGER).contains(&captured_at) {
         return Err(changed());
     }
+    let keys:Vec<(String,String,String)>=lines.iter().flat_map(|line|["subtotal","tax","total"].into_iter().map(|kind|("commerce_fulfillment_line".to_owned(),line.id.clone(),kind.to_owned()))).collect();
+    ensure_fresh_sources(c, company, &keys).await?;
     let mut evidence = Vec::with_capacity(lines.len() * 3);
     for line in lines {
         for (amount_kind, amount) in [
@@ -516,7 +768,7 @@ pub async fn snapshot_commerce_fulfillment_money(
                 ));
             }
             sqlx::query(
-                "INSERT INTO money_transaction_snapshots\
+                "INSERT INTO public.money_transaction_snapshots\
                  (company_id,source_type,source_id,amount_kind,transaction_date,currency,\
                  currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at) \
                  VALUES($1,'commerce_fulfillment_line',$2,$3,$4::date,$5,$6,$7::numeric,$8::numeric,$9,$10,$11)",
@@ -549,16 +801,20 @@ pub async fn snapshot_commerce_fulfillment_money(
             });
         }
     }
-    let source_ids: Vec<String> = evidence.iter().map(|row| row.source_id.clone()).collect();
+    let source_types:Vec<&str>=evidence.iter().map(|row|row.source_type).collect();
+    let source_ids:Vec<&str>=evidence.iter().map(|row|row.source_id.as_str()).collect();
+    let amount_kinds:Vec<&str>=evidence.iter().map(|row|row.amount_kind).collect();
     let stored: Vec<StoredMoneyRow> = sqlx::query_as(
         "SELECT source_type,source_id,amount_kind,amount_units::text,usd_units::text,\
              fx_rate_id,used_latest_fallback,captured_at \
              FROM public.money_transaction_snapshots WHERE company_id=$1 \
-             AND source_type='commerce_fulfillment_line' AND source_id = ANY($2) \
+             AND (source_type,source_id,amount_kind) IN (SELECT * FROM unnest($2::text[],$3::text[],$4::text[])) \
              ORDER BY source_id,amount_kind",
     )
     .bind(company.as_str())
+    .bind(&source_types)
     .bind(&source_ids)
+    .bind(&amount_kinds)
     .fetch_all(&mut *c)
     .await?;
     let expected: std::collections::BTreeMap<MoneyKey, MoneyValue> = evidence

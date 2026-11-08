@@ -156,8 +156,29 @@ pub trait CommerceOrderCommandRepository: Send {
         Box::pin(async { Err(order_reversal_required().into()) })
     }
 
+    /// Prepare the Finance quote for this exact conversion in the caller's
+    /// transaction. Implementations must retain it for the later consuming
+    /// snapshot call; a repository without the Finance port fails closed.
+    fn prepare_converted_order_money<'a>(
+        &'a mut self,
+        _actor: &'a CommerceOrderActor,
+        _command: &'a TransitionCommand,
+        _order: &'a SalesOrderRow,
+        _now: TimestampMillis,
+    ) -> CommerceOrderFuture<'a, (), Self::Error> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                erpx_server_shared::public::FailureKind::Unavailable,
+                "COMMERCE_CONVERSION_MONEY_REQUIRED",
+                "The Finance conversion Money source is unavailable.",
+            )
+            .into())
+        })
+    }
+
     /// Finance-owned order-revision Money for the sales order created by a
-    /// quotation conversion. A repository without this port must fail closed.
+    /// quotation conversion. Implementations must consume the exact prepared
+    /// quote in the same transaction. A missing port fails closed.
     fn snapshot_converted_order_money<'a>(
         &'a mut self,
         _converted: &'a ConvertedReadback,
@@ -293,6 +314,16 @@ async fn transition_order_with_guard_mode<R: CommerceOrderCommandRepository>(
         return Err(crate::domain::order::approval_required().into());
     }
     validate_transition_approval_reason(command, &order)?;
+    if guard_mode == TransitionGuardMode::Native
+        && command.action == crate::domain::order::OrderAction::Convert
+    {
+        if order.kind() != Some(crate::domain::order::OrderKind::Quote) {
+            return Err(crate::domain::order::quote_required().into());
+        }
+        repository
+            .prepare_converted_order_money(actor, command, &order, now)
+            .await?;
+    }
     if guard_mode == TransitionGuardMode::Native
         && command.action == crate::domain::order::OrderAction::Approve
         && order.kind() == Some(crate::domain::order::OrderKind::Sales)

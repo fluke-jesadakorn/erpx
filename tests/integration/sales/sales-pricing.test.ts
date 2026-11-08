@@ -125,3 +125,79 @@ it('requires exact minted Sales sources and rejects unsupported versions and cro
 it('keeps forged terminal Sales and CRM labels unresolved when their actual immutable owner decisions are missing',async()=>{
  const quote=await saveOrder(f.owner,null,orderSchema.parse({kind:'quote',partyId:customerId,warehouseId,orderDate:'2026-10-16',dueDate:'2026-10-20',lines:[{productId,quantity:'1',price:'100',taxBps:0}]}),key()),{createCRMLead}=await import('@erpx/server-crm/public/crm'),lead=await createCRMLead(f.owner,salesInquiry(),key());await db.prepare("UPDATE commerce_orders SET state='cancelled',version=version+1 WHERE id=?").bind(quote.id).run();await db.prepare("UPDATE crm_leads SET status='disqualified',version=version+1 WHERE id=?").bind(lead.id).run();await pricingSales();await pricingSales('draining');const observation=await salesWithdrawalObservation();expect(observation.observations.find(row=>row.moduleId==='sales')?.outstanding).toBeGreaterThan(0);expect(observation.observations.find(row=>row.moduleId==='crm')?.outstanding).toBeGreaterThan(0);await expect(salesWithdrawalReview(await salesWithdrawalRequest())).rejects.toThrow('PACKAGE_OBLIGATIONS_REMAIN');
 });
+
+it('reports the original sales approval credit assertion before a simultaneous stale version',async()=>{
+ const attempt=async(creditLimit:string)=>{
+  const party=String((await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Credit ordering customer',paymentTermsDays:30,creditLimit},key())).id);
+  const created=await saveOrder(f.owner,null,orderSchema.parse({kind:'sales',partyId:party,warehouseId,orderDate:'2026-09-02',dueDate:'2026-09-10',lines:[{productId,quantity:'1',price:'120',taxBps:700}]}),key()),id=String(created.id);
+  await transitionOrder(f.owner,id,{action:'submit',expectedVersion:1},key());
+  const before=await getOrder(f.owner,id),command=key();let failure:unknown;
+  try{await transitionOrder(f.manager,id,{action:'approve',expectedVersion:1},command);}catch(error){failure=error;}
+  expect(failure).toBeDefined();expect(failure).toMatchObject({status:409,code:'CONFLICT'});
+  // Workflow retains the underlying PostgreSQL check violation in `cause`;
+  // its failing-row detail identifies which command_assertions step fired.
+  const cause=(failure as {cause?:{code?:string;detail?:string}}).cause;
+  expect(cause?.code).toBe('23514');expect(cause?.detail).toContain(creditLimit==='0'?'version-commerce_orders':'customer-credit-limit');
+  expect(await getOrder(f.owner,id)).toEqual(before);
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(command).first()).toBeNull();
+ };
+ await attempt('1');
+ await attempt('0');
+});
+
+it('reports original save errors when stale version collides with product party and Money guards',async()=>{
+ const body=orderSchema.parse({kind:'quote',partyId:customerId,warehouseId,orderDate:'2026-09-02',dueDate:'2026-09-10',lines:[{productId,quantity:'1',price:'120',taxBps:700}]}),created=await saveOrder(f.owner,null,body,key()),id=String(created.id);
+ await saveOrder(f.owner,id,orderSchema.parse({...body,expectedVersion:1,note:'Actual second version'}),key());
+ const before=await getOrder(f.owner,id);
+ const money=async()=> (await db.prepare("SELECT to_jsonb(m)::text value FROM money_transaction_snapshots m WHERE company_id=? AND source_type IN ('commerce_order_revision','commerce_order_line_revision') AND (source_id LIKE ? OR source_id LIKE ?) ORDER BY source_type,source_id,amount_kind").bind(f.company,`${id}:%`,`${id}-line-%`).all<{value:string}>()).results;
+ const moneyBefore=await money();expect(moneyBefore).toHaveLength(8);
+ const cases=[
+  {name:'stale version',input:{...body,expectedVersion:99},code:'CONFLICT',sql:'23514',detail:'version-commerce_orders'},
+  {name:'party before stale',input:{...body,expectedVersion:99,partyId:`missing-${key()}`},code:'CONFLICT',sql:'23514',detail:'party'},
+  {name:'product before stale',input:{...body,expectedVersion:99,lines:[{...body.lines[0],productId:`missing-${key()}`}]},code:'PRODUCT_INVALID'},
+  {name:'duplicate Money before stale',input:{...body,expectedVersion:1},code:'CONFLICT',sql:'23505',detail:'money_transaction_snapshots'},
+ ] as const;
+ for(const item of cases){
+  const command=key();let failure:unknown;try{await saveOrder(f.owner,id,orderSchema.parse(item.input),command);}catch(error){failure=error;}
+  expect(failure,item.name).toBeDefined();expect(failure,item.name).toMatchObject({code:item.code});
+  if('sql' in item){const cause=(failure as {cause?:{code?:string;detail?:string;constraint?:string}}).cause;expect(cause?.code,item.name).toBe(item.sql);expect(`${cause?.detail??''} ${cause?.constraint??''}`,item.name).toContain(item.detail);}
+  expect(await getOrder(f.owner,id),item.name).toEqual(before);expect(await money(),item.name).toEqual(moneyBefore);
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(command).first(),`${item.name} ${table}`).toBeNull();
+ }
+});
+
+it('checks sales-versus-quote conversion before a stale transition version',async()=>{
+ const create=async(kind:'quote'|'sales')=>String((await saveOrder(f.owner,null,orderSchema.parse({kind,partyId:customerId,warehouseId,orderDate:'2026-09-02',dueDate:'2026-09-10',lines:[{productId,quantity:'1',price:'120',taxBps:700}]}),key())).id);
+ const sales=await create('sales'),quote=await create('quote');
+ for(const [id,expected] of [[sales,'QUOTE_REQUIRED'],[quote,'CONFLICT']] as const){
+  const before=await getOrder(f.owner,id),command=key();let failure:unknown;try{await transitionOrder(f.owner,id,{action:'convert',expectedVersion:99},command);}catch(error){failure=error;}
+  expect(failure).toMatchObject({status:expected==='QUOTE_REQUIRED'?422:409,code:expected});
+  if(expected==='CONFLICT')expect((failure as {cause?:{detail?:string}}).cause?.detail).toContain('version-commerce_orders');
+  expect(await getOrder(f.owner,id)).toEqual(before);
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(command).first()).toBeNull();
+  expect(await db.prepare('SELECT 1 FROM commerce_orders WHERE source_id=?').bind(id).first()).toBeNull();
+ }
+});
+
+it('retains original Money error precedence for a stale quotation conversion',async()=>{
+ const body=orderSchema.parse({kind:'quote',partyId:customerId,warehouseId,orderDate:'2026-09-02',dueDate:'2026-09-10',lines:[{productId,quantity:'1',price:'120',taxBps:700}]});
+ const original=String((await saveOrder(f.owner,null,body,key())).id);
+ const missingRate=`missing-fx-${key()}`,wrongScale=`wrong-scale-${key()}`;
+ // Historical quoted rows are separate fixtures; no Finance rate or currency
+ // guard is disabled, and the production TS conversion itself is the oracle.
+ for(const [id,currency] of [[missingRate,'NZD'],[wrongScale,'JPY']] as const){
+  await db.prepare("INSERT INTO commerce_orders SELECT (jsonb_populate_record(NULL::commerce_orders,to_jsonb(o)||jsonb_build_object('id',?::text,'number',?::text,'currency',?::text))).* FROM commerce_orders o WHERE o.id=? AND o.company_id=?").bind(id,id,currency,original,f.company).run();
+ }
+ expect(Number((await db.prepare("SELECT count(*) AS n FROM company_fx_rates WHERE company_id=? AND currency='NZD'").bind(f.company).first<{n:number}>())?.n)).toBe(0);
+ const money=async()=> (await db.prepare("SELECT to_jsonb(m)::text AS value FROM money_transaction_snapshots m WHERE company_id=? ORDER BY source_type,source_id,amount_kind").bind(f.company).all<{value:string}>()).results;
+ const beforeMoney=await money();
+ for(const [id,code,status] of [[original,'CONFLICT',409],[missingRate,'MANUAL_RATE_REQUIRED',422],[wrongScale,'CURRENCY_SCALE_MISMATCH',422]] as const){
+  const before=await getOrder(f.owner,id),command=key();let failure:unknown;
+  try{await transitionOrder(f.owner,id,{action:'convert',expectedVersion:99},command);}catch(error){failure=error;}
+  expect(failure,id).toMatchObject({status,code});
+  if(code==='CONFLICT')expect((failure as {cause?:{detail?:string}}).cause?.detail).toContain('version-commerce_orders');
+  expect(await getOrder(f.owner,id)).toEqual(before);expect(await money()).toEqual(beforeMoney);
+  expect(await db.prepare('SELECT 1 FROM commerce_orders WHERE source_id=?').bind(id).first()).toBeNull();
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(command).first(),`${id} ${table}`).toBeNull();
+ }
+});

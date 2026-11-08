@@ -40,12 +40,16 @@ type Error = PgTransactionError<BusinessError>;
 /// serializable connection.
 struct ComposedCommerceOrders<'c> {
     inner: PgCommerceOrders<'c>,
+    prepared_conversion: Option<erpx_server_finance::public::commerce_order_money::PreparedCommerceOrderMoney>,
+    retained_conversion: Option<erpx_server_finance::public::commerce_order_money::RetainedCommerceOrderMoney>,
 }
 
 impl<'c> ComposedCommerceOrders<'c> {
     fn new(connection: &'c mut PgConnection) -> Self {
         Self {
             inner: PgCommerceOrders::new(connection),
+            prepared_conversion: None,
+            retained_conversion: None,
         }
     }
 }
@@ -166,20 +170,47 @@ impl CommerceOrderCommandRepository for ComposedCommerceOrders<'_> {
         })
     }
 
+    fn prepare_converted_order_money<'a>(
+        &'a mut self,
+        actor: &'a CommerceOrderActor,
+        command: &'a TransitionCommand,
+        order: &'a SalesOrderRow,
+        now: TimestampMillis,
+    ) -> CommerceOrderFuture<'a, (), Self::Error> {
+        Box::pin(async move {
+            if self.prepared_conversion.is_some() || self.retained_conversion.is_some() {
+                return Err(erpx_server_commerce::public::order::version_conflict().into());
+            }
+            let total = order.subtotal_minor.checked_add(order.tax_minor)
+                .ok_or_else(erpx_server_commerce::public::order::version_conflict)?;
+            let input = erpx_server_finance::public::commerce_order_money::CommerceOrderMoneyInput {
+                order_id: format!("order-{}", command.key.as_str()),
+                version: 1,
+                transaction_date: order.order_date.clone(),
+                currency: order.currency.clone(),
+                total,
+                lines: Vec::new(),
+            };
+            self.prepared_conversion = Some(
+                erpx_server_finance::public::commerce_order_money::prepare_commerce_order_revision_money(
+                    self.inner.connection(), &actor.company_id, &input, now,
+                ).await?
+            );
+            Ok(())
+        })
+    }
+
     fn snapshot_converted_order_money<'a>(
         &'a mut self,
         converted: &'a ConvertedReadback,
         now: TimestampMillis,
     ) -> CommerceOrderFuture<'a, (), Self::Error> {
-        let connection = self.inner.connection();
         Box::pin(async move {
             let order = &converted.order;
             let total = order
                 .subtotal_minor
                 .checked_add(order.tax_minor)
                 .ok_or_else(erpx_server_commerce::public::order::version_conflict)?;
-            let company = CompanyId::new(&order.company_id)
-                .map_err(|_| erpx_server_commerce::public::order::version_conflict())?;
             let money =
                 erpx_server_finance::public::commerce_order_money::CommerceOrderMoneyInput {
                     order_id: order.id.clone(),
@@ -189,10 +220,13 @@ impl CommerceOrderCommandRepository for ComposedCommerceOrders<'_> {
                     total,
                     lines: Vec::new(),
                 };
-            erpx_server_finance::public::commerce_order_money::snapshot_commerce_order_revision(
-                connection, &company, &money, now,
-            )
-            .await?;
+            let prepared = self.prepared_conversion.take()
+                .ok_or_else(erpx_server_commerce::public::order::version_conflict)?;
+            if prepared.input() != &money || self.retained_conversion.is_some() {
+                return Err(erpx_server_commerce::public::order::version_conflict().into());
+            }
+            let _ = now;
+            self.retained_conversion = Some(prepared.apply(self.inner.connection()).await?);
             Ok(())
         })
     }
@@ -253,9 +287,6 @@ fn request_invalid() -> BusinessError {
 fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
     match error {
         PgTransactionError::Business(error) => error,
-        PgTransactionError::Persistence(error) if matches!(error.sql_state(), Some("23505")) => {
-            erpx_server_commerce::public::order::version_conflict()
-        }
         PgTransactionError::Persistence(_) => unavailable(),
     }
 }
@@ -472,9 +503,7 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
                 proof,
                 self.input(input, true),
                 Self::access(),
-                CommerceSources {
-                    money: action == erpx_server_commerce::public::order::OrderAction::Convert,
-                },
+                CommerceSources { money: matches!(action, erpx_server_commerce::public::order::OrderAction::Convert) },
                 move |connection, current| {
                     let holding = holding.clone();
                     let companies = companies.clone();
@@ -508,6 +537,10 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
                         let receipt =
                             transition_order_guarded(&actor, &command, &mut repository, now)
                                 .await?;
+                        if let Some(effect) = repository.retained_conversion.take() {
+                            sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut *repository.inner.connection()).await?;
+                            effect.require_current(repository.inner.connection()).await?;
+                        }
                         Ok(CommerceOrderHttpResponse {
                             data: receipt.to_wire(),
                             context: context(current),
