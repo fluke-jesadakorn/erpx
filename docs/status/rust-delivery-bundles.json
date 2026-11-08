@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-08T08:44:14+07:00",
+  "updatedAt": "2026-11-08T09:20:33+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 52,
-    "workflowsVerified": 67,
-    "workflowsMerged": 67,
+    "workflowsPartial": 51,
+    "workflowsVerified": 68,
+    "workflowsMerged": 68,
     "ownersComplete": 8,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -3527,15 +3527,15 @@
       "kind": "module",
       "owner": "identity_access",
       "scope": "Assignments",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "identity-access-native-assignments",
         "identity-access-native-assignments-http"
       ],
       "sourceRef": "packages/server-identity_access/src/public/account-access.ts",
-      "gap": "Native assignment rows and revoke are PostgreSQL/HTTP-qualified; grant/proposal, role publication, access reviews, MFA, directory, invitations and composition mount complete; browser remains open."
+      "gap": "Closed for the registered native access-matrix slice. The Identity Access target now mounts for the configured operations Company, the private API boundary admits assignment read/revoke paths, the owner router and native client accept the registered development Holding port, and the client normalizes the native workspace context shape. Browser verified desktop and mobile on /holdings/acme/administration/technology/settings/matrix: the Access matrix renders 64 native assignment rows with current holding-owner context, roles and permissions. Native assignment revoke remains available on its qualified HTTP path; grant/proposal, role publication, access reviews, MFA, directory and invitations remain tracked by their own workflows."
     },
     {
       "id": "identity_access/access-reviews",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-08T08:44:14+07:00",
-    "sourceHead": "f00bd9272",
+    "generatedAt": "2026-11-08T09:20:33+07:00",
+    "sourceHead": "199316f2f",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6478,8 +6478,8 @@
       },
       "identity_access": {
         "workflows": 6,
-        "verified": 0,
-        "partial": 1,
+        "verified": 1,
+        "partial": 0,
         "unstarted": 5,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -8158,6 +8158,21 @@
           "owners": 8,
           "verified": 67,
           "partial": 52,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-08T09:20:33+07:00",
+        "commit": "199316f2f",
+        "bundles": [
+          "native Identity Access matrix browser acceptance"
+        ],
+        "evidence": "browser desktop+mobile access matrix renders 64 native assignment rows with holding-owner context, roles and permissions; native assignments GET mounted 401 unauthenticated; assignment/HTTP Rust tests 8/3, identity transport 7/7; service check/typecheck/structure/health pass; dev fixture added iam module to asg_mali_owner",
+        "counts": {
+          "owners": 8,
+          "verified": 68,
+          "partial": 51,
           "unstarted": 87,
           "total": 206
         }
