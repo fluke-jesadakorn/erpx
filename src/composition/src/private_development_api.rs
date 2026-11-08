@@ -2214,6 +2214,25 @@ async fn assemble_checked(
                         )),
                     )),
                 });
+                procurement_targets.push(
+                erpx_server_procurement::public::supplier_promise_history_http::SupplierPromiseHistoryHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: Arc::new(crate::procurement::ProcurementBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::procurement::ProcurementService::new(
+                            authorizer.clone(),
+                            crate::procurement::ProcurementConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    )),
+                },
+            );
                 customer_360_targets.push(
                     erpx_server_customer_360::public::customer_timeline_http::CustomerTimelineHttpTarget {
                         host: holding.host.clone(),
@@ -2753,25 +2772,6 @@ async fn assemble_checked(
                         )),
                     },
                 );
-                procurement_targets.push(
-                erpx_server_procurement::public::supplier_promise_history_http::SupplierPromiseHistoryHttpTarget {
-                    host: holding.host.clone(),
-                    holding_slug: holding.registration.slug.clone(),
-                    origin: format!("https://{}", holding.host),
-                    backend: Arc::new(crate::procurement::ProcurementBackend::new(
-                        config.policy.clone(),
-                        Arc::new(FinanceJournalReadScopeHeaders),
-                        Arc::new(crate::procurement::ProcurementService::new(
-                            authorizer.clone(),
-                            crate::procurement::ProcurementConfiguration::new(
-                                holding.registration.holding_id.clone(),
-                                company.clone(),
-                            ),
-                            Arc::new(SharedClock(clock.clone())),
-                        )),
-                    )),
-                },
-            );
                 #[cfg(feature = "existing-business")]
                 let projects_backend = Arc::new(crate::projects::ProjectsBackend::new(
                     config.policy.clone(),
@@ -6956,6 +6956,21 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         }
         _ => false,
     };
+    let procurement = request.method() == axum::http::Method::GET
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            ["", "api", "v1", "holdings", _, "procurement", "purchase-orders", order_id, "supplier-promises"]
+                if !order_id.is_empty() =>
+            {
+                state.policy.audience(host).is_some()
+            }
+            _ => false,
+        };
     let manufacturing = request.method() == axum::http::Method::GET
         && match request
             .uri()
@@ -7043,6 +7058,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || customer_timeline
         || planning
         || manufacturing
+        || procurement
         || customer_access
         || service_packages
         || field_work_roles
