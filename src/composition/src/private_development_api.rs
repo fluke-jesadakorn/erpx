@@ -2350,6 +2350,37 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                #[cfg(feature = "existing-business")]
+                {
+                    let benefits_backend = Arc::new(crate::benefits::BenefitsBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::benefits::BenefitsService::new(
+                            authorizer.clone(),
+                            crate::benefits::BenefitsConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    ));
+                    benefits_targets.push(
+                        erpx_server_benefits::public::workspace_http::BenefitsWorkspaceHttpTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: format!("https://{}", holding.host),
+                            backend: benefits_backend.clone(),
+                        },
+                    );
+                    benefits_command_targets.push(
+                        erpx_server_benefits::public::command_http::BenefitsCommandHttpTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: format!("https://{}", holding.host),
+                            backend: benefits_backend,
+                        },
+                    );
+                }
                 customer_360_targets.push(
                     erpx_server_customer_360::public::customer_timeline_http::CustomerTimelineHttpTarget {
                         host: holding.host.clone(),
@@ -2680,37 +2711,6 @@ async fn assemble_checked(
                                     Arc::new(SharedClock(clock.clone())),
                                 )),
                             )),
-                        },
-                    );
-                }
-                #[cfg(feature = "existing-business")]
-                {
-                    let benefits_backend = Arc::new(crate::benefits::BenefitsBackend::new(
-                        config.policy.clone(),
-                        Arc::new(FinanceJournalReadScopeHeaders),
-                        Arc::new(crate::benefits::BenefitsService::new(
-                            authorizer.clone(),
-                            crate::benefits::BenefitsConfiguration::new(
-                                holding.registration.holding_id.clone(),
-                                company.clone(),
-                            ),
-                            Arc::new(SharedClock(clock.clone())),
-                        )),
-                    ));
-                    benefits_targets.push(
-                        erpx_server_benefits::public::workspace_http::BenefitsWorkspaceHttpTarget {
-                            host: holding.host.clone(),
-                            holding_slug: holding.registration.slug.clone(),
-                            origin: format!("https://{}", holding.host),
-                            backend: benefits_backend.clone(),
-                        },
-                    );
-                    benefits_command_targets.push(
-                        erpx_server_benefits::public::command_http::BenefitsCommandHttpTarget {
-                            host: holding.host.clone(),
-                            holding_slug: holding.registration.slug.clone(),
-                            origin: format!("https://{}", holding.host),
-                            backend: benefits_backend,
                         },
                     );
                 }
@@ -6975,6 +6975,21 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             }
             _ => false,
         };
+    let benefits = matches!(
+        *request.method(),
+        axum::http::Method::GET | axum::http::Method::POST
+    ) && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            ["", "api", "v1", "holdings", _, "benefits"] => {
+                state.policy.audience(host).is_some()
+            }
+            _ => false,
+        };
     let talent = match (
         request.method(),
         request
@@ -7133,6 +7148,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || identity_access
         || projects
         || talent
+        || benefits
         || customer_access
         || service_packages
         || field_work_roles

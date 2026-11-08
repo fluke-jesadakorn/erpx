@@ -29,7 +29,7 @@ export type NativeBenefitsConfiguration = Readonly<{
 }>;
 
 type Row = Record<string, unknown>;
-type Context = Row & { modules: string[]; permissions: string[]; workContext: string };
+type Context = Row & { modules: string[]; permissions: string[] };
 
 export type NativeBenefitsReadInput = Readonly<{
   holdingSlug: string;
@@ -390,7 +390,7 @@ function pageData(value: unknown, ctx: NativeBenefitsPageContext, context: Conte
   if (
     !exact(value, [
       'actorId', 'canWrite', 'canReview', 'canManageDocuments', 'plans', 'windows',
-      'dependents', 'elections', 'purchase',
+      'dependents', 'elections', 'purchase', 'workContext',
     ]) ||
     value.actorId !== ctx.userId ||
     value.canWrite !== (ctx.iam?.permissions ?? []).includes('records.write') ||
@@ -400,7 +400,10 @@ function pageData(value: unknown, ctx: NativeBenefitsPageContext, context: Conte
     !Array.isArray(value.plans) ||
     !Array.isArray(value.windows) ||
     !Array.isArray(value.dependents) ||
-    !Array.isArray(value.elections)
+    !Array.isArray(value.elections) ||
+    typeof value.workContext !== 'string' ||
+    value.workContext.length !== WORK_CONTEXT_LIMIT ||
+    !/^[a-f0-9]+$/.test(value.workContext)
   )
     return failure('NATIVE_BENEFITS_RESPONSE_INVALID');
   if (
@@ -423,15 +426,16 @@ function pageData(value: unknown, ctx: NativeBenefitsPageContext, context: Conte
     !unique(value.windows as NativeBenefitWindow[]) ||
     !unique(value.dependents as NativeBenefitDependent[]) ||
     !unique(value.elections as NativeBenefitElection[])
-  )
+  ) {
     return failure('NATIVE_BENEFITS_RESPONSE_INVALID');
+  }
   const controls = purchase(value.purchase);
   return {
     actorId: ctx.userId,
     canWrite: value.canWrite as boolean,
     canReview: value.canReview as boolean,
     canManageDocuments: value.canManageDocuments as boolean,
-    workContext: context.workContext,
+    workContext: value.workContext as string,
     plans: value.plans as NativeBenefitPlan[],
     windows: value.windows as NativeBenefitWindow[],
     dependents: value.dependents as NativeBenefitDependent[],
@@ -449,7 +453,7 @@ function context(
     !exact(value, [
       'userId', 'holdingId', 'companyId', 'branchId', 'departmentId', 'branchSlug',
       'departmentSlug', 'assignmentId', 'assignmentVersion', 'revision', 'role',
-      'assignmentScopeKind', 'modules', 'permissions', 'expiresAt', 'workContext',
+      'assignmentScopeKind', 'modules', 'permissions', 'expiresAt',
     ])
   )
     return failure('NATIVE_BENEFITS_RESPONSE_INVALID');
@@ -471,10 +475,7 @@ function context(
     !texts(parsed.modules) ||
     !sameSet(actor.modules, parsed.modules) ||
     !texts(parsed.permissions) ||
-    !sameSet(actor.iam?.permissions ?? [], parsed.permissions) ||
-    typeof parsed.workContext !== 'string' ||
-    parsed.workContext.length !== WORK_CONTEXT_LIMIT ||
-    !/^[a-f0-9]+$/.test(parsed.workContext)
+    !sameSet(actor.iam?.permissions ?? [], parsed.permissions)
   )
     return failure('NATIVE_BENEFITS_CONTEXT_CHANGED');
   if (
@@ -524,7 +525,6 @@ function configuration(raw: NativeBenefitsConfiguration) {
     if (
       origin.protocol !== 'https:' ||
       holding.origin !== origin.origin ||
-      origin.port ||
       origin.username ||
       origin.password ||
       !identifier(holding.holdingId) ||

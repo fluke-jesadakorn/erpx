@@ -29,7 +29,7 @@ const context={userId:'user',holdingId:'h001',companyId:'company',branchId:null,
   departmentId:null,branchSlug:null,departmentSlug:null,assignmentId:'assignment',
   assignmentVersion:3,revision:7,role:'owner',assignmentScopeKind:'holding',
   modules:['benefits'],permissions:['records.read','records.write'],
-  expiresAt:9_007_199_254_740_991,workContext:'a'.repeat(64)};
+  expiresAt:9_007_199_254_740_991};
 const plan={
   id:'plan-family',company_id:'company',name:'Family medical plan',provider:'Synthetic provider',
   coverage_type:'family',currency:'THB',employee_deduction_minor:12550,
@@ -57,6 +57,7 @@ const electionRow={
 };
 const data=(overrides:Record<string,unknown>={})=>({
   actorId:'user',canWrite:true,canReview:false,canManageDocuments:false,
+  workContext:'a'.repeat(64),
   plans:[plan],windows:[windowRow],dependents:[dependentRow],elections:[electionRow],
   purchase:null,...overrides,
 });
@@ -96,7 +97,7 @@ describe('native Benefits workspace transport',()=>{
   const result=await client.workspace(incoming(),actor,input);
   expect(result).toMatchObject({
     actorId:'user',canWrite:true,canReview:false,canManageDocuments:false,
-    workContext:context.workContext,plans:[plan],windows:[windowRow],
+    workContext:'a'.repeat(64),plans:[plan],windows:[windowRow],
     dependents:[dependentRow],elections:[electionRow],
   });
   expect(result.purchase).toBeUndefined();
@@ -211,7 +212,7 @@ describe('native Benefits workspace transport',()=>{
     .workspace(incoming(),actor,input)).rejects.toMatchObject({code:'NATIVE_BENEFITS_RESPONSE_INVALID'});
   await expect(client(page({}, {companyId:'foreign'}))
     .workspace(incoming(),actor,input)).rejects.toMatchObject({code:'NATIVE_BENEFITS_CONTEXT_CHANGED'});
-  await expect(client(page({}, {workContext:'x'}))
+  await expect(client(page({}, {assignmentVersion:9}))
     .workspace(incoming(),actor,input)).rejects.toMatchObject({code:'NATIVE_BENEFITS_CONTEXT_CHANGED'});
   await expect(client(page({}, {permissions:['records.read']}))
     .workspace(incoming(),actor,input)).rejects.toMatchObject({code:'NATIVE_BENEFITS_CONTEXT_CHANGED'});
@@ -279,11 +280,13 @@ describe('native Benefits workspace transport',()=>{
   }
   for(const holdings of [
     [{origin:'http://acme.example.com',holdingSlug:'acme',holdingId:'h001'}],
-    [{origin:'https://acme.example.com:8443',holdingSlug:'acme',holdingId:'h001'}],
     [{origin:'https://acme.example.com',holdingSlug:'Acme',holdingId:'h001'}],
   ]) {
     expect(()=>createNativeBenefitsClient(nativeBenefitsConfiguration(config({holdings})),vi.fn())).toThrow();
   }
+  expect(()=>createNativeBenefitsClient(nativeBenefitsConfiguration(config({
+    holdings:[{origin:'https://acme.example.com:8443',holdingSlug:'acme',holdingId:'h001'}],
+  })),vi.fn())).not.toThrow();
   expect(()=>nativeBenefitsConfiguration('{not-json')).toThrow();
   expect(()=>nativeBenefitsConfiguration(config({timeoutMs:249}))).not.toThrow();
   expect(()=>createNativeBenefitsClient(nativeBenefitsConfiguration(config({timeoutMs:249})),vi.fn())).toThrow();

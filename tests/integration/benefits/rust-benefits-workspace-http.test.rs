@@ -142,6 +142,13 @@ fn target_configuration_requires_distinct_exact_holdings() {
             origin: "https://acme.example.test:8443".into(),
             ..target()
         }])
+        .is_ok()
+    );
+    assert!(
+        benefits_workspace_http_router(vec![BenefitsWorkspaceHttpTarget {
+            origin: "https://acme.example.test:0".into(),
+            ..target()
+        }])
         .is_err()
     );
 }
