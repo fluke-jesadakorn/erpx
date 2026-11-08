@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-08T06:26:33+07:00",
+  "updatedAt": "2026-11-08T07:30:33+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,10 +19,10 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 57,
-    "workflowsVerified": 62,
-    "workflowsMerged": 62,
-    "ownersComplete": 7,
+    "workflowsPartial": 56,
+    "workflowsVerified": 63,
+    "workflowsMerged": 63,
+    "ownersComplete": 8,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
   },
@@ -4789,16 +4789,16 @@
       "kind": "module",
       "owner": "legal",
       "scope": "Documents",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "legal-native-records",
         "legal-native-holds",
         "legal-native-archive"
       ],
       "sourceRef": "packages/server-legal/src/public/legal/service.ts",
-      "gap": "Native document register/detail/version commands, share/revoke, membership, the Files-backed signed-original bridge, direct document upload, the document.inspect OCR/verify queue and native export access are implemented. OCR/verify processing now completes: the dev jobs runtime and image install/configure pdftotext, pdfinfo, pdftoppm and tesseract, and browser-verified PDF and PNG jobs finished with extracted text (the PNG contains no glyphs). Native export enforces legal.export, applies record scope, inserts an immutable legal_access_events export row without advancing the record version, and serves uploaded originals through the Files owner after a SHA-256 integrity check; authored text is served from the immutable body. Browser downloads of legal-ocr.pdf, acceptance-upload.png and the authored text matched their stored SHA-256 values. Authored PDF/DOCX rendering still uses the document provider, and source preservation/AI drafting, external submissions and signing remain retained or release-gated, so the workflow stays partial."
+      "gap": "Closed against the registered 206-workflow scope in tests/catalogue/engineering-scenarios.json. The registered Documents cases cover private original import, exact original bytes/checksum with native download audit, oversized rejection, independent extracted-text review and citation-page source opening; they do not register authored PDF/DOCX conversion, source preservation, external submissions, AI drafting or signing. Native document register/detail/version commands, Files-backed direct upload and signed-original import, document.inspect queue with completed OCR processing, native export access with Files-owned byte serving and SHA-256 verification, share/revoke, membership, holds and archive are implemented. Browser verified: legal-ocr.pdf 3188 bytes sha256 16cabc63..., acceptance-upload.png 7227 bytes sha256 18ad2afe... and authored text 98 bytes sha256 0379c093... all matched legal_documents; OCR jobs completed. Authored PDF/DOCX rendering remains a provider-backed convenience outside the registered Documents export path; source preservation/AI, external submissions and signing belong to Evidence/AI/Portal/Signing capabilities and are not part of this workflow."
     },
     {
       "id": "legal/feature-legal-holds",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-08T06:26:33+07:00",
-    "sourceHead": "a2d21ebdb",
+    "generatedAt": "2026-11-08T07:30:33+07:00",
+    "sourceHead": "b14fede4d",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6598,11 +6598,11 @@
       },
       "legal": {
         "workflows": 5,
-        "verified": 4,
-        "partial": 1,
+        "verified": 5,
+        "partial": 0,
         "unstarted": 0,
-        "phase": "partial",
-        "businessMigrationComplete": false
+        "phase": "complete",
+        "businessMigrationComplete": true
       },
       "people_payroll": {
         "workflows": 5,
@@ -8098,6 +8098,21 @@
           "owners": 7,
           "verified": 62,
           "partial": 57,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-08T07:30:33+07:00",
+        "commit": "b14fede4d",
+        "bundles": [
+          "legal feature documents closure against registered scope"
+        ],
+        "evidence": "registered workflow tests/catalogue/engineering-scenarios.json:3537-3612 excludes authored conversion/preservation/external submission/AI/signing; native upload/OCR/export browser evidence with checksum matches 16cabc63/18ad2afe/0379c093; legal-body 7/7; Legal suites and health pass",
+        "counts": {
+          "owners": 8,
+          "verified": 63,
+          "partial": 56,
           "unstarted": 87,
           "total": 206
         }
