@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-08T09:20:33+07:00",
+  "updatedAt": "2026-11-08T20:58:49+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 51,
-    "workflowsVerified": 68,
-    "workflowsMerged": 68,
+    "workflowsPartial": 49,
+    "workflowsVerified": 70,
+    "workflowsMerged": 70,
     "ownersComplete": 8,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -5200,9 +5200,9 @@
       "kind": "module",
       "owner": "projects",
       "scope": "Dependencies",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "projects-native-wbs",
         "projects-native-graph",
@@ -5210,16 +5210,16 @@
         "projects-native-graph-http"
       ],
       "sourceRef": "packages/server-operations/src/public/staff-tasks.ts",
-      "gap": "Native WBS detail/dependency reads, graph read and milestone command slices are PostgreSQL/HTTP-qualified; project graph/tasks/actuals/handoffs, attachments, purchases and composition mount complete; browser remains open."
+      "gap": "Closed for the registered native WBS/milestone/dependency slice. The Projects WBS/graph/command targets now mount for the configured operations Company, the private API boundary admits the WBS and graph GET paths, and the owner routers and native client accept the registered development Holding port. A standalone native WBS page at /holdings/{holding}/projects-routines/projects/{id}/wbs renders the native register without the record drawer, which stays open as separate Projects UI work. Browser verified desktop and mobile on project-acceptance-1: \"Native WBS register\", Move furniture (in_progress) and Hand over old floor (planned) with the dependency rendered as \"after Move furniture\" from the native Projects owner. Project tasks/actuals/handoffs, attachments and purchases remain tracked by their own workflows."
     },
     {
       "id": "projects/feature-projects-wbs",
       "kind": "module",
       "owner": "projects",
       "scope": "Projects & WBS",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "projects-native-wbs-read",
         "projects-native-graph",
@@ -5227,7 +5227,7 @@
         "projects-native-graph-http"
       ],
       "sourceRef": "packages/server-operations/src/public/staff-tasks.ts",
-      "gap": "Native WBS detail/dependency reads, graph read and milestone command slices are PostgreSQL/HTTP-qualified; project graph/tasks/actuals/handoffs, attachments, purchases and composition mount complete; browser remains open."
+      "gap": "Closed for the registered native WBS/milestone/dependency slice. The Projects WBS/graph/command targets now mount for the configured operations Company, the private API boundary admits the WBS and graph GET paths, and the owner routers and native client accept the registered development Holding port. A standalone native WBS page at /holdings/{holding}/projects-routines/projects/{id}/wbs renders the native register without the record drawer, which stays open as separate Projects UI work. Browser verified desktop and mobile on project-acceptance-1: \"Native WBS register\", Move furniture (in_progress) and Hand over old floor (planned) with the dependency rendered as \"after Move furniture\" from the native Projects owner. Project tasks/actuals/handoffs, attachments and purchases remain tracked by their own workflows."
     },
     {
       "id": "projects/feature-handoffs",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-08T09:20:33+07:00",
-    "sourceHead": "199316f2f",
+    "generatedAt": "2026-11-08T20:58:49+07:00",
+    "sourceHead": "87fc7a00f",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6646,8 +6646,8 @@
       },
       "projects": {
         "workflows": 6,
-        "verified": 0,
-        "partial": 2,
+        "verified": 2,
+        "partial": 0,
         "unstarted": 4,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -8173,6 +8173,21 @@
           "owners": 8,
           "verified": 68,
           "partial": 51,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-08T20:58:49+07:00",
+        "commit": "87fc7a00f",
+        "bundles": [
+          "native Projects WBS register browser acceptance"
+        ],
+        "evidence": "browser desktop+mobile /projects/projects/project-acceptance-1/wbs?company=acme-co shows Native WBS register, Move furniture in_progress, Hand over old floor planned with dependency \"after Move furniture\"; native WBS/graph routes mounted (401 unauthenticated); projects suites 8/11/7/11/3/6 pass; service check/typecheck/structure/transport 8/8 pass; dev fixtures projects grant, staff_projects, milestones m1->m2 dependency",
+        "counts": {
+          "owners": 8,
+          "verified": 70,
+          "partial": 49,
           "unstarted": 87,
           "total": 206
         }
