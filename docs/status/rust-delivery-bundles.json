@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T01:20:00+07:00",
+  "updatedAt": "2026-11-09T01:45:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -4300,7 +4300,7 @@
         "assets-native-transport"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Native HTTP/SSR/Next transport and the five owner workflows are implemented and owner-qualified; shared composition is mounted with a fail-closed positive-cost Finance handoff. Authenticated browser journeys and the native Finance acquisition-cost snapshot remain open."
+      "gap": "Native HTTP/SSR/Next transport and the five owner workflows are implemented and owner-qualified; shared composition now writes the acquisition-cost snapshot through the Finance-owned asset_acquisition_money public port on the same serializable Asset unit, with exact acquired-date scale/USD quote, receipt bounds and rollback. Authenticated browser journeys remain open on the keyed work-role blocker."
     },
     {
       "id": "assets/condition",
@@ -4317,7 +4317,7 @@
         "assets-native-transport"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Native HTTP/SSR/Next transport and the five owner workflows are implemented and owner-qualified; shared composition is mounted with a fail-closed positive-cost Finance handoff. Authenticated browser journeys and the native Finance acquisition-cost snapshot remain open."
+      "gap": "Native HTTP/SSR/Next transport and the five owner workflows are implemented and owner-qualified; shared composition now writes the acquisition-cost snapshot through the Finance-owned asset_acquisition_money public port on the same serializable Asset unit, with exact acquired-date scale/USD quote, receipt bounds and rollback. Authenticated browser journeys remain open on the keyed work-role blocker."
     },
     {
       "id": "assets/feature-placement",
@@ -4334,7 +4334,7 @@
         "assets-native-transport"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Native HTTP/SSR/Next transport and the five owner workflows are implemented and owner-qualified; shared composition is mounted with a fail-closed positive-cost Finance handoff. Authenticated browser journeys and the native Finance acquisition-cost snapshot remain open."
+      "gap": "Native HTTP/SSR/Next transport and the five owner workflows are implemented and owner-qualified; shared composition now writes the acquisition-cost snapshot through the Finance-owned asset_acquisition_money public port on the same serializable Asset unit, with exact acquired-date scale/USD quote, receipt bounds and rollback. Authenticated browser journeys remain open on the keyed work-role blocker."
     },
     {
       "id": "assets/feature-maintenance-lifecycle",
@@ -4351,7 +4351,7 @@
         "assets-native-transport"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Native HTTP/SSR/Next transport and the five owner workflows are implemented and owner-qualified; shared composition is mounted with a fail-closed positive-cost Finance handoff. Authenticated browser journeys and the native Finance acquisition-cost snapshot remain open."
+      "gap": "Native HTTP/SSR/Next transport and the five owner workflows are implemented and owner-qualified; shared composition now writes the acquisition-cost snapshot through the Finance-owned asset_acquisition_money public port on the same serializable Asset unit, with exact acquired-date scale/USD quote, receipt bounds and rollback. Authenticated browser journeys remain open on the keyed work-role blocker."
     },
     {
       "id": "assets/feature-retirement",
@@ -4368,7 +4368,7 @@
         "assets-native-transport"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Native HTTP/SSR/Next transport and the five owner workflows are implemented and owner-qualified; shared composition is mounted with a fail-closed positive-cost Finance handoff. Authenticated browser journeys and the native Finance acquisition-cost snapshot remain open."
+      "gap": "Native HTTP/SSR/Next transport and the five owner workflows are implemented and owner-qualified; shared composition now writes the acquisition-cost snapshot through the Finance-owned asset_acquisition_money public port on the same serializable Asset unit, with exact acquired-date scale/USD quote, receipt bounds and rollback. Authenticated browser journeys remain open on the keyed work-role blocker."
     },
     {
       "id": "inventory/availability",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-09T01:20:00+07:00",
-    "sourceHead": "80214487b",
+    "generatedAt": "2026-11-09T01:45:00+07:00",
+    "sourceHead": "43d281740",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -8326,6 +8326,21 @@
           "native Commerce draft quotation/sales-order create and update"
         ],
         "evidence": "erpx-server-commerce 57/57 Rust tests (new create/update, price-list, CAS, replay, guard and rollback cases); registered sales-pricing 16/16; native transport 7/7; workspace check, clippy, rustfmt, tsc and eslint pass; keyed container native API rebuilt and gateway restarted, but authenticated Commerce save browser acceptance remains blocked by the work-role chooser; counts unchanged",
+        "counts": {
+          "owners": 8,
+          "verified": 83,
+          "partial": 36,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-09T01:45:00+07:00",
+        "commit": "43d281740",
+        "bundles": [
+          "native Assets Finance acquisition-cost snapshot handoff"
+        ],
+        "evidence": "composition FinanceAssetCost now calls the Finance-owned lock/prepare/persist public port on the serializable Asset unit; new composition PostgreSQL test proves exact acquired-date/scale/rate snapshot and rollback; actor-subject Asset HTTP 5/5 remains green; Assets browser confirmation stays blocked by the keyed work-role chooser; counts unchanged",
         "counts": {
           "owners": 8,
           "verified": 83,
