@@ -157,13 +157,20 @@ pub trait CommerceOrderCommandRepository: Send {
     }
 
     /// Finance-owned order-revision Money for the sales order created by a
-    /// quotation conversion. The default keeps retained callers owner-local.
+    /// quotation conversion. A repository without this port must fail closed.
     fn snapshot_converted_order_money<'a>(
         &'a mut self,
         _converted: &'a ConvertedReadback,
         _now: TimestampMillis,
     ) -> CommerceOrderFuture<'a, (), Self::Error> {
-        Box::pin(async { Ok(()) })
+        Box::pin(async {
+            Err(BusinessError::new(
+                erpx_server_shared::public::FailureKind::Unavailable,
+                "COMMERCE_CONVERSION_MONEY_REQUIRED",
+                "The Finance conversion Money source is unavailable.",
+            )
+            .into())
+        })
     }
 
     fn insert_receipt<'a>(

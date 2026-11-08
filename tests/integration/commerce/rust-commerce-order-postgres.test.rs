@@ -2004,3 +2004,26 @@ async fn transaction_and_serializable_guards_fail_closed() {
     })
     .await;
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn native_conversion_without_finance_money_port_fails_and_rolls_back() {
+    use erpx_server_commerce::public::order::transition_order_guarded;
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        let key = "commerce-conversion-missing-finance-0001";
+        let before: (String, i64) = sqlx::query_as("SELECT state,version FROM commerce_orders WHERE id='quote-confirmed'").fetch_one(pool.raw()).await.unwrap();
+        let before_lines: Vec<(String,i64,i64)> = sqlx::query_as("SELECT id,subtotal_minor,tax_minor FROM commerce_order_lines WHERE order_id='quote-confirmed' ORDER BY ordinal").fetch_all(pool.raw()).await.unwrap();
+        let command = command("quote-confirmed", OrderAction::Convert, 3, key);
+        let result = PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+            let command=command.clone();
+            Box::pin(async move {
+                let mut repository=PgCommerceOrders::new(connection);
+                transition_order_guarded(&creator(),&command,&mut repository,TimestampMillis::new(NOW)).await
+            })
+        }).await;
+        assert_eq!(business(result.unwrap_err()).code,"COMMERCE_CONVERSION_MONEY_REQUIRED");
+        let after:(String,i64)=sqlx::query_as("SELECT state,version FROM commerce_orders WHERE id='quote-confirmed'").fetch_one(pool.raw()).await.unwrap();assert_eq!(after,before);
+        let after_lines:Vec<(String,i64,i64)>=sqlx::query_as("SELECT id,subtotal_minor,tax_minor FROM commerce_order_lines WHERE order_id='quote-confirmed' ORDER BY ordinal").fetch_all(pool.raw()).await.unwrap();assert_eq!(after_lines,before_lines);
+        let effects:(i64,i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM commerce_orders WHERE source_id='quote-confirmed'),(SELECT count(*) FROM command_receipts WHERE command_id=$1),(SELECT count(*) FROM audit_events WHERE command_id=$1),(SELECT count(*) FROM outbox_events WHERE command_id=$1),(SELECT count(*) FROM money_transaction_snapshots WHERE source_id LIKE 'order-commerce-conversion-missing-finance-0001%')").bind(key).fetch_one(pool.raw()).await.unwrap();assert_eq!(effects,(0,0,0,0,0));
+    }).await;
+}
