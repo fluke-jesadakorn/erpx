@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-08T08:28:58+07:00",
+  "updatedAt": "2026-11-08T08:44:14+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 54,
-    "workflowsVerified": 65,
-    "workflowsMerged": 65,
+    "workflowsPartial": 52,
+    "workflowsVerified": 67,
+    "workflowsMerged": 67,
     "ownersComplete": 8,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -5298,30 +5298,30 @@
       "kind": "module",
       "owner": "ecommerce",
       "scope": "Channels",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "ecommerce-native-catalog",
         "ecommerce-native-channel-commands"
       ],
       "sourceRef": "packages/server-ecommerce/src/public/ecommerce.ts",
-      "gap": "Native catalog read and channel draft/review commands are PostgreSQL/HTTP-qualified; listing create, carts, checkout, fulfillment, returns and composition mount complete; browser remains open."
+      "gap": "Closed for the registered native storefront catalog read/browser slice. The Ecommerce target now mounts for the configured operations Company, the owner router and native client accept the registered development Holding port, the private API boundary admits the catalog GET path, and the page renders the native listing register alongside channels. Browser verified desktop and mobile at /sales/ecommerce?company=acme-co: Channels shows Acme online store (active) and Listings shows Adjustable office desk 120 cm (published) from the native catalog. Channel draft/review and listing create/review commands remain qualified on their existing paths; the retained client console is not claimed as fully native."
     },
     {
       "id": "ecommerce/listings",
       "kind": "module",
       "owner": "ecommerce",
       "scope": "Listings",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "ecommerce-native-catalog",
         "ecommerce-native-channel-commands"
       ],
       "sourceRef": "packages/server-ecommerce/src/public/ecommerce.ts",
-      "gap": "Native catalog read and channel draft/review commands are PostgreSQL/HTTP-qualified; listing create, carts, checkout, fulfillment, returns and composition mount complete; browser remains open."
+      "gap": "Closed for the registered native storefront catalog read/browser slice. The Ecommerce target now mounts for the configured operations Company, the owner router and native client accept the registered development Holding port, the private API boundary admits the catalog GET path, and the page renders the native listing register alongside channels. Browser verified desktop and mobile at /sales/ecommerce?company=acme-co: Channels shows Acme online store (active) and Listings shows Adjustable office desk 120 cm (published) from the native catalog. Channel draft/review and listing create/review commands remain qualified on their existing paths; the retained client console is not claimed as fully native."
     },
     {
       "id": "ecommerce/returns",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-08T08:28:58+07:00",
-    "sourceHead": "c6f92f5ba",
+    "generatedAt": "2026-11-08T08:44:14+07:00",
+    "sourceHead": "f00bd9272",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6654,8 +6654,8 @@
       },
       "ecommerce": {
         "workflows": 6,
-        "verified": 0,
-        "partial": 2,
+        "verified": 2,
+        "partial": 0,
         "unstarted": 4,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -8143,6 +8143,21 @@
           "owners": 8,
           "verified": 65,
           "partial": 54,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-08T08:44:14+07:00",
+        "commit": "f00bd9272",
+        "bundles": [
+          "native Ecommerce storefront catalog browser acceptance"
+        ],
+        "evidence": "browser desktop+mobile /sales/ecommerce?company=acme-co Channels Acme online store active + Listings Adjustable office desk 120 cm published; native GET catalog mounted 401 unauthenticated and page readback uses native channels/listings; ecommerce suites 13/6/5 pass; service check/typecheck/transport 8/8/structure/health pass; dev fixtures sales-ecommerce grant + channel/listing",
+        "counts": {
+          "owners": 8,
+          "verified": 67,
+          "partial": 52,
           "unstarted": 87,
           "total": 206
         }
