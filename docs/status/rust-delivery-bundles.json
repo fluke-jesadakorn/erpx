@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-08T07:55:38+07:00",
+  "updatedAt": "2026-11-08T08:28:58+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 55,
-    "workflowsVerified": 64,
-    "workflowsMerged": 64,
+    "workflowsPartial": 54,
+    "workflowsVerified": 65,
+    "workflowsMerged": 65,
     "ownersComplete": 8,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -4695,14 +4695,14 @@
       "kind": "module",
       "owner": "procurement",
       "scope": "Supplier history",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "procurement-native-supplier-promises"
       ],
       "sourceRef": "packages/server-procurement/src/public/supplier-promises.ts",
-      "gap": "Native supplier-promise history and open-delivery read/HTTP/SSR are qualified; supplier-promise commands, RFQ/PO/receipt writers and composition mount complete; browser remains open."
+      "gap": "Closed for the registered native supplier-promise history read slice. The Procurement target now mounts for the configured operations Company, the owner router and native client accept the registered development Holding port, and the private API boundary admits the supplier-promises GET path. Browser verified desktop and mobile on purchase order PO-SP-1: the native history renders supplier reference SUP-SP-1, the two promised lines dated 2026-11-20 and 2026-11-22, and the immutable confirmation history recorded against PO version 1. Supplier-promise command writing, RFQ/PO/receipt writers remain retained and are tracked by their own workflows; this closure covers the registered history read slice."
     },
     {
       "id": "quality/inspections",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-08T07:55:38+07:00",
-    "sourceHead": "5554729bd",
+    "generatedAt": "2026-11-08T08:28:58+07:00",
+    "sourceHead": "c6f92f5ba",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6582,8 +6582,8 @@
       },
       "procurement": {
         "workflows": 5,
-        "verified": 0,
-        "partial": 1,
+        "verified": 1,
+        "partial": 0,
         "unstarted": 4,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -8128,6 +8128,21 @@
           "owners": 8,
           "verified": 64,
           "partial": 55,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-08T08:28:58+07:00",
+        "commit": "c6f92f5ba",
+        "bundles": [
+          "native Procurement supplier promise history browser acceptance"
+        ],
+        "evidence": "browser desktop+mobile /supply/purchasing/orders/po-supplier-promise-acceptance-1/overview shows Supplier delivery confirmations, SUP-SP-1, promised dates 2026-11-20 and 2026-11-22 and immutable history; native GET route mounted (401 unauthenticated); procurement suites 8/9/9/3/4 pass; service check/typecheck/structure/health pass",
+        "counts": {
+          "owners": 8,
+          "verified": 65,
+          "partial": 54,
           "unstarted": 87,
           "total": 206
         }
