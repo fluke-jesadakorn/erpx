@@ -6,7 +6,8 @@ pub use crate::application::fulfillment::{
 pub use crate::application::order::{
     AuditEntry, CommerceOrderCommandRepository, CommerceOrderFuture, CommerceOrderReadRepository,
     CommerceOrderSaveRepository, OutboxEntry, ReceiptEntry, SaveOrderOutcome, order_detail,
-    save_order, save_order_outcome, transition_order, transition_order_guarded,
+    save_order, save_order_outcome, save_order_outcome_native, transition_order,
+    transition_order_guarded,
 };
 pub use crate::domain::fulfillment::{
     ServiceCompletionCommand, ServiceCompletionLineInput, ServiceCompletionPlan,

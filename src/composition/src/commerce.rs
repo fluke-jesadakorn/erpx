@@ -5,10 +5,11 @@ use crate::business_http::BusinessScopeSlugs;
 use erpx_server_commerce::public::order::PgCommerceOrders;
 use erpx_server_commerce::public::order::{
     AuditEntry, CommerceFulfillmentRepository, CommerceOrderActor, CommerceOrderCommandRepository,
-    CommerceOrderFuture, ConvertedReadback, OrderCommandReceipt, OutboxEntry, ReceiptEntry,
-    SalesOrderLineRow, SalesOrderRow, SaveOrderCommand, SaveOrderInput, ServiceCompletionCommand,
-    ServiceCompletionLineInput, TransitionCommand, TransitionPlan, fulfill_service_order,
-    order_detail, save_order_outcome, transition_order_guarded,
+    CommerceOrderFuture, CommerceOrderSaveRepository, ConvertedReadback, OrderCommandReceipt,
+    OutboxEntry, ReceiptEntry, SalesOrderLineRow, SalesOrderRow, SaveOrderCommand, SaveOrderInput,
+    SaveOrderLinePlan, SaveOrderPlan, SaveOrderPriceList, SaveOrderProduct, SaveOrderWarehouse,
+    ServiceCompletionCommand, ServiceCompletionLineInput, TransitionCommand, TransitionPlan,
+    fulfill_service_order, order_detail, save_order_outcome_native, transition_order_guarded,
 };
 use erpx_server_commerce::public::order_http::ServiceCompletionInput;
 use erpx_server_commerce::public::order_http::{
@@ -40,8 +41,15 @@ type Error = PgTransactionError<BusinessError>;
 /// serializable connection.
 struct ComposedCommerceOrders<'c> {
     inner: PgCommerceOrders<'c>,
-    prepared_conversion: Option<erpx_server_finance::public::commerce_order_money::PreparedCommerceOrderMoney>,
-    retained_conversion: Option<erpx_server_finance::public::commerce_order_money::RetainedCommerceOrderMoney>,
+    prepared_conversion:
+        Option<erpx_server_finance::public::commerce_order_money::PreparedCommerceOrderMoney>,
+    retained_conversion:
+        Option<erpx_server_finance::public::commerce_order_money::RetainedCommerceOrderMoney>,
+    retained_save:
+        Option<erpx_server_finance::public::commerce_order_money::RetainedCommerceOrderMoney>,
+    save_party: Option<
+        erpx_server_finance::public::commerce_order_party_guard::CurrentCommerceOrderPartyGuard,
+    >,
 }
 
 impl<'c> ComposedCommerceOrders<'c> {
@@ -50,6 +58,8 @@ impl<'c> ComposedCommerceOrders<'c> {
             inner: PgCommerceOrders::new(connection),
             prepared_conversion: None,
             retained_conversion: None,
+            retained_save: None,
+            save_party: None,
         }
     }
 }
@@ -181,16 +191,19 @@ impl CommerceOrderCommandRepository for ComposedCommerceOrders<'_> {
             if self.prepared_conversion.is_some() || self.retained_conversion.is_some() {
                 return Err(erpx_server_commerce::public::order::version_conflict().into());
             }
-            let total = order.subtotal_minor.checked_add(order.tax_minor)
+            let total = order
+                .subtotal_minor
+                .checked_add(order.tax_minor)
                 .ok_or_else(erpx_server_commerce::public::order::version_conflict)?;
-            let input = erpx_server_finance::public::commerce_order_money::CommerceOrderMoneyInput {
-                order_id: format!("order-{}", command.key.as_str()),
-                version: 1,
-                transaction_date: order.order_date.clone(),
-                currency: order.currency.clone(),
-                total,
-                lines: Vec::new(),
-            };
+            let input =
+                erpx_server_finance::public::commerce_order_money::CommerceOrderMoneyInput {
+                    order_id: format!("order-{}", command.key.as_str()),
+                    version: 1,
+                    transaction_date: order.order_date.clone(),
+                    currency: order.currency.clone(),
+                    total,
+                    lines: Vec::new(),
+                };
             self.prepared_conversion = Some(
                 erpx_server_finance::public::commerce_order_money::prepare_commerce_order_revision_money(
                     self.inner.connection(), &actor.company_id, &input, now,
@@ -200,29 +213,20 @@ impl CommerceOrderCommandRepository for ComposedCommerceOrders<'_> {
         })
     }
 
-    fn snapshot_converted_order_money<'a>(
+    fn apply_converted_order_money<'a>(
         &'a mut self,
-        converted: &'a ConvertedReadback,
+        sales_id: &'a str,
         now: TimestampMillis,
     ) -> CommerceOrderFuture<'a, (), Self::Error> {
         Box::pin(async move {
-            let order = &converted.order;
-            let total = order
-                .subtotal_minor
-                .checked_add(order.tax_minor)
+            let prepared = self
+                .prepared_conversion
+                .take()
                 .ok_or_else(erpx_server_commerce::public::order::version_conflict)?;
-            let money =
-                erpx_server_finance::public::commerce_order_money::CommerceOrderMoneyInput {
-                    order_id: order.id.clone(),
-                    version: 1,
-                    transaction_date: order.order_date.clone(),
-                    currency: order.currency.clone(),
-                    total,
-                    lines: Vec::new(),
-                };
-            let prepared = self.prepared_conversion.take()
-                .ok_or_else(erpx_server_commerce::public::order::version_conflict)?;
-            if prepared.input() != &money || self.retained_conversion.is_some() {
+            if prepared.input().order_id != sales_id
+                || prepared.input().version != 1
+                || self.retained_conversion.is_some()
+            {
                 return Err(erpx_server_commerce::public::order::version_conflict().into());
             }
             let _ = now;
@@ -254,6 +258,174 @@ impl CommerceOrderCommandRepository for ComposedCommerceOrders<'_> {
         now: TimestampMillis,
     ) -> CommerceOrderFuture<'a, (), Self::Error> {
         self.inner.outbox(entry, now)
+    }
+}
+
+impl CommerceOrderSaveRepository for ComposedCommerceOrders<'_> {
+    fn setup_currency<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+    ) -> CommerceOrderFuture<'a, Option<String>, Self::Error> {
+        self.inner.setup_currency(company)
+    }
+
+    fn next_quote_number<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        date: &'a str,
+    ) -> CommerceOrderFuture<'a, String, Self::Error> {
+        self.inner.next_quote_number(company, date)
+    }
+
+    fn save_warehouse<'a>(
+        &'a mut self,
+        actor: &'a CommerceOrderActor,
+        id: &'a str,
+    ) -> CommerceOrderFuture<'a, Option<SaveOrderWarehouse>, Self::Error> {
+        self.inner.save_warehouse(actor, id)
+    }
+
+    fn save_product<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        id: &'a str,
+    ) -> CommerceOrderFuture<'a, Option<SaveOrderProduct>, Self::Error> {
+        self.inner.save_product(company, id)
+    }
+
+    fn save_party_valid<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        party_id: &'a str,
+        currency: &'a str,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error> {
+        self.inner.save_party_valid(company, party_id, currency)
+    }
+
+    fn save_price_list<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        party_id: &'a str,
+        date: &'a str,
+        selected: Option<&'a str>,
+    ) -> CommerceOrderFuture<'a, Option<SaveOrderPriceList>, Self::Error> {
+        self.inner
+            .save_price_list(company, party_id, date, selected)
+    }
+
+    fn insert_order<'a>(
+        &'a mut self,
+        plan: &'a SaveOrderPlan,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error> {
+        self.inner.insert_order(plan)
+    }
+
+    fn update_order<'a>(
+        &'a mut self,
+        plan: &'a SaveOrderPlan,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error> {
+        self.inner.update_order(plan)
+    }
+
+    fn delete_order_lines<'a>(
+        &'a mut self,
+        order_id: &'a str,
+    ) -> CommerceOrderFuture<'a, (), Self::Error> {
+        self.inner.delete_order_lines(order_id)
+    }
+
+    fn insert_order_line<'a>(
+        &'a mut self,
+        line: &'a SaveOrderLinePlan,
+    ) -> CommerceOrderFuture<'a, (), Self::Error> {
+        self.inner.insert_order_line(line)
+    }
+
+    fn readback_lines<'a>(
+        &'a mut self,
+        actor: &'a CommerceOrderActor,
+        order_id: &'a str,
+    ) -> CommerceOrderFuture<'a, Vec<SalesOrderLineRow>, Self::Error> {
+        self.inner.readback_lines(actor, order_id)
+    }
+
+    fn save_order_money<'a>(
+        &'a mut self,
+        actor: &'a CommerceOrderActor,
+        command: &'a SaveOrderCommand,
+        plan: &'a SaveOrderPlan,
+        now: TimestampMillis,
+    ) -> CommerceOrderFuture<'a, (), Self::Error> {
+        Box::pin(async move {
+            erpx_server_finance::public::commerce_order_money::lock_commerce_order_money_sources(
+                self.inner.connection(),
+            )
+            .await?;
+            erpx_server_finance::public::commerce_order_party_guard::lock_commerce_order_party_source(
+                self.inner.connection(),
+            )
+            .await?;
+            let input = erpx_server_finance::public::commerce_order_money::CommerceOrderMoneyInput {
+                order_id: plan.id.clone(),
+                version: plan.version,
+                transaction_date: plan.order_date.clone(),
+                currency: plan.currency.clone(),
+                total: plan
+                    .subtotal_minor
+                    .checked_add(plan.tax_minor)
+                    .ok_or_else(erpx_server_commerce::public::order::version_conflict)?,
+                lines: plan
+                    .lines
+                    .iter()
+                    .map(|line| {
+                        erpx_server_finance::public::commerce_order_money::CommerceOrderMoneyLine {
+                            id: line.id.clone(),
+                            unit_price: line.price_minor,
+                            subtotal: line.subtotal_minor,
+                            tax: line.tax_minor,
+                        }
+                    })
+                    .collect(),
+            };
+            self.retained_save = Some(
+                erpx_server_finance::public::commerce_order_money::snapshot_commerce_order_revision_retained(
+                    self.inner.connection(),
+                    &actor.company_id,
+                    &input,
+                    now,
+                )
+                .await?,
+            );
+            // Native save is quotation/sales-only; purchase remains retained.
+            let kind =
+                erpx_server_finance::public::commerce_order_party_guard::CommerceOrderPartyKind::Customer;
+            let guard =
+                erpx_server_finance::public::commerce_order_party_guard::observe_commerce_order_party_guard(
+                    self.inner.connection(),
+                    &actor.company_id,
+                    &plan.party_id,
+                    kind,
+                    &plan.currency,
+                )
+                .await?;
+            if !guard.matched() {
+                return Err(erpx_server_commerce::public::order::version_conflict().into());
+            }
+            self.save_party = Some(guard);
+            Ok(())
+        })
+    }
+
+    fn require_save_money<'a>(&'a mut self) -> CommerceOrderFuture<'a, (), Self::Error> {
+        Box::pin(async move {
+            if let Some(retained) = self.retained_save.take() {
+                retained.require_current(self.inner.connection()).await?;
+            }
+            if let Some(party) = self.save_party.take() {
+                party.require_current(self.inner.connection()).await?;
+            }
+            Ok(())
+        })
     }
 }
 
@@ -503,7 +675,7 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
                 proof,
                 self.input(input, true),
                 Self::access(),
-                CommerceSources { money: matches!(action, erpx_server_commerce::public::order::OrderAction::Convert) },
+                CommerceSources { money: false },
                 move |connection, current| {
                     let holding = holding.clone();
                     let companies = companies.clone();
@@ -538,8 +710,12 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
                             transition_order_guarded(&actor, &command, &mut repository, now)
                                 .await?;
                         if let Some(effect) = repository.retained_conversion.take() {
-                            sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut *repository.inner.connection()).await?;
-                            effect.require_current(repository.inner.connection()).await?;
+                            sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
+                                .execute(&mut *repository.inner.connection())
+                                .await?;
+                            effect
+                                .require_current(repository.inner.connection())
+                                .await?;
                         }
                         Ok(CommerceOrderHttpResponse {
                             data: receipt.to_wire(),
@@ -672,7 +848,7 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
                 proof,
                 self.input(input, true),
                 Self::access(),
-                CommerceSources { money: true },
+                CommerceSources { money: false },
                 move |connection, current| {
                     let holding = holding.clone();
                     let companies = companies.clone();
@@ -701,39 +877,15 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
                             input: save_input,
                         };
                         let now = clock.now();
-                        let outcome = {
-                            let mut repository = PgCommerceOrders::new(connection);
-                            save_order_outcome(&actor, &command, &mut repository, now).await?
-                        };
-                        // A replayed receipt already wrote its Finance evidence in
-                        // the winning invocation; only a fresh plan needs snapshots.
-                        if let Some(plan) = outcome.plan.as_ref() {
-                            let money = erpx_server_finance::public::commerce_order_money::CommerceOrderMoneyInput {
-                                order_id: plan.id.clone(),
-                                version: plan.version,
-                                transaction_date: plan.order_date.clone(),
-                                currency: plan.currency.clone(),
-                                total: plan.subtotal_minor + plan.tax_minor,
-                                lines: plan
-                                    .lines
-                                    .iter()
-                                    .map(|line| {
-                                        erpx_server_finance::public::commerce_order_money::CommerceOrderMoneyLine {
-                                            id: line.id.clone(),
-                                            unit_price: line.price_minor,
-                                            subtotal: line.subtotal_minor,
-                                            tax: line.tax_minor,
-                                        }
-                                    })
-                                    .collect(),
-                            };
-                            erpx_server_finance::public::commerce_order_money::snapshot_commerce_order_revision(
-                                connection,
-                                &actor.company_id,
-                                &money,
-                                now,
-                            )
-                            .await?;
+                        let mut repository = ComposedCommerceOrders::new(connection);
+                        let outcome =
+                            save_order_outcome_native(&actor, &command, &mut repository, now)
+                                .await?;
+                        if outcome.plan.is_some() {
+                            sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
+                                .execute(&mut *repository.inner.connection())
+                                .await?;
+                            repository.require_save_money().await?;
                         }
                         Ok(CommerceOrderHttpResponse {
                             data: outcome.receipt.to_wire(),

@@ -1771,6 +1771,66 @@ pub fn build_save_plan(
     number: String,
     now: TimestampMillis,
 ) -> Result<SaveOrderPlan, BusinessError> {
+    build_save_plan_inner(
+        actor,
+        command,
+        currency,
+        existing,
+        warehouse,
+        party_valid,
+        products,
+        price_list,
+        number,
+        now,
+        false,
+    )
+}
+
+/// Native save plan whose party/version guards run after Finance Money. The
+/// caller must write Money first and enforce the version/state at the owner
+/// CAS, matching the original TypeScript effect order.
+#[allow(clippy::too_many_arguments)]
+pub fn build_save_plan_deferred(
+    actor: &CommerceOrderActor,
+    command: &SaveOrderCommand,
+    currency: String,
+    existing: Option<SalesOrderRow>,
+    warehouse: Option<SaveOrderWarehouse>,
+    party_valid: bool,
+    products: &[Option<SaveOrderProduct>],
+    price_list: Option<SaveOrderPriceList>,
+    number: String,
+    now: TimestampMillis,
+) -> Result<SaveOrderPlan, BusinessError> {
+    build_save_plan_inner(
+        actor,
+        command,
+        currency,
+        existing,
+        warehouse,
+        party_valid,
+        products,
+        price_list,
+        number,
+        now,
+        true,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_save_plan_inner(
+    actor: &CommerceOrderActor,
+    command: &SaveOrderCommand,
+    currency: String,
+    existing: Option<SalesOrderRow>,
+    warehouse: Option<SaveOrderWarehouse>,
+    party_valid: bool,
+    products: &[Option<SaveOrderProduct>],
+    price_list: Option<SaveOrderPriceList>,
+    number: String,
+    now: TimestampMillis,
+    defer_guards: bool,
+) -> Result<SaveOrderPlan, BusinessError> {
     actor.require_write(now)?;
     command.validate()?;
     let input = &command.input;
@@ -1784,16 +1844,16 @@ pub fn build_save_plan(
         if existing.kind() != Some(input.kind) {
             return Err(order_kind_locked());
         }
-        if existing.state() != Some(OrderState::Draft) {
+        if !defer_guards && existing.state() != Some(OrderState::Draft) {
             return Err(version_conflict());
         }
-        if Some(existing.version) != expected_version {
+        if !defer_guards && Some(existing.version) != expected_version {
             return Err(version_conflict());
         }
     } else if !create {
         return Err(not_found());
     }
-    if !party_valid {
+    if !defer_guards && !party_valid {
         return Err(party_invalid());
     }
     let PreparedSaveValues {
@@ -1816,7 +1876,11 @@ pub fn build_save_plan(
                 }),
             existing.department_id.clone(),
             existing.created_by.clone(),
-            existing.version + 1,
+            if defer_guards {
+                expected_version.ok_or_else(version_conflict)? + 1
+            } else {
+                existing.version + 1
+            },
             existing.number.clone(),
         ),
         None => (

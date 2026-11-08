@@ -240,15 +240,13 @@ async fn two_companies_use_normal_sso_and_selected_context_without_cross_company
         let converted_money:Vec<(String,String,String,String,String,String,Option<String>)>=sqlx::query_as("SELECT source_type,source_id,amount_kind,currency,currency_scale::text,amount_units::text,fx_rate_id FROM money_transaction_snapshots WHERE source_type='commerce_order_revision' AND source_id=$1 ORDER BY amount_kind").bind(format!("{sales_id}:1")).fetch_all(db.raw()).await.unwrap();assert_eq!(converted_money,[("commerce_order_revision".into(),format!("{sales_id}:1"),"total".into(),"THB".into(),"2".into(),"1000".into(),Some("commerce-fx-a".into()))]);
         let sales_row:(String,i64,Option<String>)=sqlx::query_as("SELECT state,version,source_id FROM commerce_orders WHERE id=$1").bind(&sales_id).fetch_one(db.raw()).await.unwrap();assert_eq!(sales_row,("draft".into(),1,Some("alias-cancel".into())));
         let money_before_stale=money_snapshot(db,"company").await;
-        // A conflicting Finance writer causes pre-snapshot contention; after
-        // releasing it the same stale request reaches its version guard.
+        // A conflicting Finance writer must not preempt the stale version
+        // guard: Money validation is source-only before the version assertion.
         let mut finance_writer=db.raw().begin().await.unwrap();
         sqlx::query("LOCK TABLE public.money_transaction_snapshots IN ROW EXCLUSIVE MODE").execute(&mut *finance_writer).await.unwrap();
         let order_before_stale=snapshot(db,"alias-cancel").await;
-        let (status,contention)=json(app.clone().oneshot(transition("alias-cancel","convert","convert-stale")).await.unwrap()).await;assert_eq!(status,StatusCode::SERVICE_UNAVAILABLE,"Finance contention {contention}");assert_eq!(contention["error"]["code"],"COMMERCE_UNAVAILABLE");assert_eq!(snapshot(db,"alias-cancel").await,order_before_stale);assert_eq!(money_snapshot(db,"company").await,money_before_stale);
-        let contention_effects:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id='convert-stale'),(SELECT count(*) FROM audit_events WHERE command_id='convert-stale'),(SELECT count(*) FROM outbox_events WHERE command_id='convert-stale')").fetch_one(db.raw()).await.unwrap();assert_eq!(contention_effects,(0,0,0));
-        finance_writer.rollback().await.unwrap();
         let (stale_convert_status,stale_convert)=json(app.clone().oneshot(transition("alias-cancel","convert","convert-stale")).await.unwrap()).await;assert_eq!(stale_convert_status,StatusCode::CONFLICT,"stale conversion {stale_convert}");assert_eq!(stale_convert["error"]["code"],"CONFLICT");assert_eq!(snapshot(db,"alias-cancel").await,order_before_stale);assert_eq!(money_snapshot(db,"company").await,money_before_stale,"stale conversion leaves Money unchanged");
+        finance_writer.rollback().await.unwrap();
         let convert_effects:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id=$1),(SELECT count(*) FROM audit_events WHERE command_id=$1),(SELECT count(*) FROM outbox_events WHERE command_id=$1)").bind("convert-stale").fetch_one(db.raw()).await.unwrap();assert_eq!(convert_effects,(0,0,0));
         // The original TS/PG oracle establishes Money validation before a
         // stale quotation guard. Keep actual source rows and all guards.

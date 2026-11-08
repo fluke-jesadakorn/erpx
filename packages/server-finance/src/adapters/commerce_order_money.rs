@@ -245,16 +245,32 @@ fn valid_amount(amount: i64) -> bool {
     (0..=MAX_SAFE_INTEGER).contains(&amount)
 }
 
-async fn ensure_fresh_sources(c:&mut PgConnection,company:&CompanyId,keys:&[(String,String,String)])->Result<(),Error>{
-    let types:Vec<&str>=keys.iter().map(|k|k.0.as_str()).collect();
-    let ids:Vec<&str>=keys.iter().map(|k|k.1.as_str()).collect();
-    let kinds:Vec<&str>=keys.iter().map(|k|k.2.as_str()).collect();
+async fn ensure_fresh_sources(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    keys: &[(String, String, String)],
+) -> Result<(), Error> {
+    let types: Vec<&str> = keys.iter().map(|k| k.0.as_str()).collect();
+    let ids: Vec<&str> = keys.iter().map(|k| k.1.as_str()).collect();
+    let kinds: Vec<&str> = keys.iter().map(|k| k.2.as_str()).collect();
     if sqlx::query_scalar::<_,bool>("SELECT EXISTS(SELECT 1 FROM public.money_transaction_snapshots WHERE company_id=$1 AND (source_type,source_id,amount_kind) IN (SELECT * FROM unnest($2::text[],$3::text[],$4::text[])))").bind(company.as_str()).bind(&types).bind(&ids).bind(&kinds).fetch_one(c).await? { return Err(duplicate()); }
     Ok(())
 }
-fn amount_usd(amount:i64,scale:u8,rate:&str)->Result<String,Error>{
-    let usd=convert_currency_units(&BigInt::from(amount),scale,2,rate,"1").map_err(|_|invalid("MONEY_OVERFLOW","Money conversion exceeds its exact bounds."))?.to_string();
-    if usd.len()>38 {return Err(invalid("MONEY_OVERFLOW","Money evidence exceeds its numeric bounds."));}
+fn amount_usd(amount: i64, scale: u8, rate: &str) -> Result<String, Error> {
+    let usd = convert_currency_units(&BigInt::from(amount), scale, 2, rate, "1")
+        .map_err(|_| {
+            invalid(
+                "MONEY_OVERFLOW",
+                "Money conversion exceeds its exact bounds.",
+            )
+        })?
+        .to_string();
+    if usd.len() > 38 {
+        return Err(invalid(
+            "MONEY_OVERFLOW",
+            "Money evidence exceeds its numeric bounds.",
+        ));
+    }
     Ok(usd)
 }
 
@@ -277,6 +293,15 @@ async fn prepare_order_money_data(
     now: TimestampMillis,
 ) -> Result<(Quote, u8), Error> {
     unit(c).await?;
+    validate_order_money_data(c, company, input, now).await
+}
+
+async fn validate_order_money_data(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    input: &CommerceOrderMoneyInput,
+    now: TimestampMillis,
+) -> Result<(Quote, u8), Error> {
     if !valid_identifier(&input.order_id)
         || input.version < 1
         || !valid_date(&input.transaction_date)
@@ -326,9 +351,13 @@ async fn prepare_order_money_data(
     if !(0..=MAX_SAFE_INTEGER).contains(&now.get()) {
         return Err(changed());
     }
-    let rate=&quote.selected.as_ref().ok_or_else(changed)?.quote;
-    amount_usd(input.total,scale,rate)?;
-    for line in &input.lines { for amount in [line.unit_price,line.subtotal,line.tax] { amount_usd(amount,scale,rate)?; } }
+    let rate = &quote.selected.as_ref().ok_or_else(changed)?.quote;
+    amount_usd(input.total, scale, rate)?;
+    for line in &input.lines {
+        for amount in [line.unit_price, line.subtotal, line.tax] {
+            amount_usd(amount, scale, rate)?;
+        }
+    }
     Ok((quote, scale))
 }
 
@@ -371,7 +400,10 @@ async fn write_commerce_order_revision(
         ));
         rows.push(("commerce_order_line_revision", source, "tax", line.tax));
     }
-    let keys:Vec<(String,String,String)>=rows.iter().map(|row|(row.0.to_owned(),row.1.clone(),row.2.to_owned())).collect();
+    let keys: Vec<(String, String, String)> = rows
+        .iter()
+        .map(|row| (row.0.to_owned(), row.1.clone(), row.2.to_owned()))
+        .collect();
     ensure_fresh_sources(c, company, &keys).await?;
     let mut evidence = Vec::with_capacity(rows.len());
     for (source_type, source_id, amount_kind, amount) in rows {
@@ -412,9 +444,9 @@ async fn write_commerce_order_revision(
     }
     // Re-read the exact persisted rows and the locked transaction identity
     // before the caller continues. Any drift fails the owner unit.
-    let source_types:Vec<&str>=evidence.iter().map(|row|row.source_type).collect();
-    let source_ids:Vec<&str>=evidence.iter().map(|row|row.source_id.as_str()).collect();
-    let amount_kinds:Vec<&str>=evidence.iter().map(|row|row.amount_kind).collect();
+    let source_types: Vec<&str> = evidence.iter().map(|row| row.source_type).collect();
+    let source_ids: Vec<&str> = evidence.iter().map(|row| row.source_id.as_str()).collect();
+    let amount_kinds: Vec<&str> = evidence.iter().map(|row| row.amount_kind).collect();
     let stored: Vec<StoredMoneyRow> = sqlx::query_as(
         "SELECT source_type,source_id,amount_kind,amount_units::text,usd_units::text,\
              fx_rate_id,used_latest_fallback,captured_at \
@@ -480,9 +512,9 @@ async fn retained_rows(
     company: &CompanyId,
     evidence: &[CommerceOrderMoneyEvidence],
 ) -> Result<Vec<(String, String, String, String)>, Error> {
-    let types:Vec<&str>=evidence.iter().map(|r|r.source_type).collect();
-    let ids:Vec<&str>=evidence.iter().map(|r|r.source_id.as_str()).collect();
-    let kinds:Vec<&str>=evidence.iter().map(|r|r.amount_kind).collect();
+    let types: Vec<&str> = evidence.iter().map(|r| r.source_type).collect();
+    let ids: Vec<&str> = evidence.iter().map(|r| r.source_id.as_str()).collect();
+    let kinds: Vec<&str> = evidence.iter().map(|r| r.amount_kind).collect();
     let rows:Vec<(String,String,String,String)>=sqlx::query_as("SELECT source_type,source_id,amount_kind,to_jsonb(m)::text FROM public.money_transaction_snapshots m WHERE company_id=$1 AND (source_type,source_id,amount_kind) IN (SELECT * FROM unnest($2::text[],$3::text[],$4::text[])) ORDER BY source_type,source_id,amount_kind").bind(company.as_str()).bind(&types).bind(&ids).bind(&kinds).fetch_all(c).await?;
     if rows.len() != evidence.len() {
         return Err(changed());
@@ -575,8 +607,17 @@ pub async fn snapshot_commerce_order_revision_retained(
 
 /// Preflight holds the exact trusted inputs and quote inside one attested unit.
 /// It is not authorization and does not write Money rows.
+type MoneyTransaction = (String, i32, String, String, String, String, String);
+async fn money_transaction(c: &mut PgConnection) -> Result<MoneyTransaction, Error> {
+    Ok(sqlx::query_as(
+        "SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text,current_user::text,session_user::text,current_setting('search_path')",
+    )
+    .fetch_one(c)
+    .await?)
+}
+
 pub struct PreparedCommerceOrderMoney {
-    unit: RetainedMoneyUnit,
+    transaction: MoneyTransaction,
     company: CompanyId,
     input: CommerceOrderMoneyInput,
     now: TimestampMillis,
@@ -587,7 +628,7 @@ impl PreparedCommerceOrderMoney {
         &self.input
     }
     pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
-        if retained_unit(&mut *c).await? != self.unit
+        if money_transaction(&mut *c).await? != self.transaction
             || quote(
                 &mut *c,
                 &self.company,
@@ -596,7 +637,6 @@ impl PreparedCommerceOrderMoney {
             )
             .await?
                 != self.quote
-            || retained_unit(c).await? != self.unit
         {
             return Err(changed());
         }
@@ -605,7 +645,9 @@ impl PreparedCommerceOrderMoney {
     /// Consumes the preflight; the original quote is the quote used by the one
     /// writer, and the caller retains its effect through all deferred writes.
     pub async fn apply(self, c: &mut PgConnection) -> Result<RetainedCommerceOrderMoney, Error> {
+        lock_commerce_order_money_sources(&mut *c).await?;
         self.require_current(&mut *c).await?;
+        let identity = retained_unit(&mut *c).await?;
         let (evidence, quote) = write_commerce_order_revision(
             &mut *c,
             &self.company,
@@ -626,11 +668,11 @@ impl PreparedCommerceOrderMoney {
             return Err(changed());
         }
         let rows = retained_rows(&mut *c, &self.company, &evidence).await?;
-        if retained_unit(c).await? != self.unit {
+        if retained_unit(c).await? != identity {
             return Err(changed());
         }
         Ok(RetainedCommerceOrderMoney {
-            unit: self.unit,
+            unit: identity,
             company: self.company,
             input: self.input,
             quote,
@@ -645,13 +687,13 @@ pub async fn prepare_commerce_order_revision_money(
     input: &CommerceOrderMoneyInput,
     now: TimestampMillis,
 ) -> Result<PreparedCommerceOrderMoney, Error> {
-    let identity = retained_unit(&mut *c).await?;
-    let (quote, _) = prepare_order_money_data(&mut *c, company, input, now).await?;
-    if retained_unit(c).await? != identity {
+    let transaction = money_transaction(&mut *c).await?;
+    let (quote, _) = validate_order_money_data(&mut *c, company, input, now).await?;
+    if money_transaction(&mut *c).await? != transaction {
         return Err(changed());
     }
     Ok(PreparedCommerceOrderMoney {
-        unit: identity,
+        transaction,
         company: company.clone(),
         input: input.clone(),
         now,
@@ -665,8 +707,8 @@ mod tests {
 
     #[test]
     fn shared_money_conversion_rejects_out_of_bounds_rate_precision() {
-        assert!(amount_usd(1,2,"0.0000000000000000001").is_err());
-        assert!(amount_usd(MAX_SAFE_INTEGER,2,"0.000000000000000001").is_ok());
+        assert!(amount_usd(1, 2, "0.0000000000000000001").is_err());
+        assert!(amount_usd(MAX_SAFE_INTEGER, 2, "0.000000000000000001").is_ok());
     }
     #[test]
     fn identifiers_and_amounts_are_bounded() {
@@ -744,7 +786,18 @@ pub async fn snapshot_commerce_fulfillment_money(
     if !(0..=MAX_SAFE_INTEGER).contains(&captured_at) {
         return Err(changed());
     }
-    let keys:Vec<(String,String,String)>=lines.iter().flat_map(|line|["subtotal","tax","total"].into_iter().map(|kind|("commerce_fulfillment_line".to_owned(),line.id.clone(),kind.to_owned()))).collect();
+    let keys: Vec<(String, String, String)> = lines
+        .iter()
+        .flat_map(|line| {
+            ["subtotal", "tax", "total"].into_iter().map(|kind| {
+                (
+                    "commerce_fulfillment_line".to_owned(),
+                    line.id.clone(),
+                    kind.to_owned(),
+                )
+            })
+        })
+        .collect();
     ensure_fresh_sources(c, company, &keys).await?;
     let mut evidence = Vec::with_capacity(lines.len() * 3);
     for line in lines {
@@ -801,9 +854,9 @@ pub async fn snapshot_commerce_fulfillment_money(
             });
         }
     }
-    let source_types:Vec<&str>=evidence.iter().map(|row|row.source_type).collect();
-    let source_ids:Vec<&str>=evidence.iter().map(|row|row.source_id.as_str()).collect();
-    let amount_kinds:Vec<&str>=evidence.iter().map(|row|row.amount_kind).collect();
+    let source_types: Vec<&str> = evidence.iter().map(|row| row.source_type).collect();
+    let source_ids: Vec<&str> = evidence.iter().map(|row| row.source_id.as_str()).collect();
+    let amount_kinds: Vec<&str> = evidence.iter().map(|row| row.amount_kind).collect();
     let stored: Vec<StoredMoneyRow> = sqlx::query_as(
         "SELECT source_type,source_id,amount_kind,amount_units::text,usd_units::text,\
              fx_rate_id,used_latest_fallback,captured_at \

@@ -10,12 +10,12 @@ use crate::domain::order::{
     SalesOrderDocument, SalesOrderLineRow, SalesOrderRow, SaveOrderCommand, SaveOrderLinePlan,
     SaveOrderPlan, SaveOrderPriceList, SaveOrderProduct, SaveOrderReceipt, SaveOrderWarehouse,
     TransitionCommand, TransitionGuardMode, TransitionPlan, authorize_transition_with_guard_mode,
-    idempotency_conflict, not_found, order_reversal_required, permission_required,
-    readback_invalid, replay, replay_save, request_invalid, sales_approval_finance_guard,
-    sales_credit_limit_exceeded, save_identity, transition_conflict, transition_identity,
-    validate_conversion_readback, validate_document, validate_hash, validate_readback,
-    validate_save_readback, validate_transition_actor, validate_transition_approval_reason,
-    version_conflict,
+    build_save_plan_deferred, idempotency_conflict, not_found, order_reversal_required,
+    permission_required, readback_invalid, replay, replay_save, request_invalid,
+    sales_approval_finance_guard, sales_credit_limit_exceeded, save_identity, transition_conflict,
+    transition_identity, validate_conversion_readback, validate_document, validate_hash,
+    validate_readback, validate_save_readback, validate_transition_actor,
+    validate_transition_approval_reason, version_conflict,
 };
 use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
 use std::future::Future;
@@ -178,10 +178,11 @@ pub trait CommerceOrderCommandRepository: Send {
 
     /// Finance-owned order-revision Money for the sales order created by a
     /// quotation conversion. Implementations must consume the exact prepared
-    /// quote in the same transaction. A missing port fails closed.
-    fn snapshot_converted_order_money<'a>(
+    /// quote after the quote state update and before the sales row. A missing
+    /// port fails closed.
+    fn apply_converted_order_money<'a>(
         &'a mut self,
-        _converted: &'a ConvertedReadback,
+        _sales_id: &'a str,
         _now: TimestampMillis,
     ) -> CommerceOrderFuture<'a, (), Self::Error> {
         Box::pin(async {
@@ -367,6 +368,13 @@ async fn transition_order_with_guard_mode<R: CommerceOrderCommandRepository>(
         return Err(transition_conflict().into());
     }
     if let Some(sales_id) = &plan.sales_id {
+        // The original TS effect order is quote update -> Money INSERT ->
+        // sales-order insert -> line copy.
+        if guard_mode == TransitionGuardMode::Native {
+            repository
+                .apply_converted_order_money(sales_id, now)
+                .await?;
+        }
         if !repository.insert_converted_order(&plan).await? {
             return Err(readback_invalid().into());
         }
@@ -378,11 +386,6 @@ async fn transition_order_with_guard_mode<R: CommerceOrderCommandRepository>(
             .await?
             .ok_or_else(readback_invalid)?;
         validate_conversion_readback(&plan, &order, &converted, copied)?;
-        if guard_mode == TransitionGuardMode::Native {
-            repository
-                .snapshot_converted_order_money(&converted, now)
-                .await?;
-        }
     }
     let receipt = plan.receipt.clone();
     let result_json = serde_json::to_string(&receipt.to_wire()).map_err(|_| request_invalid())?;
@@ -507,6 +510,23 @@ pub trait CommerceOrderSaveRepository: CommerceOrderCommandRepository {
         actor: &'a CommerceOrderActor,
         order_id: &'a str,
     ) -> CommerceOrderFuture<'a, Vec<SalesOrderLineRow>, Self::Error>;
+
+    /// Write and retain Finance order-revision Money before the party/version
+    /// assertions. The default keeps retained owner-local saves unchanged.
+    fn save_order_money<'a>(
+        &'a mut self,
+        _actor: &'a CommerceOrderActor,
+        _command: &'a SaveOrderCommand,
+        _plan: &'a SaveOrderPlan,
+        _now: TimestampMillis,
+    ) -> CommerceOrderFuture<'a, (), Self::Error> {
+        Box::pin(async { Ok(()) })
+    }
+
+    /// Revalidate the retained save Money after deferred effects.
+    fn require_save_money<'a>(&'a mut self) -> CommerceOrderFuture<'a, (), Self::Error> {
+        Box::pin(async { Ok(()) })
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -525,6 +545,28 @@ pub async fn save_order_outcome<R: CommerceOrderSaveRepository>(
     command: &SaveOrderCommand,
     repository: &mut R,
     now: TimestampMillis,
+) -> Result<SaveOrderOutcome, R::Error> {
+    save_order_outcome_inner(actor, command, repository, now, false).await
+}
+
+/// Native save with the original TypeScript evidence order: Finance Money is
+/// written before the party and version assertions, then retained through the
+/// deferred-effects revalidation performed by composition.
+pub async fn save_order_outcome_native<R: CommerceOrderSaveRepository>(
+    actor: &CommerceOrderActor,
+    command: &SaveOrderCommand,
+    repository: &mut R,
+    now: TimestampMillis,
+) -> Result<SaveOrderOutcome, R::Error> {
+    save_order_outcome_inner(actor, command, repository, now, true).await
+}
+
+async fn save_order_outcome_inner<R: CommerceOrderSaveRepository>(
+    actor: &CommerceOrderActor,
+    command: &SaveOrderCommand,
+    repository: &mut R,
+    now: TimestampMillis,
+    defer_guards: bool,
 ) -> Result<SaveOrderOutcome, R::Error> {
     actor.require_write(now)?;
     command.validate()?;
@@ -558,7 +600,7 @@ pub async fn save_order_outcome<R: CommerceOrderSaveRepository>(
                 .lock_order(actor, id.as_str())
                 .await?
                 .ok_or_else(not_found)?;
-            if row.version != command.expected_version().unwrap_or(0) {
+            if !defer_guards && row.version != command.expected_version().unwrap_or(0) {
                 return Err(version_conflict().into());
             }
             Some(row)
@@ -605,18 +647,38 @@ pub async fn save_order_outcome<R: CommerceOrderSaveRepository>(
     } else {
         String::new()
     };
-    let plan = crate::domain::order::build_save_plan(
-        actor,
-        command,
-        currency,
-        existing,
-        warehouse,
-        party_valid,
-        &products,
-        price_list,
-        number,
-        now,
-    )?;
+    let plan = if defer_guards {
+        build_save_plan_deferred(
+            actor,
+            command,
+            currency,
+            existing,
+            warehouse,
+            party_valid,
+            &products,
+            price_list,
+            number,
+            now,
+        )?
+    } else {
+        crate::domain::order::build_save_plan(
+            actor,
+            command,
+            currency,
+            existing,
+            warehouse,
+            party_valid,
+            &products,
+            price_list,
+            number,
+            now,
+        )?
+    };
+    if defer_guards {
+        repository
+            .save_order_money(actor, command, &plan, now)
+            .await?;
+    }
     if plan.create {
         if !repository.insert_order(&plan).await? {
             return Err(crate::domain::order::order_conflict().into());
