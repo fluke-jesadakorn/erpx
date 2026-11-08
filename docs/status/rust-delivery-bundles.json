@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-08T23:36:49+07:00",
+  "updatedAt": "2026-11-08T23:56:42+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -6280,7 +6280,7 @@
         "account-native-security-mfa"
       ],
       "sourceRef": "docs/status/product-migration-acceptance.json",
-      "gap": "Account security seed, MFA enrollment/verification and all-device session revocation are native-only through the Account ingress; browser acceptance remains open."
+      "gap": "Browser acceptance now passes: native Account security mounted in dev after provisioning deterministic MFA keyring entries and admitting the /api/v1/account/security path; authenticator enrollment and six-digit verification succeeded, a second device was signed in, Sign out all devices revoked both sessions (current redirected to /login, second device required login) and the reviewer account stayed signed in. Registered iam.test.ts and product-sso-auth.ts remain blocked by the external native work-role test configuration: selectWorkRole now requires ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG, which the host test runner does not provide, so the workflow stays partial until those registered cases execute. The private API boundary GET/HEAD pass-through was fixed to direct method equality; explicit owner GET matchers remain in place."
     },
     {
       "id": "account:authorized-package-area",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-08T23:36:49+07:00",
-    "sourceHead": "9ad89a397",
+    "generatedAt": "2026-11-08T23:56:42+07:00",
+    "sourceHead": "2f9a83f66",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -8289,6 +8289,21 @@
           "native Platform Administration holdings and infrastructure inspection browser acceptance"
         ],
         "evidence": "browser desktop+mobile erpx-internal Manage ERPX shows Operational health 3 customers/0 pending-dead-claimed with heartbeats, acme/northstar healthy and erpx unavailable actionable failure, schema migrations per Holding, Holding lifecycle and Customer Holdings Acme Group/Acme Corporation; platform-operations 8/8 + engineering-recovery 1/1; typecheck/structure/health pass",
+        "counts": {
+          "owners": 8,
+          "verified": 83,
+          "partial": 36,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-08T23:56:42+07:00",
+        "commit": "2f9a83f66",
+        "bundles": [
+          "native Account security browser acceptance (verification blocked by external test configuration)"
+        ],
+        "evidence": "browser desktop+mobile account security: MFA enroll + TOTP verify, second device signed in, all-device revoke redirected current session to login and invalidated second device, reviewer unaffected; deterministic dev MFA keyring + /api/v1/account/security boundary matcher; boundary GET/HEAD method equality fix; registered iam/product-sso suites fail on missing ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG in host test runner; counts unchanged",
         "counts": {
           "owners": 8,
           "verified": 83,
