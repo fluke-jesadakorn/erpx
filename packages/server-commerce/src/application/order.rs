@@ -371,18 +371,23 @@ pub trait CommerceOrderSaveRepository: CommerceOrderCommandRepository {
     ) -> CommerceOrderFuture<'a, Vec<SalesOrderLineRow>, Self::Error>;
 }
 
-/// Create or update one exact draft quotation/sales order.
-///
-/// The retained TypeScript writer resolves pricing, party, warehouse and
-/// product guards and writes order header/lines plus receipt/audit/outbox in
-/// one unit. Purchase orders and request/RFQ handoffs are outside this owner
-/// slice and remain retained.
-pub async fn save_order<R: CommerceOrderSaveRepository>(
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SaveOrderOutcome {
+    pub receipt: SaveOrderReceipt,
+    /// `None` when the command replayed an existing receipt; the Finance
+    /// evidence was already written by the winning invocation.
+    pub plan: Option<SaveOrderPlan>,
+}
+
+/// Create or update one exact draft quotation/sales order and return the
+/// receipt plus the admitted owner plan. Composition uses the plan to write
+/// Finance-owned order-revision Money evidence in the same transaction.
+pub async fn save_order_outcome<R: CommerceOrderSaveRepository>(
     actor: &CommerceOrderActor,
     command: &SaveOrderCommand,
     repository: &mut R,
     now: TimestampMillis,
-) -> Result<SaveOrderReceipt, R::Error> {
+) -> Result<SaveOrderOutcome, R::Error> {
     actor.require_write(now)?;
     command.validate()?;
     repository.lock_command(command.key.as_str()).await?;
@@ -394,7 +399,10 @@ pub async fn save_order<R: CommerceOrderSaveRepository>(
         &request_hash,
         command,
     )? {
-        return Ok(prior);
+        return Ok(SaveOrderOutcome {
+            receipt: prior,
+            plan: None,
+        });
     }
     if !repository
         .current_authority(actor, true, false, now)
@@ -541,5 +549,20 @@ pub async fn save_order<R: CommerceOrderSaveRepository>(
         .ok_or_else(readback_invalid)?;
     let lines = repository.readback_lines(actor, &plan.id).await?;
     validate_save_readback(&plan, &readback, &lines)?;
-    Ok(receipt)
+    Ok(SaveOrderOutcome {
+        receipt,
+        plan: Some(plan),
+    })
+}
+
+/// Receipt-only wrapper for callers that do not own Finance Money evidence.
+pub async fn save_order<R: CommerceOrderSaveRepository>(
+    actor: &CommerceOrderActor,
+    command: &SaveOrderCommand,
+    repository: &mut R,
+    now: TimestampMillis,
+) -> Result<SaveOrderReceipt, R::Error> {
+    save_order_outcome(actor, command, repository, now)
+        .await
+        .map(|outcome| outcome.receipt)
 }

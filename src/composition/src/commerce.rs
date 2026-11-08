@@ -5,7 +5,7 @@ use crate::business_http::BusinessScopeSlugs;
 use erpx_server_commerce::public::order::PgCommerceOrders;
 use erpx_server_commerce::public::order::{
     CommerceOrderActor, SaveOrderCommand, SaveOrderInput, TransitionCommand, order_detail,
-    save_order, transition_order,
+    save_order_outcome, transition_order,
 };
 use erpx_server_commerce::public::order_http::{
     CommerceOrderHttpBackend, CommerceOrderHttpCommand, CommerceOrderHttpFuture,
@@ -13,7 +13,7 @@ use erpx_server_commerce::public::order_http::{
 };
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
-    account_inbound_http::parse_inbound_account_request,
+    account_inbound_http::{CapturedHoldingMutation, parse_inbound_account_request},
     effective_authority::{
         AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
         WorkAuthorizationRequest,
@@ -77,16 +77,30 @@ impl HoldingWorkSourcePreparation for CommerceSources {
 #[derive(Clone)]
 pub struct CommerceConfiguration {
     holding: HoldingId,
-    company: CompanyId,
+    companies: Vec<CompanyId>,
 }
 
 impl CommerceConfiguration {
     pub fn new(holding: HoldingId, company: CompanyId) -> Self {
-        Self { holding, company }
+        Self {
+            holding,
+            companies: vec![company],
+        }
     }
 
-    pub fn company(&self) -> &CompanyId {
-        &self.company
+    pub fn for_companies(
+        holding: HoldingId,
+        companies: Vec<CompanyId>,
+    ) -> Result<Self, BusinessError> {
+        if companies.is_empty()
+            || companies
+                .iter()
+                .enumerate()
+                .any(|(i, c)| companies[..i].contains(c))
+        {
+            return Err(scope());
+        }
+        Ok(Self { holding, companies })
     }
 }
 
@@ -156,10 +170,6 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
         }
     }
 
-    pub fn company(&self) -> &CompanyId {
-        self.configuration.company()
-    }
-
     fn access() -> WorkAuthorizationRequest {
         WorkAuthorizationRequest {
             permission: "commerce.read".into(),
@@ -172,17 +182,17 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
     fn input<Input>(
         &self,
         input: Input,
+        mutation: bool,
     ) -> impl FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static
     where
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
-        let company = self.configuration.company.clone();
+        let companies = self.configuration.companies.clone();
         move || {
-            let mut request = input()?;
-            if request.company_id != company {
+            let request = input()?;
+            if !companies.contains(&request.company_id) || request.mutation != mutation {
                 return Err(scope());
             }
-            request.mutation = false;
             Ok(request)
         }
     }
@@ -198,23 +208,23 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
         let holding = self.configuration.holding.clone();
-        let company = self.configuration.company.clone();
+        let companies = self.configuration.companies.clone();
         let clock = self.clock.clone();
         self.authorizer
             .execute_with_sources_deferred(
                 host,
                 proof,
-                self.input(input),
+                self.input(input, false),
                 Self::access(),
                 CommerceSources,
                 move |connection, current| {
                     let holding = holding.clone();
-                    let company = company.clone();
+                    let companies = companies.clone();
                     let order_id = order_id.clone();
                     let clock = clock.clone();
                     Box::pin(async move {
                         if current.holding_id() != &holding
-                            || current.selection().workspace().company_id != company
+                            || !companies.contains(&current.selection().workspace().company_id)
                         {
                             return Err(scope().into());
                         }
@@ -248,18 +258,18 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
         let holding = self.configuration.holding.clone();
-        let company = self.configuration.company.clone();
+        let companies = self.configuration.companies.clone();
         let clock = self.clock.clone();
         self.authorizer
             .execute_with_sources_deferred(
                 host,
                 proof,
-                self.input(input),
+                self.input(input, true),
                 Self::access(),
                 CommerceSources,
                 move |connection, current| {
                     let holding = holding.clone();
-                    let company = company.clone();
+                    let companies = companies.clone();
                     let order_id = order_id.clone();
                     let idempotency_key = idempotency_key.clone();
                     let action = action;
@@ -268,7 +278,7 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
                     let clock = clock.clone();
                     Box::pin(async move {
                         if current.holding_id() != &holding
-                            || current.selection().workspace().company_id != company
+                            || !companies.contains(&current.selection().workspace().company_id)
                         {
                             return Err(scope().into());
                         }
@@ -313,25 +323,25 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
         let holding = self.configuration.holding.clone();
-        let company = self.configuration.company.clone();
+        let companies = self.configuration.companies.clone();
         let clock = self.clock.clone();
         self.authorizer
             .execute_with_sources_deferred(
                 host,
                 proof,
-                self.input(input),
+                self.input(input, true),
                 Self::access(),
                 CommerceSources,
                 move |connection, current| {
                     let holding = holding.clone();
-                    let company = company.clone();
+                    let companies = companies.clone();
                     let order_id = order_id.clone();
                     let idempotency_key = idempotency_key.clone();
                     let save_input = save_input.clone();
                     let clock = clock.clone();
                     Box::pin(async move {
                         if current.holding_id() != &holding
-                            || current.selection().workspace().company_id != company
+                            || !companies.contains(&current.selection().workspace().company_id)
                         {
                             return Err(scope().into());
                         }
@@ -349,11 +359,49 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
                             order_id: order_record,
                             input: save_input,
                         };
-                        let mut repository = PgCommerceOrders::new(connection);
                         let now = clock.now();
-                        let receipt = save_order(&actor, &command, &mut repository, now).await?;
+                        erpx_server_finance::public::commerce_order_money::lock_commerce_order_money_sources(
+                            connection,
+                        )
+                        .await
+                        .map_err(business)?;
+                        let outcome = {
+                            let mut repository = PgCommerceOrders::new(connection);
+                            save_order_outcome(&actor, &command, &mut repository, now).await?
+                        };
+                        // A replayed receipt already wrote its Finance evidence in
+                        // the winning invocation; only a fresh plan needs snapshots.
+                        if let Some(plan) = outcome.plan.as_ref() {
+                            let money = erpx_server_finance::public::commerce_order_money::CommerceOrderMoneyInput {
+                                order_id: plan.id.clone(),
+                                version: plan.version,
+                                transaction_date: plan.order_date.clone(),
+                                currency: plan.currency.clone(),
+                                total: plan.subtotal_minor + plan.tax_minor,
+                                lines: plan
+                                    .lines
+                                    .iter()
+                                    .map(|line| {
+                                        erpx_server_finance::public::commerce_order_money::CommerceOrderMoneyLine {
+                                            id: line.id.clone(),
+                                            unit_price: line.price_minor,
+                                            subtotal: line.subtotal_minor,
+                                            tax: line.tax_minor,
+                                        }
+                                    })
+                                    .collect(),
+                            };
+                            erpx_server_finance::public::commerce_order_money::snapshot_commerce_order_revision(
+                                connection,
+                                &actor.company_id,
+                                &money,
+                                now,
+                            )
+                            .await
+                            .map_err(business)?;
+                        }
                         Ok(CommerceOrderHttpResponse {
-                            data: receipt.to_wire(),
+                            data: outcome.receipt.to_wire(),
                             context: context(current),
                         })
                     })
@@ -385,22 +433,15 @@ impl<C: Clock + Send + Sync + 'static> CommerceBackend<C> {
     fn context(
         &self,
         headers: &HeaderMap,
-    ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
+    ) -> Result<(DeviceProof, Result<CapturedHoldingMutation, BusinessError>), BusinessError> {
         let inbound = parse_inbound_account_request(&self.policy, headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(not_found());
         }
-        let (branch, department) = self.scopes.slugs(headers)?;
-        Ok((
-            inbound.into_proof(),
-            HoldingWorkspaceRequest {
-                company_id: self.service.company().clone(),
-                branch_slug: branch,
-                department_slug: department,
-                expected: None,
-                mutation: false,
-            },
-        ))
+        let selection = self.scopes.slugs(headers).map(|(branch, department)| {
+            CapturedHoldingMutation::capture(headers, branch, department)
+        });
+        Ok((inbound.into_proof(), selection))
     }
 }
 
@@ -414,7 +455,12 @@ impl<C: Clock + Send + Sync + 'static> CommerceOrderHttpBackend for CommerceBack
             match request.command {
                 CommerceOrderHttpCommand::Detail { order_id } => self
                     .service
-                    .detail(request.host, proof, move || Ok(selection), order_id)
+                    .detail(
+                        request.host,
+                        proof,
+                        move || selection?.resolve_rendered_read(),
+                        order_id,
+                    )
                     .await
                     .map_err(business),
                 CommerceOrderHttpCommand::Transition {
@@ -428,7 +474,7 @@ impl<C: Clock + Send + Sync + 'static> CommerceOrderHttpBackend for CommerceBack
                     .transition(
                         request.host,
                         proof,
-                        move || Ok(selection),
+                        move || selection?.resolve(),
                         order_id,
                         idempotency_key,
                         action,
@@ -446,7 +492,7 @@ impl<C: Clock + Send + Sync + 'static> CommerceOrderHttpBackend for CommerceBack
                     .save(
                         request.host,
                         proof,
-                        move || Ok(selection),
+                        move || selection?.resolve(),
                         order_id,
                         idempotency_key,
                         input,

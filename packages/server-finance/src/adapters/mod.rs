@@ -1,3 +1,5 @@
+pub(crate) mod asset_acquisition_money;
+pub(crate) mod commerce_order_money;
 pub(crate) mod finance_opening;
 pub(crate) mod finance_reports;
 pub(crate) mod finance_setup;

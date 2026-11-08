@@ -8,7 +8,7 @@ mod fixture;
 use erpx_server_commerce::public::order::{
     CommerceOrderActor, CommerceOrderReadRepository, OrderAction, PgCommerceOrders,
     SalesOrderDocument, SaveOrderCommand, SaveOrderInput, SaveOrderLineInput, SaveOrderReceipt,
-    TransitionCommand, order_detail, save_order, transition_order,
+    TransitionCommand, order_detail, save_order, save_order_outcome, transition_order,
 };
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
@@ -25,7 +25,9 @@ const NOW: i64 = 1_800_000_000_000;
 
 #[tokio::test]
 async fn quality_masters_prove_active_product_and_scoped_warehouse_in_one_unit() {
-    use erpx_server_commerce::public::quality_masters::{inspect_quality_masters,lock_quality_masters,QualityMasterRequest};
+    use erpx_server_commerce::public::quality_masters::{
+        QualityMasterRequest, inspect_quality_masters, lock_quality_masters,
+    };
     fixture::with_database(3,|pool|async move {
         setup(&pool).await;
         let long_product=format!("product-{}","p".repeat(202));let long_warehouse=format!("warehouse-{}","w".repeat(202));
@@ -52,28 +54,78 @@ async fn quality_masters_prove_active_product_and_scoped_warehouse_in_one_unit()
 
 #[tokio::test]
 async fn quality_master_lock_waits_for_writer_then_reads_fresh_archival() {
-    use erpx_server_commerce::public::quality_masters::{inspect_quality_masters,lock_quality_masters,QualityMasterRequest};
+    use erpx_server_commerce::public::quality_masters::{
+        QualityMasterRequest, inspect_quality_masters, lock_quality_masters,
+    };
     use sqlx::Connection;
-    fixture::with_database(3,|pool|async move {
+    fixture::with_database(3, |pool| async move {
         setup(&pool).await;
-        let mut writer=pool.raw().begin().await.unwrap();sqlx::query("UPDATE commerce_products SET status='archived' WHERE id='product-1'").execute(&mut *writer).await.unwrap();
-        let writer_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();let other_pool=pool.clone();let (send,receive)=tokio::sync::oneshot::channel();
-        let reader=tokio::spawn(async move {
-            let mut connection=other_pool.raw().acquire().await.unwrap();let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *connection).await.unwrap();
-            let mut tx=connection.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();send.send(pid).unwrap();
+        let mut writer = pool.raw().begin().await.unwrap();
+        sqlx::query("UPDATE commerce_products SET status='archived' WHERE id='product-1'")
+            .execute(&mut *writer)
+            .await
+            .unwrap();
+        let writer_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()")
+            .fetch_one(&mut *writer)
+            .await
+            .unwrap();
+        let other_pool = pool.clone();
+        let (send, receive) = tokio::sync::oneshot::channel();
+        let reader = tokio::spawn(async move {
+            let mut connection = other_pool.raw().acquire().await.unwrap();
+            let pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()")
+                .fetch_one(&mut *connection)
+                .await
+                .unwrap();
+            let mut tx = connection.begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+                .execute(&mut *tx)
+                .await
+                .unwrap();
+            send.send(pid).unwrap();
             lock_quality_masters(&mut tx).await.unwrap();
-            let witness=inspect_quality_masters(&mut tx,QualityMasterRequest::Product {company:CompanyId::new("company").unwrap(),product_id:"product-1".into()}).await.unwrap();
-            assert!(witness.facts().is_none());witness.require_current(&mut tx).await.unwrap();tx.rollback().await.unwrap();
+            let witness = inspect_quality_masters(
+                &mut tx,
+                QualityMasterRequest::Product {
+                    company: CompanyId::new("company").unwrap(),
+                    product_id: "product-1".into(),
+                },
+            )
+            .await
+            .unwrap();
+            assert!(witness.facts().is_none());
+            witness.require_current(&mut tx).await.unwrap();
+            tx.rollback().await.unwrap();
         });
-        let reader_pid=receive.await.unwrap();let mut blocked=false;
-        for _ in 0..200 {blocked=sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(writer_pid).bind(reader_pid).fetch_one(pool.raw()).await.unwrap();if blocked {break;}tokio::time::sleep(std::time::Duration::from_millis(10)).await;}
-        assert!(blocked,"source lock must wait before acquiring its snapshot");writer.commit().await.unwrap();reader.await.unwrap();
-    }).await;
+        let reader_pid = receive.await.unwrap();
+        let mut blocked = false;
+        for _ in 0..200 {
+            blocked = sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))")
+                .bind(writer_pid)
+                .bind(reader_pid)
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+            if blocked {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert!(
+            blocked,
+            "source lock must wait before acquiring its snapshot"
+        );
+        writer.commit().await.unwrap();
+        reader.await.unwrap();
+    })
+    .await;
 }
 
 #[tokio::test]
 async fn quality_customer_return_commerce_uses_actual_scoped_untracked_sources() {
-    use erpx_server_commerce::public::quality_return_origin::{inspect_quality_return_commerce,lock_quality_return_commerce,QualityReturnSelector};
+    use erpx_server_commerce::public::quality_return_origin::{
+        QualityReturnSelector, inspect_quality_return_commerce, lock_quality_return_commerce,
+    };
     fixture::with_database(3, |pool| async move {
         setup(&pool).await;
         sqlx::raw_sql("INSERT INTO finance_charts(id,company_id,name,base_currency,created_by,created_at,updated_at) VALUES('return-chart','company','Return chart','THB','creator',0,0); INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,created_at,updated_at) VALUES('debit','return-chart','company','100','Debit','asset',0,0),('credit','return-chart','company','400','Credit','revenue',0,0)").execute(pool.raw()).await.unwrap();
@@ -160,7 +212,9 @@ async fn quality_customer_return_commerce_uses_actual_scoped_untracked_sources()
 
 #[tokio::test]
 async fn quality_receipt_commerce_witness_is_scoped_and_same_unit() {
-    use erpx_server_commerce::public::quality_receipt_origin::{inspect_quality_receipt_commerce, lock_quality_receipt_commerce};
+    use erpx_server_commerce::public::quality_receipt_origin::{
+        inspect_quality_receipt_commerce, lock_quality_receipt_commerce,
+    };
     fixture::with_database(3, |pool| async move {
         setup(&pool).await;
         sqlx::raw_sql("INSERT INTO commerce_products(id,company_id,sku,name,unit,price_minor,tax_bps,status,version,tracking_mode,item_type) VALUES('stock-product','company','STOCK-1','Stock','each',1000,0,'active',1,'none','stock'); UPDATE commerce_order_lines SET item_type='stock',product_id='stock-product' WHERE id='purchase-draft-line'; INSERT INTO commerce_fulfillments(id,order_id,number,fulfillment_date,created_by,created_at,version) VALUES('receipt-1','purchase-draft','R-1','2026-11-01','creator',0,1); INSERT INTO commerce_fulfillment_lines(id,fulfillment_id,order_line_id,quantity_milli,value_minor,subtotal_minor,tax_minor) VALUES('receipt-line','receipt-1','purchase-draft-line',1000,1000,1000,0)").execute(pool.raw()).await.unwrap();
@@ -198,48 +252,103 @@ async fn quality_receipt_source_lock_conflicts_with_real_writers_in_both_orders(
     fixture::with_database(4, |pool| async move {
         setup(&pool).await;
         let mut writer = pool.raw().begin().await.unwrap();
-        sqlx::query("UPDATE commerce_orders SET note='writer-first' WHERE id='purchase-draft'").execute(&mut *writer).await.unwrap();
-        let writer_pid:i32 = sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();
-        let other_pool=pool.clone();
-        let (send, receive)=tokio::sync::oneshot::channel();
-        let reader=tokio::spawn(async move {
-            let mut connection=other_pool.raw().acquire().await.unwrap();
-            let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *connection).await.unwrap();
-            let mut tx=connection.begin().await.unwrap();
-            sqlx::raw_sql("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        sqlx::query("UPDATE commerce_orders SET note='writer-first' WHERE id='purchase-draft'")
+            .execute(&mut *writer)
+            .await
+            .unwrap();
+        let writer_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()")
+            .fetch_one(&mut *writer)
+            .await
+            .unwrap();
+        let other_pool = pool.clone();
+        let (send, receive) = tokio::sync::oneshot::channel();
+        let reader = tokio::spawn(async move {
+            let mut connection = other_pool.raw().acquire().await.unwrap();
+            let pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()")
+                .fetch_one(&mut *connection)
+                .await
+                .unwrap();
+            let mut tx = connection.begin().await.unwrap();
+            sqlx::raw_sql("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+                .execute(&mut *tx)
+                .await
+                .unwrap();
             send.send(pid).unwrap();
             lock_quality_receipt_commerce(&mut tx).await.unwrap();
-            let note:String=sqlx::query_scalar("SELECT note FROM commerce_orders WHERE id='purchase-draft'").fetch_one(&mut *tx).await.unwrap();
-            assert_eq!(note,"writer-first");
+            let note: String =
+                sqlx::query_scalar("SELECT note FROM commerce_orders WHERE id='purchase-draft'")
+                    .fetch_one(&mut *tx)
+                    .await
+                    .unwrap();
+            assert_eq!(note, "writer-first");
             tx.rollback().await.unwrap();
         });
-        let reader_pid=receive.await.unwrap();
-        let mut blocked=false;
+        let reader_pid = receive.await.unwrap();
+        let mut blocked = false;
         for _ in 0..200 {
-            blocked=sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(writer_pid).bind(reader_pid).fetch_one(pool.raw()).await.unwrap();
-            if blocked { break; } tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            blocked = sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))")
+                .bind(writer_pid)
+                .bind(reader_pid)
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+            if blocked {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
         }
-        assert!(blocked,"reader must wait for the existing writer before taking its snapshot");
-        writer.commit().await.unwrap(); reader.await.unwrap();
-        let mut reader=pool.raw().begin().await.unwrap();
-        sqlx::raw_sql("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *reader).await.unwrap();
+        assert!(
+            blocked,
+            "reader must wait for the existing writer before taking its snapshot"
+        );
+        writer.commit().await.unwrap();
+        reader.await.unwrap();
+        let mut reader = pool.raw().begin().await.unwrap();
+        sqlx::raw_sql("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+            .execute(&mut *reader)
+            .await
+            .unwrap();
         lock_quality_receipt_commerce(&mut reader).await.unwrap();
-        let reader_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *reader).await.unwrap();
-        let other_pool=pool.clone();let (send,receive)=tokio::sync::oneshot::channel();
-        let writer=tokio::spawn(async move {
-            let mut tx=other_pool.raw().begin().await.unwrap();
-            let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *tx).await.unwrap();send.send(pid).unwrap();
-            sqlx::query("UPDATE commerce_orders SET note='writer-second' WHERE id='purchase-draft'").execute(&mut *tx).await.unwrap();
+        let reader_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()")
+            .fetch_one(&mut *reader)
+            .await
+            .unwrap();
+        let other_pool = pool.clone();
+        let (send, receive) = tokio::sync::oneshot::channel();
+        let writer = tokio::spawn(async move {
+            let mut tx = other_pool.raw().begin().await.unwrap();
+            let pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()")
+                .fetch_one(&mut *tx)
+                .await
+                .unwrap();
+            send.send(pid).unwrap();
+            sqlx::query(
+                "UPDATE commerce_orders SET note='writer-second' WHERE id='purchase-draft'",
+            )
+            .execute(&mut *tx)
+            .await
+            .unwrap();
             tx.rollback().await.unwrap();
         });
-        let writer_pid=receive.await.unwrap();let mut blocked=false;
+        let writer_pid = receive.await.unwrap();
+        let mut blocked = false;
         for _ in 0..200 {
-            blocked=sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(reader_pid).bind(writer_pid).fetch_one(pool.raw()).await.unwrap();
-            if blocked { break; } tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            blocked = sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))")
+                .bind(reader_pid)
+                .bind(writer_pid)
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+            if blocked {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
         }
-        assert!(blocked,"writer must wait for the retained source lock");
-        reader.rollback().await.unwrap();writer.await.unwrap();
-    }).await;
+        assert!(blocked, "writer must wait for the retained source lock");
+        reader.rollback().await.unwrap();
+        writer.await.unwrap();
+    })
+    .await;
 }
 
 fn actor(
@@ -440,7 +549,9 @@ async fn setup(pool: &DatabasePool) {
          UPDATE sales_price_lists SET status='active',approved_by='reviewer',\
          approval_reason='Independently reviewed',activated_at=1000 WHERE id='list-general';\
          UPDATE sales_price_lists SET status='active',approved_by='reviewer',\
-         approval_reason='Independently reviewed',activated_at=1001 WHERE id='list-customer';",
+         approval_reason='Independently reviewed',activated_at=1001 WHERE id='list-customer';\
+         INSERT INTO company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at,note) \
+         VALUES('rate-thb','company','THB','2026-01-01',35,'fixture',0,'Commerce test quote');",
     )
     .execute(pool.raw())
     .await
@@ -522,6 +633,62 @@ async fn run_save_error(
         .await
         .map_err(business)
         .unwrap_err()
+}
+
+/// Exact composition order: Commerce owner save, then the Finance-owned
+/// order-revision Money snapshots on the same serializable connection.
+async fn run_save_with_money(
+    pool: &DatabasePool,
+    actor: CommerceOrderActor,
+    command: SaveOrderCommand,
+) -> Result<SaveOrderReceipt, PgTransactionError<BusinessError>> {
+    use erpx_server_finance::public::commerce_order_money::{
+        CommerceOrderMoneyInput, CommerceOrderMoneyLine, snapshot_commerce_order_revision,
+    };
+    PgUnitOfWork::new(pool.clone())
+        .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+            let actor = actor.clone();
+            let command = command.clone();
+            Box::pin(async move {
+                let now = TimestampMillis::new(NOW);
+                erpx_server_finance::public::commerce_order_money::lock_commerce_order_money_sources(
+                    connection,
+                )
+                .await?;
+                let outcome = {
+                    let mut repository = PgCommerceOrders::new(connection);
+                    save_order_outcome(&actor, &command, &mut repository, now).await?
+                };
+                if let Some(plan) = outcome.plan.as_ref() {
+                    let money = CommerceOrderMoneyInput {
+                        order_id: plan.id.clone(),
+                        version: plan.version,
+                        transaction_date: plan.order_date.clone(),
+                        currency: plan.currency.clone(),
+                        total: plan.subtotal_minor + plan.tax_minor,
+                        lines: plan
+                            .lines
+                            .iter()
+                            .map(|line| CommerceOrderMoneyLine {
+                                id: line.id.clone(),
+                                unit_price: line.price_minor,
+                                subtotal: line.subtotal_minor,
+                                tax: line.tax_minor,
+                            })
+                            .collect(),
+                    };
+                    snapshot_commerce_order_revision(
+                        connection,
+                        &actor.company_id,
+                        &money,
+                        now,
+                    )
+                    .await?;
+                }
+                Ok(outcome.receipt)
+            })
+        })
+        .await
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -903,6 +1070,170 @@ async fn save_price_list_and_master_guards_fail_closed() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn save_outcome_and_finance_money_snapshots_share_one_unit_and_replay_skips_money() {
+    use erpx_server_commerce::public::order::OrderKind;
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        let key = "commerce-order-money-0001";
+        let mut command = save_command(
+            key,
+            None,
+            OrderKind::Quote,
+            "party-1",
+            Some("warehouse-1"),
+            "2026-11-10",
+            "2026-11-15",
+            "80",
+            700,
+            Some("Strategic launch order approved for commercial review"),
+        );
+        command.input.note = "Money handoff".into();
+        let receipt = run_save_with_money(&pool, creator(), command.clone())
+            .await
+            .unwrap();
+        assert_eq!(receipt.version, 1);
+        let total = sqlx::query(
+            "SELECT amount_units::text amount_units,usd_units::text usd_units,fx_rate_id,\
+             currency_scale::int currency_scale FROM money_transaction_snapshots \
+             WHERE source_type='commerce_order_revision' AND source_id=$1 AND amount_kind='total'",
+        )
+        .bind(format!("{}:1", receipt.id))
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(total.get::<String, _>("amount_units"), "8560");
+        assert_eq!(total.get::<String, _>("usd_units"), "245");
+        assert_eq!(total.get::<String, _>("fx_rate_id"), "rate-thb");
+        assert_eq!(total.get::<i32, _>("currency_scale"), 2);
+        let lines: Vec<(String, String, String)> = sqlx::query_as(
+            "SELECT source_id,amount_kind,amount_units::text FROM money_transaction_snapshots \
+             WHERE source_type='commerce_order_line_revision' ORDER BY amount_kind",
+        )
+        .fetch_all(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            lines,
+            [
+                (
+                    format!("{}-line-0:1", receipt.id),
+                    "subtotal".into(),
+                    "8000".into()
+                ),
+                (
+                    format!("{}-line-0:1", receipt.id),
+                    "tax".into(),
+                    "560".into()
+                ),
+                (
+                    format!("{}-line-0:1", receipt.id),
+                    "unit_price".into(),
+                    "8000".into()
+                ),
+            ]
+        );
+        // The exact same command replays the receipt and does not duplicate
+        // any Finance evidence.
+        assert_eq!(
+            run_save_with_money(&pool, creator(), command).await.unwrap(),
+            receipt
+        );
+        let count: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM money_transaction_snapshots \
+             WHERE source_id LIKE $1",
+        )
+        .bind(format!("{}%", receipt.id))
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(count, 4);
+
+        let mut update = save_command(
+            "commerce-order-money-0002",
+            Some(&receipt.id),
+            OrderKind::Quote,
+            "party-1",
+            Some("warehouse-1"),
+            "2026-11-11",
+            "2026-11-20",
+            "90",
+            700,
+            Some("Reviewed margin after the customer negotiation"),
+        );
+        update.input.note = "Money handoff revised".into();
+        let updated = run_save_with_money(&pool, creator(), update).await.unwrap();
+        assert_eq!(updated.version, 2);
+        let next: (String, String) = sqlx::query_as(
+            "SELECT amount_units::text,usd_units::text FROM money_transaction_snapshots \
+             WHERE source_type='commerce_order_revision' AND source_id=$1 AND amount_kind='total'",
+        )
+        .bind(format!("{}:2", receipt.id))
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(next, ("9630".into(), "275".into()));
+
+        // A late deferred failure still rolls the order, receipt and Finance
+        // rows back together.
+        let atomic = save_command(
+            "commerce-order-money-atomic-0001",
+            None,
+            OrderKind::Quote,
+            "party-1",
+            Some("warehouse-1"),
+            "2026-11-10",
+            "2026-11-15",
+            "80",
+            700,
+            Some("Strategic launch order approved for commercial review"),
+        );
+        sqlx::raw_sql(
+            "CREATE FUNCTION commerce_order_money_atomic_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM 1/0; RETURN NEW; END; $$;\
+             CREATE CONSTRAINT TRIGGER commerce_order_money_atomic_fault AFTER INSERT ON outbox_events DEFERRABLE INITIALLY DEFERRED \
+             FOR EACH ROW WHEN(NEW.command_id='commerce-order-money-atomic-0001') EXECUTE FUNCTION commerce_order_money_atomic_fault();",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        assert!(
+            run_save_with_money(&pool, creator(), atomic.clone())
+                .await
+                .is_err()
+        );
+        sqlx::raw_sql(
+            "DROP TRIGGER commerce_order_money_atomic_fault ON outbox_events; DROP FUNCTION commerce_order_money_atomic_fault();",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let order_id = format!("order-{}", atomic.key.as_str());
+        for (label, count) in [
+            (
+                "commerce_orders",
+                sqlx::query_scalar::<_, i64>("SELECT count(*) FROM commerce_orders WHERE id=$1")
+                    .bind(&order_id)
+                    .fetch_one(pool.raw())
+                    .await
+                    .unwrap(),
+            ),
+            (
+                "money_transaction_snapshots",
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT count(*) FROM money_transaction_snapshots WHERE source_id LIKE $1",
+                )
+                .bind(format!("{order_id}%"))
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            ),
+        ] {
+            assert_eq!(count, 0, "{label}");
+        }
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn save_replay_conflict_and_late_failure_roll_back_exactly() {
     use erpx_server_commerce::public::order::OrderKind;
     fixture::with_database(4, |pool| async move {
@@ -998,7 +1329,6 @@ async fn save_replay_conflict_and_late_failure_roll_back_exactly() {
     })
     .await;
 }
-
 
 #[tokio::test(flavor = "multi_thread")]
 async fn read_is_company_and_branch_scoped_and_requires_current_iam() {
