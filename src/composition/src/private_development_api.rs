@@ -2315,6 +2315,21 @@ async fn assemble_checked(
                         backend: projects_backend.clone(),
                     },
                 );
+                #[cfg(feature = "existing-business")]
+                organization_targets.push(
+                    crate::organization_nodes_http::OrganizationNodesTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        service: Arc::new(crate::organization_nodes::OrganizationNodeService::new(
+                            authorizer.clone(),
+                            crate::organization_nodes::OrganizationNodesConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    },
+                );
                 customer_360_targets.push(
                     erpx_server_customer_360::public::customer_timeline_http::CustomerTimelineHttpTarget {
                         host: holding.host.clone(),
@@ -2512,21 +2527,6 @@ async fn assemble_checked(
                         Arc::new(SharedClock(clock.clone())),
                     )),
                 });
-                #[cfg(feature = "existing-business")]
-                organization_targets.push(
-                    crate::organization_nodes_http::OrganizationNodesTarget {
-                        host: holding.host.clone(),
-                        holding_slug: holding.registration.slug.clone(),
-                        service: Arc::new(crate::organization_nodes::OrganizationNodeService::new(
-                            authorizer.clone(),
-                            crate::organization_nodes::OrganizationNodesConfiguration::new(
-                                holding.registration.holding_id.clone(),
-                                company.clone(),
-                            ),
-                            Arc::new(SharedClock(clock.clone())),
-                        )),
-                    },
-                );
                 #[cfg(feature = "existing-business")]
                 learning_targets.push(
                     erpx_server_learning::public::learning_http::LearningHttpTarget {
@@ -4541,7 +4541,7 @@ async fn assemble_checked(
             .collect(),
         #[cfg(feature = "existing-business")]
         organization_targets: config
-            .finance_journal_reads
+            .operations_companies
             .keys()
             .filter_map(|holding_id| {
                 config
