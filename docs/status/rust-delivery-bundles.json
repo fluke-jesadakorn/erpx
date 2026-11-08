@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-08T20:58:49+07:00",
+  "updatedAt": "2026-11-08T21:21:45+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 49,
-    "workflowsVerified": 70,
-    "workflowsMerged": 70,
+    "workflowsPartial": 47,
+    "workflowsVerified": 72,
+    "workflowsMerged": 72,
     "ownersComplete": 8,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -3602,14 +3602,14 @@
       "kind": "module",
       "owner": "organization",
       "scope": "Organization tree",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "organization-native-setup"
       ],
       "sourceRef": "packages/server-organization/src/public/organization.ts",
-      "gap": "Native node-tree read, staff-level install, saved template save/apply, HTTP ingress and the People/Organization page GET (native workspace when ERPX_NATIVE_ORGANIZATION_CONFIG is set) are qualified. People-owned detail/appointment surfaces and the browser journey remain open."
+      "gap": "Closed. The Organization target and its private API boundary allowlist now mount for the configured operations Company and the native client accepts the registered development Holding port. Browser verified desktop and mobile on the People page: /api/v1/holdings/acme/people/organization returns the native workspace (9 nodes, 20 positions, node changes, change queue, authorized channels) and the page renders Acme Corporation with Bangkok Operations and New York Commercial units. Registered organization.test.ts (28/28), organization-access.test.ts (6/6) and organization-channels.test.ts (3/3) cases pass; native organization unit tests pass. Sharing stays partial because its registered social-beta audience case fails in the current fixture environment; node lifecycle stays partial pending its registered prepared Playwright journey."
     },
     {
       "id": "organization/sharing",
@@ -3644,14 +3644,14 @@
       "kind": "module",
       "owner": "organization",
       "scope": "Business units",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "organization-native-setup"
       ],
       "sourceRef": "packages/server-organization/src/public/organization.ts",
-      "gap": "Native business-unit visibility, staff-level/template setup and the People/Organization page GET are qualified. People-owned detail/appointment surfaces and the browser journey remain open."
+      "gap": "Closed. The Organization target and its private API boundary allowlist now mount for the configured operations Company and the native client accepts the registered development Holding port. Browser verified desktop and mobile on the People page: /api/v1/holdings/acme/people/organization returns the native workspace (9 nodes, 20 positions, node changes, change queue, authorized channels) and the page renders Acme Corporation with Bangkok Operations and New York Commercial units. Registered organization.test.ts (28/28), organization-access.test.ts (6/6) and organization-channels.test.ts (3/3) cases pass; native organization unit tests pass. Sharing stays partial because its registered social-beta audience case fails in the current fixture environment; node lifecycle stays partial pending its registered prepared Playwright journey."
     },
     {
       "id": "platform_administration/provisioning",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-08T20:58:49+07:00",
-    "sourceHead": "87fc7a00f",
+    "generatedAt": "2026-11-08T21:21:45+07:00",
+    "sourceHead": "540836cea",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6486,8 +6486,8 @@
       },
       "organization": {
         "workflows": 4,
-        "verified": 0,
-        "partial": 4,
+        "verified": 2,
+        "partial": 2,
         "unstarted": 0,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -8188,6 +8188,21 @@
           "owners": 8,
           "verified": 70,
           "partial": 49,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-08T21:21:45+07:00",
+        "commit": "540836cea",
+        "bundles": [
+          "native Organization tree and business units browser acceptance"
+        ],
+        "evidence": "browser desktop+mobile People page native workspace 9 nodes/20 positions/nodeChanges/changeQueue/authorizedChannels; organization integration 28+6+3 pass; native organization unit 21 pass; service check/typecheck/structure pass; sharing+node-lifecycle left partial with reasons",
+        "counts": {
+          "owners": 8,
+          "verified": 72,
+          "partial": 47,
           "unstarted": 87,
           "total": 206
         }
