@@ -79,6 +79,14 @@ describe('native Inventory stock-register transport',()=>{
     .rejects.toMatchObject({code:'NATIVE_INVENTORY_STOCK_RESPONSE_INVALID'});
  });
 
+ it('keeps signed scrap count values',async()=>{
+  const scrap={...count,id:'count-scrap',number:'SCRAP-1',status:'submitted',version:1,netValueMinor:-300,postedAt:null,journalId:null,initialPhysicalSource:false};
+  const transport=vi.fn().mockResolvedValue(new Response(JSON.stringify({context,data:{stock:[stock],lots:[lot],counts:[scrap],totals,currency:'THB'}}),{status:200,headers:{'content-type':'application/json'}}));
+  const read=createNativeInventoryStockRegisterReader(config(),transport);
+  const result=await read(headers(),'acme',actor);
+  expect(result.counts[0]).toMatchObject({id:'count-scrap',net_value_minor:-300});
+ });
+
  it('admits loopback 3101 only with the explicit production opt-in',()=>{
   expect(()=>createNativeInventoryStockRegisterReader(config({privateBaseUrl:'http://127.0.0.1:3101'}),vi.fn())).toThrow();
   expect(()=>createNativeInventoryStockRegisterReader(config({privateBaseUrl:'http://127.0.0.1:3101',production:true}),vi.fn())).not.toThrow();

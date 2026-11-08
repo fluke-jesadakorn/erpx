@@ -146,6 +146,8 @@ const nullableText = (value: unknown, max = 200): value is string | null =>
   value === null || text(value, max);
 const integer = (value: unknown, min = 0): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= min;
+const signedInteger = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value);
 const boolean = (value: unknown): value is boolean => typeof value === 'boolean';
 
 function configuration(raw: string): Settings {
@@ -386,7 +388,7 @@ function countRow(value: unknown): NativeStockCount {
     typeof value.reason !== 'string' ||
     !text(value.warehouseId) ||
     typeof value.warehouseName !== 'string' ||
-    !integer(value.netValueMinor) ||
+    !signedInteger(value.netValueMinor) ||
     (value.postedAt !== null && !integer(value.postedAt)) ||
     !nullableText(value.journalId) ||
     !boolean(value.initialPhysicalSource) ||

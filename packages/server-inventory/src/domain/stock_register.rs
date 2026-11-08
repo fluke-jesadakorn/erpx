@@ -117,6 +117,12 @@ fn bounded(value: i64) -> bool {
     (0..=MAX_SAFE).contains(&value)
 }
 
+/// Count value adjustments are signed: a scrap or shortage posts a negative
+/// net value and must remain visible in the register.
+fn signed(value: i64) -> bool {
+    (-MAX_SAFE..=MAX_SAFE).contains(&value)
+}
+
 fn tracking(value: &str) -> bool {
     matches!(value, "none" | "lot" | "serial")
 }
@@ -192,7 +198,7 @@ pub fn validate_count(count: StockRegisterCount) -> Result<StockRegisterCount, B
         || count.reason.is_empty()
         || count.warehouse_id.is_empty()
         || count.warehouse_name.is_empty()
-        || !bounded(count.net_value_minor)
+        || !signed(count.net_value_minor)
         || count.posted_at.is_some_and(|value| !bounded(value))
         || !optional_text(&count.journal_id, 200)
         || !bounded(count.created_at)

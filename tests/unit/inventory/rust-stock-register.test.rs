@@ -116,6 +116,14 @@ fn a_lot_shortfall_breaks_reconciliation_without_hiding_rows() {
 }
 
 #[test]
+fn keeps_signed_scrap_count_values_in_the_register() {
+    let mut scrap = count("scrap", "submitted", 1, false);
+    scrap.net_value_minor = -300;
+    let register = validate_register(vec![], vec![], vec![scrap], "THB".into()).unwrap();
+    assert_eq!(register.counts[0].net_value_minor, -300);
+}
+
+#[test]
 fn rejects_serial_lot_identity_mix_and_invalid_lifecycle() {
     let mut mixed = lot("a", "lot", 1_000, 1_000);
     mixed.serial_number = Some("S".into());
