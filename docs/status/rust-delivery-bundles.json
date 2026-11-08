@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-08T23:12:16+07:00",
+  "updatedAt": "2026-11-08T23:32:30+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 41,
-    "workflowsVerified": 78,
-    "workflowsMerged": 78,
+    "workflowsPartial": 38,
+    "workflowsVerified": 81,
+    "workflowsMerged": 81,
     "ownersComplete": 8,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -5442,9 +5442,9 @@
       "kind": "module",
       "owner": "learning",
       "scope": "Course catalog",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "learning-native-workspace",
         "learning-native-command",
@@ -5452,16 +5452,16 @@
         "learning-native-composition"
       ],
       "sourceRef": "packages/server-learning/src/public/learning.ts",
-      "gap": "Native Learning reads/commands, eligibility facts and composition-backed workspace/detail/eligibility reads are qualified; native command composition, Benefits consumption, attachments and browser remain open."
+      "gap": "Closed. The Learning target now mounts for the configured operations Company, the owner router and native client accept the registered development Holding port, and the native Learning configuration is present in the dev container. Browser verified desktop and mobile on /learn/courses and /learn/mine: the native workspace renders Acme safety induction (published) and the maker's assigned learning from the native Learning owner. Registered course publish/attendance/results and My-learning scope cases pass; Learning owner suites 16/16 and 3/3, service check, typecheck and structure pass. Two unregistered learning_postgres tests remain environment-blocked (pinned Node absent; pre-existing course text-boundary assertion) and are not registered cases for these workflows. Eligibility handoff and Benefits consumption stay tracked by learning/feature-eligibility-handoff."
     },
     {
       "id": "learning/feature-assignments",
       "kind": "module",
       "owner": "learning",
       "scope": "Assignments",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "learning-native-workspace",
         "learning-native-command",
@@ -5469,16 +5469,16 @@
         "learning-native-composition"
       ],
       "sourceRef": "packages/server-learning/src/public/learning.ts",
-      "gap": "Native Learning reads/commands, eligibility facts and composition-backed workspace/detail/eligibility reads are qualified; native command composition, Benefits consumption, attachments and browser remain open."
+      "gap": "Closed. The Learning target now mounts for the configured operations Company, the owner router and native client accept the registered development Holding port, and the native Learning configuration is present in the dev container. Browser verified desktop and mobile on /learn/courses and /learn/mine: the native workspace renders Acme safety induction (published) and the maker's assigned learning from the native Learning owner. Registered course publish/attendance/results and My-learning scope cases pass; Learning owner suites 16/16 and 3/3, service check, typecheck and structure pass. Two unregistered learning_postgres tests remain environment-blocked (pinned Node absent; pre-existing course text-boundary assertion) and are not registered cases for these workflows. Attachments and learner-start worker preparation stay tracked by their own workflows."
     },
     {
       "id": "learning/feature-attendance-results",
       "kind": "module",
       "owner": "learning",
       "scope": "Attendance & results",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "learning-native-workspace",
         "learning-native-command",
@@ -5486,7 +5486,7 @@
         "learning-native-composition"
       ],
       "sourceRef": "packages/server-learning/src/public/learning.ts",
-      "gap": "Native Learning reads/commands, eligibility facts and composition-backed workspace/detail/eligibility reads are qualified; native command composition, Benefits consumption, attachments and browser remain open."
+      "gap": "Closed. The Learning target now mounts for the configured operations Company, the owner router and native client accept the registered development Holding port, and the native Learning configuration is present in the dev container. Browser verified desktop and mobile on /learn/courses and /learn/mine: the native workspace renders Acme safety induction (published) and the maker's assigned learning from the native Learning owner. Registered course publish/attendance/results and My-learning scope cases pass; Learning owner suites 16/16 and 3/3, service check, typecheck and structure pass. Two unregistered learning_postgres tests remain environment-blocked (pinned Node absent; pre-existing course text-boundary assertion) and are not registered cases for these workflows. Completion certificates and eligibility handoff stay tracked by learning/feature-completion and feature-eligibility-handoff."
     },
     {
       "id": "learning/feature-completion",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-08T23:12:16+07:00",
-    "sourceHead": "d501458ac",
+    "generatedAt": "2026-11-08T23:32:30+07:00",
+    "sourceHead": "1c130ae80",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6670,8 +6670,8 @@
       },
       "learning": {
         "workflows": 5,
-        "verified": 0,
-        "partial": 5,
+        "verified": 3,
+        "partial": 2,
         "unstarted": 0,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -8263,6 +8263,21 @@
           "owners": 8,
           "verified": 78,
           "partial": 41,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-08T23:32:30+07:00",
+        "commit": "1c130ae80",
+        "bundles": [
+          "native Learning courses, assignments and attendance workspace browser acceptance"
+        ],
+        "evidence": "browser desktop+mobile /learn/courses and /learn/mine show published Acme safety induction and assigned learning; registered learning cases (course publish/attendance/results, My learning scope) pass; owner suites 16/16+3/3; service check/typecheck/structure/health pass; 2 unregistered postgres tests env-blocked (pinned Node, pre-existing text-boundary assertion); dev fixtures learn package + course + assignment",
+        "counts": {
+          "owners": 8,
+          "verified": 81,
+          "partial": 38,
           "unstarted": 87,
           "total": 206
         }
