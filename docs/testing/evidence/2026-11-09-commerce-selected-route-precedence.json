@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "date": "2026-11-09",
+  "status": "The review finding that demoted sales/quotes is closed on the committed tree: the selected-route Commerce HTTP suite now passes from a clean git archive and covers the exact save/conversion error precedence, selected Company isolation, independent approval/cancellation, cancellation rollback, Money lock/permanent-failure/serialization retry and append-only Money revisions. sales/quotes returns to verified; sales/orders, fulfillment, cancellations and revenue handoff remain partial/unstarted.",
+  "capability": "commerce-selected-route-precedence-and-quote-reverification",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "9458dfca391a546380709e69db9ccc9ce9f2c49e",
+  "commits": [
+    "56538f9075b2ff76424f8fabe67575fc02a745f3",
+    "f0a11a74084d78a75b00f6d4c3939228575f9e72"
+  ],
+  "reviewFindingClosed": {
+    "finding": "A later full TypeScript/PostgreSQL oracle exposed save error precedence differences involving stale versions, product, party and immutable Money guards; conversion also needed its Money error precedence checked.",
+    "resolution": "The selected-route suite exercises the real Account SSO, Holding SSO, selected Company/context and the composed private API assembly. It asserts PRODUCT_INVALID / PARTY_INVALID / PRICE_LIST_INVALID before version guard, COMMERCE_ORDER_CHANGED for stale update, QUOTE_REQUIRED before stale CAS on conversion, CONFLICT for credit-versus-stale approval, and unchanged orders/lines/Money/effects on every denial. It also holds the FX relation lock, proves 503 COMMERCE_UNAVAILABLE with no receipt/audit/outbox/order/Money rows, injects a permanent Money failure and a first-attempt serialization failure, and proves exactly one 1+3N revision per create/update with replay."
+  },
+  "verification": {
+    "cleanArchiveTest": "Fresh git archive of f0a11a740: cargo test -p erpx-service --locked --test commerce_selected_http_postgres --features existing-business,private-field-api passed 1/1 in 12.48s.",
+    "cleanArchiveBuild": "Fresh git archive of f0a11a740: cargo check -p erpx-service --locked --no-default-features --features private-field-api,files-scan-worker,existing-business passed.",
+    "commerce": "cargo test -p erpx-server-commerce --locked: 69/69 pass (5 unit, 8 PostgreSQL, 31 policy/oracle, 8 HTTP, 16 order PostgreSQL, 1 service-count).",
+    "frontend": "Desktop create/edit, mobile create and mobile edit were previously browser-verified through the native Next route with persisted order/line/Money readback; the clean integration build now includes the same source plus the selected-route composition fix.",
+    "structure": "structure:check and docs:check pass."
+  },
+  "compositionFix": {
+    "problem": "The private development assembly created one Commerce target per configured Company on the same Holding host/slug, so a multi-Company document could not mount the selected-route suite, and Finance asset-cost construction used the wrong clock shape.",
+    "fix": "Build one Commerce target with the full Company set via CommerceConfiguration::for_companies, include Commerce in the package-catalogue gate, and pass the shared clock to FinanceAssetCost. No business authority was widened; the selected route still requires the normal Account session and selected Company/branch/department context."
+  },
+  "workflowClosure": {
+    "sales/quotes": "Verified again on f0a11a740: native price lists, quotation list/detail, draft create/update with Finance order-revision Money (1+3N), selected-route save precedence and Company isolation, quote submit/approve/return/cancel/conversion with Money error precedence, desktop/mobile create/edit and a clean full-service archive build/test. Purchase orders, sales-order goods fulfillment/invoicing/settlement/returns and independent sales-approver browser approval remain separate."
+  },
+  "counts": {
+    "verified": 84,
+    "partial": 38,
+    "unstarted": 84,
+    "total": 206,
+    "ownersComplete": 8,
+    "ownerTotal": 41,
+    "salesOwner": "1 verified / 3 partial / 1 unstarted of 5"
+  },
+  "nextAction": "Close sales/orders and sales/fulfillment by porting goods fulfillment (reservations, stock, lots/serials, goods journal), then invoicing/settlement/returns; keep service completion browser evidence and selected-route precedence as the base."
+}

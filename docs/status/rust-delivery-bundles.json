@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T07:05:00+07:00",
+  "updatedAt": "2026-11-09T08:20:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -16,12 +16,12 @@
     "interpretation": "The 206 items are catalogue workflows, not the number of bounded flows. Each listed ID occurs once below. A partial item has supporting qualified slices, not whole-workflow verification."
   },
   "counts": {
-    "qualifiedBusinessFlows": 105,
+    "qualifiedBusinessFlows": 106,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 39,
-    "workflowsVerified": 83,
-    "workflowsMerged": 83,
+    "workflowsPartial": 38,
+    "workflowsVerified": 84,
+    "workflowsMerged": 84,
     "ownersComplete": 8,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -3449,6 +3449,17 @@
       "durableContractRefs": [
         "docs/contracts/next/rust-finance-journal-detail.md"
       ]
+    },
+    {
+      "id": "commerce-selected-route-precedence",
+      "kind": "business-flow-evidence",
+      "status": "flow-complete",
+      "scope": "Selected-route Commerce HTTP precedence and Company isolation: real Account/Holding SSO, selected Company/context, foreign-reference and stale-version error order, quote-before-CAS conversion, credit-versus-stale approval, draft cancellation with Inventory release rollback, Money lock/permanent-failure/serialization retry and append-only 1+3N revisions; verified from a clean git archive.",
+      "sourceIdentity": "f0a11a740",
+      "evidenceRef": "docs/testing/evidence/2026-11-09-commerce-selected-route-precedence.json",
+      "durableContractRefs": [
+        "docs/contracts/next/rust-finance-journal-detail.md"
+      ]
     }
   ],
   "workflows": [
@@ -4267,17 +4278,17 @@
       "kind": "module",
       "owner": "sales",
       "scope": "Quotes",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "sales-native-documents",
         "sales-native-documents-http",
         "sales-native-price-lists"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Native quotation flows, desktop and mobile create/edit, Money readback and a clean integration build have recorded evidence; mergeCommit identifies an earlier implementation slice, not whole-workflow integration. A later full TypeScript/PostgreSQL oracle exposed save error precedence differences involving stale versions, product, party and immutable Money guards; conversion also needs its Money error precedence checked. The current native source must preserve the original transaction order and pass affected negative, integration and review gates before this whole workflow is verified and integrated.",
-      "mergeCommit": "62a9147fb"
+      "gap": "Verified native quotation workflow on the clean integration tree: price-list draft/update/activate/cancel, quotation list/detail, draft create/update with customer/warehouse/product/version/date guards, active price list/discount/tax integer math, CAS, replay, receipt/audit/outbox, persisted readback and Finance order/line revision Money snapshots (1+3N) in one serializable unit; quote submit/approve/return/cancel/conversion with exact TypeScript save/conversion error precedence; desktop/mobile create and edit through the native Next route with record/list readback; selected-route Company/context isolation, denial rollback and Money lock/permanent-failure/serialization-retry gates; and a clean full-service archive build/test. Purchase orders, sales-order goods fulfillment/invoicing/settlement/returns and independent sales-approver browser approval remain separate workflows or retained operations.",
+      "mergeCommit": "f0a11a740"
     },
     {
       "id": "sales/orders",
@@ -4306,7 +4317,7 @@
         "sales-native-service-completion"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Native service completion is browser-verified on desktop and mobile through the selected Next route for confirmed/partially fulfilled sales orders, including exact quantities/amounts, fulfillment header/line, delivered quantity, CAS state refresh, receipt/audit/outbox, persisted readback and Finance per-line subtotal/tax/total Money rows in the same serializable unit. Goods delivery, lots/serials, Inventory stock movements, goods journal, invoicing, settlement and returns remain retained."
+      "gap": "Native service completion is browser-verified on desktop and mobile through the selected Next route for confirmed/partially fulfilled sales orders, including exact quantities/amounts, fulfillment header/line, delivered quantity, CAS state refresh, receipt/audit/outbox, persisted readback and Finance per-line subtotal/tax/total Money rows in the same serializable unit. Finance snapshot persistence errors must retain retryable SQLSTATE and fulfillment retry still needs its own verification. Goods delivery, lots/serials, Inventory stock movements, goods journal, invoicing, settlement and returns remain retained."
     },
     {
       "id": "sales/feature-cancellations",
@@ -6503,8 +6514,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-09T07:05:00+07:00",
-    "sourceHead": "af556efa6",
+    "generatedAt": "2026-11-09T08:20:00+07:00",
+    "sourceHead": "f0a11a740",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6589,8 +6600,8 @@
       },
       "sales": {
         "workflows": 5,
-        "verified": 0,
-        "partial": 4,
+        "verified": 1,
+        "partial": 3,
         "unstarted": 1,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -7171,11 +7182,11 @@
     ],
     "nextActions": [
       "Reconcile the delivery register's eight catalogue-complete owners with the owner register's three businessMigrationComplete claims and audit retained TypeScript consumers, Finance handoff and strict retirement gates before certifying an owner count for the migration goal.",
-      "Restore sales/quotes verification after matching full TypeScript save and conversion error precedence and completing affected native gates; port Commerce fulfillment/invoicing/settlement/returns to close sales/orders.",
       "Positive-cost Assets is blocked by the server-assets/composition API drift recorded in assets-composition-api-drift; integrate that revision before rebuilding the container and browser-verifying registration.",
       "Recheck the integrated Files/Workflow attachment modules and the full service on the final frozen source; the historical clean archive build predates current shared work.",
       "Await Stripe/Connect configuration for POS tenders/refunds/retry.",
-      "Reconcile remote HEAD and keep counts tied to browser/HTTP evidence."
+      "Reconcile remote HEAD and keep counts tied to browser/HTTP evidence.",
+      "sales/quotes is verified again after the selected-route precedence suite; close sales/orders and sales/fulfillment with goods fulfillment (reservations, stock, lots/serials, goods journal), then invoicing/settlement/returns."
     ],
     "integrationLog": [
       {
@@ -8496,6 +8507,23 @@
           "owners": 8,
           "verified": 83,
           "partial": 39,
+          "unstarted": 84,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-09T08:20:00+07:00",
+        "commit": "f0a11a740",
+        "bundles": [
+          "selected-route Commerce precedence suite",
+          "multi-Company private API commerce mount",
+          "sales/quotes reverification"
+        ],
+        "evidence": "Clean archive selected-route suite 1/1; Commerce 69/69; clean full-service archive check; desktop/mobile create/edit with persisted Money; 84 verified / 38 partial / 84 unstarted / 8 of 41 owners",
+        "counts": {
+          "owners": 8,
+          "verified": 84,
+          "partial": 38,
           "unstarted": 84,
           "total": 206
         }
