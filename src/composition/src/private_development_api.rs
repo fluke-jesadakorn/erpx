@@ -2255,6 +2255,25 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                identity_access_targets.push(
+                    erpx_server_identity_access::public::assignment_http::IamAssignmentHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::identity_access::IdentityAccessBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::identity_access::IdentityAccessService::new(
+                                authorizer.clone(),
+                                crate::identity_access::IdentityAccessConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
                 customer_360_targets.push(
                     erpx_server_customer_360::public::customer_timeline_http::CustomerTimelineHttpTarget {
                         host: holding.host.clone(),
@@ -2498,25 +2517,6 @@ async fn assemble_checked(
                             Arc::new(crate::quality::QualityService::new(
                                 authorizer.clone(),
                                 crate::quality::QualityConfiguration::new(
-                                    holding.registration.holding_id.clone(),
-                                    company.clone(),
-                                ),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )),
-                    },
-                );
-                identity_access_targets.push(
-                    erpx_server_identity_access::public::assignment_http::IamAssignmentHttpTarget {
-                        host: holding.host.clone(),
-                        holding_slug: holding.registration.slug.clone(),
-                        origin: format!("https://{}", holding.host),
-                        backend: Arc::new(crate::identity_access::IdentityAccessBackend::new(
-                            config.policy.clone(),
-                            Arc::new(FinanceJournalReadScopeHeaders),
-                            Arc::new(crate::identity_access::IdentityAccessService::new(
-                                authorizer.clone(),
-                                crate::identity_access::IdentityAccessConfiguration::new(
                                     holding.registration.holding_id.clone(),
                                     company.clone(),
                                 ),
@@ -6956,6 +6956,25 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         }
         _ => false,
     };
+    let identity_access = match request
+        .uri()
+        .path()
+        .split('/')
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        ["", "api", "v1", "holdings", _, "iam", "assignments"]
+            if request.method() == axum::http::Method::GET =>
+        {
+            state.policy.audience(host).is_some()
+        }
+        ["", "api", "v1", "holdings", _, "iam", "assignments", id, "revoke"]
+            if request.method() == axum::http::Method::POST && !id.is_empty() =>
+        {
+            state.policy.audience(host).is_some()
+        }
+        _ => false,
+    };
     let ecommerce = request.method() == axum::http::Method::GET
         && match request
             .uri()
@@ -7073,6 +7092,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || manufacturing
         || procurement
         || ecommerce
+        || identity_access
         || customer_access
         || service_packages
         || field_work_roles

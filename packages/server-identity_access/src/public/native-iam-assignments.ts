@@ -328,24 +328,9 @@ function context(
   actor: NativeIamPageContext,
   input: NativeIamAssignmentsReadInput,
 ): Context {
-  if (
-    !exact(value, [
-      'userId',
-      'holdingId',
-      'companyId',
-      'branchId',
-      'departmentId',
-      'assignmentId',
-      'assignmentVersion',
-      'revision',
-      'role',
-      'scopeKind',
-      'permissions',
-      'expiresAt',
-    ])
-  )
-    return failure('NATIVE_IAM_ASSIGNMENTS_RESPONSE_INVALID');
+  if (!record(value)) return failure('NATIVE_IAM_ASSIGNMENTS_RESPONSE_INVALID');
   const parsed = value as Context;
+  const scopeKind = parsed.scopeKind ?? parsed.assignmentScopeKind;
   if (
     parsed.userId !== actor.userId ||
     parsed.holdingId !== actor.holdingId ||
@@ -356,7 +341,7 @@ function context(
     parsed.assignmentVersion !== actor.authority.assignmentVersion ||
     parsed.revision !== actor.authority.revision ||
     parsed.role !== actor.role ||
-    parsed.scopeKind !== actor.assignmentScope ||
+    scopeKind !== actor.assignmentScope ||
     !integer(parsed.expiresAt, 1) ||
     !Array.isArray(parsed.permissions) ||
     parsed.permissions.length > 512 ||
@@ -413,7 +398,6 @@ function configuration(raw: NativeIamAssignmentsConfiguration) {
     if (
       origin.protocol !== 'https:' ||
       holding.origin !== origin.origin ||
-      origin.port ||
       origin.username ||
       origin.password ||
       !identifier(holding.holdingId) ||
