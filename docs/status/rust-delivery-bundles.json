@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T01:45:00+07:00",
+  "updatedAt": "2026-11-09T02:05:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,7 +19,7 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 36,
+    "workflowsPartial": 37,
     "workflowsVerified": 83,
     "workflowsMerged": 83,
     "ownersComplete": 8,
@@ -4232,7 +4232,7 @@
         "sales-native-price-lists"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Native price-list draft/update/activate/cancel, sales document list/edit-read, eligible quote/order transitions and native draft quote create/update are wired through the Commerce public order port. Draft save enforces customer/warehouse/product/version/active price-list/date guards, integer discount and tax math, CAS, replay, receipt/audit/outbox and readback; purchase, order-revision Money snapshots, approval/cancellation Finance/Inventory guards and the authenticated desktop/mobile save journey remain retained or blocked by the keyed work-role chooser."
+      "gap": "Native price-list draft/update/activate/cancel, sales document list/edit-read, eligible quote/order transitions and native draft quote create/update are wired through the Commerce public order port. Draft save enforces customer/warehouse/product/version/active price-list/date guards, integer discount and tax math, CAS, replay, receipt/audit/outbox and readback; purchase, order-revision Money snapshots and approval/cancellation Finance/Inventory guards remain retained. The owner HTTP and Next API routes are now reachable on the keyed development origin after the origin and commerceCompanies composition fixes; desktop/mobile browser readback renders all native-created quotations. The interactive New quotation/Edit draft drawer still does not hydrate in the keyed office shell, so this workflow stays partial."
     },
     {
       "id": "sales/orders",
@@ -4247,7 +4247,7 @@
         "sales-native-documents-http"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Native quote/order list/edit-read, eligible transitions and native draft sales-order create/update are wired through the Commerce public order port with the same customer/warehouse/product/price-list guards, integer totals, CAS, receipt/audit/outbox and readback as quotations. Order-revision Money snapshots, fulfillment, confirmed cancellation, approval and the authenticated desktop/mobile save journey remain retained or blocked by the keyed work-role chooser."
+      "gap": "Native quote/order list/edit-read, eligible transitions and native draft sales-order create/update are wired through the Commerce public order port with the same customer/warehouse/product/price-list guards, integer totals, CAS, receipt/audit/outbox and readback as quotations. The owner HTTP and Next API routes are now reachable on the keyed development origin after the origin and commerceCompanies composition fixes; desktop/mobile browser readback renders the native-created draft quotations. Order-revision Money snapshots, fulfillment, confirmed cancellation, approval and the interactive create/edit drawer hydration remain retained or blocked."
     },
     {
       "id": "sales/fulfillment",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-09T01:45:00+07:00",
-    "sourceHead": "43d281740",
+    "generatedAt": "2026-11-09T02:05:00+07:00",
+    "sourceHead": "68f7c2700",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7108,8 +7108,8 @@
       },
       {
         "id": "native-work-role-browser-selection",
-        "detail": "The keyed development container accepts the account login but the Sales workspace chooser re-renders/navigates without establishing a selected work role, so the authenticated desktop/mobile Commerce save journey cannot be exercised. Container gateway 3100 and native API 44817 are healthy; this is the same keyed work-role blocker recorded for the prepared browser cohort.",
-        "unblock": "Restore the keyed work-role selection/session path, then replay the native Commerce quote create/edit journey on desktop and mobile."
+        "detail": "The keyed work-role current endpoint returns a valid asg_mali_owner selection when the selected Company context is present, and the Commerce owner HTTP/Next routes now create, replay, update and read back native orders. The remaining browser blocker is the office-shell hydration/Suspense loop: the page content is server-rendered, but the Next dev overlay reloads it and the page's client buttons receive no React handlers. Blocking the dev-overlay chunk stabilises the list and renders the native-created quotations on desktop and mobile.",
+        "unblock": "Fix or bypass the office-shell hydration/Suspense loop, then replay the New quotation/Edit draft drawer interaction on desktop and mobile."
       },
       {
         "id": "private-production-3101",
@@ -8341,6 +8341,21 @@
           "native Assets Finance acquisition-cost snapshot handoff"
         ],
         "evidence": "composition FinanceAssetCost now calls the Finance-owned lock/prepare/persist public port on the serializable Asset unit; new composition PostgreSQL test proves exact acquired-date/scale/rate snapshot and rollback; actor-subject Asset HTTP 5/5 remains green; Assets browser confirmation stays blocked by the keyed work-role chooser; counts unchanged",
+        "counts": {
+          "owners": 8,
+          "verified": 83,
+          "partial": 36,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-09T02:05:00+07:00",
+        "commit": "68f7c2700",
+        "bundles": [
+          "native Commerce dev origin, target composition and browser readback"
+        ],
+        "evidence": "fixed exact .erpx.localhost:3443 development origin validation and mounted Commerce targets from an explicit commerceCompanies map instead of the finance journal loop; native owner POST create/update and the Next route returned persisted {id,version} with replay, 409 idempotency conflict, 409 stale CAS and exact readback; desktop 1440x1200 and mobile 390x844 quotations pages rendered QT-2026-000001/2/3 with one navigation; interactive create/edit drawer remains unhydrated because the office shell dev-overlay reloads on the remaining Suspense error; counts unchanged",
         "counts": {
           "owners": 8,
           "verified": 83,

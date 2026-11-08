@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "date": "2026-11-09",
+  "status": "Native Commerce draft order create/update is now reachable through the selected Next route and the private native API on the keyed development origin. Direct owner HTTP and the Next API route both create, replay, update with CAS and reject stale/idempotency-conflicting requests; desktop and mobile browser readback render the native-created quotations. The interactive create/edit drawer remains blocked by the keyed development hydration/dev-overlay loop, so sales/quotes and sales/orders stay partial.",
+  "capability": "commerce-native-order-http-browser-readback",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "05eb10740b67af23beb3d85e12a06a287f0f0fee",
+  "commits": [
+    "500ea788a2f2cff2b048ffd5dba464a7b26ec477",
+    "68f7c27003ce33c8a990f0a119e98a793477569c"
+  ],
+  "fixes": {
+    "origin": "The native Commerce client and owner HTTP target now accept only the exact keyed development origin acme.erpx.localhost:3443 in addition to port-free production HTTPS origins. Production validation remains port-free.",
+    "composition": "Commerce targets were pushed inside the Finance journal-read company loop, so a config without financeJournalReads registered zero Commerce targets and every native order request returned the private-API 404. A dedicated commerceCompanies map now mounts the Commerce router for acme-co.",
+    "authentication": "The keyed work-role current endpoint returns a valid asg_mali_owner selection when the selected Company context is supplied; the Next route receives that context from workFetch."
+  },
+  "verification": {
+    "nativeDirect": "POST /api/v1/holdings/acme/commerce/orders on the private API created order-native-commerce-direct-0006 (version 1) and POST /orders/... updated it to version 2 with the exact note/date/line/price readback (quantity_milli 2000, price_minor 3000, subtotal_minor 6000).",
+    "nextRoute": "POST /__erpx/sales/api/v1/holdings/acme/commerce/orders created order-native-commerce-next-create-0001 {id,version:1}; GET /orders/{id} read back draft/version 1/one line/price 2500.",
+    "idempotency": "The same create key and body replayed {id,version:1}; the same key with a different note returned 409 IDEMPOTENCY_CONFLICT; a second update with expectedVersion 1 after version 2 returned 409 COMMERCE_ORDER_CHANGED.",
+    "browser": "Desktop 1440x1200 and mobile 390x844 readback of the Sales quotations page rendered all three native-created quotations QT-2026-000001/2/3 with one navigation each and no runtime reload. Screenshots: .scratch/dev/commerce-native-quotes-desktop.png and .scratch/dev/commerce-native-quotes-mobile.png.",
+    "blockedInteraction": "The create/edit drawer does not hydrate in the keyed development shell. The page content is server-rendered, but the Next dev overlay reloads on the remaining layout Suspense error; blocking the dev-overlay chunk stabilises the list, while the client button still has no React handlers. The interactive desktop/mobile save journey is therefore not counted."
+  },
+  "scope": {
+    "verified": [
+      "native owner create/update writer and persisted readback",
+      "native owner HTTP create/update route",
+      "Next Commerce order route selects native for quote/sales",
+      "exact development Holding origin accepted by the native transport and owner router",
+      "Commerce target actually mounted in the private development composition",
+      "desktop/mobile browser readback of native-created quotations"
+    ],
+    "retained": [
+      "purchase orders and request/RFQ handoffs",
+      "order-revision Money snapshots",
+      "sales approval Finance credit guard and confirmed sales cancellation Inventory guard",
+      "fulfillment, invoicing, settlement and returns",
+      "interactive create/edit form hydration in the keyed development shell"
+    ]
+  },
+  "changedFiles": [
+    "packages/feature-commerce/src/public/native-commerce-orders.ts",
+    "packages/server-commerce/src/adapters/order_http.rs",
+    "src/composition/src/private_development_api.rs",
+    "scripts/local/dev-container-native.ts",
+    "tests/unit/commerce/rust-commerce-order-http.test.rs"
+  ],
+  "nextAction": "Fix the keyed office-shell hydration/Suspense loop, then replay the New quotation/Edit draft interaction on desktop and mobile before moving sales/quotes or sales/orders out of partial."
+}
