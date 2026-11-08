@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-08T22:32:24+07:00",
+  "updatedAt": "2026-11-08T23:12:16+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 44,
-    "workflowsVerified": 75,
-    "workflowsMerged": 75,
+    "workflowsPartial": 41,
+    "workflowsVerified": 78,
+    "workflowsMerged": 78,
     "ownersComplete": 8,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -5376,12 +5376,12 @@
       "kind": "module",
       "owner": "benefits",
       "scope": "Dependents",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [],
       "sourceRef": "packages/server-benefits/src/public/benefits.ts",
-      "gap": "Native dependent verification and election selection commands are implemented with verified-dependent uniqueness and family-coverage guards; composition/UI/browser remain open."
+      "gap": "Closed. Benefits workspace/command targets now mount for the configured operations Company, GET/POST benefits paths pass the private API boundary, both owner routers and the native client accept the registered development Holding port, and the native Benefits configuration is present in the dev container. Native workspace context normalization now matches the owner: the rendered 15-key context is validated from the envelope and the workContext digest is validated from data. Browser verified desktop and mobile on /people/benefits/plans: Acme family medical cover (published, 12550 employee / 30000 employer USD) and 2027 annual enrollment (open) render from the native Benefits owner; enrollments exposes Add dependent / Elect coverage. Registered benefits.test.ts (28/28) including the family-coverage snapshot, dependent-proof binding and enrollment-window lifecycle, owner HTTP 2/2, command 9/9, native transport 14/14, service check, typecheck and structure pass. Dependent verification/election selection remains tracked with coverage; browser evidence covers the plans/enrollments workspace and dependent entry control."
     },
     {
       "id": "benefits/coverage",
@@ -5403,27 +5403,27 @@
       "kind": "module",
       "owner": "benefits",
       "scope": "Plans",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "benefits-native-workspace",
         "benefits-native-workspace-http"
       ],
       "sourceRef": "packages/server-benefits/src/public/benefits.ts",
-      "gap": "Native plan/window/dependent/election commands and workspace reads are PostgreSQL-qualified with exact Money, CAS, independence, People worker/name facts and a same-unit `people.benefits` purchase gate. The command/read routers are mounted in composition with the real Account session/IAM; composed tests prove plan create, replay and no-purchase denial. Files evidence, Learning eligibility, provider payroll, client detail history and browser remain open."
+      "gap": "Closed. Benefits workspace/command targets now mount for the configured operations Company, GET/POST benefits paths pass the private API boundary, both owner routers and the native client accept the registered development Holding port, and the native Benefits configuration is present in the dev container. Native workspace context normalization now matches the owner: the rendered 15-key context is validated from the envelope and the workContext digest is validated from data. Browser verified desktop and mobile on /people/benefits/plans: Acme family medical cover (published, 12550 employee / 30000 employer USD) and 2027 annual enrollment (open) render from the native Benefits owner; enrollments exposes Add dependent / Elect coverage. Registered benefits.test.ts (28/28) including the family-coverage snapshot, dependent-proof binding and enrollment-window lifecycle, owner HTTP 2/2, command 9/9, native transport 14/14, service check, typecheck and structure pass. Files evidence, Learning eligibility, provider payroll and client detail history remain owned by other capabilities/workflows."
     },
     {
       "id": "benefits/feature-enrollment-windows",
       "kind": "module",
       "owner": "benefits",
       "scope": "Enrollment windows",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [],
       "sourceRef": "packages/server-benefits/src/public/benefits.ts",
-      "gap": "Native enrollment-window open/transition commands and election submit/acknowledge are implemented with status/date/CAS and independence guards; composition/UI/browser remain open."
+      "gap": "Closed. Benefits workspace/command targets now mount for the configured operations Company, GET/POST benefits paths pass the private API boundary, both owner routers and the native client accept the registered development Holding port, and the native Benefits configuration is present in the dev container. Native workspace context normalization now matches the owner: the rendered 15-key context is validated from the envelope and the workContext digest is validated from data. Browser verified desktop and mobile on /people/benefits/plans: Acme family medical cover (published, 12550 employee / 30000 employer USD) and 2027 annual enrollment (open) render from the native Benefits owner; enrollments exposes Add dependent / Elect coverage. Registered benefits.test.ts (28/28) including the family-coverage snapshot, dependent-proof binding and enrollment-window lifecycle, owner HTTP 2/2, command 9/9, native transport 14/14, service check, typecheck and structure pass. Provider payroll release and client detail history remain covered by benefits/coverage and other workflows."
     },
     {
       "id": "benefits/feature-provider-payroll",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-08T22:32:24+07:00",
-    "sourceHead": "ec9783c16",
+    "generatedAt": "2026-11-08T23:12:16+07:00",
+    "sourceHead": "d501458ac",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6662,9 +6662,9 @@
       },
       "benefits": {
         "workflows": 5,
-        "verified": 0,
-        "partial": 2,
-        "unstarted": 3,
+        "verified": 3,
+        "partial": 1,
+        "unstarted": 1,
         "phase": "partial",
         "businessMigrationComplete": false
       },
@@ -8248,6 +8248,21 @@
           "owners": 8,
           "verified": 75,
           "partial": 44,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-08T23:12:16+07:00",
+        "commit": "d501458ac",
+        "bundles": [
+          "native Benefits plans, enrollment windows and dependent workspace browser acceptance"
+        ],
+        "evidence": "browser desktop+mobile /people/benefits/plans shows published Acme family medical cover 12550/30000 USD and open 2027 annual enrollment; enrollments exposes Add dependent/Elect coverage; registered benefits.test.ts 28/28, owner HTTP 2/2, commands 9/9, native transport 14/14; service check/typecheck/structure/health pass; dev fixtures people-benefits grant + plan/window",
+        "counts": {
+          "owners": 8,
+          "verified": 78,
+          "partial": 41,
           "unstarted": 87,
           "total": 206
         }
