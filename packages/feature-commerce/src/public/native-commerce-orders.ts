@@ -98,6 +98,31 @@ export type NativeCommerceOrderTransitionInput = Readonly<{
   reason?: string;
 }>;
 
+export type NativeCommerceOrderSaveLineInput = Readonly<{
+  productId: string;
+  quantity: string;
+  price: string;
+  taxBps: number;
+}>;
+
+export type NativeCommerceOrderSaveInput = Readonly<{
+  kind: 'quote' | 'sales';
+  partyId: string;
+  warehouseId: string;
+  orderDate: string;
+  dueDate: string;
+  note: string;
+  priceListId?: string;
+  discountReason?: string;
+  lines: readonly NativeCommerceOrderSaveLineInput[];
+  expectedVersion?: number;
+}>;
+
+export type NativeCommerceOrderSaveReceipt = Readonly<{
+  id: string;
+  version: number;
+}>;
+
 export type NativeCommerceOrdersReadInput = Readonly<{
   holdingSlug: string;
   branchSlug?: string;
@@ -306,6 +331,66 @@ function receipt(value: unknown): NativeCommerceOrderReceipt {
   return value as unknown as NativeCommerceOrderReceipt;
 }
 
+function saveReceipt(value: unknown): NativeCommerceOrderSaveReceipt {
+  if (!exact(value, ['id', 'version']) || !identifier(value.id) || !integer(value.version, 1))
+    return failure('NATIVE_COMMERCE_ORDER_RESPONSE_INVALID');
+  return value as unknown as NativeCommerceOrderSaveReceipt;
+}
+
+function saveInput(input: NativeCommerceOrderSaveInput): string {
+  if (
+    (input.kind !== 'quote' && input.kind !== 'sales') ||
+    !identifier(input.partyId) ||
+    typeof input.warehouseId !== 'string' ||
+    !text(input.warehouseId, 200) ||
+    !date(input.orderDate) ||
+    !date(input.dueDate) ||
+    input.dueDate < input.orderDate ||
+    typeof input.note !== 'string' ||
+    !text(input.note, 2000) ||
+    (input.priceListId !== undefined && !identifier(input.priceListId)) ||
+    (input.discountReason !== undefined && !text(input.discountReason, 1000)) ||
+    !Array.isArray(input.lines) ||
+    input.lines.length < 1 ||
+    input.lines.length > 20 ||
+    (input.expectedVersion !== undefined && !integer(input.expectedVersion, 1))
+  )
+    return failure('NATIVE_COMMERCE_ORDER_REQUEST_INVALID');
+  const products = new Set<string>();
+  for (const line of input.lines) {
+    if (
+      !identifier(line.productId) ||
+      products.has(line.productId) ||
+      typeof line.quantity !== 'string' ||
+      !/^\d+(\.\d{1,3})?$/.test(line.quantity) ||
+      typeof line.price !== 'string' ||
+      !/^\d+(\.\d{1,2})?$/.test(line.price) ||
+      !Number.isInteger(line.taxBps) ||
+      line.taxBps < 0 ||
+      line.taxBps > 10_000
+    )
+      return failure('NATIVE_COMMERCE_ORDER_REQUEST_INVALID');
+    products.add(line.productId);
+  }
+  return JSON.stringify({
+    kind: input.kind,
+    partyId: input.partyId,
+    warehouseId: input.warehouseId,
+    orderDate: input.orderDate,
+    dueDate: input.dueDate,
+    note: input.note,
+    ...(input.priceListId !== undefined ? { priceListId: input.priceListId } : {}),
+    ...(input.discountReason !== undefined ? { discountReason: input.discountReason } : {}),
+    lines: input.lines.map((line) => ({
+      productId: line.productId,
+      quantity: line.quantity,
+      price: line.price,
+      taxBps: line.taxBps,
+    })),
+    ...(input.expectedVersion !== undefined ? { expectedVersion: input.expectedVersion } : {}),
+  });
+}
+
 function context(
   value: unknown,
   actor: NativeCommerceOrdersPageContext,
@@ -462,7 +547,7 @@ function transportCall(
     headers.set('idempotency-key', key);
   }
   const url = new URL(
-    `/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/commerce/orders/${path}`,
+    `/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/commerce/orders${path ? `/${path}` : ''}`,
     base,
   );
   const controller = new AbortController();
@@ -713,6 +798,32 @@ export function createNativeCommerceOrdersClient(
       );
       if (!exact(value, ['data', 'context'])) return failure('NATIVE_COMMERCE_ORDER_RESPONSE_INVALID');
       const data = receipt(value.data);
+      context(value.context, actor, input);
+      return data;
+    },
+    async save(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeCommerceOrdersPageContext,
+      orderId: string | null,
+      command: NativeCommerceOrderSaveInput,
+      key: string,
+      input: NativeCommerceOrdersReadInput,
+      signal?: AbortSignal,
+    ): Promise<NativeCommerceOrderSaveReceipt> {
+      if (orderId !== null && !identifier(orderId))
+        return failure('NATIVE_COMMERCE_ORDER_REQUEST_INVALID');
+      const value = await run(
+        incoming,
+        actor,
+        input,
+        orderId === null ? '' : encodeURIComponent(orderId),
+        'POST',
+        saveInput(command),
+        key,
+        signal,
+      );
+      if (!exact(value, ['data', 'context'])) return failure('NATIVE_COMMERCE_ORDER_RESPONSE_INVALID');
+      const data = saveReceipt(value.data);
       context(value.context, actor, input);
       return data;
     },

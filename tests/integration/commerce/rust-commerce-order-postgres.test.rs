@@ -7,7 +7,8 @@ mod fixture;
 
 use erpx_server_commerce::public::order::{
     CommerceOrderActor, CommerceOrderReadRepository, OrderAction, PgCommerceOrders,
-    SalesOrderDocument, TransitionCommand, order_detail, transition_order,
+    SalesOrderDocument, SaveOrderCommand, SaveOrderInput, SaveOrderLineInput, SaveOrderReceipt,
+    TransitionCommand, order_detail, save_order, transition_order,
 };
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
@@ -410,6 +411,40 @@ async fn setup(pool: &DatabasePool) {
     .execute(pool.raw())
     .await
     .unwrap();
+    sqlx::raw_sql(
+        "INSERT INTO finance_charts(id,company_id,name,base_currency,status,created_by,created_at,updated_at) \
+         VALUES('chart-1','company','Company chart','THB','active','creator',0,0);\
+         INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,status,created_at,updated_at) VALUES \
+         ('coa-1','chart-1','company','1000','Receivable','asset','THB','active',0,0),\
+         ('coa-2','chart-1','company','2000','Payable','liability','THB','active',0,0),\
+         ('coa-3','chart-1','company','4000','Revenue','revenue','THB','active',0,0),\
+         ('coa-4','chart-1','company','1200','Inventory','asset','THB','active',0,0),\
+         ('coa-5','chart-1','company','2100','Clearing','liability','THB','active',0,0),\
+         ('coa-6','chart-1','company','5000','Cost of sales','expense','THB','active',0,0),\
+         ('coa-7','chart-1','company','1300','Input tax','asset','THB','active',0,0),\
+         ('coa-8','chart-1','company','2200','Output tax','liability','THB','active',0,0),\
+         ('coa-9','chart-1','company','1000-C','Cash','asset','THB','active',0,0);\
+         INSERT INTO commerce_settings(company_id,chart_id,currency,receivable_account_id,payable_account_id,\
+         revenue_account_id,inventory_account_id,clearing_account_id,cogs_account_id,input_tax_account_id,\
+         output_tax_account_id,cash_account_id) VALUES('company','chart-1','THB','coa-1','coa-2','coa-3',\
+         'coa-4','coa-5','coa-6','coa-7','coa-8','coa-9');\
+         INSERT INTO sales_price_lists(id,company_id,name,currency,customer_id,valid_from,valid_until,\
+         max_auto_discount_bps,status,version,created_by,prepared_by,approved_by,approval_reason,activated_at,created_at,updated_at) VALUES \
+         ('list-general','company','General prices','THB',NULL,'2026-11-01','2026-11-30',500,'draft',1,\
+          'creator','creator',NULL,NULL,NULL,100,100),\
+         ('list-customer','company','Customer prices','THB','party-1','2026-11-01','2026-11-30',1000,'draft',1,\
+          'creator','creator',NULL,NULL,NULL,101,101);\
+         INSERT INTO sales_price_list_items(id,price_list_id,product_id,price_minor,tax_bps,ordinal) VALUES \
+         ('list-general-item','list-general','product-1',10000,700,0),\
+         ('list-customer-item','list-customer','product-1',10500,700,0);\
+         UPDATE sales_price_lists SET status='active',approved_by='reviewer',\
+         approval_reason='Independently reviewed',activated_at=1000 WHERE id='list-general';\
+         UPDATE sales_price_lists SET status='active',approved_by='reviewer',\
+         approval_reason='Independently reviewed',activated_at=1001 WHERE id='list-customer';",
+    )
+    .execute(pool.raw())
+    .await
+    .unwrap();
 }
 
 async fn run_detail(
@@ -460,6 +495,510 @@ async fn run_error(
         .map_err(business)
         .unwrap_err()
 }
+
+async fn run_save(
+    pool: &DatabasePool,
+    actor: CommerceOrderActor,
+    command: SaveOrderCommand,
+) -> Result<SaveOrderReceipt, PgTransactionError<BusinessError>> {
+    PgUnitOfWork::new(pool.clone())
+        .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+            let actor = actor.clone();
+            let command = command.clone();
+            Box::pin(async move {
+                let mut repository = PgCommerceOrders::new(connection);
+                save_order(&actor, &command, &mut repository, TimestampMillis::new(NOW)).await
+            })
+        })
+        .await
+}
+
+async fn run_save_error(
+    pool: &DatabasePool,
+    actor: CommerceOrderActor,
+    command: SaveOrderCommand,
+) -> BusinessError {
+    run_save(pool, actor, command)
+        .await
+        .map_err(business)
+        .unwrap_err()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn save_command(
+    key: &str,
+    order_id: Option<&str>,
+    kind: erpx_server_commerce::public::order::OrderKind,
+    party_id: &str,
+    warehouse_id: Option<&str>,
+    order_date: &str,
+    due_date: &str,
+    price: &str,
+    tax_bps: i64,
+    discount_reason: Option<&str>,
+) -> SaveOrderCommand {
+    SaveOrderCommand {
+        key: CommandKey::new(key).unwrap(),
+        order_id: order_id.map(|id| RecordId::new(id).unwrap()),
+        input: SaveOrderInput {
+            kind,
+            party_id: party_id.into(),
+            warehouse_id: warehouse_id.map(str::to_owned),
+            order_date: order_date.into(),
+            due_date: due_date.into(),
+            note: String::new(),
+            price_list_id: None,
+            discount_reason: discount_reason.map(str::to_owned),
+            lines: vec![SaveOrderLineInput {
+                product_id: "product-1".into(),
+                quantity: "1".into(),
+                price: price.into(),
+                tax_bps,
+            }],
+            expected_version: order_id.map(|_| 1),
+        },
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn save_creates_priced_quote_and_cas_updates_in_one_serializable_unit() {
+    use erpx_server_commerce::public::order::OrderKind;
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        let active: Vec<String> = sqlx::query_scalar(
+            "SELECT id FROM sales_price_lists WHERE company_id='company' AND status='active' \
+             AND currency='THB' AND valid_from<='2026-11-10' AND valid_until>='2026-11-10' \
+             AND (customer_id='party-1' OR customer_id IS NULL) \
+             ORDER BY CASE WHEN customer_id='party-1' THEN 0 ELSE 1 END, valid_from DESC, activated_at DESC",
+        )
+        .fetch_all(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(active.first().map(String::as_str), Some("list-customer"));
+        let key = "commerce-order-create-0001";
+        let error = run_save_error(
+            &pool,
+            creator(),
+            save_command(
+                key,
+                None,
+                OrderKind::Quote,
+                "party-1",
+                Some("warehouse-1"),
+                "2026-11-10",
+                "2026-11-15",
+                "80",
+                700,
+                None,
+            ),
+        )
+        .await;
+        assert_eq!(error.code, "DISCOUNT_REASON_REQUIRED");
+        assert!(!sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM commerce_orders WHERE id=$1)"
+        )
+        .bind(format!("order-{key}"))
+        .fetch_one(pool.raw())
+        .await
+        .unwrap());
+
+        let receipt = run_save(
+            &pool,
+            creator(),
+            save_command(
+                key,
+                None,
+                OrderKind::Quote,
+                "party-1",
+                Some("warehouse-1"),
+                "2026-11-10",
+                "2026-11-15",
+                "80",
+                700,
+                Some("Strategic launch order approved for commercial review"),
+            ),
+        )
+        .await
+        .unwrap();
+        assert_eq!(receipt.id, format!("order-{key}"));
+        assert_eq!(receipt.version, 1);
+        let row = sqlx::query(
+            "SELECT kind,number,state,version,subtotal_minor,tax_minor,price_list_id,\
+             price_list_version,discount_approval_required,discount_reason,created_by \
+             FROM commerce_orders WHERE id=$1",
+        )
+        .bind(&receipt.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(row.get::<String, _>("kind"), "quote");
+        assert_eq!(row.get::<String, _>("state"), "draft");
+        assert_eq!(row.get::<i64, _>("version"), 1);
+        assert_eq!(row.get::<i64, _>("subtotal_minor"), 8_000);
+        assert_eq!(row.get::<i64, _>("tax_minor"), 560);
+        assert_eq!(row.get::<String, _>("price_list_id"), "list-customer");
+        assert_eq!(row.get::<i64, _>("price_list_version"), 1);
+        assert_eq!(row.get::<i64, _>("discount_approval_required"), 1);
+        assert_eq!(row.get::<String, _>("created_by"), "creator");
+        assert!(row
+            .get::<String, _>("number")
+            .starts_with("QT-2026-"));
+        let line = sqlx::query(
+            "SELECT id,product_id,description,quantity_milli,price_minor,tax_bps,\
+             subtotal_minor,tax_minor,ordinal,list_price_minor,discount_bps,item_type \
+             FROM commerce_order_lines WHERE order_id=$1",
+        )
+        .bind(&receipt.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(line.get::<String, _>("id"), format!("{}-line-0", receipt.id));
+        assert_eq!(line.get::<i64, _>("list_price_minor"), 10_500);
+        assert_eq!(line.get::<i64, _>("price_minor"), 8_000);
+        assert_eq!(line.get::<i64, _>("discount_bps"), 2_380);
+        assert_eq!(line.get::<i64, _>("subtotal_minor"), 8_000);
+        assert_eq!(line.get::<i64, _>("tax_minor"), 560);
+        assert_eq!(line.get::<String, _>("item_type"), "service");
+        for (table, count) in [
+            (
+                "command_receipts",
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT count(*) FROM command_receipts WHERE command_id=$1",
+                )
+                .bind(key)
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            ),
+            (
+                "audit_events",
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT count(*) FROM audit_events WHERE command_id=$1",
+                )
+                .bind(key)
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            ),
+            (
+                "outbox_events",
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT count(*) FROM outbox_events WHERE command_id=$1",
+                )
+                .bind(key)
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            ),
+        ] {
+            assert_eq!(count, 1, "{table}");
+        }
+        assert_eq!(
+            run_save(
+                &pool,
+                creator(),
+                save_command(
+                    key,
+                    None,
+                    OrderKind::Quote,
+                    "party-1",
+                    Some("warehouse-1"),
+                    "2026-11-10",
+                    "2026-11-15",
+                    "80",
+                    700,
+                    Some("Strategic launch order approved for commercial review"),
+                ),
+            )
+            .await
+            .unwrap(),
+            receipt
+        );
+
+        let mut update = save_command(
+            "commerce-order-create-0002",
+            Some(&receipt.id),
+            OrderKind::Quote,
+            "party-1",
+            Some("warehouse-1"),
+            "2026-11-11",
+            "2026-11-20",
+            "90",
+            700,
+            Some("Reviewed margin after the customer negotiation"),
+        );
+        update.input.note = "Updated quotation".into();
+        let updated = run_save(&pool, creator(), update.clone()).await.unwrap();
+        assert_eq!(updated.version, 2);
+        let row = sqlx::query(
+            "SELECT order_date,due_date,note,subtotal_minor,tax_minor,version FROM commerce_orders WHERE id=$1",
+        )
+        .bind(&receipt.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(row.get::<String, _>("order_date"), "2026-11-11");
+        assert_eq!(row.get::<String, _>("due_date"), "2026-11-20");
+        assert_eq!(row.get::<String, _>("note"), "Updated quotation");
+        assert_eq!(row.get::<i64, _>("subtotal_minor"), 9_000);
+        assert_eq!(row.get::<i64, _>("tax_minor"), 630);
+        assert_eq!(row.get::<i64, _>("version"), 2);
+        let line = sqlx::query(
+            "SELECT price_minor,discount_bps,subtotal_minor,tax_minor FROM commerce_order_lines WHERE order_id=$1",
+        )
+        .bind(&receipt.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(line.get::<i64, _>("price_minor"), 9_000);
+        assert_eq!(line.get::<i64, _>("discount_bps"), 1_428);
+        assert_eq!(line.get::<i64, _>("subtotal_minor"), 9_000);
+        assert_eq!(line.get::<i64, _>("tax_minor"), 630);
+
+        let mut stale = update.clone();
+        stale.key = CommandKey::new("commerce-order-create-stale-0001").unwrap();
+        stale.input.note = "Stale overwrite".into();
+        let stale = run_save_error(&pool, creator(), stale).await;
+        assert_eq!(stale.code, "COMMERCE_ORDER_CHANGED");
+        let mut wrong_kind = save_command(
+            "commerce-order-create-0003",
+            Some(&receipt.id),
+            OrderKind::Sales,
+            "party-1",
+            Some("warehouse-1"),
+            "2026-11-11",
+            "2026-11-20",
+            "90",
+            700,
+            Some("Reviewed margin after the customer negotiation"),
+        );
+        wrong_kind.input.expected_version = Some(2);
+        assert_eq!(
+            run_save_error(&pool, creator(), wrong_kind).await.code,
+            "ORDER_KIND_LOCKED"
+        );
+        let submitted = save_command(
+            "commerce-order-create-0004",
+            Some("quote-discount"),
+            OrderKind::Quote,
+            "party-1",
+            Some("warehouse-1"),
+            "2026-11-11",
+            "2026-11-20",
+            "90",
+            700,
+            Some("Reviewed margin after the customer negotiation"),
+        );
+        assert_eq!(
+            run_save_error(&pool, creator(), submitted).await.code,
+            "COMMERCE_ORDER_CHANGED"
+        );
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn save_price_list_and_master_guards_fail_closed() {
+    use erpx_server_commerce::public::order::OrderKind;
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        sqlx::query(
+            "INSERT INTO commerce_products(id,company_id,sku,name,unit,price_minor,tax_bps,status,version,tracking_mode,item_type) \
+             VALUES('stock-1','company','STOCK-1','Stock item','each',5000,700,'active',1,'none','stock')",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let base = |key: &str, price: &str, tax: i64| {
+            save_command(
+                key,
+                None,
+                OrderKind::Quote,
+                "party-1",
+                Some("warehouse-1"),
+                "2026-11-10",
+                "2026-11-15",
+                price,
+                tax,
+                Some("Reviewed commercial discount"),
+            )
+        };
+        let mut selected = base("commerce-order-guard-0001", "80", 700);
+        selected.input.price_list_id = Some("missing-list".into());
+        assert_eq!(
+            run_save_error(&pool, creator(), selected).await.code,
+            "PRICE_LIST_INVALID"
+        );
+        let mut general = base("commerce-order-guard-0002", "100", 700);
+        general.input.price_list_id = Some("list-general".into());
+        let receipt = run_save(&pool, creator(), general).await.unwrap();
+        let row = sqlx::query(
+            "SELECT price_list_id,price_list_version,discount_approval_required FROM commerce_orders WHERE id=$1",
+        )
+        .bind(&receipt.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(row.get::<String, _>("price_list_id"), "list-general");
+        assert_eq!(row.get::<i64, _>("discount_approval_required"), 0);
+
+        let mut tax = base("commerce-order-guard-0003", "80", 500);
+        tax.input.price_list_id = Some("list-general".into());
+        assert_eq!(
+            run_save_error(&pool, creator(), tax).await.code,
+            "PRICE_LIST_TAX_REQUIRED"
+        );
+        let mut unknown_product = base("commerce-order-guard-0004", "80", 700);
+        unknown_product.input.lines[0].product_id = "missing-product".into();
+        assert_eq!(
+            run_save_error(&pool, creator(), unknown_product).await.code,
+            "PRODUCT_INVALID"
+        );
+        let mut stock = base("commerce-order-guard-0005", "50", 700);
+        stock.input.warehouse_id = None;
+        stock.input.lines[0].product_id = "stock-1".into();
+        assert_eq!(
+            run_save_error(&pool, creator(), stock).await.code,
+            "WAREHOUSE_REQUIRED"
+        );
+        let mut wrong_warehouse = base("commerce-order-guard-0006", "80", 700);
+        wrong_warehouse.input.warehouse_id = Some("missing-warehouse".into());
+        assert_eq!(
+            run_save_error(&pool, creator(), wrong_warehouse).await.code,
+            "WAREHOUSE_INVALID"
+        );
+        let mut wrong_party = base("commerce-order-guard-0007", "80", 700);
+        wrong_party.input.party_id = "party-f".into();
+        assert_eq!(
+            run_save_error(&pool, creator(), wrong_party).await.code,
+            "PARTY_INVALID"
+        );
+        let mut dates = base("commerce-order-guard-0008", "80", 700);
+        dates.input.due_date = "2026-11-01".into();
+        assert_eq!(
+            run_save_error(&pool, creator(), dates).await.code,
+            "INVALID_DATES"
+        );
+        let mut duplicate = base("commerce-order-guard-0009", "80", 700);
+        duplicate.input.lines.push(duplicate.input.lines[0].clone());
+        assert_eq!(
+            run_save_error(&pool, creator(), duplicate).await.code,
+            "DUPLICATE_PRODUCT"
+        );
+        let mut no_sales = base("commerce-order-guard-0010", "80", 700);
+        no_sales.input.expected_version = None;
+        let read_only = actor(
+            "creator",
+            "sales_operator",
+            "assignment-creator",
+            Some("branch"),
+            &["commerce.read"],
+        );
+        assert_eq!(
+            run_save_error(&pool, read_only, no_sales).await.code,
+            "COMMERCE_PERMISSION_REQUIRED"
+        );
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn save_replay_conflict_and_late_failure_roll_back_exactly() {
+    use erpx_server_commerce::public::order::OrderKind;
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        let command = save_command(
+            "commerce-order-atomic-0001",
+            None,
+            OrderKind::Sales,
+            "party-1",
+            Some("warehouse-1"),
+            "2026-11-10",
+            "2026-11-15",
+            "90",
+            700,
+            Some("Reviewed commercial discount"),
+        );
+        sqlx::raw_sql(
+            "CREATE FUNCTION commerce_order_save_atomic_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM 1/0; RETURN NEW; END; $$;\
+             CREATE CONSTRAINT TRIGGER commerce_order_save_atomic_fault AFTER INSERT ON outbox_events DEFERRABLE INITIALLY DEFERRED \
+             FOR EACH ROW WHEN(NEW.command_id='commerce-order-atomic-0001') EXECUTE FUNCTION commerce_order_save_atomic_fault();",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let failure = run_save(&pool, creator(), command.clone()).await;
+        assert!(failure.is_err());
+        sqlx::raw_sql(
+            "DROP TRIGGER commerce_order_save_atomic_fault ON outbox_events; DROP FUNCTION commerce_order_save_atomic_fault();",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let order_id = format!("order-{}", command.key.as_str());
+        assert!(
+            !sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS(SELECT 1 FROM commerce_orders WHERE id=$1)"
+            )
+            .bind(&order_id)
+            .fetch_one(pool.raw())
+            .await
+            .unwrap()
+        );
+        for (table, count) in [
+            (
+                "command_receipts",
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT count(*) FROM command_receipts WHERE command_id=$1",
+                )
+                .bind(command.key.as_str())
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            ),
+            (
+                "audit_events",
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT count(*) FROM audit_events WHERE command_id=$1",
+                )
+                .bind(command.key.as_str())
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            ),
+            (
+                "outbox_events",
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT count(*) FROM outbox_events WHERE command_id=$1",
+                )
+                .bind(command.key.as_str())
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            ),
+        ] {
+            assert_eq!(count, 0, "{table}");
+        }
+        let receipt = run_save(&pool, creator(), command.clone()).await.unwrap();
+        assert_eq!(receipt.version, 1);
+        assert!(sqlx::query_scalar::<_, String>(
+            "SELECT number FROM commerce_orders WHERE id=$1"
+        )
+        .bind(&order_id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap()
+        .starts_with("SO-"));
+        let mut changed = command.clone();
+        changed.input.note = "A different request".into();
+        assert_eq!(
+            run_save_error(&pool, creator(), changed).await.code,
+            "IDEMPOTENCY_CONFLICT"
+        );
+    })
+    .await;
+}
+
 
 #[tokio::test(flavor = "multi_thread")]
 async fn read_is_company_and_branch_scoped_and_requires_current_iam() {

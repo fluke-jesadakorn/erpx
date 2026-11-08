@@ -12,6 +12,8 @@ import {
   NativeCommerceOrdersError,
   type NativeCommerceOrderDocument,
   type NativeCommerceOrderReceipt,
+  type NativeCommerceOrderSaveInput,
+  type NativeCommerceOrderSaveReceipt,
   type NativeCommerceOrderTransitionInput,
   type NativeCommerceOrdersPageContext,
   type NativeCommerceOrdersReadInput,
@@ -24,6 +26,8 @@ export type {
   NativeCommerceOrderLineRow,
   NativeCommerceOrderReceipt,
   NativeCommerceOrderRow,
+  NativeCommerceOrderSaveInput,
+  NativeCommerceOrderSaveReceipt,
   NativeCommerceOrderTransitionInput,
 } from '@erpx/feature-commerce/public/native-commerce-orders';
 
@@ -108,6 +112,44 @@ export async function nativeCommerceOrderPage(
   try {
     const context = nativeCommerceOrdersPageContext(actor);
     return await native.detail(await headers(), context, id, readInput(context));
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+/**
+ * Native draft create/update gate for the retained route. Unset configuration
+ * or purchase/order-handoff input returns undefined so the retained writer
+ * remains authoritative. Once a quotation/sales draft is native-eligible, a
+ * configured native failure is surfaced and never replaced by the retained
+ * command.
+ */
+export async function nativeCommerceOrderSave(
+  actor: WorkContext,
+  id: string | null,
+  input: NativeCommerceOrderSaveInput,
+  key: string,
+): Promise<NativeCommerceOrderSaveReceipt | undefined> {
+  const native = client();
+  if (!native) return undefined;
+  if (input.kind !== 'quote' && input.kind !== 'sales') return undefined;
+  if (id !== null) {
+    let facts: { kind: string; state: string } | null;
+    try {
+      const write = (await holdingResources(actor.holdingId)).write;
+      facts = await commerceEntrypointFacts(write).orderFacts(id, actor.companyId);
+    } catch {
+      throw new ApiError(
+        503,
+        'NATIVE_COMMERCE_ORDER_UNAVAILABLE',
+        'The native Commerce order service is unavailable.',
+      );
+    }
+    if (!facts || facts.kind === 'purchase' || facts.state !== 'draft') return undefined;
+  }
+  try {
+    const context = nativeCommerceOrdersPageContext(actor);
+    return await native.save(await headers(), context, id, input, key, readInput(context));
   } catch (error) {
     return fail(error);
   }

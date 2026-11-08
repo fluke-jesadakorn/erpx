@@ -10,11 +10,12 @@
 //! here.
 use crate::application::order::{
     AuditEntry, CommerceOrderCommandRepository, CommerceOrderFuture, CommerceOrderReadRepository,
-    OutboxEntry, ReceiptEntry,
+    CommerceOrderSaveRepository, OutboxEntry, ReceiptEntry,
 };
 use crate::domain::order::{
     CommerceOrderActor, ConvertedReadback, OrderCommandReceipt, SalesOrderLineRow, SalesOrderRow,
-    TransitionPlan,
+    SaveOrderLinePlan, SaveOrderPlan, SaveOrderPriceItem, SaveOrderPriceList, SaveOrderProduct,
+    SaveOrderWarehouse, TransitionPlan,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
@@ -159,6 +160,31 @@ impl<'c> PgCommerceOrders<'c> {
         row.as_ref().map(map_order).transpose().map_err(Into::into)
     }
 
+    async fn select_lines(
+        &mut self,
+        company: &CompanyId,
+        order_id: &str,
+    ) -> Result<Vec<SalesOrderLineRow>, Error> {
+        self.ready().await?;
+        let rows = sqlx::query(
+            "SELECT l.id,l.order_id,l.product_id,l.description,l.quantity_milli,\
+             l.fulfilled_milli,l.price_minor,l.tax_bps,l.subtotal_minor,l.tax_minor,\
+             l.ordinal,l.list_price_minor,l.discount_bps,l.item_type,p.sku,p.unit,\
+             p.tracking_mode FROM commerce_order_lines l \
+             JOIN commerce_orders o ON o.id=l.order_id AND o.company_id=$2 \
+             LEFT JOIN commerce_products p ON p.id=l.product_id AND p.company_id=$2 \
+             WHERE l.order_id=$1 ORDER BY l.ordinal,l.id",
+        )
+        .bind(order_id)
+        .bind(company.as_str())
+        .fetch_all(&mut *self.connection)
+        .await?;
+        rows.iter()
+            .map(map_line)
+            .collect::<Result<_, _>>()
+            .map_err(Into::into)
+    }
+
     async fn authority(
         &mut self,
         actor: &CommerceOrderActor,
@@ -209,25 +235,7 @@ impl CommerceOrderReadRepository for PgCommerceOrders<'_> {
         company: &'a CompanyId,
         order_id: &'a str,
     ) -> CommerceOrderFuture<'a, Vec<SalesOrderLineRow>, Self::Error> {
-        Box::pin(async move {
-            self.ready().await?;
-            let rows = sqlx::query(
-                "SELECT l.id,l.order_id,l.product_id,l.description,l.quantity_milli,\
-                 l.fulfilled_milli,l.price_minor,l.tax_bps,l.subtotal_minor,l.tax_minor,\
-                 l.ordinal,l.list_price_minor,l.discount_bps,l.item_type,p.sku,p.unit,\
-                 p.tracking_mode FROM commerce_order_lines l \
-                 LEFT JOIN commerce_products p ON p.id=l.product_id AND p.company_id=$2 \
-                 WHERE l.order_id=$1 ORDER BY l.ordinal,l.id",
-            )
-            .bind(order_id)
-            .bind(company.as_str())
-            .fetch_all(&mut *self.connection)
-            .await?;
-            rows.iter()
-                .map(map_line)
-                .collect::<Result<_, _>>()
-                .map_err(Into::into)
-        })
+        Box::pin(async move { PgCommerceOrders::select_lines(self, company, order_id).await })
     }
 }
 
@@ -564,5 +572,325 @@ impl CommerceOrderCommandRepository for PgCommerceOrders<'_> {
             .await?;
             Ok(())
         })
+    }
+}
+
+impl CommerceOrderSaveRepository for PgCommerceOrders<'_> {
+    fn setup_currency<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+    ) -> CommerceOrderFuture<'a, Option<String>, Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            Ok(sqlx::query_scalar(
+                "SELECT s.currency FROM commerce_settings s \
+                 JOIN finance_charts c ON c.id=s.chart_id AND c.company_id=s.company_id \
+                 AND c.status='active' WHERE s.company_id=$1",
+            )
+            .bind(company.as_str())
+            .fetch_optional(&mut *self.connection)
+            .await?)
+        })
+    }
+
+    fn next_quote_number<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        date: &'a str,
+    ) -> CommerceOrderFuture<'a, String, Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            Ok(
+                sqlx::query_scalar("SELECT erpx_sales_document_number($1,'QT',$2)")
+                    .bind(company.as_str())
+                    .bind(date)
+                    .fetch_one(&mut *self.connection)
+                    .await?,
+            )
+        })
+    }
+
+    fn save_warehouse<'a>(
+        &'a mut self,
+        actor: &'a CommerceOrderActor,
+        id: &'a str,
+    ) -> CommerceOrderFuture<'a, Option<SaveOrderWarehouse>, Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            let row = sqlx::query(
+                "SELECT id,branch_id FROM commerce_warehouses \
+                 WHERE id=$1 AND company_id=$2 AND status='active' \
+                 AND ($3::text IS NULL OR branch_id=$3) FOR SHARE",
+            )
+            .bind(id)
+            .bind(actor.company_id.as_str())
+            .bind(actor.branch_id.as_ref().map(|value| value.as_str()))
+            .fetch_optional(&mut *self.connection)
+            .await?;
+            row.map(|row| {
+                Ok::<_, Error>(SaveOrderWarehouse {
+                    id: row.try_get("id")?,
+                    branch_id: row.try_get("branch_id")?,
+                })
+            })
+            .transpose()
+        })
+    }
+
+    fn save_product<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        id: &'a str,
+    ) -> CommerceOrderFuture<'a, Option<SaveOrderProduct>, Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            let row = sqlx::query(
+                "SELECT id,name,item_type,version FROM commerce_products \
+                 WHERE id=$1 AND company_id=$2 AND status='active' FOR SHARE",
+            )
+            .bind(id)
+            .bind(company.as_str())
+            .fetch_optional(&mut *self.connection)
+            .await?;
+            row.map(|row| {
+                Ok::<_, Error>(SaveOrderProduct {
+                    id: row.try_get("id")?,
+                    name: row.try_get("name")?,
+                    item_type: row.try_get("item_type")?,
+                    version: row.try_get("version")?,
+                })
+            })
+            .transpose()
+        })
+    }
+
+    fn save_party_valid<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        party_id: &'a str,
+        currency: &'a str,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            Ok(sqlx::query(
+                "SELECT id FROM finance_parties WHERE id=$1 AND company_id=$2 \
+                 AND kind='customer' AND status='active' AND currency=$3 \
+                 AND person_id IS NULL FOR SHARE",
+            )
+            .bind(party_id)
+            .bind(company.as_str())
+            .bind(currency)
+            .fetch_optional(&mut *self.connection)
+            .await?
+            .is_some())
+        })
+    }
+
+    fn save_price_list<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        party_id: &'a str,
+        date: &'a str,
+        selected: Option<&'a str>,
+    ) -> CommerceOrderFuture<'a, Option<SaveOrderPriceList>, Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            let row = if let Some(id) = selected {
+                sqlx::query(
+                    "SELECT id,version,max_auto_discount_bps FROM sales_price_lists \
+                     WHERE id=$1 AND company_id=$2 AND status='active' \
+                     AND currency=(SELECT currency FROM commerce_settings WHERE company_id=$2) \
+                     AND valid_from<=$3 AND valid_until>=$3 \
+                     AND (customer_id IS NULL OR customer_id=$4) FOR SHARE",
+                )
+                .bind(id)
+                .bind(company.as_str())
+                .bind(date)
+                .bind(party_id)
+                .fetch_optional(&mut *self.connection)
+                .await?
+            } else {
+                sqlx::query(
+                    "SELECT id,version,max_auto_discount_bps FROM sales_price_lists \
+                     WHERE company_id=$1 AND status='active' \
+                     AND currency=(SELECT currency FROM commerce_settings WHERE company_id=$1) \
+                     AND valid_from<=$2 AND valid_until>=$2 \
+                     AND (customer_id=$3 OR customer_id IS NULL) \
+                     ORDER BY CASE WHEN customer_id=$3 THEN 0 ELSE 1 END,\
+                     valid_from DESC,activated_at DESC LIMIT 1 FOR SHARE",
+                )
+                .bind(company.as_str())
+                .bind(date)
+                .bind(party_id)
+                .fetch_optional(&mut *self.connection)
+                .await?
+            };
+            let Some(row) = row else {
+                return Ok(None);
+            };
+            let id: String = row.try_get("id")?;
+            let version: i64 = row.try_get("version")?;
+            let max_auto_discount_bps: i64 = row.try_get("max_auto_discount_bps")?;
+            let items = sqlx::query(
+                "SELECT product_id,price_minor,tax_bps FROM sales_price_list_items \
+                 WHERE price_list_id=$1 ORDER BY ordinal,id",
+            )
+            .bind(&id)
+            .fetch_all(&mut *self.connection)
+            .await?;
+            let items = items
+                .iter()
+                .map(|item| {
+                    Ok::<_, Error>(SaveOrderPriceItem {
+                        product_id: item.try_get("product_id")?,
+                        price_minor: item.try_get("price_minor")?,
+                        tax_bps: item.try_get("tax_bps")?,
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(Some(SaveOrderPriceList {
+                id,
+                version,
+                max_auto_discount_bps,
+                items,
+            }))
+        })
+    }
+
+    fn insert_order<'a>(
+        &'a mut self,
+        plan: &'a SaveOrderPlan,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            let changed = sqlx::query(
+                "INSERT INTO commerce_orders\
+                 (id,company_id,branch_id,department_id,kind,number,party_id,warehouse_id,\
+                 currency,order_date,due_date,note,state,subtotal_minor,tax_minor,source_id,\
+                 version,created_by,approved_by,created_at,updated_at,price_list_id,\
+                 price_list_version,discount_reason,discount_approval_required,\
+                 discount_approved_by,discount_approved_at) \
+                 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'draft',$13,$14,NULL,1,$15,\
+                 NULL,$16,$16,$17,$18,$19,$20,NULL,NULL)",
+            )
+            .bind(&plan.id)
+            .bind(&plan.company_id)
+            .bind(&plan.branch_id)
+            .bind(&plan.department_id)
+            .bind(&plan.kind)
+            .bind(&plan.number)
+            .bind(&plan.party_id)
+            .bind(&plan.warehouse_id)
+            .bind(&plan.currency)
+            .bind(&plan.order_date)
+            .bind(&plan.due_date)
+            .bind(&plan.note)
+            .bind(plan.subtotal_minor)
+            .bind(plan.tax_minor)
+            .bind(&plan.created_by)
+            .bind(plan.updated_at)
+            .bind(&plan.price_list_id)
+            .bind(plan.price_list_version)
+            .bind(&plan.discount_reason)
+            .bind(plan.discount_approval_required)
+            .execute(&mut *self.connection)
+            .await?
+            .rows_affected();
+            Ok(changed == 1)
+        })
+    }
+
+    fn update_order<'a>(
+        &'a mut self,
+        plan: &'a SaveOrderPlan,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            if plan.version < 2 {
+                return Err(PersistenceError::new("COMMERCE_ORDER_SAVE_VERSION_INVALID").into());
+            }
+            let changed = sqlx::query(
+                "UPDATE commerce_orders SET party_id=$3,warehouse_id=$4,branch_id=$5,\
+                 order_date=$6,due_date=$7,note=$8,subtotal_minor=$9,tax_minor=$10,\
+                 price_list_id=$11,price_list_version=$12,discount_reason=$13,\
+                 discount_approval_required=$14,discount_approved_by=NULL,\
+                 discount_approved_at=NULL,version=version+1,updated_at=$15 \
+                 WHERE id=$1 AND company_id=$2 AND version=$16 AND state='draft' \
+                 AND kind IN ('quote','sales')",
+            )
+            .bind(&plan.id)
+            .bind(&plan.company_id)
+            .bind(&plan.party_id)
+            .bind(&plan.warehouse_id)
+            .bind(&plan.branch_id)
+            .bind(&plan.order_date)
+            .bind(&plan.due_date)
+            .bind(&plan.note)
+            .bind(plan.subtotal_minor)
+            .bind(plan.tax_minor)
+            .bind(&plan.price_list_id)
+            .bind(plan.price_list_version)
+            .bind(&plan.discount_reason)
+            .bind(plan.discount_approval_required)
+            .bind(plan.updated_at)
+            .bind(plan.version - 1)
+            .execute(&mut *self.connection)
+            .await?
+            .rows_affected();
+            Ok(changed == 1)
+        })
+    }
+
+    fn delete_order_lines<'a>(
+        &'a mut self,
+        order_id: &'a str,
+    ) -> CommerceOrderFuture<'a, (), Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query("DELETE FROM commerce_order_lines WHERE order_id=$1")
+                .bind(order_id)
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(())
+        })
+    }
+
+    fn insert_order_line<'a>(
+        &'a mut self,
+        line: &'a SaveOrderLinePlan,
+    ) -> CommerceOrderFuture<'a, (), Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            sqlx::query(
+                "INSERT INTO commerce_order_lines\
+                 (id,order_id,product_id,description,quantity_milli,price_minor,tax_bps,\
+                 subtotal_minor,tax_minor,ordinal,list_price_minor,discount_bps,item_type) \
+                 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)",
+            )
+            .bind(&line.id)
+            .bind(&line.order_id)
+            .bind(&line.product_id)
+            .bind(&line.description)
+            .bind(line.quantity_milli)
+            .bind(line.price_minor)
+            .bind(line.tax_bps)
+            .bind(line.subtotal_minor)
+            .bind(line.tax_minor)
+            .bind(line.ordinal)
+            .bind(line.list_price_minor)
+            .bind(line.discount_bps)
+            .bind(&line.item_type)
+            .execute(&mut *self.connection)
+            .await?;
+            Ok(())
+        })
+    }
+
+    fn readback_lines<'a>(
+        &'a mut self,
+        actor: &'a CommerceOrderActor,
+        order_id: &'a str,
+    ) -> CommerceOrderFuture<'a, Vec<SalesOrderLineRow>, Self::Error> {
+        Box::pin(async move { self.select_lines(&actor.company_id, order_id).await })
     }
 }

@@ -2,15 +2,15 @@
 //! with the selected coordinator; owner ports supply quotation and sales-order
 //! facts.
 use crate::business_http::BusinessScopeSlugs;
+use erpx_server_commerce::public::order::PgCommerceOrders;
 use erpx_server_commerce::public::order::{
-    CommerceOrderActor, CommerceOrderReceipt, SalesOrderDocument, TransitionCommand, order_detail,
-    transition_order,
+    CommerceOrderActor, SaveOrderCommand, SaveOrderInput, TransitionCommand, order_detail,
+    save_order, transition_order,
 };
 use erpx_server_commerce::public::order_http::{
     CommerceOrderHttpBackend, CommerceOrderHttpCommand, CommerceOrderHttpFuture,
     CommerceOrderHttpRequest, CommerceOrderHttpResponse, CommerceOrderHttpTarget,
 };
-use erpx_server_commerce::public::order::PgCommerceOrders;
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
     account_inbound_http::parse_inbound_account_request,
@@ -26,8 +26,8 @@ use erpx_server_shared::public::{
     BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, RecordId,
 };
 use serde_json::Value;
-use std::sync::Arc;
 use sqlx::PgConnection;
+use std::sync::Arc;
 
 type Error = PgTransactionError<BusinessError>;
 
@@ -52,7 +52,10 @@ fn unavailable() -> BusinessError {
 }
 
 fn request_invalid() -> BusinessError {
-    BusinessError::invalid("COMMERCE_REQUEST_INVALID", "The Commerce request is invalid.")
+    BusinessError::invalid(
+        "COMMERCE_REQUEST_INVALID",
+        "The Commerce request is invalid.",
+    )
 }
 
 fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
@@ -271,7 +274,8 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
                         }
                         current.require_permission("commerce.read")?;
                         let actor = commerce_actor(current)?;
-                        let order_record = RecordId::new(&order_id).map_err(|_| request_invalid())?;
+                        let order_record =
+                            RecordId::new(&order_id).map_err(|_| request_invalid())?;
                         let command_key =
                             CommandKey::new(&idempotency_key).map_err(|_| request_invalid())?;
                         let command = TransitionCommand {
@@ -283,7 +287,71 @@ impl<C: Clock + Send + Sync + 'static> CommerceService<C> {
                         };
                         let mut repository = PgCommerceOrders::new(connection);
                         let now = clock.now();
-                        let receipt = transition_order(&actor, &command, &mut repository, now).await?;
+                        let receipt =
+                            transition_order(&actor, &command, &mut repository, now).await?;
+                        Ok(CommerceOrderHttpResponse {
+                            data: receipt.to_wire(),
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn save<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        order_id: Option<String>,
+        idempotency_key: String,
+        save_input: SaveOrderInput,
+    ) -> Result<CommerceOrderHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                CommerceSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let order_id = order_id.clone();
+                    let idempotency_key = idempotency_key.clone();
+                    let save_input = save_input.clone();
+                    let clock = clock.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let actor = commerce_actor(current)?;
+                        let order_record = order_id
+                            .as_deref()
+                            .map(RecordId::new)
+                            .transpose()
+                            .map_err(|_| request_invalid())?;
+                        let command_key =
+                            CommandKey::new(&idempotency_key).map_err(|_| request_invalid())?;
+                        let command = SaveOrderCommand {
+                            key: command_key,
+                            order_id: order_record,
+                            input: save_input,
+                        };
+                        let mut repository = PgCommerceOrders::new(connection);
+                        let now = clock.now();
+                        let receipt = save_order(&actor, &command, &mut repository, now).await?;
                         Ok(CommerceOrderHttpResponse {
                             data: receipt.to_wire(),
                             context: context(current),
@@ -366,6 +434,22 @@ impl<C: Clock + Send + Sync + 'static> CommerceOrderHttpBackend for CommerceBack
                         action,
                         expected_version,
                         reason,
+                    )
+                    .await
+                    .map_err(business),
+                CommerceOrderHttpCommand::Save {
+                    order_id,
+                    idempotency_key,
+                    input,
+                } => self
+                    .service
+                    .save(
+                        request.host,
+                        proof,
+                        move || Ok(selection),
+                        order_id,
+                        idempotency_key,
+                        input,
                     )
                     .await
                     .map_err(business),

@@ -6,7 +6,10 @@
 //! normal Account session, current Company/branch/department authority,
 //! feature/package admission and serializable owner unit remain composition
 //! responsibilities supplied through the backend trait.
-use crate::domain::order::{LINES_LIMIT, OrderAction, request_invalid, source_invalid};
+use crate::domain::order::{
+    LINES_LIMIT, OrderAction, OrderKind, SAVE_LINES_LIMIT, SaveOrderInput, SaveOrderLineInput,
+    request_invalid, source_invalid,
+};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State, StatusCode,
     body::to_bytes, get, header, post, serde_json,
@@ -32,6 +35,11 @@ pub enum CommerceOrderHttpCommand {
         action: OrderAction,
         expected_version: i64,
         reason: Option<String>,
+    },
+    Save {
+        order_id: Option<String>,
+        idempotency_key: String,
+        input: SaveOrderInput,
     },
 }
 
@@ -300,6 +308,64 @@ impl CommerceOrderHttpState {
         }
         Ok(response.value())
     }
+
+    /// Exact POST handler for draft create/update, used by the Router and
+    /// owner tests.
+    pub async fn save(
+        &self,
+        headers: &HeaderMap,
+        holding_slug: &str,
+        order_id: Option<&str>,
+        query: Option<&str>,
+        body: &[u8],
+    ) -> Response {
+        match self
+            .save_inner(headers, holding_slug, order_id, query, body)
+            .await
+        {
+            Ok(value) => bounded(value),
+            Err(error) => error_response(error),
+        }
+    }
+
+    async fn save_inner(
+        &self,
+        headers: &HeaderMap,
+        holding_slug: &str,
+        order_id: Option<&str>,
+        query: Option<&str>,
+        body: &[u8],
+    ) -> Result<Value, BusinessError> {
+        if query.is_some_and(|value| !value.is_empty()) {
+            return Err(request_invalid());
+        }
+        let target = self.target(headers, holding_slug)?;
+        Self::content_type(headers)?;
+        let key = Self::command_key(headers)?;
+        let order_id = order_id.map(Self::order_id).transpose()?;
+        if body.len() > BODY_LIMIT {
+            return Err(request_invalid());
+        }
+        let input = parse_save(body)?;
+        let response = target
+            .target
+            .backend
+            .execute(CommerceOrderHttpRequest {
+                host: target.host,
+                holding_slug: &target.target.holding_slug,
+                headers,
+                command: CommerceOrderHttpCommand::Save {
+                    order_id,
+                    idempotency_key: key.as_str().to_owned(),
+                    input,
+                },
+            })
+            .await?;
+        if !valid_save_receipt(&response.data) || !response.context.is_object() {
+            return Err(source_invalid());
+        }
+        Ok(response.value())
+    }
 }
 
 fn valid_document(value: &Value) -> bool {
@@ -385,6 +451,154 @@ fn parse_transition(body: &[u8]) -> Result<(OrderAction, i64, Option<String>), B
     Ok((action, expected_version, reason))
 }
 
+fn valid_save_receipt(value: &Value) -> bool {
+    value.as_object().is_some_and(|object| {
+        if object.len() != 2 || !object.contains_key("id") || !object.contains_key("version") {
+            return false;
+        }
+        object
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|value| !value.is_empty() && value.len() <= 200)
+            && object
+                .get("version")
+                .and_then(Value::as_i64)
+                .is_some_and(|value| (1..=9_007_199_254_740_991).contains(&value))
+    })
+}
+
+fn parse_save(body: &[u8]) -> Result<SaveOrderInput, BusinessError> {
+    let value: Value = serde_json::from_slice(body).map_err(|_| request_invalid())?;
+    let Some(object) = value.as_object() else {
+        return Err(request_invalid());
+    };
+    const KEYS: [&str; 10] = [
+        "kind",
+        "partyId",
+        "warehouseId",
+        "orderDate",
+        "dueDate",
+        "note",
+        "priceListId",
+        "discountReason",
+        "lines",
+        "expectedVersion",
+    ];
+    if object.keys().any(|key| !KEYS.contains(&key.as_str())) {
+        return Err(request_invalid());
+    }
+    let kind = object
+        .get("kind")
+        .and_then(Value::as_str)
+        .and_then(OrderKind::parse)
+        .ok_or_else(request_invalid)?;
+    let party_id = object
+        .get("partyId")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(request_invalid)?
+        .to_owned();
+    let warehouse_id = match object.get("warehouseId") {
+        None => None,
+        Some(Value::String(value)) if value.is_empty() => None,
+        Some(Value::String(value)) => Some(value.clone()),
+        _ => return Err(request_invalid()),
+    };
+    let order_date = object
+        .get("orderDate")
+        .and_then(Value::as_str)
+        .ok_or_else(request_invalid)?
+        .to_owned();
+    let due_date = object
+        .get("dueDate")
+        .and_then(Value::as_str)
+        .ok_or_else(request_invalid)?
+        .to_owned();
+    let note = match object.get("note") {
+        None => String::new(),
+        Some(Value::String(value)) => value.clone(),
+        _ => return Err(request_invalid()),
+    };
+    let price_list_id = match object.get("priceListId") {
+        None => None,
+        Some(Value::String(value)) if !value.is_empty() => Some(value.clone()),
+        _ => return Err(request_invalid()),
+    };
+    let discount_reason = match object.get("discountReason") {
+        None => None,
+        Some(Value::String(value)) => Some(value.clone()),
+        _ => return Err(request_invalid()),
+    };
+    let expected_version = match object.get("expectedVersion") {
+        None => None,
+        Some(value) => Some(
+            value
+                .as_i64()
+                .filter(|value| (1..=9_007_199_254_740_991).contains(value))
+                .ok_or_else(request_invalid)?,
+        ),
+    };
+    let Some(lines) = object.get("lines").and_then(Value::as_array) else {
+        return Err(request_invalid());
+    };
+    if lines.is_empty() || lines.len() > SAVE_LINES_LIMIT {
+        return Err(request_invalid());
+    }
+    let mut parsed = Vec::with_capacity(lines.len());
+    for line in lines {
+        let Some(line) = line.as_object() else {
+            return Err(request_invalid());
+        };
+        if line.len() != 4
+            || !line.contains_key("productId")
+            || !line.contains_key("quantity")
+            || !line.contains_key("price")
+            || !line.contains_key("taxBps")
+        {
+            return Err(request_invalid());
+        }
+        let product_id = line
+            .get("productId")
+            .and_then(Value::as_str)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(request_invalid)?
+            .to_owned();
+        let quantity = line
+            .get("quantity")
+            .and_then(Value::as_str)
+            .ok_or_else(request_invalid)?
+            .to_owned();
+        let price = line
+            .get("price")
+            .and_then(Value::as_str)
+            .ok_or_else(request_invalid)?
+            .to_owned();
+        let tax_bps = line
+            .get("taxBps")
+            .and_then(Value::as_i64)
+            .filter(|value| (0..=10_000).contains(value))
+            .ok_or_else(request_invalid)?;
+        parsed.push(SaveOrderLineInput {
+            product_id,
+            quantity,
+            price,
+            tax_bps,
+        });
+    }
+    Ok(SaveOrderInput {
+        kind,
+        party_id,
+        warehouse_id,
+        order_date,
+        due_date,
+        note,
+        price_list_id,
+        discount_reason,
+        lines: parsed,
+        expected_version,
+    })
+}
+
 fn status_code(kind: FailureKind) -> StatusCode {
     match kind {
         FailureKind::InvalidInput => StatusCode::UNPROCESSABLE_ENTITY,
@@ -423,8 +637,12 @@ pub fn commerce_order_http_router(
 ) -> Result<Router, BusinessError> {
     Ok(Router::new()
         .route(
+            "/api/v1/holdings/{holding_slug}/commerce/orders",
+            post(save_create_handler),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/commerce/orders/{order_id}",
-            get(detail_handler),
+            get(detail_handler).post(save_update_handler),
         )
         .route(
             "/api/v1/holdings/{holding_slug}/commerce/orders/{order_id}/transition",
@@ -441,6 +659,42 @@ async fn detail_handler(
     let (parts, _) = request.into_parts();
     state
         .detail(&parts.headers, &slug, &order_id, parts.uri.query())
+        .await
+}
+
+async fn save_create_handler(
+    State(state): State<Arc<CommerceOrderHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let (parts, body) = request.into_parts();
+    let body = match to_bytes(body, BODY_LIMIT + 1).await {
+        Ok(body) => body,
+        Err(_) => return error_response(request_invalid()),
+    };
+    state
+        .save(&parts.headers, &slug, None, parts.uri.query(), &body)
+        .await
+}
+
+async fn save_update_handler(
+    State(state): State<Arc<CommerceOrderHttpState>>,
+    Path((slug, order_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let (parts, body) = request.into_parts();
+    let body = match to_bytes(body, BODY_LIMIT + 1).await {
+        Ok(body) => body,
+        Err(_) => return error_response(request_invalid()),
+    };
+    state
+        .save(
+            &parts.headers,
+            &slug,
+            Some(&order_id),
+            parts.uri.query(),
+            &body,
+        )
         .await
 }
 

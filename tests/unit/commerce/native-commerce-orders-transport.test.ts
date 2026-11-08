@@ -155,6 +155,34 @@ describe('native Commerce order transport',()=>{
     });
   });
 
+  it('forwards one exact save body and key for create and update',async()=>{
+    const seen:unknown[]=[];
+    const transport=transportFor((_method,url,headers,body)=>{
+      seen.push({path:url.pathname,body,key:headers.get('idempotency-key'),content:headers.get('content-type')});
+      return response(envelope({id:'order-1',version:2}));
+    });
+    const client=createNativeCommerceOrdersClient(
+      nativeCommerceOrdersConfiguration(config()),transport);
+    const save={
+      kind:'quote' as const,partyId:'party-1',warehouseId:'',orderDate:'2026-11-10',
+      dueDate:'2026-11-15',note:'',priceListId:'list-1',
+      discountReason:'Reviewed commercial discount',
+      lines:[{productId:'product-1',quantity:'1',price:'80',taxBps:700}],
+      expectedVersion:1,
+    };
+    expect(await client.save(incoming(),actor,null,save,'commerce-save-0001',input))
+      .toEqual({id:'order-1',version:2});
+    expect(await client.save(incoming(),actor,'order-1',save,'commerce-save-0002',input))
+      .toEqual({id:'order-1',version:2});
+    const body='{"kind":"quote","partyId":"party-1","warehouseId":"","orderDate":"2026-11-10","dueDate":"2026-11-15","note":"","priceListId":"list-1","discountReason":"Reviewed commercial discount","lines":[{"productId":"product-1","quantity":"1","price":"80","taxBps":700}],"expectedVersion":1}';
+    expect(seen).toEqual([
+      {path:'/api/v1/holdings/acme/commerce/orders',body,key:'commerce-save-0001',content:'application/json'},
+      {path:'/api/v1/holdings/acme/commerce/orders/order-1',body,key:'commerce-save-0002',content:'application/json'},
+    ]);
+    await expect(client.save(incoming(),actor,null,{...save,lines:[]},'commerce-save-0003',input))
+      .rejects.toMatchObject({code:'NATIVE_COMMERCE_ORDER_REQUEST_INVALID'});
+  });
+
   it('maps owner failures and never falls back after a configured failure',async()=>{
     const owner=createNativeCommerceOrdersClient(
       nativeCommerceOrdersConfiguration(config()),

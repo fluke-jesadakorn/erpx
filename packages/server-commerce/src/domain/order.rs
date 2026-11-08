@@ -460,6 +460,13 @@ pub fn discount_reason_required() -> BusinessError {
     )
 }
 
+pub fn pricing_discount_reason_required() -> BusinessError {
+    BusinessError::invalid(
+        "DISCOUNT_REASON_REQUIRED",
+        "Explain why this order exceeds the automatic discount threshold.",
+    )
+}
+
 pub fn quote_required() -> BusinessError {
     BusinessError::invalid("QUOTE_REQUIRED", "Only a quotation can be converted.")
 }
@@ -1132,6 +1139,702 @@ pub fn validate_conversion_readback(
     Ok(())
 }
 
+pub const SAVE_LINES_LIMIT: usize = 20;
+const MAX_SAFE_INTEGER: i128 = 9_007_199_254_740_991;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SaveOrderLineInput {
+    pub product_id: String,
+    pub quantity: String,
+    pub price: String,
+    pub tax_bps: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SaveOrderInput {
+    pub kind: OrderKind,
+    pub party_id: String,
+    pub warehouse_id: Option<String>,
+    pub order_date: String,
+    pub due_date: String,
+    pub note: String,
+    pub price_list_id: Option<String>,
+    pub discount_reason: Option<String>,
+    pub lines: Vec<SaveOrderLineInput>,
+    pub expected_version: Option<i64>,
+}
+
+#[derive(Clone, Debug)]
+pub struct SaveOrderCommand {
+    pub key: CommandKey,
+    pub order_id: Option<RecordId>,
+    pub input: SaveOrderInput,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SaveOrderReceipt {
+    pub id: String,
+    pub version: i64,
+}
+
+impl SaveOrderReceipt {
+    pub fn to_wire(&self) -> Value {
+        json!({ "id": self.id, "version": self.version })
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SaveOrderProduct {
+    pub id: String,
+    pub name: String,
+    pub item_type: String,
+    pub version: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SaveOrderWarehouse {
+    pub id: String,
+    pub branch_id: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SaveOrderPriceItem {
+    pub product_id: String,
+    pub price_minor: i64,
+    pub tax_bps: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SaveOrderPriceList {
+    pub id: String,
+    pub version: i64,
+    pub max_auto_discount_bps: i64,
+    pub items: Vec<SaveOrderPriceItem>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SaveOrderLinePlan {
+    pub id: String,
+    pub order_id: String,
+    pub product_id: String,
+    pub description: String,
+    pub quantity_milli: i64,
+    pub price_minor: i64,
+    pub tax_bps: i64,
+    pub subtotal_minor: i64,
+    pub tax_minor: i64,
+    pub ordinal: i64,
+    pub list_price_minor: i64,
+    pub discount_bps: i64,
+    pub item_type: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SaveOrderPlan {
+    pub create: bool,
+    pub id: String,
+    pub company_id: String,
+    pub branch_id: Option<String>,
+    pub department_id: Option<String>,
+    pub kind: String,
+    pub number: String,
+    pub party_id: String,
+    pub warehouse_id: Option<String>,
+    pub currency: String,
+    pub order_date: String,
+    pub due_date: String,
+    pub note: String,
+    pub subtotal_minor: i64,
+    pub tax_minor: i64,
+    pub price_list_id: Option<String>,
+    pub price_list_version: Option<i64>,
+    pub discount_reason: Option<String>,
+    pub discount_approval_required: i64,
+    pub version: i64,
+    pub created_by: String,
+    pub updated_at: i64,
+    pub lines: Vec<SaveOrderLinePlan>,
+}
+
+pub fn save_setup_required() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "COMMERCE_SETUP_REQUIRED",
+        "Configure the company posting accounts before processing orders.",
+    )
+}
+
+pub fn party_invalid() -> BusinessError {
+    BusinessError::invalid(
+        "PARTY_INVALID",
+        "Choose an active customer in this Company and currency.",
+    )
+}
+
+pub fn warehouse_invalid() -> BusinessError {
+    BusinessError::invalid(
+        "WAREHOUSE_INVALID",
+        "Choose an active warehouse in this workspace.",
+    )
+}
+
+pub fn warehouse_required() -> BusinessError {
+    BusinessError::invalid("WAREHOUSE_REQUIRED", "Choose a warehouse for stock items.")
+}
+
+pub fn product_invalid() -> BusinessError {
+    BusinessError::invalid("PRODUCT_INVALID", "Choose an active product.")
+}
+
+pub fn order_kind_locked() -> BusinessError {
+    BusinessError::invalid("ORDER_KIND_LOCKED", "The document type cannot change.")
+}
+
+pub fn invalid_dates() -> BusinessError {
+    BusinessError::invalid("INVALID_DATES", "Due date must be on or after order date.")
+}
+
+pub fn duplicate_product() -> BusinessError {
+    BusinessError::invalid("DUPLICATE_PRODUCT", "Use one line per product.")
+}
+
+pub fn order_amount_invalid() -> BusinessError {
+    BusinessError::invalid(
+        "ORDER_AMOUNT_INVALID",
+        "Order total must be positive and within supported limits.",
+    )
+}
+
+pub fn price_list_invalid() -> BusinessError {
+    BusinessError::invalid(
+        "PRICE_LIST_INVALID",
+        "Choose an active price list valid for this customer and order date.",
+    )
+}
+
+pub fn price_list_item_required() -> BusinessError {
+    BusinessError::invalid(
+        "PRICE_LIST_ITEM_REQUIRED",
+        "Every order product must exist on the selected price list.",
+    )
+}
+
+pub fn price_list_tax_required() -> BusinessError {
+    BusinessError::invalid(
+        "PRICE_LIST_TAX_REQUIRED",
+        "Use the approved tax treatment captured by the price list.",
+    )
+}
+
+pub fn order_conflict() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "CONFLICT",
+        "The record changed, a reference is unavailable, or this value already exists. Refresh and review again.",
+    )
+}
+
+impl SaveOrderCommand {
+    pub fn operation(&self) -> &'static str {
+        if self.order_id.is_some() {
+            "commerce.order.update"
+        } else {
+            "commerce.order.create"
+        }
+    }
+
+    pub fn record_id(&self) -> String {
+        self.order_id
+            .as_ref()
+            .map(|id| id.as_str().to_owned())
+            .unwrap_or_else(|| format!("order-{}", self.key.as_str()))
+    }
+
+    pub fn expected_version(&self) -> Option<i64> {
+        self.input.expected_version
+    }
+
+    pub fn validate(&self) -> Result<(), BusinessError> {
+        let input = &self.input;
+        if !valid_identifier(&input.party_id)
+            || input
+                .warehouse_id
+                .as_deref()
+                .is_some_and(|value| !valid_identifier(value))
+            || !valid_date(&input.order_date)
+            || !valid_date(&input.due_date)
+            || !valid_note(&input.note, NOTE_LIMIT)
+            || input
+                .price_list_id
+                .as_deref()
+                .is_some_and(|value| !valid_identifier(value))
+            || input
+                .discount_reason
+                .as_deref()
+                .is_some_and(|value| !valid_note(js_trim(value), REASON_LIMIT))
+            || input.lines.is_empty()
+            || input.lines.len() > SAVE_LINES_LIMIT
+            || input
+                .expected_version
+                .is_some_and(|value| !(1..=MAX_SAFE_INTEGER as i64).contains(&value))
+        {
+            return Err(request_invalid());
+        }
+        if input.due_date < input.order_date {
+            return Err(invalid_dates());
+        }
+        let mut products = std::collections::BTreeSet::new();
+        for line in &input.lines {
+            if !valid_identifier(&line.product_id)
+                || !(0..=10_000).contains(&line.tax_bps)
+                || parse_decimal_units(&line.quantity, 3)?.is_none()
+                || parse_decimal_units(&line.price, 2)?.is_none()
+            {
+                return Err(request_invalid());
+            }
+            if !products.insert(line.product_id.as_str()) {
+                return Err(duplicate_product());
+            }
+            if parse_decimal_units(&line.quantity, 3)? == Some(0) {
+                return Err(request_invalid());
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Parse the bounded decimal strings accepted by the retained Zod schema.
+/// Returns `Ok(None)` when the text does not match the schema and
+/// `Ok(Some(units))` for the exact scaled integer.
+fn parse_decimal_units(value: &str, scale: u32) -> Result<Option<i64>, BusinessError> {
+    let value = js_trim(value);
+    let bytes = value.as_bytes();
+    if bytes.is_empty() {
+        return Ok(None);
+    }
+    let mut dot = None;
+    for (index, byte) in bytes.iter().enumerate() {
+        if *byte == b'.' {
+            if dot.is_some() {
+                return Ok(None);
+            }
+            dot = Some(index);
+        } else if !byte.is_ascii_digit() {
+            return Ok(None);
+        }
+    }
+    let (whole, fraction) = match dot {
+        Some(index) => (&value[..index], &value[index + 1..]),
+        None => (value, ""),
+    };
+    if whole.is_empty() || (dot.is_some() && fraction.is_empty()) {
+        return Ok(None);
+    }
+    if fraction.len() > scale as usize
+        && fraction[scale as usize..].bytes().any(|byte| byte != b'0')
+    {
+        return Ok(None);
+    }
+    let mut units: i128 = 0;
+    for byte in whole.bytes() {
+        units = units * 10 + i128::from(byte - b'0');
+        if units > MAX_SAFE_INTEGER {
+            return Ok(None);
+        }
+    }
+    let factor = 10_i128.pow(scale);
+    units *= factor;
+    if units > MAX_SAFE_INTEGER {
+        return Ok(None);
+    }
+    let padded = format!(
+        "{:0<width$}",
+        &fraction[..fraction.len().min(scale as usize)],
+        width = scale as usize
+    );
+    for byte in padded.bytes() {
+        units += i128::from(byte - b'0');
+    }
+    if units > MAX_SAFE_INTEGER {
+        return Ok(None);
+    }
+    i64::try_from(units)
+        .map(Some)
+        .map_err(|_| request_invalid())
+}
+
+fn scaled_amount(amount: i64, numerator: i64, denominator: i64) -> Result<i64, BusinessError> {
+    if amount < 0 || numerator < 0 || denominator <= 0 {
+        return Err(order_amount_invalid());
+    }
+    let value = (i128::from(amount) * i128::from(numerator) + i128::from(denominator / 2))
+        / i128::from(denominator);
+    if value > MAX_SAFE_INTEGER {
+        return Err(order_amount_invalid());
+    }
+    i64::try_from(value).map_err(|_| order_amount_invalid())
+}
+
+fn line_amounts(
+    quantity_milli: i64,
+    price_minor: i64,
+    tax_bps: i64,
+) -> Result<(i64, i64), BusinessError> {
+    let subtotal = scaled_amount(price_minor, quantity_milli, 1_000)?;
+    let tax = scaled_amount(subtotal, tax_bps, 10_000)?;
+    Ok((subtotal, tax))
+}
+
+pub fn sales_order_number(key: &CommandKey) -> String {
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(key.as_str().as_bytes());
+    let mut suffix = String::with_capacity(24);
+    for byte in &digest[..12] {
+        use std::fmt::Write;
+        let _ = write!(suffix, "{byte:02X}");
+    }
+    format!("SO-{suffix}")
+}
+
+pub fn save_identity(actor: &CommerceOrderActor, command: &SaveOrderCommand) -> String {
+    json!({
+        "user": actor.user_id.as_str(),
+        "assignment": actor.assignment_id.as_str(),
+        "company": actor.company_id.as_str(),
+        "branch": actor.branch_id.as_ref().map(|value| value.as_str()),
+        "department": actor.department_id.as_ref().map(|value| value.as_str()),
+        "operation": command.operation(),
+        "recordId": command.record_id(),
+        "input": {
+            "kind": command.input.kind.as_str(),
+            "partyId": command.input.party_id,
+            "warehouseId": command.input.warehouse_id,
+            "orderDate": command.input.order_date,
+            "dueDate": command.input.due_date,
+            "note": command.input.note,
+            "priceListId": command.input.price_list_id,
+            "discountReason": command.input.discount_reason.as_deref().map(js_trim),
+            "expectedVersion": command.input.expected_version,
+            "lines": command.input.lines.iter().map(|line| json!({
+                "productId": line.product_id,
+                "quantity": line.quantity,
+                "price": line.price,
+                "taxBps": line.tax_bps,
+            })).collect::<Vec<_>>(),
+        },
+    })
+    .to_string()
+}
+
+/// Build one exact draft create/update plan after all scoped source facts were
+/// read in the caller's serializable transaction.
+#[allow(clippy::too_many_arguments)]
+pub fn build_save_plan(
+    actor: &CommerceOrderActor,
+    command: &SaveOrderCommand,
+    currency: String,
+    existing: Option<SalesOrderRow>,
+    warehouse: Option<SaveOrderWarehouse>,
+    party_valid: bool,
+    products: &[Option<SaveOrderProduct>],
+    price_list: Option<SaveOrderPriceList>,
+    number: String,
+    now: TimestampMillis,
+) -> Result<SaveOrderPlan, BusinessError> {
+    actor.require_write(now)?;
+    command.validate()?;
+    let input = &command.input;
+    let create = command.order_id.is_none();
+    let expected_version = match (create, input.expected_version) {
+        (true, _) => None,
+        (false, Some(version)) => Some(version),
+        (false, None) => return Err(version_conflict()),
+    };
+    if let Some(existing) = &existing {
+        if existing.kind() != Some(input.kind) {
+            return Err(order_kind_locked());
+        }
+        if existing.state() != Some(OrderState::Draft) {
+            return Err(version_conflict());
+        }
+        if Some(existing.version) != expected_version {
+            return Err(version_conflict());
+        }
+    } else if !create {
+        return Err(not_found());
+    }
+    if !party_valid {
+        return Err(party_invalid());
+    }
+    if input.warehouse_id.is_some() && warehouse.is_none() {
+        return Err(warehouse_invalid());
+    }
+    if products.len() != input.lines.len() {
+        return Err(request_invalid());
+    }
+    let price_items = price_list
+        .as_ref()
+        .map(|list| {
+            list.items
+                .iter()
+                .map(|item| (item.product_id.as_str(), item))
+                .collect::<std::collections::BTreeMap<_, _>>()
+        })
+        .unwrap_or_default();
+    let mut subtotal = 0_i128;
+    let mut tax_total = 0_i128;
+    let mut requires_approval = false;
+    let mut lines = Vec::with_capacity(input.lines.len());
+    for (index, line) in input.lines.iter().enumerate() {
+        let product = products[index].as_ref().ok_or_else(product_invalid)?;
+        if !matches!(product.item_type.as_str(), "stock" | "service") {
+            return Err(product_invalid());
+        }
+        if product.item_type == "stock" && warehouse.is_none() {
+            return Err(warehouse_required());
+        }
+        let quantity_milli = parse_decimal_units(&line.quantity, 3)?
+            .filter(|value| *value > 0)
+            .ok_or_else(request_invalid)?;
+        let price_minor = parse_decimal_units(&line.price, 2)?
+            .filter(|value| *value >= 0)
+            .ok_or_else(request_invalid)?;
+        let (list_price, discount_bps) = match &price_list {
+            Some(list) => {
+                let item = price_items
+                    .get(line.product_id.as_str())
+                    .ok_or_else(price_list_item_required)?;
+                if item.tax_bps != line.tax_bps {
+                    return Err(price_list_tax_required());
+                }
+                let base = item.price_minor;
+                let discount = if base > 0 && price_minor < base {
+                    ((i128::from(base) - i128::from(price_minor)) * 10_000 / i128::from(base))
+                        .try_into()
+                        .map_err(|_| order_amount_invalid())?
+                } else {
+                    0
+                };
+                let _ = list;
+                (base, discount)
+            }
+            None => (price_minor, 0),
+        };
+        if discount_bps > 10_000 {
+            return Err(order_amount_invalid());
+        }
+        let (line_subtotal, line_tax) = line_amounts(quantity_milli, price_minor, line.tax_bps)?;
+        subtotal += i128::from(line_subtotal);
+        tax_total += i128::from(line_tax);
+        requires_approval |= price_list
+            .as_ref()
+            .is_some_and(|list| discount_bps > list.max_auto_discount_bps);
+        lines.push(SaveOrderLinePlan {
+            id: format!("{}-line-{index}", command.record_id()),
+            order_id: command.record_id(),
+            product_id: product.id.clone(),
+            description: product.name.clone(),
+            quantity_milli,
+            price_minor,
+            tax_bps: line.tax_bps,
+            subtotal_minor: line_subtotal,
+            tax_minor: line_tax,
+            ordinal: index as i64,
+            list_price_minor: list_price,
+            discount_bps,
+            item_type: product.item_type.clone(),
+        });
+    }
+    let reason = input
+        .discount_reason
+        .as_deref()
+        .map(js_trim)
+        .filter(|value| !value.is_empty());
+    if requires_approval && reason.is_none_or(|value| utf16_len(value) < DISCOUNT_REASON_MIN) {
+        return Err(pricing_discount_reason_required());
+    }
+    let total = subtotal + tax_total;
+    if subtotal <= 0 || subtotal > MAX_SAFE_INTEGER || total > MAX_SAFE_INTEGER {
+        return Err(order_amount_invalid());
+    }
+    let (branch_id, department_id, created_by, version, order_number) = match &existing {
+        Some(existing) => (
+            warehouse
+                .as_ref()
+                .map(|value| value.branch_id.clone())
+                .or_else(|| {
+                    actor
+                        .branch_id
+                        .as_ref()
+                        .map(|value| value.as_str().to_owned())
+                }),
+            existing.department_id.clone(),
+            existing.created_by.clone(),
+            existing.version + 1,
+            existing.number.clone(),
+        ),
+        None => (
+            warehouse
+                .as_ref()
+                .map(|value| value.branch_id.clone())
+                .or_else(|| {
+                    actor
+                        .branch_id
+                        .as_ref()
+                        .map(|value| value.as_str().to_owned())
+                }),
+            actor
+                .department_id
+                .as_ref()
+                .map(|value| value.as_str().to_owned()),
+            actor.user_id.as_str().to_owned(),
+            1,
+            number,
+        ),
+    };
+    if !valid_text(&order_number, 64) {
+        return Err(source_invalid());
+    }
+    Ok(SaveOrderPlan {
+        create,
+        id: command.record_id(),
+        company_id: actor.company_id.as_str().to_owned(),
+        branch_id,
+        department_id,
+        kind: input.kind.as_str().to_owned(),
+        number: order_number,
+        party_id: input.party_id.clone(),
+        warehouse_id: input.warehouse_id.clone(),
+        currency,
+        order_date: input.order_date.clone(),
+        due_date: input.due_date.clone(),
+        note: input.note.clone(),
+        subtotal_minor: subtotal as i64,
+        tax_minor: tax_total as i64,
+        price_list_id: price_list.as_ref().map(|list| list.id.clone()),
+        price_list_version: price_list.as_ref().map(|list| list.version),
+        discount_reason: reason.map(str::to_owned),
+        discount_approval_required: i64::from(requires_approval),
+        version,
+        created_by,
+        updated_at: now.get(),
+        lines,
+    })
+}
+
+fn parse_save_receipt_result(value: &str) -> Result<SaveOrderReceipt, BusinessError> {
+    if value.len() > RECEIPT_LIMIT {
+        return Err(source_invalid());
+    }
+    let parsed: Value = serde_json::from_str(value).map_err(|_| source_invalid())?;
+    let Some(object) = parsed.as_object() else {
+        return Err(source_invalid());
+    };
+    if object.len() != 2 || !object.contains_key("id") || !object.contains_key("version") {
+        return Err(source_invalid());
+    }
+    let id = object
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or_else(source_invalid)?;
+    let version = object
+        .get("version")
+        .and_then(Value::as_i64)
+        .ok_or_else(source_invalid)?;
+    if !valid_identifier(id) || !(1..=MAX_SAFE_INTEGER as i64).contains(&version) {
+        return Err(source_invalid());
+    }
+    Ok(SaveOrderReceipt {
+        id: id.to_owned(),
+        version,
+    })
+}
+
+pub fn replay_save(
+    receipt: Option<OrderCommandReceipt>,
+    request_hash: &str,
+    command: &SaveOrderCommand,
+) -> Result<Option<SaveOrderReceipt>, BusinessError> {
+    let Some(receipt) = receipt else {
+        return Ok(None);
+    };
+    if receipt.request_hash != request_hash {
+        return Err(idempotency_conflict());
+    }
+    let parsed = parse_save_receipt_result(&receipt.result_json)?;
+    let expected_version = match (command.order_id.is_some(), command.expected_version()) {
+        (true, Some(version)) => version + 1,
+        (true, None) => return Err(source_invalid()),
+        (false, _) => 1,
+    };
+    if parsed.id != command.record_id()
+        || parsed.version != expected_version
+        || receipt.operation.as_deref() != Some(command.operation())
+        || receipt.record_id.as_deref() != Some(command.record_id().as_str())
+    {
+        return Err(source_invalid());
+    }
+    Ok(Some(parsed))
+}
+
+pub fn validate_save_readback(
+    plan: &SaveOrderPlan,
+    row: &SalesOrderRow,
+    lines: &[SalesOrderLineRow],
+) -> Result<(), BusinessError> {
+    row.validate_shape()?;
+    if row.id != plan.id
+        || row.company_id != plan.company_id
+        || row.branch_id != plan.branch_id
+        || row.department_id != plan.department_id
+        || row.kind != plan.kind
+        || row.number != plan.number
+        || row.party_id != plan.party_id
+        || row.warehouse_id != plan.warehouse_id
+        || row.currency != plan.currency
+        || row.order_date != plan.order_date
+        || row.due_date != plan.due_date
+        || row.note != plan.note
+        || row.state != "draft"
+        || row.subtotal_minor != plan.subtotal_minor
+        || row.tax_minor != plan.tax_minor
+        || row.version != plan.version
+        || row.created_by != plan.created_by
+        || row.updated_at != plan.updated_at
+        || row.price_list_id != plan.price_list_id
+        || row.price_list_version != plan.price_list_version
+        || row.discount_reason != plan.discount_reason
+        || row.discount_approval_required != plan.discount_approval_required
+        || row.approved_by.is_some()
+        || row.discount_approved_by.is_some()
+        || row.discount_approved_at.is_some()
+        || row.source_id.is_some()
+        || lines.len() != plan.lines.len()
+    {
+        return Err(readback_invalid());
+    }
+    for (row, line) in lines.iter().zip(&plan.lines) {
+        if row.id != line.id
+            || row.order_id != plan.id
+            || row.product_id != line.product_id
+            || row.description != line.description
+            || row.quantity_milli != line.quantity_milli
+            || row.fulfilled_milli != 0
+            || row.price_minor != line.price_minor
+            || row.tax_bps != line.tax_bps
+            || row.subtotal_minor != line.subtotal_minor
+            || row.tax_minor != line.tax_minor
+            || row.ordinal != line.ordinal
+            || row.list_price_minor != Some(line.list_price_minor)
+            || row.discount_bps != line.discount_bps
+            || row.item_type != line.item_type
+        {
+            return Err(readback_invalid());
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1176,6 +1879,96 @@ mod tests {
             parse_receipt_result(&missing.to_string()).unwrap_err().code,
             "COMMERCE_ORDER_SOURCE_INVALID"
         );
+    }
+
+    #[test]
+    fn save_plan_requires_the_delegated_discount_reason_and_uses_integer_money() {
+        let actor = CommerceOrderActor {
+            user_id: UserId::new("user").unwrap(),
+            holding_id: HoldingId::new("h001").unwrap(),
+            company_id: CompanyId::new("company").unwrap(),
+            branch_id: Some(RecordId::new("branch").unwrap()),
+            department_id: None,
+            assignment_id: AssignmentId::new("assignment").unwrap(),
+            role: None,
+            authority_revision: None,
+            assignment_version: None,
+            permissions: vec!["commerce.sales".into()],
+            modules: vec!["sales".into()],
+            expires_at: i64::MAX,
+        };
+        let command = |reason: Option<&str>| SaveOrderCommand {
+            key: CommandKey::new("commerce-order-save-test-0001").unwrap(),
+            order_id: None,
+            input: SaveOrderInput {
+                kind: OrderKind::Quote,
+                party_id: "party-1".into(),
+                warehouse_id: None,
+                order_date: "2026-11-10".into(),
+                due_date: "2026-11-15".into(),
+                note: String::new(),
+                price_list_id: None,
+                discount_reason: reason.map(str::to_owned),
+                lines: vec![SaveOrderLineInput {
+                    product_id: "product-1".into(),
+                    quantity: "2".into(),
+                    price: "80".into(),
+                    tax_bps: 700,
+                }],
+                expected_version: None,
+            },
+        };
+        let product = SaveOrderProduct {
+            id: "product-1".into(),
+            name: "Service".into(),
+            item_type: "service".into(),
+            version: 1,
+        };
+        let price_list = SaveOrderPriceList {
+            id: "list-customer".into(),
+            version: 1,
+            max_auto_discount_bps: 1_000,
+            items: vec![SaveOrderPriceItem {
+                product_id: "product-1".into(),
+                price_minor: 10_500,
+                tax_bps: 700,
+            }],
+        };
+        assert_eq!(
+            build_save_plan(
+                &actor,
+                &command(None),
+                "THB".into(),
+                None,
+                None,
+                true,
+                &[Some(product.clone())],
+                Some(price_list.clone()),
+                "QT-2026-000001".into(),
+                TimestampMillis::new(1_800_000_000_000),
+            )
+            .unwrap_err()
+            .code,
+            "DISCOUNT_REASON_REQUIRED"
+        );
+        let plan = build_save_plan(
+            &actor,
+            &command(Some("Strategic launch order approved")),
+            "THB".into(),
+            None,
+            None,
+            true,
+            &[Some(product)],
+            Some(price_list),
+            "QT-2026-000001".into(),
+            TimestampMillis::new(1_800_000_000_000),
+        )
+        .unwrap();
+        assert_eq!(plan.subtotal_minor, 16_000);
+        assert_eq!(plan.tax_minor, 1_120);
+        assert_eq!(plan.lines[0].discount_bps, 2_380);
+        assert_eq!(plan.lines[0].list_price_minor, 10_500);
+        assert_eq!(plan.discount_approval_required, 1);
     }
 
     #[test]

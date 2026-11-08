@@ -50,6 +50,24 @@ impl CommerceOrderHttpBackend for Probe {
                         .and_then(|value| value.to_str().ok())
                         .unwrap_or("")
                 ),
+                CommerceOrderHttpCommand::Save {
+                    order_id,
+                    idempotency_key,
+                    input,
+                } => format!(
+                    "save|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}",
+                    request.host,
+                    request.holding_slug,
+                    order_id.as_deref().unwrap_or(""),
+                    idempotency_key,
+                    input.kind.as_str(),
+                    input.party_id,
+                    input.warehouse_id.as_deref().unwrap_or(""),
+                    input.order_date,
+                    input.due_date,
+                    input.lines.len(),
+                    input.expected_version.unwrap_or(0),
+                ),
             };
             self.seen.lock().unwrap().push(seen);
             if let Some(error) = self.fail.clone() {
@@ -73,6 +91,15 @@ impl CommerceOrderHttpBackend for Probe {
                         } else {
                             serde_json::json!({
                                 "id":"order-1","state":"submitted","version":2,"salesId":null
+                            })
+                        }
+                    }
+                    CommerceOrderHttpCommand::Save { order_id, .. } => {
+                        if self.bad {
+                            serde_json::json!({"id":"order-1"})
+                        } else {
+                            serde_json::json!({
+                                "id":order_id.as_deref().unwrap_or("order-1"),"version":2
                             })
                         }
                     }
@@ -187,6 +214,107 @@ async fn actual_router_forwards_detail_and_transition_with_private_headers() {
             "transition|acme.example.test|acme|order-1|commerce-command-0001|submit|1||"
         ]
     );
+}
+
+#[tokio::test]
+async fn actual_router_forwards_save_create_and_update_exactly() {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let router = commerce_order_http_router(vec![target(
+        "acme.example.test",
+        "acme",
+        seen.clone(),
+        None,
+        false,
+    )])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let _server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+    let body = r#"{"kind":"quote","partyId":"party-1","warehouseId":"","orderDate":"2026-11-10","dueDate":"2026-11-15","note":"","priceListId":"list-1","discountReason":"Reviewed commercial discount","lines":[{"productId":"product-1","quantity":"1","price":"80","taxBps":700}]}"#;
+    let (status, response, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/commerce/orders",
+            "acme.example.test",
+            Some("commerce-save-0001"),
+            body,
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(response["data"], serde_json::json!({"id":"order-1","version":2}));
+    let (status, response, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/commerce/orders/order-1",
+            "acme.example.test",
+            Some("commerce-save-0002"),
+            body,
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(response["data"], serde_json::json!({"id":"order-1","version":2}));
+    assert_eq!(
+        seen.lock().unwrap().as_slice(),
+        [
+            "save|acme.example.test|acme||commerce-save-0001|quote|party-1||2026-11-10|2026-11-15|1|0",
+            "save|acme.example.test|acme|order-1|commerce-save-0002|quote|party-1||2026-11-10|2026-11-15|1|0"
+        ]
+    );
+
+    for (request, expected) in [
+        (
+            post(
+                "/api/v1/holdings/acme/commerce/orders",
+                "acme.example.test",
+                None,
+                body,
+            ),
+            422,
+        ),
+        (
+            post(
+                "/api/v1/holdings/acme/commerce/orders",
+                "acme.example.test",
+                Some("commerce-save-0003"),
+                r#"{"kind":"purchase","partyId":"party-1","orderDate":"2026-11-10","dueDate":"2026-11-15","lines":[]}"#,
+            ),
+            422,
+        ),
+        (
+            post(
+                "/api/v1/holdings/acme/commerce/orders",
+                "acme.example.test",
+                Some("commerce-save-0004"),
+                r#"{"kind":"quote","partyId":"party-1","orderDate":"2026-11-10","dueDate":"2026-11-15","lines":[{"productId":"p","quantity":"1","price":"1","taxBps":10001}]}"#,
+            ),
+            422,
+        ),
+        (
+            post(
+                "/api/v1/holdings/acme/commerce/orders",
+                "acme.example.test",
+                Some("commerce-save-0005"),
+                r#"{"kind":"quote","partyId":"party-1","orderDate":"2026-11-10","dueDate":"2026-11-15","lines":[{"productId":"p","quantity":"1","price":"1","taxBps":0}],"unknown":true}"#,
+            ),
+            422,
+        ),
+        (
+            post(
+                "/api/v1/holdings/acme/commerce/orders?print=1",
+                "acme.example.test",
+                Some("commerce-save-0006"),
+                body,
+            ),
+            422,
+        ),
+    ] {
+        let (status, _, _) = http(addr, request).await;
+        assert_eq!(status, expected);
+    }
 }
 
 #[tokio::test]

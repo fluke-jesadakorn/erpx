@@ -7,10 +7,12 @@
 //! validate persisted readback before returning.
 use crate::domain::order::{
     CommerceOrderActor, CommerceOrderReceipt, ConvertedReadback, OrderCommandReceipt, OrderState,
-    SalesOrderDocument, SalesOrderLineRow, SalesOrderRow, TransitionCommand, TransitionPlan,
-    authorize_transition, idempotency_conflict, not_found, permission_required, readback_invalid,
-    replay, request_invalid, transition_identity, validate_conversion_readback, validate_document,
-    validate_hash, validate_readback, version_conflict,
+    SalesOrderDocument, SalesOrderLineRow, SalesOrderRow, SaveOrderCommand, SaveOrderLinePlan,
+    SaveOrderPlan, SaveOrderPriceList, SaveOrderProduct, SaveOrderReceipt, SaveOrderWarehouse,
+    TransitionCommand, TransitionPlan, authorize_transition, idempotency_conflict, not_found,
+    permission_required, readback_invalid, replay, replay_save, request_invalid, save_identity,
+    transition_identity, validate_conversion_readback, validate_document, validate_hash,
+    validate_readback, validate_save_readback, version_conflict,
 };
 use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
 use std::future::Future;
@@ -297,5 +299,247 @@ pub async fn transition_order<R: CommerceOrderCommandRepository>(
         .await?
         .ok_or_else(readback_invalid)?;
     validate_readback(&plan, &readback)?;
+    Ok(receipt)
+}
+
+/// Repository facts required by the native draft create/update slice. All
+/// source reads happen in the same caller-owned serializable transaction as
+/// the owner write.
+pub trait CommerceOrderSaveRepository: CommerceOrderCommandRepository {
+    fn setup_currency<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+    ) -> CommerceOrderFuture<'a, Option<String>, Self::Error>;
+
+    fn next_quote_number<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        date: &'a str,
+    ) -> CommerceOrderFuture<'a, String, Self::Error>;
+
+    fn save_warehouse<'a>(
+        &'a mut self,
+        actor: &'a CommerceOrderActor,
+        id: &'a str,
+    ) -> CommerceOrderFuture<'a, Option<SaveOrderWarehouse>, Self::Error>;
+
+    fn save_product<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        id: &'a str,
+    ) -> CommerceOrderFuture<'a, Option<SaveOrderProduct>, Self::Error>;
+
+    fn save_party_valid<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        party_id: &'a str,
+        currency: &'a str,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error>;
+
+    fn save_price_list<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        party_id: &'a str,
+        date: &'a str,
+        selected: Option<&'a str>,
+    ) -> CommerceOrderFuture<'a, Option<SaveOrderPriceList>, Self::Error>;
+
+    fn insert_order<'a>(
+        &'a mut self,
+        plan: &'a SaveOrderPlan,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error>;
+
+    fn update_order<'a>(
+        &'a mut self,
+        plan: &'a SaveOrderPlan,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error>;
+
+    fn delete_order_lines<'a>(
+        &'a mut self,
+        order_id: &'a str,
+    ) -> CommerceOrderFuture<'a, (), Self::Error>;
+
+    fn insert_order_line<'a>(
+        &'a mut self,
+        line: &'a SaveOrderLinePlan,
+    ) -> CommerceOrderFuture<'a, (), Self::Error>;
+
+    fn readback_lines<'a>(
+        &'a mut self,
+        actor: &'a CommerceOrderActor,
+        order_id: &'a str,
+    ) -> CommerceOrderFuture<'a, Vec<SalesOrderLineRow>, Self::Error>;
+}
+
+/// Create or update one exact draft quotation/sales order.
+///
+/// The retained TypeScript writer resolves pricing, party, warehouse and
+/// product guards and writes order header/lines plus receipt/audit/outbox in
+/// one unit. Purchase orders and request/RFQ handoffs are outside this owner
+/// slice and remain retained.
+pub async fn save_order<R: CommerceOrderSaveRepository>(
+    actor: &CommerceOrderActor,
+    command: &SaveOrderCommand,
+    repository: &mut R,
+    now: TimestampMillis,
+) -> Result<SaveOrderReceipt, R::Error> {
+    actor.require_write(now)?;
+    command.validate()?;
+    repository.lock_command(command.key.as_str()).await?;
+    let identity = save_identity(actor, command);
+    let request_hash = repository.digest(&identity).await?;
+    validate_hash(&request_hash)?;
+    if let Some(prior) = replay_save(
+        repository.receipt(command.key.as_str()).await?,
+        &request_hash,
+        command,
+    )? {
+        return Ok(prior);
+    }
+    if !repository
+        .current_authority(actor, true, false, now)
+        .await?
+    {
+        return Err(permission_required().into());
+    }
+    let currency = repository
+        .setup_currency(&actor.company_id)
+        .await?
+        .ok_or_else(crate::domain::order::save_setup_required)?;
+    let existing = match &command.order_id {
+        Some(id) => {
+            let row = repository
+                .lock_order(actor, id.as_str())
+                .await?
+                .ok_or_else(not_found)?;
+            if row.version != command.expected_version().unwrap_or(0) {
+                return Err(version_conflict().into());
+            }
+            Some(row)
+        }
+        None => None,
+    };
+    let party_valid = repository
+        .save_party_valid(&actor.company_id, &command.input.party_id, &currency)
+        .await?;
+    let warehouse = match command.input.warehouse_id.as_deref() {
+        Some(id) => repository.save_warehouse(actor, id).await?,
+        None => None,
+    };
+    let mut products = Vec::with_capacity(command.input.lines.len());
+    for line in &command.input.lines {
+        products.push(
+            repository
+                .save_product(&actor.company_id, &line.product_id)
+                .await?,
+        );
+    }
+    let price_list = repository
+        .save_price_list(
+            &actor.company_id,
+            &command.input.party_id,
+            &command.input.order_date,
+            command.input.price_list_id.as_deref(),
+        )
+        .await?;
+    if command.input.price_list_id.is_some() && price_list.is_none() {
+        return Err(crate::domain::order::price_list_invalid().into());
+    }
+    let number = if command.order_id.is_none() {
+        match command.input.kind {
+            crate::domain::order::OrderKind::Quote => {
+                repository
+                    .next_quote_number(&actor.company_id, &command.input.order_date)
+                    .await?
+            }
+            crate::domain::order::OrderKind::Sales => {
+                crate::domain::order::sales_order_number(&command.key)
+            }
+        }
+    } else {
+        String::new()
+    };
+    let plan = crate::domain::order::build_save_plan(
+        actor,
+        command,
+        currency,
+        existing,
+        warehouse,
+        party_valid,
+        &products,
+        price_list,
+        number,
+        now,
+    )?;
+    if plan.create {
+        if !repository.insert_order(&plan).await? {
+            return Err(crate::domain::order::order_conflict().into());
+        }
+    } else {
+        if !repository.update_order(&plan).await? {
+            return Err(version_conflict().into());
+        }
+        repository.delete_order_lines(&plan.id).await?;
+    }
+    for line in &plan.lines {
+        repository.insert_order_line(line).await?;
+    }
+    let receipt = SaveOrderReceipt {
+        id: plan.id.clone(),
+        version: plan.version,
+    };
+    let result_json = serde_json::to_string(&receipt.to_wire()).map_err(|_| request_invalid())?;
+    if !repository
+        .insert_receipt(
+            &ReceiptEntry {
+                key: command.key.as_str(),
+                operation: command.operation(),
+                actor,
+                request_hash: &request_hash,
+                record_id: &plan.id,
+                result_json: &result_json,
+            },
+            now,
+        )
+        .await?
+    {
+        return Err(idempotency_conflict().into());
+    }
+    let authority = actor.authority_json();
+    repository
+        .audit(
+            actor,
+            &AuditEntry {
+                key: command.key.as_str(),
+                operation: command.operation(),
+                record_type: "commerce_order",
+                record_id: &plan.id,
+                version: plan.version,
+                authority_json: &authority,
+            },
+            now,
+        )
+        .await?;
+    repository
+        .outbox(
+            &OutboxEntry {
+                key: command.key.as_str(),
+                operation: command.operation(),
+                record_type: "commerce_order",
+                record_id: &plan.id,
+                version: plan.version,
+                state: "draft",
+                sales_id: None,
+                authority_json: &authority,
+            },
+            now,
+        )
+        .await?;
+    let readback = repository
+        .readback_order(actor, &plan.id)
+        .await?
+        .ok_or_else(readback_invalid)?;
+    let lines = repository.readback_lines(actor, &plan.id).await?;
+    validate_save_readback(&plan, &readback, &lines)?;
     Ok(receipt)
 }

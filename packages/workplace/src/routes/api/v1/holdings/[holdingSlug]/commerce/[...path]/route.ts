@@ -10,7 +10,7 @@ import { z } from "zod";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError,errorResponse } from "@erpx/server-runtime/public/http";
 import {commerceOverview,saveOrder,transitionOrder,fulfillOrder,invoiceFulfillment,settleInvoice,saveMaster,requestCommerceReturn,decideCommerceReturn,completeCommerceReturn,orderSchema,transitionSchema,fulfillmentSchema,invoiceFromDeliverySchema,settlementSchema,returnRequestSchema,returnDecisionSchema,returnCompleteSchema} from '@erpx/server-commerce/public/commerce';
-import {nativeCommerceOrderTransition} from '@erpx/feature-sales/public/native-commerce-orders-page';
+import {nativeCommerceOrderTransition,nativeCommerceOrderSave} from '@erpx/feature-sales/public/native-commerce-orders-page';
 import {nativeSalesPricingCommand} from '@erpx/feature-sales/public/native-sales-pricing';
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {decidePriceList,priceListDecisionSchema,priceListSchema,priceListUpdateSchema,pricingWorkspace,savePriceList,updatePriceList} from "@erpx/server-sales/public/sales-pricing";
@@ -81,7 +81,7 @@ export async function POST(request:Request,context:Context) {
     else if(p[0]==='pricing'&&p.length===1)data=(await nativeSalesPricingCommand(actor,'create',null,input,key,request.headers))??await savePriceList(actor,priceListSchema.parse(input),key);
     else if(p[0]==='pricing'&&p.length===3&&p[2]==='edit')data=(await nativeSalesPricingCommand(actor,'update',p[1],input,key,request.headers))??await updatePriceList(actor,p[1],priceListUpdateSchema.parse(input),key);
     else if(p[0]==='pricing'&&p.length===2)data=(await nativeSalesPricingCommand(actor,'decide',p[1],input,key,request.headers))??await decidePriceList(actor,p[1],priceListDecisionSchema.parse(input),key);
-    else if(p[0]==="orders"&&p.length<=2)data=await saveOrder(actor,p[1]??null,orderSchema.parse(input),key);
+    else if(p[0]==="orders"&&p.length<=2){const order=orderSchema.parse(input);const kind=order.kind;if(kind==="purchase")data=await saveOrder(actor,p[1]??null,order,key);else{const nativeOrder={...order,kind};data=(await nativeCommerceOrderSave(actor,p[1]??null,nativeOrder,key))??await saveOrder(actor,p[1]??null,order,key);}}
     else if(p[0]==="orders"&&p[2]==="transition"){const transition=transitionSchema.parse(input);data=(await nativeCommerceOrderTransition(actor,p[1],transition,key))??await transitionOrder(actor,p[1],transition,key);}
     else if(p[0]==="orders"&&p[2]==="reservations")data=await changeOrderReservation(actor,p[1],input,key);
     else if(p[0]==="orders"&&p[2]==="fulfill")data=await fulfillOrder(actor,p[1],fulfillmentSchema.parse(input),key);

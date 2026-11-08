@@ -7007,6 +7007,42 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         }
         _ => false,
     };
+    let commerce = match (
+        request.method(),
+        request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) {
+        (
+            &axum::http::Method::GET | &axum::http::Method::POST,
+            ["", "api", "v1", "holdings", slug, "commerce", "orders"],
+        ) => state
+            .policy
+            .audience(host)
+            .is_some_and(|_| !slug.is_empty()),
+        (
+            &axum::http::Method::GET | &axum::http::Method::POST,
+            ["", "api", "v1", "holdings", slug, "commerce", "orders", order_id],
+        ) if !slug.is_empty() && !order_id.is_empty() => state.policy.audience(host).is_some(),
+        (
+            &axum::http::Method::POST,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "commerce",
+                "orders",
+                order_id,
+                "transition",
+            ],
+        ) if !slug.is_empty() && !order_id.is_empty() => state.policy.audience(host).is_some(),
+        _ => false,
+    };
     let talent = match (
         request.method(),
         request
@@ -7167,6 +7203,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || talent
         || benefits
         || account_security
+        || commerce
         || customer_access
         || service_packages
         || field_work_roles
