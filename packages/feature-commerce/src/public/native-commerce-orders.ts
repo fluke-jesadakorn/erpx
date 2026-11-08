@@ -472,7 +472,12 @@ function configuration(raw: NativeCommerceOrdersConfiguration) {
     if (
       origin.protocol !== 'https:' ||
       holding.origin !== origin.origin ||
-      origin.port ||
+      (origin.port !== '' &&
+        !(
+          process.env.NODE_ENV !== 'production' &&
+          origin.port === '3443' &&
+          origin.hostname.endsWith('.erpx.localhost')
+        )) ||
       origin.username ||
       origin.password ||
       !identifier(holding.holdingId) ||

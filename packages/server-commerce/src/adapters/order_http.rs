@@ -124,10 +124,19 @@ fn unique_header<'a>(headers: &'a HeaderMap, name: &str) -> Result<Option<&'a st
 
 fn valid_origin(origin: &str) -> bool {
     origin.strip_prefix("https://").is_some_and(|rest| {
-        !rest.is_empty()
-            && !rest
+        if rest.is_empty()
+            || rest
                 .bytes()
-                .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'@' | b':'))
+                .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'@'))
+        {
+            return false;
+        }
+        // The keyed development container serves exact Holding origins on its
+        // local HTTPS port. Production origins remain port-free.
+        if let Some((host, port)) = rest.rsplit_once(':') {
+            return host.ends_with(".erpx.localhost") && port == "3443";
+        }
+        true
     })
 }
 

@@ -244,7 +244,10 @@ async fn actual_router_forwards_save_create_and_update_exactly() {
     )
     .await;
     assert_eq!(status, 200);
-    assert_eq!(response["data"], serde_json::json!({"id":"order-1","version":2}));
+    assert_eq!(
+        response["data"],
+        serde_json::json!({"id":"order-1","version":2})
+    );
     let (status, response, _) = http(
         addr,
         post(
@@ -256,7 +259,10 @@ async fn actual_router_forwards_save_create_and_update_exactly() {
     )
     .await;
     assert_eq!(status, 200);
-    assert_eq!(response["data"], serde_json::json!({"id":"order-1","version":2}));
+    assert_eq!(
+        response["data"],
+        serde_json::json!({"id":"order-1","version":2})
+    );
     assert_eq!(
         seen.lock().unwrap().as_slice(),
         [
@@ -434,6 +440,15 @@ fn configuration_rejects_duplicate_targets_and_bad_origins() {
         invalid.origin = origin.into();
         assert!(CommerceOrderHttpState::new(vec![invalid]).is_err());
     }
+    let mut development = target(
+        "acme.erpx.localhost:3443",
+        "acme",
+        seen.clone(),
+        None,
+        false,
+    );
+    development.origin = "https://acme.erpx.localhost:3443".into();
+    assert!(CommerceOrderHttpState::new(vec![development]).is_ok());
     let mut bad_slug = target("acme.example.test", "Acme!", seen, None, false);
     bad_slug.holding_slug = "Acme!".into();
     assert!(CommerceOrderHttpState::new(vec![bad_slug]).is_err());
