@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-08T07:30:33+07:00",
+  "updatedAt": "2026-11-08T07:55:38+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 56,
-    "workflowsVerified": 63,
-    "workflowsMerged": 63,
+    "workflowsPartial": 55,
+    "workflowsVerified": 64,
+    "workflowsMerged": 64,
     "ownersComplete": 8,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -5091,15 +5091,15 @@
       "kind": "module",
       "owner": "manufacturing",
       "scope": "Specifications",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "manufacturing-native-bom",
         "manufacturing-native-bom-http"
       ],
       "sourceRef": "packages/server-manufacturing/src/public/production.ts",
-      "gap": "Native BOM/formula register read and HTTP/SSR are qualified; specification commands, production closure and composition mount complete; browser remains open."
+      "gap": "Closed for the registered native BOM/formula register slice. The BOM target now mounts for the configured operations Company, the owner/router accepts the registered development Holding port, the private API boundary admits the GET specifications path, and the client accepts the same port-bearing Holding origin. Browser verified desktop and mobile at /manufacturing?company=acme-co: the native \"BOM and routing register\" renders Acme desk assembly \u00b7 approved \u00b7 bom \u00b7 version 1 from the native owner. The production console draft/approve controls remain retained and are tracked by the production workflows; this closure covers the registered specification register slice."
     },
     {
       "id": "manufacturing/feature-labor-output",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-08T07:30:33+07:00",
-    "sourceHead": "b14fede4d",
+    "generatedAt": "2026-11-08T07:55:38+07:00",
+    "sourceHead": "5554729bd",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6630,8 +6630,8 @@
       },
       "manufacturing": {
         "workflows": 6,
-        "verified": 0,
-        "partial": 1,
+        "verified": 1,
+        "partial": 0,
         "unstarted": 5,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -8113,6 +8113,21 @@
           "owners": 8,
           "verified": 63,
           "partial": 56,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-08T07:55:38+07:00",
+        "commit": "5554729bd",
+        "bundles": [
+          "native Manufacturing BOM register browser acceptance"
+        ],
+        "evidence": "browser desktop+mobile /manufacturing?company=acme-co BOM and routing register with Acme desk assembly v1; native GET /api/v1/holdings/acme/manufacturing/specifications 401 unauthenticated (mounted), owner read 200 through the page; cargo manufacturing suites 10/2/4/9/2/4; service check/typecheck/structure/health pass",
+        "counts": {
+          "owners": 8,
+          "verified": 64,
+          "partial": 55,
           "unstarted": 87,
           "total": 206
         }
