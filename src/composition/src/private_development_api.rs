@@ -1856,6 +1856,7 @@ async fn assemble_checked(
     if !config.finance_journal_reads.is_empty()
         || !config.pos_companies.is_empty()
         || !config.crm_companies.is_empty()
+        || !config.commerce_companies.is_empty()
     {
         let catalogue = Arc::new(
             current_package_catalogue().map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
@@ -2920,7 +2921,7 @@ async fn assemble_checked(
                         Arc::new(SharedClock(clock.clone())),
                         Arc::new(crate::asset_http::FinanceAssetCost::new(
                             company.clone(),
-                            clock.clone(),
+                            Arc::new(SharedClock(clock.clone())),
                         )),
                     )),
                 });
@@ -3319,7 +3320,7 @@ async fn assemble_checked(
                 )
                 .map_err(|_| "PRIVATE_API_COMMERCE_CONFIGURATION_INVALID")?,
             );
-            for company in companies {
+            {
                 commerce_targets.push(
                     erpx_server_commerce::public::order_http::CommerceOrderHttpTarget {
                         host: holding.host.clone(),
@@ -3330,10 +3331,10 @@ async fn assemble_checked(
                             Arc::new(FinanceJournalReadScopeHeaders),
                             Arc::new(crate::commerce::CommerceService::new(
                                 authorizer.clone(),
-                                crate::commerce::CommerceConfiguration::new(
+                                crate::commerce::CommerceConfiguration::for_companies(
                                     holding.registration.holding_id.clone(),
-                                    company.clone(),
-                                ),
+                                    companies.iter().cloned().collect(),
+                                ).map_err(|_| "PRIVATE_API_COMMERCE_CONFIGURATION_INVALID")?,
                                 Arc::new(SharedClock(clock.clone())),
                             )),
                         )),
