@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-08T21:21:45+07:00",
+  "updatedAt": "2026-11-08T22:11:50+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 101,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 47,
-    "workflowsVerified": 72,
-    "workflowsMerged": 72,
+    "workflowsPartial": 46,
+    "workflowsVerified": 73,
+    "workflowsMerged": 73,
     "ownersComplete": 8,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -4418,9 +4418,9 @@
       "kind": "module",
       "owner": "inventory",
       "scope": "Stock register",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "inventory-stock-readback",
         "inventory-stock-http",
@@ -4428,7 +4428,7 @@
         "inventory-source-fence"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Native stock register/availability SSR and four-source reservation fences are qualified; Commerce receipt integration, default-on rollout and browser remain open."
+      "gap": "Closed. The Inventory stock/availability native targets now mount for the configured operations Company and the native stock/availability client configuration is present in the dev container. Count value adjustments are signed: scrap and shortage counts with negative net value are accepted by both the Rust register validator and the native transport instead of failing the whole register. A standalone native register page renders under the registered stock collection. Browser verified desktop and mobile at /supply/inventory-quality/stock/register?company=acme-co: 8 stock rows (DESK-120 1 unit / 350.00 USD), 14 lots with quality holds and the -3.00 scrap count in USD. Registered inventory-lot-serial (16/16) and commerce-foreign-goods (5/5) cases pass, plus stock-register unit tests, service check, typecheck and structure. The Commerce receipt writer and default-on rollout remain covered by inventory/feature-receipts."
     },
     {
       "id": "inventory/feature-receipts",
@@ -6456,8 +6456,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-08T21:21:45+07:00",
-    "sourceHead": "540836cea",
+    "generatedAt": "2026-11-08T22:11:50+07:00",
+    "sourceHead": "aeb9b86ce",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6558,8 +6558,8 @@
       },
       "inventory": {
         "workflows": 5,
-        "verified": 3,
-        "partial": 2,
+        "verified": 1,
+        "partial": 1,
         "unstarted": 0,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -8203,6 +8203,21 @@
           "owners": 8,
           "verified": 72,
           "partial": 47,
+          "unstarted": 87,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-08T22:11:50+07:00",
+        "commit": "aeb9b86ce",
+        "bundles": [
+          "native Inventory stock register browser acceptance"
+        ],
+        "evidence": "browser desktop+mobile /supply/inventory-quality/stock/register shows 8 stock rows (DESK-120 1/350.00 USD), 14 lots with holds and -3.00 scrap count; registered inventory-lot-serial 16/16 and commerce-foreign-goods 5/5; stock-register unit 5/5 + native transport 10/10; service check/typecheck/structure pass; signed count values accepted after fix",
+        "counts": {
+          "owners": 8,
+          "verified": 73,
+          "partial": 46,
           "unstarted": 87,
           "total": 206
         }
