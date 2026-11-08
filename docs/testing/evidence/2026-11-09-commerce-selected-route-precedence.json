@@ -1,22 +1,23 @@
 {
   "version": 1,
   "date": "2026-11-09",
-  "status": "The review finding that demoted sales/quotes is closed on the committed tree: the selected-route Commerce HTTP suite now passes from a clean git archive and covers the exact save/conversion error precedence, selected Company isolation, independent approval/cancellation, cancellation rollback, Money lock/permanent-failure/serialization retry and append-only Money revisions. sales/quotes returns to verified; sales/orders, fulfillment, cancellations and revenue handoff remain partial/unstarted.",
+  "status": "The review finding on original save/conversion error precedence is closed on the committed tree: stale version, non-draft state and foreign/missing party now return the generic CONFLICT at the command-assertion boundary, duplicate Money (23505) maps to CONFLICT, and a fresh quotation conversion writes the Finance order-revision total with replay/stale rollback. The selected-route suite and a clean full-service archive test/build pass; sales/quotes returns to verified.",
   "capability": "commerce-selected-route-precedence-and-quote-reverification",
   "integrationTarget": "codex/rust-backend-migration",
   "base": "9458dfca391a546380709e69db9ccc9ce9f2c49e",
   "commits": [
     "56538f9075b2ff76424f8fabe67575fc02a745f3",
-    "f0a11a74084d78a75b00f6d4c3939228575f9e72"
+    "f0a11a74084d78a75b00f6d4c3939228575f9e72",
+    "5dfadc0f45d006f52960336d43c0f771f31c1e4a"
   ],
   "reviewFindingClosed": {
     "finding": "A later full TypeScript/PostgreSQL oracle exposed save error precedence differences involving stale versions, product, party and immutable Money guards; conversion also needed its Money error precedence checked.",
-    "resolution": "The selected-route suite exercises the real Account SSO, Holding SSO, selected Company/context and the composed private API assembly. It asserts PRODUCT_INVALID / PARTY_INVALID / PRICE_LIST_INVALID before version guard, COMMERCE_ORDER_CHANGED for stale update, QUOTE_REQUIRED before stale CAS on conversion, CONFLICT for credit-versus-stale approval, and unchanged orders/lines/Money/effects on every denial. It also holds the FX relation lock, proves 503 COMMERCE_UNAVAILABLE with no receipt/audit/outbox/order/Money rows, injects a permanent Money failure and a first-attempt serialization failure, and proves exactly one 1+3N revision per create/update with replay."
+    "resolution": "The native save/transition now matches the original TypeScript command-assertion semantics: version/state/prerequisite failures and foreign/missing party return the generic CONFLICT, not COMMERCE_ORDER_CHANGED/PARTY_INVALID; a duplicate Money primary key also maps to CONFLICT. Product and price-list pre-read errors remain 422. A fresh quotation conversion writes the Finance sales-order total (sourceId <salesId>:1) on the native path only, replays without duplication and leaves order/Money unchanged on a stale conversion. The selected-route suite covers foreign party/product/list, stale update, credit-versus-stale approval, conversion before/after CAS, cancellation rollback, Money lock/permanent-failure/serialization retry and append-only revisions."
   },
   "verification": {
-    "cleanArchiveTest": "Fresh git archive of f0a11a740: cargo test -p erpx-service --locked --test commerce_selected_http_postgres --features existing-business,private-field-api passed 1/1 in 12.48s.",
-    "cleanArchiveBuild": "Fresh git archive of f0a11a740: cargo check -p erpx-service --locked --no-default-features --features private-field-api,files-scan-worker,existing-business passed.",
-    "commerce": "cargo test -p erpx-server-commerce --locked: 69/69 pass (5 unit, 8 PostgreSQL, 31 policy/oracle, 8 HTTP, 16 order PostgreSQL, 1 service-count).",
+    "cleanArchiveTest": "Fresh git archive of 5dfadc0f4: cargo test -p erpx-service --locked --test commerce_selected_http_postgres --features existing-business,private-field-api passed 1/1 in 12.20s.",
+    "cleanArchiveBuild": "Fresh git archive of 5dfadc0f4: cargo check -p erpx-service --locked --no-default-features --features private-field-api,files-scan-worker,existing-business passed.",
+    "commerce": "cargo test -p erpx-server-commerce --locked: 69/69 pass after the conflict-code and conversion-Money changes.",
     "frontend": "Desktop create/edit, mobile create and mobile edit were previously browser-verified through the native Next route with persisted order/line/Money readback; the clean integration build now includes the same source plus the selected-route composition fix.",
     "structure": "structure:check and docs:check pass."
   },
@@ -25,7 +26,7 @@
     "fix": "Build one Commerce target with the full Company set via CommerceConfiguration::for_companies, include Commerce in the package-catalogue gate, and pass the shared clock to FinanceAssetCost. No business authority was widened; the selected route still requires the normal Account session and selected Company/branch/department context."
   },
   "workflowClosure": {
-    "sales/quotes": "Verified again on f0a11a740: native price lists, quotation list/detail, draft create/update with Finance order-revision Money (1+3N), selected-route save precedence and Company isolation, quote submit/approve/return/cancel/conversion with Money error precedence, desktop/mobile create/edit and a clean full-service archive build/test. Purchase orders, sales-order goods fulfillment/invoicing/settlement/returns and independent sales-approver browser approval remain separate."
+    "sales/quotes": "Verified on 5dfadc0f4: native price lists, quotation list/detail, draft create/update with Finance order-revision Money (1+3N), exact TypeScript save/transition conflict precedence, selected-route Company isolation, quote submit/approve/return/cancel/conversion with Finance sales-order total on conversion, desktop/mobile create/edit and clean full-service archive build/test. Purchase orders, sales-order goods fulfillment/invoicing/settlement/returns and independent sales-approver browser approval remain separate."
   },
   "counts": {
     "verified": 84,
@@ -36,5 +37,10 @@
     "ownerTotal": 41,
     "salesOwner": "1 verified / 3 partial / 1 unstarted of 5"
   },
-  "nextAction": "Close sales/orders and sales/fulfillment by porting goods fulfillment (reservations, stock, lots/serials, goods journal), then invoicing/settlement/returns; keep service completion browser evidence and selected-route precedence as the base."
+  "nextAction": "Close sales/orders and sales/fulfillment by porting goods fulfillment (reservations, stock, lots/serials, goods journal), then invoicing/settlement/returns; keep service completion browser evidence and selected-route precedence as the base.",
+  "conversionMoney": {
+    "fresh": "alias-cancel confirmed quote v1 converted via the selected route to order-convert-fresh with state converted v2 and a real salesId; exactly one commerce_order_revision total row was written for <salesId>:1 with amount_units 1000, usd_units 25, fx_rate_id commerce-fx-a.",
+    "replay": "The same Idempotency-Key returned the identical conversion receipt without a second Money row.",
+    "stale": "A second conversion key with the now-stale expectedVersion 1 returned 409 CONFLICT, left the converted order and 1+3N Money snapshot unchanged, and wrote zero receipt/audit/outbox rows."
+  }
 }
