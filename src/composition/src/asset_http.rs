@@ -8,12 +8,12 @@ use erpx_server_assets::public::asset_http::{
     AssetHttpFuture, AssetHttpReadReply, AssetHttpReadRequest, AssetRenderedContext,
     AssetWorkspaceResponse,
 };
-use erpx_server_assets::public::asset_register::{AssetFuture, NewAsset};
 use erpx_server_assets::public::asset_http::{AssetHttpCommand, decode_asset_command};
 use erpx_server_assets::public::asset_register::{
     AcquisitionCostProvider, AssetActor, AssetChangeResult, NoCommandLedger, PgAssetRegister,
     asset_detail, asset_workspace, change_asset, create_asset_in_unit,
 };
+use erpx_server_assets::public::asset_register::{AssetFuture, NewAsset};
 use erpx_server_identity_access::public::{
     AccountPolicy, RequestAudience,
     account_inbound_http::{CapturedHoldingMutation, parse_inbound_account_request},
@@ -732,17 +732,24 @@ fn _assert_backend_send_sync<C: Clock + Send + Sync + 'static>(value: Arc<AssetH
 #[allow(dead_code)]
 fn _assert_serializable<T: Serialize>(_: &T) {}
 
-
 /// Composition-level Finance acquisition-cost handoff. The snapshot is
 /// prepared and persisted by the Finance-owned public port on the same
 /// serializable Holding transaction before the Asset register row is written.
-pub struct FinanceAssetCost<C> {
-    company: CompanyId,
-    clock: Arc<C>,
+struct AssetCostClock<'a>(&'a (dyn Clock + Send + Sync));
+
+impl Clock for AssetCostClock<'_> {
+    fn now(&self) -> erpx_server_shared::public::TimestampMillis {
+        self.0.now()
+    }
 }
 
-impl<C: Clock + Send + Sync + 'static> FinanceAssetCost<C> {
-    pub fn new(company: CompanyId, clock: Arc<C>) -> Self {
+pub struct FinanceAssetCost {
+    company: CompanyId,
+    clock: Arc<dyn Clock + Send + Sync>,
+}
+
+impl FinanceAssetCost {
+    pub fn new(company: CompanyId, clock: Arc<dyn Clock + Send + Sync>) -> Self {
         Self { company, clock }
     }
 }
@@ -758,7 +765,7 @@ fn asset_cost_error(error: PgTransactionError<BusinessError>) -> BusinessError {
     }
 }
 
-impl<C: Clock + Send + Sync + 'static> AcquisitionCostProvider for FinanceAssetCost<C> {
+impl AcquisitionCostProvider for FinanceAssetCost {
     fn prepare<'a>(
         &'a self,
         connection: &'a mut PgConnection,
@@ -779,7 +786,7 @@ impl<C: Clock + Send + Sync + 'static> AcquisitionCostProvider for FinanceAssetC
                     &asset.acquired_date,
                     &asset.currency,
                     asset.cost_minor,
-                    &*self.clock,
+                    &AssetCostClock(self.clock.as_ref()),
                 )
                 .await
                 .map_err(asset_cost_error)?;
