@@ -54,6 +54,7 @@
     "./lib/receipt-route": "./src/lib/receipt-route.ts",
     "./lib/workspace-command": "./src/lib/workspace-command.ts",
     "./adapters/server/native-pos-cash": "./src/adapters/server/native-pos-cash.ts",
+    "./public/native-pos-cash": "./src/public/native-pos-cash.ts",
     "./routes/holdings/[holdingSlug]/pos/receipts/[id]/[recordSection]/page": "./src/routes/holdings/[holdingSlug]/pos/receipts/[id]/[recordSection]/page.tsx",
     "./routes/holdings/[holdingSlug]/pos/receipts/[id]/page": "./src/routes/holdings/[holdingSlug]/pos/receipts/[id]/page.tsx",
     "./routes/holdings/[holdingSlug]/pos/settings/initial-stock/[id]/page": "./src/routes/holdings/[holdingSlug]/pos/settings/initial-stock/[id]/page.tsx",
