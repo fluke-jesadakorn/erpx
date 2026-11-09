@@ -110,6 +110,11 @@ struct DatabaseDocument {
     url: String,
     #[serde(default)]
     lease_token: Option<String>,
+    /// Explicit development-only direct selection of the installed
+    /// `erpx_dev_*` database with its matching application role. It never
+    /// admits a production database or an arbitrary role.
+    #[serde(default)]
+    direct: bool,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -427,6 +432,39 @@ fn durable_database(url: &str) -> Result<RuntimeDatabase, &'static str> {
         identity,
     })
 }
+fn direct_development_database(url: &str) -> Result<RuntimeDatabase, &'static str> {
+    let endpoint = url::Url::parse(url).map_err(|_| "EXACT_DEVELOPMENT_DATABASE_REQUIRED")?;
+    let database = endpoint.path().trim_matches('/');
+    let expected_role = format!("{database}_app");
+    let exact_database = matches!(
+        database,
+        "erpx_dev_control"
+            | "erpx_dev_control_read"
+            | "erpx_dev_h001_write"
+            | "erpx_dev_h001_read"
+            | "erpx_dev_h002_write"
+            | "erpx_dev_h002_read"
+            | "erpx_dev_h003_write"
+            | "erpx_dev_h003_read"
+    );
+    if !matches!(endpoint.scheme(), "postgres" | "postgresql")
+        || endpoint.host_str() != Some("127.0.0.1")
+        || endpoint.port() != Some(5432)
+        || endpoint.username() != expected_role
+        || endpoint.password().is_none_or(str::is_empty)
+        || !exact_database
+        || endpoint.query().is_some()
+        || endpoint.fragment().is_some()
+    {
+        return Err("EXACT_DEVELOPMENT_DATABASE_REQUIRED");
+    }
+    let configuration = DatabaseConfig::from_url(url)
+        .map_err(|_| "EXACT_DEVELOPMENT_DATABASE_REQUIRED")?;
+    Ok(RuntimeDatabase::Durable {
+        configuration,
+        identity: (database.to_owned(), expected_role),
+    })
+}
 fn runtime_database(
     document: &DatabaseDocument,
     profile: Profile,
@@ -434,13 +472,19 @@ fn runtime_database(
 ) -> Result<RuntimeDatabase, &'static str> {
     match profile {
         Profile::Development => {
+            if document.direct {
+                if document.lease_token.is_some() {
+                    return Err("DEVELOPMENT_DATABASE_SELECTION_CONFLICT");
+                }
+                return direct_development_database(&document.url);
+            }
             let token = document.lease_token.as_deref().ok_or(development_error)?;
             LeasedDevelopmentDatabase::parse(&document.url, token)
                 .map(RuntimeDatabase::Leased)
                 .map_err(|_| development_error)
         }
         Profile::Production => {
-            if document.lease_token.is_some() {
+            if document.lease_token.is_some() || document.direct {
                 return Err("PRODUCTION_API_LEASE_TOKEN_FORBIDDEN");
             }
             durable_database(&document.url)
@@ -553,13 +597,19 @@ impl DevelopmentApiConfiguration {
             }
             match profile {
                 Profile::Development => {
-                    let token = h
-                        .database
-                        .lease_token
-                        .as_ref()
-                        .ok_or("EXACT_LEASED_API_DATABASE_REQUIRED")?;
-                    if !tokens.insert(token.clone()) {
-                        return Err("DISTINCT_EXACT_API_HOLDINGS_REQUIRED");
+                    if h.database.direct {
+                        if h.database.lease_token.is_some() {
+                            return Err("DEVELOPMENT_DATABASE_SELECTION_CONFLICT");
+                        }
+                    } else {
+                        let token = h
+                            .database
+                            .lease_token
+                            .as_ref()
+                            .ok_or("EXACT_LEASED_API_DATABASE_REQUIRED")?;
+                        if !tokens.insert(token.clone()) {
+                            return Err("DISTINCT_EXACT_API_HOLDINGS_REQUIRED");
+                        }
                     }
                 }
                 Profile::Production => {
@@ -574,12 +624,18 @@ impl DevelopmentApiConfiguration {
                         runtime_database(&read, profile, "EXACT_LEASED_API_DATABASE_REQUIRED")?;
                     match profile {
                         Profile::Development => {
-                            let token = read
-                                .lease_token
-                                .as_ref()
-                                .ok_or("EXACT_LEASED_API_DATABASE_REQUIRED")?;
-                            if !tokens.insert(token.clone()) {
-                                return Err("DISTINCT_EXACT_API_HOLDINGS_REQUIRED");
+                            if read.direct {
+                                if read.lease_token.is_some() {
+                                    return Err("DEVELOPMENT_DATABASE_SELECTION_CONFLICT");
+                                }
+                            } else {
+                                let token = read
+                                    .lease_token
+                                    .as_ref()
+                                    .ok_or("EXACT_LEASED_API_DATABASE_REQUIRED")?;
+                                if !tokens.insert(token.clone()) {
+                                    return Err("DISTINCT_EXACT_API_HOLDINGS_REQUIRED");
+                                }
                             }
                         }
                         Profile::Production => {

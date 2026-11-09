@@ -447,14 +447,14 @@ fn production_configuration_mounts_finance_gated() {
     let mut production = production_document();
     production["financeJournalReads"] =
         serde_json::json!([{"holdingId": "h001", "companyId": "company"}]);
-    assert!(
-        DevelopmentApiConfiguration::parse_production(&production.to_string()).is_ok()
-    );
+    assert!(parses_production(&production));
     let mut production = production_document();
+    production["financeJournalReads"] =
+        serde_json::json!([{"holdingId": "h001", "companyId": "company"}]);
+    production["financeFieldServiceInvoiceReads"] = serde_json::json!(["h001"]);
+    production["financeFieldServiceInvoicePosts"] = serde_json::json!(["h001"]);
     production["financeFieldServiceReceiptWrites"] = serde_json::json!(["h001"]);
-    assert!(
-        DevelopmentApiConfiguration::parse_production(&production.to_string()).is_ok()
-    );
+    assert!(parses_production(&production));
 }
 
 #[tokio::test]
@@ -571,4 +571,38 @@ fn contributor_profile_requires_three_exact_origins_and_canonical_holding_slugs(
     let mut public = d.clone();
     public["accountHost"] = "account.example.test".into();
     assert!(!parses(&public));
+}
+
+#[test]
+fn direct_development_databases_are_exact_and_never_mix_with_leases() {
+    fn direct(document: &mut serde_json::Value) {
+        document["control"] = serde_json::json!({
+            "url": "postgres://erpx_dev_control_app:synthetic@127.0.0.1:5432/erpx_dev_control",
+            "direct": true
+        });
+        document["holdings"][0]["database"] = serde_json::json!({
+            "url": "postgres://erpx_dev_h001_write_app:synthetic@127.0.0.1:5432/erpx_dev_h001_write",
+            "direct": true
+        });
+        document["holdings"][1]["database"] = serde_json::json!({
+            "url": "postgres://erpx_dev_h002_write_app:synthetic@127.0.0.1:5432/erpx_dev_h002_write",
+            "direct": true
+        });
+    }
+    let mut valid = document();
+    direct(&mut valid);
+    assert!(parses(&valid), "exact direct development databases parse");
+    for url in [
+        "postgres://erpx_dev_control_app:synthetic@127.0.0.1:5432/erpx_production",
+        "postgres://postgres:synthetic@127.0.0.1:5432/erpx_dev_control",
+        "postgres://erpx_dev_control_app:synthetic@127.0.0.1:5433/erpx_dev_control",
+        "postgres://erpx_dev_control_app:synthetic@database.example.test:5432/erpx_dev_control",
+    ] {
+        let mut invalid = valid.clone();
+        invalid["control"]["url"] = url.into();
+        assert!(!parses(&invalid), "{url}");
+    }
+    let mut conflict = valid.clone();
+    conflict["control"]["leaseToken"] = "00000000000000000000000000000000".into();
+    assert!(!parses(&conflict), "direct and lease selections cannot mix");
 }
