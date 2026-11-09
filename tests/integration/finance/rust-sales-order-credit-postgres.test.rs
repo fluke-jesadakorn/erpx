@@ -140,19 +140,57 @@ async fn legacy_sales_approval_orders_credit_assertion_before_version_guard() {
     // Invoke the actual TS application and Finance statement builder. Only the
     // statement capture is substituted; credit assertions execute against real
     // migrated PostgreSQL below, without changing production guards.
-    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let app=root.join("packages/server-commerce/src/application/commerce.ts");
-    let finance=root.join("packages/server-finance/src/adapters/commerce-facts.ts");
-    let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const c=await import(process.argv[1]);const f=await import(process.argv[2]);const db={prepare(sql){return {bind(...values){return {sql,values}}}}};const finance=f.CommerceFinanceFacts(db);const writer={replayCommand:async()=>null,readCommerceOrders1:async()=>({id:'sales-draft',kind:'sales',state:'submitted',version:3,created_by:'creator',discount_approval_required:0,party_id:'party-limited',subtotal_minor:35001,tax_minor:0}),guardRule1:()=>({marker:'version'}),prepareCommerceOrders4:()=>({marker:'update'}),prepareFinanceParties1:finance.prepareFinanceParties1,guardRule20:finance.guardRule20,executeCommand:async(...a)=>a[7]};const actor={userId:'reviewer',companyId:'company',branchId:null,departmentId:null,iam:{permissions:['commerce.sales','commerce.approve'],personUserIds:[]}};const application=c.createCommerceApplication({clock:{now:()=>1},require:a=>a,error:(status,code,message)=>Object.assign(new Error(message),{status,code}),hash:async()=>'',forActor:async()=>writer});const steps=await application.transitionOrder(actor,'sales-draft',{action:'approve',expectedVersion:2},'credit-oracle');process.stdout.write(JSON.stringify(steps));"#;
-    let oracle=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(root).args(["--conditions=react-server","-e",script]).arg(app).arg(finance).output().unwrap();
-    assert!(oracle.status.success(),"actual Commerce/Finance TS oracle: {}",String::from_utf8_lossy(&oracle.stderr));
-    let steps:serde_json::Value=serde_json::from_slice(&oracle.stdout).unwrap();
-    assert_eq!(steps.as_array().unwrap().len(),4);
-    assert!(steps[0]["sql"].as_str().unwrap().contains("finance_parties"));
-    assert_eq!(steps[1]["values"],serde_json::json!(["credit-oracle","customer-credit-limit","party-limited","company",35001]));
-    assert_eq!(steps[2]["marker"],"version");assert_eq!(steps[3]["marker"],"update");
-    let sql=steps[1]["sql"].as_str().unwrap();assert_eq!(sql.matches('?').count(),5);
-    let mut n=0;let sql:String=sql.chars().flat_map(|c|if c=='?'{n+=1;format!("${n}").chars().collect::<Vec<_>>()}else{vec![c]}).collect();
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let app = root.join("packages/server-commerce/src/application/commerce.ts");
+    let finance = root.join("packages/server-finance/src/adapters/commerce-facts.ts");
+    let script = r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const c=await import(process.argv[1]);const f=await import(process.argv[2]);const db={prepare(sql){return {bind(...values){return {sql,values}}}}};const finance=f.CommerceFinanceFacts(db);const writer={replayCommand:async()=>null,readCommerceOrders1:async()=>({id:'sales-draft',kind:'sales',state:'submitted',version:3,created_by:'creator',discount_approval_required:0,party_id:'party-limited',subtotal_minor:35001,tax_minor:0}),guardRule1:()=>({marker:'version'}),prepareCommerceOrders4:()=>({marker:'update'}),prepareFinanceParties1:finance.prepareFinanceParties1,guardRule20:finance.guardRule20,executeCommand:async(...a)=>a[7]};const actor={userId:'reviewer',companyId:'company',branchId:null,departmentId:null,iam:{permissions:['commerce.sales','commerce.approve'],personUserIds:[]}};const application=c.createCommerceApplication({clock:{now:()=>1},require:a=>a,error:(status,code,message)=>Object.assign(new Error(message),{status,code}),hash:async()=>'',forActor:async()=>writer});const steps=await application.transitionOrder(actor,'sales-draft',{action:'approve',expectedVersion:2},'credit-oracle');process.stdout.write(JSON.stringify(steps));"#;
+    let oracle =
+        std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
+            .current_dir(root)
+            .args(["--conditions=react-server", "-e", script])
+            .arg(app)
+            .arg(finance)
+            .output()
+            .unwrap();
+    assert!(
+        oracle.status.success(),
+        "actual Commerce/Finance TS oracle: {}",
+        String::from_utf8_lossy(&oracle.stderr)
+    );
+    let steps: serde_json::Value = serde_json::from_slice(&oracle.stdout).unwrap();
+    assert_eq!(steps.as_array().unwrap().len(), 4);
+    assert!(
+        steps[0]["sql"]
+            .as_str()
+            .unwrap()
+            .contains("finance_parties")
+    );
+    assert_eq!(
+        steps[1]["values"],
+        serde_json::json!([
+            "credit-oracle",
+            "customer-credit-limit",
+            "party-limited",
+            "company",
+            35001
+        ])
+    );
+    assert_eq!(steps[2]["marker"], "version");
+    assert_eq!(steps[3]["marker"], "update");
+    let sql = steps[1]["sql"].as_str().unwrap();
+    assert_eq!(sql.matches('?').count(), 5);
+    let mut n = 0;
+    let sql: String = sql
+        .chars()
+        .flat_map(|c| {
+            if c == '?' {
+                n += 1;
+                format!("${n}").chars().collect::<Vec<_>>()
+            } else {
+                vec![c]
+            }
+        })
+        .collect();
     fixture::with_database(2,|pool|async move {
         setup(&pool).await;let mut tx=pool.raw().begin().await.unwrap();serial(&mut tx).await;
         for (amount,allowed) in [(35_000_i64,true),(35_001_i64,false)] {
@@ -168,16 +206,51 @@ async fn legacy_sales_approval_orders_credit_assertion_before_version_guard() {
 
 #[tokio::test]
 async fn commerce_order_party_guard_matches_actual_typescript_sql() {
-    use erpx_server_finance::public::commerce_order_party_guard::{lock_commerce_order_party_source,observe_commerce_order_party_guard,CommerceOrderPartyKind};
-    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let finance=root.join("packages/server-finance/src/adapters/commerce-facts.ts");
-    let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const f=await import(process.argv[1]);const db={prepare(sql){return{bind(...values){return{sql,values}}}}};const s=f.CommerceFinanceFacts(db).guardRule17({key:'party-oracle',guardId:'party',values:['party-limited','company','customer','USD']});process.stdout.write(JSON.stringify(s));"#;
-    let oracle=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(root).args(["--conditions=react-server","-e",script]).arg(finance).output().unwrap();
-    assert!(oracle.status.success(),"actual Finance TS oracle: {}",String::from_utf8_lossy(&oracle.stderr));
-    let step:serde_json::Value=serde_json::from_slice(&oracle.stdout).unwrap();
-    assert_eq!(step["values"],serde_json::json!(["party-oracle","party","party-limited","company","customer","USD"]));
-    let raw=step["sql"].as_str().unwrap();assert_eq!(raw.matches('?').count(),6);
-    let mut n=0;let sql:String=raw.chars().flat_map(|ch|if ch=='?'{n+=1;format!("${n}").chars().collect::<Vec<_>>()}else{vec![ch]}).collect();
+    use erpx_server_finance::public::commerce_order_party_guard::{
+        CommerceOrderPartyKind, lock_commerce_order_party_source,
+        observe_commerce_order_party_guard,
+    };
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let finance = root.join("packages/server-finance/src/adapters/commerce-facts.ts");
+    let script = r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const f=await import(process.argv[1]);const db={prepare(sql){return{bind(...values){return{sql,values}}}}};const s=f.CommerceFinanceFacts(db).guardRule17({key:'party-oracle',guardId:'party',values:['party-limited','company','customer','USD']});process.stdout.write(JSON.stringify(s));"#;
+    let oracle =
+        std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
+            .current_dir(root)
+            .args(["--conditions=react-server", "-e", script])
+            .arg(finance)
+            .output()
+            .unwrap();
+    assert!(
+        oracle.status.success(),
+        "actual Finance TS oracle: {}",
+        String::from_utf8_lossy(&oracle.stderr)
+    );
+    let step: serde_json::Value = serde_json::from_slice(&oracle.stdout).unwrap();
+    assert_eq!(
+        step["values"],
+        serde_json::json!([
+            "party-oracle",
+            "party",
+            "party-limited",
+            "company",
+            "customer",
+            "USD"
+        ])
+    );
+    let raw = step["sql"].as_str().unwrap();
+    assert_eq!(raw.matches('?').count(), 6);
+    let mut n = 0;
+    let sql: String = raw
+        .chars()
+        .flat_map(|ch| {
+            if ch == '?' {
+                n += 1;
+                format!("${n}").chars().collect::<Vec<_>>()
+            } else {
+                vec![ch]
+            }
+        })
+        .collect();
     fixture::with_database(2,|pool|async move {
         setup(&pool).await;
         sqlx::raw_sql("INSERT INTO hr_people(id,company_id,legal_name,country_code,created_by,created_at,updated_at) VALUES('party-person','company','Person','TH','fixture',0,0); INSERT INTO finance_parties(id,company_id,kind,code,name,currency,status,person_id,created_at,updated_at) VALUES('party-supplier','company','supplier','S1','Supplier','USD','active',NULL,0,0),('party-personal','company','customer','C4','Personal','USD','active','party-person',0,0)").execute(pool.raw()).await.unwrap();
