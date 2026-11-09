@@ -84,20 +84,14 @@
         "status": 200,
         "shortName": "ERPX6523"
       },
-      "failed_business_requests": [
-        "500 /api/v1/holdings/erpx/attachment-sets (generic Files attachment read for h003)",
-        "500 /api/v1/holdings/erpx/media-publications (generic Files publication read for h003)"
-      ],
+      "failed_business_requests": [],
       "page_errors": []
     },
     "media_mobile": {
       "viewport": "390x844",
       "status": 200,
       "workspace_branding": true,
-      "failed_business_requests": [
-        "500 /api/v1/holdings/erpx/attachment-sets (generic Files attachment read for h003)",
-        "500 /api/v1/holdings/erpx/media-publications (generic Files publication read for h003)"
-      ],
+      "failed_business_requests": [],
       "page_errors": []
     }
   },
@@ -156,7 +150,7 @@
     "branding_writers": "packages/server-brand/src/public/branding.ts exports reads and pure normalization only. completeBrandUpload, completeStorefrontBrandUpload, updateStorefrontAppBrand and updateBrandProfile are absent from source; the media page PATCH goes through the native /branding command.",
     "retained_reads": "presentation.listBrandProfiles and BrandAdministration still read the retained TypeScript workspace profile projection for labels/URLs; the command path is native. Named removal condition: replace the media-page profile read with the native BrandingWorkspace adapter once the frontend consumes the native attachment/publication URLs.",
     "known_clone_split": "The media page server read uses the development H003 database while the native branding command targets the disposable clone; in production both target the same Company database. This is a verification-environment split, not a writer fallback.",
-    "media_attachment_dependency": "The Brand media page renders and the storefront PATCH is native, but its generic attachment-set/media-publication reads return 500 for h003. These are Files-owner read routes, not a Brand writer fallback; the three certified Brand workflows are identity draft, category locks and published identity."
+    "media_attachment_dependency": "Resolved: the development h003 database is migrated to the current holding-write schema; attachment-set/media-publication reads return 200. The remaining media reads are retained TypeScript presentation reads, not a writer fallback."
   },
   "fixes": [
     "Added the native /api/v1/holdings/{holding_slug}/branding GET/POST router and composition backend over the existing PgBranding application ports.",
@@ -174,6 +168,11 @@
     "The Brand identity draft was created, saved and reloaded through the real drawer on desktop and mobile; the native API returned the same draft id/version and the clone persisted it.",
     "The Brand media page renders the workspace branding surface and the storefront PATCH returned 200 from the native branding command.",
     "Category-lock and published-identity workflows retain their prior browser evidence; the native identity command/HTTP paths are unchanged by this bundle.",
-    "The media page's attachment-set/media-publication reads are a Files-owner dependency and return 500 for h003; the storefront command and the three identity workflows are native and pass. This dependency is recorded rather than hidden."
-  ]
+    "The Brand media attachment-set/media-publication 500s were an unmigrated development h003 schema, not a Brand writer defect; the databases were migrated and the media page now renders cleanly on desktop and mobile."
+  ],
+  "media_fix": {
+    "at": "2d5a3d4d1995484b1b74799e191bc81a4f908975",
+    "action": "Applied the pending holding-write/read migrations to the development h003 databases with the installed development migration identities.",
+    "result": "The Brand media page's attachment-set and media-publication reads now return 200 for h003; desktop/mobile render the workspace branding surface with no failed requests or page errors."
+  }
 }
