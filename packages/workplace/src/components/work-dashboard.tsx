@@ -13,7 +13,7 @@ import { lastWorkChange, scheduleWorkRefresh } from "@erpx/feature-work_projecti
 
 import { PageHeader } from "@erpx/ui/components/primitives";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
-import { workResponsibilities, workTypes, workViews } from "@erpx/feature-work_projection/lib/work-item";
+import { workResponsibilities, workTypes, workViews, workViewAvailable } from "@erpx/feature-work_projection/lib/work-item";
 import type { WorkPageSummary } from "@erpx/server-work_projection/public/work-summary";
 import Link from "@erpx/workplace/components/workspace-link";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -45,7 +45,7 @@ export function WorkDashboard({
   responsibility: string;
   current: string;
 }) {
-  const { publishWork, shortcutStorageKey } = useNavigationState();
+  const { publishWork, shortcutStorageKey, workViewAvailability } = useNavigationState();
   useEffect(() => {
     if (!shortcutStorageKey) return;
     const key = `erpx:work-position:${shortcutStorageKey}:${base}:${current}`;
@@ -175,6 +175,19 @@ export function WorkDashboard({
         }
       />
       {error && <InlineNotice tone="info" role="status">{error} Updates may be out of date. </InlineNotice>}
+      <nav aria-label="My work views" className="ui-form-actions">
+        {workViews.filter(([id]) => workViewAvailable(id, workViewAvailability)).map(([id, label]) => (
+          <Link
+            key={id}
+            data-slot="button"
+            className={`button ui-standard-control ${view === id ? "secondary" : "ghost"}`}
+            href={canonicalUiHref(`${base}/work?${new URLSearchParams({ view: id, ...(type !== "all" ? { type } : {}), ...(q ? { q } : {}) })}`)}
+            aria-current={view === id ? "page" : undefined}
+          >
+            {label}
+          </Link>
+        ))}
+      </nav>
       <div id="work-results" style={{ scrollMarginTop: "100px" }}>
         {!!unavailable.length && (
           <InlineNotice tone="info" role="status">
