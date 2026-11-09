@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T20:15:02+07:00",
+  "updatedAt": "2026-11-09T21:19:26+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -22,7 +22,7 @@
     "workflowsPartial": 55,
     "workflowsVerified": 68,
     "workflowsMerged": 68,
-    "ownersComplete": 1,
+    "ownersComplete": 2,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
   },
@@ -3547,6 +3547,15 @@
       "sourceIdentity": "working tree on 1d855bfeb",
       "evidenceRef": "docs/testing/evidence/2026-11-09-support-owner-certification.json",
       "durableContractRefs": []
+    },
+    {
+      "id": "field-service-owner-certification",
+      "kind": "owner-certification",
+      "status": "owner-complete",
+      "scope": "Field Service owner: 6/6 workflows verified, all six surfaces active, Field unit 184/184, field-service integration 8/8, HTTP parity 45/45, Support native managed Field case 22/22, and authenticated desktop/mobile Field workspace browser gate. Retained TS Field bridges are other-owner consumers with named removal conditions.",
+      "sourceIdentity": "working tree on eb0cd282f",
+      "evidenceRef": "docs/testing/evidence/2026-11-09-field-service-owner-certification.json",
+      "durableContractRefs": []
     }
   ],
   "workflows": [
@@ -5789,7 +5798,7 @@
         "field-bundle-merge"
       ],
       "sourceRef": "packages/server-field_service/src/public/request_order.rs",
-      "gap": "Merged in PR #17 (merge commit 2e0090832). Owner surfaces remain partial in the 41-owner runtime register."
+      "gap": "Closed. Field owner certified on the current source: 6/6 workflows, unit 184/184, integration 8/8, HTTP parity 45/45, Support managed Field case 22/22, and authenticated desktop/mobile Field workspace browser gate."
     },
     {
       "id": "field_service/feature-agreements",
@@ -5809,7 +5818,7 @@
         "field-bundle-merge"
       ],
       "sourceRef": "packages/server-field_service/src/public/agreement_review.rs",
-      "gap": "Merged in PR #17 (merge commit 2e0090832). Owner surfaces remain partial in the 41-owner runtime register."
+      "gap": "Closed. Field owner certified on the current source: 6/6 workflows, unit 184/184, integration 8/8, HTTP parity 45/45, Support managed Field case 22/22, and authenticated desktop/mobile Field workspace browser gate."
     },
     {
       "id": "field_service/feature-dispatch",
@@ -5827,7 +5836,7 @@
         "field-bundle-merge"
       ],
       "sourceRef": "packages/server-field_service/src/public/visit.rs",
-      "gap": "Merged in PR #17 (merge commit 2e0090832). Owner surfaces remain partial in the 41-owner runtime register."
+      "gap": "Closed. Field owner certified on the current source: 6/6 workflows, unit 184/184, integration 8/8, HTTP parity 45/45, Support managed Field case 22/22, and authenticated desktop/mobile Field workspace browser gate."
     },
     {
       "id": "field_service/feature-visits",
@@ -5849,7 +5858,7 @@
         "field-bundle-merge"
       ],
       "sourceRef": "packages/server-field_service/src/public/visit.rs",
-      "gap": "Merged in PR #17 (merge commit 2e0090832). Owner surfaces remain partial in the 41-owner runtime register."
+      "gap": "Closed. Field owner certified on the current source: 6/6 workflows, unit 184/184, integration 8/8, HTTP parity 45/45, Support managed Field case 22/22, and authenticated desktop/mobile Field workspace browser gate."
     },
     {
       "id": "field_service/feature-exceptions",
@@ -5867,7 +5876,7 @@
         "field-bundle-merge"
       ],
       "sourceRef": "packages/server-field_service/src/public/visit.rs",
-      "gap": "Merged in PR #17 (merge commit 2e0090832). Owner surfaces remain partial in the 41-owner runtime register."
+      "gap": "Closed. Field owner certified on the current source: 6/6 workflows, unit 184/184, integration 8/8, HTTP parity 45/45, Support managed Field case 22/22, and authenticated desktop/mobile Field workspace browser gate."
     },
     {
       "id": "field_service/feature-billing-release",
@@ -5884,7 +5893,7 @@
         "field-bundle-merge"
       ],
       "sourceRef": "packages/server-field_service/src/public/visit.rs",
-      "gap": "Merged in PR #17 (merge commit 2e0090832). Owner surfaces remain partial in the 41-owner runtime register."
+      "gap": "Closed. Field owner certified on the current source: 6/6 workflows, unit 184/184, integration 8/8, HTTP parity 45/45, Support managed Field case 22/22, and authenticated desktop/mobile Field workspace browser gate."
     },
     {
       "id": "agent/agent-catalog",
@@ -6858,7 +6867,7 @@
         "partial": 0,
         "unstarted": 0,
         "phase": "active",
-        "businessMigrationComplete": false
+        "businessMigrationComplete": true
       },
       "agent": {
         "workflows": 7,

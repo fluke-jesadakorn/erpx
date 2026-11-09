@@ -1,0 +1,106 @@
+{
+  "schema": "erpx.evidence/field-service-owner-certification/v1",
+  "recorded_at": "2026-11-09T14:19:12.753808Z",
+  "head": "eedcaad09bf6524070e405eabfce8b6a204b0bfb",
+  "owner": "field_service",
+  "package": "erpx-server-field-service",
+  "workflows": [
+    "field_service/service-orders",
+    "field_service/feature-agreements",
+    "field_service/feature-dispatch",
+    "field_service/feature-visits",
+    "field_service/feature-exceptions",
+    "field_service/feature-billing-release"
+  ],
+  "workflow_counts": {
+    "total": 6,
+    "verified": 6,
+    "partial": 0,
+    "unstarted": 0
+  },
+  "surfaces": {
+    "domain": "active",
+    "application": "active",
+    "http": "active",
+    "ssr": "active",
+    "jobs": "active",
+    "providers": "active"
+  },
+  "browser": {
+    "desktop": {
+      "viewport": "1440x900",
+      "status": 200,
+      "url": "https://acme.jesadakorn.com/bangkok/accounting/service",
+      "title": "ERPX \u00b7 Work connected",
+      "field_workspace": true,
+      "create_actions": [
+        "Draft service agreement",
+        "Request field service",
+        "Create service order"
+      ],
+      "service_orders_heading": true,
+      "failed_business_requests": [],
+      "page_errors": []
+    },
+    "mobile": {
+      "viewport": "390x844",
+      "status": 200,
+      "url": "https://acme.jesadakorn.com/bangkok/accounting/service",
+      "title": "ERPX \u00b7 Work connected",
+      "field_workspace": true,
+      "create_actions": [
+        "Draft service agreement",
+        "Request field service",
+        "Create service order"
+      ],
+      "service_orders_heading": true,
+      "failed_business_requests": [],
+      "page_errors": []
+    }
+  },
+  "gates": [
+    {
+      "name": "field_service application unit suites",
+      "result": "184/184 pass"
+    },
+    {
+      "name": "field_service.field-service.integration",
+      "result": "8/8 pass"
+    },
+    {
+      "name": "field_service.rust-http-parity-postgres.integration",
+      "result": "45/45 pass"
+    },
+    {
+      "name": "support.package-surfaces.integration native managed Field case",
+      "result": "22/22 pass"
+    },
+    {
+      "name": "cargo check",
+      "result": "private-field-api,existing-business and files-scan-worker/field-push-worker variants pass"
+    }
+  ],
+  "config": {
+    "native_workspace": "ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG -> 127.0.0.1:3198",
+    "native_source_record": "ERPX_NATIVE_FIELD_SERVICE_SOURCE_RECORD_CONFIG -> 127.0.0.1:3198",
+    "native_parts_setup": "ERPX_NATIVE_FIELD_SERVICE_PARTS_SETUP_CONFIG -> 127.0.0.1:3198",
+    "private_api": "fieldServiceReads/workspace/work/detail/source-record/parts prerequisites configured for h001/acme-co"
+  },
+  "legacy": {
+    "product_routes": "No product route imports @erpx/server-field_service; the Field workspace delegates to the native presenter.",
+    "remaining": "Retained TypeScript Field read/provider modules are other-owner consumers with named removal conditions (Support, Collaboration, Operations, Records, Runtime executive, Work, Workflow, Identity, Finance, Customer 360)."
+  },
+  "fixes": [
+    "The generic files attachment router is skipped when the Field service read/attachment configuration owns the same attachment routes, so the Field HTTP parity suite is 45/45.",
+    "The Field workspace configuration now targets the full 3198 private API with workspace/source-record/parts prerequisites.",
+    "The browser route /bangkok/accounting/service now reaches the native Field workspace on desktop and mobile."
+  ],
+  "screenshots": [
+    ".scratch/dev/field-page-check.png",
+    ".scratch/dev/field-page-check-mobile.png"
+  ],
+  "evidenceRefs": [
+    "docs/testing/evidence/2026-11-04-field-owner-closure.json",
+    "docs/testing/evidence/2026-11-03-field-integrated-exact-candidate.json"
+  ]
+}

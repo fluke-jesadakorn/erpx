@@ -409,7 +409,7 @@
       "id": "field_service",
       "package": "erpx-server-field-service",
       "phase": "active",
-      "businessMigrationComplete": false,
+      "businessMigrationComplete": true,
       "surfaces": {
         "domain": "active",
         "application": "active",
