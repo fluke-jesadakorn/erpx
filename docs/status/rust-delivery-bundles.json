@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T13:45:00+07:00",
+  "updatedAt": "2026-11-09T14:15:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -4232,7 +4232,7 @@
         "finance-native-period-close-http"
       ],
       "sourceRef": "packages/server-finance/src/public/finance.ts",
-      "gap": "Native close workspace, readiness, control/VAT reconciliation, begin/cancel/approve/reopen, immutable checks and independent-person/stale-evidence guards are PostgreSQL/HTTP-qualified. A native close-workpaper binding candidate now uses the shared Records/Files business-evidence port with exact finance_period/close_workpaper/close-approval/finance_period_close/<period>:<version+1> facts, replay before binding, a Files table fence and post-effect require_current; its focused period-close suite passed 6/6 and the Files business-evidence suite 3/3 on the working source. A clean candidate at d6ef0ebf9 plus the frozen Common Files patch b1e17b09b44e237b33e548ae174e5eaa456686b333fe6a3f728e4c21cab68c41 and mount patch dde23f4a3d4a0d620d89a7e056d59a60c314475b05575f0b1d2c6d4590e406be (candidate tree 668f0243b3b9d1a929d5484ef1109beec96cf9be) passes period-close 6/6 and Files business-evidence 3/3; the candidate composition also enforces ERPX_ATTACHMENTS_V2 and ERPX_ATTACHMENT_UPLOAD_FREEZE fail-closed. The candidate is integrated at c4500de55 and passes the exact clean archive period-close 6/6 and Files business-evidence 3/3. The Commercial↔Finance lock-order cycle is resolved by acquiring the Commercial fence before Finance in the Field parts preparation (focused parts 1/1; period-close 6/6); empty-set/purpose/component/ref/checksum checks are in the shared port, Files V2/freeze fail-closed checks are in the composition adapter, and the policy-version and exact error-code parity gaps remain. No authenticated browser/global-lock proof exists; browser remains open."
+      "gap": "Native close workspace, readiness, control/VAT reconciliation, begin/cancel/approve/reopen, immutable checks and independent-person/stale-evidence guards are PostgreSQL/HTTP-qualified. A native close-workpaper binding candidate now uses the shared Records/Files business-evidence port with exact finance_period/close_workpaper/close-approval/finance_period_close/<period>:<version+1> facts, replay before binding, a Files table fence and post-effect require_current; its focused period-close suite passed 6/6 and the Files business-evidence suite 3/3 on the working source. A clean candidate at d6ef0ebf9 plus the frozen Common Files patch b1e17b09b44e237b33e548ae174e5eaa456686b333fe6a3f728e4c21cab68c41 and mount patch dde23f4a3d4a0d620d89a7e056d59a60c314475b05575f0b1d2c6d4590e406be (candidate tree 668f0243b3b9d1a929d5484ef1109beec96cf9be) passes period-close 6/6 and Files business-evidence 3/3; the candidate composition also enforces ERPX_ATTACHMENTS_V2 and ERPX_ATTACHMENT_UPLOAD_FREEZE fail-closed. The candidate is integrated at c4500de55 and passes the exact clean archive period-close 6/6 and Files business-evidence 3/3. The Commercial\u2194Finance lock-order cycle is resolved by acquiring the Commercial fence before Finance in the Field parts preparation (focused parts 1/1; period-close 6/6); empty-set/purpose/component/ref/checksum checks are in the shared port, Files V2/freeze fail-closed checks are in the composition adapter, and the policy-version and exact error-code parity gaps remain. No authenticated browser/global-lock proof exists; browser remains open."
     },
     {
       "id": "finance/feature-opening-balances",
@@ -4455,10 +4455,11 @@
         "assets-native-ssr",
         "assets-http-postgres",
         "assets-native-transport",
-        "assets-maintenance-browser-pre-sync"
+        "assets-maintenance-browser-pre-sync",
+        "assets-maintenance-native-only-exact-source"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Pre-sync browser run on the normal Mali session completed a zero-cost asset registration/placement and work-order create/start/complete with persisted asset events v1-v4, work events v1-v3, 5 receipts/audit/outbox and 0 page errors. Work-order creation still uses the retained TypeScript createMaintenanceWork path; transitions are native only when configured. Remains partial until create is native and the journey repeats on the exact synced SHA. Evidence: docs/testing/evidence/2026-11-09-assets-maintenance-pre-sync.json (closure:false)."
+      "gap": "Exact-source 53a browser run passed native-only work-order create/start/complete (AST-FINAL-03052974, work maintenance-b7cda1fa..., asset v4, maintenance.create receipt/audit/outbox, 0 page errors). Strict retirement still needs preventive-plan migration for createMaintenanceWork and export/test cleanup for changeMaintenanceWork, so this workflow remains partial."
     },
     {
       "id": "assets/feature-retirement",
@@ -6565,8 +6566,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-09T13:45:00+07:00",
-    "sourceHead": "acf22471da04a5671315de9f7dd2bfa1164c5462",
+    "generatedAt": "2026-11-09T14:15:00+07:00",
+    "sourceHead": "53a8a93411d33e2c444c8ef7ac694c4515c31384",
     "interpretation": "ownerTotals includes the 41 register owners plus the seven catalogue surface owners (account, admin, apps, booking, forms, legal-portal, portal); surface owners are counted in the 206 workflows and are not part of the 41-owner strict certification denominator. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -8857,6 +8858,22 @@
           "Field parts consumption prior-history mount"
         ],
         "evidence": "Mounted the committed Inventory Field parts consumption source into the Field Service parts posting setup prior-history read. A positive Field consumption sets has_consumption/has_history and blocks a new mapping; the Inventory dependency is declared in Field Service Cargo.toml/Cargo.lock. Owner service_parts_history_postgres 5/5 and product field_service_http_parity_postgres context test 1/1 passed. No workflow or owner promoted; Count/Files/Finance mounts and browser remain open.",
+        "counts": {
+          "owners": 0,
+          "verified": 65,
+          "partial": 57,
+          "unstarted": 84,
+          "merged": 65,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-09T14:15:00+07:00",
+        "commit": "53a8a9341",
+        "bundles": [
+          "native-only Maintenance work-order route"
+        ],
+        "evidence": "Maintenance HTTP native create suite 1/1 and transport unit 17/17; exact-source keyed browser create/start/complete with maintenance.create receipt/audit/outbox and asset v4; route has no TS fallback. Preventive-plan createMaintenanceWork and exported changeMaintenanceWork remain, so workflow stays partial. Counts unchanged 65 verified/65 merged/57 partial/84 unstarted, owners 0/41.",
         "counts": {
           "owners": 0,
           "verified": 65,

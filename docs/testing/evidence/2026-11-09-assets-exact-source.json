@@ -1,8 +1,8 @@
 {
   "version": 1,
   "recordedAt": "2026-11-09T13:45:00+07:00",
-  "sourceHead": "acf22471da04a5671315de9f7dd2bfa1164c5462",
-  "containerSyncedSource": "acf22471d (git archive into keyed workspace)",
+  "sourceHead": "53a8a93411d33e2c444c8ef7ac694c4515c31384",
+  "containerSyncedSource": "53a8a9341 (native-only Maintenance route)",
   "environment": "normal Account/SSO browser session, https://acme.erpx.localhost:3443, canonical /holdings/acme/services/assets/* routes",
   "registration": {
     "code": "AST-01204724",
@@ -95,7 +95,8 @@
     "Work-order creation still uses retained TypeScript createMaintenanceWork; transitions are native only when configured, so maintenance lifecycle stays partial.",
     "asset-register scope still includes the live TS assets/financial-assets route and legacy TS asset/maintenance writers, so the workflow stays partial despite this exact-source journey.",
     "Independent browser retirement approval remains blocked because no legitimate second acme-co iam_member has the assets module; native asset_http_postgres covers independent review.",
-    "Hydration mismatch and missing font 404 remain and are documented rather than hidden."
+    "Hydration mismatch and missing font 404 remain and are documented rather than hidden.",
+    "Exact-source 53a maintenance route is native-only and browser-qualified, but createMaintenanceWork remains used by preventive-plan generation and changeMaintenanceWork remains exported/test-only; strict function-level retirement still needs a preventive-plan migration and export/test cleanup."
   ],
   "nativeChecks": {
     "asset_cost_composition_postgres": "4/4",
@@ -104,5 +105,43 @@
     "asset_http_postgres": "5/5",
     "field_service_parts_postgres": "37/37 clean 33f",
     "structure/catalogue/architecture": "green on clean 33f"
+  },
+  "maintenanceNativeOnly": {
+    "code": "AST-FINAL-03052974",
+    "id": "asset-78a16bcf-1296-4f33-b4d7-c4c79b48372d",
+    "register": 200,
+    "place": {
+      "status": 200,
+      "version": 2
+    },
+    "workOrder": "maintenance-b7cda1fa-79e0-4dc4-a557-27ae8aee8d9c",
+    "create": {
+      "status": 200,
+      "version": 1,
+      "state": "open"
+    },
+    "start": {
+      "status": 200,
+      "version": 2,
+      "state": "in_progress"
+    },
+    "complete": {
+      "status": 200,
+      "version": 3,
+      "state": "completed"
+    },
+    "dbReadback": {
+      "assetVersion": 4,
+      "assetStatus": "in_service",
+      "assetCondition": "good",
+      "workStatus": "completed",
+      "workVersion": 3,
+      "completionEvidence": "Final browser inspection completed; bearings checked",
+      "receipt": "maintenance.create v1/open",
+      "auditRows": 1,
+      "outboxRows": 1
+    },
+    "route": "native-only; no changeMaintenanceWork/nativeMaintenanceTransitionAvailable fallback",
+    "pageErrors": 0
   }
 }
