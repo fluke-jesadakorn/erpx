@@ -395,6 +395,9 @@ describe('native Billing transport', () => {
     await expect(
       client.command(headers({ host: 'evil.example.test' }), actor, input),
     ).rejects.toMatchObject({ code: 'NATIVE_BILLING_AUTHORITY_INVALID' });
+    await expect(
+      client.command(headers({ origin: 'https://evil.example.test' }), actor, input),
+    ).rejects.toMatchObject({ code: 'ORIGIN_FORBIDDEN', status: 403 });
     const invalid = createNativeBillingClient(configuration, async () =>
       response({ data: { ok: false }, context: context() }),
     );

@@ -597,6 +597,11 @@ function ownerCall(
   if (method === "POST") {
     if (!key || !/^[a-zA-Z0-9:_.-]{8,180}$/.test(key))
       return Promise.reject(new NativeBillingError("NATIVE_BILLING_REQUEST_INVALID"));
+    const origin = incoming.get("origin");
+    if (origin && origin !== holding.origin)
+      return Promise.reject(
+        new NativeBillingError("ORIGIN_FORBIDDEN", 403, "Use the application origin."),
+      );
     headers.set("content-type", "application/json");
     headers.set("idempotency-key", key);
     headers.set("origin", holding.origin);
