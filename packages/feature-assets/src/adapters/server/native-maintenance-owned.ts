@@ -22,14 +22,6 @@ import {
   nativeMaintenanceWorkspace,
 } from './native-maintenance-page';
 
-/** Native transition selection is configuration presence only. A malformed
- * setting still selects the native path so its failure closes instead of
- * silently falling back to the retained TypeScript writer. Creation remains on
- * the retained TypeScript application until its native composition is mounted. */
-export function nativeMaintenanceTransitionAvailable(): boolean {
-  return nativeMaintenanceAvailable();
-}
-
 function ownedFailure(error: unknown): never {
   const failure = nativeMaintenanceFailure(error);
   if (failure) throw new ApiError(failure.status, failure.code, failure.message);
@@ -114,8 +106,10 @@ export async function ownedMaintenancePlanDetail(actor: WorkContext, holdingSlug
   }
 }
 
-/** Keep the retained Commercial admission check ahead of the native command.
- * The native owner unit remains the sole writer and re-checks current IAM. */
+/** Native work-order command. Creation is written and admitted directly by the
+ * native owner unit. Transitions keep the retained Commercial admission
+ * precheck ahead of the native owner command. The native unit re-checks current
+ * Account/IAM authority, purchase state, receipt/audit/outbox and replay. */
 export async function ownedMaintenanceCommand(
   actor: WorkContext,
   holdingSlug: string,
@@ -125,28 +119,27 @@ export async function ownedMaintenanceCommand(
   if (!nativeMaintenanceAvailable()) return undefined;
   const body = input !== null && typeof input === 'object' ? (input as Record<string, unknown>) : {};
   const change = typeof body.id === 'string' && body.id.length > 0;
-  const action = change && typeof body.action === 'string' ? body.action : 'create';
-  const capability = action === 'issue-part' ? 'assets.parts-costs' : 'assets.maintenance';
-  const operation = change ? `maintenance.${action}` : 'maintenance.create';
-  const target = change
-    ? ({ kind: 'work', id: String(body.id) } as const)
-    : ({ kind: 'work', id: `maintenance-${key}` } as const);
-  try {
-    await withAssetPurchasedCommand(
-      actor,
-      {
-        key,
-        operation,
-        capability: capability as Parameters<typeof withAssetPurchasedCommand>[1]['capability'],
-        purpose: change ? 'settle-existing' : 'new-work',
-        target,
-        creating: !change,
-        permissions: ['records.write'],
-      },
-      async () => undefined,
-    );
-  } catch (error) {
-    ownedFailure(error);
+  if (change) {
+    const action = typeof body.action === 'string' ? body.action : 'create';
+    const capability = action === 'issue-part' ? 'assets.parts-costs' : 'assets.maintenance';
+    const operation = `maintenance.${action}`;
+    const target = { kind: 'work', id: String(body.id) } as const;
+    try {
+      await withAssetPurchasedCommand(
+        actor,
+        {
+          key,
+          operation,
+          capability: capability as Parameters<typeof withAssetPurchasedCommand>[1]['capability'],
+          purpose: 'settle-existing',
+          target,
+          permissions: ['records.write'],
+        },
+        async () => undefined,
+      );
+    } catch (error) {
+      ownedFailure(error);
+    }
   }
   try {
     const data = await nativeMaintenanceCommand(actor, holdingSlug, input, key);

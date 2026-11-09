@@ -1,4 +1,6 @@
 import {describe,it,expect,vi} from 'vitest';
+import {readFile} from 'node:fs/promises';
+import {capabilityDelivery} from '../../../packages/catalogue/src/capability-delivery';
 vi.mock('server-only',()=>({}));
 const purchaseOracle=vi.hoisted(()=>({run:vi.fn(async(_actor:unknown,command:unknown)=>command)}));
 vi.mock('@erpx/server-assets/adapters/purchases',()=>({withAssetPurchasedCommand:purchaseOracle.run,withAssetPurchasedRead:vi.fn(),assetPurchaseControls:vi.fn()}));
@@ -163,6 +165,35 @@ describe('native Assets transport',()=>{
     holdingSlug:'acme',body:{},idempotencyKey:'short',origin:'https://acme.example.com',
   })).rejects.toMatchObject({code:'NATIVE_ASSETS_COMMAND_KEY_INVALID'});
   expect(transport).not.toHaveBeenCalled();
+ });
+
+ it('keeps the financial-assets accounting seam Finance-owned and outside the asset-register API',async()=>{
+  const routeUrl=new URL('../../../packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/assets/financial-assets/route.ts',import.meta.url);
+  const pathUrl=new URL('../../../packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/assets/financial-assets/[...path]/route.ts',import.meta.url);
+  const assetUrl=new URL('../../../packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/assets/route.ts',import.meta.url);
+  const [route,pathRoute,assetRoute]=await Promise.all([routeUrl,pathUrl,assetUrl].map(url=>readFile(url,'utf8')));
+  expect(capabilityDelivery('assets','asset-register')?.api).toBe('packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/assets/route.ts');
+  expect(assetRoute).toContain('ownedAssetCommand');
+  expect(assetRoute).not.toContain('financial-assets');
+  expect(route).toContain('Finance-owned Assets accounting seam');
+  expect(route).toContain('@erpx/server-finance/public/assets-financial-workflow');
+  expect(route).not.toContain('@erpx/server-assets/');
+  expect(pathRoute).toContain('Finance-owned Assets accounting seam');
+  expect(pathRoute).toContain('@erpx/server-finance/public/assets-financial-workflow');
+  expect(pathRoute).not.toContain('@erpx/server-assets/');
+ });
+
+ it('routes maintenance creation through the native owner command without a TS create branch',async()=>{
+  const routeUrl=new URL('../../../packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/maintenance/route.ts',import.meta.url);
+  const ownedUrl=new URL('../../../packages/feature-assets/src/adapters/server/native-maintenance-owned.ts',import.meta.url);
+  const [route,owned]=await Promise.all([readFile(routeUrl,'utf8'),readFile(ownedUrl,'utf8')]);
+  expect(route).toContain('ownedMaintenanceCommand');
+  expect(route).not.toContain('createMaintenanceWork');
+  expect(route).not.toContain('changeMaintenanceWork');
+  expect(route).not.toContain('nativeMaintenanceTransitionAvailable');
+  expect(owned).toContain('nativeMaintenanceCommand');
+  expect(owned).toContain("purpose: 'settle-existing'");
+  expect(owned).not.toContain('nativeMaintenanceTransitionAvailable');
  });
 });
 

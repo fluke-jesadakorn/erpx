@@ -1,5 +1,5 @@
 //! Native Maintenance HTTP command over the actual Account session, current
-//! IAM and PostgreSQL. The retained create path remains explicit.
+//! IAM and PostgreSQL. Creation and transitions are native owner commands.
 #![allow(dead_code)]
 #[path = "../../support/finance/review-composition.rs"]
 mod review;
@@ -69,6 +69,8 @@ async fn seed_work(p: &review::Prepared) {
          VALUES('company','fixture-a','local:fixture-a','worker','active','local') ON CONFLICT DO NOTHING;\
          INSERT INTO operational_assets(id,company_id,branch_id,code,name,category,currency,created_by,created_at,updated_at) \
          VALUES('asset','company','branch','SYNTHETIC','Synthetic asset','synthetic','THB','fixture',0,0) ON CONFLICT DO NOTHING;\
+         INSERT INTO operational_assets(id,company_id,branch_id,code,name,category,currency,created_by,created_at,updated_at) \
+         VALUES('asset-create','company','branch','SYNTHETIC-CREATE','Synthetic create asset','synthetic','THB','fixture',0,0) ON CONFLICT DO NOTHING;\
          INSERT INTO maintenance_work_orders(id,company_id,branch_id,asset_id,title,priority,status,owner_id,created_by,created_at,updated_at,version) \
          VALUES('work','company','branch','asset','Blocked work evidence','normal','in_progress','fixture-a','fixture-a',0,0,1) ON CONFLICT DO NOTHING;\
          INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at) \
@@ -107,7 +109,7 @@ fn router(p: &review::Prepared) -> axum::Router {
 }
 
 #[tokio::test]
-async fn maintenance_http_blocks_work_through_the_native_backend_and_keeps_create_retained() {
+async fn maintenance_http_blocks_and_creates_through_the_native_backend() {
     review::account::with_system(|system| async move {
         let p = review::setup_with_finance(system, false).await;
         grant_maintenance(&p).await;
@@ -150,20 +152,105 @@ async fn maintenance_http_blocks_work_through_the_native_backend_and_keeps_creat
         assert_eq!(replayed.status(), StatusCode::OK);
         assert_eq!(json(replayed).await["data"]["version"], 2);
 
-        let create = app
+        let create_body = r#"{"assetId":"asset-create","assetVersion":1,"title":"Native create boundary","priority":"normal","ownerId":"fixture-a","reason":"Synthetic native create evidence"}"#;
+        let created = app
+            .clone()
+            .oneshot(request(&p, create_body, "native-create-1"))
+            .await
+            .unwrap();
+        let created_status = created.status();
+        let created = json(created).await;
+        assert_eq!(created_status, StatusCode::OK, "{created}");
+        assert_eq!(created["data"]["id"], "maintenance-native-create-1");
+        assert_eq!(created["data"]["version"], 1);
+        assert_eq!(created["data"]["status"], "open");
+
+        let persisted: (String, i64, String, String) = sqlx::query_as(
+            "SELECT status,version,owner_id,asset_id FROM maintenance_work_orders \
+             WHERE id='maintenance-native-create-1' AND company_id='company'",
+        )
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            persisted,
+            (
+                "open".to_owned(),
+                1,
+                "fixture-a".to_owned(),
+                "asset-create".to_owned()
+            )
+        );
+        let events: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT action,version FROM maintenance_work_events \
+             WHERE work_order_id='maintenance-native-create-1' ORDER BY version",
+        )
+        .fetch_all(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(events, vec![("create".to_owned(), 1)]);
+        let receipts: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM command_receipts WHERE command_id='native-create-1' \
+             AND operation='maintenance.create' AND record_id='maintenance-native-create-1' \
+             AND actor_id='fixture-a'",
+        )
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(receipts, 1);
+        let audits: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM audit_events WHERE command_id='native-create-1' \
+             AND action='maintenance.create' AND record_id='maintenance-native-create-1'",
+        )
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(audits, 1);
+        let outbox: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM outbox_events WHERE command_id='native-create-1' \
+             AND event_type='maintenance.create' AND aggregate_id='maintenance-native-create-1'",
+        )
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(outbox, 1);
+
+        let replayed_create = app
+            .clone()
+            .oneshot(request(&p, create_body, "native-create-1"))
+            .await
+            .unwrap();
+        assert_eq!(replayed_create.status(), StatusCode::OK);
+        assert_eq!(json(replayed_create).await["data"]["version"], 1);
+        let replay_receipts: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM command_receipts WHERE command_id='native-create-1' \
+             AND operation='maintenance.create' AND record_id='maintenance-native-create-1'",
+        )
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(replay_receipts, 1);
+
+        let duplicate = app
             .clone()
             .oneshot(request(
                 &p,
-                r#"{"assetId":"asset","assetVersion":1,"title":"Retained create boundary","priority":"normal","ownerId":"fixture-a","reason":"Synthetic create boundary"}"#,
-                "maintenance-http-create",
+                r#"{"assetId":"asset","assetVersion":1,"title":"Duplicate active work","priority":"normal","ownerId":"fixture-a","reason":"Synthetic active-work refusal"}"#,
+                "native-create-duplicate",
             ))
             .await
             .unwrap();
-        assert_eq!(create.status(), StatusCode::SERVICE_UNAVAILABLE);
-        assert_eq!(
-            json(create).await["error"]["code"],
-            "MAINTENANCE_COMMAND_UNAVAILABLE"
-        );
+        let duplicate_status = duplicate.status();
+        let duplicate = json(duplicate).await;
+        assert_eq!(duplicate_status, StatusCode::CONFLICT, "{duplicate}");
+        assert_eq!(duplicate["error"]["code"], "MAINTENANCE_ACTIVE_WORK");
+        let duplicate_rows: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM maintenance_work_orders WHERE id='maintenance-native-create-duplicate'",
+        )
+        .fetch_one(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert_eq!(duplicate_rows, 0);
     })
     .await;
 }

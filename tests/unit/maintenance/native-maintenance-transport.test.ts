@@ -7,23 +7,15 @@ import {
 import { nativeMaintenanceAvailable } from '../../../packages/feature-assets/src/adapters/server/native-maintenance-page';
 vi.mock('server-only',()=>({}));
 /** Exercise the Next route with its server dependencies replaced, so the
- * native/retained selection and closed failure policy are directly observable. */
+ * native-only selection and closed failure policy are directly observable. */
 const routeMocks=vi.hoisted(()=>({
-  nativeAvailable:vi.fn(),
   nativeCommand:vi.fn(),
-  retainedChange:vi.fn(),
-  retainedCreate:vi.fn(),
   actor:{userId:'user',holdingId:'h001',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,assignmentId:'assignment',role:'owner',assignmentScope:'holding',scope:{kind:'holding' as const},authority:{revision:7,assignmentVersion:3},modules:['maintenance'],iam:{permissions:['records.read','records.write','records.review']}},
 }));
 vi.mock('@erpx/feature-assets/adapters/server/native-maintenance-owned',()=>({
-  nativeMaintenanceTransitionAvailable:routeMocks.nativeAvailable,
   ownedMaintenanceCommand:routeMocks.nativeCommand,
   ownedMaintenanceWorkspace:vi.fn(),
   ownedMaintenanceDetail:vi.fn(),
-}));
-vi.mock('@erpx/server-maintenance/public/asset-maintenance',()=>({
-  changeMaintenanceWork:routeMocks.retainedChange,
-  createMaintenanceWork:routeMocks.retainedCreate,
 }));
 vi.mock('@erpx/server-identity_access/public/authorization',()=>({
   requireWorkContext:async()=>routeMocks.actor,
@@ -223,10 +215,9 @@ const workRequest=(body:Record<string,unknown>,key:string|null='maintenance-comm
 const routeContext={params:Promise.resolve({holdingSlug:'acme'})};
 
 describe('Maintenance work command route selection',()=>{
- beforeEach(()=>{vi.resetAllMocks();routeMocks.nativeAvailable.mockReturnValue(false);});
+ beforeEach(()=>{vi.resetAllMocks();});
 
  it('forwards schedule and issue-part transitions on the native path',async()=>{
-  routeMocks.nativeAvailable.mockReturnValue(true);
   routeMocks.nativeCommand.mockResolvedValue({id:'work',version:2,status:'scheduled'});
   const schedule={id:'work',action:'schedule',expectedVersion:1,ownerId:'user',scheduledAt:1_800_000_000_000,reason:'Plan the repair'};
   const issue={id:'work',action:'issue-part',expectedVersion:2,warehouseId:'warehouse',productId:'product',quantityMilli:1000,entryDate:'2026-11-06',reason:'Issue the spare'};
@@ -234,73 +225,66 @@ describe('Maintenance work command route selection',()=>{
   await maintenanceRoute.POST(workRequest(issue,'parts-key-1'),routeContext);
   expect(routeMocks.nativeCommand).toHaveBeenNthCalledWith(1,routeMocks.actor,'acme',schedule,'schedule-key-1');
   expect(routeMocks.nativeCommand).toHaveBeenNthCalledWith(2,routeMocks.actor,'acme',issue,'parts-key-1');
-  expect(routeMocks.retainedChange).not.toHaveBeenCalled();
  });
 
- it('uses the retained transition when the native transport is unset',async()=>{
-  routeMocks.nativeAvailable.mockReturnValue(false);
-  routeMocks.retainedChange.mockResolvedValue({id:'work',version:2,status:'in_progress'});
+ it('closes when the native owner command is unavailable',async()=>{
+  routeMocks.nativeCommand.mockResolvedValue(undefined);
   const body={id:'work',action:'start',expectedVersion:1,reason:'Start work'};
-  const response=await maintenanceRoute.POST(workRequest(body),routeContext);
-  expect(response.status).toBe(200);
-  expect(await response.json()).toEqual({data:{id:'work',version:2,status:'in_progress'}});
-  expect(routeMocks.retainedChange).toHaveBeenCalledWith(routeMocks.actor,'work',body,'maintenance-command-1');
-  expect(routeMocks.nativeCommand).not.toHaveBeenCalled();
+  const response=await maintenanceRoute.POST(workRequest(body,'maintenance-command-1'),routeContext);
+  expect(response.status).toBe(503);
+  expect((await response.json()).error.code).toBe('NATIVE_MAINTENANCE_UNAVAILABLE');
+  expect(routeMocks.nativeCommand).toHaveBeenCalledWith(routeMocks.actor,'acme',body,'maintenance-command-1');
  });
 
- it('uses the native transition when configured and forwards the exact key and body',async()=>{
-  routeMocks.nativeAvailable.mockReturnValue(true);
+ it('forwards a complete transition on the native path with the exact key and body',async()=>{
   routeMocks.nativeCommand.mockResolvedValue({id:'work',version:2,status:'completed'});
   const body={id:'work',action:'complete',expectedVersion:1,resultingCondition:'good',evidence:'Repaired',reason:'Completed repairs'};
   const response=await maintenanceRoute.POST(workRequest(body,'maintenance-command-2'),routeContext);
   expect(response.status).toBe(200);
   expect(routeMocks.nativeCommand).toHaveBeenCalledWith(routeMocks.actor,'acme',body,'maintenance-command-2');
-  expect(routeMocks.retainedChange).not.toHaveBeenCalled();
  });
 
- it('closes a configured native failure without falling back to the retained transition',async()=>{
-  routeMocks.nativeAvailable.mockReturnValue(true);
+ it('closes a native failure without a retained fallback',async()=>{
   routeMocks.nativeCommand.mockRejectedValue(Object.assign(new Error('Native Maintenance commands are not enabled yet.'),{status:503,code:'MAINTENANCE_COMMAND_UNAVAILABLE'}));
   const response=await maintenanceRoute.POST(workRequest({id:'work',action:'block',expectedVersion:1,reason:'Waiting for parts'}),routeContext);
   expect(response.status).toBe(503);
   expect((await response.json()).error.code).toBe('MAINTENANCE_COMMAND_UNAVAILABLE');
-  expect(routeMocks.retainedChange).not.toHaveBeenCalled();
  });
 
- it('closes a configured native command that returns no acknowledgement',async()=>{
-  routeMocks.nativeAvailable.mockReturnValue(true);
+ it('closes a native command that returns no acknowledgement',async()=>{
   routeMocks.nativeCommand.mockResolvedValue(undefined);
   const response=await maintenanceRoute.POST(workRequest({id:'work',action:'resume',expectedVersion:1,reason:'Parts arrived'}),routeContext);
   expect(response.status).toBe(503);
-  expect(routeMocks.retainedChange).not.toHaveBeenCalled();
  });
 
- it('keeps creation on the retained application when native transitions are configured',async()=>{
-  routeMocks.nativeAvailable.mockReturnValue(true);
-  routeMocks.retainedCreate.mockResolvedValue({id:'maintenance-maintenance-command-3',version:1,status:'open'});
+ it('forwards creation to the native owner command',async()=>{
+  routeMocks.nativeCommand.mockResolvedValue({id:'maintenance-maintenance-command-3',version:1,status:'open'});
   const body={assetId:'asset',assetVersion:1,title:'Synthetic work',priority:'normal',ownerId:'user',scheduledAt:null,reason:'Synthetic reason'};
   const response=await maintenanceRoute.POST(workRequest(body,'maintenance-command-3'),routeContext);
   expect(response.status).toBe(200);
-  expect(routeMocks.retainedCreate).toHaveBeenCalledWith(routeMocks.actor,body,'maintenance-command-3');
-  expect(routeMocks.nativeCommand).not.toHaveBeenCalled();
-  expect(routeMocks.retainedChange).not.toHaveBeenCalled();
+  expect(routeMocks.nativeCommand).toHaveBeenCalledWith(routeMocks.actor,'acme',body,'maintenance-command-3');
+ });
+
+ it('closes creation when the native owner command returns no acknowledgement',async()=>{
+  routeMocks.nativeCommand.mockResolvedValue(undefined);
+  const body={assetId:'asset',assetVersion:1,title:'Synthetic work',priority:'normal',ownerId:'user',scheduledAt:null,reason:'Synthetic reason'};
+  const response=await maintenanceRoute.POST(workRequest(body,'maintenance-command-4'),routeContext);
+  expect(response.status).toBe(503);
+  expect(routeMocks.nativeCommand).toHaveBeenCalledWith(routeMocks.actor,'acme',body,'maintenance-command-4');
  });
 
  it('maps retries of the same transition to the same idempotency key',async()=>{
-  routeMocks.nativeAvailable.mockReturnValue(true);
   routeMocks.nativeCommand.mockResolvedValue({id:'work',version:2,status:'in_progress'});
   const body={id:'work',action:'start',expectedVersion:1,reason:'Start work'};
   await maintenanceRoute.POST(workRequest(body,'replay-command-key'),routeContext);
   await maintenanceRoute.POST(workRequest(body,'replay-command-key'),routeContext);
   expect(routeMocks.nativeCommand).toHaveBeenNthCalledWith(1,routeMocks.actor,'acme',body,'replay-command-key');
   expect(routeMocks.nativeCommand).toHaveBeenNthCalledWith(2,routeMocks.actor,'acme',body,'replay-command-key');
-  expect(routeMocks.retainedChange).not.toHaveBeenCalled();
  });
 
- it('rejects a missing idempotency key before either transition path',async()=>{
+ it('rejects a missing idempotency key before the native owner command',async()=>{
   const response=await maintenanceRoute.POST(workRequest({id:'work',action:'cancel',expectedVersion:1,reason:'No longer required'},null),routeContext);
   expect(response.status).toBe(422);
   expect(routeMocks.nativeCommand).not.toHaveBeenCalled();
-  expect(routeMocks.retainedChange).not.toHaveBeenCalled();
  });
 });

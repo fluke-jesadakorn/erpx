@@ -67339,7 +67339,7 @@
       },
       "ci": {
         "critical": true,
-        "reason": "Composed native Maintenance HTTP over the real Account session and IAM proves a native block transition, idempotent replay and persisted readback while create stays explicitly retained."
+        "reason": "Composed native Maintenance HTTP over the real Account session and IAM proves native work-order creation and block transitions, exact persisted work/events, one receipt/audit/outbox, idempotent replay and duplicate-active-work denial."
       },
       "framework": "cargo",
       "verificationInputs": [

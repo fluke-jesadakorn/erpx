@@ -79,7 +79,8 @@ impl MaintenanceHttpCommand {
         }
     }
     /// Composition dispatch value for every work transition, including
-    /// issue-part. Creation returns `None` until its native composition exists.
+    /// issue-part. Creation is dispatched separately through `create_input`
+    /// and the native owner create unit.
     pub fn change_command(&self) -> Option<MaintenanceWorkCommand> {
         match self {
             Self::Change { key, id, input } => {
