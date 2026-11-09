@@ -104,6 +104,8 @@
 @source "../../../../packages/feature-apps/src/routes/holdings/[holdingSlug]/projects-routines/tasks/[id]/page.tsx";
 @source "../../../../packages/feature-apps/src/routes/holdings/[holdingSlug]/projects-routines/tasks/new/page.tsx";
 @source "../../../../packages/feature-apps/src/routes/holdings/[holdingSlug]/projects-routines/tasks/page.tsx";
+@source "../../../../packages/feature-apps/src/routes/holdings/[holdingSlug]/requests/page.tsx";
+@source "../../../../packages/feature-apps/src/routes/holdings/[holdingSlug]/staff-tasks/page.tsx";
 @source "../../../../packages/feature-apps/src/routes/holdings/[holdingSlug]/tasks/people_payroll/[id]/page.tsx";
 @source "../../../../packages/feature-apps/src/routes/holdings/[holdingSlug]/work/actions/page.tsx";
 @source "../../../../packages/feature-apps/src/routes/holdings/[holdingSlug]/work/all/page.tsx";
@@ -4539,10 +4541,12 @@
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/overtime/[id]/screen.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/overtime/screen.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/posts/[id]/screen.tsx";
+@source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/requests/screen.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/routine-templates/[id]/screen.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/routine-templates/screen.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/staff-tasks/[id]/screen.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/staff-tasks/new/screen.tsx";
+@source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/staff-tasks/screen.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/tasks/people_payroll/[id]/screen.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/work/create.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/work/department-approvals/[kind]/[id]/screen.tsx";
