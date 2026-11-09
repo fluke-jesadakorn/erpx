@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T13:25:00+07:00",
+  "updatedAt": "2026-11-09T13:45:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -4398,10 +4398,11 @@
         "assets-native-ssr",
         "assets-http-postgres",
         "assets-native-transport",
-        "assets-register-browser-positive-cost"
+        "assets-register-browser-positive-cost",
+        "assets-exact-source-browser"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Review at b4185f46e found the browser evidence was produced from a dirty working tree: pushed HEAD lacked the `native-assets.ts` no-status create acknowledgement, the contributor `:3443` origin exception and `dev-container-start.ts` `ERPX_NATIVE_ASSETS_CONFIG`. The live `assets/financial-assets` route still uses TS writers, and legacy TS maintenance/asset writers remain exported/consumed. Keep this workflow partial until the transport/config source is committed, the browser journey is re-run at the exact pushed SHA with version/custodian/readback evidence, and the remaining TS sub-surface is migrated or explicitly scoped."
+      "gap": "Exact-source browser registration AST-01204724 passed desktop/mobile with USD 125050 Finance acquisition snapshot. The live TS assets/financial-assets route and legacy TS asset/maintenance writers remain; keep partial until that scope is native/retired."
     },
     {
       "id": "assets/condition",
@@ -4416,10 +4417,11 @@
         "assets-native-ssr",
         "assets-http-postgres",
         "assets-native-transport",
-        "assets-condition-browser"
+        "assets-condition-browser",
+        "assets-exact-source-browser"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Review at b4185f46e found the browser evidence was produced from a dirty working tree: pushed HEAD lacked the `native-assets.ts` no-status create acknowledgement, the contributor `:3443` origin exception and `dev-container-start.ts` `ERPX_NATIVE_ASSETS_CONFIG`. The live `assets/financial-assets` route still uses TS writers, and legacy TS maintenance/asset writers remain exported/consumed. Keep this workflow partial until the transport/config source is committed, the browser journey is re-run at the exact pushed SHA with version/custodian/readback evidence, and the remaining TS sub-surface is migrated or explicitly scoped."
+      "gap": "Exact-source browser condition change AST-LIFE-345821 v3 degraded and DB readback passed. Shared legacy TS asset/maintenance writers remain; keep partial until strict retirement and hydration/console cleanup."
     },
     {
       "id": "assets/feature-placement",
@@ -4434,10 +4436,11 @@
         "assets-native-ssr",
         "assets-http-postgres",
         "assets-native-transport",
-        "assets-placement-browser"
+        "assets-placement-browser",
+        "assets-exact-source-browser"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Review at b4185f46e found the browser evidence was produced from a dirty working tree: pushed HEAD lacked the `native-assets.ts` no-status create acknowledgement, the contributor `:3443` origin exception and `dev-container-start.ts` `ERPX_NATIVE_ASSETS_CONFIG`. The live `assets/financial-assets` route still uses TS writers, and legacy TS maintenance/asset writers remain exported/consumed. Keep this workflow partial until the transport/config source is committed, the browser journey is re-run at the exact pushed SHA with version/custodian/readback evidence, and the remaining TS sub-surface is migrated or explicitly scoped."
+      "gap": "Exact-source browser placement AST-LIFE-345821 v2 in_service with Bangkok HQ/usr_ava and DB readback passed. Shared legacy TS asset/maintenance writers remain; keep partial until strict retirement and hydration/console cleanup."
     },
     {
       "id": "assets/feature-maintenance-lifecycle",
@@ -6562,7 +6565,7 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-09T13:25:00+07:00",
+    "generatedAt": "2026-11-09T13:45:00+07:00",
     "sourceHead": "acf22471da04a5671315de9f7dd2bfa1164c5462",
     "interpretation": "ownerTotals includes the 41 register owners plus the seven catalogue surface owners (account, admin, apps, booking, forms, legal-portal, portal); surface owners are counted in the 206 workflows and are not part of the 41-owner strict certification denominator. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
@@ -8822,6 +8825,22 @@
           "generated Brand identity reference retirement"
         ],
         "evidence": "brand_identity_postgres 4/4 and brand_identity_http_postgres 4/4 pass on the working tree with the correct features; generated coverage/turbo/workspace relocation references to the deleted Brand application source removed; structure/catalogue/architecture green. Brand owner remains false because live TS branding writers and storefront dual writer remain. Counts unchanged 65 verified/65 merged/57 partial/84 unstarted, owners 0/41.",
+        "counts": {
+          "owners": 0,
+          "verified": 65,
+          "partial": 57,
+          "unstarted": 84,
+          "merged": 65,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-09T13:45:00+07:00",
+        "commit": "acf22471d",
+        "bundles": [
+          "Assets exact-source browser re-run"
+        ],
+        "evidence": "Keyed workspace synced to clean acf; positive-cost registration AST-01204724/asset-e728d4aa with USD 125050 Finance snapshot; zero-cost AST-LIFE-345821 place v2/condition v3/retirement request v4 with DB readback; maintenance AST-FINAL-01244346 work order create/start/complete v1-v3, asset v4, 4 asset events/3 work events, 0 page errors. Work-order create still TS; hydration mismatch/font 404 documented. No promotion; counts 65 verified/65 merged/57 partial/84 unstarted, owners 0/41.",
         "counts": {
           "owners": 0,
           "verified": 65,
