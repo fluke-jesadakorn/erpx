@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "recordedAt": "2026-11-09T13:45:00+07:00",
+  "sourceHead": "acf22471da04a5671315de9f7dd2bfa1164c5462",
+  "containerSyncedSource": "acf22471d (git archive into keyed workspace)",
+  "environment": "normal Account/SSO browser session, https://acme.erpx.localhost:3443, canonical /holdings/acme/services/assets/* routes",
+  "registration": {
+    "code": "AST-01204724",
+    "id": "asset-e728d4aa-55fd-46b0-933a-bd9d077e5166",
+    "createStatus": 200,
+    "version": 1,
+    "desktopVisible": true,
+    "mobileVisible": true,
+    "financeSnapshot": {
+      "source_type": "operational_asset",
+      "amount_kind": "acquisition_cost",
+      "currency": "USD",
+      "currency_scale": 2,
+      "amount_units": "125050",
+      "usd_units": "125050",
+      "fx_rate_id": null
+    }
+  },
+  "lifecycle": {
+    "code": "AST-LIFE-345821",
+    "id": "asset-dd10dac9-1d36-4ec5-ac03-8bbfb6906c0b",
+    "create": 200,
+    "place": {
+      "status": 200,
+      "version": 2,
+      "state": "in_service"
+    },
+    "condition": {
+      "status": 200,
+      "version": 3,
+      "condition": "degraded"
+    },
+    "retirementRequest": {
+      "status": 200,
+      "version": 4,
+      "state": "retirement_pending"
+    },
+    "dbReadback": {
+      "lifecycle_status": "retirement_pending",
+      "condition": "degraded",
+      "placement": "Bangkok HQ",
+      "custodian_id": "usr_ava",
+      "version": 4
+    }
+  },
+  "maintenance": {
+    "code": "AST-FINAL-01244346",
+    "id": "asset-91654312-0a95-47cd-847a-a602c42fa4bb",
+    "register": 200,
+    "place": {
+      "status": 200,
+      "version": 2
+    },
+    "workOrder": "maintenance-26294027-b6eb-47ae-a479-64695e02e95a",
+    "create": {
+      "status": 200,
+      "version": 1,
+      "state": "open"
+    },
+    "start": {
+      "status": 200,
+      "version": 2,
+      "state": "in_progress"
+    },
+    "complete": {
+      "status": 200,
+      "version": 3,
+      "state": "completed"
+    },
+    "dbReadback": {
+      "assetVersion": 4,
+      "assetStatus": "in_service",
+      "assetCondition": "good",
+      "workStatus": "completed",
+      "workVersion": 3,
+      "assetEvents": 4,
+      "workEvents": 3,
+      "completionEvidence": "Final browser inspection completed; bearings checked"
+    }
+  },
+  "console": {
+    "pageErrors": 0,
+    "errors": [
+      "React hydration mismatch: server renders internal `/holdings/acme/services/assets` actions/hrefs while the client canonicalizes to `/assets/...`; plus two missing font/resource 404s. This is real and not repaired in this batch."
+    ],
+    "font404": "https://acme.erpx.localhost:3443/__nextjs_font/geist-latin.woff2"
+  },
+  "closure": false,
+  "limitations": [
+    "Work-order creation still uses retained TypeScript createMaintenanceWork; transitions are native only when configured, so maintenance lifecycle stays partial.",
+    "asset-register scope still includes the live TS assets/financial-assets route and legacy TS asset/maintenance writers, so the workflow stays partial despite this exact-source journey.",
+    "Independent browser retirement approval remains blocked because no legitimate second acme-co iam_member has the assets module; native asset_http_postgres covers independent review.",
+    "Hydration mismatch and missing font 404 remain and are documented rather than hidden."
+  ],
+  "nativeChecks": {
+    "asset_cost_composition_postgres": "4/4",
+    "asset_register_policy": "14/14",
+    "asset_register_postgres": "25/25",
+    "asset_http_postgres": "5/5",
+    "field_service_parts_postgres": "37/37 clean 33f",
+    "structure/catalogue/architecture": "green on clean 33f"
+  }
+}
