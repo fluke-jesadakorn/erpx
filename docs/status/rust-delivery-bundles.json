@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T12:05:00+07:00",
+  "updatedAt": "2026-11-09T12:35:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -6552,8 +6552,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-09T11:55:00+07:00",
-    "sourceHead": "a5bbbb37059179b1570512600caba768c7a2b501",
+    "generatedAt": "2026-11-09T12:35:00+07:00",
+    "sourceHead": "72d7ab24d61b423d812304f62b66001986d62c3d",
     "interpretation": "ownerTotals includes the 41 register owners plus the seven catalogue surface owners (account, admin, apps, booking, forms, legal-portal, portal); surface owners are counted in the 206 workflows and are not part of the 41-owner strict certification denominator. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -8758,6 +8758,25 @@
           "Field Count/Parts/Finance history source witnesses (source-only, unmounted)"
         ],
         "evidence": "Committed owner-local Inventory/Finance/Field Service source witnesses plus the composition modules, with actual TypeScript SQL oracles and rollback fixtures. Passing working-source suites: service_initial_count_revision_postgres 3/3, field_service_parts_postgres focused 1/1, inventory consumption_postgres 26/26, Finance journal_source_postgres 22/22. No Field workflow or owner promoted; composition remains unmounted and Finance period-close workpapers remain a reviewer-blocked candidate.",
+        "counts": {
+          "owners": 0,
+          "verified": 65,
+          "partial": 57,
+          "unstarted": 84,
+          "merged": 65,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-09T12:35:00+07:00",
+        "commit": "72d7ab24d",
+        "bundles": [
+          "clean-source owner fences",
+          "Legal inspection source export",
+          "Brand TypeScript identity-writer retirement",
+          "feature-pos public export"
+        ],
+        "evidence": "1bfa006aa/54612c2eb committed the missing composition/owner source-fence closure and Legal/Workplace architecture fixes; 196c8d204 removed the five Brand TS identity writers, migrated fixture/tests and retained published/workspace reads; 72d7ab24d declared feature-pos public native cash export. Counts unchanged at 65 verified/65 merged/57 partial/84 unstarted, owners 0/41. Clean 72d verification and strict Brand owner decision pending.",
         "counts": {
           "owners": 0,
           "verified": 65,
