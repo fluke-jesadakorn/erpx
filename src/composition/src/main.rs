@@ -29,6 +29,44 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
             println!("{}", outcome);
             Ok(())
         }
+        #[cfg(feature = "legal-document-worker")]
+        [command, once, option, path]
+            if command == "legal-worker" && once == "--once" && option == "--runtime-config" =>
+        {
+            let outcome =
+                erpx_service::legal_runtime_worker::run_once_file(std::path::Path::new(path), None)
+                    .await
+                    .map_err(str::to_owned)?;
+            println!("{outcome}");
+            Ok(())
+        }
+        #[cfg(feature = "legal-document-worker")]
+        [command, once, option, path, holding_flag, holding]
+            if command == "legal-worker"
+                && once == "--once"
+                && option == "--runtime-config"
+                && holding_flag == "--holding" =>
+        {
+            let outcome = erpx_service::legal_runtime_worker::run_once_file(
+                std::path::Path::new(path),
+                Some(holding),
+            )
+            .await
+            .map_err(str::to_owned)?;
+            println!("{outcome}");
+            Ok(())
+        }
+        #[cfg(feature = "legal-document-worker")]
+        [command, loop_flag, option, path]
+            if command == "legal-worker" && loop_flag == "--loop" && option == "--runtime-config" =>
+        {
+            erpx_service::legal_runtime_worker::run_loop_file(
+                std::path::Path::new(path),
+                shutdown(),
+            )
+            .await
+            .map_err(str::to_owned)
+        }
         #[cfg(feature = "private-field-api")]
         [command, option, path] if command == "private-api" && option == "--development-config" => {
             erpx_service::private_development_api::run_development_api_file(
@@ -147,7 +185,7 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
                 "Usage: erpx-server owners | erpx-server api --listen 127.0.0.1:<disposable-port>",
             );
             if cfg!(feature = "legal-document-worker") {
-                usage.push_str(" | erpx-server legal-worker --once --development-config /absolute/private.json");
+                usage.push_str(" | erpx-server legal-worker --once --development-config /absolute/private.json | erpx-server legal-worker --once --runtime-config /absolute/private.json [--holding h001] | erpx-server legal-worker --loop --runtime-config /absolute/private.json");
             }
             if cfg!(feature = "private-field-api") {
                 usage.push_str(

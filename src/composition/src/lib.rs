@@ -25,6 +25,9 @@ pub mod legal_system_worker;
 #[cfg(feature = "legal-document-worker")]
 pub mod legal_worker_bootstrap;
 
+#[cfg(feature = "legal-document-worker")]
+pub mod legal_runtime_worker;
+
 #[cfg(feature = "legal-queue")]
 pub mod legal_queue_administration;
 

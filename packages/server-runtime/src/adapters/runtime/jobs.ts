@@ -17,6 +17,7 @@ import { cleanupBetaResources } from "@erpx/server-manage_erpx/public/beta-maint
 import type { SqlDatabase } from "@erpx/server-runtime/adapters/runtime/types";
 import {runtimeJobEffects,type RuntimePendingEvent} from "@erpx/server-workflow/public/runtime-job-effects";
 import {runtimeLegalJobHealthEffects} from "@erpx/server-legal/public/runtime-job-health-effects";
+import { runNativeLegalWorker } from "@erpx/server-runtime/adapters/runtime/native-legal-worker";
 import {runtimeBetaSlotActive} from "@erpx/server-manage_erpx/public/runtime-active-slot-source";
 
 export type PendingEvent = RuntimePendingEvent;
@@ -186,7 +187,7 @@ export async function legalWork(env: JobEnv) {
     const tasks: [string, () => Promise<unknown>][] = [
       ['reminders', async () => (await import("@erpx/server-legal/public/legal/jobs")).legalReminders(write)],
       ['invitations', async () => (await import("@erpx/server-legal/public/legal/invitations")).drainLegalInvitations(write,env)],
-      ['documents', async () => (await import("@erpx/server-legal/public/legal/processing")).drainLegalProcessing(write,files)],
+      ['documents', async () => runNativeLegalWorker(slot.id)],
       ['ai', async () => (await import("@erpx/server-legal/public/legal/jobs")).drainLegalAi(write,env)],
       ['sources', async () => (await import("@erpx/server-legal/public/legal/law-corpus")).drainLegalSourceChecks(write,files)],
     ];

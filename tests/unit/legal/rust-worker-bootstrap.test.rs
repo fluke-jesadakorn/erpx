@@ -81,3 +81,30 @@ fn compiled_cli_refuses_a_protected_database_without_probing_tools_or_echoing_cr
     assert!(!diagnostic.contains("private-sentinel"));
     assert!(!diagnostic.contains("erpx_production"));
 }
+
+#[test]
+fn runtime_schedule_keeps_the_interval_and_bounds_failure_backoff() {
+    use erpx_service::legal_runtime_worker::LegalWorkerSchedule;
+    assert!(LegalWorkerSchedule::start(0, 999).is_err());
+    assert!(LegalWorkerSchedule::start(0, 300_001).is_err());
+    let mut schedule = LegalWorkerSchedule::start(1_000, 5_000).unwrap();
+    assert!(schedule.due(1_000));
+    schedule.succeeded(1_000);
+    assert_eq!(schedule.next_due_at(), 6_000);
+    assert!(!schedule.due(5_999));
+    schedule.failed(6_000);
+    assert_eq!(schedule.next_due_at(), 11_000);
+    schedule.failed(11_000);
+    assert_eq!(schedule.next_due_at(), 21_000);
+    let mut now = 21_000;
+    for _ in 0..8 {
+        schedule.failed(now);
+        now = schedule.next_due_at();
+    }
+    assert!(schedule.next_delay_ms(now) <= 300_000);
+    assert_eq!(schedule.consecutive_failures(), 10);
+    schedule.restart(2_000);
+    assert!(schedule.due(2_000));
+    assert_eq!(schedule.consecutive_failures(), 0);
+    assert_eq!(schedule.interval_ms(), 5_000);
+}

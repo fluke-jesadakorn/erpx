@@ -358,7 +358,7 @@ pub async fn run_once_file(path: &Path) -> Result<serde_json::Value, &'static st
     pool.close().await;
     result
 }
-async fn run_once(
+pub(crate) async fn run_once(
     control: &erpx_server_runtime::public::postgres::DatabasePool,
     holdings: Arc<ConfiguredHoldingRegistry>,
     pool: &erpx_server_runtime::public::postgres::DatabasePool,

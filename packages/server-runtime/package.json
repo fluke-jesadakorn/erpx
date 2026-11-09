@@ -20,6 +20,7 @@
     "./adapters/runtime/migrations": "./src/adapters/runtime/migrations.ts",
     "./adapters/runtime/read-metrics": "./src/adapters/runtime/read-metrics.ts",
     "./adapters/runtime/jobs": "./src/adapters/runtime/jobs.ts",
+    "./adapters/runtime/native-legal-worker": "./src/adapters/runtime/native-legal-worker.ts",
     "./adapters/runtime/redis-cache": "./src/adapters/runtime/redis-cache.ts",
     "./adapters/runtime/types": "./src/adapters/runtime/types.ts",
     "./adapters/runtime/filesystem": "./src/adapters/runtime/filesystem.ts",
