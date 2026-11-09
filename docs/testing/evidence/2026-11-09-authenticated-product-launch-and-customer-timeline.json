@@ -1,7 +1,7 @@
 {
   "schema": "erpx.evidence/authenticated-product-launch/v1",
   "recorded_at": "2026-11-09T10:03:57.236415Z",
-  "head": "246d4d1940414be693b92ce02e9e7e333ee3dd29",
+  "head": "087fcab8c80b15914b8d302cbe6ef9048aa7923b",
   "environment": {
     "public_holding_origin": "https://acme.jesadakorn.com",
     "development_gateway": "http://127.0.0.1:3100",
@@ -67,5 +67,6 @@
     "The native work-role routes are now mounted independently of fieldServiceReads and admitted by the private API boundary for every configured holding.",
     "The customer History tab in this run used the retained TypeScript timeline because the native timeline configuration is unset. Native timeline transport enablement and legacy TypeScript retirement remain open; this evidence does not claim them.",
     "Legacy TypeScript consumers and owner certification remain open; this evidence qualifies the authenticated browser/SSO gate only."
-  ]
+  ],
+  "run_note": "Browser run used the working tree whose work-role mount change was committed as 087fcab8c; the evidence was recorded before that commit."
 }
