@@ -877,6 +877,7 @@ version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
  "erpx-server-identity-access",
+ "erpx-server-inventory",
  "erpx-server-runtime",
  "erpx-server-shared",
  "erpx-server-workflow",
