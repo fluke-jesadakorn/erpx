@@ -3057,6 +3057,10 @@ async fn assemble_checked(
                     )),
                 },
             );
+                if !operations_targets.iter().any(|target: &erpx_server_operations::public::operations_http::OperationsHttpTarget| {
+                    target.host == holding.host
+                        && target.holding_slug == holding.registration.slug
+                }) {
                 operations_targets.push(
                     erpx_server_operations::public::operations_http::OperationsHttpTarget {
                         host: holding.host.clone(),
@@ -3076,6 +3080,7 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                }
                 #[cfg(feature = "existing-business")]
                 handbook_targets.push(
                     erpx_server_collaboration::public::handbook_http::HandbookHttpTarget {

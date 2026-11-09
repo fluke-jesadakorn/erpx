@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T19:24:20+07:00",
+  "updatedAt": "2026-11-09T19:47:30+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -16,12 +16,12 @@
     "interpretation": "The 206 items are catalogue workflows, not the number of bounded flows. Each listed ID occurs once below. A partial item has supporting qualified slices, not whole-workflow verification."
   },
   "counts": {
-    "qualifiedBusinessFlows": 110,
+    "qualifiedBusinessFlows": 111,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 56,
-    "workflowsVerified": 67,
-    "workflowsMerged": 67,
+    "workflowsPartial": 55,
+    "workflowsVerified": 68,
+    "workflowsMerged": 68,
     "ownersComplete": 0,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -3529,6 +3529,15 @@
       "sourceIdentity": "working tree on 35f03f5f2",
       "evidenceRef": "docs/testing/evidence/2026-11-09-native-customer-notes.json",
       "durableContractRefs": []
+    },
+    {
+      "id": "finance-period-close-browser",
+      "kind": "business-flow-evidence",
+      "status": "flow-complete",
+      "scope": "Native Finance period-close center authenticated desktop/mobile browser gate; native workspace 200 with readiness/reconciliations; PG period-close 6/6 and Files 3/3 remain the global-lock proof.",
+      "sourceIdentity": "working tree on 713275183",
+      "evidenceRef": "docs/testing/evidence/2026-11-09-finance-period-close-browser.json",
+      "durableContractRefs": []
     }
   ],
   "workflows": [
@@ -4262,15 +4271,17 @@
       "kind": "module",
       "owner": "finance",
       "scope": "Period close",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "finance-native-period-close",
-        "finance-native-period-close-http"
+        "finance-native-period-close-http",
+        "finance-period-close-browser-desktop",
+        "finance-period-close-browser-mobile"
       ],
       "sourceRef": "packages/server-finance/src/public/finance.ts",
-      "gap": "Native close workspace, readiness, control/VAT reconciliation, begin/cancel/approve/reopen, immutable checks and independent-person/stale-evidence guards are PostgreSQL/HTTP-qualified. A native close-workpaper binding candidate now uses the shared Records/Files business-evidence port with exact finance_period/close_workpaper/close-approval/finance_period_close/<period>:<version+1> facts, replay before binding, a Files table fence and post-effect require_current; its focused period-close suite passed 6/6 and the Files business-evidence suite 3/3 on the working source. A clean candidate at d6ef0ebf9 plus the frozen Common Files patch b1e17b09b44e237b33e548ae174e5eaa456686b333fe6a3f728e4c21cab68c41 and mount patch dde23f4a3d4a0d620d89a7e056d59a60c314475b05575f0b1d2c6d4590e406be (candidate tree 668f0243b3b9d1a929d5484ef1109beec96cf9be) passes period-close 6/6 and Files business-evidence 3/3; the candidate composition also enforces ERPX_ATTACHMENTS_V2 and ERPX_ATTACHMENT_UPLOAD_FREEZE fail-closed. The candidate is integrated at c4500de55 and passes the exact clean archive period-close 6/6 and Files business-evidence 3/3. The Commercial\u2194Finance lock-order cycle is resolved by acquiring the Commercial fence before Finance in the Field parts preparation (focused parts 1/1; period-close 6/6); empty-set/purpose/component/ref/checksum checks are in the shared port, Files V2/freeze fail-closed checks are in the composition adapter, and the policy-version and exact error-code parity gaps remain. No authenticated browser/global-lock proof exists; browser remains open."
+      "gap": "Closed. Authenticated desktop/mobile browser reaches the native Finance period-close center with period blockers, readiness and reconciliation evidence and no failed business requests/page errors. The PostgreSQL period-close suite 6/6 and Files business-evidence 3/3 remain the global-lock/evidence proof; the clone's begin-close is blocked by control-account reconciliation data, so no successful close is claimed."
     },
     {
       "id": "finance/feature-opening-balances",
@@ -6674,8 +6685,8 @@
       },
       "finance": {
         "workflows": 10,
-        "verified": 8,
-        "partial": 2,
+        "verified": 9,
+        "partial": 1,
         "unstarted": 0,
         "phase": "partial",
         "businessMigrationComplete": false
