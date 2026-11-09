@@ -1055,8 +1055,9 @@ async fn recover_transaction(
         return Ok(retained);
     }
     let requeued = sqlx::query(
-        "UPDATE outbox_events SET processed_at=NULL,published_at=NULL,claim_until=NULL,lease_token=NULL,\
-         next_attempt_at=$1,last_error=NULL,dead_letter_at=NULL,attempts=0 \
+        "WITH runtime_owner AS MATERIALIZED (SELECT set_config('erpx.outbox_runtime','native-rust',true)) \
+         UPDATE outbox_events SET processed_at=NULL,published_at=NULL,claim_until=NULL,lease_token=NULL,\
+         next_attempt_at=$1,last_error=NULL,dead_letter_at=NULL,attempts=0 FROM runtime_owner \
          WHERE id=$2 AND dead_letter_at IS NOT NULL AND attempts=$3 AND last_error IS NOT DISTINCT FROM $4 \
          RETURNING aggregate_version",
     )

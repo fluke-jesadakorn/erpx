@@ -411,6 +411,11 @@ async fn operations_summary_reads_real_queues_and_recovery_is_reviewed_idempoten
                 .await,
                 1
             );
+            sqlx::query("INSERT INTO outbox_events(id,command_id,event_type,aggregate_type,aggregate_id,aggregate_version,payload_json,created_at,next_attempt_at,attempts,last_error,dead_letter_at) VALUES('platform-test-native-dead','command-native','field.order.created','field_order','order-native',1,'{}',$1,$1,6,'NATIVE_TIMEOUT',$2)").bind(NOW-500).bind(NOW-500).execute(holding.raw()).await.unwrap();
+            let native_recovery=recover_dead_letter_job(&admin(),&store,&holding_identity("h001","acme"),&RecoverDeadLetterInput{event_id:"platform-test-native-dead".into(),expected_attempts:6,expected_last_error:Some("NATIVE_TIMEOUT".into()),reason:"Native projector is healthy; replay the owned event.".into()},"platform-recovery-key-native",NOW).await.unwrap();
+            assert_eq!(native_recovery.status,"queued");
+            let native_cleared=sqlx::query("SELECT attempts,last_error,dead_letter_at,next_attempt_at FROM outbox_events WHERE id='platform-test-native-dead'").fetch_one(holding.raw()).await.unwrap();
+            assert_eq!(native_cleared.get::<i64,_>("attempts"),0);assert_eq!(native_cleared.get::<Option<String>,_>("last_error"),None);assert_eq!(native_cleared.get::<Option<i64>,_>("dead_letter_at"),None);assert_eq!(native_cleared.get::<i64,_>("next_attempt_at"),NOW);
             let stale = recover_dead_letter_job(
                 &admin(),
                 &store,
