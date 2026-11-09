@@ -1,2 +1,2 @@
-import {DestinationIndex} from '@erpx/workplace/components/destination-index';
-export default async function Page({params,searchParams}:{params:Promise<{holdingSlug:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>}) {return <DestinationIndex openWork searchParams={searchParams} appearance="standard" holdingSlug={(await params).holdingSlug} path="work"/>;}
+// App-owned entry; shared payloads do not import another application.
+export { default } from "@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/work/screen";
