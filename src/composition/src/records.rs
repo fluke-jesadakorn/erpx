@@ -44,6 +44,14 @@ fn not_found() -> BusinessError {
     BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.")
 }
 
+fn module_forbidden() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Forbidden,
+        "RECORDS_MODULE_FORBIDDEN",
+        "Change to a role with access to this module.",
+    )
+}
+
 fn unavailable() -> BusinessError {
     BusinessError::new(
         FailureKind::Unavailable,
@@ -92,20 +100,27 @@ impl RecordContextGuard for RecordsContextGuardImpl {
 
     fn authorize_source<'a>(
         &'a mut self,
-        _: &'a RecordContextActor,
-        _: &'a str,
+        actor: &'a RecordContextActor,
+        module_id: &'a str,
         _: &'a str,
     ) -> erpx_server_records::public::record_context::RecordContextFuture<'a, (), Self::Error> {
-        Box::pin(async { Ok(()) })
+        Box::pin(async move {
+            if actor.permits_module(module_id) {
+                Ok(())
+            } else {
+                Err(module_forbidden())
+            }
+        })
     }
 
     fn target_visible<'a>(
         &'a mut self,
-        _: &'a RecordContextActor,
+        actor: &'a RecordContextActor,
+        module_id: &'a str,
         _: &'a str,
-        _: &'a str,
-    ) -> erpx_server_records::public::record_context::RecordContextFuture<'a, bool, Self::Error> {
-        Box::pin(async { Ok(true) })
+    ) -> erpx_server_records::public::record_context::RecordContextFuture<'a, bool, Self::Error>
+    {
+        Box::pin(async move { Ok(actor.permits_module(module_id)) })
     }
 }
 
@@ -117,18 +132,26 @@ impl RecordRegistryGuard for RecordsRegistryGuardImpl {
 
     fn authorize_module<'a>(
         &'a mut self,
-        _: &'a RecordContextActor,
-        _: &'a str,
-    ) -> erpx_server_records::public::record_registry::RecordRegistryFuture<'a, (), Self::Error> {
-        Box::pin(async { Ok(()) })
+        actor: &'a RecordContextActor,
+        module_id: &'a str,
+    ) -> erpx_server_records::public::record_registry::RecordRegistryFuture<'a, (), Self::Error>
+    {
+        Box::pin(async move {
+            if actor.permits_module(module_id) {
+                Ok(())
+            } else {
+                Err(module_forbidden())
+            }
+        })
     }
 
     fn row_visible<'a>(
         &'a mut self,
-        _: &'a RecordContextActor,
-        _: &'a RecordRow,
-    ) -> erpx_server_records::public::record_registry::RecordRegistryFuture<'a, bool, Self::Error> {
-        Box::pin(async { Ok(true) })
+        actor: &'a RecordContextActor,
+        row: &'a RecordRow,
+    ) -> erpx_server_records::public::record_registry::RecordRegistryFuture<'a, bool, Self::Error>
+    {
+        Box::pin(async move { Ok(actor.permits_module(&row.module_id)) })
     }
 }
 
@@ -140,7 +163,10 @@ fn records_actor(current: &AuthorizedWorkContext) -> Result<RecordContextActor, 
         user_id: current.user_id().as_str().to_owned(),
         holding_id: current.holding_id().as_str().to_owned(),
         company_id: workspace.company_id.as_str().to_owned(),
-        branch_id: workspace.branch_id.as_ref().map(|value| value.as_str().to_owned()),
+        branch_id: workspace
+            .branch_id
+            .as_ref()
+            .map(|value| value.as_str().to_owned()),
         department_id: workspace
             .department_id
             .as_ref()
@@ -277,8 +303,15 @@ impl<C: Clock + Send + Sync + 'static> RecordsService<C> {
                         let now = clock.now().get();
                         let mut repository = PgRecordContext::new(connection);
                         let mut guard = RecordsContextGuardImpl;
-                        let data = record_context(&mut repository, &mut guard, &actor, &module_id, &record_id, now)
-                            .await?;
+                        let data = record_context(
+                            &mut repository,
+                            &mut guard,
+                            &actor,
+                            &module_id,
+                            &record_id,
+                            now,
+                        )
+                        .await?;
                         Ok(RecordsContextHttpResponse {
                             data,
                             context: context_value(current),
@@ -341,16 +374,33 @@ impl<C: Clock + Send + Sync + 'static> RecordsService<C> {
                         let mut repository = PgRecordRegistry::new(connection);
                         let mut guard = RecordsRegistryGuardImpl;
                         let data = if is_page {
-                            let query = RegistryQuery::page(&module_id, &section_id, q.as_deref(), cursor.as_deref())
-                                .map_err(BusinessError::from)?;
-                            let page = record_registry_page(&mut repository, &mut guard, &actor, &query, now)
-                                .await?;
+                            let query = RegistryQuery::page(
+                                &module_id,
+                                &section_id,
+                                q.as_deref(),
+                                cursor.as_deref(),
+                            )
+                            .map_err(BusinessError::from)?;
+                            let page = record_registry_page(
+                                &mut repository,
+                                &mut guard,
+                                &actor,
+                                &query,
+                                now,
+                            )
+                            .await?;
                             page.to_wire()
                         } else {
                             let query = RegistryQuery::list(&module_id, &section_id)
                                 .map_err(BusinessError::from)?;
-                            let items = record_registry_list(&mut repository, &mut guard, &actor, &query, now)
-                                .await?;
+                            let items = record_registry_list(
+                                &mut repository,
+                                &mut guard,
+                                &actor,
+                                &query,
+                                now,
+                            )
+                            .await?;
                             Value::Array(items.iter().map(RecordView::to_wire).collect())
                         };
                         Ok(RecordsRegistryHttpResponse {
@@ -419,7 +469,13 @@ impl<C: Clock + Send + Sync + 'static> RecordsContextHttpBackend for RecordsBack
                 } => (module_id.clone(), record_id.clone()),
             };
             self.service
-                .context(request.host, proof, move || Ok(selection), module_id, record_id)
+                .context(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    module_id,
+                    record_id,
+                )
                 .await
                 .map_err(business)
         })
@@ -439,5 +495,83 @@ impl<C: Clock + Send + Sync + 'static> RecordsRegistryHttpBackend for RecordsBac
                 .await
                 .map_err(business)
         })
+    }
+}
+
+#[cfg(test)]
+mod guard_tests {
+    use super::*;
+    use erpx_server_records::public::record_context::RecordContextGuard;
+    use erpx_server_records::public::record_registry::RecordRegistryGuard;
+
+    fn block<F: std::future::Future>(future: F) -> F::Output {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(future)
+    }
+
+    fn actor(modules: &[&str]) -> RecordContextActor {
+        RecordContextActor {
+            user_id: "user-1".into(),
+            holding_id: "company".into(),
+            company_id: "company".into(),
+            branch_id: None,
+            department_id: None,
+            assignment_id: "assignment-1".into(),
+            assignment_version: Some(1),
+            authority_revision: Some(1),
+            role: "member".into(),
+            scope_kind: "holding".into(),
+            modules: modules.iter().map(|value| (*value).into()).collect(),
+            permissions: vec!["records.read".into()],
+            expires_at: 9_007_199_254_740_991,
+        }
+    }
+
+    fn row(module_id: &str) -> RecordRow {
+        RecordRow {
+            module_id: module_id.into(),
+            id: "record-1".into(),
+            section_id: "main".into(),
+            title: "Record".into(),
+            description: String::new(),
+            status: "active".into(),
+            fields_json: "[]".into(),
+            company_id: "company".into(),
+            branch_id: None,
+            department_id: None,
+            version: 1,
+            created_by: "user-1".into(),
+            updated_at: 1,
+        }
+    }
+
+    #[test]
+    fn owner_module_guards_hide_foreign_references_and_rows() {
+        let member = actor(&["projects"]);
+        let mut context = RecordsContextGuardImpl;
+        assert!(block(context.authorize_source(&member, "projects", "record-1")).is_ok());
+        assert!(block(context.authorize_source(&member, "finance", "record-1")).is_err());
+        assert_eq!(
+            block(context.target_visible(&member, "projects", "record-1")).unwrap(),
+            true
+        );
+        assert_eq!(
+            block(context.target_visible(&member, "finance", "record-1")).unwrap(),
+            false
+        );
+        let mut registry = RecordsRegistryGuardImpl;
+        assert!(block(registry.authorize_module(&member, "projects")).is_ok());
+        assert!(block(registry.authorize_module(&member, "finance")).is_err());
+        assert_eq!(
+            block(registry.row_visible(&member, &row("projects"))).unwrap(),
+            true
+        );
+        assert_eq!(
+            block(registry.row_visible(&member, &row("finance"))).unwrap(),
+            false
+        );
     }
 }
