@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T16:35:00+07:00",
+  "updatedAt": "2026-11-09T17:05:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -19,7 +19,7 @@
     "qualifiedBusinessFlows": 108,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 57,
+    "workflowsPartial": 58,
     "workflowsVerified": 65,
     "workflowsMerged": 65,
     "ownersComplete": 0,
@@ -3874,12 +3874,18 @@
       "kind": "module",
       "owner": "customer_360",
       "scope": "Sales summary",
-      "partial": false,
+      "partial": true,
       "verified": false,
       "merged": false,
-      "evidenceFlows": [],
+      "evidenceFlows": [
+        "customer-360-timeline-native-unit",
+        "customer-360-timeline-http",
+        "customer-360-timeline-native-postgres",
+        "customer-360-timeline-transport-unit",
+        "customer-360-timeline-federation-integration"
+      ],
       "sourceRef": "packages/server-customer_360/src/public/customer-timeline.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Native timeline read (11 unit/2 HTTP/7 PostgreSQL), frontend transport (12 unit) and scoped Field/Finance/Legal federation (6) pass. The product page native transport is opt-in and not enabled because the disposable Account runtime clone lacks business data; authenticated desktop/mobile browser and legacy TS timeline retirement remain open."
     },
     {
       "id": "customer_360/service-timeline",
@@ -6567,7 +6573,7 @@
   ],
   "executionPlan": {
     "generatedAt": "2026-11-09T14:15:00+07:00",
-    "sourceHead": "31d473393f87fa406fe62eb77e13981fa46b5f0f",
+    "sourceHead": "c74d1e498588afae3b7876f1669458b476b72491",
     "interpretation": "ownerTotals includes the 41 register owners plus the seven catalogue surface owners (account, admin, apps, booking, forms, legal-portal, portal); surface owners are counted in the 206 workflows and are not part of the 41-owner strict certification denominator. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6613,8 +6619,8 @@
       "customer_360": {
         "workflows": 4,
         "verified": 2,
-        "partial": 0,
-        "unstarted": 2,
+        "partial": 1,
+        "unstarted": 1,
         "phase": "partial",
         "businessMigrationComplete": false
       },
@@ -8966,6 +8972,23 @@
           "verified": 65,
           "partial": 57,
           "unstarted": 84,
+          "merged": 65,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-09T17:05:00+07:00",
+        "commit": "c74d1e498",
+        "bundles": [
+          "Customer 360 federated timeline qualification",
+          "Native Field fixture full-composition build"
+        ],
+        "evidence": "cargo test -p erpx-server-customer-360 customer_timeline 11/11, customer_timeline_http 2/2, customer_timeline_postgres 7/7; TS transport unit 12/12; customer-timeline integration 6/6 including scoped Field/Finance/Legal. The Field fixture now builds with existing-business and passes the tool env; the agreement create/activate ordering is deterministic. Workflow moved to partial; browser/SSO and legacy retirement remain open, owners 0/41.",
+        "counts": {
+          "owners": 0,
+          "verified": 65,
+          "partial": 58,
+          "unstarted": 83,
           "merged": 65,
           "total": 206
         }
