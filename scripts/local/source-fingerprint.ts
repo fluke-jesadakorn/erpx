@@ -57,6 +57,43 @@ export async function runtimeSourceFingerprint(root: string, environment: NodeJS
   return hash.digest("hex");
 }
 
+/** Diagnostic-only per-file manifest mirroring runtimeSourceFingerprint inputs. */
+export async function runtimeSourceManifest(root: string): Promise<Map<string, string>> {
+  const manifest = new Map<string, string>();
+  for (const directory of ["src", "apps", "packages", "public", "scripts/local", "scripts/assets", "migrations/postgres"]) {
+    try { await access(join(root,directory)); } catch { continue; }
+    const pending = [{ path: join(root, directory), links: 0 }], inputs: string[] = [];
+    for (let index = 0; index < pending.length; index++) {
+      const current = pending[index];
+      for (const entry of await readdir(current.path, { withFileTypes: true })) {
+        const path = join(current.path, entry.name);
+        if (!workspaceCopyInput(root, path) || entry.name === "node_modules" || entry.name === "__pycache__") continue;
+        if (entry.isDirectory()) pending.push({ path, links: current.links });
+        else if (entry.isFile()) inputs.push(path);
+        else if (entry.isSymbolicLink()) {
+          let target;
+          try { target = await stat(path); } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+            throw error;
+          }
+          if (target.isDirectory()) {
+            if (current.links >= 40) throw new Error("RUNTIME_SOURCE_SYMLINK_LOOP");
+            pending.push({ path, links: current.links + 1 });
+          }
+        }
+      }
+    }
+    const files = inputs
+      .filter(file => !generatedSourceEntry(relative(root, file)) && !relative(root, file).split(/[\\/]/).includes("node_modules") && !relative(root, file).replaceAll("\\", "/").startsWith("public/vendor/") && workspaceCopyInput(root,file) && !file.endsWith("/next-env.d.ts") && !file.endsWith("/AGENTS.md")).sort();
+    for (const file of files) {
+      const name = relative(root, file);
+      if (name === "packages/catalogue/src/release-artifact.json" || /^apps\/[^/]+\/turbo\.json$/.test(name)) continue;
+      manifest.set(name, createHash("sha256").update(await readFile(file)).digest("hex"));
+    }
+  }
+  return manifest;
+}
+
 /** A runtime match alone cannot attest to different assertions or a changed coverage register. */
 export async function verificationSourceFingerprint(root: string, runtimeFingerprint: string) {
   const hash = createHash("sha256").update(runtimeFingerprint);

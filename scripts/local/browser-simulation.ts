@@ -18,7 +18,18 @@ import {PostgresDatabase} from "@erpx/server-runtime/adapters/runtime/postgres";
 import {migrateDatabase} from "@erpx/server-runtime/adapters/runtime/migrations";
 import {generalCompanyDemoGuide} from "../../fixtures/shared/builders/general-company-demo";
 import {placeScopedBrowserEmployee} from "../../fixtures/people_payroll/builders/scoped-browser-staff";
-import {runtimeSourceFingerprint} from './source-fingerprint';
+import {runtimeSourceFingerprint,runtimeSourceManifest} from './source-fingerprint';
+async function assertPreparationSource(root:string,app:string,sourceFingerprint:string){
+ const [rootFingerprint,appFingerprint]=await Promise.all([runtimeSourceFingerprint(root),runtimeSourceFingerprint(app)]);
+ if(rootFingerprint===sourceFingerprint&&appFingerprint===sourceFingerprint)return;
+ const [rootFiles,appFiles]=await Promise.all([runtimeSourceManifest(root),runtimeSourceManifest(app)]);
+ const missing=[...appFiles.keys()].filter(name=>!rootFiles.has(name)).slice(0,20);
+ const extra=[...rootFiles.keys()].filter(name=>!appFiles.has(name)).slice(0,20);
+ const changed=[...rootFiles].filter(([name,digest])=>appFiles.has(name)&&appFiles.get(name)!==digest).map(([name])=>name).slice(0,20);
+ console.error(JSON.stringify({event:'browser_source_mismatch',rootFingerprint,appFingerprint,sourceFingerprint,missing,extra,changed}));
+ throw new Error('BROWSER_PREPARATION_SOURCE_CHANGED');
+}
+
 import {copyReleaseArtifact} from './copy-release-artifact';
 import {workspaceCopyInput,copyWorkspaceSnapshot} from './workspace-copy-input';
 import {workspaceBrowserApps,workspaceBrowserBundler} from '../testing/development-host-profile';
@@ -181,7 +192,7 @@ if(mode==='prepare'||diagnostic){
   if(fixture.engineeringWorkplacePlatform)fixture.engineeringWorkplacePlatform=clonedFixtureMetadata(fixture.engineeringWorkplacePlatform,templateRun,run,templateDirectory,directory);
   Object.assign(state,{templateRun,softwareVersion:template.softwareVersion,fixture});
   if(pmsProviderFixtureEnabled){state.providerFixture=true;await writePrivate(join(directory,'provider-fixture.json'),{schemaVersion:1,keys:{},resources:{},requests:[]});}
-  if(await runtimeSourceFingerprint(root)!==sourceFingerprint||await runtimeSourceFingerprint(app)!==sourceFingerprint)throw new Error('BROWSER_PREPARATION_SOURCE_CHANGED');
+  await assertPreparationSource(root,app,sourceFingerprint);
   state.ready=true;await writePrivate(statePath,state);console.log(JSON.stringify({run,templateRun,origin,statePath,ready:true}));process.exit(0);
  }
  const admin=new Pool({connectionString:adminUrl,max:1}),urls:Record<string,string>={};
@@ -493,8 +504,8 @@ if(mode==='prepare'||diagnostic){
   const receipt=JSON.parse(await readFile(join(directory,'attachment-baseline.json'),'utf8'));
   if(receipt.gateReady!==true||receipt.sourceFingerprint!==sourceFingerprint)throw new Error('BROWSER_BASELINE_ATTACHMENT_GATE_NOT_READY');
  }
- await mkdir(app,{recursive:true});for(const name of ['src','apps','packages','public','scripts','fixtures','migrations/postgres','tests/support','tests/catalogue','tests/config','ops/macos/clamav','ops/macos/install-attachment-runtime.py','ops/macos/attachment-rollout.md','ops/macos/erpxctl.py','ops/macos/offsite.py','ops/macos/recovery_status.py','package.json','bun.lock','next.config.ts','tsconfig.json','tsconfig.base.json','next-env.d.ts','postcss.config.mjs','node_modules'])await copyWorkspaceSnapshot(join(root,name),join(app,name),path=>workspaceCopyInput(root,path));
- if(await runtimeSourceFingerprint(root)!==sourceFingerprint||await runtimeSourceFingerprint(app)!==sourceFingerprint)throw new Error('BROWSER_PREPARATION_SOURCE_CHANGED');
+ await mkdir(app,{recursive:true});for(const name of ['src','apps','packages','public','scripts','fixtures','migrations/postgres','tests/support','tests/catalogue','tests/config','ops/macos/clamav','ops/macos/install-attachment-runtime.py','ops/macos/attachment-rollout.md','ops/macos/erpxctl.py','ops/macos/offsite.py','ops/macos/recovery_status.py','package.json','bun.lock','next.config.ts','tsconfig.json','tsconfig.base.json','next-env.d.ts','postcss.config.mjs','Cargo.toml','Cargo.lock','rust-toolchain.toml','LICENSE','NOTICE','LICENSING.md','CONTRIBUTING.md','SECURITY.md','CODE_OF_CONDUCT.md','GOVERNANCE.md','node_modules'])await copyWorkspaceSnapshot(join(root,name),join(app,name),path=>workspaceCopyInput(root,path));
+ await assertPreparationSource(root,app,sourceFingerprint);
  state.softwareVersion=`release-${sourceFingerprint}`;
  await writeFile(join(app,'packages/catalogue/src/release-artifact.json'),JSON.stringify({softwareVersion:state.softwareVersion})+'\n');
  if(pmsProviderFixtureEnabled){
