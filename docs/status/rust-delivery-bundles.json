@@ -8882,6 +8882,25 @@
           "merged": 65,
           "total": 206
         }
+      },
+      {
+        "at": "2026-11-09T13:05:00+07:00",
+        "commit": "d9f38f778",
+        "bundles": [
+          "Branding native profile/storefront/media",
+          "Billing assign-target and target-evidence commands",
+          "Billing provider command sources",
+          "Branding/Workflow decision suite registration"
+        ],
+        "evidence": "Exact archive d9f38f778: cargo check -p erpx-service PASS; records_write_postgres 3/3; Records lib 18/18; Workflow lib 8/8; Billing lib 9/9; billing_postgres 13/13; Records router vitest 12/12; architecture/catalogue(1003)/docs PASS; cross-owner field_service_parts_postgres 37/37 (387.49s). Branding 2/2, identity PG 4/4, identity HTTP 4/4. No owner promoted: browser/SSO blocked by missing native Account session config and Brand/Billing TS legacy retirement remains open.",
+        "counts": {
+          "owners": 0,
+          "verified": 65,
+          "partial": 57,
+          "unstarted": 84,
+          "merged": 65,
+          "total": 206
+        }
       }
     ]
   }
