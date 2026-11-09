@@ -130,8 +130,10 @@ export function createNativeSessionClient(configuration: NativeSessionClientConf
   const timeoutMs = configuration.timeoutMs;
   return async (incoming: Pick<Headers, 'get'>, signal?: AbortSignal): Promise<AccountSessionResponse | null> => {
     const incomingHost = incoming.get('host'), cookie = incoming.get('cookie');
-    const host = profile === 'loopback' && incomingHost !== null && /^127\.0\.0\.1:\d+$/.test(incomingHost)
-      ? new URL(configuration.accountOrigin).host
+    const loopbackIncoming = profile === 'loopback' && incomingHost !== null && /^127\.0\.0\.1:\d+$/.test(incomingHost);
+    const holdingProof = Boolean(cookie?.split(';').some(part => part.trim().startsWith('__Host-erpx-product=')));
+    const host = loopbackIncoming
+      ? new URL(holdingProof ? configuration.holdingOrigins[0] : configuration.accountOrigin).host
       : incomingHost;
     if (!host || !hosts.has(host)) return fail('NATIVE_SESSION_AUTHORITY_INVALID');
     if (cookie && new TextEncoder().encode(cookie).length > 8192) return fail('NATIVE_SESSION_COOKIE_LIMIT');
