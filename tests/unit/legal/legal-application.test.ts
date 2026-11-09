@@ -124,10 +124,10 @@ it("a malformed validator status remains indeterminate and never claims a valid 
   const application = createSignedPdfValidation({ materials: async () => [{ id: "material", kind: "root", content: "private certificate body", checksum: "digest" }], prepare: async () => {}, validate: async () => ({ status: ["valid"] }) });
   expect(await application()).toEqual({ status: "indeterminate", reasons: ["VALIDATOR_UNAVAILABLE_OR_TIMED_OUT"], signatures: [], trustMaterials: [{ id: "material", kind: "root", checksum: "digest" }] });
 });
-it("PDF trust preparation failures propagate before the provider fallback and do not leak trust bodies", async () => {
+it("PDF trust preparation failures fail closed as indeterminate before the provider fallback and do not leak trust bodies", async () => {
   const { createSignedPdfValidation } = await import("@erpx/server-legal/application/pdf-validation");
   const application = createSignedPdfValidation({ materials: async () => [], prepare: async () => { throw new Error("trust preparation failed"); }, validate: async () => { throw new Error("unexpected validator"); } });
-  await expect(application()).rejects.toThrow("trust preparation failed");
+  expect(await application()).toEqual({ status: "indeterminate", reasons: ["VALIDATOR_UNAVAILABLE_OR_TIMED_OUT"], signatures: [], trustMaterials: [] });
 });
 
 it("an executed-copy replay still rechecks current eligibility and explicit reviewer membership",async()=>{

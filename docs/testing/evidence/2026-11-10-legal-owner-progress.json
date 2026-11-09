@@ -1,0 +1,134 @@
+{
+  "schema": "erpx.evidence/legal-owner-progress/v1",
+  "recorded_at": "2026-11-10T01:05:00+07:00",
+  "head": "582abc0305dbe4795414e77114ed203c96d42b13",
+  "owner": "legal",
+  "package": "erpx-server-legal",
+  "status": "owner-progress",
+  "workflows": [
+    "legal/contracts",
+    "legal/feature-documents",
+    "legal/feature-legal-holds",
+    "legal/feature-document-access",
+    "legal/feature-archive"
+  ],
+  "workflow_counts": {
+    "total": 5,
+    "verified": 5,
+    "partial": 0,
+    "unstarted": 0
+  },
+  "surfaces": {
+    "domain": "active",
+    "application": "active",
+    "http": "partial",
+    "ssr": "partial",
+    "jobs": "active",
+    "providers": "active"
+  },
+  "jobs": {
+    "native_worker": "erpx-server legal-worker --once|--loop --runtime-config <private.json> [--holding <id>]",
+    "runtime_path": "packages/server-runtime/src/adapters/runtime/jobs.ts legalWork now invokes the native worker for the documents task through packages/server-runtime/src/adapters/runtime/native-legal-worker.ts. The TypeScript drainLegalProcessing call is removed from the runtime path.",
+    "schedule": "LegalWorkerSchedule keeps a 5 s cadence, runs immediately after restart and backs off 5→10→20→40→80 s up to 300 s on failure.",
+    "idle_skip": "A holding with no queued/expired OCR or PDF work is skipped before provider probing.",
+    "schema_gate": "The installed jobs role checks the exact Legal/Files relations because it intentionally cannot read erpx_migrations; the installer retains the migration-set gate.",
+    "health_readback": "H001 legal_runtime_health documents last_success_at=1794247652800, failure_count=0, last_error=NULL after the rebuilt native worker binary was restored."
+  },
+  "providers": {
+    "native": "OCR/DOCX extraction (erpx-extract-document) and offline PDF verification (erpx-verify-pdf + erpx-validate-pdf) pass the actual provider gate. The root cause of the previous provider failure was a missing sibling erpx-validate-pdf binary; all erpx-server-legal bins are now built.",
+    "external": "AI generation (server-agent provider), official law-source fetching and invitation email remain external provider consumers of the Legal job adapters. They are not Legal-native provider ports.",
+    "provider_gate": {
+      "suite": "legal.rust-worker-bootstrap.provider",
+      "result": "1/1 pass in 100.89 s",
+      "covers": "Eight scenarios: cancel during probe, OCR success, unsigned PDF, authority denied, source revoked, withdrawal during compute (authority and source), audit rollback; persisted job state, inspections, access events, replay and no retained client transaction."
+    }
+  },
+  "gates": [
+    {
+      "name": "cargo test -p erpx-server-legal --features pdf-verifier,document-provider,trust-materials",
+      "result": "22 test binaries green"
+    },
+    {
+      "name": "legal.rust-worker-bootstrap.unit",
+      "result": "4/4 pass"
+    },
+    {
+      "name": "legal.rust-queued-authority-composition.integration",
+      "result": "19/19 pass in 39.95 s"
+    },
+    {
+      "name": "legal.rust-worker-bootstrap.provider",
+      "result": "1/1 pass in 100.89 s"
+    },
+    {
+      "name": "legal.application.unit",
+      "result": "56/56 pass"
+    },
+    {
+      "name": "cargo check",
+      "result": "legal-pdf-worker/legal-document-worker/legal-queue, private-field-api/existing-business and files-scan-worker/field-push-worker variants pass"
+    },
+    {
+      "name": "tests/config typecheck",
+      "result": "pass"
+    },
+    {
+      "name": "test catalogue",
+      "result": "33 modules, 1011 suites"
+    }
+  ],
+  "browser": {
+    "desktop": {
+      "viewport": "1440x900",
+      "route": "https://acme.jesadakorn.com/legal?company=acme-co",
+      "register": "1 record: Verification — fictional legal request (draft, confidential)",
+      "detail": "request c84b08e8-7287-4a02-a7be-2bc8b037aba9 overview version 4 with Documents/Workflow/Access/Holds/Retention tabs",
+      "page_errors": [],
+      "failed_business_requests": []
+    },
+    "mobile": {
+      "viewport": "390x844",
+      "route": "https://acme.jesadakorn.com/legal?company=acme-co",
+      "register": "1 record",
+      "detail": "request c84b08e8-7287-4a02-a7be-2bc8b037aba9 overview version 4",
+      "page_errors": [],
+      "failed_business_requests": []
+    },
+    "dev_artifact": "One stale Turbopack HMR chunk (packages_feature-legal_src_components_07jykntrmaq51._.js) returns 404 after clearing the legal app .next cache; it is not an API/business request and the page and detail hydrate and operate."
+  },
+  "fixes": [
+    "Built the missing erpx-validate-pdf sibling required by the erpx-verify-pdf supervisor; this was the actual LEGAL_PDF_PROVIDER_UNREADY cause.",
+    "Added the durable runtime Legal worker, its schedule/backoff, runtime-config parser, per-Holding schema/binding checks and idle skip.",
+    "Replaced the TypeScript drainLegalProcessing call in legalWork with the native worker transport.",
+    "The Legal presenter now loads the register data even when the initial work view is mine/deadlines, so the client-side register tab is not empty.",
+    "Aligned the PDF fail-closed unit test with the documented indeterminate contract."
+  ],
+  "blockers": [
+    {
+      "id": "account-sso-test-harness",
+      "scope": "47 tests in legal.legal.integration, legal.download-route.integration and related Legal integration files",
+      "detail": "The tests call productSsoRequest -> nativeAccountHttp -> the shared 3199 native Account API. That API is bound to the development clone Control database, while the tests create their users in the disposable test Control database. The first normalPortalAccount start returns 503 instead of 303. A native Account SSO test harness bound to the disposable test databases is required; this is an Account/identity_access test-harness dependency, not a Legal writer fallback.",
+      "files": [
+        "tests/integration/legal/legal-ai-apply-writers.test.ts",
+        "tests/integration/legal/legal-approval-writers.test.ts",
+        "tests/integration/legal/legal-governance-writers.test.ts",
+        "tests/integration/legal/legal-portal-download-session.test.ts",
+        "tests/integration/legal/legal-portal-quick-access-session.test.ts",
+        "tests/integration/legal/legal-portal-upload-session.test.ts",
+        "tests/integration/legal/legal-queue-entry-writers.test.ts",
+        "tests/integration/legal/legal-queued-completion-writers.test.ts",
+        "tests/integration/legal/legal-retention-writers.test.ts",
+        "tests/integration/legal/legal.test.ts"
+      ]
+    },
+    {
+      "id": "secondary-ts-views",
+      "scope": "Legal http/ssr surfaces",
+      "detail": "The primary register/detail/export/commands use the native Legal HTTP transport. Secondary views (references, knowledge, law corpus, reports, governance, executed copies, assignees, retention/trust/features) still execute retained TypeScript application reads/writes in the Next route."
+    }
+  ],
+  "notes": [
+    "Legal is not certified as owner 5/41 in this record. The native jobs/providers gaps are closed, but the Account SSO test-harness blocker and the secondary TypeScript views keep http/ssr partial.",
+    "No production, staging, deployment, schema deletion or destructive cleanup was performed."
+  ]
+}

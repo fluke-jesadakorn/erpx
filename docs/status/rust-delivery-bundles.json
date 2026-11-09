@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T23:25:56+07:00",
+  "updatedAt": "2026-11-10T01:09:16+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -3573,6 +3573,15 @@
       "scope": "Customer 360 owner: 4/4 workflows verified, native timeline/notes/Executive-activity HTTP and SSR surfaces active, jobs/providers not-applicable by source audit, Executive evidence adapter migrated off customerTimelineEvents, desktop/mobile History and all owner gates green. The remaining customerTimelineEvents consumer is the Commerce-owned recent-customer-activity metric projection.",
       "sourceIdentity": "working tree on 3f9193c5b",
       "evidenceRef": "docs/testing/evidence/2026-11-09-customer-360-owner-certification.json",
+      "durableContractRefs": []
+    },
+    {
+      "id": "legal-owner-progress",
+      "kind": "owner-progress",
+      "status": "partial",
+      "scope": "Legal native jobs/providers closed: the runtime legalWork documents task now invokes the durable native worker; the provider gate (OCR/DOCX/PDF/ClamAV, 8 scenarios) passes; erpx-server-legal has 22 green test binaries; desktop/mobile register and detail render. Legal is not certified because the Account SSO integration test harness cannot authenticate the disposable test databases (47 Legal integration tests) and secondary TS Legal views keep http/ssr partial.",
+      "sourceIdentity": "working tree on 582abc0305dbe4795414e77114ed203c96d42b13",
+      "evidenceRef": "docs/testing/evidence/2026-11-10-legal-owner-progress.json",
       "durableContractRefs": []
     }
   ],

@@ -254,8 +254,8 @@
         "application": "active",
         "http": "partial",
         "ssr": "partial",
-        "jobs": "foundation",
-        "providers": "partial"
+        "jobs": "active",
+        "providers": "active"
       },
       "capabilities": {
         "offlinePdfValidation": {

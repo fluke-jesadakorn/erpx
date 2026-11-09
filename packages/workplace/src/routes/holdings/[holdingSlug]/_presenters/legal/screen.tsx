@@ -22,16 +22,15 @@ export default async function LegalPage({
     a = await requireWorkContext(holdingSlug),
     presentation = await legalPresentationQueries(a.holdingId),
     q = await searchParams,
-    retained = q.tool || q.workView
-      ? await presentation.recordData(a)
-      : await presentation.legalData(a, { ...q, kind: q.kind ?? "request" }),
-    native = q.tool || q.workView
-      ? undefined
-      : await nativeLegalRegister(a, holdingSlug, { ...q, kind: q.kind ?? "request" }, await headers()).catch((error) => {
-          const failure = nativeLegalFailure(error);
-          if (failure) throw new ApiError(failure.status, failure.code, failure.message);
-          throw error;
-        }),
+    // The register data is required even when the initial work view is
+    // "mine"/"deadlines": the workspace tab switch is client-side and must not
+    // render an empty register until a full reload.
+    retained = await presentation.legalData(a, { ...q, kind: q.kind ?? "request" }),
+    native = await nativeLegalRegister(a, holdingSlug, { ...q, kind: q.kind ?? "request" }, await headers()).catch((error) => {
+      const failure = nativeLegalFailure(error);
+      if (failure) throw new ApiError(failure.status, failure.code, failure.message);
+      throw error;
+    }),
     initial = native
       ? { ...retained, items: native.records, total: native.total, page: native.page, counts: native.counts, enabled: native.enabled }
       : retained;
