@@ -1,0 +1,50 @@
+{
+  "recordedAt": "2026-11-09T12:00:00+07:00",
+  "branch": "codex/rust-backend-migration",
+  "sourceIdentity": "624380035",
+  "bundle": "records-native-create",
+  "scope": "First bounded native generic Records write. Support module only; no HTTP route, TypeScript transport cutover or owner completion is claimed.",
+  "added": [
+    "packages/server-records/src/domain/record_write.rs",
+    "packages/server-records/src/public/record_write.rs",
+    "src/composition/src/records_command.rs"
+  ],
+  "behavior": [
+    "record.create runs through PgCommandLedger on the caller's serializable Holding transaction.",
+    "Current Account/IAM authority, records.write and the selected support module are rechecked before and after effects.",
+    "Section, title, description and at most 64 unique bounded fields are validated before insert.",
+    "The receipt, version-1 workspace_records row, audit event and outbox event commit in one unit.",
+    "Exact replay returns the committed receipt without a second row/effect; changed input conflicts.",
+    "Unsupported modules, invalid sections and the non-writer reviewer fixture fail closed."
+  ],
+  "checks": [
+    {
+      "command": "cargo test --offline -p erpx-service --features existing-business --test records_write_postgres -- --test-threads=1",
+      "result": "2 passed; 0 failed; 20.74s"
+    },
+    {
+      "command": "cargo test --offline -p erpx-server-records --test record_registry_postgres -- --test-threads=1",
+      "result": "6 passed; 0 failed; 15.27s"
+    },
+    {
+      "command": "cargo test --offline -p erpx-server-records --test record_context_postgres -- --test-threads=1",
+      "result": "6 passed; 0 failed; 15.29s"
+    },
+    {
+      "command": "clean committed manifest: bun scripts/testing/test.ts --check and bun run architecture:check",
+      "result": "TEST_CATALOGUE_VALID:33 modules, 1000 suites; architecture and layout passed"
+    }
+  ],
+  "limits": [
+    "Only the support module is exposed by this first slice. CRM/projects/operations and every other module remain unsupported until their owner policy is ported.",
+    "The existing Records registry/context guards remain module-scope guards, not the full per-owner row-scope implementation. They were not weakened by this bundle.",
+    "No Records create HTTP route or TypeScript transport calls this command yet; the generic workplace route still uses the TypeScript writer.",
+    "No browser, SSO, gateway, staging or production test was run."
+  ],
+  "externalWork": "An external Assets retirement-work change was mid-compile in the shared worktree. Its Arc clone compile fix was left in the worktree and was not committed or altered beyond preserving the writer's logic. The committed bundle is based only on HEAD plus the files above.",
+  "next": [
+    "Add a Records create HTTP route and TypeScript transport, then cut over the generic workplace records create call only after the response/replay/authority tests pass.",
+    "Port the next write (record.update or record.reference) and the full per-owner registry/context row scopes.",
+    "Then mount business-evidence binding in Commerce/Inventory/Quality consumers."
+  ]
+}
