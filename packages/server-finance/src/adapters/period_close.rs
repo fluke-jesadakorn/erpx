@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use sqlx::{PgConnection, Row};
+use std::future::Future;
 
 type Error = PgTransactionError<BusinessError>;
 
@@ -169,6 +170,42 @@ pub struct PeriodCloseProofInput {
     pub expected_version: Option<i64>,
     #[serde(default)]
     pub attachment_set_ids: Vec<String>,
+}
+
+/// Retained close-workpaper attachment contract from the TypeScript command.
+pub const PERIOD_CLOSE_WORKPAPER_TARGET_TYPE: &str = "finance_period";
+pub const PERIOD_CLOSE_WORKPAPER_PURPOSE_KEY: &str = "close_workpaper";
+pub const PERIOD_CLOSE_WORKPAPER_COMPONENT_KIND: &str = "action";
+pub const PERIOD_CLOSE_WORKPAPER_COMPONENT_REF: &str = "close-approval";
+pub const PERIOD_CLOSE_WORKPAPER_BINDING_TYPE: &str = "finance_period_close";
+pub const PERIOD_CLOSE_WORKPAPER_MAX_SETS: usize = 20;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PeriodCloseEvidenceRequest {
+    pub set_ids: Vec<String>,
+    pub target_id: String,
+    pub expected_target_version: i64,
+    pub command_id: String,
+    pub binding_type: String,
+    pub binding_id: String,
+}
+
+/// The compiled composition supplies the shared Records/Files business-evidence
+/// port bound to this exact serializable Finance unit. Files prepares and
+/// revalidates the retained workpaper binding; Finance never binds file state
+/// itself and never falls back to a TypeScript path.
+pub trait PgPeriodCloseEvidence: Send {
+    type Prepared: Send;
+    fn prepare(
+        &mut self,
+        c: &mut PgConnection,
+        request: PeriodCloseEvidenceRequest,
+    ) -> impl Future<Output = Result<Self::Prepared, Error>> + Send;
+    fn require_current(
+        &mut self,
+        c: &mut PgConnection,
+        prepared: &Self::Prepared,
+    ) -> impl Future<Output = Result<(), Error>> + Send;
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -1104,7 +1141,7 @@ pub async fn cancel_period_close(
     Ok(result)
 }
 
-pub async fn close_period(
+pub async fn close_period_with_evidence<E: PgPeriodCloseEvidence>(
     c: &mut PgConnection,
     actor: &SalesInvoiceCommandActor,
     command: &CommandKey,
@@ -1112,6 +1149,7 @@ pub async fn close_period(
     input: &PeriodCloseProofInput,
     can_approve: bool,
     now: i64,
+    evidence: &mut E,
 ) -> Result<PeriodCloseResult, Error> {
     serializable(c).await?;
     require_company(actor)?;
@@ -1127,21 +1165,22 @@ pub async fn close_period(
             "Record the review evidence before approving the close.",
         ));
     }
-    if input.attachment_set_ids.len() > 20 {
+    if input.attachment_set_ids.len() > PERIOD_CLOSE_WORKPAPER_MAX_SETS {
         return Err(invalid(
             "INVALID_CLOSE_ATTACHMENTS",
             "Attach no more than twenty close workpapers.",
         ));
     }
-    if !input.attachment_set_ids.is_empty() {
-        return Err(invalid(
-            "ATTACHMENT_ACTION_UNSUPPORTED",
-            "Native period close does not bind workpapers yet. Remove the attachment set or use the retained path.",
-        ));
+    let mut set_ids = Vec::new();
+    for id in &input.attachment_set_ids {
+        if !set_ids.iter().any(|selected| selected == id) {
+            set_ids.push(id.clone());
+        }
     }
     let operation = "finance.period.close";
     let input_json = serde_json::to_string(input).map_err(|_| unavailable())?;
     let request_hash = fingerprint(actor, operation, period_id, &input_json);
+    // A replay returns the retained result before any file binding is prepared.
     if let Some(saved) = replay::<PeriodCloseResult>(c, command, operation, &request_hash).await? {
         return Ok(saved);
     }
@@ -1167,6 +1206,27 @@ pub async fn close_period(
             "The close changed. Refresh and review again.",
         ));
     }
+    let version = number(&period, "close_version");
+    let next_version = version + 1;
+    let prepared = if set_ids.is_empty() {
+        None
+    } else {
+        Some(
+            evidence
+                .prepare(
+                    c,
+                    PeriodCloseEvidenceRequest {
+                        set_ids,
+                        target_id: period_id.to_owned(),
+                        expected_target_version: version,
+                        command_id: command.as_str().to_owned(),
+                        binding_type: PERIOD_CLOSE_WORKPAPER_BINDING_TYPE.into(),
+                        binding_id: format!("{period_id}:{next_version}"),
+                    },
+                )
+                .await?,
+        )
+    };
     let start = text(&period, "start_date");
     let end = text(&period, "end_date");
     let readiness = readiness(c, &actor.company_id, period_id, &period).await?;
@@ -1207,8 +1267,6 @@ pub async fn close_period(
             "Ledger, subledger, or bank evidence changed after preparation. Reopen the period and prepare the close again.",
         ));
     }
-    let version = number(&period, "close_version");
-    let next_version = version + 1;
     let changed = sqlx::query(
         "UPDATE finance_periods SET state='closed',closed_by=$1,closed_at=$2,close_version=close_version+1 WHERE id=$3 AND company_id=$4 AND state='closing' AND close_version=$5",
     )
@@ -1247,7 +1305,65 @@ pub async fn close_period(
         now,
     )
     .await?;
+    if let Some(prepared) = prepared.as_ref() {
+        // Files re-reads the exact bound sets and links after every close
+        // effect; drift aborts the whole serializable unit.
+        evidence.require_current(c, prepared).await?;
+    }
     Ok(result)
+}
+
+/// Transitional owner bridge for assemblies that have not yet mounted the
+/// shared Files workpaper port. It fails closed for nonempty workpapers and
+/// never falls back to TypeScript; the mounted composition uses
+/// [`close_period_with_evidence`] with the real Files adapter.
+pub async fn close_period(
+    c: &mut PgConnection,
+    actor: &SalesInvoiceCommandActor,
+    command: &CommandKey,
+    period_id: &str,
+    input: &PeriodCloseProofInput,
+    can_approve: bool,
+    now: i64,
+) -> Result<PeriodCloseResult, Error> {
+    close_period_with_evidence(
+        c,
+        actor,
+        command,
+        period_id,
+        input,
+        can_approve,
+        now,
+        &mut UnmountedPeriodCloseEvidence,
+    )
+    .await
+}
+
+struct UnmountedPeriodCloseEvidence;
+
+impl PgPeriodCloseEvidence for UnmountedPeriodCloseEvidence {
+    type Prepared = ();
+
+    async fn prepare(
+        &mut self,
+        _c: &mut PgConnection,
+        _request: PeriodCloseEvidenceRequest,
+    ) -> Result<Self::Prepared, Error> {
+        Err(BusinessError::new(
+            FailureKind::Unavailable,
+            "FINANCE_PERIOD_CLOSE_EVIDENCE_UNAVAILABLE",
+            "The shared Files workpaper binding is not mounted for this Finance close.",
+        )
+        .into())
+    }
+
+    async fn require_current(
+        &mut self,
+        _c: &mut PgConnection,
+        _prepared: &Self::Prepared,
+    ) -> Result<(), Error> {
+        Ok(())
+    }
 }
 
 pub async fn reopen_period(
