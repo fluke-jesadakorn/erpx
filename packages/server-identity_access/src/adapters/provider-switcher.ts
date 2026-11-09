@@ -10,12 +10,15 @@ import { ApiError } from '@erpx/server-runtime/public/http';
 
 /** Presentation bridge for authenticated staff hosts. The original complete
  * Provider store still resolves Platform assignments, IAM, versions and CAS. */
-export async function providerSwitcherStore(request: Request) {
-  const audience = productHostForHost(request.headers.get('host'));
-  if (!audience || !['apps', 'admin', ...productIds].includes(audience)) throw new ApiError(404, 'NOT_FOUND', 'Not found.');
+export async function providerContextStoreForRequest(request: Request) {
   const session = await sessionFromRequest(request);
   if (!session) throw new ApiError(401, 'SIGN_IN_REQUIRED', 'Sign in again to continue.');
   const owner = (await runtimeEnv()).CONTROL_DB;
   if (!isTransactionalSqlDatabase(owner)) throw new ApiError(503, 'PROVIDER_CONTEXT_TRANSACTION_REQUIRED', 'Provider selection is unavailable.');
   return providerContextStore(owner, { userId: session.user.id, sessionId: session.session.id, selectedCookie: null, audience:ssoAudienceForHost(request.headers.get('host'))??undefined, remember: true });
+}
+export async function providerSwitcherStore(request: Request) {
+  const audience = productHostForHost(request.headers.get('host'));
+  if (!audience || !['apps', 'admin', ...productIds].includes(audience)) throw new ApiError(404, 'NOT_FOUND', 'Not found.');
+  return providerContextStoreForRequest(request);
 }
