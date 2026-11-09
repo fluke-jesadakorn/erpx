@@ -10,7 +10,7 @@ use serde_json::Value;
 pub const MAX_PINNED: usize = 6;
 pub const MAX_CARD_ID: usize = 200;
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkCardPreferences {
     pub pinned_ids: Option<Vec<String>>,
