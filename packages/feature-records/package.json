@@ -131,7 +131,8 @@
     "./lib/record-drawer": "./src/lib/record-drawer.ts",
     "./lib/source-record": "./src/lib/source-record.ts",
     "./lib/mention-read": "./src/lib/mention-read.ts",
-    "./public/client": "./src/public/client.ts"
+    "./public/client": "./src/public/client.ts",
+    "./components/embedded-page-header": "./src/components/embedded-page-header.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
