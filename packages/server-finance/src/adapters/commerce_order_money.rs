@@ -128,6 +128,13 @@ async fn unit(c: &mut PgConnection) -> Result<(), Error> {
 
 /// Lock the Finance Money sources in a stable order before any snapshot read.
 pub async fn lock_commerce_order_money_sources(c: &mut PgConnection) -> Result<(), Error> {
+    lock_commerce_order_money_sources_before_snapshot(&mut *c).await?;
+    attest_commerce_order_money_sources(c).await
+}
+
+/// Acquire only relation locks so a composition can fence other owners before
+/// any query establishes the serializable snapshot.
+pub async fn lock_commerce_order_money_sources_before_snapshot(c: &mut PgConnection) -> Result<(), Error> {
     if !c.is_in_transaction() {
         return Err(PersistenceError::new("FINANCE_OWNER_TRANSACTION_REQUIRED").into());
     }
@@ -141,6 +148,11 @@ pub async fn lock_commerce_order_money_sources(c: &mut PgConnection) -> Result<(
             .await
             .map_err(PersistenceError::pre_snapshot_lock_conflict)?;
     }
+    Ok(())
+}
+
+/// Attest the locks and current transaction after every source has been fenced.
+pub async fn attest_commerce_order_money_sources(c: &mut PgConnection) -> Result<(), Error> {
     unit(c).await
 }
 

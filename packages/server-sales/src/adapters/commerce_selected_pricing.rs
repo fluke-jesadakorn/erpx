@@ -1,0 +1,28 @@
+//! Sales-owned Commerce price selection. This does not authorize a purchase.
+//! The caller must retain the actual Commerce settings currency witness in the
+//! same unit and revalidate it before and after any resulting effects.
+use erpx_server_runtime::public::postgres::{PersistenceError,PgTransactionError};
+use erpx_server_shared::public::{BusinessError,CompanyId,FailureKind};
+use serde_json::Value;
+use sqlx::{Connection,PgConnection,Row};
+type Error=PgTransactionError<BusinessError>;
+type Unit=(String,i32,String,String,String,String,String,Vec<i64>);
+#[derive(Clone,Debug,PartialEq)]
+pub struct SelectedCommercePricing {pub list:Value,pub items:Vec<Value>}
+pub struct CurrentCommerceSelectedPricing {unit:Unit,company:CompanyId,party:String,date:String,currency:String,selected:Option<String>,value:Option<SelectedCommercePricing>}
+impl CurrentCommerceSelectedPricing {
+ pub fn value(&self)->Option<&SelectedCommercePricing>{self.value.as_ref()}
+ pub async fn require_current(&self,c:&mut PgConnection)->Result<(),Error>{if unit(c).await?!=self.unit||capture(c,&self.company,&self.party,&self.date,&self.currency,self.selected.as_deref()).await?!=self.value{return Err(changed())}Ok(())}
+}
+pub async fn lock_commerce_selected_pricing(c:&mut PgConnection)->Result<(),Error>{if !c.is_in_transaction(){return Err(PersistenceError::new("SALES_PRICING_TRANSACTION_REQUIRED").into())}sqlx::query("LOCK TABLE public.sales_price_lists,public.sales_price_list_items IN SHARE MODE NOWAIT").execute(c).await.map_err(PersistenceError::pre_snapshot_lock_conflict)?;Ok(())}
+pub async fn inspect_commerce_selected_pricing(c:&mut PgConnection,company:&CompanyId,party:&str,date:&str,currency:&str,selected:Option<&str>)->Result<CurrentCommerceSelectedPricing,Error>{if [party,date,currency,selected.unwrap_or("")].iter().any(|s|s.len()>8192){return Err(limited())}let identity=unit(c).await?;let value=capture(c,company,party,date,currency,selected).await?;if unit(c).await?!=identity{return Err(changed())}Ok(CurrentCommerceSelectedPricing{unit:identity,company:company.clone(),party:party.into(),date:date.into(),currency:currency.into(),selected:selected.map(str::to_owned),value})}
+async fn capture(c:&mut PgConnection,company:&CompanyId,party:&str,date:&str,currency:&str,selected:Option<&str>)->Result<Option<SelectedCommercePricing>,Error>{
+ let row=if let Some(id)=selected.filter(|id|!id.is_empty()){sqlx::query("SELECT CASE WHEN octet_length(to_jsonb(l)::text)<=2097152 THEN to_jsonb(l) END image FROM sales_price_lists l WHERE id=$1 AND company_id=$2 AND status='active' AND currency=$3 AND valid_from<=$4 AND valid_until>=$4 AND (customer_id IS NULL OR customer_id=$5)").bind(id).bind(company.as_str()).bind(currency).bind(date).bind(party).fetch_optional(&mut *c).await?}else{sqlx::query("SELECT CASE WHEN octet_length(to_jsonb(l)::text)<=2097152 THEN to_jsonb(l) END image FROM sales_price_lists l WHERE company_id=$1 AND status='active' AND currency=$2 AND valid_from<=$3 AND valid_until>=$3 AND (customer_id=$4 OR customer_id IS NULL) ORDER BY CASE WHEN customer_id=$4 THEN 0 ELSE 1 END,valid_from DESC,activated_at DESC LIMIT 1").bind(company.as_str()).bind(currency).bind(date).bind(party).fetch_optional(&mut *c).await?};
+ let Some(row)=row else{return Ok(None)};let list:Value=row.try_get::<Option<Value>,_>("image")?.ok_or_else(limited)?;let id=list["id"].as_str().ok_or_else(limited)?;
+ // This bounds transferred rows/bytes, not PostgreSQL work or intermediate memory.
+ let rows=sqlx::query("WITH source AS MATERIALIZED (SELECT * FROM sales_price_list_items WHERE price_list_id=$1), measured AS (SELECT *,sum(octet_length(to_jsonb(source)::text)) OVER() bytes,count(*) OVER() n FROM source) SELECT CASE WHEN bytes<=2097152 AND n<=10000 THEN to_jsonb(measured)-'bytes'-'n' END image FROM measured ORDER BY ordinal,id LIMIT 10001").bind(id).fetch_all(c).await?;
+ let items=rows.into_iter().map(|r|r.try_get::<Option<Value>,_>("image")?.ok_or_else(limited)).collect::<Result<Vec<_>,_>>()?;Ok(Some(SelectedCommercePricing{list,items}))
+}
+async fn unit(c:&mut PgConnection)->Result<Unit,Error>{if !c.is_in_transaction()||sqlx::query_scalar::<_,String>("SHOW transaction_isolation").fetch_one(&mut *c).await?!="serializable"{return Err(PersistenceError::new("SALES_PRICING_SERIALIZABLE_REQUIRED").into())}let valid:bool=sqlx::query_scalar("SELECT count(*)=2 AND bool_and(c.relnamespace='public'::regnamespace AND c.relkind IN ('r','p') AND c.relpersistence='p' AND NOT row_security_active(c.oid) AND EXISTS(SELECT 1 FROM pg_locks l WHERE l.pid=pg_backend_pid() AND l.locktype='relation' AND l.granted AND l.mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock') AND l.relation=c.oid)) AND to_regclass('sales_price_lists')='public.sales_price_lists'::regclass AND to_regclass('sales_price_list_items')='public.sales_price_list_items'::regclass FROM pg_class c WHERE c.oid IN ('public.sales_price_lists'::regclass,'public.sales_price_list_items'::regclass)").fetch_one(&mut *c).await?;if !valid{return Err(PersistenceError::new("SALES_PRICING_SOURCE_FENCE_REQUIRED").into())}Ok(sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text,current_user::text,session_user::text,current_setting('search_path'),ARRAY['public.sales_price_lists'::regclass::oid::bigint,'public.sales_price_list_items'::regclass::oid::bigint]").fetch_one(c).await?)}
+fn changed()->Error{BusinessError::new(FailureKind::Conflict,"SALES_PRICING_SOURCE_CHANGED","The Sales pricing source changed.").into()}
+fn limited()->Error{BusinessError::new(FailureKind::Unavailable,"SALES_PRICING_SOURCE_LIMIT","The Sales pricing source exceeds the bounded read.").into()}

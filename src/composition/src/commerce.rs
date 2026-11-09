@@ -50,6 +50,12 @@ struct ComposedCommerceOrders<'c> {
     save_party: Option<
         erpx_server_finance::public::commerce_order_party_guard::CurrentCommerceOrderPartyGuard,
     >,
+    save_price: Option<
+        erpx_server_sales::public::commerce_order_price_guard::CurrentCommerceOrderPriceGuard,
+    >,
+    save_pricing: Option<
+        erpx_server_sales::public::commerce_selected_pricing::CurrentCommerceSelectedPricing,
+    >,
 }
 
 impl<'c> ComposedCommerceOrders<'c> {
@@ -60,6 +66,8 @@ impl<'c> ComposedCommerceOrders<'c> {
             retained_conversion: None,
             retained_save: None,
             save_party: None,
+            save_price: None,
+            save_pricing: None,
         }
     }
 }
@@ -365,6 +373,12 @@ impl CommerceOrderSaveRepository for ComposedCommerceOrders<'_> {
                 self.inner.connection(),
             )
             .await?;
+            if plan.price_list_id.is_some() {
+                erpx_server_sales::public::commerce_selected_pricing::lock_commerce_selected_pricing(
+                    self.inner.connection(),
+                )
+                .await?;
+            }
             let input = erpx_server_finance::public::commerce_order_money::CommerceOrderMoneyInput {
                 order_id: plan.id.clone(),
                 version: plan.version,
@@ -412,17 +426,68 @@ impl CommerceOrderSaveRepository for ComposedCommerceOrders<'_> {
                 return Err(erpx_server_commerce::public::order::version_conflict().into());
             }
             self.save_party = Some(guard);
+            if let Some(list_id) = plan.price_list_id.as_deref() {
+                let version = plan
+                    .price_list_version
+                    .ok_or_else(erpx_server_commerce::public::order::version_conflict)?;
+                let pricing =
+                    erpx_server_sales::public::commerce_selected_pricing::inspect_commerce_selected_pricing(
+                        self.inner.connection(),
+                        &actor.company_id,
+                        &plan.party_id,
+                        &plan.order_date,
+                        &plan.currency,
+                        Some(list_id),
+                    )
+                    .await?;
+                let selected_id = pricing
+                    .value()
+                    .and_then(|value| value.list.get("id"))
+                    .and_then(serde_json::Value::as_str);
+                let selected_version = pricing
+                    .value()
+                    .and_then(|value| value.list.get("version"))
+                    .and_then(serde_json::Value::as_i64);
+                if selected_id != Some(list_id) || selected_version != Some(version) {
+                    return Err(erpx_server_commerce::public::order::version_conflict().into());
+                }
+                let price_guard =
+                    erpx_server_sales::public::commerce_order_price_guard::observe_commerce_order_price_guard(
+                        self.inner.connection(),
+                        &actor.company_id,
+                        list_id,
+                        version,
+                        &plan.order_date,
+                    )
+                    .await?;
+                if !price_guard.matched() {
+                    return Err(erpx_server_commerce::public::order::version_conflict().into());
+                }
+                self.save_price = Some(price_guard);
+                self.save_pricing = Some(pricing);
+            }
             Ok(())
         })
     }
 
     fn require_save_money<'a>(&'a mut self) -> CommerceOrderFuture<'a, (), Self::Error> {
         Box::pin(async move {
-            if let Some(retained) = self.retained_save.take() {
-                retained.require_current(self.inner.connection()).await?;
+            let missing = || {
+                BusinessError::new(
+                    FailureKind::Unavailable,
+                    "COMMERCE_SAVE_MONEY_REQUIRED",
+                    "The Finance order Money source is unavailable.",
+                )
+            };
+            let retained = self.retained_save.take().ok_or_else(missing)?;
+            let party = self.save_party.take().ok_or_else(missing)?;
+            retained.require_current(self.inner.connection()).await?;
+            party.require_current(self.inner.connection()).await?;
+            if let Some(price) = self.save_price.take() {
+                price.require_current(self.inner.connection()).await?;
             }
-            if let Some(party) = self.save_party.take() {
-                party.require_current(self.inner.connection()).await?;
+            if let Some(pricing) = self.save_pricing.take() {
+                pricing.require_current(self.inner.connection()).await?;
             }
             Ok(())
         })
@@ -478,6 +543,24 @@ impl HoldingWorkSourcePreparation for CommerceSources {
                 erpx_server_finance::public::commerce_order_money::lock_commerce_order_money_sources(connection).await?;
             }
             Ok(())
+        })
+    }
+}
+
+#[derive(Clone, Copy)]
+struct CommerceSaveSources;
+impl HoldingWorkSourcePreparation for CommerceSaveSources {
+    fn prepare<'c>(
+        &'c self,
+        connection: &'c mut PgConnection,
+    ) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            erpx_server_finance::public::commerce_order_money::lock_commerce_order_money_sources_before_snapshot(&mut *connection).await?;
+            erpx_server_finance::public::commerce_order_party_guard::lock_commerce_order_party_source(&mut *connection).await?;
+            erpx_server_finance::public::commerce_order_money::attest_commerce_order_money_sources(
+                connection,
+            )
+            .await
         })
     }
 }

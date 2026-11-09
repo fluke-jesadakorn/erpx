@@ -520,12 +520,26 @@ pub trait CommerceOrderSaveRepository: CommerceOrderCommandRepository {
         _plan: &'a SaveOrderPlan,
         _now: TimestampMillis,
     ) -> CommerceOrderFuture<'a, (), Self::Error> {
-        Box::pin(async { Ok(()) })
+        Box::pin(async {
+            Err(BusinessError::new(
+                erpx_server_shared::public::FailureKind::Unavailable,
+                "COMMERCE_SAVE_MONEY_REQUIRED",
+                "The Finance order Money source is unavailable.",
+            )
+            .into())
+        })
     }
 
     /// Revalidate the retained save Money after deferred effects.
     fn require_save_money<'a>(&'a mut self) -> CommerceOrderFuture<'a, (), Self::Error> {
-        Box::pin(async { Ok(()) })
+        Box::pin(async {
+            Err(BusinessError::new(
+                erpx_server_shared::public::FailureKind::Unavailable,
+                "COMMERCE_SAVE_MONEY_REQUIRED",
+                "The Finance order Money source is unavailable.",
+            )
+            .into())
+        })
     }
 }
 
@@ -569,7 +583,6 @@ async fn save_order_outcome_inner<R: CommerceOrderSaveRepository>(
     defer_guards: bool,
 ) -> Result<SaveOrderOutcome, R::Error> {
     actor.require_write(now)?;
-    command.validate()?;
     repository.lock_command(command.key.as_str()).await?;
     let identity = save_identity(actor, command);
     let request_hash = repository.digest(&identity).await?;
@@ -584,6 +597,9 @@ async fn save_order_outcome_inner<R: CommerceOrderSaveRepository>(
             plan: None,
         });
     }
+    // The original save replays before its semantic validations, so an exact
+    // retry returns its receipt even if a referenced source later changed.
+    command.validate()?;
     if !repository
         .current_authority(actor, true, false, now)
         .await?
