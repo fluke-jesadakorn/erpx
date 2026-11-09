@@ -46,6 +46,10 @@ pub mod private_development_api;
 #[cfg(feature = "existing-business")]
 pub mod approval_oversight;
 pub mod asset_http;
+#[cfg(feature = "existing-business")]
+pub mod asset_purchase_image;
+#[cfg(feature = "existing-business")]
+pub mod asset_retirement_work;
 pub mod benefits;
 #[cfg(feature = "existing-business")]
 pub mod brand_identity;
@@ -75,6 +79,8 @@ pub mod learning;
 pub mod legal;
 #[cfg(feature = "existing-business")]
 pub mod maintenance;
+#[cfg(feature = "existing-business")]
+pub mod maintenance_asset_purchase_image;
 pub mod maintenance_create;
 #[cfg(feature = "existing-business")]
 pub mod manufacturing;

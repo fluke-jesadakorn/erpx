@@ -154,6 +154,7 @@ impl SelectedContextRead {
 /// Owner-specific record, commercial, MFA and independent-review policy remains required.
 #[derive(Debug)]
 pub struct AuthorizedWorkContext {
+    pub(crate) prepared_holding_token: Option<PreparedHoldingToken>,
     /// Actual composition route policy retained for same-unit revalidation.
     pub(crate) admitted_access: WorkAuthorizationRequest,
     pub(crate) selected_unit: Option<(String, i32, String, String)>,
@@ -223,6 +224,12 @@ impl AuthorizedWorkContext {
     pub fn same_person_user(&self, user: &UserId) -> bool {
         self.person_user_ids.contains(user)
     }
+    /// Compare a persisted user reference without normalizing or parsing it.
+    /// The aliases come from the selected, revalidated authority context.
+    pub fn same_person_user_raw(&self, user: &str) -> bool {
+        self.user_id.as_str() == user
+            || self.person_user_ids.iter().any(|alias| alias.as_str() == user)
+    }
     pub fn require_permission(&self, permission: &str) -> Result<(), BusinessError> {
         if self.has_permission(permission) {
             Ok(())
@@ -271,4 +278,10 @@ pub fn effective_authority_permissions(
         }
     }
     result
+}
+
+/// Attempt-local owner storage. It carries no authorization by itself.
+pub struct PreparedHoldingToken(pub(crate) Box<dyn std::any::Any + Send + Sync>);
+impl std::fmt::Debug for PreparedHoldingToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { f.write_str("PreparedHoldingToken(..)") }
 }

@@ -19,7 +19,7 @@ import {
 import { boundedBody } from "@erpx/server-legal/public/legal/body";
 import { featureDetail, featureCommand } from "@erpx/server-legal/public/legal/features";
 import { retentionView, retentionCommand } from "@erpx/server-legal/public/legal/retention";
-import { queueInspection, processingStatus } from "@erpx/server-legal/public/legal/processing";
+import { findInspectionSource, queueInspection, processingStatus } from "@erpx/server-legal/public/legal/processing";
 import { trustView, trustCommand } from "@erpx/server-legal/public/legal/trust";
 import {
   startRevision,
@@ -371,7 +371,7 @@ export async function POST(request: Request, ctx: Context) {
       (path[2] === "ocr" || path[2] === "verify")
     ) {
       if (nativeLegalAvailable()) {
-        const source = await write.prepare("SELECT i.id,i.version::int version FROM legal_items i JOIN legal_documents d ON d.item_id=i.id WHERE d.id=? AND i.company_id=?").bind(path[1], a.companyId).first<{ id: string; version: number }>();
+        const source = await findInspectionSource(write, a.companyId, path[1]);
         if (source) {
           const native = await nativeLegalCommand(a, holdingSlug, {
             action: "document.inspect",

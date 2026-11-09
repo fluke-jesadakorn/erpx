@@ -105,6 +105,24 @@ where
         Box::pin(async move { future.await.map(Ok) })
     }
 }
+
+struct TypedSelectedAction<F,P> { action:F, marker:std::marker::PhantomData<fn()->P> }
+impl<F:Clone,P> Clone for TypedSelectedAction<F,P> {
+    fn clone(&self)->Self{Self{action:self.action.clone(),marker:std::marker::PhantomData}}
+}
+impl<I:Send+'static,T:Send+'static,E:Send+'static,F,P> SelectedAction<I,T,E> for TypedSelectedAction<F,P>
+where P:TypedHoldingWorkSourcePreparation,
+    F:for<'c> Fn(&'c mut PgConnection,&'c AuthorizedWorkContext,I,&'c P::Token)->PgWorkFuture<'c,Result<T,E>,BusinessError>+Clone+Send+Sync+'static,
+{
+    fn invoke<'c>(&self,c:&'c mut PgConnection,current:&'c AuthorizedWorkContext,input:I)->PgWorkFuture<'c,Result<T,E>,BusinessError>{
+        let action=self.action.clone();Box::pin(async move{
+            let token=typed_token::<P::Token>(current)?;
+            token.require_current(&mut *c).await?;
+            let result=action(&mut *c,current,input,token).await?;
+            token.require_current(c).await?;Ok(result)
+        })
+    }
+}
 #[derive(Clone)]
 struct TransportSelectedAction<F>(F);
 impl<I: Send + 'static, T: Send + 'static, E: Send + 'static, F> SelectedAction<I, T, E>
@@ -166,6 +184,60 @@ pub trait HoldingWorkSourcePreparation: Clone + Send + Sync + 'static {
         &'c self,
         connection: &'c mut PgConnection,
     ) -> PgWorkFuture<'c, (), BusinessError>;
+    #[doc(hidden)]
+    fn prepare_token<'c>(&'c self, connection:&'c mut PgConnection) -> PgWorkFuture<'c, Option<PreparedHoldingToken>, BusinessError> {
+        Box::pin(async move { self.prepare(connection).await?; Ok(None) })
+    }
+}
+
+/// A trusted owner token, created anew inside each Holding attempt. Its
+/// implementation checks the actual transaction and retained source locks.
+/// Callers must not release and reacquire those locks after preparation: held
+/// lock checks cannot observe that history.
+pub trait HoldingPreparedSource: Send + Sync + 'static {
+    fn require_current<'c>(&'c self, connection:&'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError>;
+}
+/// Acquires all owner utility locks before its first data snapshot and returns
+/// the owner token only after all participating locks have been acquired.
+pub trait TypedHoldingWorkSourcePreparation: Clone + Send + Sync + 'static {
+    type Token: HoldingPreparedSource;
+    fn prepare_typed<'c>(&'c self, connection:&'c mut PgConnection) -> PgWorkFuture<'c, Self::Token, BusinessError>;
+}
+trait ErasedHoldingToken: Send + Sync {
+    fn as_any(&self)->&dyn std::any::Any;
+    fn require_current<'c>(&'c self,connection:&'c mut PgConnection)->PgWorkFuture<'c,(),BusinessError>;
+}
+struct HoldingTokenValue<T>(T);
+impl<T:HoldingPreparedSource> ErasedHoldingToken for HoldingTokenValue<T> {
+    fn as_any(&self)->&dyn std::any::Any { &self.0 }
+    fn require_current<'c>(&'c self,connection:&'c mut PgConnection)->PgWorkFuture<'c,(),BusinessError>{self.0.require_current(connection)}
+}
+#[derive(Clone)]
+struct TypedPreparation<P>(P);
+impl<P:TypedHoldingWorkSourcePreparation> HoldingWorkSourcePreparation for TypedPreparation<P> {
+    fn prepare<'c>(&'c self,c:&'c mut PgConnection)->PgWorkFuture<'c,(),BusinessError> {
+        Box::pin(async move { self.0.prepare_typed(c).await?; Ok(()) })
+    }
+    fn prepare_token<'c>(&'c self,c:&'c mut PgConnection)->PgWorkFuture<'c,Option<PreparedHoldingToken>,BusinessError> {
+        Box::pin(async move { Ok(Some(PreparedHoldingToken(Box::new(Box::new(HoldingTokenValue(self.0.prepare_typed(c).await?)) as Box<dyn ErasedHoldingToken>)))) })
+    }
+}
+fn erased_token(token:&PreparedHoldingToken)->Result<&dyn ErasedHoldingToken,BusinessError>{
+    token.0.downcast_ref::<Box<dyn ErasedHoldingToken>>().map(|value|value.as_ref()).ok_or_else(|| BusinessError::new(FailureKind::Conflict,"WORK_PREPARED_SOURCE_REQUIRED","The prepared source is unavailable in this attempt."))
+}
+fn typed_token<T:HoldingPreparedSource>(current:&AuthorizedWorkContext)->Result<&T,BusinessError>{
+    current.prepared_holding_token.as_ref().and_then(|v|v.0.downcast_ref::<Box<dyn ErasedHoldingToken>>().and_then(|value|value.as_any().downcast_ref::<T>())).ok_or_else(|| BusinessError::new(FailureKind::Conflict,"WORK_PREPARED_SOURCE_REQUIRED","The prepared source is unavailable in this attempt."))
+}
+fn typed_action_future<'c,T,P,F>(c:&'c mut PgConnection,current:&'c AuthorizedWorkContext,action:F)->PgWorkFuture<'c,T,BusinessError>
+where T:Send+'static,P:TypedHoldingWorkSourcePreparation,
+    F:for<'a> Fn(&'a mut PgConnection,&'a AuthorizedWorkContext,&'a P::Token)->PgWorkFuture<'a,T,BusinessError>+Clone+Send+Sync+'static,
+{
+    Box::pin(async move {
+        let token=typed_token::<P::Token>(current)?;
+        token.require_current(&mut *c).await?;
+        let result=action(&mut *c,current,token).await?;
+        token.require_current(c).await?;Ok(result)
+    })
 }
 #[derive(Clone)]
 pub(crate) struct IamSourcesOnly;
@@ -244,6 +316,32 @@ pub struct HoldingWorkAuthorizer {
     directory_refresh: Option<Arc<crate::adapters::directory_work::DirectoryRequestRefresh>>,
 }
 impl HoldingWorkAuthorizer {
+    /// Typed preparation is attempt-local. The token must be owner-created and
+    /// retained under trusted caller discipline: no releasing/reacquiring its
+    /// utility locks after preparation. It does not itself grant authority.
+    pub async fn execute_with_typed_sources_deferred<T,F,Input,P>(
+        &self,host:&str,proof:DeviceProof,input:Input,access:WorkAuthorizationRequest,preparation:P,action:F,
+    )->Result<T,PgTransactionError<BusinessError>>
+    where T:Send+'static, Input:FnOnce()->Result<HoldingWorkspaceRequest,BusinessError>+Send+'static,
+        P:TypedHoldingWorkSourcePreparation,
+        F:for<'c> Fn(&'c mut PgConnection,&'c AuthorizedWorkContext,&'c P::Token)->PgWorkFuture<'c,T,BusinessError>+Clone+Send+Sync+'static,
+    {
+        self.execute_with_sources_deferred(host,proof,input,access,TypedPreparation(preparation),move|c,current|typed_action_future::<T,P,F>(c,current,action.clone())).await
+    }
+
+    /// Selected transport ingress with the same attempt-local owner token.
+    pub async fn execute_with_selected_typed_transport_ingress_deferred<T,I,E,F,Ingress,Input,P>(
+        &self,host:&str,proof:DeviceProof,input:Input,access:WorkAuthorizationRequest,preparation:P,
+        ingress:Ingress,read_denied:fn(&I,BusinessError)->Result<E,BusinessError>,action:F,
+    )->Result<Result<T,E>,PgTransactionError<BusinessError>>
+    where T:Send+'static,I:Send+'static,E:Send+'static,
+        Input:FnOnce()->Result<HoldingWorkspaceRequest,BusinessError>+Send+'static,
+        P:TypedHoldingWorkSourcePreparation,
+        Ingress:for<'c> Fn(&SelectedWorkIngress<'c>)->SelectedIngressFuture<I,E>+Clone+Send+Sync+'static,
+        F:for<'c> Fn(&'c mut PgConnection,&'c AuthorizedWorkContext,I,&'c P::Token)->PgWorkFuture<'c,Result<T,E>,BusinessError>+Clone+Send+Sync+'static,
+    {
+        self.execute_selected_transport_core(host,proof,input,(access,TypedPreparation(preparation)),SelectedTransportCallbacks{ingress,read_denied,action:TypedSelectedAction::<F,P>{action,marker:std::marker::PhantomData}}).await
+    }
     pub fn new(
         control: DatabasePool,
         holding: DatabasePool,
@@ -624,7 +722,7 @@ impl HoldingWorkAuthorizer {
                                     if let Some(source) = &retained_control {
                                         source.prepare_holding(connection).await?;
                                     }
-                                    preparation.prepare(&mut *connection).await?;
+                                    let prepared_holding_token = preparation.prepare_token(&mut *connection).await?;
                                     let retained_holding = match &retained_control {
                                         Some(source) => Some(
                                             source
@@ -670,7 +768,11 @@ impl HoldingWorkAuthorizer {
                                         .await?,
                                     );
                                     context.selected_request = Some(request.clone());
+                                    context.prepared_holding_token = prepared_holding_token;
                                     let result = action(&mut *connection, &context).await?;
+                                    if context.prepared_holding_token.is_some() {
+                                        sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut *connection).await?;
+                                    }
                                     if let Some(source) = &retained_holding {
                                         sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
                                             .execute(&mut *connection)
@@ -706,6 +808,7 @@ impl HoldingWorkAuthorizer {
                                         )
                                         .into());
                                     }
+                                    if let Some(token)=&context.prepared_holding_token {erased_token(token)?.require_current(&mut *connection).await?;}
                                     Ok(result)
                                 })
                             },
@@ -1042,7 +1145,7 @@ impl HoldingWorkAuthorizer {
                                     if let Some(source) = &retained_control {
                                         source.prepare_holding(connection).await?;
                                     }
-                                    preparation.prepare(&mut *connection).await?;
+                                    let prepared_holding_token = preparation.prepare_token(&mut *connection).await?;
                                     let retained_holding = match &retained_control {
                                         Some(source) => Some(
                                             source
@@ -1095,6 +1198,7 @@ impl HoldingWorkAuthorizer {
                                             if final_deadline != deadline || !same_selected_work(&facts, &final_facts) {
                                                 return Err(authority_error("WORK_AUTHORITY_CHANGED", "Your current work authority changed.").into());
                                             }
+                                            if let Some(token)=&prepared_holding_token {erased_token(token)?.require_current(&mut *connection).await?;}
                                             return Ok(Err(error));
                                         }
                                     };
@@ -1112,7 +1216,11 @@ impl HoldingWorkAuthorizer {
                                     }
                                     context.selected_unit = Some(super::selected_command_authority::selected_unit(connection).await?);
                                     context.selected_request = Some(request.clone());
+                                    context.prepared_holding_token = prepared_holding_token;
                                     let result = action.invoke(&mut *connection, &context, normalized).await?;
+                                    if context.prepared_holding_token.is_some() {
+                                        sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut *connection).await?;
+                                    }
                                     if let Some(source) = &retained_holding {
                                         sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
                                             .execute(&mut *connection)
@@ -1148,6 +1256,7 @@ impl HoldingWorkAuthorizer {
                                         )
                                         .into());
                                     }
+                                    if let Some(token)=&context.prepared_holding_token {erased_token(token)?.require_current(&mut *connection).await?;}
                                     Ok(result)
                                 })
                             },

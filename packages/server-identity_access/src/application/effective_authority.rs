@@ -274,6 +274,7 @@ pub(crate) fn authorize_effective_work_tagged(
     let mut person_user_ids: BTreeSet<_> = facts.iam.aliases.into_iter().collect();
     person_user_ids.insert(request.user_id.clone());
     let context = AuthorizedWorkContext {
+        prepared_holding_token: None,
         admitted_access: access.clone(),
         selected_unit: None,
         selected_request: None,

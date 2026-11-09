@@ -28,7 +28,17 @@ async fn unit(c: &mut PgConnection) -> Result<Unit, Error> {
     {
         return Err(PersistenceError::new("PEOPLE_SERIALIZABLE_REQUIRED").into());
     }
+    // A savepoint rollback can release the source locks while leaving the
+    // transaction identity and old snapshot unchanged.
+    require_service_workspace_people_held(&mut *c).await?;
     Ok(sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text").fetch_one(c).await?)
+}
+/// Require both People read fences already held on this connection. No lock
+/// acquisition, snapshot timing or personal authority is implied.
+pub async fn require_service_workspace_people_held(c:&mut PgConnection)->Result<(),Error>{
+    if !c.is_in_transaction(){return Err(PersistenceError::new("PEOPLE_TRANSACTION_REQUIRED").into());}
+    let held:bool=sqlx::query_scalar("SELECT count(DISTINCT relation)=2 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND relation IN ('hr_people'::regclass,'hr_engagements'::regclass) AND granted AND mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock')").fetch_one(c).await?;
+    if !held{return Err(PersistenceError::new("FIELD_SERVICE_PEOPLE_LOCKS_REQUIRED").into());}Ok(())
 }
 pub async fn lock_service_workspace_people(c: &mut PgConnection) -> Result<(), Error> {
     if !c.is_in_transaction() {

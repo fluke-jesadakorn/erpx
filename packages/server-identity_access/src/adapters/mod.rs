@@ -123,4 +123,5 @@ pub mod account_control_scope;
 pub(crate) mod platform_commercial_authority;
 
 pub mod account_work_presentation;
+pub(crate) mod quality_same_person;
 pub(crate) mod operations_recipients;

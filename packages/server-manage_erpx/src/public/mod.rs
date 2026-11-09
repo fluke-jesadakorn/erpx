@@ -1,4 +1,5 @@
-pub use crate::adapters::beta_policy::{PgBetaPolicyReader, lock_beta_policy_sources};
+pub use crate::adapters::beta_policy::{PgBetaPolicyReader, lock_beta_policy_sources, require_beta_policy_sources_held};
+pub use crate::adapters::beta_policy::{CurrentBetaPolicyAuthorityBoundary, inspect_beta_policy_authority_boundary};
 pub use crate::application::beta_policy::BetaPolicyReadPort;
 pub use crate::domain::beta_policy::CompanyBetaPolicy;
 

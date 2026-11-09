@@ -54,6 +54,19 @@ async fn unit(c: &mut PgConnection) -> Result<Unit, Error> {
 pub async fn lock_service_workspace_authority(c: &mut PgConnection) -> Result<(), Error> {
     super::field_service_assignment::lock_field_service_assignment_sources(c).await
 }
+/// Acquire the complete effective-authority utility set then the separate
+/// permission catalog NOWAIT fence, before the caller's first data snapshot.
+/// Catalog contention is marked for a whole-unit retry by the existing port.
+pub async fn lock_service_workspace_authority_fenced(c:&mut PgConnection)->Result<(),Error>{
+    lock_service_workspace_authority(&mut *c).await?;
+    super::permission_catalog_lock::lock_permission_catalog_sources(c).await
+}
+/// Require the full existing source set plus catalog fence without acquiring
+/// or upgrading locks. This attests neither snapshot timing nor actor authority.
+pub async fn require_service_workspace_authority_fenced_held(c:&mut PgConnection)->Result<(),Error>{
+    super::postgres_effective_authority::require_effective_authority_sources_held(&mut *c).await?;
+    super::permission_catalog_lock::require_permission_catalog_lock(c).await
+}
 #[derive(Clone)]
 pub struct ServiceWorkspaceAuthorityRequest {
     pub company: CompanyId,

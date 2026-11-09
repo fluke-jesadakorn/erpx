@@ -3,7 +3,8 @@ pub use crate::adapters::business_acceptance::{
     CompanyBusinessAcceptance, PgCompanyBusinessAcceptanceReader, lock_business_acceptance_sources,
 };
 pub use crate::adapters::postgres_authority_seats::{
-    PgOrganizationAuthorityReader, lock_organization_authority_sources,
+    PgOrganizationAuthorityReader, lock_organization_authority_sources, require_organization_authority_sources_held,
+    CurrentOrganizationSalesAuthorityBoundary, inspect_organization_sales_authority_boundary,
 };
 pub use crate::adapters::postgres_hierarchy::PgOrganizationReader;
 pub use crate::adapters::postgres_hierarchy::lock_hierarchy_sources;
@@ -31,3 +32,4 @@ pub mod organization_setup;
 pub mod organization_setup_http;
 
 pub mod pos_issuer;
+pub mod records_request_department_head;

@@ -6,6 +6,34 @@ use sqlx::{Connection, PgConnection};
 type Error = PgTransactionError<BusinessError>;
 type Transaction = (String, i32, String, String);
 
+/// Fixed People-owned relation projections for the composed Sales recipient
+/// predicate. This witnesses source identity, not content or authorization.
+pub struct CurrentSalesWorkforceJoin {
+    transaction: Transaction,
+    boundary: (String, String, String, i64, i64),
+}
+impl CurrentSalesWorkforceJoin {
+    pub fn cte_sql(&self) -> &'static str {
+        "sales_recipient_people AS (SELECT id,user_id,company_id,status,merged_into_id FROM public.hr_people), sales_recipient_engagements AS (SELECT id,person_id,company_id,status,start_date,end_date FROM public.hr_engagements)"
+    }
+    pub async fn require_current(&self,c:&mut PgConnection)->Result<(),Error> {
+        if transaction(c).await? != self.transaction || sales_workforce_boundary(c).await? != self.boundary { return Err(PersistenceError::new("PEOPLE_SALES_JOIN_CHANGED").into()); }
+        Ok(())
+    }
+}
+/// Prepare People and all other owner locks before the first snapshot. This
+/// validates current lock possession and same unit, not lock timing or rows.
+pub async fn inspect_sales_workforce_join(c:&mut PgConnection)->Result<CurrentSalesWorkforceJoin,Error> {
+    let transaction=transaction(c).await?;
+    let boundary=sales_workforce_boundary(c).await?;
+    Ok(CurrentSalesWorkforceJoin{transaction,boundary})
+}
+async fn sales_workforce_boundary(c:&mut PgConnection)->Result<(String,String,String,i64,i64),Error> {
+    let (held,visible,role,session,path,people,engagements):(bool,bool,String,String,String,i64,i64)=sqlx::query_as("SELECT (SELECT count(*)=2 AND bool_and(c.relnamespace='public'::regnamespace AND c.relkind IN ('r','p') AND c.relpersistence='p' AND EXISTS(SELECT 1 FROM pg_locks l WHERE l.pid=pg_backend_pid() AND l.locktype='relation' AND l.relation=c.oid AND l.granted AND l.mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock'))) FROM pg_class c WHERE c.oid IN ('public.hr_people'::regclass,'public.hr_engagements'::regclass)), NOT (row_security_active('public.hr_people'::regclass) OR row_security_active('public.hr_engagements'::regclass)),current_user::text,session_user::text,current_setting('search_path'),'public.hr_people'::regclass::oid::bigint,'public.hr_engagements'::regclass::oid::bigint").fetch_one(c).await?;
+    if !held || !visible {return Err(PersistenceError::new("PEOPLE_SALES_JOIN_REQUIRED").into());}
+    Ok((role,session,path,people,engagements))
+}
+
 /// Opaque current People source in one actual transaction. Only the required
 /// eligibility predicate is transferred; no contact, salary or profile data.
 pub struct CurrentWorkforceReference {

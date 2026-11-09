@@ -1,4 +1,5 @@
 pub(crate) mod business_acceptance;
+pub(crate) mod records_request_department_head;
 pub(crate) mod postgres_authority_seats;
 pub(crate) mod postgres_hierarchy;
 

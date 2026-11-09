@@ -3,7 +3,7 @@ import { roomChargeReversalQueue } from "@erpx/server-pos/public/room-charge-rev
 import { canonicalGuestAccount, guestAccountOperation } from "@erpx/feature-identity_access/lib/guest-account-compat";
 import { z } from "zod";
 import { ensureFrontRole, frontCompanyBrand, frontLocationScope, frontOperationAllowed, frontRoleState, type FrontAppKind } from "@erpx/server-work_projection/public/front-app";
-import { NATIVE_POS_COMMANDS, createNativePosCashClient, nativePosCashActor, nativePosCashAvailable, nativePosCashConfiguration, nativePosCashFailure } from "@erpx/feature-pos/adapters/server/native-pos-cash";
+import { NATIVE_POS_COMMANDS, createNativePosCashClient, nativePosCashActor, nativePosCashAvailable, nativePosCashConfiguration, nativePosCashFailure } from "@erpx/feature-pos/public/native-pos-cash";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
