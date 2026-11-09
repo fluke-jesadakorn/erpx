@@ -18,6 +18,7 @@ import type { WorkPageSummary } from "@erpx/server-work_projection/public/work-s
 import Link from "@erpx/workplace/components/workspace-link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigationState } from "@erpx/workplace/components/navigation-counts";
+import { useSearchParams } from "@erpx/feature-shared/lib/destination-search";
 import { NewWork } from "@erpx/workplace/components/new-work";
 import { WorkList } from "@erpx/workplace/components/work-list";
 import { ForMe } from "@erpx/workplace/components/for-me";
@@ -46,6 +47,7 @@ export function WorkDashboard({
   current: string;
 }) {
   const { publishWork, shortcutStorageKey, workViewAvailability } = useNavigationState();
+  const searchParams = useSearchParams();
   useEffect(() => {
     if (!shortcutStorageKey) return;
     const key = `erpx:work-position:${shortcutStorageKey}:${base}:${current}`;
@@ -176,17 +178,24 @@ export function WorkDashboard({
       />
       {error && <InlineNotice tone="info" role="status">{error} Updates may be out of date. </InlineNotice>}
       <nav aria-label="My work views" className="ui-form-actions">
-        {workViews.filter(([id]) => workViewAvailable(id, workViewAvailability)).map(([id, label]) => (
-          <Link
-            key={id}
-            data-slot="button"
-            className={`button ui-standard-control ${view === id ? "secondary" : "ghost"}`}
-            href={canonicalUiHref(`${base}/work?${new URLSearchParams({ view: id, ...(type !== "all" ? { type } : {}), ...(q ? { q } : {}) })}`)}
-            aria-current={view === id ? "page" : undefined}
-          >
-            {label}
-          </Link>
-        ))}
+        {workViews.filter(([id]) => workViewAvailable(id, workViewAvailability)).map(([id, label]) => {
+          const params = new URLSearchParams({ view: id });
+          const currentType = searchParams.get("type") ?? type;
+          const currentQuery = searchParams.get("q") ?? q;
+          if (currentType && currentType !== "all") params.set("type", currentType);
+          if (currentQuery) params.set("q", currentQuery);
+          return (
+            <Link
+              key={id}
+              data-slot="button"
+              className={`button ui-standard-control ${view === id ? "secondary" : "ghost"}`}
+              href={canonicalUiHref(`${base}/work?${params}`)}
+              aria-current={view === id ? "page" : undefined}
+            >
+              {label}
+            </Link>
+          );
+        })}
       </nav>
       <div id="work-results" style={{ scrollMarginTop: "100px" }}>
         {!!unavailable.length && (
