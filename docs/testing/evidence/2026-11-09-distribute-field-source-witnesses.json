@@ -1,7 +1,7 @@
 {
   "version": 1,
   "date": "2026-11-09",
-  "status": "Distribute Field Count/Parts/Finance source witnesses and a Finance period-close workpaper candidate were exercised on the working source. The Field witnesses are unmounted source predicates and do not close a workflow. The Finance candidate crosses Common-owned packages/server-files and is not committed or mounted; the reviewer found an unresolved Commercial↔Finance lock-order cycle and additional policy/parity gaps.",
+  "status": "Distribute Field Count/Parts/Finance source witnesses and a Finance period-close workpaper candidate were exercised on the working source. The Field witnesses are unmounted source predicates and do not close a workflow. The Finance candidate crosses Common-owned packages/server-files and is not committed or mounted; the reviewer found an unresolved Commercial\u2194Finance lock-order cycle and additional policy/parity gaps.",
   "integrationTarget": "codex/rust-backend-migration",
   "base": "7a552ff1ee6474da8288abb458cd49e3d74eae85",
   "priorPushedCommit": "ab06f19aa01ee4c269b3dcf2b1c197e327fe2d33",
@@ -45,7 +45,13 @@
       "filesResult": "3 passed, 0 failed, 0 ignored (3.77s) on the final working source",
       "filesLog": ".scratch/dev/rust-migration/current/files-business-evidence-final.log",
       "compile": "cargo check -p erpx-service --all-targets --features business-http,private-field-api,production-api --locked finished successfully in 2m07s on the working source (external Common verification log .scratch/dev/rust-migration/verification/cargo-check-service.log).",
-      "limitations": "Not commit-ready. Common-owned Files port and shared composition; reviewer blocker: Commercial↔Finance lock-order cycle with the Field parts consumer. Additional gaps: empty-set acceptance, require_current does not retain purpose/component/ref/checksum, missing Files V2/freeze/read-only checks, 404/503 collapse, event-manifest and exact error-code parity, policy-version check blocked by the shared DTO. No authenticated browser or global-lock proof."
+      "limitations": "Not commit-ready. Common-owned Files port and shared composition; reviewer blocker: Commercial\u2194Finance lock-order cycle with the Field parts consumer. Additional gaps: empty-set acceptance, require_current does not retain purpose/component/ref/checksum, missing Files V2/freeze/read-only checks, 404/503 collapse, event-manifest and exact error-code parity, policy-version check blocked by the shared DTO. No authenticated browser or global-lock proof."
+    },
+    "cleanArchive": {
+      "command": "git archive 8ba54a09a | tar -x -C .scratch/dev/rust-migration/current/verify-a5; cargo check -p erpx-service --locked --features field-service,existing-business",
+      "result": "PASS (35.49s)",
+      "log": ".scratch/dev/rust-migration/current/verify-a5-check.log",
+      "note": "Clean archive of the pushed source compiles the Field source witnesses and composition modules; the tests were exercised on the working source and are not re-run in the clean archive here."
     }
   },
   "workflowClosure": {
@@ -60,5 +66,9 @@
     "ownersComplete": 0,
     "ownerTotal": 41
   },
-  "nextAction": "Coordinator obtains Common acknowledgment for the shared Files/Records/Workflow files and queue, resolves the canonical Commercial/Finance/Files lock order with the Field parts consumer, then mounts the Field source witnesses and Finance workpaper candidate and runs authenticated browser/HTTP gates."
+  "nextAction": "Coordinator obtains Common acknowledgment for the shared Files/Records/Workflow files and queue, resolves the canonical Commercial/Finance/Files lock order with the Field parts consumer, then mounts the Field source witnesses and Finance workpaper candidate and runs authenticated browser/HTTP gates.",
+  "pushedCommits": [
+    "a5bbbb37059179b1570512600caba768c7a2b501",
+    "8ba54a09a10168af74f9af960c169b615b4a130b"
+  ]
 }
