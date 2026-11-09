@@ -516,3 +516,263 @@ async fn service_initial_stock_schema_presence_is_same_unit_and_absence_safe() {
   let mut tx=pool.raw().begin().await.unwrap();sqlx::raw_sql("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;ALTER TABLE inventory_service_initial_physical_sources RENAME TO fixture_hidden_stock_sources").execute(&mut *tx).await.unwrap();lock_service_initial_stock_schema(&mut tx).await.unwrap();let source=read_service_initial_stock_schema(&mut tx).await.unwrap();assert!(!source.available());source.require_current(&mut tx).await.unwrap();tx.rollback().await.unwrap();
  }).await;
 }
+
+#[tokio::test]
+async fn field_journal_consumption_marker_retains_global_routing_predicate() {
+    use erpx_server_inventory::public::field_journal_consumption_marker::*;
+    use erpx_server_inventory::public::field_history_consumption::*;
+    use erpx_server_runtime::public::postgres::PgTransactionError;
+    use sqlx::Acquire;
+    async fn compare_1097(c:&mut sqlx::PgConnection,source:&CurrentFieldHistoryConsumptionJoin,journal:&str,company:Option<&str>) -> bool {
+        source.require_current(&mut *c).await.unwrap();
+        let sql=format!("WITH {} SELECT EXISTS(SELECT 1 FROM public.finance_journals j WHERE j.id=$1 AND ($2::text IS NULL OR j.company_id=$2) AND j.source_type='field_service_parts') OR EXISTS(SELECT 1 FROM field_global_journal_consumptions p WHERE p.journal_id=$1 AND ($2::text IS NULL OR p.company_id=$2))",source.global_journal_marker_cte_sql());
+        let observed:bool=sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).bind(journal).bind(company).fetch_one(&mut *c).await.unwrap();
+        let installed:bool=sqlx::query_scalar("SELECT public.erpx_finance_field_journal_owned($1,$2)").bind(journal).bind(company).fetch_one(&mut *c).await.unwrap();
+        assert_eq!(observed,installed,"journal={journal} company={company:?}");source.require_current(c).await.unwrap();observed
+    }
+    fixture::with_database(2, |pool| async move {
+        setup(&pool, "none").await;
+        let mut conn = pool.raw().acquire().await.unwrap();
+        // A TEMP/search_path shadow of the installed Holding relation must not
+        // satisfy the marker fence. The real Files caller has no such shadow.
+        sqlx::query("CREATE TEMP TABLE operational_inventory_consumptions(journal_id text,company_id text,source_kind text)").execute(&mut *conn).await.unwrap();
+        sqlx::query("INSERT INTO pg_temp.operational_inventory_consumptions(journal_id,company_id,source_kind) VALUES('shadow-journal','shadow-company','field_service')").execute(&mut *conn).await.unwrap();
+        let mut shadow = conn.begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *shadow).await.unwrap();
+        lock_field_journal_consumption_marker(&mut shadow).await.unwrap();
+        let hidden = inspect_field_journal_consumption_marker(&mut shadow, "shadow-journal").await.unwrap();
+        assert!(!hidden.present(), "TEMP/search_path shadow must not satisfy the public marker fence");
+        hidden.require_current(&mut shadow).await.unwrap();
+        shadow.rollback().await.unwrap();
+        // Extract the exact retained Files target query, then execute it against
+        // the same transaction with the public source visible. This is the actual
+        // TS SQL boundary, not a reproduced predicate.
+        let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);let query='';const db={prepare(sql){return {bind(){return {async first(){query=sql;return {marker:false}}}}}}};await m.fieldJournalFilesTargetInDatabase(db,'shadow-journal');if(!query)throw Error('JOURNAL_TARGET_QUERY_MISSING');process.stdout.write(query.replace(/\?/g,()=>'$1'));"#;
+        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let path=root.join("packages/server-files/src/adapters/field-file-writer-owner.ts");
+        let output=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(&root).arg("--conditions=react-server").arg("-e").arg(script).arg(path).output().unwrap();
+        assert!(output.status.success(),"actual TS journal target query unavailable: {}",String::from_utf8_lossy(&output.stderr));
+        let ts_sql=String::from_utf8(output.stdout).unwrap();
+        let mut ts_tx = conn.begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *ts_tx).await.unwrap();
+        // pg_temp is explicitly last so the installed TS function resolves the
+        // public relation rather than the test-only shadow.
+        sqlx::query("SET LOCAL search_path TO pg_catalog, public, pg_temp").execute(&mut *ts_tx).await.unwrap();
+        let ts_shadow:bool=sqlx::query_scalar(sqlx::AssertSqlSafe(ts_sql.as_str())).bind("shadow-journal").fetch_one(&mut *ts_tx).await.unwrap();
+        assert!(!ts_shadow,"actual TS target query must not see the TEMP shadow");
+        ts_tx.rollback().await.unwrap();
+        sqlx::query("DROP TABLE pg_temp.operational_inventory_consumptions").execute(&mut *conn).await.unwrap();
+        let mut unlocked = conn.begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unlocked).await.unwrap();
+        assert!(inspect_field_journal_consumption_marker(&mut unlocked, "journal").await.is_err());
+        unlocked.rollback().await.unwrap();
+        let mut tx = conn.begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        sqlx::query("SET LOCAL search_path TO pg_catalog, public, pg_temp").execute(&mut *tx).await.unwrap();
+        lock_field_journal_consumption_marker(&mut tx).await.unwrap();
+        lock_field_history_consumption_join_sources(&mut tx).await.unwrap();
+        let global=inspect_field_history_consumption_join(&mut tx).await.unwrap();
+        assert!(!compare_1097(&mut tx,&global,"journal",None).await);
+        let absent = inspect_field_journal_consumption_marker(&mut tx, "journal").await.unwrap();
+        assert!(!absent.present());
+        assert_eq!(absent.present(),sqlx::query_scalar::<_,bool>(sqlx::AssertSqlSafe(ts_sql.as_str())).bind("journal").fetch_one(&mut *tx).await.unwrap(),"actual TS absent marker");
+        absent.require_current(&mut tx).await.unwrap();
+        sqlx::query("INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,source_type,source_id,memo,status,created_by,created_at,updated_at) VALUES('journal','company','chart','period','J-MARKER','2026-01-10','THB','maintenance_parts','source','marker','draft','maker',0,0)").execute(&mut *tx).await.unwrap();
+        // The deferred source guard is intentionally not committed: these rows
+        // exercise the routing predicate, not valid operational lineage.
+        sqlx::query("INSERT INTO operational_inventory_consumptions(id,company_id,branch_id,source_kind,source_id,source_version,warehouse_id,product_id,quantity_milli,value_minor,currency,movement_date,journal_id,reason,created_by,created_at) VALUES('marker-maintenance','company','branch','maintenance','source',1,'warehouse','product',1,0,'THB','2026-01-10','journal','test','maker',0)").execute(&mut *tx).await.unwrap();
+        absent.require_current(&mut tx).await.unwrap();
+        assert!(!compare_1097(&mut tx,&global,"journal",None).await);
+        sqlx::query("INSERT INTO operational_inventory_consumptions(id,company_id,branch_id,source_kind,source_id,source_version,warehouse_id,product_id,quantity_milli,value_minor,currency,movement_date,journal_id,reason,created_by,created_at) VALUES('marker-foreign','foreign-company','branch','field_service','source',1,'warehouse','product',1,0,'THB','2026-01-10','journal','test','maker',0)").execute(&mut *tx).await.unwrap();
+        assert!(compare_1097(&mut tx,&global,"journal",None).await);
+        assert!(compare_1097(&mut tx,&global,"journal",Some("foreign-company")).await);
+        assert!(!compare_1097(&mut tx,&global,"journal",Some("company")).await);
+        assert!(!compare_1097(&mut tx,&global,"other",None).await);
+        // Source identity alone does not attest data or classification: the
+        // complete joined result above must be recomputed after late effects.
+        global.require_current(&mut tx).await.unwrap();
+        assert!(absent.require_current(&mut tx).await.is_err());
+        let present = inspect_field_journal_consumption_marker(&mut tx, "journal").await.unwrap();
+        assert_eq!(present.journal_id(), "journal");
+        assert!(present.present());
+        assert_eq!(present.present(),sqlx::query_scalar::<_,bool>(sqlx::AssertSqlSafe(ts_sql.as_str())).bind("journal").fetch_one(&mut *tx).await.unwrap(),"actual TS present marker");
+        present.require_current(&mut tx).await.unwrap();
+        let other=inspect_field_journal_consumption_marker(&mut tx, "other").await.unwrap();
+        assert!(!other.present());
+        assert_eq!(other.present(),sqlx::query_scalar::<_,bool>(sqlx::AssertSqlSafe(ts_sql.as_str())).bind("other").fetch_one(&mut *tx).await.unwrap(),"actual TS missing marker");
+        tx.rollback().await.unwrap();
+        let mut other = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+        lock_field_journal_consumption_marker(&mut other).await.unwrap();
+        assert!(present.require_current(&mut other).await.is_err());
+        other.rollback().await.unwrap();
+        let mut saved = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *saved).await.unwrap();
+        sqlx::query("SELECT pg_current_xact_id()").execute(&mut *saved).await.unwrap();
+        sqlx::query("SAVEPOINT before_marker_lock").execute(&mut *saved).await.unwrap();
+        lock_field_journal_consumption_marker(&mut saved).await.unwrap();
+        let retained = inspect_field_journal_consumption_marker(&mut saved, "journal").await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT before_marker_lock").execute(&mut *saved).await.unwrap();
+        assert!(retained.require_current(&mut saved).await.is_err());
+        saved.rollback().await.unwrap();
+        drop(conn);
+        let mut writer = pool.raw().begin().await.unwrap();
+        sqlx::query("LOCK TABLE public.operational_inventory_consumptions IN ROW EXCLUSIVE MODE").execute(&mut *writer).await.unwrap();
+        let mut blocked = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *blocked).await.unwrap();
+        let conflict = lock_field_journal_consumption_marker(&mut blocked).await;
+        assert!(matches!(conflict,Err(PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));
+        blocked.rollback().await.unwrap();
+        writer.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn field_history_consumption_join_preserves_sql_candidates_without_temp() {
+    use erpx_server_inventory::public::field_history_consumption::*;
+    use erpx_server_runtime::public::postgres::PgTransactionError;
+    use sqlx::Acquire;
+    fixture::with_database(2,|pool|async move {
+        setup(&pool,"none").await;
+        let mut conn=pool.raw().acquire().await.unwrap();sqlx::query("CREATE TEMP TABLE operational_inventory_consumptions(id text)").execute(&mut *conn).await.unwrap();
+        let mut unlocked=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unlocked).await.unwrap();assert!(inspect_field_history_consumption_join(&mut unlocked).await.is_err());unlocked.rollback().await.unwrap();
+        let mut tx=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_field_history_consumption_join_sources(&mut tx).await.unwrap();let source=inspect_field_history_consumption_join(&mut tx).await.unwrap();source.require_current(&mut tx).await.unwrap();
+        let before:i64=sqlx::query_scalar("SELECT count(*) FROM pg_class WHERE relnamespace=pg_my_temp_schema()").fetch_one(&mut *tx).await.unwrap();
+        let sql=format!("WITH {} SELECT count(*) FROM field_history_consumptions WHERE company_id=$1 AND journal_id=$2",source.cte_sql());
+        assert_eq!(sqlx::query_scalar::<_,i64>(sqlx::AssertSqlSafe(sql.as_str())).bind("company").bind("journal-history").fetch_one(&mut *tx).await.unwrap(),0);
+        assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM pg_class WHERE relnamespace=pg_my_temp_schema()").fetch_one(&mut *tx).await.unwrap(),before);
+        // Staged only: deferred Inventory source guards stay enabled and this
+        // transaction rolls back; no committed consumption lineage is claimed.
+        sqlx::query("INSERT INTO public.finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,source_type,source_id,memo,status,created_by,created_at,updated_at) VALUES('journal-history','company','chart','period','J-HISTORY','2026-01-10','THB','field_service_parts','source','fixture','draft','maker',0,0)").execute(&mut *tx).await.unwrap();
+        sqlx::raw_sql("INSERT INTO public.operational_inventory_consumptions(id,company_id,branch_id,source_kind,source_id,source_version,warehouse_id,product_id,quantity_milli,value_minor,currency,movement_date,journal_id,reason,created_by,created_at) VALUES('history-positive','company','branch','field_service','source',1,'warehouse','product',1000,100,'THB','2026-01-10','journal-history','fixture','maker',0),('history-zero','company','branch','field_service','source',1,'warehouse','product',1000,0,'THB','2026-01-10','journal-history','fixture','maker',0),('history-maintenance','company','branch','maintenance','source',1,'warehouse','product',1000,100,'THB','2026-01-10','journal-history','fixture','maker',0),('history-foreign','foreign','branch','field_service','source',1,'warehouse','product',1000,100,'THB','2026-01-10','journal-history','fixture','maker',0),('history-large','company','branch','field_service','source',1,'warehouse','product',9007199254740992,100,'THB','2026-01-10','journal-history','fixture','maker',0)").execute(&mut *tx).await.unwrap();
+        let observed:i64=sqlx::query_scalar(sqlx::AssertSqlSafe(sql.as_str())).bind("company").bind("journal-history").fetch_one(&mut *tx).await.unwrap();
+        let direct:i64=sqlx::query_scalar("SELECT count(*) FROM public.operational_inventory_consumptions WHERE source_kind='field_service' AND quantity_milli>0 AND value_minor>0 AND company_id=$1 AND journal_id=$2").bind("company").bind("journal-history").fetch_one(&mut *tx).await.unwrap();assert_eq!((observed,direct),(2,2));
+        assert_eq!(sqlx::query_scalar::<_,i64>(sqlx::AssertSqlSafe(sql.as_str())).bind("foreign").bind("journal-history").fetch_one(&mut *tx).await.unwrap(),1);
+        source.require_current(&mut tx).await.unwrap();
+        sqlx::query("SAVEPOINT inventory_join_insert").execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO public.operational_inventory_consumptions(id,company_id,branch_id,source_kind,source_id,source_version,warehouse_id,product_id,quantity_milli,value_minor,currency,movement_date,journal_id,reason,created_by,created_at) SELECT 'history-bulk-'||n,'company','branch','field_service','source',1,'warehouse','product',1,1,'THB','2026-01-10','journal-history','fixture','maker',0 FROM generate_series(1,257) n").execute(&mut *tx).await.unwrap();
+        assert_eq!(sqlx::query_scalar::<_,i64>(sqlx::AssertSqlSafe(sql.as_str())).bind("company").bind("journal-history").fetch_one(&mut *tx).await.unwrap(),259);source.require_current(&mut tx).await.unwrap();
+        // The source fence is not a row or classification witness.
+        sqlx::query("ROLLBACK TO SAVEPOINT inventory_join_insert").execute(&mut *tx).await.unwrap();assert_eq!(sqlx::query_scalar::<_,i64>(sqlx::AssertSqlSafe(sql.as_str())).bind("company").bind("journal-history").fetch_one(&mut *tx).await.unwrap(),observed);
+        tx.rollback().await.unwrap();sqlx::query("DROP TABLE pg_temp.operational_inventory_consumptions").execute(&mut *conn).await.unwrap();
+        let mut other=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();lock_field_history_consumption_join_sources(&mut other).await.unwrap();assert!(source.require_current(&mut other).await.is_err());other.rollback().await.unwrap();
+        let mut saved=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *saved).await.unwrap();sqlx::query("SAVEPOINT inventory_lock").execute(&mut *saved).await.unwrap();lock_field_history_consumption_join_sources(&mut saved).await.unwrap();let saved_source=inspect_field_history_consumption_join(&mut saved).await.unwrap();sqlx::query("ROLLBACK TO SAVEPOINT inventory_lock").execute(&mut *saved).await.unwrap();assert!(saved_source.require_current(&mut saved).await.is_err());saved.rollback().await.unwrap();
+        let mut writer=pool.raw().begin().await.unwrap();sqlx::query("LOCK TABLE public.operational_inventory_consumptions IN ROW EXCLUSIVE MODE").execute(&mut *writer).await.unwrap();let mut blocked=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *blocked).await.unwrap();let conflict=lock_field_history_consumption_join_sources(&mut blocked).await;assert!(matches!(conflict,Err(PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));blocked.rollback().await.unwrap();writer.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn initial_count_history_join_matches_actual_marker_sql() {
+    use erpx_server_inventory::public::initial_count_history_source::*;
+    use erpx_server_workflow::public::record_origin::*;
+    use sqlx::Acquire;
+    fixture::with_database(2, |pool| async move {
+        setup(&pool,"none").await;
+        let mut conn=pool.raw().acquire().await.unwrap();
+        sqlx::raw_sql("CREATE TEMP TABLE inventory_counts(id text); CREATE TEMP TABLE inventory_count_lines(id text); CREATE TEMP TABLE command_receipts(command_id text)").execute(&mut *conn).await.unwrap();
+        let mut tx=conn.begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_initial_count_history_sources(&mut tx).await.unwrap();
+        lock_initial_count_history_receipt_sources(&mut tx).await.unwrap();
+        let inventory=inspect_initial_count_history_source(&mut tx).await.unwrap();
+        let workflow=inspect_initial_count_history_receipt_join(&mut tx).await.unwrap();
+        let projected=format!("WITH {}, {} SELECT count(*) FROM initial_count_history_counts c JOIN initial_count_history_receipts r ON r.record_id=c.id WHERE c.journal_id IS NOT NULL AND jsonb_exists(r.result_json::jsonb,$1) AND c.company_id=$2 AND c.journal_id=$3",inventory.cte_sql(),workflow.cte_sql());
+        let temp_before:i64=sqlx::query_scalar("SELECT count(*) FROM pg_class WHERE relnamespace=pg_my_temp_schema()").fetch_one(&mut *tx).await.unwrap();
+        assert_eq!(sqlx::query_scalar::<_,i64>(sqlx::AssertSqlSafe(projected.as_str())).bind("_serviceInitialPhysicalStockCount").bind("company").bind("initial-marker-journal").fetch_one(&mut *tx).await.unwrap(),0);
+        assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM pg_class WHERE relnamespace=pg_my_temp_schema()").fetch_one(&mut *tx).await.unwrap(),temp_before);
+        // The legacy SQL is unqualified; dropping shadows in this rolled-back
+        // transaction lets the exact source run against the same public rows.
+        sqlx::raw_sql("DROP TABLE pg_temp.inventory_counts; DROP TABLE pg_temp.inventory_count_lines; DROP TABLE pg_temp.command_receipts").execute(&mut *tx).await.unwrap();
+        let count_id=format!("count-{}","x".repeat(240));
+        sqlx::query("INSERT INTO public.finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,source_type,source_id,memo,status,created_by,created_at,updated_at) VALUES('initial-marker-journal','company','chart','period','J-INITIAL','2026-01-10','THB','stock_count',$1,'fixture','draft','maker',0,0)").bind(&count_id).execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO public.inventory_counts(id,company_id,branch_id,warehouse_id,number,count_date,reason,status,created_by,prepared_by,journal_id,created_at,updated_at) VALUES($1,'company','branch','warehouse','INIT-1','2026-01-10','fixture','draft','maker','maker','initial-marker-journal',0,0),('no-journal','company','branch','warehouse','INIT-2','2026-01-10','fixture','draft','maker','maker',NULL,0,0)").bind(&count_id).execute(&mut *tx).await.unwrap();
+        let names=["_initialPhysicalStockCount","_serviceInitialPhysicalStockCount","_posInitialPhysicalStockCount","_manufacturingInitialPhysicalStockCount"];
+        for (n,marker) in names.iter().enumerate(){let result=serde_json::json!({(*marker):null}).to_string();sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES($1,'inventory.count.create','fixture','synthetic',$2,$3,'{\"companyId\":\"foreign\"}',0)").bind(format!("initial-marker-{n}")).bind(&count_id).bind(result).execute(&mut *tx).await.unwrap();}
+        sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES('initial-no-journal','inventory.count.create','fixture','synthetic','no-journal','{\"_serviceInitialPhysicalStockCount\":null}','{\"companyId\":\"company\"}',0)").execute(&mut *tx).await.unwrap();
+        let dir=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/adapters");
+        let script=r#"import fs from 'node:fs';if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const vars=['initialPhysicalStockMarkedRows','serviceInitialPhysicalStockMarkedRows','posInitialPhysicalStockMarkedRows','manufacturingInitialPhysicalStockMarkedRows'];const names=['initialPhysicalCountMarkedJournal','serviceInitialPhysicalCountMarkedJournal','posInitialPhysicalCountMarkedJournal','manufacturingInitialPhysicalCountMarkedJournal'];const text=fs.readFileSync(process.argv[1],'utf8');const result=[];for(let i=0;i<names.length;i++){const m=await import(process.argv[i+2]);const line=text.split('\n').find(x=>x.startsWith('const '+names[i]+'='));if(!line)throw Error('MISSING_SOURCE');result.push(new Function(vars[i],line+';return '+names[i])(m[vars[i]]))}process.stdout.write(JSON.stringify(result));"#;
+        let output=std::process::Command::new(std::env::var("ERPX_NODE_BIN").unwrap_or_else(|_|"node".into())).arg("--conditions=react-server").arg("--input-type=module").arg("-e").arg(script).arg(dir.join("finance-record-sources.ts")).arg(dir.join("initial-physical-stock-count-source-sql.ts")).arg(dir.join("service-initial-physical-stock-count-source-sql.ts")).arg(dir.join("pos-initial-physical-stock-count-source-sql.ts")).arg(dir.join("manufacturing-initial-physical-stock-count-source-sql.ts")).output().unwrap();
+        assert!(output.status.success(),"actual TS SQL: {}",String::from_utf8_lossy(&output.stderr));let actual:Vec<String>=serde_json::from_slice(&output.stdout).unwrap();
+        for (n,marker) in names.iter().enumerate(){let legacy=format!("SELECT count(*) FROM ({}) marker WHERE marker.company_id=$1 AND marker.id=$2",actual[n]);let expected:i64=sqlx::query_scalar(sqlx::AssertSqlSafe(legacy.as_str())).bind("company").bind("initial-marker-journal").fetch_one(&mut *tx).await.unwrap();let got:i64=sqlx::query_scalar(sqlx::AssertSqlSafe(projected.as_str())).bind(marker).bind("company").bind("initial-marker-journal").fetch_one(&mut *tx).await.unwrap();assert_eq!((got,expected),(1,1),"{marker}");assert_eq!(sqlx::query_scalar::<_,i64>(sqlx::AssertSqlSafe(projected.as_str())).bind(marker).bind("foreign").bind("initial-marker-journal").fetch_one(&mut *tx).await.unwrap(),0);}
+        inventory.require_current(&mut tx).await.unwrap();workflow.require_current(&mut tx).await.unwrap();
+        sqlx::query("SAVEPOINT late_marker").execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES('initial-extra','inventory.count.create','fixture','synthetic',$1,'{\"_serviceInitialPhysicalStockCount\":null}','{\"companyId\":\"other\"}',0)").bind(&count_id).execute(&mut *tx).await.unwrap();
+        let legacy=format!("SELECT count(*) FROM ({}) marker WHERE marker.company_id=$1 AND marker.id=$2",actual[1]);
+        assert_eq!(sqlx::query_scalar::<_,i64>(sqlx::AssertSqlSafe(legacy.as_str())).bind("company").bind("initial-marker-journal").fetch_one(&mut *tx).await.unwrap(),2);
+        assert_eq!(sqlx::query_scalar::<_,i64>(sqlx::AssertSqlSafe(projected.as_str())).bind(names[1]).bind("company").bind("initial-marker-journal").fetch_one(&mut *tx).await.unwrap(),2);
+        inventory.require_current(&mut tx).await.unwrap();workflow.require_current(&mut tx).await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT late_marker").execute(&mut *tx).await.unwrap();
+        assert_eq!(sqlx::query_scalar::<_,i64>(sqlx::AssertSqlSafe(projected.as_str())).bind(names[1]).bind("company").bind("initial-marker-journal").fetch_one(&mut *tx).await.unwrap(),1);
+        // Synthetic rows never commit; deferred guards remain enabled.
+        tx.rollback().await.unwrap();sqlx::raw_sql("DROP TABLE pg_temp.inventory_counts; DROP TABLE pg_temp.inventory_count_lines; DROP TABLE pg_temp.command_receipts").execute(&mut *conn).await.unwrap();
+        let mut other=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();lock_initial_count_history_sources(&mut other).await.unwrap();assert!(inventory.require_current(&mut other).await.is_err());other.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn initial_count_history_inventory_predicates_match_actual_service_sql() {
+    use erpx_server_inventory::public::initial_count_history_source::*;
+    fixture::with_database(2,|pool|async move {
+        setup(&pool,"none").await;
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_initial_count_history_sources(&mut tx).await.unwrap();
+        let source=inspect_initial_count_history_source(&mut tx).await.unwrap();
+        let dir=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/adapters");
+        // Extract the actual Inventory clauses, including SQL SUM and NULL
+        // semantics, without reproducing their text in this oracle.
+        let script=r#"import fs from 'node:fs';if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const a=fs.readFileSync(process.argv[1],'utf8');const b=fs.readFileSync(process.argv[2],'utf8');const start=a.indexOf(' AND line.snapshot_quantity_milli=0');const end=a.indexOf('`;',start);const sum=b.match(/c\.net_value_minor>0 AND c\.net_value_minor=\(SELECT sum\(line\.counted_value_minor-line\.snapshot_value_minor\) FROM inventory_count_lines line WHERE line\.count_id=c\.id\)/);if(start<0||end<0||!sum)throw Error('SOURCE_CLAUSE_MISSING');process.stdout.write(JSON.stringify([a.slice(start,end),sum[0]]));"#;
+        let output=std::process::Command::new(std::env::var("ERPX_NODE_BIN").unwrap_or_else(|_|"node".into())).arg("--input-type=module").arg("-e").arg(script).arg(dir.join("service-initial-physical-stock-count-source-sql.ts")).arg(dir.join("finance-record-sources.ts")).output().unwrap();
+        assert!(output.status.success(),"TS predicate extraction: {}",String::from_utf8_lossy(&output.stderr));let actual:Vec<String>=serde_json::from_slice(&output.stdout).unwrap();
+        let originals=format!("SELECT EXISTS(SELECT 1 FROM public.inventory_counts c JOIN public.inventory_count_lines line ON line.count_id=c.id WHERE c.id=$1 {}), EXISTS(SELECT 1 FROM public.inventory_counts c WHERE c.id=$1 AND {})",actual[0],actual[1]);
+        let projected=format!("WITH {} SELECT EXISTS(SELECT 1 FROM initial_count_history_counts c JOIN initial_count_history_lines line ON line.count_id=c.id WHERE c.id=$1 {}), EXISTS(SELECT 1 FROM initial_count_history_counts c WHERE c.id=$1 AND {})",source.cte_sql(),actual[0].replace("inventory_count_lines actual","initial_count_history_lines actual"),actual[1].replace("inventory_count_lines line","initial_count_history_lines line"));
+        let long_id=format!("count-{}","x".repeat(240));
+        sqlx::query("INSERT INTO public.inventory_counts(id,company_id,branch_id,warehouse_id,number,count_date,reason,status,net_value_minor,created_by,prepared_by,created_at,updated_at) VALUES($1,'company','branch','warehouse','PREDICATE','2026-01-10','fixture','posted',200,'maker','maker',0,0)").bind(&long_id).execute(&mut *tx).await.unwrap();
+        // A count without lines yields NULL SUM, not zero; all synthetic rows
+        // are rolled back with deferred constraints still enabled.
+        async fn compare(c:&mut sqlx::PgConnection,id:&str,original:&str,candidate:&str)->(bool,bool){let a=sqlx::query_as(sqlx::AssertSqlSafe(original)).bind(id).fetch_one(&mut *c).await.unwrap();let b=sqlx::query_as(sqlx::AssertSqlSafe(candidate)).bind(id).fetch_one(&mut *c).await.unwrap();assert_eq!(a,b);a}
+        assert_eq!(compare(&mut tx,&long_id,&originals,&projected).await,(false,false));
+        sqlx::query("INSERT INTO public.inventory_count_lines(id,count_id,product_id,product_version,description,unit,snapshot_quantity_milli,snapshot_value_minor,snapshot_version,counted_quantity_milli,counted_value_minor,ordinal) VALUES('predicate-line',$1,'product',1,'fixture','each',0,0,0,1000,200,1)").bind(&long_id).execute(&mut *tx).await.unwrap();
+        assert_eq!(compare(&mut tx,&long_id,&originals,&projected).await,(true,true));source.require_current(&mut tx).await.unwrap();
+        sqlx::query("SAVEPOINT nonzero_snapshot").execute(&mut *tx).await.unwrap();sqlx::query("UPDATE public.inventory_count_lines SET snapshot_quantity_milli=1 WHERE id='predicate-line'").execute(&mut *tx).await.unwrap();assert_eq!(compare(&mut tx,&long_id,&originals,&projected).await,(false,true));sqlx::query("ROLLBACK TO SAVEPOINT nonzero_snapshot").execute(&mut *tx).await.unwrap();
+        sqlx::query("SAVEPOINT mismatched_sum").execute(&mut *tx).await.unwrap();sqlx::query("UPDATE public.inventory_count_lines SET counted_value_minor=199 WHERE id='predicate-line'").execute(&mut *tx).await.unwrap();assert_eq!(compare(&mut tx,&long_id,&originals,&projected).await,(true,false));sqlx::query("ROLLBACK TO SAVEPOINT mismatched_sum").execute(&mut *tx).await.unwrap();
+        sqlx::query("SAVEPOINT zero_net").execute(&mut *tx).await.unwrap();sqlx::query("UPDATE public.inventory_counts SET net_value_minor=0 WHERE id=$1").bind(&long_id).execute(&mut *tx).await.unwrap();assert_eq!(compare(&mut tx,&long_id,&originals,&projected).await,(true,false));sqlx::query("ROLLBACK TO SAVEPOINT zero_net").execute(&mut *tx).await.unwrap();
+        sqlx::query("SAVEPOINT nonzero_version").execute(&mut *tx).await.unwrap();sqlx::query("UPDATE public.inventory_count_lines SET snapshot_version=1 WHERE id='predicate-line'").execute(&mut *tx).await.unwrap();assert_eq!(compare(&mut tx,&long_id,&originals,&projected).await,(false,true));sqlx::query("ROLLBACK TO SAVEPOINT nonzero_version").execute(&mut *tx).await.unwrap();
+        sqlx::query("SAVEPOINT held_count").execute(&mut *tx).await.unwrap();sqlx::query("INSERT INTO public.inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,created_by,created_at,updated_at) VALUES('predicate-hold','company','branch','warehouse','product','fixture','2026-01-10','maker',0,0)").execute(&mut *tx).await.unwrap();sqlx::query("UPDATE public.inventory_counts SET quality_hold_id='predicate-hold' WHERE id=$1").bind(&long_id).execute(&mut *tx).await.unwrap();assert_eq!(compare(&mut tx,&long_id,&originals,&projected).await,(false,true));sqlx::query("ROLLBACK TO SAVEPOINT held_count").execute(&mut *tx).await.unwrap();
+        sqlx::query("SAVEPOINT extra_line").execute(&mut *tx).await.unwrap();sqlx::query("INSERT INTO public.commerce_products(id,company_id,sku,name,price_minor,tracking_mode) VALUES('predicate-product','company','PREDICATE-P','fixture',100,'none')").execute(&mut *tx).await.unwrap();sqlx::query("INSERT INTO public.inventory_count_lines(id,count_id,product_id,product_version,description,unit,snapshot_quantity_milli,snapshot_value_minor,snapshot_version,counted_quantity_milli,counted_value_minor,ordinal) VALUES('predicate-extra',$1,'predicate-product',1,'fixture','each',0,0,0,1000,0,2)").bind(&long_id).execute(&mut *tx).await.unwrap();assert_eq!(compare(&mut tx,&long_id,&originals,&projected).await,(false,true));sqlx::query("ROLLBACK TO SAVEPOINT extra_line").execute(&mut *tx).await.unwrap();
+        source.require_current(&mut tx).await.unwrap();assert_eq!(compare(&mut tx,&long_id,&originals,&projected).await,(true,true));tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn count_terminal_decision_source_matches_actual_inventory_ts_branch() {
+    use erpx_server_inventory::public::{count_terminal_history_source::*,initial_count_history_source::*};
+    use erpx_server_workflow::public::record_origin::*;
+    fixture::with_database(2,|pool|async move {
+        setup(&pool,"none").await;
+        let mut unlocked=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unlocked).await.unwrap();assert!(inspect_count_terminal_history_source(&mut unlocked).await.is_err());unlocked.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_initial_count_history_sources(&mut tx).await.unwrap();lock_count_terminal_history_source(&mut tx).await.unwrap();lock_initial_count_history_receipt_sources(&mut tx).await.unwrap();
+        let counts=inspect_initial_count_history_source(&mut tx).await.unwrap();let decisions=inspect_count_terminal_history_source(&mut tx).await.unwrap();let workflow=inspect_initial_count_history_receipt_join(&mut tx).await.unwrap();
+        for (n,status,action,actor,version) in [(1,"posted","post","user",2),(2,"cancelled","cancel","user",2),(3,"rejected","reject","user",2),(4,"posted","post","wrong",2),(5,"posted","post","user",3),(6,"posted","post","user",2),(7,"posted","post","user",2),(8,"posted","post","user",2),(9,"posted","cancel","user",2)] {
+            let id=format!("terminal-count-{n}-{}","x".repeat(210));let cmd=format!("terminal-command-{n}");
+            sqlx::query("INSERT INTO public.inventory_counts(id,company_id,branch_id,warehouse_id,number,count_date,reason,status,version,created_by,prepared_by,created_at,updated_at) VALUES($1,'company','branch','warehouse',$2,'2026-01-10','fixture',$3,$4,'maker','maker',0,0)").bind(&id).bind(format!("TERM-{n}")).bind(status).bind(version as i64).execute(&mut *tx).await.unwrap();
+            let result=serde_json::json!({"status":status,"version":if n==8 {3} else {2}}).to_string();let authority=serde_json::json!({"companyId":if n==6 {"foreign"}else{"company"}}).to_string();let record=if n==7 {"other"} else {id.as_str()};
+            sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES($1,$2,$3,'fixture',$4,$5,$6,0)").bind(&cmd).bind(format!("inventory.count.{action}")).bind(actor).bind(record).bind(result).bind(authority).execute(&mut *tx).await.unwrap();
+            sqlx::query("INSERT INTO public.inventory_count_decisions(id,count_id,command_id,action,actor_id,reviewed_version,reason,created_at) VALUES($1,$2,$3,$4,'user',1,'fixture',0)").bind(format!("terminal-decision-{n}")).bind(&id).bind(&cmd).bind(action).execute(&mut *tx).await.unwrap();
+        }
+        let dir=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/adapters/supply-terminal-receipts.ts");let script=r#"if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const m=await import(process.argv[1]);const s=m.supplyInventoryTerminalReceipts;const start=s.indexOf(" SELECT 'count'::text"),end=s.indexOf(" UNION ALL SELECT 'landed-cost'",start);if(start<0||end<0)throw Error('COUNT_BRANCH_MISSING');process.stdout.write(JSON.stringify(s.slice(start,end)));"#;
+        let output=std::process::Command::new(std::env::var("ERPX_NODE_BIN").unwrap_or_else(|_|"node".into())).arg("--conditions=react-server").arg("--input-type=module").arg("-e").arg(script).arg(dir).output().unwrap();assert!(output.status.success(),"actual TS count branch: {}",String::from_utf8_lossy(&output.stderr));let actual:String=serde_json::from_slice(&output.stdout).unwrap();
+        let replaced=actual.replace("FROM inventory_counts count","FROM initial_count_history_counts count").replace("JOIN inventory_count_decisions event","JOIN count_history_decisions event").replace("JOIN command_receipts command","JOIN initial_count_history_support_receipts command");assert_ne!(actual,replaced);
+        let raw=format!("SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY t.id),'[]'::jsonb)::text FROM ({actual}) t WHERE t.company_id=$1");let projected=format!("WITH {}, {}, {} SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY t.id),'[]'::jsonb)::text FROM ({replaced}) t WHERE t.company_id=$1",counts.cte_sql(),decisions.cte_sql(),workflow.cte_sql());
+        async fn compare(c:&mut sqlx::PgConnection,a:&str,b:&str,company:&str)->serde_json::Value{let original:String=sqlx::query_scalar(sqlx::AssertSqlSafe(a)).bind(company).fetch_one(&mut *c).await.unwrap();let candidate:String=sqlx::query_scalar(sqlx::AssertSqlSafe(b)).bind(company).fetch_one(&mut *c).await.unwrap();let original:serde_json::Value=serde_json::from_str(&original).unwrap();let candidate:serde_json::Value=serde_json::from_str(&candidate).unwrap();assert_eq!(original,candidate);candidate}
+        // This is the actual Count terminal branch before Files recursive steps;
+        // the later version case remains a candidate, not an accepted terminal.
+        assert_eq!(compare(&mut tx,&raw,&projected,"company").await.as_array().unwrap().len(),4);assert_eq!(compare(&mut tx,&raw,&projected,"foreign").await.as_array().unwrap().len(),0);
+        counts.require_current(&mut tx).await.unwrap();decisions.require_current(&mut tx).await.unwrap();workflow.require_current(&mut tx).await.unwrap();
+        sqlx::query("SAVEPOINT bad_terminal_result").execute(&mut *tx).await.unwrap();sqlx::query("UPDATE public.command_receipts SET result_json='{}' WHERE command_id='terminal-command-1'").execute(&mut *tx).await.unwrap();assert_eq!(compare(&mut tx,&raw,&projected,"company").await.as_array().unwrap().len(),3);decisions.require_current(&mut tx).await.unwrap();sqlx::query("ROLLBACK TO SAVEPOINT bad_terminal_result").execute(&mut *tx).await.unwrap();assert_eq!(compare(&mut tx,&raw,&projected,"company").await.as_array().unwrap().len(),4);
+        // Synthetic rows stay uncommitted; no guard is disabled.
+        tx.rollback().await.unwrap();
+        let mut saved=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *saved).await.unwrap();sqlx::query("SAVEPOINT terminal_lock").execute(&mut *saved).await.unwrap();lock_count_terminal_history_source(&mut saved).await.unwrap();let retained=inspect_count_terminal_history_source(&mut saved).await.unwrap();sqlx::query("ROLLBACK TO SAVEPOINT terminal_lock").execute(&mut *saved).await.unwrap();assert!(retained.require_current(&mut saved).await.is_err());saved.rollback().await.unwrap();
+    }).await;
+}

@@ -1,0 +1,2 @@
+//! Same-unit Finance routing facts; not an authorization or target witness.
+pub use crate::adapters::field_attachment_routing::{CurrentGlobalFieldJournalFinanceSource,inspect_global_field_journal_finance_source,CurrentGlobalFieldPaymentFinanceSources,inspect_global_field_payment_finance_sources,PathFlags,FinanceFieldRoutingVector,CurrentFinanceFieldRouting,inspect_finance_field_routing,lock_field_attachment_finance_routing};

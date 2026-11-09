@@ -387,3 +387,13 @@ pub mod support_ticket_command;
 pub mod support_ticket_http;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod support_ticket_read;
+
+#[cfg(feature = "field-service")]
+pub mod field_finance_history;
+
+#[cfg(feature = "existing-business")]
+pub mod field_attachment_global_marker;
+#[cfg(feature = "existing-business")]
+pub mod field_attachment_link_routing;
+#[cfg(feature = "field-service")]
+pub mod initial_count_terminal_history;

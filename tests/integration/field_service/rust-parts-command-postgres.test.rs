@@ -7,6 +7,102 @@ mod facts;
 use erpx_server_shared::public::Clock;
 use facts::*;
 
+/// Exercise the unmounted Field-source classifier against actual committed
+/// owner rows in an isolated test Holding. It grants no IAM or purchase right.
+async fn assert_actual_field_journal_history(db:&sqlx::PgPool,id:&str,company:&str,expected:bool,stale_order:Option<&str>) {
+    use erpx_server_shared::public::CompanyId;
+    use erpx_server_field_service::public::finance_lineage::{inspect_field_history_join,lock_field_history_join_sources};
+    use erpx_server_finance::public::attachment_target_source::{FinanceAttachmentTargetKind,inspect_canonical_finance_history_journal_roots,lock_canonical_finance_attachment_targets,lock_canonical_finance_history_book_roots,observe_canonical_finance_attachment_target};
+    use erpx_server_finance::public::field_history_candidates::{inspect_field_history_finance_candidates,lock_field_history_finance_candidate_sources};
+    use erpx_server_finance::public::field_history_money_lines::{inspect_field_history_money_lines,lock_field_history_money_line_sources};
+    use erpx_server_inventory::public::field_history_consumption::{inspect_field_history_consumption_join,lock_field_history_consumption_join_sources};
+    use erpx_server_workflow::public::record_origin::{inspect_field_history_receipt_join,lock_field_history_receipt_join_sources};
+    use erpx_service::field_finance_history::{FieldFinanceHistoryPhase,inspect_field_finance_history};
+    let node=std::env::var("ERPX_NODE_BIN").unwrap_or_else(|_|"node".into());
+    let ts=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/server-field_service/src/adapters/finance-record-sources.ts");
+    let output=std::process::Command::new(node).arg("--conditions=react-server").arg("--input-type=module").arg("-e").arg("if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const m=await import(process.argv[1]);process.stdout.write(JSON.stringify({journal:m.fieldServiceFinanceRecordSources.journal,parts:m.fieldServiceFinanceRecordSources.partsJournal}))").arg(ts).output().expect("pinned Node Field source oracle");
+    assert!(output.status.success(),"actual Field TS source: {}",String::from_utf8_lossy(&output.stderr));
+    let legacy:serde_json::Value=serde_json::from_slice(&output.stdout).unwrap();
+    let original=|source:&str|format!("SELECT EXISTS(SELECT 1 FROM public.finance_journals d WHERE d.id=$1 AND d.company_id=$2 AND EXISTS(SELECT 1 FROM (SELECT d.id,d.company_id UNION SELECT p.id,p.company_id FROM public.finance_book_postings b JOIN public.finance_journals p ON p.id=b.primary_journal_id AND p.company_id=d.company_id WHERE b.secondary_journal_id=d.id) root JOIN ({source}) owner_source ON owner_source.id=root.id AND owner_source.company_id=root.company_id))");
+    let journal_sql=original(legacy["journal"].as_str().unwrap());let parts_sql=original(legacy["parts"].as_str().unwrap());
+    let mut tx=db.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+    // Utility locks precede the first protected snapshot. This isolated test
+    // demonstrates one coordinator order, not a proof of global lock ordering.
+    lock_canonical_finance_attachment_targets(&mut tx).await.unwrap();lock_canonical_finance_history_book_roots(&mut tx).await.unwrap();lock_field_history_finance_candidate_sources(&mut tx).await.unwrap();lock_field_history_money_line_sources(&mut tx).await.unwrap();lock_field_history_receipt_join_sources(&mut tx).await.unwrap();lock_field_history_consumption_join_sources(&mut tx).await.unwrap();lock_field_history_join_sources(&mut tx).await.unwrap();
+    let company=CompanyId::new(company).unwrap();let target=observe_canonical_finance_attachment_target(&mut tx,FinanceAttachmentTargetKind::Journal,&company,id).await.unwrap();let roots=inspect_canonical_finance_history_journal_roots(&mut tx,&target).await.unwrap();let finance=inspect_field_history_finance_candidates(&mut tx,&target,Some(&roots)).await.unwrap();let money=inspect_field_history_money_lines(&mut tx,&finance).await.unwrap();let workflow=inspect_field_history_receipt_join(&mut tx).await.unwrap();let inventory=inspect_field_history_consumption_join(&mut tx).await.unwrap();let field=inspect_field_history_join(&mut tx).await.unwrap();
+    let inclusion=inspect_field_finance_history(&mut tx,&finance,&money,&workflow,&inventory,&field,FieldFinanceHistoryPhase::Inclusion).await.unwrap();let parts=inspect_field_finance_history(&mut tx,&finance,&money,&workflow,&inventory,&field,FieldFinanceHistoryPhase::PartsSupplement).await.unwrap();
+    let oracle_included:bool=sqlx::query_scalar(sqlx::AssertSqlSafe(journal_sql.as_str())).bind(id).bind(company.as_str()).fetch_one(&mut *tx).await.unwrap();let oracle_parts:bool=sqlx::query_scalar(sqlx::AssertSqlSafe(parts_sql.as_str())).bind(id).bind(company.as_str()).fetch_one(&mut *tx).await.unwrap();
+    assert_eq!((inclusion.decision(),parts.decision()),(oracle_included,oracle_parts));assert_eq!((oracle_included,oracle_parts),(expected,expected));inclusion.require_current(&mut tx).await.unwrap();parts.require_current(&mut tx).await.unwrap();
+    if let Some(order)=stale_order {
+        // A real owner row is changed only within this rolled-back test unit;
+        // deferred guards stay enabled and no invalid mutation is committed.
+        sqlx::query("SAVEPOINT field_history_stale").execute(&mut *tx).await.unwrap();sqlx::query("UPDATE public.field_service_orders SET version=1 WHERE id=$1 AND company_id=$2").bind(order).bind(company.as_str()).execute(&mut *tx).await.unwrap();
+        assert!(!sqlx::query_scalar::<_,bool>(sqlx::AssertSqlSafe(journal_sql.as_str())).bind(id).bind(company.as_str()).fetch_one(&mut *tx).await.unwrap());assert!(!sqlx::query_scalar::<_,bool>(sqlx::AssertSqlSafe(parts_sql.as_str())).bind(id).bind(company.as_str()).fetch_one(&mut *tx).await.unwrap());assert!(inclusion.require_current(&mut tx).await.is_err());assert!(parts.require_current(&mut tx).await.is_err());
+        sqlx::query("ROLLBACK TO SAVEPOINT field_history_stale").execute(&mut *tx).await.unwrap();inclusion.require_current(&mut tx).await.unwrap();parts.require_current(&mut tx).await.unwrap();
+    }
+    tx.rollback().await.unwrap();
+}
+
+/// Focused consumption-source case: the retained `partsJournal` oracle above is
+/// compared with the Inventory CTE, its same-unit fence, and the committed
+/// command effects after rollback. This is a read-only classifier, not a writer.
+#[tokio::test]
+async fn field_parts_consumption_source_matches_actual_typescript_parts_journal_and_rolls_back_without_effects() {
+    use erpx_server_field_service::public::finance_lineage::{inspect_field_history_join,lock_field_history_join_sources};
+    use erpx_server_inventory::public::field_history_consumption::{inspect_field_history_consumption_join,lock_field_history_consumption_join_sources};
+    account::with_system(|system| async move {
+        let p=setup(system).await;
+        let key="field-consumption-source";
+        p.issue(key).await.unwrap();
+        let journal=p.journal(key).await;
+        let consumption=format!("operational-part-{key}");
+        let before=p.counts(key).await;
+        assert_eq!(before,(1,1,1,1,1));
+        // Actual imported TS partsJournal, including foreign, missing and stale
+        // Field order version. The helper re-evaluates the complete composition.
+        assert_actual_field_journal_history(p.pool().raw(),&journal,"company",true,Some("issue-order")).await;
+        assert_actual_field_journal_history(p.pool().raw(),&journal,"foreign",false,None).await;
+        assert_actual_field_journal_history(p.pool().raw(),"field-consumption-missing","company",false,None).await;
+        let mut tx=p.pool().raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        sqlx::query("SET LOCAL search_path TO pg_catalog, public, pg_temp").execute(&mut *tx).await.unwrap();
+        assert!(inspect_field_history_consumption_join(&mut tx).await.is_err());
+        lock_field_history_consumption_join_sources(&mut tx).await.unwrap();
+        lock_field_history_join_sources(&mut tx).await.unwrap();
+        let inventory=inspect_field_history_consumption_join(&mut tx).await.unwrap();
+        let field=inspect_field_history_join(&mut tx).await.unwrap();
+        let cte=format!("WITH {} SELECT count(*) FROM field_history_consumptions WHERE id=$1 AND company_id=$2",inventory.cte_sql());
+        assert_eq!(sqlx::query_scalar::<_,i64>(sqlx::AssertSqlSafe(cte.as_str())).bind(&consumption).bind("company").fetch_one(&mut *tx).await.unwrap(),1);
+        assert_eq!(sqlx::query_scalar::<_,i64>(sqlx::AssertSqlSafe(cte.as_str())).bind(&consumption).bind("foreign").fetch_one(&mut *tx).await.unwrap(),0);
+        assert_eq!(sqlx::query_scalar::<_,i64>(sqlx::AssertSqlSafe(cte.as_str())).bind("operational-part-field-consumption-missing").bind("company").fetch_one(&mut *tx).await.unwrap(),0);
+        inventory.require_current(&mut tx).await.unwrap();
+        field.require_current(&mut tx).await.unwrap();
+        // The source fence is a same-unit/lock identity witness, not a row-image
+        // witness. The installed evidence guard rejects a same-unit rewrite, and
+        // the retained witness stays current; the composition above remains the
+        // row-content decision.
+        sqlx::query("SAVEPOINT consumption_value").execute(&mut *tx).await.unwrap();
+        let immutable=sqlx::query("UPDATE operational_inventory_consumptions SET value_minor=value_minor+1 WHERE id=$1").bind(&consumption).execute(&mut *tx).await;
+        assert!(matches!(immutable,Err(sqlx::Error::Database(ref e)) if e.code().as_deref()==Some("23514")),"consumption evidence must be immutable");
+        sqlx::query("ROLLBACK TO SAVEPOINT consumption_value").execute(&mut *tx).await.unwrap();
+        inventory.require_current(&mut tx).await.unwrap();
+        tx.rollback().await.unwrap();
+        let mut saved=p.pool().raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *saved).await.unwrap();
+        sqlx::query("SAVEPOINT consumption_lock").execute(&mut *saved).await.unwrap();
+        lock_field_history_consumption_join_sources(&mut saved).await.unwrap();
+        let retained=inspect_field_history_consumption_join(&mut saved).await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT consumption_lock").execute(&mut *saved).await.unwrap();
+        assert!(retained.require_current(&mut saved).await.is_err());
+        saved.rollback().await.unwrap();
+        // The read-only classifier transaction adds no receipt/audit/outbox
+        // effect, and the committed issue's exact counts are unchanged.
+        assert_eq!(p.counts(key).await,before);
+        assert_eq!(p.counts("field-consumption-missing").await,(0,0,0,0,0));
+    }).await;
+}
+
+
 #[tokio::test]
 async fn actual_reserve_uses_two_real_stock_versions_and_exact_order_support_inbox_images_with_one_history_replay()
  {
@@ -41,6 +137,11 @@ async fn actual_reserved_issue_without_finance_write_retains_original_allowance_
         assert_eq!(sqlx::query_scalar::<_,i64>("SELECT consumed_milli FROM field_service_part_reservations WHERE id='reserved-part'").fetch_one(p.pool().raw()).await.unwrap(),1000);
         let journal=p.journal(key).await;
         let j:(String,String,String,i64)=sqlx::query_as("SELECT status,source_type,source_id,created_at FROM finance_journals WHERE id=$1").bind(&journal).fetch_one(p.pool().raw()).await.unwrap();assert_eq!(j,("draft".into(),"field_service_parts".into(),format!("operational-part-{key}"),now+2));
+        // Classifier runs directly against the already committed native issue;
+        // this is not an HTTP or browser proof.
+        assert_actual_field_journal_history(p.pool().raw(),&journal,"company",true,Some("issue-order")).await;
+        assert_actual_field_journal_history(p.pool().raw(),&journal,"foreign",false,None).await;
+        assert_actual_field_journal_history(p.pool().raw(),"field-history-missing-journal","company",false,None).await;
         let times:(i64,i64)=sqlx::query_as("SELECT c.created_at,m.captured_at FROM operational_inventory_consumptions c JOIN money_transaction_snapshots m ON m.source_type='operational_inventory_consumption'AND m.source_id=c.id AND m.amount_kind='stock_cost' WHERE c.id=$1").bind(format!("operational-part-{key}")).fetch_one(p.pool().raw()).await.unwrap();assert_eq!(times,(now+1,now+3));
         let event:(i64,serde_json::Value)=sqlx::query_as("SELECT created_at,details_json FROM field_service_order_events WHERE id=$1").bind(format!("service-order-event-{key}")).fetch_one(p.pool().raw()).await.unwrap();assert_eq!(event.0,now);assert_eq!(event.1,serde_json::json!({"reservationId":"reserved-part","quantityMilli":1000,"consumptionId":format!("operational-part-{key}"),"costMinor":200,"journalId":journal}));
         assert_eq!(p.counts(key).await,(1,1,1,1,1));
@@ -452,6 +553,45 @@ async fn field_service_reservation_waits_for_real_stock_withdrawal_before_first_
         assert_eq!(p.counts("field-stock-withdrawal").await,(0,0,0,0,0));
         let stock:(i64,i64)=sqlx::query_as("SELECT quantity_milli,version FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='product'").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(stock,(3000,before+1));
         let reservation:(i64,i64)=sqlx::query_as("SELECT quantity_milli,consumed_milli FROM field_service_part_reservations WHERE id='reserved-part'").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(reservation,(3000,0));
+    }).await;
+}
+
+#[tokio::test]
+async fn selected_parts_waits_between_finance_owner_locks_then_replays() {
+    account::with_system(|system| async move {
+        use std::time::Duration;
+        let p=std::sync::Arc::new(setup(system).await);
+        let mut writer=p.pool().raw().begin().await.unwrap();
+        let writer_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();
+        sqlx::query("SET LOCAL statement_timeout='15s'").execute(&mut *writer).await.unwrap();
+        let updated=sqlx::query("UPDATE finance_charts SET name=name WHERE id='chart'").execute(&mut *writer).await.unwrap();
+        assert_eq!(updated.rows_affected(),1);
+        let other=p.clone();
+        let mut task=tokio::spawn(async move {other.issue("field-inter-lock").await});
+        let observed=tokio::time::timeout(Duration::from_secs(5),async {
+            loop {
+                let row:Option<(i32,i64,bool)>=sqlx::query_as("SELECT l.pid,(SELECT count(DISTINCT x.relation) FROM pg_locks x WHERE x.pid=l.pid AND x.granted AND x.mode='RowExclusiveLock' AND x.relation IN ('finance_journals'::regclass,'finance_journal_lines'::regclass,'money_transaction_snapshots'::regclass)),EXISTS(SELECT 1 FROM pg_locks x WHERE x.pid=l.pid AND x.granted AND x.relation='company_package_grants'::regclass) FROM pg_locks l WHERE l.relation='finance_charts'::regclass AND l.mode='ShareLock' AND NOT l.granted AND $1=ANY(pg_blocking_pids(l.pid))").bind(writer_pid).fetch_optional(p.pool().raw()).await?;
+                if let Some(row)=row {return Ok::<_,sqlx::Error>(row);}
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        }).await;
+        // Always release the actual writer before asserting or joining.
+        let released=tokio::time::timeout(Duration::from_secs(5),writer.rollback()).await;
+        let result=tokio::time::timeout(Duration::from_secs(10),&mut task).await;
+        if result.is_err(){task.abort();let _=task.await;}
+        released.expect("writer rollback timed out").expect("writer rollback failed");
+        let (selected_pid,early_locks,has_commercial)=observed.expect("selected source fence did not wait").expect("lock observation failed");
+        assert_ne!(selected_pid,writer_pid);
+        assert_eq!(early_locks,3,"selected backend must already hold all Finance write-intent locks");
+        assert!(!has_commercial,"Commercial fence must follow the blocked Finance source lock");
+        let first=result.expect("selected command timed out").expect("selected task failed").expect("selected command failed");
+        assert!(!first.replayed);
+        assert_eq!(p.counts("field-inter-lock").await,(1,1,1,1,1));
+        let replay=p.issue("field-inter-lock").await.unwrap();
+        assert!(replay.replayed);assert_eq!(replay.result.as_str(),first.result.as_str());
+        assert_eq!(p.counts("field-inter-lock").await,(1,1,1,1,1));
+        let stock:(i64,i64)=sqlx::query_as("SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='product'").fetch_one(p.pool().raw()).await.unwrap();assert_eq!(stock,(4000,800));
+        assert_eq!(sqlx::query_scalar::<_,i64>("SELECT consumed_milli FROM field_service_part_reservations WHERE id='reserved-part'").fetch_one(p.pool().raw()).await.unwrap(),1000);
     }).await;
 }
 

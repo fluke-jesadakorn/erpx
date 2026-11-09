@@ -1,4 +1,6 @@
 pub mod commerce_order_cancellation;
+pub mod quality_origin_allocation_join;
+pub mod quality_lineage_counts;
 pub use crate::domain::valuation::{
     MAX_SAFE_UNITS, TransitValuation, allocate_landed_cost, reorder_point_milli,
     require_dispatch_date, scaled_inventory_value, transit_quantity_value,
@@ -6,6 +8,9 @@ pub use crate::domain::valuation::{
 pub mod consumption;
 pub mod consumption_finance;
 pub mod postgres_consumption;
+pub mod field_history_consumption;
+pub mod initial_count_history_source;
+pub mod count_terminal_history_source;
 
 pub mod maintenance_settlement;
 
@@ -43,4 +48,6 @@ pub mod quality_stock_source;
 pub mod quality_cancellation_stock;
 pub mod quality_disposition_count;
 pub mod quality_fulfillment_allocation;
+
+pub mod field_journal_consumption_marker;
 pub mod pos_consumption;
