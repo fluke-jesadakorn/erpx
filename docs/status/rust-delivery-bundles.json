@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T15:45:00+07:00",
+  "updatedAt": "2026-11-09T16:35:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -6567,7 +6567,7 @@
   ],
   "executionPlan": {
     "generatedAt": "2026-11-09T14:15:00+07:00",
-    "sourceHead": "56de953a3cc33cb8804dc2c5739c4cad51350b3c",
+    "sourceHead": "31d473393f87fa406fe62eb77e13981fa46b5f0f",
     "interpretation": "ownerTotals includes the 41 register owners plus the seven catalogue surface owners (account, admin, apps, booking, forms, legal-portal, portal); surface owners are counted in the 206 workflows and are not part of the 41-owner strict certification denominator. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -7296,8 +7296,8 @@
       },
       {
         "id": "development-holding-native-session-config",
-        "detail": "Registered Holding hosts acme/northstar/erpx-internal.jesadakorn.com return 500 because the host development apps have no ERPX_NATIVE_ACCOUNT_SESSION_CONFIG; native-session.ts:30 fails closed with NATIVE_SESSION_CONFIGURATION_REQUIRED. 3100, console-dev and 3101 health remain 200 and the Console root remains 404.",
-        "unblock": "Point the host gateway/apps at a reviewed native Account session API and set ERPX_NATIVE_ACCOUNT_SESSION_CONFIG, or explicitly authorize a development-only legacy session fallback; do not fake readiness."
+        "detail": "The native Account session runtime now runs on 127.0.0.1:3199 against current-schema disposable clones of erpx_dev_control/h001/h002, and the development gateway is configured with ERPX_NATIVE_ACCOUNT_SESSION_CONFIG and ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG. https://acme.jesadakorn.com/ now returns 307 instead of 500; local 3100, console-dev and 3101 health remain 200 and the Console root remains 404. Authenticated browser/SSO is blocked because the stored console-dev credentials return 401 INVALID_EMAIL_OR_PASSWORD and the local Chrome Default profile has no active __Host-erpx-product or Account session cookie.",
+        "unblock": "Update the ignored development credentials with a valid Account password or sign in once in the Playwright-visible browser; then rerun authenticated desktop/mobile SSO and owner gates. Extend the disposable native Account runtime clone/config to h003 before final certification."
       }
     ],
     "nextActions": [
@@ -8943,6 +8943,24 @@
           "Finance period-close proof-length parity"
         ],
         "evidence": "Aligned close/reopen proof validation with the installed TypeScript closeProofSchema (trimmed min 1, max 2000). Exact archive 56de953a3: cargo check -p erpx-service PASS; period_close_postgres 7/7 (29.96s) including the new one-character/blank case; business_evidence_postgres 3/3; architecture/catalogue(1005)/docs PASS. The remaining policy-version and exact attachment error-code parity require the Common-owned EvidencePolicyFact/Files port; no owner promoted.",
+        "counts": {
+          "owners": 0,
+          "verified": 65,
+          "partial": 57,
+          "unstarted": 84,
+          "merged": 65,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-09T16:35:00+07:00",
+        "commit": "31d473393",
+        "bundles": [
+          "EvidencePolicyFact policy version and exact attachment error codes",
+          "Private API exact development database selection",
+          "Native Account session runtime on 127.0.0.1:3199"
+        ],
+        "evidence": "Exact archive 31d473393: cargo check -p erpx-service PASS; period_close_postgres 7/7; business_evidence_postgres 3/3; records business-evidence unit 5/5; service_initial_physical_stock_postgres 2/2; count_submission_postgres 4/4; private_development_api 12/12; Records lib 18/18; Files lib 2/2; architecture/catalogue(1006)/docs PASS. The native Account runtime now runs on 3199 against current-schema disposable clones of the dev control/h001/h002 databases; acme returns 307 instead of 500. Authenticated browser/SSO is blocked because the stored console-dev password returns INVALID_EMAIL_OR_PASSWORD and the local Chrome profile has no active product session. No owner promoted.",
         "counts": {
           "owners": 0,
           "verified": 65,
