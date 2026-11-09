@@ -39,6 +39,7 @@ pub struct WorkCapabilitiesFact {
     pub creation: Vec<String>,
     pub team_queue: bool,
     pub roster_access: bool,
+    pub unavailable: Vec<String>,
 }
 
 /// The exact catalogue IDs and the work-item type/creation kind each card maps
@@ -273,6 +274,7 @@ mod tests {
             creation: vec!["task".into(), "conversation".into()],
             team_queue: true,
             roster_access: true,
+            unavailable: Vec::new(),
         };
         let available = available_work_card_ids(
             &WorkSnapshotFact::default(),
