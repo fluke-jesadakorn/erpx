@@ -6563,7 +6563,7 @@
   ],
   "executionPlan": {
     "generatedAt": "2026-11-09T13:10:00+07:00",
-    "sourceHead": "372ef97e483ffb6d1298e344b513b4e19bbbda15",
+    "sourceHead": "d6ef0ebf9c2c40f434de5143bddef7e7de2f00ea",
     "interpretation": "ownerTotals includes the 41 register owners plus the seven catalogue surface owners (account, admin, apps, booking, forms, legal-portal, portal); surface owners are counted in the 206 workflows and are not part of the 41-owner strict certification denominator. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -8788,6 +8788,23 @@
           "feature-pos public export"
         ],
         "evidence": "1bfa006aa/54612c2eb committed the missing composition/owner source-fence closure and Legal/Workplace architecture fixes; 196c8d204 removed the five Brand TS identity writers, migrated fixture/tests and retained published/workspace reads; 72d7ab24d declared feature-pos public native cash export. Counts unchanged at 65 verified/65 merged/57 partial/84 unstarted, owners 0/41. Clean 72d verification and strict Brand owner decision pending.",
+        "counts": {
+          "owners": 0,
+          "verified": 65,
+          "partial": 57,
+          "unstarted": 84,
+          "merged": 65,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-09T12:06:00+07:00",
+        "commit": "d6ef0ebf9",
+        "bundles": [
+          "Finance period-close workpaper evidence owner port",
+          "Field parts full clean-archive lock-order verification"
+        ],
+        "evidence": "d6ef0ebf9 adds PgPeriodCloseEvidence, the exact workpaper contract and close_period_with_evidence; the no-evidence close_period bridge fails closed for nonempty workpapers. Clean archive of d6ef0ebf9 compiles erpx-service with private-field-api (27.48s). Clean archive 33f31860 field_service_parts_postgres passed 37/37 (837.75s), including selected_parts_waits_between_finance_owner_locks_then_replays. No workflow or owner promoted; Common Files patch and Finance composition mount remain pending.",
         "counts": {
           "owners": 0,
           "verified": 65,
