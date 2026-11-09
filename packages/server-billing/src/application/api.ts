@@ -227,7 +227,9 @@ function billingHandler(platform: boolean) {
       const key = request.headers.get("Idempotency-Key") ?? "";
       if (
         ports.nativeCostCommand &&
-        ["cost", "delete-cost", "complete-costs"].includes(input.action)
+        ["cost", "delete-cost", "complete-costs", "approve-target-rollout"].includes(
+          input.action,
+        )
       ) {
         const data = await ports.nativeCostCommand(actor, holdingId, input, key);
         return Response.json(canonicalDestinationLinks({ data }), {

@@ -126,6 +126,14 @@ export async function nativeBillingCostCommand(
       periodId: input.periodId,
       complete: input.complete,
     };
+  } else if (input.action === 'approve-target-rollout') {
+    action = 'approve-target-rollout';
+    body = {
+      version: input.version,
+      reason: input.reason,
+      targetMonth: input.targetMonth,
+      minimumMarginBps: input.minimumMarginBps,
+    };
   } else {
     return undefined;
   }

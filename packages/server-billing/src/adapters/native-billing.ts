@@ -42,7 +42,7 @@ export type NativeBillingTransport = (
 export type NativeBillingCommandInput = Readonly<{
   holdingId: string;
   holdingSlug: string;
-  action: "cost" | "delete-cost" | "complete-costs";
+  action: "cost" | "delete-cost" | "complete-costs" | "approve-target-rollout";
   key: string;
   body: Readonly<Record<string, unknown>>;
 }>;
@@ -772,7 +772,9 @@ export function createNativeBillingClient(
         ? "/costs/record"
         : input.action === "delete-cost"
           ? "/costs/delete"
-          : "/costs/complete";
+          : input.action === "complete-costs"
+            ? "/costs/complete"
+            : "/target/rollout/approve";
     const response = await ownerCall(
       transport,
       config,
