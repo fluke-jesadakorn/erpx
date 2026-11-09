@@ -54,6 +54,7 @@ impl PgPeriodCloseEvidence for CloseWorkpapers {
                 PERIOD_CLOSE_WORKPAPER_TARGET_TYPE,
                 PERIOD_CLOSE_WORKPAPER_PURPOSE_KEY,
                 &[PERIOD_CLOSE_WORKPAPER_COMPONENT_KIND],
+                1,
             )],
             TimestampMillis::new(self.now),
         );
@@ -601,10 +602,10 @@ async fn period_close_rejects_invalid_workpapers_without_effects_and_rolls_back(
         begin(pool, &maker, "close-begin-reject-workpapers").await.unwrap();
 
         for (index, (set, code)) in [
-            ("close-set-foreign", "ATTACHMENT_BINDING_CONTEXT"),
-            ("close-set-target", "ATTACHMENT_BINDING_CHANGED"),
-            ("close-set-version", "ATTACHMENT_BINDING_CHANGED"),
-            ("close-set-short", "ATTACHMENT_BINDING_CHANGED"),
+            ("close-set-foreign", "ATTACHMENT_SET_NOT_FOUND"),
+            ("close-set-target", "ATTACHMENT_SET_TARGET"),
+            ("close-set-version", "ATTACHMENT_SET_STALE"),
+            ("close-set-short", "ATTACHMENT_REQUIRED"),
         ]
         .into_iter()
         .enumerate()

@@ -36,6 +36,10 @@ fn missing() -> Error {
     .into()
 }
 
+fn conflict(code: &'static str, message: &'static str) -> Error {
+    BusinessError::new(FailureKind::Conflict, code, message).into()
+}
+
 fn empty() -> Error {
     BusinessError::new(
         FailureKind::InvalidInput,
@@ -66,6 +70,7 @@ pub struct PreparedBusinessEvidence {
     pub target_type: String,
     pub target_id: String,
     pub expected_target_version: i64,
+    pub policy_version: i64,
     pub binding_type: String,
     pub binding_id: String,
     pub command_id: String,
@@ -140,7 +145,7 @@ impl<'c> PgBusinessEvidenceFiles<'c> {
     ) -> Result<(), Error> {
         self.unit().await?;
         let sets = sqlx::query(
-            "SELECT id,company_id,target_type,target_id,expected_target_version,state,bound_command_id,\
+            "SELECT id,company_id,target_type,target_id,expected_target_version,policy_version,state,bound_command_id,\
              component_kind,component_ref,purpose_key \
              FROM attachment_sets WHERE id = ANY($1)",
         )
@@ -156,6 +161,7 @@ impl<'c> PgBusinessEvidenceFiles<'c> {
             let target_type: String = row.try_get("target_type")?;
             let target_id: String = row.try_get("target_id")?;
             let version: i64 = row.try_get("expected_target_version")?;
+            let policy_version: i64 = row.try_get("policy_version")?;
             let state: String = row.try_get("state")?;
             let command: Option<String> = row.try_get("bound_command_id")?;
             let component_kind: String = row.try_get("component_kind")?;
@@ -175,6 +181,7 @@ impl<'c> PgBusinessEvidenceFiles<'c> {
                 || target_type != prepared.target_type
                 || target_id != prepared.target_id
                 || version != prepared.expected_target_version
+                || policy_version != prepared.policy_version
                 || state != "bound"
                 || command.as_deref() != Some(prepared.command_id.as_str())
                 || !manifest_matches
@@ -242,7 +249,7 @@ impl BusinessEvidenceFilesPort for PgBusinessEvidenceFiles<'_> {
         self.unit().await?;
         let rows = sqlx::query(
             "SELECT id,target_type FROM attachment_sets \
-             WHERE id = ANY($1) AND company_id=$2 AND state='draft' \
+             WHERE id = ANY($1) AND company_id=$2 \
              AND (branch_id IS NULL OR branch_id=$3) \
              AND (department_id IS NULL OR department_id=$4)",
         )
@@ -277,16 +284,17 @@ impl BusinessEvidenceFilesPort for PgBusinessEvidenceFiles<'_> {
             || input.binding_type.is_empty()
             || input.binding_id.is_empty()
             || input.selection.set_ids.is_empty()
+            || input.selection.set_ids.len() > 20
         {
             return Err(invalid(
-                "ATTACHMENT_BINDING_CONTEXT",
-                "Choose current files for this exact owner action.",
+                "ATTACHMENT_SETS_REQUIRED",
+                "Choose one to twenty file sets.",
             ));
         }
         let rows = sqlx::query(
-            "SELECT id,target_type,target_id,expected_target_version,component_kind,\
-             component_ref,purpose_key,required_count,max_files \
-             FROM attachment_sets WHERE id = ANY($1) AND company_id=$2 AND state='draft' \
+            "SELECT id,target_type,target_id,expected_target_version,policy_version,component_kind,\
+             component_ref,purpose_key,required_count,max_files,state \
+             FROM attachment_sets WHERE id = ANY($1) AND company_id=$2 \
              AND (branch_id IS NULL OR branch_id=$3) \
              AND (department_id IS NULL OR department_id=$4) FOR UPDATE",
         )
@@ -306,22 +314,43 @@ impl BusinessEvidenceFilesPort for PgBusinessEvidenceFiles<'_> {
             let target_type: String = row.try_get("target_type")?;
             let target_id: String = row.try_get("target_id")?;
             let version: i64 = row.try_get("expected_target_version")?;
+            let policy_version: i64 = row.try_get("policy_version")?;
             let component_kind: String = row.try_get("component_kind")?;
             let component_ref: Option<String> = row.try_get("component_ref")?;
             let purpose: String = row.try_get("purpose_key")?;
             let required: i64 = row.try_get("required_count")?;
             let maximum: i64 = row.try_get("max_files")?;
-            if target_type != input.selection.target_type
-                || target_id != input.target_id
-                || version != input.expected_target_version
-                || !input.selection.contexts.iter().any(|context| {
-                    context.purpose_key == purpose
-                        && context.component_kind == component_kind
-                        && (context.component_ref.is_none()
-                            || context.component_ref == component_ref)
-                })
+            let state: String = row.try_get("state")?;
+            if target_type != input.selection.target_type || target_id != input.target_id {
+                return Err(invalid(
+                    "ATTACHMENT_SET_TARGET",
+                    "A file set belongs to another record.",
+                ));
+            }
+            if !input.selection.contexts.iter().any(|context| {
+                context.purpose_key == purpose
+                    && context.component_kind == component_kind
+                    && (context.component_ref.is_none()
+                        || context.component_ref == component_ref)
+            }) {
+                return Err(invalid(
+                    "ATTACHMENT_BINDING_CONTEXT",
+                    "Choose only files prepared for this exact domain action and component.",
+                ));
+            }
+            if state != "draft" {
+                return Err(conflict(
+                    "ATTACHMENT_SET_LOCKED",
+                    "A file set was already bound or closed.",
+                ));
+            }
+            if version != input.expected_target_version
+                || policy_version != input.selection.policy_version
             {
-                return Err(changed());
+                return Err(conflict(
+                    "ATTACHMENT_SET_STALE",
+                    "Create a file set for the current record version.",
+                ));
             }
             let links = sqlx::query(
                 "SELECT l.id,l.state,l.attachment_id,a.source_state,a.checksum_sha256,\
@@ -334,42 +363,59 @@ impl BusinessEvidenceFilesPort for PgBusinessEvidenceFiles<'_> {
             .bind(self.company.as_str())
             .fetch_all(&mut *self.connection)
             .await?;
-            if links.is_empty()
-                || (links.len() as i64) > maximum
-                || (links.len() as i64) < required
-                || links.iter().any(|link| {
-                    link.try_get::<String, _>("state")
-                        .map(|state| state != "draft")
-                        .unwrap_or(true)
-                        || link
-                            .try_get::<Option<String>, _>("attachment_id")
-                            .ok()
-                            .flatten()
-                            .is_none()
-                        || link
-                            .try_get::<Option<String>, _>("source_state")
-                            .ok()
-                            .flatten()
-                            .as_deref()
-                            != Some("available")
-                        || link
-                            .try_get::<Option<String>, _>("checksum_sha256")
-                            .ok()
-                            .flatten()
-                            .is_none()
-                        || link
-                            .try_get::<Option<String>, _>("media_type")
-                            .ok()
-                            .flatten()
-                            .is_none()
-                        || link
-                            .try_get::<Option<i64>, _>("bytes")
-                            .ok()
-                            .flatten()
-                            .is_none()
-                })
-            {
-                return Err(if links.is_empty() { empty() } else { changed() });
+            if links.is_empty() {
+                return Err(empty());
+            }
+            if (links.len() as i64) > maximum {
+                return Err(changed());
+            }
+            if links.iter().any(|link| {
+                link.try_get::<String, _>("state")
+                    .map(|state| state != "draft")
+                    .unwrap_or(true)
+            }) {
+                return Err(conflict(
+                    "ATTACHMENT_SET_LOCKED",
+                    "A file set was already bound or closed.",
+                ));
+            }
+            if links.iter().any(|link| {
+                link.try_get::<Option<String>, _>("source_state")
+                    .ok()
+                    .flatten()
+                    .as_deref()
+                    != Some("available")
+                    || link
+                        .try_get::<Option<String>, _>("attachment_id")
+                        .ok()
+                        .flatten()
+                        .is_none()
+                    || link
+                        .try_get::<Option<String>, _>("checksum_sha256")
+                        .ok()
+                        .flatten()
+                        .is_none()
+                    || link
+                        .try_get::<Option<String>, _>("media_type")
+                        .ok()
+                        .flatten()
+                        .is_none()
+                    || link
+                        .try_get::<Option<i64>, _>("bytes")
+                        .ok()
+                        .flatten()
+                        .is_none()
+            }) {
+                return Err(conflict(
+                    "ATTACHMENT_SCAN_PENDING",
+                    "Every active file must pass malware scanning before this action.",
+                ));
+            }
+            if (links.len() as i64) < required {
+                return Err(invalid(
+                    "ATTACHMENT_REQUIRED",
+                    "The reviewed file set does not meet its required count.",
+                ));
             }
             for link in &links {
                 let link_id: String = link.try_get("id")?;
@@ -484,6 +530,7 @@ impl BusinessEvidenceFilesPort for PgBusinessEvidenceFiles<'_> {
             target_type: input.selection.target_type,
             target_id: input.target_id,
             expected_target_version: input.expected_target_version,
+            policy_version: input.selection.policy_version,
             binding_type: input.binding_type,
             binding_id: input.binding_id,
             command_id: input.command_id,
@@ -497,6 +544,7 @@ pub fn policy_fact(
     target_type: &str,
     purpose_key: &str,
     component_kinds: &[&str],
+    policy_version: i64,
 ) -> EvidencePolicyFact {
     EvidencePolicyFact {
         target_type: target_type.to_string(),
@@ -505,6 +553,7 @@ pub fn policy_fact(
             .iter()
             .map(|value| (*value).to_string())
             .collect(),
+        policy_version,
     }
 }
 

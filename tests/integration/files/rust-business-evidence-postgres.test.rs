@@ -76,6 +76,7 @@ fn policies() -> Vec<erpx_server_records::public::business_evidence::EvidencePol
         "commerce_order_delivery",
         "proof_of_delivery",
         &["action"],
+        1,
     )]
 }
 
@@ -217,7 +218,7 @@ async fn rejects_foreign_scope_wrong_target_missing_context_and_short_sets() {
         // set-1 now requires two links but has one.
         match prepare_business_evidence(&mut port, request("delivery-1", 1, &["set-1"])).await {
             Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(error)) => {
-                assert_eq!(error.code, "ATTACHMENT_BINDING_CHANGED")
+                assert_eq!(error.code, "ATTACHMENT_REQUIRED")
             }
             _ => panic!("expected insufficient-link conflict"),
         }

@@ -652,6 +652,7 @@ impl FinancePeriodCloseEvidence {
                 PERIOD_CLOSE_WORKPAPER_TARGET_TYPE,
                 PERIOD_CLOSE_WORKPAPER_PURPOSE_KEY,
                 &[PERIOD_CLOSE_WORKPAPER_COMPONENT_KIND],
+                1,
             )],
             self.now,
         )

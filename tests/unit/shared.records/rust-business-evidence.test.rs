@@ -19,6 +19,7 @@ fn policy(target: &str, purpose: &str) -> EvidencePolicyFact {
         target_type: target.into(),
         purpose_key: purpose.into(),
         component_kinds: vec!["action".into()],
+        policy_version: 1,
     }
 }
 #[test]
@@ -45,15 +46,25 @@ fn first_occurrence_order_and_actual_alias_policy_are_preserved() {
     assert_eq!(selected.set_ids, ["b", "a"]);
     assert_eq!(selected.target_type, "inventory_stock_count");
     assert_eq!(selected.contexts, [context("count_evidence", "action")]);
+    assert_eq!(selected.policy_version, 1);
 }
 #[test]
 fn missing_foreign_duplicate_and_mixed_target_facts_cannot_authorize_a_binding() {
     let ids = ["a".into(), "b".into()];
-    for facts in [
-        vec![fact("a", "stock_count")],
-        vec![fact("a", "stock_count"), fact("foreign", "stock_count")],
-        vec![fact("a", "stock_count"), fact("a", "stock_count")],
-        vec![fact("a", "stock_count"), fact("b", "inventory_stock_count")],
+    for (facts, code) in [
+        (vec![fact("a", "stock_count")], "ATTACHMENT_SET_NOT_FOUND"),
+        (
+            vec![fact("a", "stock_count"), fact("foreign", "stock_count")],
+            "ATTACHMENT_SET_NOT_FOUND",
+        ),
+        (
+            vec![fact("a", "stock_count"), fact("a", "stock_count")],
+            "ATTACHMENT_SET_NOT_FOUND",
+        ),
+        (
+            vec![fact("a", "stock_count"), fact("b", "inventory_stock_count")],
+            "ATTACHMENT_SET_TARGET",
+        ),
     ] {
         let error = select_evidence(
             &ids,
@@ -63,7 +74,7 @@ fn missing_foreign_duplicate_and_mixed_target_facts_cannot_authorize_a_binding()
             &[policy("stock_count", "count_sheet")],
         )
         .unwrap_err();
-        assert_eq!(error.code, "ATTACHMENT_BINDING_CONTEXT");
+        assert_eq!(error.code, code);
     }
 }
 #[test]
@@ -81,7 +92,7 @@ fn context_requires_the_matching_target_purpose_and_component_kind() {
             &policies,
         )
         .unwrap_err();
-        assert_eq!(error.code, "ATTACHMENT_BINDING_CONTEXT");
+        assert_eq!(error.code, "ATTACHMENT_POLICY_UNKNOWN");
     }
 }
 
@@ -169,7 +180,7 @@ async fn mismatched_scoped_facts_stop_before_files_binding() {
             .await
             .unwrap_err()
             .code,
-        "ATTACHMENT_BINDING_CONTEXT"
+        "ATTACHMENT_SET_NOT_FOUND"
     );
     assert!(files.bindings.is_empty());
 }

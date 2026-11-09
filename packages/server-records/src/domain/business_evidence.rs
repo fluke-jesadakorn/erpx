@@ -19,12 +19,14 @@ pub struct EvidencePolicyFact {
     pub target_type: String,
     pub purpose_key: String,
     pub component_kinds: Vec<String>,
+    pub policy_version: i64,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EvidenceSelection {
     pub set_ids: Vec<String>,
     pub target_type: String,
     pub contexts: Vec<EvidenceContext>,
+    pub policy_version: i64,
 }
 pub fn unique_evidence_ids(ids: &[String]) -> Vec<String> {
     let mut seen = HashSet::new();
@@ -49,38 +51,65 @@ pub fn select_evidence(
     if facts.len() != ids.len()
         || observed.len() != ids.len()
         || ids.iter().any(|id| !observed.contains(id.as_str()))
-        || target.is_none_or(|t| !allowed_targets.iter().any(|allowed| allowed == t))
+    {
+        return Err(failure(
+            FailureKind::NotFound,
+            "ATTACHMENT_SET_NOT_FOUND",
+            "Attachment set not found.",
+        ));
+    }
+    if target.is_none_or(|t| !allowed_targets.iter().any(|allowed| allowed == t))
         || facts.iter().any(|f| Some(f.target_type.as_str()) != target)
     {
-        return Err(invalid("Choose files for this exact owner and action."));
+        return Err(failure(
+            FailureKind::InvalidInput,
+            "ATTACHMENT_SET_TARGET",
+            "A file set belongs to another record.",
+        ));
     }
     let target_type = target.expect("nonempty matching scoped facts").to_owned();
-    let contexts: Vec<_> = requested
-        .iter()
-        .filter(|context| {
-            policies.iter().any(|p| {
+    let mut contexts = Vec::new();
+    let mut policy_version = None;
+    for context in requested {
+        let matched: Vec<_> = policies
+            .iter()
+            .filter(|p| {
                 p.target_type == target_type
                     && p.purpose_key == context.purpose_key
                     && p.component_kinds.contains(&context.component_kind)
             })
-        })
-        .cloned()
-        .collect();
+            .collect();
+        let Some(policy) = matched.first() else {
+            continue;
+        };
+        if matched
+            .iter()
+            .any(|candidate| candidate.policy_version != policy.policy_version)
+            || policy_version.is_some_and(|version| version != policy.policy_version)
+        {
+            return Err(failure(
+                FailureKind::InvalidInput,
+                "ATTACHMENT_POLICY_UNKNOWN",
+                "This file purpose is not registered for the selected record and context.",
+            ));
+        }
+        policy_version = Some(policy.policy_version);
+        contexts.push(context.clone());
+    }
     if contexts.is_empty() {
-        return Err(invalid(
-            "This owner has no registered file context for this action.",
+        return Err(failure(
+            FailureKind::InvalidInput,
+            "ATTACHMENT_POLICY_UNKNOWN",
+            "This file purpose is not registered for the selected record and context.",
         ));
     }
     Ok(Some(EvidenceSelection {
         set_ids: ids,
         target_type,
         contexts,
+        policy_version: policy_version.expect("nonempty matching policy"),
     }))
 }
-fn invalid(message: &'static str) -> BusinessError {
-    BusinessError::new(
-        FailureKind::InvalidInput,
-        "ATTACHMENT_BINDING_CONTEXT",
-        message,
-    )
+fn failure(kind: FailureKind, code: &'static str, message: &'static str) -> BusinessError {
+    BusinessError::new(kind, code, message)
 }

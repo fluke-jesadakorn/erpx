@@ -1195,6 +1195,7 @@ pub async fn execute_service_count_action<
                 target_type: p.target_type.into(),
                 purpose_key: p.purpose_key.into(),
                 component_kinds: vec![p.component_kind.into()],
+                policy_version: 1,
             })
             .collect::<Vec<_>>();
         let contexts = ["count_sheet", "count_photo", "count_evidence"]
