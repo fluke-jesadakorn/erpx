@@ -9,11 +9,14 @@ const text=(v:unknown):v is string=>typeof v==='string'&&v.length>0&&new TextEnc
 const nullable=(v:unknown)=>v===null||typeof v==='string';
 const fail=(code:string,status=503):never=>{throw new ApiError(status,code,'The native account preference is unavailable.');};
 export function createNativeAccountPreferencesClient(raw:string,send:typeof nativeAccountPreferencesRequest=nativeAccountPreferencesRequest){
- let config:NativeHoldingConfiguration;try{config=nativeHoldingConfiguration(raw,originProfile());}catch{return fail('NATIVE_ACCOUNT_PREFERENCE_CONFIGURATION_INVALID');}
+ const profile=originProfile();let config:NativeHoldingConfiguration;try{config=nativeHoldingConfiguration(raw,profile);}catch{return fail('NATIVE_ACCOUNT_PREFERENCE_CONFIGURATION_INVALID');}
  return async(incoming:Pick<Headers,'get'>,userId:string,method:'GET'|'POST',body?:string,holdingId?:string,holdingSlug?:string,workspace=false):Promise<NativeAccountPreferences>=>{
-  const target=config.holdings.find(h=>new URL(h.origin).host===incoming.get('host'));
+  const sourceHost=incoming.get('host'),loopback=profile==='loopback'&&sourceHost!==null&&/^127\.0\.0\.1:\d+$/.test(sourceHost);
+  const target=loopback?config.holdings[0]:config.holdings.find(h=>new URL(h.origin).host===sourceHost);
   if(!target||holdingId!==undefined&&holdingId!==target.holdingId||holdingSlug!==undefined&&holdingSlug!==target.holdingSlug)return fail('NATIVE_ACCOUNT_PREFERENCE_TARGET_UNAVAILABLE');
-  const origin=incoming.get('origin');if(origin&&origin!==target.origin||method==='POST'&&origin!==target.origin)return fail('ORIGIN_FORBIDDEN',403);
+  const sourceOrigin=incoming.get('origin');
+  if(loopback){if(sourceOrigin&&sourceOrigin!==`http://${sourceHost}`)return fail('ORIGIN_FORBIDDEN',403);}else if(sourceOrigin&&sourceOrigin!==target.origin||method==='POST'&&sourceOrigin!==target.origin)return fail('ORIGIN_FORBIDDEN',403);
+  const origin=loopback?target.origin:sourceOrigin;
   const headers=new Headers({host:new URL(target.origin).host,accept:'application/json'});if(origin)headers.set('origin',origin);
   const cookie=incoming.get('cookie');if(cookie){if(new TextEncoder().encode(cookie).length>8192)return fail('NATIVE_ACCOUNT_PREFERENCE_COOKIE_LIMIT');headers.set('cookie',cookie);}
   if(method==='POST'){

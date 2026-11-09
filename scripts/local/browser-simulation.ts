@@ -11,7 +11,7 @@ import {mkdir,readFile,writeFile,chmod,open,rm,realpath,readdir} from 'node:fs/p
 import {existsSync} from 'node:fs';
 import {resolve,join,dirname} from 'node:path';
 import {createHash,randomBytes} from 'node:crypto';
-import {spawn} from 'node:child_process';
+import {spawn,spawnSync} from 'node:child_process';
 import {createServer} from 'node:net';
 import {Pool} from 'pg';
 import {PostgresDatabase} from "@erpx/server-runtime/adapters/runtime/postgres";
@@ -645,6 +645,12 @@ if(mode==='prepare'||diagnostic){
   const work={privateBaseUrl:`http://127.0.0.1:${servicePort}`,timeoutMs:5000,holdings:[{origin:'http://holding.erpxbrowser.test:3102',holdingSlug:'acme',holdingId:'h001'}]};
   Object.assign(environment,{NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE:'loopback',ERPX_NATIVE_ORIGIN_PROFILE:'loopback',ERPX_NATIVE_ACCOUNT_SESSION_CONFIG:JSON.stringify(account),ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG:JSON.stringify(work)});
   const configPath=join(directory,'browser-native-account.json');await writePrivate(configPath,template);
+  const controlDb=new PostgresDatabase({connectionString:databases.CONTROL_DB,max:1});
+  try{
+   const salt=randomBytes(16).toString('hex'),nativeHash=spawnSync('argon2',[salt,'-id','-t','3','-k','65536','-p','1','-e'],{input:'Mali-ERPX-2026!',encoding:'utf8'});
+   if(nativeHash.status!==0||!nativeHash.stdout.trim().startsWith('$argon2id$'))throw new Error('BROWSER_NATIVE_PASSWORD_HASH_FAILED');
+   await controlDb.prepare('UPDATE account SET password=? WHERE "userId" IN (SELECT id FROM "user" WHERE email=?)').bind(nativeHash.stdout.trim(),'mali@erpx.dev').run();
+  }finally{await controlDb.close();}
   const nativeLog=await open(`/tmp/erpx-browser-native-${run}.log`,'a',0o600);
   const native=spawn(join(root,'target/debug/erpx-server'),['private-api','--development-config',configPath],{cwd:root,env:{...process.env,ERPX_BROWSER_SIMULATION_RUN_ID:run},detached:true,stdio:['ignore',nativeLog.fd,nativeLog.fd]});
   native.unref();await nativeLog.close();
