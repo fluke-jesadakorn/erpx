@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T09:39:42+07:00",
+  "updatedAt": "2026-11-09T11:55:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -6552,9 +6552,9 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-09T11:35:00+07:00",
-    "sourceHead": "9bb073161078541575574002dce5c1de6b8bceb3",
-    "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed. Owner completion is counted only after those strict gates are independently established at the pushed source; zero here means none has yet been certified by this audit, not that historical slices were undone.",
+    "generatedAt": "2026-11-09T11:55:00+07:00",
+    "sourceHead": "6e045dd7b008c571dc6c4f8313b3218835c9170c",
+    "interpretation": "ownerTotals includes the 41 register owners plus the seven catalogue surface owners (account, admin, apps, booking, forms, legal-portal, portal); surface owners are counted in the 206 workflows and are not part of the 41-owner strict certification denominator. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
         "workflows": 3,
@@ -6883,6 +6883,69 @@
         "unstarted": 0,
         "phase": "foundation",
         "businessMigrationComplete": false
+      },
+      "apps": {
+        "workflows": 4,
+        "verified": 2,
+        "partial": 1,
+        "unstarted": 1,
+        "phase": "surface",
+        "businessMigrationComplete": false,
+        "surfaceOwner": true
+      },
+      "account": {
+        "workflows": 5,
+        "verified": 0,
+        "partial": 1,
+        "unstarted": 4,
+        "phase": "surface",
+        "businessMigrationComplete": false,
+        "surfaceOwner": true
+      },
+      "admin": {
+        "workflows": 4,
+        "verified": 0,
+        "partial": 1,
+        "unstarted": 3,
+        "phase": "surface",
+        "businessMigrationComplete": false,
+        "surfaceOwner": true
+      },
+      "booking": {
+        "workflows": 1,
+        "verified": 0,
+        "partial": 0,
+        "unstarted": 1,
+        "phase": "surface",
+        "businessMigrationComplete": false,
+        "surfaceOwner": true
+      },
+      "portal": {
+        "workflows": 1,
+        "verified": 0,
+        "partial": 0,
+        "unstarted": 1,
+        "phase": "surface",
+        "businessMigrationComplete": false,
+        "surfaceOwner": true
+      },
+      "legal-portal": {
+        "workflows": 2,
+        "verified": 0,
+        "partial": 0,
+        "unstarted": 2,
+        "phase": "surface",
+        "businessMigrationComplete": false,
+        "surfaceOwner": true
+      },
+      "forms": {
+        "workflows": 1,
+        "verified": 0,
+        "partial": 0,
+        "unstarted": 1,
+        "phase": "surface",
+        "businessMigrationComplete": false,
+        "surfaceOwner": true
       }
     },
     "dependencyGraph": {
