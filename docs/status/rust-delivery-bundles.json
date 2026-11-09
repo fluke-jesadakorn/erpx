@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T12:55:00+07:00",
+  "updatedAt": "2026-11-09T13:10:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -4451,10 +4451,11 @@
         "assets-native-http",
         "assets-native-ssr",
         "assets-http-postgres",
-        "assets-native-transport"
+        "assets-native-transport",
+        "assets-maintenance-browser-pre-sync"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Owner maintenance source and retirement-work checks pass natively; the keyed browser work-order lifecycle was not completed because the eligible seeded asset already has active maintenance work. Remains partial."
+      "gap": "Pre-sync browser run on the normal Mali session completed a zero-cost asset registration/placement and work-order create/start/complete with persisted asset events v1-v4, work events v1-v3, 5 receipts/audit/outbox and 0 page errors. Work-order creation still uses the retained TypeScript createMaintenanceWork path; transitions are native only when configured. Remains partial until create is native and the journey repeats on the exact synced SHA. Evidence: docs/testing/evidence/2026-11-09-assets-maintenance-pre-sync.json (closure:false)."
     },
     {
       "id": "assets/feature-retirement",
@@ -4473,7 +4474,7 @@
         "assets-native-independent-retirement-approval"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Native request and independent approval pass in asset_register_postgres 25/25 and asset_http_postgres 5/5; the normal-browser request passed on the keyed workspace, but a second browser account with an Assets-authorized role was unavailable for independent approve, so this workflow remains partial."
+      "gap": "Native request and independent approval pass in asset_register_postgres 25/25 and asset_http_postgres 5/5; normal-browser request passed, but no legitimate second acme-co iam_member with the assets module exists (Nisa has records.review but only operations module; direct GET 403 MODULE_UNAVAILABLE). Independent browser approve is blocked by legitimate authority, not code; native HTTP independent-review evidence is retained. Remains partial."
     },
     {
       "id": "inventory/availability",
@@ -6561,7 +6562,7 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-09T12:55:00+07:00",
+    "generatedAt": "2026-11-09T13:10:00+07:00",
     "sourceHead": "372ef97e483ffb6d1298e344b513b4e19bbbda15",
     "interpretation": "ownerTotals includes the 41 register owners plus the seven catalogue surface owners (account, admin, apps, booking, forms, legal-portal, portal); surface owners are counted in the 206 workflows and are not part of the 41-owner strict certification denominator. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {

@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "recordedAt": "2026-11-09T13:10:00+07:00",
+  "sourceHeadAtRun": "pre-sync keyed workspace; lead clean target 372ef97e4",
+  "closure": false,
+  "reason": "Pre-sync keyed-workspace reproducibility evidence only. Work-order creation still uses the retained TypeScript createMaintenanceWork path; transitions are native only when configured. Do not promote the workflow from this run.",
+  "browser": {
+    "auth": "normal Mali holding_owner Account/SSO session",
+    "canonicalRoutes": [
+      "/holdings/acme/services/assets/register",
+      "/holdings/acme/services/assets/maintenance"
+    ],
+    "pageErrors": 0
+  },
+  "asset": {
+    "code": "AST-UI-98336583",
+    "id": "asset-4c0306c1-a734-401f-af76-fab8d06ebcde",
+    "register": {
+      "status": 200,
+      "version": 1
+    },
+    "place": {
+      "status": 200,
+      "version": 2,
+      "statusName": "in_service"
+    },
+    "finalStatus": "in_service",
+    "finalCondition": "good",
+    "finalVersion": 4,
+    "events": [
+      "register v1",
+      "place v2",
+      "maintenance-start v3",
+      "maintenance-complete v4"
+    ]
+  },
+  "workOrder": {
+    "id": "maintenance-344fcca9-dabd-4e66-90df-642d93108f7d",
+    "create": {
+      "status": 200,
+      "version": 1,
+      "state": "open"
+    },
+    "start": {
+      "status": 200,
+      "version": 2,
+      "state": "in_progress"
+    },
+    "complete": {
+      "status": 200,
+      "version": 3,
+      "state": "completed"
+    },
+    "evidence": "Browser UI inspection completed; bearings checked",
+    "resultingCondition": "good",
+    "events": [
+      "create v1/open",
+      "start v2/in_progress",
+      "complete v3/completed"
+    ]
+  },
+  "persisted": {
+    "assetEvents": 4,
+    "workEvents": 3,
+    "commandReceipts": 5,
+    "auditEvents": 5,
+    "outboxEvents": 5,
+    "deadLetter": 0
+  },
+  "independentReview": {
+    "browserReviewer": "none",
+    "why": "No active acme-co iam_member with the assets module besides Mali; Nisa has records.review but only operations module. Direct GET as Nisa returned 403 MODULE_UNAVAILABLE.",
+    "nativeEvidence": "asset_http_postgres independent-review case: self-approval 403 ASSET_RETIREMENT_REVIEW_INDEPENDENT no effects; independent reviewer 200 version 5 retired",
+    "assetsModuleAssignments": [
+      "asg_mali_owner",
+      "dev_usr_jesadakorn_acme-co_holding_owner"
+    ]
+  },
+  "remaining": [
+    "Run the final browser journey after exact-SHA sync and state the selected maintenance transport.",
+    "Work-order create remains TS; migrate it before promoting feature-maintenance-lifecycle.",
+    "Independent browser approval needs a legitimate second Assets-authorized account; do not mutate IAM to fake it."
+  ]
+}
