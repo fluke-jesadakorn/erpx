@@ -352,34 +352,11 @@ async fn writer_first_reader_sees_the_fresh_committed_row() {
 
 #[tokio::test]
 async fn commerce_request_cte_matches_actual_typescript_direct_link_query() {
-    use erpx_server_records::public::commerce_request_links::{
-        inspect_commerce_request_links, lock_commerce_request_links,
-    };
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let commerce = root.join("packages/server-commerce/src/adapters/commerce.ts");
-    let records = root
-        .join("packages/server-records/src/adapters/commerce-final-owner-projection-sources.ts");
-    let procurement = root.join(
-        "packages/server-procurement/src/adapters/commerce-final-owner-projection-sources.ts",
-    );
-    let script = r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const fs=await import('node:fs/promises'),r=await import(process.argv[2]),p=await import(process.argv[3]),s=await fs.readFile(process.argv[1],'utf8');const m=s.match(/readEmployeeRequests1:\s*\(facts:[\s\S]*?\)\s*=>\s*db\.prepare\(`([^`]+)`\)\.bind\(([^)]+)\)/);if(!m||m[2].replace(/\s/g,'')!=='facts.companyId,facts.id,facts.id2')throw Error('SOURCE_BINDS_CHANGED');const app=await fs.readFile('packages/server-commerce/src/application/commerce.ts','utf8');if(!/readEmployeeRequests1\(\{\s*companyId:\s*actor\.companyId,\s*id:\s*id,\s*id2:\s*id\s*\}\)/.test(app))throw Error('CALLER_ID2_CHANGED');let sql=m[1].replace('${recordsProjectionSources.employee_requests}',r.commerceFinalOwnerProjectionSources.employee_requests).replace('${procurementProjectionSources.procurement_request_orders}',p.commerceFinalOwnerProjectionSources.procurement_request_orders);if(sql.includes('${'))throw Error('UNRESOLVED_SOURCE');let n=0;sql=sql.replace(/\?/g,()=>'$'+(++n));if(n!==3)throw Error('BINDS_CHANGED');process.stdout.write(JSON.stringify({sql,records:r.commerceFinalOwnerProjectionSources.employee_requests}));"#;
-    let output =
-        std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
-            .current_dir(root)
-            .args(["--conditions=react-server", "-e", script])
-            .arg(commerce)
-            .arg(records)
-            .arg(procurement)
-            .output()
-            .unwrap();
-    assert!(
-        output.status.success(),
-        "actual TS oracle: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let query: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    let original = query["sql"].as_str().unwrap().to_owned();
-    let projection = query["records"].as_str().unwrap().to_owned();
+    use erpx_server_records::public::commerce_request_links::{inspect_commerce_request_links,lock_commerce_request_links};
+    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let commerce=root.join("packages/server-commerce/src/adapters/commerce.ts");let records=root.join("packages/server-records/src/adapters/commerce-final-owner-projection-sources.ts");let procurement=root.join("packages/server-procurement/src/adapters/commerce-final-owner-projection-sources.ts");
+    let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const fs=await import('node:fs/promises'),r=await import(process.argv[2]),p=await import(process.argv[3]),s=await fs.readFile(process.argv[1],'utf8');const m=s.match(/readEmployeeRequests1:\s*\(facts:[\s\S]*?\)\s*=>\s*db\.prepare\(`([^`]+)`\)/);if(!m)throw Error('SOURCE_CHANGED');let sql=m[1].replace('${recordsProjectionSources.employee_requests}',r.commerceFinalOwnerProjectionSources.employee_requests).replace('${procurementProjectionSources.procurement_request_orders}',p.commerceFinalOwnerProjectionSources.procurement_request_orders);if(sql.includes('${'))throw Error('UNRESOLVED_SOURCE');let n=0;sql=sql.replace(/\?/g,()=>'$'+(++n));if(n!==3)throw Error('BINDS_CHANGED');process.stdout.write(JSON.stringify({sql,records:r.commerceFinalOwnerProjectionSources.employee_requests}));"#;
+    let output=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(root).args(["--conditions=react-server","-e",script]).arg(commerce).arg(records).arg(procurement).output().unwrap();assert!(output.status.success(),"actual TS oracle: {}",String::from_utf8_lossy(&output.stderr));let query:serde_json::Value=serde_json::from_slice(&output.stdout).unwrap();let original=query["sql"].as_str().unwrap().to_owned();let projection=query["records"].as_str().unwrap().to_owned();
     fixture::with_database(2,|pool|async move{
         setup(&pool).await;
         sqlx::raw_sql("UPDATE employee_requests SET purchase_order_id='order-direct' WHERE id='request-quoted'; UPDATE employee_requests SET purchase_order_id='order-foreign' WHERE id='request-foreign'").execute(pool.raw()).await.unwrap();
@@ -397,9 +374,7 @@ async fn commerce_request_cte_matches_actual_typescript_direct_link_query() {
 
 #[tokio::test]
 async fn commerce_request_source_fences_writers_shadow_rls_and_resource_limits() {
-    use erpx_server_records::public::commerce_request_links::{
-        inspect_commerce_request_links, lock_commerce_request_links,
-    };
+    use erpx_server_records::public::commerce_request_links::{inspect_commerce_request_links,lock_commerce_request_links};
     fixture::with_database(2,|pool|async move{
         setup(&pool).await;
         let mut tx=pool.raw().begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await.unwrap();lock_commerce_request_links(&mut tx).await.unwrap();let source=inspect_commerce_request_links(&mut tx).await.unwrap();
@@ -416,27 +391,11 @@ async fn commerce_request_source_fences_writers_shadow_rls_and_resource_limits()
 
 #[tokio::test]
 async fn commerce_selected_request_matches_actual_typescript_read_and_retains_exact_row() {
-    use erpx_server_records::public::commerce_selected_request::{
-        lock_commerce_selected_request, observe_commerce_selected_request,
-    };
+    use erpx_server_records::public::commerce_selected_request::{lock_commerce_selected_request,observe_commerce_selected_request};
     use erpx_server_shared::public::CompanyId;
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let ts = root.join("packages/server-records/src/adapters/employee-requests-read.ts");
-    let script = r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);const db={prepare(sql){return{bind(...values){return{first:async()=>({sql,values})}}}}};const q=await m.nativeEmployeeRequestReadRepository(db).readReadEmployeeRequestRow('request-quoted','company');if(JSON.stringify(q.values)!==JSON.stringify(['request-quoted','company']))throw Error('SOURCE_BINDS_CHANGED');let n=0;process.stdout.write(q.sql.replace(/\?/g,()=>'$'+(++n)));"#;
-    let oracle =
-        std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
-            .current_dir(root)
-            .args(["--conditions=react-server", "-e", script])
-            .arg(ts)
-            .output()
-            .unwrap();
-    assert!(
-        oracle.status.success(),
-        "actual Records TS oracle: {}",
-        String::from_utf8_lossy(&oracle.stderr)
-    );
-    let raw = String::from_utf8(oracle.stdout).unwrap();
-    let query = format!("SELECT to_jsonb(r)::text FROM ({raw}) r");
+    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");let ts=root.join("packages/server-records/src/adapters/employee-requests-read.ts");
+    let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);const db={prepare(sql){return{bind(...values){return{first:async()=>({sql,values})}}}}};const q=await m.nativeEmployeeRequestReadRepository(db).readReadEmployeeRequestRow('request-quoted','company');if(q.values.length!==2)throw Error('SOURCE_BINDS_CHANGED');let n=0;process.stdout.write(q.sql.replace(/\?/g,()=>'$'+(++n)));"#;
+    let oracle=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(root).args(["--conditions=react-server","-e",script]).arg(ts).output().unwrap();assert!(oracle.status.success(),"actual Records TS oracle: {}",String::from_utf8_lossy(&oracle.stderr));let raw=String::from_utf8(oracle.stdout).unwrap();let query=format!("SELECT to_jsonb(r)::text FROM ({raw}) r");
     fixture::with_database(2,|pool|async move {
         setup(&pool).await;let company=CompanyId::new("company").unwrap();let mut tx=pool.raw().begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await.unwrap();assert!(observe_commerce_selected_request(&mut tx,&company,"request-quoted").await.is_err());lock_commerce_selected_request(&mut tx).await.unwrap();
         for (id,expected) in [("request-quoted",true),("request-foreign",false),("missing",false)] {
@@ -451,9 +410,7 @@ async fn commerce_selected_request_matches_actual_typescript_read_and_retains_ex
 
 #[tokio::test]
 async fn commerce_selected_request_fences_real_writer_shadow_and_rls() {
-    use erpx_server_records::public::commerce_selected_request::{
-        lock_commerce_selected_request, observe_commerce_selected_request,
-    };
+    use erpx_server_records::public::commerce_selected_request::{lock_commerce_selected_request, observe_commerce_selected_request};
     use erpx_server_shared::public::CompanyId;
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
@@ -497,9 +454,7 @@ async fn commerce_selected_request_fences_real_writer_shadow_and_rls() {
 
 #[tokio::test]
 async fn commerce_selected_request_writer_first_retry_reads_committed_row_and_insert() {
-    use erpx_server_records::public::commerce_selected_request::{
-        lock_commerce_selected_request, observe_commerce_selected_request,
-    };
+    use erpx_server_records::public::commerce_selected_request::{lock_commerce_selected_request, observe_commerce_selected_request};
     use erpx_server_shared::public::CompanyId;
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;
