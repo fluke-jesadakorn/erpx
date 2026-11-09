@@ -4,12 +4,13 @@
   "adr": "docs/adr/ADR-052-rust-backend-and-domain-aligned-frontend.md",
   "acceptance": false,
   "backendMigrated": false,
+  "completionInterpretation": "A false businessMigrationComplete value means strict owner completion has not been certified at the pushed source; existing native slices and historical evidence remain intact.",
   "owners": [
     {
       "id": "brand",
       "package": "erpx-server-brand",
       "phase": "active",
-      "businessMigrationComplete": true,
+      "businessMigrationComplete": false,
       "surfaces": {
         "domain": "active",
         "application": "active",
@@ -107,7 +108,7 @@
       "id": "support",
       "package": "erpx-server-support",
       "phase": "active",
-      "businessMigrationComplete": true,
+      "businessMigrationComplete": false,
       "surfaces": {
         "domain": "active",
         "application": "active",
@@ -408,7 +409,7 @@
       "id": "field_service",
       "package": "erpx-server-field-service",
       "phase": "active",
-      "businessMigrationComplete": true,
+      "businessMigrationComplete": false,
       "surfaces": {
         "domain": "active",
         "application": "active",

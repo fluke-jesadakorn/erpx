@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T13:30:00+07:00",
+  "updatedAt": "2026-11-09T09:39:42+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
-  "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
+  "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
     "path": "docs/status/product-migration-acceptance.json",
     "moduleWorkflowCount": 187,
@@ -16,39 +16,39 @@
     "interpretation": "The 206 items are catalogue workflows, not the number of bounded flows. Each listed ID occurs once below. A partial item has supporting qualified slices, not whole-workflow verification."
   },
   "counts": {
-    "qualifiedBusinessFlows": 109,
+    "qualifiedBusinessFlows": 108,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 38,
-    "workflowsVerified": 84,
-    "workflowsMerged": 84,
-    "ownersComplete": 8,
+    "workflowsPartial": 57,
+    "workflowsVerified": 65,
+    "workflowsMerged": 65,
+    "ownersComplete": 0,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
   },
   "evidencePolicy": {
-    "statusMeaning": "partial, verified and merged are independent booleans; verified means the entire original catalogue scope is Rust-qualified, merged means that fully verified workflow has landed.",
+    "statusMeaning": "partial, verified and merged are independent booleans; verified requires the entire original catalogue scope to meet the Rust, frontend, legacy-retirement and gate requirements; merged requires that fully verified workflow to be integrated and pushed to the target branch.",
     "currentState": "Support source-record/navigation is qualified as first-bundle blocker evidence, not an additional business flow or whole catalogue workflow.",
-    "evidenceLocation": "Source identities and bounded scope are copied below from the ignored execution state; the detailed private evidence path can be cleaned or unavailable and is not a published artifact. Existing contracts are cited when directly recorded.",
+    "evidenceLocation": "Source identities and bounded scope are recorded below and in the existing ignored execution state; preserve historical evidence and cite existing contracts when directly recorded.",
     "noDoubleCount": "Flows may support several catalogue items and multiple flows may support one item; no flow adds to the 206 denominator.",
     "integrationTarget": "codex/rust-backend-migration",
     "retirementGate": "A migrated capability is not closed until its replaced routes, services, commands, jobs, selectors/fallbacks, imports/exports/configuration, obsolete tests and unused dependencies are removed, with behavioral assertions preserved. Shared retained parts need actual consumers/scope/removal conditions. No destructive schema/data/history/evidence cleanup.",
-    "containerOrder": "Rust + frontend/dependencies + legacy withdrawal and targeted checks, then Docker build/run/minimal non-root measured images for that capability, then next bundle. No TS-backend Docker substitute or automatic per-owner container.",
-    "milestoneSeparation": "Report Rust verified/enabled, legacy removed/retained consumers, post-removal checks, Docker built/run/image size, migration-branch PR/merge SHA and blockers separately; counts remain source-mapped and independent.",
+    "containerOrder": "Complete Rust, frontend/dependencies, legacy withdrawal and local gates across the migration first. Docker and Dev Container preparation follow the entire goal; do not substitute a TS backend.",
+    "milestoneSeparation": "Report source-mapped workflow and owner status, retained legacy consumers and removal conditions, checks, blockers and verified pushed SHA separately. Docker and production preparation are deferred until after this goal.",
     "preRemovalGate": [
       "API, internal callers, jobs and retries use the Rust owner in the declared scope.",
       "Frontend uses Rust and the actual normal-authentication journey passes.",
       "Authorization, transactions, idempotency, audit/outbox and error behavior pass.",
       "Reference and consumer inventory establishes no required user of the replaced implementation."
     ],
-    "removalTiming": "Remove replaced implementation in the capability PR or its immediate explicitly dependent cleanup PR, before the capability Docker runtime/build graph and before counting it closed; do not accumulate cleanup until the final migration.",
+    "removalTiming": "Remove replaced implementation in the validated capability batch or its immediate dependent cleanup before counting it closed; preserve behavior assertions and do not accumulate cleanup until the final migration.",
     "postRemovalGate": "Verify targeted regressions, remaining references, dependency boundaries and runtime ownership on the latest post-removal candidate. Source deletion invalidates affected evidence only; unrelated source-matched evidence is reused.",
     "protectedHistory": "Implementation removal never authorizes dropping tables, data, audit, migration history, receipts or prior evidence."
   },
   "firstBundle": {
     "id": "field-service-capability",
     "status": "merged",
-    "scope": "The six original Field Service catalogue workflows and their required entry, setup, prerequisites, Inventory, Finance, Support, Files, Work, Records, Identity and Commercial owner dependencies, limited to the declared dependency closure of erpx-service --no-default-features --features field-service. Finance production release/Company acceptance is a Finance-owner dependency explicitly outside this bundle and fail-closed.",
+    "scope": "The six original Field Service catalogue workflows and their required entry, setup, prerequisites, Inventory, Finance, Support, Files, Work, Records, Identity and Commercial owner dependencies, limited to the declared dependency closure of erpx-service --no-default-features --features field-service. Finance production release/Company acceptance is a Finance-owner dependency explicitly outside this bundle and fail-closed. The merged bundle and its 18 checklist items are historical scoped evidence, not certification of the whole Field Service owner.",
     "checklist": [
       {
         "number": 1,
@@ -3486,8 +3486,8 @@
     {
       "id": "commerce-save-lock-replay-pricing-freeze",
       "kind": "business-flow-evidence",
-      "status": "flow-complete",
-      "scope": "Reviewed Commerce save path: replay before validation/locks, Finance/party/Sales fences before protected snapshots, explicit/auto/absent pricing comparison and deferred revalidation, conversion Money preflight/retain; clean-archive selected-route, Commerce, Finance and Sales pricing gates.",
+      "status": "partial",
+      "scope": "Commerce save and conversion slice with retained pricing and Money work. Source review at c30048a9d found both routes still use CommerceSources with money false, while CommerceSaveSources is unmounted; unconditional pre-snapshot locks caused replay contention failures. Settings and persisted Records/Procurement linkage before save replay, zero-quantity ordering and final gates remain open. Historical evidence remains available as recorded, but does not establish these fences or whole-flow completion.",
       "sourceIdentity": "750d31420",
       "evidenceRef": "docs/testing/evidence/2026-11-09-commerce-save-lock-replay-pricing-freeze.json",
       "durableContractRefs": [
@@ -4223,7 +4223,7 @@
         "finance-native-period-close-http"
       ],
       "sourceRef": "packages/server-finance/src/public/finance.ts",
-      "gap": "Native close workspace, readiness, control/VAT reconciliation, begin/cancel/approve/reopen, immutable checks and independent-person/stale-evidence guards are PostgreSQL/HTTP-qualified; close workpaper attachments and browser remain open."
+      "gap": "Native close workspace, readiness, control/VAT reconciliation, begin/cancel/approve/reopen, immutable checks and independent-person/stale-evidence guards are PostgreSQL/HTTP-qualified. A native close-workpaper binding candidate now uses the shared Records/Files business-evidence port with exact finance_period/close_workpaper/close-approval/finance_period_close/<period>:<version+1> facts, replay before binding, a Files table fence and post-effect require_current; its focused period-close suite passed 6/6 and the Files business-evidence suite 3/3 on the working source. The candidate is NOT committed or closed: Common owns packages/server-files, the product route/composition mount is coordinator-owned, the reviewer found an unresolved Commercial↔Finance lock-order cycle with the Field parts command, empty-set/purpose/component/ref/checksum/policy-version gaps, missing Files V2/freeze/read-only checks, a 404/503 collapse and event-manifest/error-code parity gaps, and no authenticated browser/global-lock proof exists. Browser remains open."
     },
     {
       "id": "finance/feature-opening-balances",
@@ -4311,16 +4311,16 @@
       "kind": "module",
       "owner": "sales",
       "scope": "Quotes",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [
         "sales-native-documents",
         "sales-native-documents-http",
         "sales-native-price-lists"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Verified native quotation workflow on the pushed tree: price-list lifecycle, quotation list/detail, draft create/update with replay before semantic validation and Finance/Sales work, Finance Money + party + Sales selected-pricing fences before protected snapshots, explicit/auto-selected/absent pricing observations compared with the plan and revalidated after deferred constraints, exact TypeScript pre-read/conflict order, quote submit/approve/return/cancel/conversion with Money preflight/retain, desktop/mobile create/edit browser evidence, and clean full-service archive tests. Purchase orders, sales-order goods fulfillment/invoicing/settlement/returns and independent sales-approver browser approval remain separate.",
+      "gap": "The pushed slice includes native quotation and pricing work, but save and conversion currently use CommerceSources { money: false }; CommerceSaveSources is not mounted, so Finance and Sales pre-snapshot source fences are not established. Mounting those locks unconditionally caused replay-under-contention tests to return 503. Save replay also needs actual settings and persisted Records/Procurement linkage authority before receipt replay. Zero-quantity/identifier ordering and remaining legacy, source, frontend and integration gates require verification before whole-workflow completion.",
       "mergeCommit": "750d31420"
     },
     {
@@ -4565,60 +4565,60 @@
       "kind": "module",
       "owner": "maintenance",
       "scope": "Work orders",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [
         "maintenance-native-read",
         "maintenance-native-http"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Closed. Native work-order create is mounted and browser verified: the create form returned 200 {id:maintenance-eaaf2f20\u2026, version:1, status:open}; the list shows AST-ACCEPT \u00b7 Native created inspection (high, Mali Srisai) and the detail history shows Version 1 \u00b7 create. Create validates the Asset version, active-work vacancy, operational owner, Commercial new-work purchase and writes the Workflow receipt/audit, create event and notification in one serializable unit. Schedule/start/block/resume/complete/cancel were already native and browser verified."
+      "gap": "Historical native slice. Native work-order create is mounted and browser verified: the create form returned 200 {id:maintenance-eaaf2f20\u2026, version:1, status:open}; the list shows AST-ACCEPT \u00b7 Native created inspection (high, Mali Srisai) and the detail history shows Version 1 \u00b7 create. Create validates the Asset version, active-work vacancy, operational owner, Commercial new-work purchase and writes the Workflow receipt/audit, create event and notification in one serializable unit. Schedule/start/block/resume/complete/cancel were already native and browser verified. Correction at e208578b4: The product Maintenance create route directly invokes the TypeScript writer; preventive-plan writes also remain TypeScript. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
     },
     {
       "id": "maintenance/downtime",
       "kind": "module",
       "owner": "maintenance",
       "scope": "Downtime",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [
         "maintenance-native-read",
         "maintenance-native-http"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Closed. Downtime is captured by the native start/complete transitions and browser verified: start 200 v2 persisted downtime_started_at, complete 200 v5 persisted downtime_ended_at for the same work order; no separate downtime UI writer exists in this scope."
+      "gap": "Historical native slice. Downtime is captured by the native start/complete transitions and browser verified: start 200 v2 persisted downtime_started_at, complete 200 v5 persisted downtime_ended_at for the same work order; no separate downtime UI writer exists in this scope. Correction at e208578b4: The product Maintenance transition route retains TypeScript fallback for start/complete. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
     },
     {
       "id": "maintenance/feature-blocked-work",
       "kind": "module",
       "owner": "maintenance",
       "scope": "Blocked work",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [
         "maintenance-native-read",
         "maintenance-native-http"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Closed. Native block/resume transitions are browser verified on work-acceptance: block 200 v3 (status blocked, blocked_reason persisted) and resume 200 v4 (status in_progress); the immutable history shows both events. Create belongs to the separate work-orders workflow and remains retained."
+      "gap": "Historical native slice. Native block/resume transitions are browser verified on work-acceptance: block 200 v3 (status blocked, blocked_reason persisted) and resume 200 v4 (status in_progress); the immutable history shows both events. Create belongs to the separate work-orders workflow and remains retained. Correction at e208578b4: The product Maintenance transition route retains TypeScript fallback for block/resume. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
     },
     {
       "id": "maintenance/feature-completion",
       "kind": "module",
       "owner": "maintenance",
       "scope": "Completion",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [
         "maintenance-native-read",
         "maintenance-native-http"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Closed. Native completion is browser verified on work-acceptance: complete 200 v5 with completion evidence and resulting condition good; the work order is completed and the immutable history records version 5. Create belongs to the separate work-orders workflow and remains retained."
+      "gap": "Historical native slice. Native completion is browser verified on work-acceptance: complete 200 v5 with completion evidence and resulting condition good; the work order is completed and the immutable history records version 5. Create belongs to the separate work-orders workflow and remains retained. Correction at e208578b4: The product Maintenance transition route retains TypeScript completion fallback. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
     },
     {
       "id": "maintenance/feature-maintenance-history",
@@ -4640,9 +4640,9 @@
       "kind": "module",
       "owner": "operations",
       "scope": "Exception queue",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [
         "operations-native-queue-read",
         "operations-native-commands",
@@ -4650,16 +4650,16 @@
         "operations-native-route-cutover"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Closed. Source reads dispatch through the POS/Assets/Field owner record-source ports and recipient checks through the Identity owner port; the native command path is mounted and browser verified. Opened an exception from the completed POS sale adcdf454 and ran the full lifecycle: acknowledge v2, start v3, assign v4, escalate v5, resolve v6, independent approve v7, close v8, reopen v9, prioritize v10, resolve v11, reject v12, cancel v13 with persisted status/priority readback."
+      "gap": "Historical native slice. Source reads dispatch through the POS/Assets/Field owner record-source ports and recipient checks through the Identity owner port; the native command path is mounted and browser verified. Opened an exception from the completed POS sale adcdf454 and ran the full lifecycle: acknowledge v2, start v3, assign v4, escalate v5, resolve v6, independent approve v7, close v8, reopen v9, prioritize v10, resolve v11, reject v12, cancel v13 with persisted status/priority readback. Correction at e208578b4: The product Operations route retains TypeScript open/change fallback when native is unavailable. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
     },
     {
       "id": "operations/feature-escalations",
       "kind": "module",
       "owner": "operations",
       "scope": "Escalations",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [
         "operations-native-escalations",
         "operations-native-commands",
@@ -4667,55 +4667,55 @@
         "operations-native-route-cutover"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Closed. Native assign/escalate/prioritize run through the same owner ports and are browser verified on the exception above: assign 200 v4, escalate to usr_nisa 200 v5 (status escalated), prioritize high 200 v10."
+      "gap": "Historical native slice. Native assign/escalate/prioritize run through the same owner ports and are browser verified on the exception above: assign 200 v4, escalate to usr_nisa 200 v5 (status escalated), prioritize high 200 v10. Correction at e208578b4: The product Operations route retains TypeScript change-exception fallback for escalation actions. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
     },
     {
       "id": "operations/feature-approval-decisions",
       "kind": "module",
       "owner": "operations",
       "scope": "Approval decisions",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [
         "operations-native-commands",
         "operations-native-transport",
         "operations-native-route-cutover"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Closed. Native approve/reject/close/reopen are browser verified by the independent reviewer and owner: approve 200 v7 (resolved, reviewed_by usr_nisa), close 200 v8, reopen 200 v9 (in_progress), reject 200 v12 (in_progress)."
+      "gap": "Historical native slice. Native approve/reject/close/reopen are browser verified by the independent reviewer and owner: approve 200 v7 (resolved, reviewed_by usr_nisa), close 200 v8, reopen 200 v9 (in_progress), reject 200 v12 (in_progress). Correction at e208578b4: The product Operations route retains TypeScript change-exception fallback for decision actions. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
     },
     {
       "id": "operations/feature-resolution",
       "kind": "module",
       "owner": "operations",
       "scope": "Resolution",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [
         "operations-native-commands",
         "operations-native-transport",
         "operations-native-route-cutover"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Closed. Native acknowledge/start/resolve/cancel are browser verified on the same exception: acknowledge 200 v2, start 200 v3, resolve 200 v6 and v11 (awaiting_review), cancel 200 v13 (cancelled)."
+      "gap": "Historical native slice. Native acknowledge/start/resolve/cancel are browser verified on the same exception: acknowledge 200 v2, start 200 v3, resolve 200 v6 and v11 (awaiting_review), cancel 200 v13 (cancelled). Correction at e208578b4: The product Operations route retains TypeScript change-exception fallback for resolution actions. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
     },
     {
       "id": "operations/feature-queue-policies",
       "kind": "module",
       "owner": "operations",
       "scope": "Queue policies",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [
         "operations-native-commands",
         "operations-native-transport",
         "operations-native-route-cutover"
       ],
       "sourceRef": "packages/server-operations/src/public/operations-exceptions.ts",
-      "gap": "Closed. Native policy draft/publish/reject/retire are mounted end to end: the HTTP backend forwards commands through OperationsService, derives the expected work-selection CAS, checks same-person through iam_same_person, and requires module.operations.read on reads. The Operations page, people directory and command transport are browser verified in the keyed workspace: the seeded draft was published (200 status=published version=2, reviewed_by=usr_mali) and then retired (200 status=retired version=3) with persisted readback."
+      "gap": "Historical native slice. Native policy draft/publish/reject/retire are mounted end to end: the HTTP backend forwards commands through OperationsService, derives the expected work-selection CAS, checks same-person through iam_same_person, and requires module.operations.read on reads. The Operations page, people directory and command transport are browser verified in the keyed workspace: the seeded draft was published (200 status=published version=2, reviewed_by=usr_mali) and then retired (200 status=retired version=3) with persisted readback. Correction at e208578b4: The product Operations route retains TypeScript draft/review policy fallback. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
     },
     {
       "id": "operations/feature-operations-summary",
@@ -4800,32 +4800,32 @@
       "kind": "module",
       "owner": "quality",
       "scope": "Inspections",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [
         "quality-native-read",
         "quality-native-cancel",
         "quality-http"
       ],
       "sourceRef": "packages/server-quality/src/public/quality.ts",
-      "gap": "Closed. Native Quality inspection supports direct attachmentIds and attachmentSetIds through a Files-owned bounded set-membership witness, merged/deduplicated under the combined bound with persisted attachment refs, measurements, staff notifications/inbox, receipts/audit/outbox. Browser set inspection 200 verified with persisted ref and notification; stale/foreign-set rejection and direct+set dedup covered by PostgreSQL tests."
+      "gap": "Historical native slice. Native Quality inspection supports direct attachmentIds and attachmentSetIds through a Files-owned bounded set-membership witness, merged/deduplicated under the combined bound with persisted attachment refs, measurements, staff notifications/inbox, receipts/audit/outbox. Browser set inspection 200 verified with persisted ref and notification; stale/foreign-set rejection and direct+set dedup covered by PostgreSQL tests. Correction at e208578b4: The product Quality route retains TypeScript inspect fallback when native is unavailable. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
     },
     {
       "id": "quality/results",
       "kind": "module",
       "owner": "quality",
       "scope": "Results",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [
         "quality-native-read",
         "quality-native-cancel",
         "quality-http"
       ],
       "sourceRef": "packages/server-quality/src/public/quality.ts",
-      "gap": "Closed. Native Quality workspace/detail is mounted and browser verified: the hold detail at /supply/inventory-quality/quality/quality-hold-acceptance/overview shows Inspection history 1 record \u00b7 pass \u00b7 Recorded by usr_nisa \u00b7 Visual inspection passed \u00b7 Reviewed hold version 2. Specification/measurement setup belongs to the separate inspections/setup workflows and remains retained there. Spec save/activate and measurement writes are now native too; attachment-bearing inspections and notification handoff remain retained in the inspections workflow."
+      "gap": "Historical native slice. Native Quality workspace/detail is mounted and browser verified: the hold detail at /supply/inventory-quality/quality/quality-hold-acceptance/overview shows Inspection history 1 record \u00b7 pass \u00b7 Recorded by usr_nisa \u00b7 Visual inspection passed \u00b7 Reviewed hold version 2. Specification/measurement setup belongs to the separate inspections/setup workflows and remains retained there. Spec save/activate and measurement writes are now native too; attachment-bearing inspections and notification handoff remain retained in the inspections workflow. Correction at e208578b4: Quality workspace/detail still reads TypeScript and overlays native results or returns the legacy result. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
     },
     {
       "id": "quality/release-gates",
@@ -4848,16 +4848,16 @@
       "kind": "module",
       "owner": "quality",
       "scope": "Cancellation",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [
         "quality-native-read",
         "quality-native-cancel",
         "quality-http"
       ],
       "sourceRef": "packages/server-quality/src/public/quality.ts",
-      "gap": "Closed. Native cancellation request/approve/reject now runs through the Quality workflow ledger in the caller's serializable Holding unit with current authority, supply.quality purchase admission, hold-row CAS, independence checks, one receipt/audit/outbox per action and the Identity recipient witness plus Collaboration staff notification/inbox handoff. Browser verified through the Quality UI: approve path cancel_pending v2 -> cancelled v3; reject path cancel_pending v2 -> held v3; persisted four cancellation events, four receipts/audit/outbox, pending independent quality.release notices and terminal creator notice with inbox deliveries."
+      "gap": "Historical native slice. Native cancellation request/approve/reject now runs through the Quality workflow ledger in the caller's serializable Holding unit with current authority, supply.quality purchase admission, hold-row CAS, independence checks, one receipt/audit/outbox per action and the Identity recipient witness plus Collaboration staff notification/inbox handoff. Browser verified through the Quality UI: approve path cancel_pending v2 -> cancelled v3; reject path cancel_pending v2 -> held v3; persisted four cancellation events, four receipts/audit/outbox, pending independent quality.release notices and terminal creator notice with inbox deliveries. Correction at e208578b4: The product Quality route retains TypeScript cancellation fallback when native is unavailable. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
     },
     {
       "id": "legal/contracts",
@@ -5134,12 +5134,12 @@
       "kind": "module",
       "owner": "marketing",
       "scope": "Engagement",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [],
       "sourceRef": "packages/server-marketing/src/public/marketing.ts",
-      "gap": "Closed. Native engagement-event command is mounted and browser verified: POST 200 receipt id marketing-candidate-engagement-demo-2 status pending v2; page shows Version 2 email_reply; DB candidate v2 with form_submit v1 + email_reply v2 and one receipt/audit/outbox. Other Marketing slices remain separate workflows."
+      "gap": "Historical native slice. Native engagement-event command is mounted and browser verified: POST 200 receipt id marketing-candidate-engagement-demo-2 status pending v2; page shows Version 2 email_reply; DB candidate v2 with form_submit v1 + email_reply v2 and one receipt/audit/outbox. Other Marketing slices remain separate workflows. Correction at a3cb75703: acceptance also requires first-touch and last-touch cohort and ROI from linked posted cost, which a single event readback does not establish. The native event validator also rejects Unicode code-point cases accepted and persisted by the TypeScript oracle; cross-runtime receipt compatibility remains open."
     },
     {
       "id": "manufacturing/orders",
@@ -5221,70 +5221,70 @@
       "kind": "module",
       "owner": "planning",
       "scope": "Scenarios",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [
         "planning-native-workspace"
       ],
       "sourceRef": "packages/server-manufacturing/src/public/production.ts",
-      "gap": "Closed. The native Planning workspace read is mounted for the keyed workspace and browser verified on /manufacturing/planning. The register shows two Acme desk assembly scenarios, a 0.6-unit shortage, manual capacity assumptions, comparison deltas (feasible 2026-11-22 -> 2026-11-20) and two recommendations; the native API returns 200 with two scenarios and two recommendations. Calculate/cancel/release and resource/calendar commands remain on their existing complete paths."
+      "gap": "Historical native slice. The native Planning workspace read is mounted for the keyed workspace and browser verified on /manufacturing/planning. The register shows two Acme desk assembly scenarios, a 0.6-unit shortage, manual capacity assumptions, comparison deltas (feasible 2026-11-22 -> 2026-11-20) and two recommendations; the native API returns 200 with two scenarios and two recommendations. Calculate/cancel/release and resource/calendar commands remain on their existing complete paths. Correction at e208578b4: The acceptance includes persisted calculate and release commands; the product route sends these commands to TypeScript. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
     },
     {
       "id": "planning/shortages",
       "kind": "module",
       "owner": "planning",
       "scope": "Shortages",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [
         "planning-native-workspace"
       ],
       "sourceRef": "packages/server-manufacturing/src/public/production.ts",
-      "gap": "Closed. The native Planning workspace read is mounted for the keyed workspace and browser verified on /manufacturing/planning. The register shows two Acme desk assembly scenarios, a 0.6-unit shortage, manual capacity assumptions, comparison deltas (feasible 2026-11-22 -> 2026-11-20) and two recommendations; the native API returns 200 with two scenarios and two recommendations. Calculate/cancel/release and resource/calendar commands remain on their existing complete paths."
+      "gap": "Historical native slice. The native Planning workspace read is mounted for the keyed workspace and browser verified on /manufacturing/planning. The register shows two Acme desk assembly scenarios, a 0.6-unit shortage, manual capacity assumptions, comparison deltas (feasible 2026-11-22 -> 2026-11-20) and two recommendations; the native API returns 200 with two scenarios and two recommendations. Calculate/cancel/release and resource/calendar commands remain on their existing complete paths. Correction at e208578b4: The acceptance includes calculation and persisted-result readback; the product calculation route remains TypeScript. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
     },
     {
       "id": "planning/recommendations",
       "kind": "module",
       "owner": "planning",
       "scope": "Recommendations",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [
         "planning-native-workspace"
       ],
       "sourceRef": "packages/server-manufacturing/src/public/production.ts",
-      "gap": "Closed. The native Planning workspace read is mounted for the keyed workspace and browser verified on /manufacturing/planning. The register shows two Acme desk assembly scenarios, a 0.6-unit shortage, manual capacity assumptions, comparison deltas (feasible 2026-11-22 -> 2026-11-20) and two recommendations; the native API returns 200 with two scenarios and two recommendations. Calculate/cancel/release and resource/calendar commands remain on their existing complete paths."
+      "gap": "Historical native slice. The native Planning workspace read is mounted for the keyed workspace and browser verified on /manufacturing/planning. The register shows two Acme desk assembly scenarios, a 0.6-unit shortage, manual capacity assumptions, comparison deltas (feasible 2026-11-22 -> 2026-11-20) and two recommendations; the native API returns 200 with two scenarios and two recommendations. Calculate/cancel/release and resource/calendar commands remain on their existing complete paths. Correction at e208578b4: The acceptance includes calculate, independent approval and cancellation; the product commands remain TypeScript. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
     },
     {
       "id": "planning/feature-capacity",
       "kind": "module",
       "owner": "planning",
       "scope": "Capacity",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [
         "planning-native-workspace"
       ],
       "sourceRef": "packages/server-manufacturing/src/public/production.ts",
-      "gap": "Closed. The native Planning workspace read is mounted for the keyed workspace and browser verified on /manufacturing/planning. The register shows two Acme desk assembly scenarios, a 0.6-unit shortage, manual capacity assumptions, comparison deltas (feasible 2026-11-22 -> 2026-11-20) and two recommendations; the native API returns 200 with two scenarios and two recommendations. Calculate/cancel/release and resource/calendar commands remain on their existing complete paths."
+      "gap": "Historical native slice. The native Planning workspace read is mounted for the keyed workspace and browser verified on /manufacturing/planning. The register shows two Acme desk assembly scenarios, a 0.6-unit shortage, manual capacity assumptions, comparison deltas (feasible 2026-11-22 -> 2026-11-20) and two recommendations; the native API returns 200 with two scenarios and two recommendations. Calculate/cancel/release and resource/calendar commands remain on their existing complete paths. Correction at e208578b4: The acceptance includes resource/calendar writes, calculation and release; the product commands remain TypeScript. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
     },
     {
       "id": "planning/feature-plan-comparison",
       "kind": "module",
       "owner": "planning",
       "scope": "Plan comparison",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [
         "planning-native-workspace"
       ],
       "sourceRef": "packages/server-manufacturing/src/public/production.ts",
-      "gap": "Closed. The native Planning workspace read is mounted for the keyed workspace and browser verified on /manufacturing/planning. The register shows two Acme desk assembly scenarios, a 0.6-unit shortage, manual capacity assumptions, comparison deltas (feasible 2026-11-22 -> 2026-11-20) and two recommendations; the native API returns 200 with two scenarios and two recommendations. Calculate/cancel/release and resource/calendar commands remain on their existing complete paths."
+      "gap": "Historical native slice. The native Planning workspace read is mounted for the keyed workspace and browser verified on /manufacturing/planning. The register shows two Acme desk assembly scenarios, a 0.6-unit shortage, manual capacity assumptions, comparison deltas (feasible 2026-11-22 -> 2026-11-20) and two recommendations; the native API returns 200 with two scenarios and two recommendations. Calculate/cancel/release and resource/calendar commands remain on their existing complete paths. Correction at e208578b4: The acceptance includes persisted calculation and reload; the product commands remain TypeScript. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
     },
     {
       "id": "projects/dependencies",
@@ -6547,9 +6547,9 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-09T13:30:00+07:00",
-    "sourceHead": "750d31420",
-    "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
+    "generatedAt": "2026-11-09T10:47:00+07:00",
+    "sourceHead": "7a552ff1e",
+    "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed. Owner completion is counted only after those strict gates are independently established at the pushed source; zero here means none has yet been certified by this audit, not that historical slices were undone.",
     "ownerTotals": {
       "brand": {
         "workflows": 3,
@@ -6557,7 +6557,7 @@
         "partial": 0,
         "unstarted": 0,
         "phase": "active",
-        "businessMigrationComplete": true
+        "businessMigrationComplete": false
       },
       "commercial": {
         "workflows": 5,
@@ -6613,7 +6613,7 @@
         "partial": 0,
         "unstarted": 0,
         "phase": "active",
-        "businessMigrationComplete": true
+        "businessMigrationComplete": false
       },
       "finance": {
         "workflows": 10,
@@ -6633,8 +6633,8 @@
       },
       "sales": {
         "workflows": 5,
-        "verified": 1,
-        "partial": 3,
+        "verified": 0,
+        "partial": 4,
         "unstarted": 1,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -6657,19 +6657,19 @@
       },
       "maintenance": {
         "workflows": 5,
-        "verified": 5,
-        "partial": 0,
+        "verified": 1,
+        "partial": 4,
         "unstarted": 0,
-        "phase": "complete",
-        "businessMigrationComplete": true
+        "phase": "partial",
+        "businessMigrationComplete": false
       },
       "operations": {
         "workflows": 6,
-        "verified": 6,
-        "partial": 0,
+        "verified": 1,
+        "partial": 5,
         "unstarted": 0,
-        "phase": "complete",
-        "businessMigrationComplete": true
+        "phase": "partial",
+        "businessMigrationComplete": false
       },
       "procurement": {
         "workflows": 5,
@@ -6681,19 +6681,19 @@
       },
       "quality": {
         "workflows": 4,
-        "verified": 4,
-        "partial": 0,
+        "verified": 1,
+        "partial": 3,
         "unstarted": 0,
-        "phase": "complete",
-        "businessMigrationComplete": true
+        "phase": "partial",
+        "businessMigrationComplete": false
       },
       "legal": {
         "workflows": 5,
         "verified": 5,
         "partial": 0,
         "unstarted": 0,
-        "phase": "complete",
-        "businessMigrationComplete": true
+        "phase": "partial",
+        "businessMigrationComplete": false
       },
       "people_payroll": {
         "workflows": 5,
@@ -6713,9 +6713,9 @@
       },
       "marketing": {
         "workflows": 6,
-        "verified": 1,
-        "partial": 0,
-        "unstarted": 5,
+        "verified": 0,
+        "partial": 2,
+        "unstarted": 4,
         "phase": "partial",
         "businessMigrationComplete": false
       },
@@ -6729,11 +6729,11 @@
       },
       "planning": {
         "workflows": 5,
-        "verified": 5,
-        "partial": 0,
+        "verified": 0,
+        "partial": 5,
         "unstarted": 0,
-        "phase": "complete",
-        "businessMigrationComplete": true
+        "phase": "partial",
+        "businessMigrationComplete": false
       },
       "projects": {
         "workflows": 6,
@@ -6781,7 +6781,7 @@
         "partial": 0,
         "unstarted": 0,
         "phase": "active",
-        "businessMigrationComplete": true
+        "businessMigrationComplete": false
       },
       "agent": {
         "workflows": 7,
@@ -7143,16 +7143,16 @@
     "criticalPath": [
       {
         "order": 1,
-        "bundle": "native browser verification cohort",
-        "why": "38 owners have browser-only or browser-final gaps; without an authenticated native cohort no workflow can move from partial to verified. Current host has no Docker daemon and the development gateway has no native transport configured.",
+        "bundle": "native source and journey verification",
+        "why": "The earlier browser-only estimate is historical. Current source review also identifies unretired writers, fallbacks, authorization handoffs and local-gate failures; verify authenticated journeys when each affected native path and its dependencies are ready.",
         "exit": "Authenticated desktop+mobile journey over the real Account session and a native owner route, with page/console errors, persisted effects and readback recorded.",
         "estimateHours": "8-16",
         "status": "blocked"
       },
       {
         "order": 2,
-        "bundle": "close browser-ready partials",
-        "why": "operations 6, assets 5, organization 4, quality 4, planning 5, learning 5, legal 5, maintenance 5, collaboration 8, pms 3, platform_administration 5, customer_360 2, customer_authority 2, ecommerce 2, benefits 2, identity_access 1, projects 2, procurement 1, crm 1, marketing 1, manufacturing 1, talent 1, pos 1, sales 1, people_payroll 1, manage_erpx 1, apps 1, account 1, admin 1, quality 1 are already native or have qualified slices.",
+        "bundle": "close qualified partial workflows",
+        "why": "Partial workflows retain useful native evidence, but each still requires its exact remaining writer, source, frontend, retirement and gate work; do not classify the cohort as browser-only.",
         "exit": "Each workflow's full catalogue scope is exercised through the native path; retained fallback is gone for that scope.",
         "estimateHours": "60-120",
         "status": "pending cohort"
@@ -7161,14 +7161,14 @@
         "order": 3,
         "bundle": "code completion for near-closed owners",
         "why": "finance 2, inventory 2, sales 2, pos 1, procurement 1, crm 1, marketing 1, manufacturing 1, talent 1, projects 2, ecommerce 2, benefits 2, identity_access 1, people_payroll 2, manage_erpx 1 remain partly retained; completing their native writers/ports unlocks browser closure in the same wave.",
-        "exit": "Owner crate owns the command/read, composition uses its public port, no TS fallback when configured.",
+        "exit": "Owner crate owns the command/read, composition uses its public port, and replaced TypeScript fallbacks and unused implementations are retired.",
         "estimateHours": "40-80",
         "status": "in progress"
       },
       {
         "order": 4,
         "bundle": "untouched owners",
-        "why": "93 workflows have neither verified nor partial evidence: pms 9, agent 6, identity_access 5, manufacturing 5, marketing 5, projects 4, talent 5, ecommerce 4, commercial 5, crm 4, pos 4, procurement 4, sales 3, people_payroll 3, benefits 3, customer_360 2, customer_authority 2, manage_erpx 3, planning 5, platform_administration 4, and surface owners account 4, admin 3, apps 1, booking 1, portal 1, legal-portal 2, forms 1. Verified/partial owners (field_service, support, brand, finance, inventory, operations, collaboration, assets, maintenance, learning, legal, organization, quality) contribute no unstarted workflows.",
+        "why": "84 workflows currently have neither verified nor partial evidence: pms 9, agent 6, identity_access 5, manufacturing 5, marketing 4, projects 4, talent 5, ecommerce 4, commercial 5, crm 4, pos 4, procurement 4, sales 1, people_payroll 3, benefits 1, customer_360 2, customer_authority 2, manage_erpx 3, platform_administration 4, and surface owners account 4, admin 3, apps 1, booking 1, portal 1, legal-portal 2, forms 1.",
         "exit": "Native owner implementation plus frontend/legacy/gates.",
         "estimateHours": "180-320",
         "status": "not started"
@@ -7183,8 +7183,8 @@
     },
     "blockers": [
       {
-        "id": "pos-stripe-provider-configuration",
-        "detail": "Operations exception lifecycle is closed. POS Stripe card/PromptPay tenders and refunds plus payment.retry/payment.cancel remain unverified because the keyed POS app has no POS_STRIPE_* configuration; no mock provider is accepted.",
+        "id": "pos-stripe-provider-configuration-historical",
+        "detail": "Historical Operations lifecycle evidence is bounded and does not close the currently partial workflows. POS Stripe card/PromptPay tenders and refunds plus payment.retry/payment.cancel remain unverified because the keyed POS app lacks the required provider configuration; no mock provider is accepted.",
         "unblock": "Provide the test-mode Stripe/Connect configuration for the isolated keyed workspace, or explicitly defer Stripe scope."
       },
       {
@@ -7200,7 +7200,7 @@
       {
         "id": "native-work-role-browser-selection",
         "detail": "The keyed office-shell hydration blocker was the Turbopack development HMR restart loop; the webpack development bundler mounts the app root. Commerce quotation create/edit is now browser-verified on desktop and mobile. The Assets app has not been rebuilt with the Assets/Finance handoff in the keyed container, and its positive-cost registration browser journey remains unverified.",
-        "unblock": "Rebuild/restart the keyed container with the Assets/Finance handoff and use the webpack verification bundler for the positive-cost Assets registration."
+        "unblock": "Resolve and locally verify the Assets/Finance handoff, then check the positive-cost registration through the existing authorized development environment; container work is deferred until after the goal."
       },
       {
         "id": "private-production-3101",
@@ -7210,16 +7210,17 @@
       {
         "id": "assets-composition-api-drift",
         "detail": "The committed Assets Finance handoff now compiles with the shared dyn Clock, but the keyed container cannot rebuild it: its server-assets adapter and composition asset_http.rs come from different uncommitted API revisions (AssetChangeResult/command body decode), and the positive-cost Assets page still returns NATIVE_ASSETS_UNAVAILABLE. Container source was restored to its last building revision; the native Commerce/guard API is healthy.",
-        "unblock": "Integrate the external server-assets/AssetHttp API revision (or rebase the Assets handoff onto the committed server-assets API), add ERPX_NATIVE_ASSETS_CONFIG for the keyed origin, then rebuild and browser-verify a positive-cost registration."
+        "unblock": "Reconcile the server-assets/AssetHttp API revision, validate affected consumers and verify positive-cost registration through the authorized development environment; do not change public runtime and defer container work until after the goal."
       }
     ],
     "nextActions": [
-      "Reconcile the delivery register's eight catalogue-complete owners with the owner register's three businessMigrationComplete claims and audit retained TypeScript consumers, Finance handoff and strict retirement gates before certifying an owner count for the migration goal.",
-      "Positive-cost Assets is blocked by the server-assets/composition API drift recorded in assets-composition-api-drift; integrate that revision before rebuilding the container and browser-verifying registration.",
+      "Coordinator handoff: obtain Common acknowledgment before using shared Files/Records/Workflow/Work Projection/Runtime/Shared files or the shared build/DB/browser queue. The Finance period-close workpaper candidate crosses Common-owned packages/server-files; do not commit or mount it until Common accepts the frozen Files port contract and the Commercial↔Finance lock order is resolved with the Field parts consumer.",
+      "Audit each owner against the strict native, frontend, legacy-retirement, local-gate, review and pushed-source requirements before certifying completion; the former eight and three owner claims are historical and were not sufficient under this gate.",
+      "Resolve the recorded server-assets/composition API drift, validate affected consumers and normal-authenticated registration; container preparation is deferred until after this goal.",
       "Recheck the integrated Files/Workflow attachment modules and the full service on the final frozen source; the historical clean archive build predates current shared work.",
       "Await Stripe/Connect configuration for POS tenders/refunds/retry.",
       "Reconcile remote HEAD and keep counts tied to browser/HTTP evidence.",
-      "sales/quotes is verified with the frozen save lock/replay/pricing witnesses; implement the native goods-fulfillment command next."
+      "Requalify sales/quotes after mounting replay-safe pre-snapshot Finance and Sales fences, preserving settings and Records/Procurement linkage precedence, and completing native/frontend/legacy retirement gates; the c30048a9d verification claim is superseded by source review and contention tests."
     ],
     "integrationLog": [
       {
@@ -8622,6 +8623,23 @@
           "owners": 8,
           "verified": 84,
           "partial": 38,
+          "unstarted": 84,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-09T10:47:00+07:00",
+        "commit": "7a552ff1e",
+        "bundles": [
+          "clean-HEAD Rust evidence suite registration (ab06f19aa)",
+          "Common Records create / Billing cost / Work Projection quick-access / Runtime outbox / Shared fences (23 commits)",
+          "Distribute Field Count/Parts/Finance source witnesses (unmounted)"
+        ],
+        "evidence": "ab06f19aa repaired the clean-HEAD catalogue for the committed Files business-evidence and Assets cost-composition suites; clean-archive catalogue 997 suites and both suites passed. Field source-only suites on the working tree: service_initial_count_revision_postgres 3/3, field_service_parts_postgres focused 1/1, inventory consumption_postgres 26/26, Finance journal_source_postgres 22/22. These are source predicates, not workflow closure; no Field workflow promoted. Finance period-close workpaper candidate: period_close_postgres 6/6 and Files business_evidence_postgres 3/3, but reviewer-blocked and not committed because it crosses Common-owned Files and the Commercial↔Finance lock order is unresolved.",
+        "counts": {
+          "owners": 0,
+          "verified": 65,
+          "partial": 57,
           "unstarted": 84,
           "total": 206
         }
