@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T13:10:00+07:00",
+  "updatedAt": "2026-11-09T13:25:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -3497,7 +3497,7 @@
     {
       "id": "brand-owner-closure-correction",
       "kind": "owner-certification-correction",
-      "status": "partial",
+      "status": "partial; native identity suites pass, owner blocked by live TS branding writers",
       "scope": "Brand identity writers retired; Brand owner remains false because live TypeScript branding writers and a storefront dual-writer path remain.",
       "sourceIdentity": "372ef97e483ffb6d1298e344b513b4e19bbbda15",
       "evidenceRef": "docs/testing/evidence/2026-11-09-brand-owner-closure-correction.json",
@@ -6562,8 +6562,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-09T13:10:00+07:00",
-    "sourceHead": "d6ef0ebf9c2c40f434de5143bddef7e7de2f00ea",
+    "generatedAt": "2026-11-09T13:25:00+07:00",
+    "sourceHead": "acf22471da04a5671315de9f7dd2bfa1164c5462",
     "interpretation": "ownerTotals includes the 41 register owners plus the seven catalogue surface owners (account, admin, apps, booking, forms, legal-portal, portal); surface owners are counted in the 206 workflows and are not part of the 41-owner strict certification denominator. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -8805,6 +8805,23 @@
           "Field parts full clean-archive lock-order verification"
         ],
         "evidence": "d6ef0ebf9 adds PgPeriodCloseEvidence, the exact workpaper contract and close_period_with_evidence; the no-evidence close_period bridge fails closed for nonempty workpapers. Clean archive of d6ef0ebf9 compiles erpx-service with private-field-api (27.48s). Clean archive 33f31860 field_service_parts_postgres passed 37/37 (837.75s), including selected_parts_waits_between_finance_owner_locks_then_replays. No workflow or owner promoted; Common Files patch and Finance composition mount remain pending.",
+        "counts": {
+          "owners": 0,
+          "verified": 65,
+          "partial": 57,
+          "unstarted": 84,
+          "merged": 65,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-09T13:25:00+07:00",
+        "commit": "acf22471d",
+        "bundles": [
+          "Brand native test SQL correction",
+          "generated Brand identity reference retirement"
+        ],
+        "evidence": "brand_identity_postgres 4/4 and brand_identity_http_postgres 4/4 pass on the working tree with the correct features; generated coverage/turbo/workspace relocation references to the deleted Brand application source removed; structure/catalogue/architecture green. Brand owner remains false because live TS branding writers and storefront dual writer remain. Counts unchanged 65 verified/65 merged/57 partial/84 unstarted, owners 0/41.",
         "counts": {
           "owners": 0,
           "verified": 65,
