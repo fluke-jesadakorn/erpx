@@ -72,5 +72,12 @@
     "The browser registration and lifecycle journeys used Mali (holding_owner). The independent retirement approval is covered by the native asset_http_postgres independent-review case; a second browser account with an Assets-authorized role was not available in the keyed fixture.",
     "The maintenance work-order browser lifecycle was not completed because the seeded eligible asset already carries active maintenance work and the newly registered retirement-pending asset is not selectable for a new work order. The native maintenance-source/retirement checks pass.",
     "The Assets owner remains partial: two of five catalogue workflows are not fully browser-qualified."
+  ],
+  "pushedCommit": "9bb073161078541575574002dce5c1de6b8bceb3",
+  "remoteVerified": true,
+  "mergedWorkflows": [
+    "assets/asset-register",
+    "assets/condition",
+    "assets/feature-placement"
   ]
 }

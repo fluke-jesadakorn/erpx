@@ -21,7 +21,7 @@
     "additionalInteropEvidence": 2,
     "workflowsPartial": 54,
     "workflowsVerified": 68,
-    "workflowsMerged": 65,
+    "workflowsMerged": 68,
     "ownersComplete": 0,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -4383,7 +4383,7 @@
       "scope": "Asset register",
       "partial": false,
       "verified": true,
-      "merged": false,
+      "merged": true,
       "evidenceFlows": [
         "assets-native-http",
         "assets-native-ssr",
@@ -4401,7 +4401,7 @@
       "scope": "Condition",
       "partial": false,
       "verified": true,
-      "merged": false,
+      "merged": true,
       "evidenceFlows": [
         "assets-native-http",
         "assets-native-ssr",
@@ -4419,7 +4419,7 @@
       "scope": "Placement",
       "partial": false,
       "verified": true,
-      "merged": false,
+      "merged": true,
       "evidenceFlows": [
         "assets-native-http",
         "assets-native-ssr",
@@ -6552,8 +6552,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-09T10:52:00+07:00",
-    "sourceHead": "4f3bfaf492c2757b76de2f88474728a8749c8050",
+    "generatedAt": "2026-11-09T11:05:00+07:00",
+    "sourceHead": "9bb073161078541575574002dce5c1de6b8bceb3",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed. Owner completion is counted only after those strict gates are independently established at the pushed source; zero here means none has yet been certified by this audit, not that historical slices were undone.",
     "ownerTotals": {
       "brand": {
@@ -8646,6 +8646,24 @@
           "verified": 65,
           "partial": 57,
           "unstarted": 84,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-09T11:05:00+07:00",
+        "commit": "9bb073161",
+        "bundles": [
+          "native Assets registration/placement/condition browser lifecycle",
+          "Assets development composition and Maintenance retirement source",
+          "contributor origin-policy integration"
+        ],
+        "evidence": "asset_cost_composition_postgres 4/4; asset_register_policy 14/14; asset_register_postgres 25/25; asset_http_postgres 5/5; positive-cost desktop/mobile browser registration with persisted Finance acquisition snapshot; placement, condition and retirement request browser actions; structure/catalogue/architecture green",
+        "counts": {
+          "owners": 0,
+          "verified": 68,
+          "partial": 54,
+          "unstarted": 84,
+          "merged": 68,
           "total": 206
         }
       }
