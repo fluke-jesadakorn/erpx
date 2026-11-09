@@ -50,8 +50,8 @@ export async function nativeCompanyHint(incoming:Headers,holdingId:string,reques
 export async function readNativeAccountContext(session:IdentitySession,incoming:Headers,requested:HoldingWorkspaceScope,options:WorkspaceResolutionOptions,context:boolean){
  const raw=process.env.ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG;
  if(!raw||!process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG)fail(503,'NATIVE_ACCOUNT_CONTEXT_CONFIGURATION_REQUIRED','The native Account context is not configured.');
- const targets=nativeHoldingConfiguration(raw,originProfile()).holdings;
- const target=targets.find(h=>new URL(h.origin).host===incoming.get('host'));
+ const profile=originProfile(),targets=nativeHoldingConfiguration(raw,profile).holdings,sourceHost=incoming.get('host'),loopback=profile==='loopback'&&sourceHost!==null&&/^127\.0\.0\.1:\d+$/.test(sourceHost);
+ const target=loopback?targets.find(h=>h.holdingSlug===requested.holdingSlug):targets.find(h=>new URL(h.origin).host===sourceHost);
  if(!target||target.holdingSlug!==requested.holdingSlug)fail(404,'WORKSPACE_NOT_FOUND','Workspace not found.');
  const transport=new Headers(incoming);
  // Route selectors remain untrusted. Never leave a previous route's scope in

@@ -200,7 +200,8 @@ export function createNativeAccountHttpTransport(configuration:NativeSessionClie
   let host:string|undefined,origin:string|undefined;
   if(loopback){
     if(!sourceHost||!/^127\.0\.0\.1:\d+$/.test(sourceHost))return fail('NATIVE_ACCOUNT_AUTHORITY_INVALID');
-    const accountPath=/^\/(?:api\/auth|api\/v1\/account|sso)\//.test(publicUrl.pathname);
+    const path=publicUrl.pathname;
+    const accountPath=path==='/sso/authorize'||/^\/(?:api\/auth|api\/v1\/account)\//.test(path);
     const targetOrigin=accountPath?configuration.accountOrigin:configuration.holdingOrigins[0];
     host=new URL(targetOrigin).host;origin=targetOrigin;
     if(sourceOrigin&&sourceOrigin!==`http://${sourceHost}`)return fail('NATIVE_ACCOUNT_ORIGIN_FORBIDDEN',403);
@@ -232,6 +233,8 @@ export function createNativeAccountHttpTransport(configuration:NativeSessionClie
    if(loopback){
     const cookies=(response.headers as Headers & {getSetCookie?:()=>string[]}).getSetCookie?.()??[];
     if(cookies.length){outgoing.delete('set-cookie');for(const cookie of cookies)outgoing.append('set-cookie',cookie.replace(/;\s*Domain=[^;]*/gi,''));}
+    const location=outgoing.get('location');
+    if(location){try{const target=new URL(location);const known=[configuration.accountOrigin,...configuration.holdingOrigins].some(origin=>new URL(origin).host===target.host);if(known)outgoing.set('location',`http://${sourceHost}${target.pathname}${target.search}${target.hash}`);}catch{}}
    }
    return new Response([204,205,304].includes(response.status)?null:responseBytes,{status:response.status,headers:outgoing});
   }catch(error){controller.abort();if(error instanceof NativeSessionReadError)throw error;return fail('NATIVE_ACCOUNT_UNAVAILABLE');}

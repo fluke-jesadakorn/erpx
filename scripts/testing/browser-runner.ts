@@ -294,7 +294,7 @@ export async function runBrowserSuites(suites: Suite[], options: { mode?: "devel
       const browserEnvironment = { ...env };
       delete browserEnvironment.ERPX_FORMS_HOST_PLAN;
       delete browserEnvironment.ERPX_FORMS_HOST_PLAN_SHA256;
-      const testEnv = { ...browserEnvironment, ERPX_INVESTOR_CAPTURE: options.investorCapture ? "1" : undefined, ...localBrowserActorEnvironment(suite.fixture, state.fixture), ERPX_DEMO_RUN: run, ERPX_BROWSER_SIMULATION_RUN: run, ERPX_E2E_BASE_URL: workspace ? developmentHostOrigin(workspace.entryApp) : formsMode ? formsHostOrigin : origin,
+      const testEnv = { ...browserEnvironment, ERPX_INVESTOR_CAPTURE: options.investorCapture ? "1" : undefined, ...localBrowserActorEnvironment(suite.fixture, state.fixture), ERPX_DEMO_RUN: run, ERPX_BROWSER_SIMULATION_RUN: run, ERPX_E2E_BASE_URL: workspace ? developmentHostOrigin(workspace.entryApp) : formsMode ? formsHostOrigin : origin, ...(process.env.ERPX_NATIVE_BROWSER_ACCOUNT === '1' ? { ERPX_E2E_LOOPBACK_SSO: '1' } : {}),
         ERPX_E2E_FIXTURE: join(root, ".runtime/browser", run, "fixture.json"), ERPX_SERVICES_FIXTURE: join(root, ".runtime/browser", run, "fixture.json"),
         ERPX_UAT_AUTH_DIR: suite.lane === "uat" ? join(root, ".runtime/browser", run, "uat-auth") : "",
         ERPX_UAT_EVIDENCE_FILE: suite.lane === "uat" && wanted ? await prepareUatCaseEvidence(root, run, output) : undefined,

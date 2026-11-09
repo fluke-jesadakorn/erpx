@@ -8,11 +8,14 @@ const object=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&
 const text=(v:unknown):v is string=>typeof v==='string'&&v.length>0&&new TextEncoder().encode(v).length<=8192;
 const fail=(code:string,status=503):never=>{throw new ApiError(status,code,'The native Company selection is unavailable.');};
 export function createNativeAccountCompaniesReader(raw:string,send:typeof nativeAccountCompaniesRequest=nativeAccountCompaniesRequest){
- let config:NativeHoldingConfiguration;try{config=nativeHoldingConfiguration(raw,originProfile());}catch{return fail('NATIVE_ACCOUNT_COMPANIES_CONFIGURATION_INVALID');}
+ const profile=originProfile();let config:NativeHoldingConfiguration;try{config=nativeHoldingConfiguration(raw,profile);}catch{return fail('NATIVE_ACCOUNT_COMPANIES_CONFIGURATION_INVALID');}
  const {privateBaseUrl:baseUrl,timeoutMs,holdings:targets}=config;
  return async(incoming:Pick<Headers,'get'>,identity:{sessionId:string;userId:string},holdingId?:string):Promise<NativeAccountCompanies>=>{
-  const target=targets.find(h=>new URL(h.origin).host===incoming.get('host'));if(!target||holdingId!==undefined&&target.holdingId!==holdingId)return fail('NATIVE_ACCOUNT_COMPANIES_TARGET_UNAVAILABLE');
-  const origin=incoming.get('origin');if(origin&&origin!==target.origin)return fail('ORIGIN_FORBIDDEN',403);
+  const sourceHost=incoming.get('host'),loopback=profile==='loopback'&&sourceHost!==null&&/^127\.0\.0\.1:\d+$/.test(sourceHost);
+  const target=loopback?targets.find(h=>holdingId===undefined||h.holdingId===holdingId):targets.find(h=>new URL(h.origin).host===sourceHost);if(!target||holdingId!==undefined&&target.holdingId!==holdingId)return fail('NATIVE_ACCOUNT_COMPANIES_TARGET_UNAVAILABLE');
+  const sourceOrigin=incoming.get('origin');
+  if(loopback){if(sourceOrigin&&sourceOrigin!==`http://${sourceHost}`)return fail('ORIGIN_FORBIDDEN',403);}else if(sourceOrigin&&sourceOrigin!==target.origin)return fail('ORIGIN_FORBIDDEN',403);
+  const origin=loopback?target.origin:sourceOrigin;
   const headers=new Headers({host:new URL(target.origin).host,accept:'application/json'});if(origin)headers.set('origin',origin);const cookie=incoming.get('cookie');if(cookie){if(new TextEncoder().encode(cookie).length>8192)return fail('NATIVE_ACCOUNT_COMPANIES_COOKIE_LIMIT');headers.set('cookie',cookie);}
   let reply:Awaited<ReturnType<typeof send>>;try{reply=await send({baseUrl,timeoutMs,slug:target.holdingSlug,headers});}catch{return fail('NATIVE_ACCOUNT_COMPANIES_UNAVAILABLE');}
   if(reply.status!==200){if(object(reply.body)&&object(reply.body.error)&&typeof reply.body.error.code==='string'&&reply.body.error.code.length<=100&&reply.status>=400&&reply.status<=599)return fail(reply.body.error.code,reply.status);return fail('NATIVE_ACCOUNT_COMPANIES_UNAVAILABLE');}
