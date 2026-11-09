@@ -7,10 +7,12 @@
 //! responsibilities behind [`RecordsRegistryHttpBackend`].
 use crate::domain::record_context::valid_module;
 use crate::domain::record_registry::RegistryQuery;
-use crate::domain::record_write::{CreateRecordInput, UpdateRecordInput};
+use crate::domain::record_write::{
+    ArchiveRecordInput, CreateRecordInput, MAX_SAFE, UpdateRecordInput,
+};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
-    StatusCode, body::to_bytes, header, routing::get, routing::patch, serde_json,
+    StatusCode, body::to_bytes, header, routing::delete, routing::get, routing::patch, serde_json,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
 use serde_json::Value;
@@ -41,6 +43,12 @@ pub enum RecordsRegistryHttpCommand {
         module_id: String,
         record_id: String,
         input: UpdateRecordInput,
+        key: String,
+    },
+    Archive {
+        module_id: String,
+        record_id: String,
+        input: ArchiveRecordInput,
         key: String,
     },
 }
@@ -201,7 +209,10 @@ fn percent_decode(value: &str) -> Result<String, BusinessError> {
     String::from_utf8(out).map_err(|_| malformed())
 }
 
-fn query_values(query: Option<&str>) -> Result<BTreeMap<String, String>, BusinessError> {
+fn query_values(
+    query: Option<&str>,
+    allow_expected_version: bool,
+) -> Result<BTreeMap<String, String>, BusinessError> {
     let raw = query.unwrap_or_default();
     if raw.len() > QUERY_LIMIT {
         return Err(malformed());
@@ -211,7 +222,8 @@ fn query_values(query: Option<&str>) -> Result<BTreeMap<String, String>, Busines
         let (key, value) = pair.split_once('=').ok_or_else(malformed)?;
         let key = percent_decode(key)?;
         let value = percent_decode(value)?;
-        let allowed = matches!(key.as_str(), "paged" | "section" | "q" | "cursor");
+        let allowed = matches!(key.as_str(), "paged" | "section" | "q" | "cursor")
+            || (allow_expected_version && key == "expectedVersion");
         if !allowed || values.insert(key, value).is_some() {
             return Err(malformed());
         }
@@ -292,7 +304,7 @@ pub fn records_registry_http_router(
         )
         .route(
             "/api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}",
-            patch(update_record),
+            patch(update_record).delete(delete_record),
         )
         .with_state(Arc::new(RecordsRegistryHttpState {
             targets: configured,
@@ -307,7 +319,7 @@ async fn read_registry(
     let headers = request.headers().clone();
     let result = async move {
         let target = target(&state, &headers, &slug)?;
-        let values = query_values(request.uri().query())?;
+        let values = query_values(request.uri().query(), false)?;
         let command = command(&module_id, &values)?;
         ensure_empty_body(request).await?;
         target
@@ -385,6 +397,74 @@ async fn create_record(
                 command: RecordsRegistryHttpCommand::Create {
                     module_id,
                     input,
+                    key: key.to_owned(),
+                },
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => bounded(reply.value()),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn delete_record(
+    State(state): State<Arc<RecordsRegistryHttpState>>,
+    Path((slug, module_id, record_id)): Path<(String, String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let query = request.uri().query().map(str::to_owned);
+    let result = async move {
+        let target = target(&state, &headers, &slug)?;
+        if unique_header(&headers, header::ORIGIN)?.is_none_or(|origin| origin != target.origin) {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            ));
+        }
+        let key = unique_header(&headers, HeaderName::from_static("idempotency-key"))?
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                BusinessError::invalid(
+                    "IDEMPOTENCY_KEY_REQUIRED",
+                    "Provide a command key to archive this record.",
+                )
+            })?;
+        CommandKey::new(key.to_owned()).map_err(|_| {
+            BusinessError::invalid(
+                "IDEMPOTENCY_KEY_REQUIRED",
+                "Provide a command key to archive this record.",
+            )
+        })?;
+        if !valid_module(&module_id) || !crate::domain::record_context::valid_id(&record_id) {
+            return Err(missing());
+        }
+        let values = query_values(query.as_deref(), true)?;
+        if values.len() != 1 {
+            return Err(malformed());
+        }
+        let expected_version = values
+            .get("expectedVersion")
+            .ok_or_else(malformed)?
+            .parse::<i64>()
+            .map_err(|_| malformed())?;
+        if !(1..=MAX_SAFE).contains(&expected_version) {
+            return Err(malformed());
+        }
+        ensure_empty_body(request).await?;
+        target
+            .backend
+            .execute(RecordsRegistryHttpRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                command: RecordsRegistryHttpCommand::Archive {
+                    module_id,
+                    record_id,
+                    input: ArchiveRecordInput { expected_version },
                     key: key.to_owned(),
                 },
             })

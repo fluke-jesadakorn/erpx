@@ -69,6 +69,22 @@ impl RecordsRegistryHttpBackend for Probe {
                     ),
                     serde_json::json!({"id": record_id}),
                 ),
+                RecordsRegistryHttpCommand::Archive {
+                    module_id,
+                    record_id,
+                    input,
+                    key,
+                } => (
+                    format!(
+                        "archive|{module_id}|{record_id}|{key}|{}",
+                        input.expected_version
+                    ),
+                    serde_json::json!({
+                        "id": record_id,
+                        "moduleId": module_id,
+                        "archived": true
+                    }),
+                ),
             };
             self.seen.lock().unwrap().push(format!(
                 "{}|{}|{}|{cookie:?}",
@@ -178,6 +194,12 @@ fn patch(path: &str, host: &str, origin: &str, key: &str, body: &str) -> String 
     format!(
         "PATCH {path} HTTP/1.1\r\nHost: {host}\r\nOrigin: {origin}\r\nCookie: erpx=session\r\nIdempotency-Key: {key}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
         body.len()
+    )
+}
+
+fn delete(path: &str, host: &str, origin: &str, key: &str) -> String {
+    format!(
+        "DELETE {path} HTTP/1.1\r\nHost: {host}\r\nOrigin: {origin}\r\nCookie: erpx=session\r\nIdempotency-Key: {key}\r\nConnection: close\r\n\r\n"
     )
 }
 
@@ -507,6 +529,98 @@ async fn actual_router_forwards_update_with_version_and_idempotency() {
             "https://acme.example.test",
             "records:http-update-3",
             r#"{"expectedVersion":1,"fields":{"priority":"low"},"extra":true}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(
+        response["error"]["code"],
+        "RECORDS_REGISTRY_REQUEST_INVALID"
+    );
+}
+
+#[tokio::test]
+async fn actual_router_forwards_archive_with_version_and_idempotency() {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let router = records_registry_http_router(vec![target(
+        "acme.example.test",
+        "acme",
+        seen.clone(),
+        false,
+    )])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let _server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+    let path = "/api/v1/holdings/acme/records/support/rec-support-records:http-1?expectedVersion=1";
+    let (status, response, headers) = http(
+        addr,
+        delete(
+            path,
+            "acme.example.test",
+            "https://acme.example.test",
+            "records:http-archive-1",
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(response["data"]["id"], "rec-support-records:http-1");
+    assert_eq!(response["data"]["archived"], true);
+    assert!(headers.contains("cache-control: private, no-store"));
+    assert_eq!(
+        seen.lock().unwrap().last().unwrap(),
+        "acme.example.test|acme|archive|support|rec-support-records:http-1|records:http-archive-1|1|Some(\"erpx=session\")"
+    );
+    let (status, response, _) = http(
+        addr,
+        delete(
+            path,
+            "acme.example.test",
+            "https://foreign.example.test",
+            "records:http-archive-2",
+        ),
+    )
+    .await;
+    assert_eq!(status, 403);
+    assert_eq!(response["error"]["code"], "ORIGIN_FORBIDDEN");
+    let (status, response, _) = http(
+        addr,
+        delete(
+            path,
+            "acme.example.test",
+            "https://acme.example.test",
+            "short",
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(response["error"]["code"], "IDEMPOTENCY_KEY_REQUIRED");
+    let missing = "/api/v1/holdings/acme/records/support/rec-support-records:http-1";
+    let (status, response, _) = http(
+        addr,
+        delete(
+            missing,
+            "acme.example.test",
+            "https://acme.example.test",
+            "records:http-archive-3",
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(
+        response["error"]["code"],
+        "RECORDS_REGISTRY_REQUEST_INVALID"
+    );
+    let extra = "/api/v1/holdings/acme/records/support/rec-support-records:http-1?expectedVersion=1&section=tickets";
+    let (status, response, _) = http(
+        addr,
+        delete(
+            extra,
+            "acme.example.test",
+            "https://acme.example.test",
+            "records:http-archive-4",
         ),
     )
     .await;

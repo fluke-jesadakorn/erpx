@@ -356,6 +356,9 @@ impl<C: Clock + Send + Sync + 'static> RecordsService<C> {
             RecordsRegistryHttpCommand::Update { .. } => {
                 return Err(unavailable().into());
             }
+            RecordsRegistryHttpCommand::Archive { .. } => {
+                return Err(unavailable().into());
+            }
         };
         self.authorizer
             .execute_with_sources_deferred(
@@ -551,6 +554,7 @@ impl<C: Clock + Send + Sync + 'static> RecordsRegistryHttpBackend for RecordsBac
                 request.command,
                 RecordsRegistryHttpCommand::Create { .. }
                     | RecordsRegistryHttpCommand::Update { .. }
+                    | RecordsRegistryHttpCommand::Archive { .. }
             );
             let (proof, selection) = if create {
                 self.write_request(request.headers)?
@@ -601,6 +605,30 @@ impl<C: Clock + Send + Sync + 'static> RecordsRegistryHttpBackend for RecordsBac
                         .map_err(business)?;
                     Ok(RecordsRegistryHttpResponse {
                         data: view,
+                        context,
+                    })
+                }
+                RecordsRegistryHttpCommand::Archive {
+                    module_id,
+                    record_id,
+                    input,
+                    key,
+                } => {
+                    let (_, context, archived) = self
+                        .command
+                        .archive_with_context(
+                            request.host,
+                            proof,
+                            move || Ok(selection),
+                            module_id,
+                            record_id,
+                            input,
+                            erpx_server_shared::public::CommandKey::new(key)?,
+                        )
+                        .await
+                        .map_err(business)?;
+                    Ok(RecordsRegistryHttpResponse {
+                        data: archived,
                         context,
                     })
                 }

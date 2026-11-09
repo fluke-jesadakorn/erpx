@@ -20,10 +20,12 @@ const state = vi.hoisted(() => ({
   list: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
+  archive: vi.fn(),
   retainedList: vi.fn(),
   retainedPage: vi.fn(),
   retainedGet: vi.fn(),
   retainedUpdate: vi.fn(),
+  retainedArchive: vi.fn(),
 }));
 
 vi.mock('@erpx/server-identity_access/public/authorization', () => ({
@@ -37,7 +39,7 @@ vi.mock('@erpx/server-records/adapters/records', () => ({
   getRecord: state.retainedGet,
   updateRecord: state.retainedUpdate,
   updateRecordSchema: { safeParse: (value: unknown) => ({ success: true, data: value }) },
-  archiveRecord: vi.fn(),
+  archiveRecord: state.retainedArchive,
   recordContext: vi.fn(),
 }));
 vi.mock('@erpx/server-records/public/mention-display', () => ({
@@ -57,6 +59,7 @@ vi.mock('@erpx/server-records/public/native-record-registry', () => ({
     list: state.list,
     create: state.create,
     update: state.update,
+    archive: state.archive,
   }),
   nativeRecordRegistryFailure: (error: unknown) =>
     error instanceof Error
@@ -69,7 +72,7 @@ vi.mock('@erpx/server-records/public/native-record-registry', () => ({
 }));
 
 import { GET, POST } from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/[module]/route';
-import { PATCH } from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/route';
+import { PATCH, DELETE } from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/route';
 
 const params = { params: Promise.resolve({ holdingSlug: 'acme', module: 'operations' }) };
 const request = (query: string) =>
@@ -293,4 +296,96 @@ it('keeps the retained update path outside the bounded support module', async ()
   );
   expect(state.update).not.toHaveBeenCalled();
   expect((await response.json()).data).toEqual(retainedRecord);
+});
+
+it('uses native archive for support with the current authority and never reads the retained writer', async () => {
+  const archived = {
+    id: 'rec-support-records:http-1',
+    moduleId: 'support',
+    archived: true,
+  };
+  state.archive.mockResolvedValue(archived);
+  const request = (key: string | null = 'records:http-archive-1') =>
+    new Request(
+      'https://acme.example.com/api/v1/holdings/acme/records/support/rec-support-records:http-1?expectedVersion=1',
+      {
+        method: 'DELETE',
+        headers: {
+          origin: 'https://acme.example.com',
+          ...(key ? { 'idempotency-key': key } : {}),
+        },
+      },
+    );
+  const response = await DELETE(request(), {
+    params: Promise.resolve({
+      holdingSlug: 'acme',
+      module: 'support',
+      id: 'rec-support-records:http-1',
+    }),
+  });
+  expect(response.status).toBe(200);
+  expect(state.archive).toHaveBeenCalledWith(
+    expect.any(Headers),
+    expect.objectContaining({
+      userId: 'actor',
+      holdingId: 'h001',
+      companyId: 'company',
+      branchSlug: null,
+      departmentSlug: null,
+    }),
+    {
+      holdingSlug: 'acme',
+      moduleId: 'support',
+      recordId: 'rec-support-records:http-1',
+      expectedVersion: 1,
+    },
+    'records:http-archive-1',
+  );
+  expect(state.retainedGet).not.toHaveBeenCalled();
+  expect(state.retainedArchive).not.toHaveBeenCalled();
+  expect((await response.json()).data).toEqual(archived);
+  const missing = await DELETE(request(null), {
+    params: Promise.resolve({
+      holdingSlug: 'acme',
+      module: 'support',
+      id: 'rec-support-records:http-1',
+    }),
+  });
+  expect(missing.status).toBe(422);
+  expect((await missing.json()).error.code).toBe('IDEMPOTENCY_KEY_REQUIRED');
+  expect(state.archive).toHaveBeenCalledTimes(1);
+});
+
+it('keeps the retained archive path outside the bounded support module', async () => {
+  const retained = { id: 'rec-1', moduleId: 'operations', archived: true };
+  state.retainedArchive.mockResolvedValue(retained);
+  const response = await DELETE(
+    new Request(
+      'https://acme.example.com/api/v1/holdings/acme/records/operations/rec-1?expectedVersion=2',
+      {
+        method: 'DELETE',
+        headers: {
+          origin: 'https://acme.example.com',
+          'idempotency-key': 'records:http-retained-archive',
+        },
+      },
+    ),
+    {
+      params: Promise.resolve({
+        holdingSlug: 'acme',
+        module: 'operations',
+        id: 'rec-1',
+      }),
+    },
+  );
+  expect(response.status).toBe(200);
+  expect(state.retainedArchive).toHaveBeenCalledWith(
+    state.actor,
+    'operations',
+    'rec-1',
+    2,
+    'records:http-retained-archive',
+  );
+  expect(state.archive).not.toHaveBeenCalled();
+  expect((await response.json()).data).toEqual(retained);
 });

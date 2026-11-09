@@ -8,8 +8,9 @@ use erpx_server_identity_access::public::{
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
 use erpx_server_records::public::record_write::{
-    CreateRecordInput, MAX_SAFE, RecordFieldInput, UpdateRecordInput, ValidatedRecord,
-    ValidatedRecordUpdate, validate_create, validate_update, version_conflict,
+    ArchiveRecordInput, CreateRecordInput, MAX_SAFE, RecordFieldInput, UpdateRecordInput,
+    ValidatedRecord, ValidatedRecordUpdate, validate_archive, validate_create, validate_update,
+    version_conflict,
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{
@@ -407,6 +408,113 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for UpdateEffects<'_, C> {
     }
 }
 
+struct ArchiveEffects<'a, C> {
+    current: &'a AuthorizedWorkContext,
+    clock: &'a C,
+    module_id: &'a str,
+    record_id: &'a str,
+    input: &'a ArchiveRecordInput,
+    prepared: Option<i64>,
+}
+
+impl<C: Clock + Sync> PgOwnerCommandEffects for ArchiveEffects<'_, C> {
+    async fn lock_sources(
+        &mut self,
+        connection: &mut PgConnection,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        sqlx::query(
+            "LOCK TABLE workspace_records,workspace_record_transitions \
+             IN SHARE ROW EXCLUSIVE MODE NOWAIT",
+        )
+        .execute(&mut *connection)
+        .await
+        .map_err(
+            erpx_server_runtime::public::postgres::PersistenceError::pre_snapshot_lock_conflict,
+        )?;
+        Ok(())
+    }
+
+    async fn prepare(
+        &mut self,
+        connection: &mut PgConnection,
+        _: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<WorkflowOutput, Error> {
+        let row: Option<i64> = sqlx::query_scalar(
+            "SELECT version FROM workspace_records \
+             WHERE module_id=$1 AND id=$2 AND company_id=$3 AND archived_at IS NULL FOR UPDATE",
+        )
+        .bind(self.module_id)
+        .bind(self.record_id)
+        .bind(self.current.selection().workspace().company_id.as_str())
+        .fetch_optional(&mut *connection)
+        .await?;
+        let version = row.ok_or_else(record_not_found)?;
+        validate_archive(self.module_id, self.input, version)?;
+        self.prepared = Some(version);
+        Ok(WorkflowOutput {
+            version: self.input.expected_version,
+            result: CommandJson::from_serializable(&serde_json::json!({ "id": self.record_id }))?,
+            event_scope: None,
+        })
+    }
+
+    async fn apply(
+        &mut self,
+        connection: &mut PgConnection,
+        current: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        let version = self.prepared.ok_or_else(unavailable)?;
+        let now = self.clock.now().get();
+        let changed = sqlx::query(
+            "UPDATE workspace_records SET archived_at=$1,version=version+1,updated_by=$2,updated_at=$1 \
+             WHERE module_id=$3 AND id=$4 AND company_id=$5 AND version=$6 AND archived_at IS NULL",
+        )
+        .bind(now)
+        .bind(current.user_id.as_str())
+        .bind(self.module_id)
+        .bind(self.record_id)
+        .bind(self.current.selection().workspace().company_id.as_str())
+        .bind(version)
+        .execute(&mut *connection)
+        .await?;
+        if changed.rows_affected() != 1 {
+            return Err(version_conflict().into());
+        }
+        Ok(())
+    }
+
+    async fn retain(
+        &mut self,
+        connection: &mut PgConnection,
+        current: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        let version = self.prepared.ok_or_else(unavailable)?;
+        let row: Option<(Option<i64>, i64, String)> = sqlx::query_as(
+            "SELECT archived_at,version,updated_by FROM workspace_records \
+             WHERE module_id=$1 AND id=$2 AND company_id=$3",
+        )
+        .bind(self.module_id)
+        .bind(self.record_id)
+        .bind(self.current.selection().workspace().company_id.as_str())
+        .fetch_optional(&mut *connection)
+        .await?;
+        let Some((archived_at, current_version, updated_by)) = row else {
+            return Err(record_not_found().into());
+        };
+        if archived_at != Some(self.clock.now().get())
+            || current_version != version + 1
+            || updated_by != current.user_id.as_str()
+        {
+            return Err(changed().into());
+        }
+        Ok(())
+    }
+}
+
 struct Ids;
 
 impl IdentifierSource for Ids {
@@ -732,6 +840,130 @@ impl<C: Clock + Send + Sync + 'static> RecordsCommandService<C> {
                             outcome.result,
                             crate::records::context_value(current),
                             view,
+                        ))
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn archive<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        module_id: String,
+        record_id: String,
+        archive: ArchiveRecordInput,
+        key: CommandKey,
+    ) -> Result<CommandJson, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        Ok(self
+            .archive_with_context(host, proof, input, module_id, record_id, archive, key)
+            .await?
+            .0)
+    }
+
+    pub async fn archive_with_context<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        module_id: String,
+        record_id: String,
+        archive: ArchiveRecordInput,
+        key: CommandKey,
+    ) -> Result<(CommandJson, serde_json::Value, serde_json::Value), Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        if module_id != "support" {
+            return Err(BusinessError::invalid(
+                "RECORD_MODULE_UNSUPPORTED",
+                "This record module is not available in the native workbench yet.",
+            )
+            .into());
+        }
+        if !valid_record_id(&record_id) {
+            return Err(record_not_found().into());
+        }
+        if !(1..=MAX_SAFE).contains(&archive.expected_version) {
+            return Err(BusinessError::invalid(
+                "RECORD_VERSION_INVALID",
+                "Reload the record and try again.",
+            )
+            .into());
+        }
+        let holding = self.configuration.holding_id().clone();
+        let company = self.configuration.company().clone();
+        let clock = self.clock.clone();
+        let wire = CommandJson::from_serializable(&serde_json::json!({
+            "moduleId": module_id,
+            "expectedVersion": archive.expected_version,
+        }))?;
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(&module_id),
+                crate::records::RecordsSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let module_id = module_id.clone();
+                    let wire = wire.clone();
+                    let record_id = record_id.clone();
+                    let archive = archive.clone();
+                    let command_key = key.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.write")?;
+                        require_module(current, &module_id)?;
+                        let request = WorkflowRequest {
+                            key: command_key.as_str().to_owned(),
+                            operation: "record.archive".into(),
+                            record_id: record_id.clone(),
+                            input: wire,
+                        };
+                        let clock_ref = clock.as_ref();
+                        let mut authority = Authority {
+                            current,
+                            request: &request,
+                            clock: clock_ref,
+                        };
+                        let mut effects = ArchiveEffects {
+                            current,
+                            clock: clock_ref,
+                            module_id: &module_id,
+                            record_id: &record_id,
+                            input: &archive,
+                            prepared: None,
+                        };
+                        let mut ids = Ids;
+                        let mut ledger = PgCommandLedger::new(
+                            current.selection().workspace().company_id.clone(),
+                            connection,
+                            &mut authority,
+                            clock_ref,
+                            &mut ids,
+                        );
+                        let outcome = ledger.execute(&request, &mut effects).await?;
+                        Ok((
+                            outcome.result,
+                            crate::records::context_value(current),
+                            serde_json::json!({
+                                "id": record_id,
+                                "moduleId": module_id,
+                                "archived": true,
+                            }),
                         ))
                     })
                 },

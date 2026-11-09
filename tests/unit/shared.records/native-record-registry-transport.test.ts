@@ -415,6 +415,65 @@ describe('native Records registry transport', () => {
     });
   });
 
+  it('deletes with version and origin and returns the archive acknowledgement', async () => {
+    const calls: { method: string; url: URL; headers: Headers; body: string | undefined }[] = [];
+    const transport: NativeRecordRegistryTransport = async (method, url, headers, body) => {
+      calls.push({ method, url, headers, body });
+      return new Response(
+        JSON.stringify({
+          data: {
+            id: 'rec-support-records:http-1',
+            moduleId: 'support',
+            archived: true,
+          },
+          context,
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    };
+    const writer = createNativeRecordRegistryClient(config() as never, transport);
+    const archived = await writer.archive(
+      incoming({ origin: 'https://acme.example.com' }),
+      actor,
+      {
+        holdingSlug: 'acme',
+        moduleId: 'support',
+        recordId: 'rec-support-records:http-1',
+        expectedVersion: 1,
+      },
+      'records:http-archive-1',
+    );
+    expect(archived).toEqual({
+      id: 'rec-support-records:http-1',
+      moduleId: 'support',
+      archived: true,
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.method).toBe('DELETE');
+    expect(calls[0]!.url.toString()).toBe(
+      'http://127.0.0.1:44994/api/v1/holdings/acme/records/support/rec-support-records%3Ahttp-1?expectedVersion=1',
+    );
+    expect(calls[0]!.headers.get('origin')).toBe('https://acme.example.com');
+    expect(calls[0]!.headers.get('idempotency-key')).toBe('records:http-archive-1');
+    expect(calls[0]!.headers.get('x-erpx-context-company')).toBe('company');
+    expect(calls[0]!.headers.get('cookie')).toBe('__Host-erpx-product=session');
+    expect(calls[0]!.body).toBeUndefined();
+    await expect(
+      writer.archive(
+        incoming({ origin: 'https://acme.example.com' }),
+        actor,
+        {
+          holdingSlug: 'acme',
+          moduleId: 'support',
+          recordId: 'rec-support-records:http-1',
+          expectedVersion: 0,
+        },
+        'records:http-archive-2',
+      ),
+    ).rejects.toMatchObject({ code: 'NATIVE_RECORD_REGISTRY_REQUEST_INVALID' });
+    expect(calls).toHaveLength(1);
+  });
+
   it('rejects missing origin, bad keys and duplicate fields before transport', async () => {
     const calls: string[] = [];
     const transport: NativeRecordRegistryTransport = async (method) => {

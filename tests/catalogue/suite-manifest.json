@@ -72826,7 +72826,7 @@
       "files": ["tests/integration/shared.records/rust-record-write-postgres.test.rs"],
       "fixture": "postgres",
       "requires": {"jobs": false, "scanner": false},
-      "ci": {"critical": true, "reason": "Native generic Records create and bounded field update must retain current Account/IAM authority, Company/workspace scope, version CAS, field validation, Workflow receipt/idempotency, audit and outbox in one serializable unit."},
+      "ci": {"critical": true, "reason": "Native generic Records create, bounded field update and archive must retain current Account/IAM authority, Company/workspace scope, version CAS, field validation, Workflow receipt/idempotency, version CAS, archive, audit and outbox in one serializable unit."},
       "framework": "cargo",
       "cargo": {"package": "erpx-service", "targets": ["records_write_postgres"], "features": ["existing-business"]},
       "verificationInputs": ["Cargo.toml","Cargo.lock","rust-toolchain.toml","src/composition/Cargo.toml","packages/server-records/Cargo.toml","packages/server-workflow/Cargo.toml","tests/support/finance/review-composition.rs"],
@@ -85438,7 +85438,7 @@
       },
       "ci": {
         "critical": true,
-        "reason": "Native Records registry HTTP ingress retains target, origin, bounded query, create/update idempotency and exact reply shapes."
+        "reason": "Native Records registry HTTP ingress retains target, origin, bounded query, create/update/archive idempotency and exact reply shapes."
       },
       "framework": "cargo",
       "cargo": {
@@ -85534,7 +85534,7 @@
       },
       "ci": {
         "critical": true,
-        "reason": "Records native registry transport selects only the installed read/create/update paths and fails closed."
+        "reason": "Records native registry transport selects only the installed read/create/update/archive paths and fails closed."
       },
       "apps": [
         "admin"
@@ -85560,7 +85560,7 @@
       },
       "ci": {
         "critical": true,
-        "reason": "Records native registry route retains normal auth, exact context, native update dispatch and no legacy fallback once configured."
+        "reason": "Records native registry route retains normal auth, exact context, native update/archive dispatch and no legacy fallback once configured."
       },
       "apps": [
         "admin"

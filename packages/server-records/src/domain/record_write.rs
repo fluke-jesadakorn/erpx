@@ -59,6 +59,12 @@ pub struct UpdateRecordInput {
     pub fields: std::collections::BTreeMap<String, Value>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ArchiveRecordInput {
+    pub expected_version: i64,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ValidatedRecord {
     pub id: String,
@@ -222,4 +228,27 @@ pub fn validate_update(
         version: current_version + 1,
         fields_json,
     })
+}
+
+pub fn validate_archive(
+    module_id: &str,
+    input: &ArchiveRecordInput,
+    current_version: i64,
+) -> Result<(), BusinessError> {
+    if module_id != "support" {
+        return Err(invalid(
+            "RECORD_MODULE_UNSUPPORTED",
+            "This record module is not available in the native workbench yet.",
+        ));
+    }
+    if !(1..=MAX_SAFE).contains(&input.expected_version) {
+        return Err(invalid(
+            "RECORD_VERSION_INVALID",
+            "Reload the record and try again.",
+        ));
+    }
+    if input.expected_version != current_version {
+        return Err(version_conflict());
+    }
+    Ok(())
 }
