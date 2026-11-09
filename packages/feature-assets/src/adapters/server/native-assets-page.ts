@@ -78,7 +78,7 @@ export async function nativeAssetCommand(
   holdingSlug: string,
   body: unknown,
   idempotencyKey: string,
-): Promise<{ id: string; version: number; status: string } | undefined> {
+): Promise<{ id: string; version: number; status?: string } | undefined> {
   const native = client();
   if (!native) return undefined;
   if (actor.holdingSlug !== holdingSlug) throw new NativeAssetsError('NATIVE_ASSETS_CONTEXT_CHANGED');

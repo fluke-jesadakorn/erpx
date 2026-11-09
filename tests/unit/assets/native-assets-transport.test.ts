@@ -1,6 +1,14 @@
 import {describe,it,expect,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
+const purchaseOracle=vi.hoisted(()=>({run:vi.fn(async(_actor:unknown,command:unknown)=>command)}));
+vi.mock('@erpx/server-assets/adapters/purchases',()=>({withAssetPurchasedCommand:purchaseOracle.run,withAssetPurchasedRead:vi.fn(),assetPurchaseControls:vi.fn()}));
+import {createAsset as legacyCreateAsset,changeAsset as legacyChangeAsset} from '../../../packages/server-assets/src/adapters/assets';
+import type {WorkContext} from '../../../packages/server-identity_access/src/public/authorization';
 import {createNativeAssetsClient,type NativeAssetsPageContext} from '../../../packages/feature-assets/src/adapters/server/native-assets';
+import {currencyScale,decimalUnits} from '../../../packages/feature-finance/src/lib/company-money';
+import {createAssetRegistration} from '../../../packages/server-assets/src/application/registration';
+import {createAssetSchema} from '../../../packages/server-assets/src/domain/assets';
+import {ApiError,errorResponse} from '../../../packages/server-runtime/src/adapters/http';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44991',
@@ -42,6 +50,20 @@ const ok=(value:unknown)=>new Response(JSON.stringify(value),{status:200,headers
 const readInput={holdingSlug:'acme',expected:{companyId:'company',assignmentId:'assignment',revision:7,assignmentVersion:3}};
 
 describe('native Assets transport',()=>{
+ it('retains legacy registration money error responses before owner effects',async()=>{
+  const prepare=vi.fn(),register=vi.fn();
+  const run=createAssetRegistration({authorize:()=>{},authorizeFinanceLink:()=>{},parse:raw=>createAssetSchema.parse(raw),scope:{branchId:null,departmentId:null},clock:{now:()=>0},decimalUnits,
+   repository:async()=>({replay:async()=>null,currencyScale:async currency=>currencyScale(currency),prepareAcquisitionCost:prepare,register}),
+   error:(status,code,message)=>new ApiError(status,code,message)});
+  for(const [currency,cost,status,code] of [['XAG','1.234',500,'INTERNAL_ERROR'],['USD','1.234',500,'INTERNAL_ERROR'],['USD','90071992547409.92',422,'MONEY_OVERFLOW']] as const){
+   const input={branchId:'branch',code:'A',name:'Asset',category:'equipment',currency,cost,acquiredDate:'2026-01-01'};
+   const error=await run(input,'legacy-oracle-key').then(()=>null,reason=>reason);
+   expect(error).toBeInstanceOf(Error);const response=errorResponse(error);
+   expect(response.status).toBe(status);expect((await response.json()).error.code).toBe(code);
+  }
+  expect(decimalUnits('1.2300',2)).toBe(123n);
+  expect(prepare).not.toHaveBeenCalled();expect(register).not.toHaveBeenCalled();
+ });
  it('forwards the configured Holding, session and current CAS to the workspace read',async()=>{
   const transport=vi.fn().mockResolvedValue(ok({data:workspace,context}));
   const client=createNativeAssetsClient(JSON.parse(config()),transport);
@@ -90,6 +112,13 @@ describe('native Assets transport',()=>{
   expect(JSON.parse(body)).toMatchObject({id:'asset-1',action:'condition',expectedVersion:1});
  });
 
+ it('accepts the retained create acknowledgement without fabricating a status',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({data:{id:'asset-create-1',version:1},context}));
+  const client=createNativeAssetsClient(JSON.parse(config()),transport);
+  await expect(client.command(incoming(),actor,{holdingSlug:'acme',body:{code:'A'},idempotencyKey:'asset-create-1'}))
+    .resolves.toEqual({id:'asset-create-1',version:1});
+ });
+
  it('surfaces a bounded owner error with its status, code and message',async()=>{
   const transport=vi.fn().mockResolvedValue(new Response(
     JSON.stringify({error:{code:'ASSET_FINANCE_DISPOSAL_REQUIRED',message:'Finance must post the linked asset disposal before physical retirement can be approved.'}}),
@@ -134,5 +163,25 @@ describe('native Assets transport',()=>{
     holdingSlug:'acme',body:{},idempotencyKey:'short',origin:'https://acme.example.com',
   })).rejects.toMatchObject({code:'NATIVE_ASSETS_COMMAND_KEY_INVALID'});
   expect(transport).not.toHaveBeenCalled();
+ });
+});
+
+
+describe('legacy Asset purchase routing oracle',()=>{
+ it('derives create and every valid action from parsed owner input',async()=>{
+  const context=actor as unknown as WorkContext;
+  const create={branchId:'branch',code:'A',name:'Asset',category:'equipment',currency:'THB',costMinor:0,acquiredDate:'2026-01-01'};
+  expect(await legacyCreateAsset(context,create,'key')).toMatchObject({operation:'asset.create',capability:'assets.register',purpose:'new-work',creating:true,permissions:['records.write']});
+  expect(await legacyCreateAsset(context,{...create,financeAssetId:'finance-1',financeAssetVersion:2},'key')).toMatchObject({permissions:['records.write','finance.write']});
+  for(const [body,capability,purpose,permissions] of [
+   [{action:'place',expectedVersion:1,placement:'Desk',custodianId:'user',reason:'Place'},'assets.custody','new-work',['records.write']],
+   [{action:'condition',expectedVersion:1,condition:'good',reason:'Inspect'},'assets.register','settle-existing',['records.write']],
+   [{action:'retire-request',expectedVersion:1,reason:'Retire'},'assets.register','settle-existing',['records.write']],
+   [{action:'retire-approve',expectedVersion:1,reason:'Approve'},'assets.register','settle-existing',['records.write','records.review']],
+   [{action:'link-finance',expectedVersion:1,financeAssetId:'finance-1',financeAssetVersion:2,reason:'Link'},'assets.register','settle-existing',['records.write','finance.write']],
+  ] as const) expect(await legacyChangeAsset(context,'asset-1',body,'key')).toMatchObject({operation:`asset.${body.action}`,capability,purpose,permissions});
+  purchaseOracle.run.mockClear();
+  await expect(legacyChangeAsset(context,'asset-1',{action:'unknown',expectedVersion:1,reason:'Bad'},'key')).rejects.toThrow();
+  expect(purchaseOracle.run).not.toHaveBeenCalled();
  });
 });

@@ -34,7 +34,7 @@ export function createNextNativeAssetsCommand(
   command: (
     incoming: Pick<Headers, 'get'>,
     input: NativeAssetsCommandInput,
-  ) => Promise<{ id: string; version: number; status: string }>,
+  ) => Promise<{ id: string; version: number; status?: string }>,
 ) {
   return async (input: Omit<NativeAssetsCommandInput, 'origin'>) => {
     const incoming = await headers();

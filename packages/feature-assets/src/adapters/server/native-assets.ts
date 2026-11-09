@@ -60,7 +60,7 @@ export type NativeAssetsCommandInput = Readonly<{
   idempotencyKey: string;
   origin?: string;
 }>;
-export type NativeAssetsCommandResult = Readonly<{ id: string; version: number; status: string }>;
+export type NativeAssetsCommandResult = Readonly<{ id: string; version: number; status?: string }>;
 export type NativeAssetsTransport = (
   method: 'GET' | 'POST',
   url: URL,
@@ -283,12 +283,21 @@ function detail(value: unknown, actor: NativeAssetsPageContext, input: NativeAss
   };
 }
 
-function commandResult(value: unknown, actor: NativeAssetsPageContext, input: NativeAssetsReadInput): NativeAssetsCommandResult {
+function commandResult(value: unknown, actor: NativeAssetsPageContext, input: NativeAssetsCommandInput): NativeAssetsCommandResult {
   if (!exact(value, ['data', 'context'])) return failure('NATIVE_ASSETS_RESPONSE_INVALID');
   context(value.context, actor, input);
-  if (!exact(value.data, ['id', 'version', 'status']) || !identifier(value.data.id) || !integer(value.data.version, 1) || !identifier(value.data.status))
+  const data = value.data;
+  if (!exact(data, ['id', 'version']) && !exact(data, ['id', 'version', 'status']))
     return failure('NATIVE_ASSETS_RESPONSE_INVALID');
-  return value.data as unknown as NativeAssetsCommandResult;
+  const body = input.body !== null && typeof input.body === 'object' ? input.body as Record<string, unknown> : {};
+  const change = typeof body.id === 'string';
+  const hasStatus = Object.hasOwn(data, 'status');
+  const shape = change
+    ? hasStatus && identifier(data.status)
+    : !hasStatus || data.status === 'registered';
+  if (!shape || !identifier(data.id) || !integer(data.version, 1))
+    return failure('NATIVE_ASSETS_RESPONSE_INVALID');
+  return data as unknown as NativeAssetsCommandResult;
 }
 
 const reserved = new Set([3000, 3001, 3100, 3101, 3103, 5432, 5433, 5435, 8080]);
@@ -327,7 +336,12 @@ function configuration(raw: NativeAssetsConfiguration) {
     if (
       origin.protocol !== 'https:' ||
       holding.origin !== origin.origin ||
-      origin.port ||
+      (origin.port !== '' &&
+        !(
+          process.env.NODE_ENV !== 'production' &&
+          origin.port === '3443' &&
+          origin.hostname.endsWith('.erpx.localhost')
+        )) ||
       origin.username ||
       origin.password ||
       !identifier(holding.holdingId) ||
