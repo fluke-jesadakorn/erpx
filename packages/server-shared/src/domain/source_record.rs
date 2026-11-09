@@ -119,13 +119,54 @@ impl SourceRecordKind {
         }
     }
 }
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "RecordSourceReferenceWire")]
 pub struct RecordSourceReference {
     pub kind: SourceRecordKind,
     pub id: String,
     pub expected_version: Option<i64>,
 }
+
+#[derive(Deserialize)]
+struct RecordSourceReferenceWire {
+    kind: SourceRecordKind,
+    id: String,
+    expected_version: Option<i64>,
+}
+
+impl TryFrom<RecordSourceReferenceWire> for RecordSourceReference {
+    type Error = BusinessError;
+    fn try_from(value: RecordSourceReferenceWire) -> Result<Self, Self::Error> {
+        let reference = Self {
+            kind: value.kind,
+            id: value.id,
+            expected_version: value.expected_version,
+        };
+        reference.validate()?;
+        Ok(reference)
+    }
+}
+
+impl RecordSourceReference {
+    /// Portable source references use the retained JavaScript 180 UTF-16-unit
+    /// bound and reject control characters and non-positive expected versions.
+    pub fn validate(&self) -> Result<(), BusinessError> {
+        if self.id.is_empty()
+            || self.id.encode_utf16().count() > 180
+            || self.id.chars().any(char::is_control)
+            || self.expected_version.is_some_and(|version| version <= 0)
+        {
+            return Err(BusinessError::invalid(
+                "SOURCE_RECORD_INVALID",
+                "Provide a valid source record.",
+            ));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "RecordSourceSnapshotWire")]
 pub struct RecordSourceSnapshot {
     pub kind: SourceRecordKind,
     pub id: String,
@@ -135,4 +176,58 @@ pub struct RecordSourceSnapshot {
     pub version: i64,
     pub title: String,
     pub status: String,
+}
+
+#[derive(Deserialize)]
+struct RecordSourceSnapshotWire {
+    kind: SourceRecordKind,
+    id: String,
+    company_id: String,
+    branch_id: Option<String>,
+    department_id: Option<String>,
+    version: i64,
+    title: String,
+    status: String,
+}
+
+impl TryFrom<RecordSourceSnapshotWire> for RecordSourceSnapshot {
+    type Error = BusinessError;
+    fn try_from(value: RecordSourceSnapshotWire) -> Result<Self, Self::Error> {
+        let snapshot = Self {
+            kind: value.kind,
+            id: value.id,
+            company_id: value.company_id,
+            branch_id: value.branch_id,
+            department_id: value.department_id,
+            version: value.version,
+            title: value.title,
+            status: value.status,
+        };
+        snapshot.validate()?;
+        Ok(snapshot)
+    }
+}
+
+impl RecordSourceSnapshot {
+    pub fn validate(&self) -> Result<(), BusinessError> {
+        RecordSourceReference {
+            kind: self.kind,
+            id: self.id.clone(),
+            expected_version: Some(self.version),
+        }
+        .validate()?;
+        if self.company_id.is_empty()
+            || self.company_id.chars().any(char::is_control)
+            || self.title.is_empty()
+            || self.title.chars().any(char::is_control)
+            || self.status.is_empty()
+            || self.status.chars().any(char::is_control)
+        {
+            return Err(BusinessError::invalid(
+                "SOURCE_RECORD_INVALID",
+                "Provide a valid source record.",
+            ));
+        }
+        Ok(())
+    }
 }

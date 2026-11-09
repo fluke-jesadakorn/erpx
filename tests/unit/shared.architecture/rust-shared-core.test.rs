@@ -1,5 +1,6 @@
 use erpx_server_shared::public::{
     CommandKey, ConsumptionLot, DecimalAmount, RecordId, SourceRecord, SourceRecordKind,
+    record_source_contract::{SourceKind, SourceRecord as SourceSnapshot, SourceReference},
 };
 
 #[test]
@@ -111,6 +112,31 @@ fn source_and_consumption_evidence_require_positive_current_versions() {
     assert!(ConsumptionLot::new(id.clone(), 0, 1).is_err());
     assert!(ConsumptionLot::new(id.clone(), 1, 0).is_err());
     assert!(ConsumptionLot::new(id.clone(), 9_007_199_254_740_992, 1).is_err());
+    for reference in [
+        "{\"kind\":\"pms_record\",\"id\":\"\",\"expected_version\":null}",
+        "{\"kind\":\"pms_record\",\"id\":\"source-1\",\"expected_version\":0}",
+        "{\"kind\":\"pms_record\",\"id\":\"line\\nbreak\",\"expected_version\":null}",
+        "{\"kind\":\"unknown\",\"id\":\"source-1\"}",
+    ] {
+        assert!(serde_json::from_str::<SourceReference>(reference).is_err());
+    }
+    let reference: SourceReference = serde_json::from_str(
+        "{\"kind\":\"pms_record\",\"id\":\"source-1\",\"expected_version\":3}",
+    )
+    .unwrap();
+    assert_eq!(reference.kind, SourceKind::PmsRecord);
+    assert_eq!(reference.expected_version, Some(3));
+    let snapshot: SourceSnapshot = serde_json::from_str(
+        "{\"kind\":\"commerce_order\",\"id\":\"order-1\",\"company_id\":\"company\",\"branch_id\":null,\"department_id\":null,\"version\":2,\"title\":\"Order\",\"status\":\"open\"}",
+    )
+    .unwrap();
+    assert_eq!(snapshot.version, 2);
+    for snapshot in [
+        "{\"kind\":\"commerce_order\",\"id\":\"order-1\",\"company_id\":\"company\",\"branch_id\":null,\"department_id\":null,\"version\":0,\"title\":\"Order\",\"status\":\"open\"}",
+        "{\"kind\":\"commerce_order\",\"id\":\"order-1\",\"company_id\":\"\",\"branch_id\":null,\"department_id\":null,\"version\":1,\"title\":\"Order\",\"status\":\"open\"}",
+    ] {
+        assert!(serde_json::from_str::<SourceSnapshot>(snapshot).is_err());
+    }
     let lot = ConsumptionLot::new(id, 1500, 9).unwrap();
     assert_eq!(lot.quantity_milli(), 1500);
     assert_eq!(lot.balance_version(), 9);
