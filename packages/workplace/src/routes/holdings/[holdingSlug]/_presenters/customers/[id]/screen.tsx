@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 export default async function Page({ params, searchParams }: { params: Promise<{ holdingSlug: string; id: string }>; searchParams: Promise<HubQuery> }) {
   const { holdingSlug, id } = await params, actor = await requireWorkContext(holdingSlug), base = workspaceBase(publicScope(actor)), query = await searchParams;
   const data = await customerWorkspaceProfile(actor, id, query).catch(error => pageError(error, holdingSlug)), customer = data.customer, history = queryValue(query, "section") === "history" || !!query.cursor;
-  const timeline = (history && data.timeline ? await nativeCustomerTimeline(actor, id, queryValue(query, "cursor") || undefined).catch(error => pageError(error, holdingSlug)) : undefined) ?? data.timeline;
+  const timeline = history ? await nativeCustomerTimeline(actor, id, queryValue(query, "cursor") || undefined).catch(error => pageError(error, holdingSlug)) : undefined;
   return <PageContent className={styles.profile}>
     <Link href={base + "/customers"}>Customers</Link>
     <header className={styles.profileHeader}><div><h1>{String(customer.name)}</h1><p className={styles.meta}>{String(customer.code)} · <StatusBadge appearance="standard" status={String(customer.status)} /></p></div>{hasPermission(actor, "commerce.sales") && <ActionLink appearance="standard" variant="secondary" href={base + "/sales?view=documents&type=quote&new=1&customerId=" + encodeURIComponent(id)}>New quotation</ActionLink>}{data.supportSource && <ActionLink appearance="standard" variant="secondary" href={base + "/customers?view=support&new=1&orderId=" + encodeURIComponent(data.supportSource.id)}>New service case</ActionLink>}</header>

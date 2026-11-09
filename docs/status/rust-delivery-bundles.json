@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T17:08:51+07:00",
+  "updatedAt": "2026-11-09T18:22:52+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -16,12 +16,12 @@
     "interpretation": "The 206 items are catalogue workflows, not the number of bounded flows. Each listed ID occurs once below. A partial item has supporting qualified slices, not whole-workflow verification."
   },
   "counts": {
-    "qualifiedBusinessFlows": 108,
+    "qualifiedBusinessFlows": 109,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 58,
-    "workflowsVerified": 65,
-    "workflowsMerged": 65,
+    "workflowsPartial": 57,
+    "workflowsVerified": 66,
+    "workflowsMerged": 66,
     "ownersComplete": 0,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -3511,6 +3511,15 @@
       "sourceIdentity": "087fcab8c",
       "evidenceRef": "docs/testing/evidence/2026-11-09-authenticated-product-launch-and-customer-timeline.json",
       "durableContractRefs": []
+    },
+    {
+      "id": "customer-360-native-timeline-browser",
+      "kind": "business-flow-evidence",
+      "status": "flow-complete",
+      "scope": "Native Customer 360 timeline enabled through ERPX_NATIVE_CUSTOMER_TIMELINE_CONFIG; private API 3198 returns 15 real invoice events; the Next app route returns the native payload; desktop/mobile History renders the same 15 events. Legacy page/API/profile/notes timeline fallbacks retired; unset configuration fails closed.",
+      "sourceIdentity": "working tree on 0cf200906",
+      "evidenceRef": "docs/testing/evidence/2026-11-09-native-customer-timeline-browser.json",
+      "durableContractRefs": []
     }
   ],
   "workflows": [
@@ -3883,18 +3892,19 @@
       "kind": "module",
       "owner": "customer_360",
       "scope": "Sales summary",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "customer-360-timeline-native-unit",
         "customer-360-timeline-http",
         "customer-360-timeline-native-postgres",
         "customer-360-timeline-transport-unit",
-        "customer-360-timeline-federation-integration"
+        "customer-360-timeline-federation-integration",
+        "customer-360-native-timeline-browser"
       ],
       "sourceRef": "packages/server-customer_360/src/public/customer-timeline.ts",
-      "gap": "Native timeline read (11 unit/2 HTTP/7 PostgreSQL), frontend transport (12 unit) and scoped Field/Finance/Legal federation (6) pass. Authenticated desktop/mobile product entry and the Customer History page now pass, but the page still uses the retained TypeScript timeline because ERPX_NATIVE_CUSTOMER_TIMELINE_CONFIG is unset; native transport enablement and legacy TS timeline retirement remain open."
+      "gap": "Closed. The product page now calls the native Customer 360 timeline only; the legacy page/API/profile/notes fallbacks are removed. Desktop and mobile History render exactly the 15 native invoice events from the 3198 private API over the disposable clone populated from the exact development business tables, with no failed business requests or page errors. The remaining Executive customer-activity evidence source retains the internal TS projection and is tracked outside this page workflow."
     },
     {
       "id": "customer_360/service-timeline",

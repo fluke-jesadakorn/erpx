@@ -17,7 +17,7 @@ import { requirePermission } from "@erpx/server-identity_access/public/iam-permi
 import {resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import { crmWork } from "@erpx/server-crm/public/crm";
 import { customerFollowupWorkspace, customerFollowupWork } from "@erpx/server-sales/adapters/followups";
-import { customerTimeline } from "@erpx/server-customer_360/public/customer-timeline";
+
 import { customerNotesForCustomer } from "@erpx/server-sales/public/customer-notes";
 import { ApiError } from "@erpx/server-runtime/public/http";
 
@@ -45,14 +45,14 @@ async function salesOrderWork(actor: WorkContext): Promise<WorkItem[]> {
   const rows = await salesOrderWorkRows(write,actor);
   return salesOrderWorkItems(rows,actor.userId,id=>resolveFlow(write,actor,"order",id));
 }
-async function application(actor:WorkContext){const current = await accessContext(actor);let resource:Promise<SqlDatabase>|null=null;const database=()=>resource??=holdingResources(actor.holdingId).then(x=>x.write),followup=await followupPurchasedAccess(await database(),actor);return createSalesCustomerApplication({authorize:()=>{requirePermission(actor,'commerce.read');},access:async()=>current.access,canReadSupport:hasPermission(actor,'support.read')&&current.purchase.history,canCreateSupport:hasPermission(actor,'support.create')&&current.purchase.newWork,canSell:hasPermission(actor,'commerce.sales')&&(!followup||followup.newWork),timelineUnavailable:error=>error instanceof ApiError&&error.code==='CUSTOMER_TIMELINE_NOT_FOUND',clock:{now:()=>Date.now()},repository:async()=>repository(await database(),actor)});}
+async function application(actor:WorkContext){const current = await accessContext(actor);let resource:Promise<SqlDatabase>|null=null;const database=()=>resource??=holdingResources(actor.holdingId).then(x=>x.write),followup=await followupPurchasedAccess(await database(),actor);return createSalesCustomerApplication({authorize:()=>{requirePermission(actor,'commerce.read');},access:async()=>current.access,canReadSupport:hasPermission(actor,'support.read')&&current.purchase.history,canCreateSupport:hasPermission(actor,'support.create')&&current.purchase.newWork,canSell:hasPermission(actor,'commerce.sales')&&(!followup||followup.newWork),clock:{now:()=>Date.now()},repository:async()=>repository(await database(),actor)});}
 function repository(write:SqlDatabase,actor:WorkContext):SalesCustomerRepository{const s=orderScope(actor),reader={...actor,pageRequest:undefined};return {
  orderCounts:ids=>salesOrderCounts(write,actor,ids),
  followupHeads:async ids=>{if(!ids.length)return [];const purchase=await followupProjectionScope(write,actor,'c'),placeholders=ids.map(()=>'?').join(',');return (await write.prepare(`SELECT DISTINCT ON (o.party_id) o.party_id,c.id,c.due_date,c.next_action,c.order_id FROM customer_followups c JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=c.order_id AND o.company_id=c.company_id WHERE ${s.sql} AND ${purchase.where} AND o.party_id IN (${placeholders}) AND c.status='open' ORDER BY o.party_id,c.due_date,c.id`).bind(...s.args,...purchase.args, ...ids).all<{ party_id: string; id: string; due_date: string; next_action: string; order_id: string }>()).results;},
  opportunityCounts:ids=>salesOpportunityCounts(write,actor,ids),supportCounts:ids=>salesSupportCounts(write,actor,ids),
  async directory(search,status,cursor){return salesCustomerDirectory(write,actor,search,status,cursor);},
  customer:async id=>salesCustomerProfile(write,actor,id),orders:async id=>salesCustomerOpenOrders(write,actor,id),followups:async id=>{const purchase=await followupProjectionScope(write,actor,'c');return (await write.prepare(`SELECT c.id,c.next_action,c.due_date,c.status,c.order_id,o.number order_number FROM customer_followups c JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=c.order_id AND o.company_id=c.company_id WHERE ${s.sql} AND ${purchase.where} AND o.party_id=? AND c.status='open' ORDER BY c.due_date,c.id LIMIT 30`).bind(...s.args,...purchase.args, id).all<Row>()).results;},opportunities:id=>salesOpenOpportunities(write,actor,id),cases:id=>salesOpenSupportCases(write,actor,id),supportSource:id=>salesSupportOrderSource(write,actor,id),
- timeline:(id,cursor)=>customerTimeline(reader,id,{cursor}),notes:id=>customerNotesForCustomer(actor,id),reviews:()=>salesCustomerReviewCounts(write,actor),
+notes:id=>customerNotesForCustomer(actor,id),reviews:()=>salesCustomerReviewCounts(write,actor),
  crmWork:()=>crmWork(reader),followupWork:()=>customerFollowupWork(reader),orderWork:()=>salesOrderWork(reader),followupIds:async id=>(await customerFollowupWorkspace(reader,id)).items.map(row=>String(row.id)),
 };}
 async function translated<Result>(action:()=>Promise<Result>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}

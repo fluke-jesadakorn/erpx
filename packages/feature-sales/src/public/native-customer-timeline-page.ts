@@ -62,23 +62,21 @@ function scope(actor: NativeCustomerTimelinePageContext) {
 
 function client() {
   const raw = process.env.ERPX_NATIVE_CUSTOMER_TIMELINE_CONFIG;
-  if (raw === undefined) return undefined;
+  if (raw === undefined)
+    throw new ApiError(503, 'NATIVE_CUSTOMER_TIMELINE_CONFIGURATION_REQUIRED',
+      'The native customer timeline is not configured.');
   return createNativeCustomerTimelineClient(nativeCustomerTimelineConfiguration(raw));
 }
 
-/**
- * Native customer timeline read. An unset configuration retains the
- * TypeScript timeline; once configured, an invalid or failed native read is
- * surfaced and never silently replaced.
- */
+/** Native customer timeline read. An unset configuration is unavailable; an
+ * invalid or failed native read is surfaced and never silently replaced. */
 export async function nativeCustomerTimeline(
   actor: WorkContext,
   customerId: string,
   cursor?: string,
   limit?: number,
-): Promise<NativeCustomerTimelinePage | undefined> {
+): Promise<NativeCustomerTimelinePage> {
   const native = client();
-  if (!native) return undefined;
   const pageContext = nativeCustomerTimelinePageContext(actor);
   const input: NativeCustomerTimelineReadInput = {
     holdingSlug: actor.holdingSlug,

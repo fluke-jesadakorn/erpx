@@ -239,7 +239,7 @@ describe('native Customer 360 timeline transport',()=>{
   delete process.env.ERPX_NATIVE_CUSTOMER_TIMELINE_CONFIG;
   expect(nativeCustomerTimelineAvailable()).toBe(false);
   const {nativeCustomerTimeline}=await import('../../../packages/feature-sales/src/public/native-customer-timeline-page');
-  await expect(nativeCustomerTimeline(actor as never,'customer')).resolves.toBeUndefined();
+  await expect(nativeCustomerTimeline(actor as never,'customer')).rejects.toMatchObject({status:503,code:'NATIVE_CUSTOMER_TIMELINE_CONFIGURATION_REQUIRED'});
   if(previous!==undefined)process.env.ERPX_NATIVE_CUSTOMER_TIMELINE_CONFIG=previous;
  });
 

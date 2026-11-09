@@ -35,6 +35,7 @@ import { POST as reserveFile } from "@erpx/workplace/routes/api/v1/holdings/[hol
 import { PUT as uploadFile } from "@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/uploads/[id]/content/route";
 import { GET as downloadFile } from "@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/attachments/[id]/content/route";
 import { holdingResources } from "@erpx/server-runtime/public/runtime";
+import { customerTimeline } from "@erpx/server-customer_360/public/customer-timeline";
 import { salesCustomersAccess, customerSummaries, customerWorkspaceProfile } from "@erpx/server-sales/public/sales-customers";
 import { calendarSupportSupportFacts } from "@erpx/server-support/public/calendar-support-facts";
 import { executiveMainEvidenceSources } from "@erpx/server-customer_360/public/executive-main-evidence-sources";
@@ -133,13 +134,13 @@ it("hides the customer Service tab and counts without purchase and removes new-c
   expect((await customerSummaries(f.owner, [customerId])).get(customerId)?.openSupport).toBeNull();
   const unpurchased = await customerWorkspaceProfile(f.owner, customerId);
   expect(unpurchased).toMatchObject({ cases: null, supportSource: null });
-  expect(unpurchased.timeline?.items.filter(item => item.source_type === "support")).toEqual([]);
+  expect((await customerTimeline(f.owner, customerId)).items.filter(item => item.source_type === "support")).toEqual([]);
   await grant("active");
   expect((await salesCustomersAccess(f.owner)).support).toBe(true);
   expect((await customerSummaries(f.owner, [customerId])).get(customerId)?.openSupport).toBe(1);
   const purchased = await customerWorkspaceProfile(f.owner, customerId);
   expect(purchased.supportSource).not.toBeNull();
-  expect(purchased.timeline?.items.filter(item => item.source_type === "support").map(item => item.source_id)).toContain(ticket.id);
+  expect((await customerTimeline(f.owner, customerId)).items.filter(item => item.source_type === "support").map(item => item.source_id)).toContain(ticket.id);
   await grant("draining");
   expect((await salesCustomersAccess(f.owner)).support).toBe(true);
   expect(await customerWorkspaceProfile(f.owner, customerId)).toMatchObject({ supportSource: null });

@@ -27,7 +27,6 @@ it("reads customers without source documents without expanding the timeline API"
   const profile = await customerWorkspaceProfile(f.owner, noDocument);
   expect(profile.customer.id).toBe(noDocument);
   expect(profile.summary.openOrders).toBe(0);
-  expect(profile.timeline).toBeNull();
   await expect(customerTimeline(f.owner, noDocument)).rejects.toMatchObject({ status: 404 });
   await expect(customerWorkspaceDirectory({ ...f.owner, role: "employee" }, {})).rejects.toMatchObject({ status: 403 });
   expect((await customerWorkspaceDirectory({ ...f.owner, companyId: "other" }, {})).items).toEqual([]);
