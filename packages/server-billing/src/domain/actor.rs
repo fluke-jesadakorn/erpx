@@ -141,6 +141,26 @@ impl BillingActor {
         Ok(())
     }
 
+    /// Target price assignment is a Holding-owner command. Platform
+    /// administrators cannot assign a target offering to a customer Holding.
+    pub fn require_target_command(
+        &self,
+        target: &HoldingId,
+        now: TimestampMillis,
+    ) -> Result<(), BusinessError> {
+        self.active(now)?;
+        if target.as_str() == "h003" {
+            return Err(not_customer());
+        }
+        if self.role != "holding_owner"
+            || self.holding_id.as_ref() != Some(target)
+            || RecordId::new(target.as_str()).is_err()
+        {
+            return Err(holding_owner_required());
+        }
+        Ok(())
+    }
+
     /// Retention-compatible authority projection. It records the selected
     /// assignment and scope for audit readers; it grants no authority.
     pub fn authority_json(&self, target: &HoldingId) -> String {

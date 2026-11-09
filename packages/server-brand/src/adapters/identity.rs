@@ -683,21 +683,10 @@ async fn activate(
     .execute(&mut *connection)
     .await
     .map_err(statement_error)?;
-    sqlx::query(
-        "INSERT INTO storefront_app_brands(company_id,short_name,accent_color,logo_publication_id,updated_by,updated_at) \
-         VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(company_id) DO UPDATE SET short_name=excluded.short_name,\
-         accent_color=excluded.accent_color,logo_publication_id=excluded.logo_publication_id,\
-         updated_by=excluded.updated_by,updated_at=excluded.updated_at",
-    )
-    .bind(company)
-    .bind(&identity.identity.short_name)
-    .bind(&identity.visual.accent_color)
-    .bind(&identity.visual.logo_publication_id)
-    .bind(actor)
-    .bind(now)
-    .execute(&mut *connection)
-    .await
-    .map_err(statement_error)?;
+    // The storefront row is owned exclusively by the native Branding command.
+    // Published identity remains authoritative through brand_identity_active,
+    // so identity publication never becomes a second storefront writer.
+    let _ = (identity, now);
     Ok(())
 }
 

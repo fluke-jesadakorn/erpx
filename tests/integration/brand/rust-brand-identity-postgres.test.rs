@@ -307,15 +307,22 @@ where
 
 async fn exercise(pool: &DatabasePool, pool_people: &People) {
     // --- draft create, replay and CAS ---
+    sqlx::query(
+        "INSERT INTO storefront_app_brands(company_id,short_name,accent_color,updated_by,updated_at)          VALUES('company','Branding owned','#123456','owner',1)",
+    )
+    .execute(pool.raw())
+    .await
+    .unwrap();
     let storefront_before: Option<(String, String)> = sqlx::query_as(
         "SELECT short_name,accent_color FROM storefront_app_brands WHERE company_id='company'",
     )
     .fetch_optional(pool.raw())
     .await
     .unwrap();
-    assert!(
-        storefront_before.is_none(),
-        "the fixture starts without a storefront brand row"
+    assert_eq!(
+        storefront_before,
+        Some(("Branding owned".into(), "#123456".into())),
+        "the fixture starts with the Branding-owned storefront row"
     );
     let first = save(
         pool,
@@ -400,8 +407,8 @@ async fn exercise(pool: &DatabasePool, pool_people: &People) {
         "the retained draft row exposes the exact canonical identity payload"
     );
     assert!(initial.active.is_none());
-    assert_eq!(initial.initial.identity.short_name, "Acme");
-    assert_eq!(initial.initial.visual.accent_color, "#3659c9");
+    assert_eq!(initial.initial.identity.short_name, "Branding owned");
+    assert_eq!(initial.initial.visual.accent_color, "#123456");
     assert!(initial.can_manage && initial.can_lock);
     assert_eq!(initial.media.len(), 1, "approved Company media is listed");
     assert_eq!(initial.media[0].id, "logo-approved");
@@ -544,7 +551,11 @@ async fn exercise(pool: &DatabasePool, pool_people: &People) {
             .fetch_one(pool.raw())
             .await
             .unwrap();
-    assert_eq!(storefront, ("Reviewed demo name".into(), "#224488".into()));
+    assert_eq!(
+        storefront,
+        ("Branding owned".into(), "#123456".into()),
+        "identity publication never overwrites the Branding-owned storefront row"
+    );
     let active_row: (String, i64) = sqlx::query_as(
         "SELECT identity_version_id,version FROM brand_identity_active WHERE company_id='company'",
     )
@@ -823,6 +834,15 @@ async fn rollback_cas_cancel_and_immutable_evidence() {
     fixture::with_database(2, |pool| async move {
         migrate(&pool).await;
         seed(&pool).await;
+        sqlx::query(
+            "INSERT INTO storefront_app_brands(company_id,short_name,accent_color,updated_by,updated_at) \
+             VALUES('company','Branding owned','#123456','owner',1) \
+             ON CONFLICT(company_id) DO UPDATE SET short_name=excluded.short_name, \
+             accent_color=excluded.accent_color,updated_by=excluded.updated_by,updated_at=excluded.updated_at",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
         let people = people();
         let first = save(
             &pool,
@@ -986,8 +1006,8 @@ async fn rollback_cas_cancel_and_immutable_evidence() {
         .unwrap();
         assert_eq!(
             rolled_back_storefront,
-            ("First identity".into(), "#224488".into()),
-            "rollback activates the exact retained storefront projection"
+            ("Branding owned".into(), "#123456".into()),
+            "identity rollback never overwrites the Branding-owned storefront row"
         );
         assert_eq!(data.versions.len(), 2);
         assert_eq!(

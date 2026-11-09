@@ -51,6 +51,84 @@ fn key(value: &str) -> CommandKey {
     CommandKey::new(value).unwrap()
 }
 
+async fn run_assign(
+    pool: &DatabasePool,
+    actor: &BillingActor,
+    target: &HoldingId,
+    command: &erpx_server_billing::public::target_command::AssignTarget,
+    now: TimestampMillis,
+) -> Result<erpx_server_billing::public::cost::CommandReceipt, PgTransactionError<BusinessError>> {
+    let pool = pool.clone();
+    let actor = actor.clone();
+    let target = target.clone();
+    let command = command.clone();
+    PgUnitOfWork::new(pool)
+        .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+            let actor = actor.clone();
+            let target = target.clone();
+            let command = command.clone();
+            Box::pin(async move {
+                erpx_server_billing::public::target_command::assign_target(
+                    connection, &actor, &target, &command, now,
+                )
+                .await
+            })
+        })
+        .await
+}
+
+async fn run_evidence(
+    pool: &DatabasePool,
+    actor: &BillingActor,
+    target: &HoldingId,
+    command: &erpx_server_billing::public::target_evidence_command::BillingTargetEvidenceCommand,
+    now: TimestampMillis,
+) -> Result<erpx_server_billing::public::cost::CommandReceipt, PgTransactionError<BusinessError>> {
+    let pool = pool.clone();
+    let actor = actor.clone();
+    let target = target.clone();
+    let command = command.clone();
+    PgUnitOfWork::new(pool)
+        .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+            let actor = actor.clone();
+            let target = target.clone();
+            let command = command.clone();
+            Box::pin(async move {
+                erpx_server_billing::public::target_evidence_command::execute_target_evidence(
+                    connection, &actor, &target, &command, now,
+                )
+                .await
+            })
+        })
+        .await
+}
+
+async fn run_provider(
+    pool: &DatabasePool,
+    actor: &BillingActor,
+    target: &HoldingId,
+    command: &erpx_server_billing::public::target_provider_command::BillingTargetProviderCommand,
+    now: TimestampMillis,
+) -> Result<erpx_server_billing::public::cost::CommandReceipt, PgTransactionError<BusinessError>> {
+    let pool = pool.clone();
+    let actor = actor.clone();
+    let target = target.clone();
+    let command = command.clone();
+    PgUnitOfWork::new(pool)
+        .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+            let actor = actor.clone();
+            let target = target.clone();
+            let command = command.clone();
+            Box::pin(async move {
+                erpx_server_billing::public::target_provider_command::execute_target_provider(
+                    connection, &actor, &target, &command, now,
+                )
+                .await
+            })
+        })
+        .await
+}
+
 fn record(key_value: &str, version: i64) -> BillingCostCommand {
     BillingCostCommand::Record(RecordCost {
         key: key(key_value),
@@ -1038,5 +1116,884 @@ fn target_billing_period_reads_control_evidence_and_isolates_holdings() {
             0
         );
         assert_eq!(foreign.sources.len(), 0);
+    });
+}
+
+#[test]
+fn target_assignment_command_is_immutable_replayable_and_owner_scoped() {
+    with_database(|pool| async move {
+        migrate(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES \
+             ('h001','acme','Acme','write-h001','read-h001','files-h001','active'),\
+             ('h002','northstar','Northstar','write-h002','read-h002','files-h002','active');\
+             INSERT INTO billing_accounts(holding_id,version,customer_id,payment_mode,created_at) VALUES \
+             ('h001',3,'customer-1','manual',100),\
+             ('h002',1,'customer-2','manual',100);\
+             INSERT INTO billing_target_prices\
+             (id,effective_month,base_monthly_satang,included_original_bytes,storage_satang_per_gb_month,ai_markup_percent,created_at,created_by,seat_terms_status,included_seats,seat_monthly_satang,storage_allowance_mode,rating_enabled) VALUES \
+             ('price-current','2026-12',0,20000000000,500,10,0,'fixture','defined',0,49900,'per_paid_seat_time',TRUE),\
+             ('price-sandbox','2027-02',0,20000000000,500,10,0,'fixture','defined',0,49900,'per_paid_seat_time',TRUE),\
+             ('price-future','2027-03',0,20000000000,500,10,0,'fixture','defined',0,49900,'per_paid_seat_time',TRUE);",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        use erpx_server_billing::public::target_command::AssignTarget;
+        let now = TimestampMillis::new(1_799_989_200_000);
+        let owner = |holding: &str| BillingActor {
+            user_id: UserId::new("owner").unwrap(),
+            assignment_id: AssignmentId::new("assignment").unwrap(),
+            holding_id: Some(HoldingId::new(holding).unwrap()),
+            platform: false,
+            role: "holding_owner".into(),
+            expires_at: None,
+        };
+        let command =
+            |command_key: &str, version: i64, month: &str, mode: &str, price: Option<&str>| {
+                AssignTarget {
+                    key: key(command_key),
+                    expected_version: version,
+                    reason: "Reviewed target assignment".into(),
+                    target_month: month.into(),
+                    target_mode: mode.into(),
+                    price_id: price.map(|id| RecordId::new(id).unwrap()),
+                }
+            };
+        let h001 = HoldingId::new("h001").unwrap();
+        let first = run_assign(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &command("target:assign:shadow-1", 3, "2026-12", "shadow", None),
+            now,
+        )
+        .await
+        .unwrap();
+        assert_eq!(first.result_json, "{\"ok\":true}");
+        let assignment: (String, String, i64) = sqlx::query_as(
+            "SELECT price_id,mode,service_started_at FROM billing_target_assignments \
+             WHERE holding_id='h001' AND effective_month='2026-12'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            assignment,
+            ("price-current".into(), "shadow".into(), 1_796_058_000_000)
+        );
+        let version: i32 =
+            sqlx::query_scalar("SELECT version FROM billing_accounts WHERE holding_id='h001'")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        assert_eq!(version, 4);
+        let replay = run_assign(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &command("target:assign:shadow-1", 3, "2026-12", "shadow", None),
+            now,
+        )
+        .await
+        .unwrap();
+        assert_eq!(replay, first);
+        let conflict = run_assign(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &command("target:assign:shadow-1", 3, "2026-12", "shadow", None),
+            now,
+        )
+        .await;
+        assert!(
+            conflict.is_ok(),
+            "replay with the same identity stays stable"
+        );
+        let changed = run_assign(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &AssignTarget {
+                reason: "A different reviewed request".into(),
+                ..command("target:assign:shadow-1", 3, "2026-12", "shadow", None)
+            },
+            now,
+        )
+        .await
+        .err()
+        .expect("a different identity for the same key conflicts");
+        assert_eq!(business(changed).code, "KEY_CONFLICT");
+
+        let duplicate = run_assign(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &command("target:assign:shadow-2", 4, "2026-12", "shadow", None),
+            now,
+        )
+        .await
+        .err()
+        .expect("the month assignment is immutable");
+        assert_eq!(business(duplicate).code, "TARGET_ASSIGNMENT_EXISTS");
+        let backdate = run_assign(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &command(
+                "target:assign:backdate",
+                4,
+                "2026-12",
+                "sandbox_invoice",
+                None,
+            ),
+            now,
+        )
+        .await
+        .err()
+        .expect("sandbox invoice assignments cannot be backdated");
+        assert_eq!(business(backdate).code, "TARGET_BACKDATE_FORBIDDEN");
+        let not_ready = run_assign(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &command(
+                "target:assign:sandbox-1",
+                4,
+                "2027-02",
+                "sandbox_invoice",
+                None,
+            ),
+            now,
+        )
+        .await
+        .err()
+        .expect("sandbox assignment needs designation or rollout evidence");
+        assert_eq!(business(not_ready).code, "TARGET_ROLLOUT_NOT_READY");
+        sqlx::query(
+            "INSERT INTO billing_target_sandbox_holdings(holding_id,designated_by,reason,designated_at) \
+             VALUES ('h001','fixture','fixture',1)",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        run_assign(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &command(
+                "target:assign:sandbox-2",
+                4,
+                "2027-02",
+                "sandbox_invoice",
+                None,
+            ),
+            now,
+        )
+        .await
+        .unwrap();
+        let sandbox: (String, String, i64) = sqlx::query_as(
+            "SELECT price_id,mode,service_started_at FROM billing_target_assignments \
+             WHERE holding_id='h001' AND effective_month='2027-02'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            sandbox,
+            (
+                "price-sandbox".into(),
+                "sandbox_invoice".into(),
+                1_801_414_800_000
+            )
+        );
+
+        let h002 = HoldingId::new("h002").unwrap();
+        let h002_not_ready = run_assign(
+            &pool,
+            &owner("h002"),
+            &h002,
+            &command(
+                "target:assign:h2-sandbox",
+                1,
+                "2027-03",
+                "sandbox_invoice",
+                Some("price-future"),
+            ),
+            now,
+        )
+        .await
+        .err()
+        .expect("h002 has no designation or rollout yet");
+        assert_eq!(business(h002_not_ready).code, "TARGET_ROLLOUT_NOT_READY");
+        sqlx::query(
+            "INSERT INTO billing_target_rollout_approvals\
+             (holding_id,effective_month,shadow_month_1,shadow_month_2,minimum_margin_bps,approved_by,reason,approved_at) \
+             VALUES ('h002','2027-02','2026-12','2027-01',8000,'fixture','fixture',1)",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        run_assign(
+            &pool,
+            &owner("h002"),
+            &h002,
+            &command(
+                "target:assign:h2-sandbox",
+                1,
+                "2027-03",
+                "sandbox_invoice",
+                Some("price-future"),
+            ),
+            now,
+        )
+        .await
+        .unwrap();
+        let h002_version: i32 =
+            sqlx::query_scalar("SELECT version FROM billing_accounts WHERE holding_id='h002'")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        assert_eq!(h002_version, 2);
+        let cross_holding = run_assign(
+            &pool,
+            &owner("h001"),
+            &h002,
+            &command(
+                "target:assign:cross",
+                2,
+                "2027-03",
+                "shadow",
+                Some("price-future"),
+            ),
+            now,
+        )
+        .await
+        .err()
+        .expect("a Holding owner cannot assign another Holding");
+        assert_eq!(business(cross_holding).code, "FORBIDDEN");
+        let platform = BillingActor {
+            platform: true,
+            role: "platform_admin".into(),
+            holding_id: None,
+            ..owner("h001")
+        };
+        let platform_denied = run_assign(
+            &pool,
+            &platform,
+            &h001,
+            &command(
+                "target:assign:platform",
+                6,
+                "2027-03",
+                "shadow",
+                Some("price-future"),
+            ),
+            now,
+        )
+        .await
+        .err()
+        .expect("target assignment is a Holding-owner command");
+        assert_eq!(business(platform_denied).code, "FORBIDDEN");
+        let assignments: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM billing_target_assignments")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        assert_eq!(assignments, 3);
+        let audit: i64 = sqlx::query_scalar("SELECT count(*) FROM billing_audit")
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+        assert_eq!(audit, 3);
+        let receipts: i64 = sqlx::query_scalar("SELECT count(*) FROM billing_receipts")
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+        assert_eq!(receipts, 3);
+    });
+}
+
+#[test]
+fn target_evidence_commands_are_immutable_month_gated_and_owner_scoped() {
+    with_database(|pool| async move {
+        migrate(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES \
+             ('h001','acme','Acme','write-h001','read-h001','files-h001','active'),\
+             ('h002','northstar','Northstar','write-h002','read-h002','files-h002','active');\
+             INSERT INTO billing_accounts(holding_id,version,customer_id,payment_mode,created_at) VALUES \
+             ('h001',2,'customer-1','manual',100),\
+             ('h002',1,'customer-2','manual',100);\
+             INSERT INTO billing_evidence\
+             (id,holding_id,filename,mime,size,sha256,actor,created_at,object_key,detected_mime,source_state,scanned_at,scanner_definition_at) VALUES \
+             ('evidence-h1','h001','cost.pdf','application/pdf',10,repeat('a',64),'fixture',100,'h001/evidence-h1','application/pdf','available',100,100),\
+             ('evidence-h2','h002','cost.pdf','application/pdf',10,repeat('b',64),'fixture',100,'h002/evidence-h2','application/pdf','available',100,100),\
+             ('evidence-bad','h001','bad.pdf','application/pdf',10,repeat('c',64),'fixture',100,'h001/evidence-bad','application/pdf','quarantined',NULL,NULL);",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        use erpx_server_billing::public::target_evidence_command::{
+            BillingTargetEvidenceCommand, RecordOperatingCost, ReviewTargetCapacity,
+        };
+        let now = TimestampMillis::new(1_802_667_600_000);
+        let owner = |holding: &str| BillingActor {
+            user_id: UserId::new("owner").unwrap(),
+            assignment_id: AssignmentId::new("assignment").unwrap(),
+            holding_id: Some(HoldingId::new(holding).unwrap()),
+            platform: false,
+            role: "holding_owner".into(),
+            expires_at: None,
+        };
+        let operating = |key_value: &str, version: i64, month: &str, evidence: &str| {
+            BillingTargetEvidenceCommand::OperatingCost(RecordOperatingCost {
+                key: key(key_value),
+                expected_version: version,
+                reason: "Reviewed actual operating cost".into(),
+                target_month: month.into(),
+                category: "infrastructure".into(),
+                amount_satang: 12_500,
+                evidence_id: RecordId::new(evidence).unwrap(),
+            })
+        };
+        let capacity = |key_value: &str, version: i64, month: &str| {
+            BillingTargetEvidenceCommand::Capacity(ReviewTargetCapacity {
+                key: key(key_value),
+                expected_version: version,
+                reason: "Reviewed primary and backup capacity".into(),
+                target_month: month.into(),
+                projected_original_bytes: 10_000_000_000,
+                primary_available_bytes: 30_000_000_000,
+                backup_available_bytes: 30_000_000_000,
+                reserved_bytes: 1_000_000_000,
+                company_limit_bytes: 25_000_000_000,
+                evidence_id: RecordId::new("evidence-h1").unwrap(),
+            })
+        };
+        let h001 = HoldingId::new("h001").unwrap();
+        let first = run_evidence(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &operating("target:operating:1", 2, "2027-01", "evidence-h1"),
+            now,
+        )
+        .await
+        .unwrap();
+        assert_eq!(first.result_json, "{\"ok\":true}");
+        let row: (String, i64, String) = sqlx::query_as(
+            "SELECT category,amount_satang,verified_by FROM billing_target_operating_costs \
+             WHERE holding_id='h001' AND month='2027-01'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(row, ("infrastructure".into(), 12_500, "owner".into()));
+        let version: i32 =
+            sqlx::query_scalar("SELECT version FROM billing_accounts WHERE holding_id='h001'")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        assert_eq!(version, 3);
+        let replay = run_evidence(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &operating("target:operating:1", 2, "2027-01", "evidence-h1"),
+            now,
+        )
+        .await
+        .unwrap();
+        assert_eq!(replay, first);
+        let duplicate = run_evidence(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &operating("target:operating:2", 3, "2027-01", "evidence-h1"),
+            now,
+        )
+        .await
+        .err()
+        .expect("operating cost evidence is immutable");
+        assert_eq!(business(duplicate).code, "OPERATING_COST_ALREADY_VERIFIED");
+        let open_month = run_evidence(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &operating("target:operating:open", 3, "2027-03", "evidence-h1"),
+            now,
+        )
+        .await
+        .err()
+        .expect("operating costs are recorded only after month end");
+        assert_eq!(business(open_month).code, "MONTH_NOT_CLOSED");
+        let bad_evidence = run_evidence(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &operating("target:operating:bad", 3, "2027-01", "evidence-bad"),
+            now,
+        )
+        .await
+        .err()
+        .expect("quarantined evidence is not available");
+        assert_eq!(business(bad_evidence).code, "EVIDENCE_REQUIRED");
+        let cross_holding = run_evidence(
+            &pool,
+            &owner("h002"),
+            &HoldingId::new("h002").unwrap(),
+            &operating("target:operating:cross", 1, "2027-01", "evidence-h1"),
+            now,
+        )
+        .await
+        .err()
+        .expect("h001 evidence is not visible to h002");
+        assert_eq!(business(cross_holding).code, "EVIDENCE_REQUIRED");
+
+        let capacity_ok = run_evidence(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &capacity("target:capacity:1", 3, "2027-04"),
+            now,
+        )
+        .await
+        .unwrap();
+        assert_eq!(capacity_ok.result_json, "{\"ok\":true}");
+        let reviewed: (i64, String) = sqlx::query_as(
+            "SELECT projected_original_bytes,approved_by FROM billing_target_capacity_reviews \
+             WHERE holding_id='h001' AND effective_month='2027-04'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(reviewed, (10_000_000_000, "owner".into()));
+        let duplicate_capacity = run_evidence(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &capacity("target:capacity:2", 4, "2027-04"),
+            now,
+        )
+        .await
+        .err()
+        .expect("capacity evidence is immutable");
+        assert_eq!(
+            business(duplicate_capacity).code,
+            "CAPACITY_ALREADY_REVIEWED"
+        );
+        let current_month = run_evidence(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &capacity("target:capacity:current", 4, "2027-02"),
+            now,
+        )
+        .await
+        .err()
+        .expect("capacity review must precede the effective month");
+        assert_eq!(business(current_month).code, "FUTURE_MONTH_REQUIRED");
+        let platform = BillingActor {
+            platform: true,
+            role: "platform_admin".into(),
+            holding_id: None,
+            ..owner("h001")
+        };
+        let platform_denied = run_evidence(
+            &pool,
+            &platform,
+            &h001,
+            &capacity("target:capacity:platform", 4, "2027-05"),
+            now,
+        )
+        .await
+        .err()
+        .expect("target evidence is a Holding-owner command");
+        assert_eq!(business(platform_denied).code, "FORBIDDEN");
+        let stale = run_evidence(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &capacity("target:capacity:stale", 3, "2027-05"),
+            now,
+        )
+        .await
+        .err()
+        .expect("stale account version conflicts");
+        assert_eq!(business(stale).code, "VERSION_CONFLICT");
+        let audit: i64 = sqlx::query_scalar("SELECT count(*) FROM billing_audit")
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+        assert_eq!(audit, 2);
+        let receipts: i64 = sqlx::query_scalar("SELECT count(*) FROM billing_receipts")
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+        assert_eq!(receipts, 2);
+    });
+}
+
+#[test]
+fn target_provider_cost_and_statement_commands_verify_fx_evidence_and_totals() {
+    with_database(|pool| async move {
+        migrate(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES \
+             ('h001','acme','Acme','write-h001','read-h001','files-h001','active'),\
+             ('h002','northstar','Northstar','write-h002','read-h002','files-h002','active');\
+             INSERT INTO billing_accounts(holding_id,version,customer_id,payment_mode,created_at) VALUES \
+             ('h001',2,'customer-1','manual',100),\
+             ('h002',1,'customer-2','manual',100);\
+             INSERT INTO billing_evidence\
+             (id,holding_id,filename,mime,size,sha256,actor,created_at,object_key,detected_mime,source_state,scanned_at,scanner_definition_at) VALUES \
+             ('evidence-h1','h001','cost.pdf','application/pdf',10,repeat('a',64),'fixture',100,'h001/evidence-h1','application/pdf','available',100,100),\
+             ('evidence-bad','h001','bad.pdf','application/pdf',10,repeat('b',64),'fixture',100,'h001/evidence-bad','application/pdf','quarantined',NULL,NULL);\
+             INSERT INTO billing_usage_snapshots\
+             (holding_id,month,snapshot_id,refreshed_at,source_count,ai_coverage,storage_coverage,unreconciled_originals,seat_coverage,seat_source_count) VALUES \
+             ('h001','2027-01','snap-1',100,1,'measured','measured',0,'unavailable',0);\
+             INSERT INTO billing_usage_meters\
+             (holding_id,month,source_key,company_id,company_name,meter_kind,funding_source,pricing_status,quantity,input_tokens,output_tokens,active_at_period_end,snapshot_id,request_status,gateway_status,provider,model,units_json,cost_status,verified_cost_satang,cost_reconciled_at) VALUES \
+             ('h001','2027-01',repeat('a',64),'company-1','Acme','ai','erpx','unpriced',1,100,50,FALSE,'snap-1','succeeded','succeeded','openai','gpt','{\"input\":100}','reconciled',1000,100);",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        use erpx_server_billing::public::target_provider_command::{
+            BillingTargetProviderCommand, VerifyProviderCost, VerifyStatement,
+        };
+        let now = TimestampMillis::new(1_802_667_600_000);
+        let owner = |holding: &str| BillingActor {
+            user_id: UserId::new("owner").unwrap(),
+            assignment_id: AssignmentId::new("assignment").unwrap(),
+            holding_id: Some(HoldingId::new(holding).unwrap()),
+            platform: false,
+            role: "holding_owner".into(),
+            expires_at: None,
+        };
+        let provider_cost = |key_value: &str,
+                             version: i64,
+                             source: &str,
+                             provider: &str,
+                             statement: &str,
+                             currency: &str,
+                             original: i64,
+                             fx_num: i64,
+                             cost: i64,
+                             evidence: &str| {
+            BillingTargetProviderCommand::ProviderCost(VerifyProviderCost {
+                key: key(key_value),
+                expected_version: version,
+                reason: "Reviewed provider invoice and FX".into(),
+                target_month: "2027-01".into(),
+                source_key: source.into(),
+                provider: provider.into(),
+                statement_id: statement.into(),
+                original_currency: currency.into(),
+                original_minor: original,
+                fx_numerator: fx_num,
+                fx_denominator: 1,
+                provider_cost_satang: cost,
+                evidence_id: RecordId::new(evidence).unwrap(),
+            })
+        };
+        let statement = |key_value: &str,
+                         version: i64,
+                         statement: &str,
+                         currency: &str,
+                         total: i64,
+                         evidence: &str| {
+            BillingTargetProviderCommand::Statement(VerifyStatement {
+                key: key(key_value),
+                expected_version: version,
+                reason: "Reviewed provider statement".into(),
+                target_month: "2027-01".into(),
+                provider: "openai".into(),
+                statement_id: statement.into(),
+                original_currency: currency.into(),
+                provider_total_minor: total,
+                evidence_id: RecordId::new(evidence).unwrap(),
+            })
+        };
+        let source = "a".repeat(64);
+        let h001 = HoldingId::new("h001").unwrap();
+        let first = run_provider(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &provider_cost(
+                "target:provider:1",
+                2,
+                &source,
+                "openai",
+                "stmt-1",
+                "USD",
+                1000,
+                1,
+                1000,
+                "evidence-h1",
+            ),
+            now,
+        )
+        .await
+        .unwrap();
+        assert_eq!(first.result_json, "{\"ok\":true}");
+        let row: (String, i64, i64, String) = sqlx::query_as(
+            "SELECT statement_id,original_minor,provider_cost_satang,verified_by \
+             FROM billing_target_provider_costs WHERE holding_id='h001' AND month='2027-01'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(row, ("stmt-1".into(), 1000, 1000, "owner".into()));
+        let version: i32 =
+            sqlx::query_scalar("SELECT version FROM billing_accounts WHERE holding_id='h001'")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        assert_eq!(version, 3);
+        let unverified = run_provider(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &provider_cost(
+                "target:provider:unverified",
+                3,
+                &source,
+                "other",
+                "stmt-1",
+                "USD",
+                1000,
+                1,
+                1000,
+                "evidence-h1",
+            ),
+            now,
+        )
+        .await
+        .err()
+        .expect("provider must match the reconciled meter");
+        assert_eq!(business(unverified).code, "PROVIDER_COST_UNVERIFIED");
+        let fx = run_provider(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &provider_cost(
+                "target:provider:fx",
+                3,
+                &source,
+                "openai",
+                "stmt-1",
+                "USD",
+                1000,
+                2,
+                1000,
+                "evidence-h1",
+            ),
+            now,
+        )
+        .await
+        .err()
+        .expect("FX mismatch is rejected");
+        assert_eq!(business(fx).code, "FX_MISMATCH");
+        let bad_evidence = run_provider(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &provider_cost(
+                "target:provider:evidence",
+                3,
+                &source,
+                "openai",
+                "stmt-1",
+                "USD",
+                1000,
+                1,
+                1000,
+                "evidence-bad",
+            ),
+            now,
+        )
+        .await
+        .err()
+        .expect("quarantined evidence is not available");
+        assert_eq!(business(bad_evidence).code, "EVIDENCE_REQUIRED");
+        let duplicate = run_provider(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &provider_cost(
+                "target:provider:dup",
+                3,
+                &source,
+                "openai",
+                "stmt-1",
+                "USD",
+                1000,
+                1,
+                1000,
+                "evidence-h1",
+            ),
+            now,
+        )
+        .await
+        .err()
+        .expect("verified provider cost is immutable");
+        assert_eq!(business(duplicate).code, "PROVIDER_COST_ALREADY_VERIFIED");
+        let cross = run_provider(
+            &pool,
+            &owner("h002"),
+            &HoldingId::new("h002").unwrap(),
+            &provider_cost(
+                "target:provider:cross",
+                1,
+                &source,
+                "openai",
+                "stmt-1",
+                "USD",
+                1000,
+                1,
+                1000,
+                "evidence-h1",
+            ),
+            now,
+        )
+        .await
+        .err()
+        .expect("h002 cannot use h001 meter");
+        assert_eq!(business(cross).code, "PROVIDER_COST_UNVERIFIED");
+
+        let statement_ok = run_provider(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &statement(
+                "target:statement:1",
+                3,
+                "stmt-1",
+                "USD",
+                1000,
+                "evidence-h1",
+            ),
+            now,
+        )
+        .await
+        .unwrap();
+        assert_eq!(statement_ok.result_json, "{\"ok\":true}");
+        let statement_row: (i64, i64) = sqlx::query_as(
+            "SELECT provider_total_minor,reconciled_total_minor FROM billing_target_statements \
+             WHERE holding_id='h001' AND month='2027-01' AND provider='openai' AND statement_id='stmt-1'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(statement_row, (1000, 1000));
+        let statement_dup = run_provider(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &statement(
+                "target:statement:dup",
+                4,
+                "stmt-1",
+                "USD",
+                1000,
+                "evidence-h1",
+            ),
+            now,
+        )
+        .await
+        .err()
+        .expect("statement verification is immutable");
+        assert_eq!(business(statement_dup).code, "STATEMENT_ALREADY_VERIFIED");
+        let statement_mismatch = run_provider(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &statement(
+                "target:statement:mismatch",
+                4,
+                "stmt-2",
+                "USD",
+                1000,
+                "evidence-h1",
+            ),
+            now,
+        )
+        .await
+        .err()
+        .expect("statement total must match source costs");
+        assert_eq!(business(statement_mismatch).code, "STATEMENT_MISMATCH");
+        let currency_mismatch = run_provider(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &statement(
+                "target:statement:currency",
+                4,
+                "stmt-1",
+                "EUR",
+                1000,
+                "evidence-h1",
+            ),
+            now,
+        )
+        .await
+        .err()
+        .expect("statement currency must match source costs");
+        assert_eq!(business(currency_mismatch).code, "STATEMENT_MISMATCH");
+        let platform = BillingActor {
+            platform: true,
+            role: "platform_admin".into(),
+            holding_id: None,
+            ..owner("h001")
+        };
+        let platform_denied = run_provider(
+            &pool,
+            &platform,
+            &h001,
+            &statement(
+                "target:statement:platform",
+                4,
+                "stmt-1",
+                "USD",
+                1000,
+                "evidence-h1",
+            ),
+            now,
+        )
+        .await
+        .err()
+        .expect("provider evidence is a Holding-owner command");
+        assert_eq!(business(platform_denied).code, "FORBIDDEN");
+        let stale = run_provider(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &statement(
+                "target:statement:stale",
+                3,
+                "stmt-1",
+                "USD",
+                1000,
+                "evidence-h1",
+            ),
+            now,
+        )
+        .await
+        .err()
+        .expect("stale account version conflicts");
+        assert_eq!(business(stale).code, "VERSION_CONFLICT");
+        let audit: i64 = sqlx::query_scalar("SELECT count(*) FROM billing_audit")
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+        assert_eq!(audit, 2);
+        let receipts: i64 = sqlx::query_scalar("SELECT count(*) FROM billing_receipts")
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+        assert_eq!(receipts, 2);
     });
 }

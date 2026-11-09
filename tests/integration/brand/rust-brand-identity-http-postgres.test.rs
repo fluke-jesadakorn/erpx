@@ -153,6 +153,13 @@ async fn brand_http_reads_and_saves_a_draft_under_normal_session_authority() {
         assert_eq!(value["data"]["drafts"].as_array().unwrap().len(), 0);
         assert_eq!(value["data"]["initial"]["identity"]["shortName"], "Synthetic Acme");
         assert_eq!(value["context"]["companyId"], "company");
+        sqlx::query(
+            "INSERT INTO storefront_app_brands(company_id,short_name,accent_color,updated_by,updated_at) \
+             VALUES('company','Branding owned','#123456','fixture',1)",
+        )
+        .execute(p.system.holdings[0].raw())
+        .await
+        .unwrap();
 
         let save = Request::builder()
             .method("POST")
@@ -199,9 +206,10 @@ async fn brand_http_reads_and_saves_a_draft_under_normal_session_authority() {
         .fetch_optional(p.system.holdings[0].raw())
         .await
         .unwrap();
-        assert!(
-            unpublished_storefront.is_none(),
-            "an unpublished HTTP draft leaves the storefront projection unchanged"
+        assert_eq!(
+            unpublished_storefront,
+            Some(("Branding owned".into(), "#123456".into())),
+            "an unpublished HTTP draft leaves the Branding-owned storefront unchanged"
         );
         let before: (i64, i64, i64, i64, i64) = sqlx::query_as(
             "SELECT (SELECT count(*) FROM brand_identity_drafts WHERE company_id='company'),(SELECT count(*) FROM brand_identity_events WHERE company_id='company'),(SELECT count(*) FROM command_receipts WHERE command_id='brand-http-save-1'),(SELECT count(*) FROM audit_events WHERE command_id='brand-http-save-1'),(SELECT count(*) FROM outbox_events WHERE command_id='brand-http-save-1')",
@@ -372,6 +380,7 @@ async fn brand_http_independent_publication_replays_and_rejects_self_review() {
         let p=review::setup_with_finance(system,false).await;
         seed(&p).await;
         let db=p.system.holdings[0].raw();
+        sqlx::query("INSERT INTO storefront_app_brands(company_id,short_name,accent_color,updated_by,updated_at) VALUES('company','Branding owned','#123456','fixture',1)").execute(db).await.unwrap();
         sqlx::raw_sql("INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,status,version,created_by,created_at,updated_at) VALUES('brand-person-b','fixture-b','company','Synthetic Brand reviewer','TH','active',1,'synthetic-fixture',0,0); INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,job_title,currency,version,created_by,created_at,updated_at) VALUES('brand-engagement-b','brand-person-b','company','employee','salaried','active','2026-01-01','Brand reviewer','THB',1,'synthetic-fixture',0,0); INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy,version) VALUES('company','fixture-b','local:fixture-b','brand-person-b','active','local',1); INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind) VALUES('brand-fixture-b','fixture-b','custom_brand_manager','[\"brand\"]','company',0,9007199254740991,3,'holding'); UPDATE active_work_contexts SET assignment_id='brand-fixture-b',assignment_version=3,revision=7 WHERE user_id='fixture-b'").execute(db).await.unwrap();
         let app=router(&p);
         let request=|token:&str,assignment:&str,key:&str,body:&str| Request::builder()
@@ -384,7 +393,7 @@ async fn brand_http_independent_publication_replays_and_rejects_self_review() {
         let maker=p.maker_token.expose(); let reviewer=p.reviewer_token.expose();
         let draft=r##"{"action":"save","expectedPublishedVersion":0,"identity":{"identity":{"shortName":"Reviewed HTTP","tagline":"Independent review"},"visual":{"accentColor":"#224488","logoPublicationId":null}},"reason":"Prepare reviewable identity"}"##;
         let response=app.clone().oneshot(request(maker,"brand-fixture-a","brand-http-independent-draft",draft)).await.unwrap(); assert_eq!(response.status(),StatusCode::OK);
-        let unpublished_storefront:Option<(String,String)>=sqlx::query_as("SELECT short_name,accent_color FROM storefront_app_brands WHERE company_id='company'").fetch_optional(db).await.unwrap(); assert!(unpublished_storefront.is_none(),"an unpublished HTTP draft leaves the storefront projection unchanged");
+        let unpublished_storefront:Option<(String,String)>=sqlx::query_as("SELECT short_name,accent_color FROM storefront_app_brands WHERE company_id='company'").fetch_optional(db).await.unwrap(); assert_eq!(unpublished_storefront,Some(("Branding owned".into(),"#123456".into())),"an unpublished HTTP draft leaves the Branding-owned storefront unchanged");
         let publish=r#"{"action":"publish","id":"brand-draft-brand-http-independent-draft","expectedVersion":1,"expectedPublishedVersion":0,"reason":"Independent publication review"}"#;
         let response=app.clone().oneshot(request(maker,"brand-fixture-a","brand-http-self-publish",publish)).await.unwrap(); assert_eq!(response.status(),StatusCode::FORBIDDEN);
         let error:serde_json::Value=serde_json::from_slice(&to_bytes(response.into_body(),64*1024).await.unwrap()).unwrap(); assert_eq!(error["error"]["code"],"BRAND_INDEPENDENT_PUBLICATION");
@@ -403,7 +412,7 @@ async fn brand_http_independent_publication_replays_and_rejects_self_review() {
         assert_eq!(facts["active"]["version"],1); assert_eq!(facts["active"]["updated_by"],"fixture-b");
         let identity:serde_json::Value=serde_json::from_str(facts["versions"][0]["identity_json"].as_str().unwrap()).unwrap();
         assert_eq!(identity["identity"]["shortName"],"Reviewed HTTP"); assert_eq!(identity["visual"]["accentColor"],"#224488");
-        let published_storefront:(String,String)=sqlx::query_as("SELECT short_name,accent_color FROM storefront_app_brands WHERE company_id='company'").fetch_one(db).await.unwrap(); assert_eq!(published_storefront,("Reviewed HTTP".into(),"#224488".into()),"publication activates the exact storefront projection");
+        let published_storefront:(String,String)=sqlx::query_as("SELECT short_name,accent_color FROM storefront_app_brands WHERE company_id='company'").fetch_one(db).await.unwrap(); assert_eq!(published_storefront,("Branding owned".into(),"#123456".into()),"identity publication never overwrites the Branding-owned storefront row");
         assert_eq!(facts["events"].as_array().unwrap().len(),2); assert!(facts["receipt"].is_object()); assert_eq!(facts["audit"].as_array().unwrap().len(),1); assert_eq!(facts["outbox"].as_array().unwrap().len(),1);
         let response=app.clone().oneshot(request(reviewer,"brand-fixture-b","brand-http-independent-publish",publish)).await.unwrap(); assert_eq!(response.status(),StatusCode::OK);
         let replay:serde_json::Value=serde_json::from_slice(&to_bytes(response.into_body(),64*1024).await.unwrap()).unwrap(); assert_eq!(replay["data"],published["data"]);

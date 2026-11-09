@@ -30,5 +30,9 @@ path = "../../tests/unit/brand/rust-brand-identity-policy.test.rs"
 name = "brand_identity_postgres"
 path = "../../tests/integration/brand/rust-brand-identity-postgres.test.rs"
 
+[[test]]
+name = "branding_postgres"
+path = "../../tests/integration/brand/rust-branding-postgres.test.rs"
+
 [lints]
 workspace = true
