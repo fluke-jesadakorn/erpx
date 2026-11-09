@@ -3516,7 +3516,7 @@
       "id": "customer-360-native-timeline-browser",
       "kind": "business-flow-evidence",
       "status": "flow-complete",
-      "scope": "Native Customer 360 timeline enabled through ERPX_NATIVE_CUSTOMER_TIMELINE_CONFIG; private API 3198 returns 15 real invoice events; the Next app route returns the native payload; desktop/mobile History renders the same 15 events. Legacy page/API/profile/notes timeline fallbacks retired; unset configuration fails closed.",
+      "scope": "Native Customer 360 timeline enabled through ERPX_NATIVE_CUSTOMER_TIMELINE_CONFIG; private API 3198 returns 15 real invoice events; the Next app route returns the native payload; desktop/mobile History renders the same 15 events. Legacy page/API/profile/notes timeline fallbacks retired; unset configuration fails closed. Customer timeline integration suite 6/6 with the native Field fixture tools.",
       "sourceIdentity": "working tree on 0cf200906",
       "evidenceRef": "docs/testing/evidence/2026-11-09-native-customer-timeline-browser.json",
       "durableContractRefs": []

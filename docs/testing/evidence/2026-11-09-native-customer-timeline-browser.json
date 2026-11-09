@@ -88,11 +88,11 @@
     },
     {
       "suite": "customer_360.customer-timeline.integration",
-      "result": "5/6 pass; the remaining case times out in withNativeFieldFixture (native Field fixture environment)"
+      "result": "6/6 pass with ERPX_FILES_PREVIEW_BIN, ERPX_HEIF_CONVERT, ERPX_PDFTOPPM_BIN, ERPX_CLAMD_SOCKET and ERPX_CLAMAV_DATABASE_DIR set"
     },
     {
       "suite": "support.package-surfaces.integration",
-      "result": "20/22 pass; pre-existing Executive evidence assertion and the same native Field fixture timeout"
+      "result": "20/22 pass; the two remaining failures are pre-existing/outside this bundle: the Executive customer-evidence assertion and the Support native Field fixture config panic at rust-field-files-vitest-held-provider.rs:338"
     }
   ],
   "screenshots": [
@@ -102,6 +102,6 @@
   "notes": [
     "The 3198 private API reads disposable clone databases populated from the exact development business tables for verification; it is not a production runtime.",
     "The browser History page shows exactly the 15 native invoice items, not the earlier 21-event retained TypeScript timeline.",
-    "The remaining native Field fixture timeouts are environment/tooling failures (ERPX_FILES_PREVIEW_BIN/ClamAV/HEIF/Poppler), not timeline transport failures."
+    "The customer timeline integration suite passes 6/6 with the native Field fixture tool environment; the support suite's remaining Field failure is a fixture config panic in the provider example, not the timeline transport."
   ]
 }
