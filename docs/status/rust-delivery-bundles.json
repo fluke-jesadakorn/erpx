@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-10T05:49:39+07:00",
+  "updatedAt": "2026-11-10T06:42:19+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -3610,6 +3610,15 @@
       "sourceIdentity": "working tree on 5c434bccdb9639a2645cc12b42f9769822e0ca38",
       "evidenceRef": "docs/testing/evidence/2026-11-10-legal-owner-certification.json",
       "durableContractRefs": []
+    },
+    {
+      "id": "finance-payables-native-void-attachments",
+      "kind": "supporting-delivery",
+      "status": "partial",
+      "scope": "Finance-owned payables sub-gaps closed: posted supplier-bill void posts an exact reversing journal with an independent approver and replay; native payable attachments bind supplier_bill/bill_match_support evidence sets in the posting unit. finance.rust-supplier-bill-postgres.integration is 8/8. Matched bills, expense claims and the Finance company-workspace browser route remain open; Finance is not certified.",
+      "sourceIdentity": "working tree on 4fa245d3187d1abda2269936773145551c0452a2",
+      "evidenceRef": "docs/testing/evidence/2026-11-10-finance-payables-native-void-attachments.json",
+      "durableContractRefs": []
     }
   ],
   "workflows": [
@@ -4249,7 +4258,7 @@
         "finance-native-supplier-bill-void"
       ],
       "sourceRef": "packages/server-finance/src/public/finance.ts",
-      "gap": "Native standalone payable create/edit/post/void/detail, AP journal, Money snapshots, line revisions, replay/version/Company guards and private API admission are PostgreSQL/HTTP-qualified; matched supplier bills, expense claims, native payable attachments, void of posted bills and browser remain open."
+      "gap": "Native standalone payable create/edit/post/void/detail, AP journal, Money snapshots, line revisions, replay/version/Company guards and private API admission are PostgreSQL/HTTP-qualified. Finance-owned posted void now posts an exact reversing journal with an independent approver, period/date/reason, replay and audit/outbox; native payable attachments bind supplier_bill/bill_match_support evidence sets in the posting unit. Remaining: matched supplier bills (Procurement/Commerce), expense claims (People Payroll), and the Finance company-workspace browser route (the company launch lands on the product-entry chooser)."
     },
     {
       "id": "finance/feature-chart-of-accounts",

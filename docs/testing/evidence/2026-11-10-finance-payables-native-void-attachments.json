@@ -1,0 +1,71 @@
+{
+  "schema": "erpx.evidence/finance-payables-native-void-attachments/v1",
+  "recorded_at": "2026-11-10T07:30:00+07:00",
+  "head": "4fa245d3187d1abda2269936773145551c0452a2",
+  "owner": "finance",
+  "workflow": "finance/payables",
+  "status": "partial",
+  "scope": "Finance-owned posted supplier-bill void and native payable attachment binding. Matched supplier bills (Procurement/Commerce), expense claims (People Payroll) and the Finance company-workspace browser route remain cross-owner/open; Finance is not certified.",
+  "closed_in_this_bundle": {
+    "posted_void": {
+      "native_path": "void_supplier_bill now branches on the locked invoice status. A posted standalone payable calls void_posted_supplier_bill, which posts an exact reversing journal (debit/credit and base amounts swapped), marks the original journal reversed, advances the bill version, clears outstanding, and records the command receipt/audit/outbox in the same serializable Finance unit.",
+      "independent_approver": "The reversing approver must differ from the bill creator and the original poster (INDEPENDENT_APPROVER_REQUIRED).",
+      "input": "SupplierBillVoidInput accepts optional periodId, entryDate and memo; posted voids require an open period and entry date. Draft voids keep their existing shape.",
+      "result": "SupplierBillResult returns reversalJournalId for the posted void; the reversal journal uses source_type=invoice_reversal and source_id=bill id.",
+      "replay": "The same idempotency key replays the retained receipt and does not post a second reversal."
+    },
+    "attachments": {
+      "native_path": "post_supplier_bill_with_evidence binds reviewed supplier_bill / bill_match_support / action / invoice-review attachment sets through the shared Records/Files evidence port in the posting transaction.",
+      "policy": "policy_fact(supplier_bill, bill_match_support, action, 1); target_types=[supplier_bill]; contexts=[bill_match_support/action/invoice-review]; binding_type=finance_supplier_bill_post; binding_id=<bill>:<next version>.",
+      "fail_closed": "Assemblies that do not mount the Files port keep the explicit SUPPLIER_BILL_EVIDENCE_UNSUPPORTED denial for nonempty sets; there is no TypeScript fallback.",
+      "replay": "A replayed post returns the receipt before evidence preparation and does not rebind the set."
+    },
+    "frontend": "InvoiceActions now shows a 'Void posted bill' form (reversal period, date, reason) for a posted standalone bill; the native supplier-bill client no longer rejects attachmentSetIds on post."
+  },
+  "gates": [
+    {
+      "name": "finance.rust-supplier-bill-postgres.integration",
+      "result": "8/8 pass in 20.82 s",
+      "cases": [
+        "supplier_bill_create_edit_post_and_readback_retain_ap_evidence",
+        "supplier_bill_whole_document_create_posts",
+        "supplier_bill_http_route_creates_posts_and_reads_payable",
+        "supplier_bill_rejects_wrong_party_account_currency_company_and_closed_period",
+        "supplier_bill_replay_versions_and_concurrent_posting_stay_single",
+        "supplier_bill_void_is_draft_only_and_replays",
+        "supplier_bill_posted_void_posts_an_exact_reversal_with_an_independent_approver",
+        "supplier_bill_post_binds_review_evidence_sets_in_the_posting_unit"
+      ]
+    },
+    {
+      "name": "cargo check",
+      "result": "private-field-api/existing-business; files-scan-worker/field-push-worker/existing-business; legal-pdf-worker/legal-document-worker/legal-queue pass"
+    },
+    {
+      "name": "tests/config typecheck",
+      "result": "pass"
+    },
+    {
+      "name": "test catalogue",
+      "result": "33 modules, 1011 suites"
+    }
+  ],
+  "browser": {
+    "attempted": [
+      "https://acme.jesadakorn.com/finance/documents/payable",
+      "https://acme.jesadakorn.com/finance/documents/invoices/invoice-42f999a1faa48f2fb5a1583829ffaa4b5952",
+      "https://acme.jesadakorn.com/bangkok/accounting/finance/documents/invoices/invoice-42f999a1faa48f2fb5a1583829ffaa4b5952"
+    ],
+    "result": "blocked",
+    "detail": "The company-level Finance launch lands on the product-entry workspace chooser (/finance?company=acme-co) instead of the company Finance workspace, so the invoice detail and the new posted-void form are not reachable. The Bangkok Accounting department path renders a workspace but returns 403 for the company-level posted bill. This is a development Finance workspace-routing limitation, not the posted-void API; the service/HTTP gates above pass. No browser acceptance is claimed."
+  },
+  "remaining": [
+    "Matched supplier bills (Procurement/Commerce) and expense claims (People Payroll) still keep their own owners; Finance does not write those sources.",
+    "The Finance company workspace browser route must be repaired before the payables browser journey can be verified.",
+    "Finance remains partial at 9/10 workflows and is not owner 6/41."
+  ],
+  "notes": [
+    "No production, staging, deployment, schema deletion or destructive cleanup was performed.",
+    "No debug statements were retained."
+  ]
+}

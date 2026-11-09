@@ -570,12 +570,34 @@ impl HoldingWorkSourcePreparation for SupplierBillWriteSources {
 }
 
 #[derive(Clone)]
+struct SupplierBillVoidSources;
+impl HoldingWorkSourcePreparation for SupplierBillVoidSources {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            lock_commercial_authority_sources(c).await?;
+            lock_supplier_bill_write_sources(c).await?;
+            // Posted voids insert and reverse journals in this unit; the table
+            // fence precedes the first invoice/journal read.
+            sqlx::query(
+                "LOCK TABLE finance_journals,finance_journal_lines,finance_periods IN SHARE ROW EXCLUSIVE MODE",
+            )
+            .execute(&mut *c)
+            .await?;
+            Ok(())
+        })
+    }
+}
+
+#[derive(Clone)]
 struct SupplierBillPostSources;
 impl HoldingWorkSourcePreparation for SupplierBillPostSources {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
             lock_commercial_authority_sources(c).await?;
             lock_supplier_bill_post_sources(c).await?;
+            // Files owner fence before the first evidence read/bind. The global
+            // order for this unit is Commercial -> Finance -> Files.
+            lock_business_evidence_sources(c).await?;
             Ok(())
         })
     }
@@ -608,6 +630,78 @@ impl HoldingWorkSourcePreparation for PeriodCloseSources {
             // this unit is Commercial -> Finance -> Files.
             lock_business_evidence_sources(c).await?;
             Ok(())
+        })
+    }
+}
+
+#[derive(Clone)]
+struct FinanceSupplierBillEvidence {
+    company: CompanyId,
+    actor: String,
+    now: TimestampMillis,
+}
+impl FinanceSupplierBillEvidence {
+    fn files<'c>(&self, c: &'c mut PgConnection) -> PgBusinessEvidenceFiles<'c> {
+        PgBusinessEvidenceFiles::new(
+            c,
+            self.company.clone(),
+            self.actor.clone(),
+            None,
+            None,
+            vec![policy_fact(
+                SUPPLIER_BILL_EVIDENCE_TARGET_TYPE,
+                SUPPLIER_BILL_EVIDENCE_PURPOSE_KEY,
+                &[SUPPLIER_BILL_EVIDENCE_COMPONENT_KIND],
+                1,
+            )],
+            self.now,
+        )
+    }
+}
+impl PgSupplierBillEvidence for FinanceSupplierBillEvidence {
+    type Prepared = erpx_server_files::public::business_evidence::PreparedBusinessEvidence;
+    fn prepare(
+        &mut self,
+        c: &mut PgConnection,
+        request: SupplierBillEvidenceRequest,
+    ) -> impl std::future::Future<Output = Result<Self::Prepared, Error>> + Send {
+        Box::pin(async move {
+            let mut files = self.files(c);
+            prepare_business_evidence(
+                &mut files,
+                BusinessEvidenceRequest {
+                    attachment_set_ids: request.set_ids,
+                    target_types: vec![SUPPLIER_BILL_EVIDENCE_TARGET_TYPE.into()],
+                    contexts: vec![evidence_context(
+                        SUPPLIER_BILL_EVIDENCE_PURPOSE_KEY,
+                        SUPPLIER_BILL_EVIDENCE_COMPONENT_KIND,
+                        Some(SUPPLIER_BILL_EVIDENCE_COMPONENT_REF),
+                    )],
+                    target_id: request.target_id,
+                    expected_target_version: request.expected_target_version,
+                    command_id: request.command_id,
+                    binding_type: request.binding_type,
+                    binding_id: request.binding_id,
+                },
+            )
+            .await?
+            .ok_or_else(|| {
+                BusinessError::invalid(
+                    "ATTACHMENT_SETS_REQUIRED",
+                    "Choose one to twenty file sets.",
+                )
+                .into()
+            })
+        })
+    }
+    fn require_current(
+        &mut self,
+        c: &mut PgConnection,
+        prepared: &Self::Prepared,
+    ) -> impl std::future::Future<Output = Result<(), Error>> + Send {
+        Box::pin(async move {
+            let mut files = self.files(c);
+            files.require_current(prepared).await
         })
     }
 }
@@ -780,7 +874,8 @@ impl HoldingWorkSourcePreparation for ReadPreparation {
                 // Take Finance's retained writer/source gate before shared table
                 // reads so concurrent Field invoice posting cannot meet an upgrade.
                 if self.field_service_parts || self.field_service_invoices {
-                    erpx_server_finance::public::journal_review::lock_journal_review_sources(c).await?;
+                    erpx_server_finance::public::journal_review::lock_journal_review_sources(c)
+                        .await?;
                 }
                 if self.field_service_invoices {
                     crate::finance_service_invoice_history::lock_service_invoice_history_sources(c)
@@ -2720,7 +2815,7 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                     destination: "finance/payables".into(),
                     api: true,
                 },
-                SupplierBillWriteSources,
+                SupplierBillVoidSources,
                 move |c, current| {
                     let configuration = configuration.clone();
                     let clock = clock.clone();
@@ -2753,9 +2848,44 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                             now,
                         )
                         .await?;
+                        let facts: Option<(String, Option<String>, String)> = sqlx::query_as(
+                            "SELECT created_by,approved_by,status FROM finance_invoices                              WHERE company_id=$1 AND id=$2",
+                        )
+                        .bind(configuration.company.as_str())
+                        .bind(&id)
+                        .fetch_optional(&mut *c)
+                        .await?;
+                        let (creator, approver, status) = facts.ok_or_else(|| {
+                            BusinessError::new(
+                                FailureKind::NotFound,
+                                "INVOICE_NOT_FOUND",
+                                "Supplier bill not found.",
+                            )
+                        })?;
                         let actor = command_actor(current)?;
-                        let data =
-                            void_supplier_bill(c, &actor, &command, &id, &body, now.get()).await?;
+                        let data = if status == "posted" {
+                            current.require_permission("finance.approve")?;
+                            let mut same_person =
+                                current.same_person_user(&UserId::new(creator.clone())?);
+                            if let Some(approver) = approver {
+                                same_person |=
+                                    current.same_person_user(&UserId::new(approver.clone())?);
+                            }
+                            let journal_actor = finance_actor(current);
+                            void_posted_supplier_bill(
+                                c,
+                                &actor,
+                                &journal_actor,
+                                &command,
+                                &id,
+                                same_person,
+                                &body,
+                                now.get(),
+                            )
+                            .await?
+                        } else {
+                            void_supplier_bill(c, &actor, &command, &id, &body, now.get()).await?
+                        };
                         Ok(FinanceSupplierBillVoidResponse { data })
                     })
                 },
@@ -2845,7 +2975,12 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                         let actor = command_actor(current)?;
                         let journal_actor = finance_actor(current);
                         let mut authority = SupplierBillJournalAuthority(current);
-                        let data = post_supplier_bill(
+                        let mut evidence = FinanceSupplierBillEvidence {
+                            company: configuration.company.clone(),
+                            actor: actor.user_id.clone(),
+                            now,
+                        };
+                        let data = post_supplier_bill_with_evidence(
                             c,
                             &actor,
                             &journal_actor,
@@ -2855,6 +2990,7 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                             &body,
                             clock.as_ref(),
                             &mut authority,
+                            &mut evidence,
                         )
                         .await?;
                         Ok(FinanceSupplierBillPostResponse { data })

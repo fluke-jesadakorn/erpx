@@ -267,7 +267,6 @@ export async function nativeSupplierBillPost(
       return data;
     },
     200,
-    true,
   );
   return response;
 }

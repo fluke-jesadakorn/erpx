@@ -12,10 +12,15 @@ use erpx_server_commercial::public::purchases::current_package_catalogue;
 use erpx_server_finance::public::{
     FinanceActor, JournalAuthority, JournalDraft, JournalError, supplier_bill::*,
 };
-use erpx_server_identity_access::public::work_context::HoldingWorkspaceRequest;
+use erpx_server_identity_access::public::work_context::{
+    ExpectedWorkSelection, HoldingWorkspaceRequest,
+};
+use erpx_server_identity_access::public::{
+    AuthenticationSecrets, DeviceProof, SecretPurpose, SystemAuthenticationSecrets,
+};
 use erpx_server_runtime::public::postgres::{DatabasePool, PgTransactionError};
 use erpx_server_shared::public::{
-    AssignmentId, BusinessError, CommandKey, CompanyId, HoldingId, UserId,
+    AssignmentId, BusinessError, Clock, CommandKey, CompanyId, HoldingId, UserId,
 };
 use erpx_service::finance_journal_detail::*;
 use erpx_service::finance_journal_detail_http::*;
@@ -1095,6 +1100,363 @@ async fn supplier_bill_http_route_creates_posts_and_reads_payable() {
     .await;
 }
 
+async fn seed_supplier_bill_evidence(pool: &DatabasePool, bill_id: &str) -> String {
+    let set = "bill-evidence-set";
+    sqlx::query(
+        "INSERT INTO attachment_sets(id,company_id,target_type,target_id,component_kind,\
+         component_ref,purpose_key,expected_target_version,policy_version,classification,\
+         audience_json,required_count,max_files,state,created_by,created_at,updated_at) \
+         VALUES($1,'company','supplier_bill',$2,'action','invoice-review','bill_match_support',\
+         1,1,'confidential','{}',1,10,'draft','fixture-a',0,0)",
+    )
+    .bind(set)
+    .bind(bill_id)
+    .execute(pool.raw())
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,\
+         declared_bytes,actual_bytes,checksum_sha256,staging_key,final_key,revision,status,\
+         created_by,expires_at,created_at,updated_at) \
+         VALUES('bill-evidence-upload','supplier_bill',$1,'bill_match_support','bill.pdf',\
+         'application/pdf',123,123,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',\
+         'bill-evidence-staging','bill-evidence-final',1,'ready','fixture-a',9999999999999,0,0)",
+    )
+    .bind(bill_id)
+    .execute(pool.raw())
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,\
+         original_name,media_type,bytes,checksum_sha256,created_by,created_at,company_id,\
+         detected_media_type,source_state,scanned_at,scanner_definition_at) \
+         VALUES('bill-evidence-attachment','bill-evidence-upload','supplier_bill',$1,\
+         'bill_match_support','bill-evidence-object',1,'bill.pdf','application/pdf',123,\
+         'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','fixture-a',0,\
+         'company','application/pdf','available',0,0)",
+    )
+    .bind(bill_id)
+    .execute(pool.raw())
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) \
+         VALUES('bill-evidence-link',$1,'bill-evidence-attachment','draft','fixture-a',0,9999999999999)",
+    )
+    .bind(set)
+    .execute(pool.raw())
+    .await
+    .unwrap();
+    set.to_owned()
+}
+
+#[tokio::test]
+async fn supplier_bill_post_binds_review_evidence_sets_in_the_posting_unit() {
+    account::with_system(|system| async move {
+        let p = setup(system).await;
+        let pool = &p.system.holdings[0];
+        seed(pool).await;
+        let created = service(&p)
+            .create_supplier_bill(
+                "acme.example.test",
+                p.maker.clone(),
+                owned_maker(&p),
+                CommandKey::new("supplier-bill-evidence-create").unwrap(),
+                create_input("BILL-EVIDENCE-0001"),
+            )
+            .await
+            .unwrap();
+        let set = seed_supplier_bill_evidence(pool, &created.data.id).await;
+        let post_key = "supplier-bill-evidence-post";
+        let posted = service(&p)
+            .post_supplier_bill(
+                "acme.example.test",
+                p.reviewer.clone(),
+                owned_reviewer(&p),
+                CommandKey::new(post_key).unwrap(),
+                created.data.id.clone(),
+                SupplierBillPostInput {
+                    period_id: "period".into(),
+                    entry_date: "2026-01-10".into(),
+                    expected_version: Some(1),
+                    fx_rate: None,
+                    attachment_set_ids: vec![set.clone()],
+                    fx_gain_account_id: None,
+                    fx_loss_account_id: None,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(posted.data.status, "posted");
+        use sqlx::Row;
+        let set_row =
+            sqlx::query("SELECT state,bound_command_id,bound_at FROM attachment_sets WHERE id=$1")
+                .bind(&set)
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        assert_eq!(set_row.try_get::<String, _>("state").unwrap(), "bound");
+        assert_eq!(
+            set_row
+                .try_get::<Option<String>, _>("bound_command_id")
+                .unwrap(),
+            Some(post_key.to_owned())
+        );
+        assert!(
+            set_row
+                .try_get::<Option<i64>, _>("bound_at")
+                .unwrap()
+                .is_some()
+        );
+        let link = sqlx::query(
+            "SELECT state,binding_type,binding_id FROM attachment_links WHERE set_id=$1",
+        )
+        .bind(&set)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(link.try_get::<String, _>("state").unwrap(), "bound");
+        assert_eq!(
+            link.try_get::<String, _>("binding_type").unwrap(),
+            "finance_supplier_bill_post"
+        );
+        assert_eq!(
+            link.try_get::<String, _>("binding_id").unwrap(),
+            format!("{}:2", created.data.id)
+        );
+        let replay = service(&p)
+            .post_supplier_bill(
+                "acme.example.test",
+                p.reviewer.clone(),
+                owned_reviewer(&p),
+                CommandKey::new(post_key).unwrap(),
+                created.data.id.clone(),
+                SupplierBillPostInput {
+                    period_id: "period".into(),
+                    entry_date: "2026-01-10".into(),
+                    expected_version: Some(1),
+                    fx_rate: None,
+                    attachment_set_ids: vec![set],
+                    fx_gain_account_id: None,
+                    fx_loss_account_id: None,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(replay.data.journal_id, posted.data.journal_id);
+        assert_eq!(replay.data.status, "posted");
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn supplier_bill_posted_void_posts_an_exact_reversal_with_an_independent_approver() {
+    account::with_system(|system| async move {
+        let p = setup(system).await;
+        let pool = &p.system.holdings[0];
+        seed(pool).await;
+        let created = service(&p)
+            .create_supplier_bill(
+                "acme.example.test",
+                p.maker.clone(),
+                owned_maker(&p),
+                CommandKey::new("supplier-bill-posted-void-create").unwrap(),
+                create_input("BILL-POSTED-VOID"),
+            )
+            .await
+            .unwrap();
+        let posted = service(&p)
+            .post_supplier_bill(
+                "acme.example.test",
+                p.reviewer.clone(),
+                owned_reviewer(&p),
+                CommandKey::new("supplier-bill-posted-void-post").unwrap(),
+                created.data.id.clone(),
+                SupplierBillPostInput {
+                    period_id: "period".into(),
+                    entry_date: "2026-01-10".into(),
+                    expected_version: Some(1),
+                    fx_rate: None,
+                    attachment_set_ids: Vec::new(),
+                    fx_gain_account_id: None,
+                    fx_loss_account_id: None,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(posted.data.status, "posted");
+        assert_business(
+            service(&p)
+                .void_supplier_bill(
+                    "acme.example.test",
+                    p.reviewer.clone(),
+                    owned_reviewer(&p),
+                    CommandKey::new("supplier-bill-posted-void-same").unwrap(),
+                    created.data.id.clone(),
+                    SupplierBillVoidInput {
+                        expected_version: 2,
+                        period_id: Some("period".into()),
+                        entry_date: Some("2026-01-20".into()),
+                        memo: None,
+                    },
+                )
+                .await,
+            "INDEPENDENT_APPROVER_REQUIRED",
+        );
+        let now = p.system.scenario.clock.now().get();
+        let expires = now + 3_600_000;
+        sqlx::query(
+            "INSERT INTO \"user\"(id,name,email,\"emailVerified\",\"createdAt\",\"updatedAt\") \
+             VALUES('fixture-c','fixture-c','c@example.test',1,$1,$1) ON CONFLICT(id) DO NOTHING",
+        )
+        .bind(now)
+        .execute(p.system.control.raw())
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO account(id,\"accountId\",\"providerId\",issuer,\"userId\",password,\"createdAt\",\"updatedAt\") \
+             SELECT 'fixture-c','fixture-c','credential','local:credential','fixture-c',password,$1,$1 \
+             FROM account WHERE id='fixture-a' ON CONFLICT(id) DO NOTHING",
+        )
+        .bind(now)
+        .execute(p.system.control.raw())
+        .await
+        .unwrap();
+        let third_central = account::login(&p.system, "c@example.test", None).await;
+        let third = account::child(&p.system, &third_central, account::ACME).await;
+        sqlx::query(
+            "INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind) \
+             VALUES('finance-fixture-c','fixture-c','custom_finance_review','[\"finance\"]','company',$1,$2,3,'holding')",
+        )
+        .bind(now - 1000)
+        .bind(expires)
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at) \
+             VALUES($1,'fixture-c','company','finance-fixture-c',3,7,$2,$3)",
+        )
+        .bind(&third.result.session_id)
+        .bind(expires)
+        .bind(now)
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let third_proof = DeviceProof {
+            active: Some(SystemAuthenticationSecrets.digest(SecretPurpose::Session, &third.token)),
+            ..Default::default()
+        };
+        let third_selection = HoldingWorkspaceRequest {
+            company_id: CompanyId::new("company").unwrap(),
+            branch_slug: None,
+            department_slug: None,
+            expected: Some(ExpectedWorkSelection {
+                revision: 7,
+                assignment_id: AssignmentId::new("finance-fixture-c").unwrap(),
+                assignment_version: 3,
+            }),
+            mutation: true,
+        };
+        let void_key = CommandKey::new("supplier-bill-posted-void-0001").unwrap();
+        let input = SupplierBillVoidInput {
+            expected_version: 2,
+            period_id: Some("period".into()),
+            entry_date: Some("2026-01-20".into()),
+            memo: Some("Duplicate supplier invoice".into()),
+        };
+        let selection = third_selection.clone();
+        let voided = service(&p)
+            .void_supplier_bill(
+                "acme.example.test",
+                third_proof.clone(),
+                move || Ok(selection),
+                void_key.clone(),
+                created.data.id.clone(),
+                input.clone(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(voided.data.status, "voided");
+        assert_eq!(voided.data.outstanding, "0.00");
+        assert_eq!(voided.data.version, 3);
+        let reversal_id = voided
+            .data
+            .reversal_journal_id
+            .clone()
+            .expect("posted void returns its reversing journal");
+        use sqlx::Row;
+        let row = sqlx::query(
+            "SELECT status,outstanding_minor,version FROM finance_invoices WHERE id=$1 AND company_id='company'",
+        )
+        .bind(&created.data.id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(row.try_get::<String, _>("status").unwrap(), "voided");
+        assert_eq!(row.try_get::<i64, _>("outstanding_minor").unwrap(), 0);
+        assert_eq!(row.try_get::<i64, _>("version").unwrap(), 3);
+        let original: String = sqlx::query_scalar(
+            "SELECT status FROM finance_journals WHERE id=$1 AND company_id='company'",
+        )
+        .bind(&posted.data.journal_id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(original, "reversed");
+        let reversal: (String, String, String) = sqlx::query_as(
+            "SELECT source_type,source_id,status FROM finance_journals WHERE id=$1 AND company_id='company'",
+        )
+        .bind(&reversal_id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            reversal,
+            (
+                "invoice_reversal".into(),
+                created.data.id.clone(),
+                "posted".into()
+            )
+        );
+        let lines: Vec<(String, i64, i64)> = sqlx::query_as(
+            "SELECT account_id,debit_minor,credit_minor FROM finance_journal_lines \
+             WHERE journal_id=$1 ORDER BY ordinal",
+        )
+        .bind(&reversal_id)
+        .fetch_all(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            lines,
+            vec![
+                ("bill-expense".into(), 0, 25_000),
+                ("bill-ap".into(), 26_750, 0),
+                ("bill-vat-in".into(), 0, 1_750),
+            ]
+        );
+        let selection = third_selection;
+        let replay = service(&p)
+            .void_supplier_bill(
+                "acme.example.test",
+                third_proof,
+                move || Ok(selection),
+                void_key,
+                created.data.id.clone(),
+                input,
+            )
+            .await
+            .unwrap();
+        assert_eq!(replay.data.status, "voided");
+        assert_eq!(replay.data.version, 3);
+        assert_eq!(
+            replay.data.reversal_journal_id.as_deref(),
+            Some(reversal_id.as_str())
+        );
+    })
+    .await;
+}
+
 #[tokio::test]
 async fn supplier_bill_void_is_draft_only_and_replays() {
     account::with_system(|system| async move {
@@ -1122,6 +1484,9 @@ async fn supplier_bill_void_is_draft_only_and_replays() {
                 created.data.id.clone(),
                 SupplierBillVoidInput {
                     expected_version: 1,
+                    period_id: None,
+                    entry_date: None,
+                    memo: None,
                 },
             )
             .await
@@ -1150,6 +1515,9 @@ async fn supplier_bill_void_is_draft_only_and_replays() {
                 created.data.id.clone(),
                 SupplierBillVoidInput {
                     expected_version: 1,
+                    period_id: None,
+                    entry_date: None,
+                    memo: None,
                 },
             )
             .await
@@ -1166,6 +1534,9 @@ async fn supplier_bill_void_is_draft_only_and_replays() {
                     created.data.id.clone(),
                     SupplierBillVoidInput {
                         expected_version: 2,
+                        period_id: None,
+                        entry_date: None,
+                        memo: None,
                     },
                 )
                 .await,
@@ -1191,6 +1562,9 @@ async fn supplier_bill_void_is_draft_only_and_replays() {
                     fresh.data.id,
                     SupplierBillVoidInput {
                         expected_version: 99,
+                        period_id: None,
+                        entry_date: None,
+                        memo: None,
                     },
                 )
                 .await,

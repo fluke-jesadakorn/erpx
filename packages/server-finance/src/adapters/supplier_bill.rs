@@ -23,6 +23,7 @@ use erpx_server_shared::public::{BusinessError, Clock, CommandKey, FailureKind};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::{Connection, PgConnection, Row};
+use std::future::Future;
 
 type Error = PgTransactionError<BusinessError>;
 
@@ -113,12 +114,22 @@ pub struct SupplierBillResult {
     pub outstanding: String,
     pub status: String,
     pub version: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reversal_journal_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SupplierBillVoidInput {
     pub expected_version: i64,
+    /// Required when voiding a posted bill: the open period and entry date of
+    /// the reversal journal. Draft voids retain their existing shape.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub period_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entry_date: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub memo: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -1295,6 +1306,319 @@ pub async fn void_supplier_bill(
         outstanding: "0.00".into(),
         status: "voided".into(),
         version: input.expected_version + 1,
+        reversal_journal_id: None,
+    };
+    receipt(
+        c,
+        actor,
+        &authority,
+        command.as_str(),
+        operation,
+        &request_hash,
+        id,
+        &serde_json::to_value(&result).map_err(|_| unavailable())?,
+        input.expected_version + 1,
+        now,
+    )
+    .await?;
+    Ok(result)
+}
+
+pub const SUPPLIER_BILL_EVIDENCE_TARGET_TYPE: &str = "supplier_bill";
+pub const SUPPLIER_BILL_EVIDENCE_PURPOSE_KEY: &str = "bill_match_support";
+pub const SUPPLIER_BILL_EVIDENCE_COMPONENT_KIND: &str = "action";
+pub const SUPPLIER_BILL_EVIDENCE_COMPONENT_REF: &str = "invoice-review";
+pub const SUPPLIER_BILL_EVIDENCE_BINDING_TYPE: &str = "finance_supplier_bill_post";
+pub const SUPPLIER_BILL_EVIDENCE_MAX_SETS: usize = 20;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SupplierBillEvidenceRequest {
+    pub set_ids: Vec<String>,
+    pub target_id: String,
+    pub expected_target_version: i64,
+    pub command_id: String,
+    pub binding_type: String,
+    pub binding_id: String,
+}
+
+/// The compiled composition supplies the shared Records/Files evidence port
+/// bound to this exact serializable Finance unit. Finance never binds file
+/// state itself and never falls back to a TypeScript posting path.
+pub trait PgSupplierBillEvidence: Send {
+    type Prepared: Send;
+    fn prepare(
+        &mut self,
+        c: &mut PgConnection,
+        request: SupplierBillEvidenceRequest,
+    ) -> impl Future<Output = Result<Self::Prepared, Error>> + Send;
+    fn require_current(
+        &mut self,
+        c: &mut PgConnection,
+        prepared: &Self::Prepared,
+    ) -> impl Future<Output = Result<(), Error>> + Send;
+}
+
+struct UnmountedSupplierBillEvidence;
+impl PgSupplierBillEvidence for UnmountedSupplierBillEvidence {
+    type Prepared = ();
+    fn prepare(
+        &mut self,
+        _c: &mut PgConnection,
+        request: SupplierBillEvidenceRequest,
+    ) -> impl Future<Output = Result<Self::Prepared, Error>> + Send {
+        async move {
+            if request.set_ids.is_empty() {
+                Ok(())
+            } else {
+                Err(invalid(
+                    "SUPPLIER_BILL_EVIDENCE_UNSUPPORTED",
+                    "Supplier-bill review evidence is unavailable in this assembly.",
+                ))
+            }
+        }
+    }
+    fn require_current(
+        &mut self,
+        _c: &mut PgConnection,
+        _prepared: &Self::Prepared,
+    ) -> impl Future<Output = Result<(), Error>> + Send {
+        async move { Ok(()) }
+    }
+}
+
+/// Void a posted standalone supplier bill by posting its exact reversing
+/// journal in the same serializable Finance unit. The reversing journal copies
+/// the original posted lines with debit/credit swapped, reverses the original
+/// journal, and advances the bill version. A different Finance approver must
+/// sign the correction; a draft keeps the plain draft-void path.
+pub async fn void_posted_supplier_bill(
+    c: &mut PgConnection,
+    actor: &SalesInvoiceCommandActor,
+    journal_actor: &FinanceActor,
+    command: &CommandKey,
+    id: &str,
+    same_person_as_creator: bool,
+    input: &SupplierBillVoidInput,
+    now: i64,
+) -> Result<SupplierBillResult, Error> {
+    serializable(c).await?;
+    company_actor(
+        actor,
+        "Use a Company Finance assignment for supplier bills.",
+    )?;
+    if journal_actor.user_id.as_str() != actor.user_id
+        || journal_actor.company_id.as_str() != actor.company_id
+        || journal_actor.assignment_id.as_str() != actor.assignment_id
+    {
+        return Err(BusinessError::new(
+            FailureKind::Forbidden,
+            "FINANCE_CURRENT_AUTHORITY_REQUIRED",
+            "Choose the current Finance approver.",
+        )
+        .into());
+    }
+    let period_id = input
+        .period_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && value.len() <= 128)
+        .ok_or_else(|| {
+            invalid(
+                "INVALID_SUPPLIER_BILL_VOID",
+                "Choose an open period and entry date for the reversing journal.",
+            )
+        })?;
+    let entry_date = input
+        .entry_date
+        .as_deref()
+        .filter(|value| valid_date(value))
+        .ok_or_else(|| {
+            invalid(
+                "INVALID_SUPPLIER_BILL_VOID",
+                "Choose an open period and entry date for the reversing journal.",
+            )
+        })?;
+    let memo = input.memo.as_deref().unwrap_or("").trim().to_owned();
+    if memo.len() > 500 || memo.chars().any(char::is_control) {
+        return Err(invalid(
+            "INVALID_SUPPLIER_BILL_VOID",
+            "Use a reason of at most 500 characters.",
+        ));
+    }
+    if id.is_empty() || id.len() > 128 || input.expected_version < 1 {
+        return Err(invalid(
+            "INVALID_SUPPLIER_BILL",
+            "Use a current posted supplier bill and version.",
+        ));
+    }
+    let operation = "finance.invoice.void";
+    let input_json = serde_json::to_string(input).map_err(|_| unavailable())?;
+    let request_hash = fingerprint(actor, operation, id, &input_json);
+    let authority = authority_json(actor);
+    if let Some(result) = replay(c, command, &request_hash).await? {
+        return Ok(result);
+    }
+    let row = sqlx::query(
+        "SELECT status,kind,source_type,version,total_minor,outstanding_minor,invoice_number,         journal_id,created_by,approved_by          FROM finance_invoices WHERE id=$1 AND company_id=$2 FOR UPDATE",
+    )
+    .bind(id)
+    .bind(&actor.company_id)
+    .fetch_optional(&mut *c)
+    .await?
+    .ok_or_else(|| not_found("INVOICE_NOT_FOUND", "Supplier bill not found."))?;
+    let status: String = row.try_get("status")?;
+    let kind: String = row.try_get("kind")?;
+    let source_type: String = row.try_get("source_type")?;
+    let version: i64 = row.try_get("version")?;
+    let journal_id: Option<String> = row.try_get("journal_id")?;
+    let created_by: String = row.try_get("created_by")?;
+    let approved_by: Option<String> = row.try_get("approved_by")?;
+    if kind != "payable" || source_type != "standalone" {
+        return Err(not_found("INVOICE_NOT_FOUND", "Supplier bill not found."));
+    }
+    if status != "posted" {
+        return Err(conflict(
+            "INVOICE_NOT_POSTED",
+            "Only a posted supplier bill can be reversed here.",
+        ));
+    }
+    if version != input.expected_version {
+        return Err(conflict(
+            "VERSION_CONFLICT",
+            "The supplier bill changed. Refresh and review again.",
+        ));
+    }
+    if same_person_as_creator
+        || created_by == journal_actor.user_id.as_str()
+        || approved_by.as_deref() == Some(journal_actor.user_id.as_str())
+    {
+        return Err(BusinessError::new(
+            FailureKind::Forbidden,
+            "INDEPENDENT_APPROVER_REQUIRED",
+            "A different Finance approver must reverse a posted supplier bill.",
+        )
+        .into());
+    }
+    let journal_id = journal_id.ok_or_else(|| {
+        conflict(
+            "SUPPLIER_BILL_JOURNAL_REQUIRED",
+            "The posted supplier bill has no retained journal.",
+        )
+    })?;
+    let original = sqlx::query(
+        "SELECT id,status FROM finance_journals WHERE id=$1 AND company_id=$2 FOR UPDATE",
+    )
+    .bind(&journal_id)
+    .bind(&actor.company_id)
+    .fetch_optional(&mut *c)
+    .await?
+    .ok_or_else(|| {
+        conflict(
+            "SUPPLIER_BILL_JOURNAL_REQUIRED",
+            "The posted supplier bill journal is unavailable.",
+        )
+    })?;
+    if original.try_get::<String, _>("status")? != "posted" {
+        return Err(conflict(
+            "SUPPLIER_BILL_ALREADY_REVERSED",
+            "This supplier bill journal is no longer posted.",
+        ));
+    }
+    let already: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM finance_journals WHERE company_id=$1 AND          source_type='invoice_reversal' AND source_id=$2)",
+    )
+    .bind(&actor.company_id)
+    .bind(id)
+    .fetch_one(&mut *c)
+    .await?;
+    if already {
+        return Err(conflict(
+            "SUPPLIER_BILL_ALREADY_REVERSED",
+            "This supplier bill already has a reversing journal.",
+        ));
+    }
+    let reversal_id = format!("invoice-reversal-{}", command.as_str());
+    let journal_number = format!("AP-REV-{}", command.as_str());
+    let memo = if memo.is_empty() {
+        format!(
+            "Reversal of supplier bill {}",
+            row.try_get::<String, _>("invoice_number")?
+        )
+    } else {
+        memo
+    };
+    let inserted = sqlx::query(
+        "INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,         entry_date,currency,fx_rate_micros,source_type,source_id,memo,status,created_by,         posted_by,posted_at,created_at,updated_at)          SELECT $1,company_id,chart_id,$2,$3,$4,currency,fx_rate_micros,         'invoice_reversal',$5,$6,'posted',$7,$7,$8,$8,$8          FROM finance_journals WHERE id=$9 AND company_id=$10 AND status='posted'",
+    )
+    .bind(&reversal_id)
+    .bind(period_id)
+    .bind(&journal_number)
+    .bind(entry_date)
+    .bind(id)
+    .bind(&memo)
+    .bind(journal_actor.user_id.as_str())
+    .bind(now)
+    .bind(&journal_id)
+    .bind(&actor.company_id)
+    .execute(&mut *c)
+    .await?;
+    if inserted.rows_affected() != 1 {
+        return Err(conflict(
+            "SUPPLIER_BILL_JOURNAL_REQUIRED",
+            "The posted supplier bill journal changed before the reversal committed.",
+        ));
+    }
+    let lines = sqlx::query(
+        "INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,         credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal)          SELECT $1||'-'||ordinal,$1,account_id,description,credit_minor,debit_minor,         base_credit_minor,base_debit_minor,dimension_json,ordinal          FROM finance_journal_lines WHERE journal_id=$2",
+    )
+    .bind(&reversal_id)
+    .bind(&journal_id)
+    .execute(&mut *c)
+    .await?;
+    if lines.rows_affected() == 0 {
+        return Err(conflict(
+            "SUPPLIER_BILL_JOURNAL_REQUIRED",
+            "The posted supplier bill journal has no retained lines.",
+        ));
+    }
+    let reversed = sqlx::query(
+        "UPDATE finance_journals SET status='reversed',version=version+1,reversed_by=$1,         reversed_at=$2,updated_at=$2 WHERE id=$3 AND company_id=$4 AND status='posted'",
+    )
+    .bind(journal_actor.user_id.as_str())
+    .bind(now)
+    .bind(&journal_id)
+    .bind(&actor.company_id)
+    .execute(&mut *c)
+    .await?;
+    if reversed.rows_affected() != 1 {
+        return Err(conflict(
+            "SUPPLIER_BILL_ALREADY_REVERSED",
+            "This supplier bill journal changed before the reversal committed.",
+        ));
+    }
+    let updated = sqlx::query(
+        "UPDATE finance_invoices SET status='voided',outstanding_minor=0,         base_outstanding_minor=0,version=version+1,updated_at=$1          WHERE id=$2 AND company_id=$3 AND status='posted' AND version=$4          AND kind='payable' AND source_type='standalone'",
+    )
+    .bind(now)
+    .bind(id)
+    .bind(&actor.company_id)
+    .bind(input.expected_version)
+    .execute(&mut *c)
+    .await?;
+    if updated.rows_affected() != 1 {
+        return Err(conflict(
+            "VERSION_CONFLICT",
+            "The supplier bill changed. Refresh and review again.",
+        ));
+    }
+    let result = SupplierBillResult {
+        id: id.to_owned(),
+        number: row.try_get("invoice_number")?,
+        total: minor_decimal(row.try_get("total_minor")?),
+        outstanding: "0.00".into(),
+        status: "voided".into(),
+        version: input.expected_version + 1,
+        reversal_journal_id: Some(reversal_id),
     };
     receipt(
         c,
@@ -1419,6 +1743,7 @@ pub async fn create_supplier_bill(
         outstanding: minor_decimal(total),
         status: "draft".into(),
         version: 1,
+        reversal_journal_id: None,
     };
     receipt(
         c,
@@ -1571,6 +1896,7 @@ pub async fn edit_supplier_bill(
         outstanding: minor_decimal(total),
         status: "draft".into(),
         version: revision,
+        reversal_journal_id: None,
     };
     receipt(
         c,
@@ -1634,6 +1960,39 @@ where
     A: JournalAuthority<Error = PgTransactionError<JournalError>> + Send,
     C: Clock + Sync,
 {
+    post_supplier_bill_with_evidence(
+        c,
+        actor,
+        journal_actor,
+        command,
+        id,
+        same_person_as_creator,
+        input,
+        clock,
+        authority,
+        &mut UnmountedSupplierBillEvidence,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn post_supplier_bill_with_evidence<A, C, E>(
+    c: &mut PgConnection,
+    actor: &SalesInvoiceCommandActor,
+    journal_actor: &FinanceActor,
+    command: &CommandKey,
+    id: &str,
+    same_person_as_creator: bool,
+    input: &SupplierBillPostInput,
+    clock: &C,
+    authority: &mut A,
+    evidence: &mut E,
+) -> Result<SupplierBillPostResult, Error>
+where
+    A: JournalAuthority<Error = PgTransactionError<JournalError>> + Send,
+    C: Clock + Sync,
+    E: PgSupplierBillEvidence,
+{
     serializable(c).await?;
     company_actor(
         actor,
@@ -1660,10 +2019,15 @@ where
             "Use an open period, an entry date and a supplier bill draft.",
         ));
     }
-    if !input.attachment_set_ids.is_empty() {
+    if input.attachment_set_ids.len() > SUPPLIER_BILL_EVIDENCE_MAX_SETS
+        || input
+            .attachment_set_ids
+            .iter()
+            .any(|value| value.is_empty())
+    {
         return Err(invalid(
-            "SUPPLIER_BILL_EVIDENCE_UNSUPPORTED",
-            "Supplier-bill review evidence is bound by the retained posting path.",
+            "INVALID_SUPPLIER_BILL_POST",
+            "Choose up to twenty review-evidence file sets.",
         ));
     }
     if input.fx_gain_account_id.is_some() || input.fx_loss_account_id.is_some() {
@@ -1735,6 +2099,25 @@ where
             "The supplier bill changed. Refresh it before posting.",
         ));
     }
+    let prepared_evidence = if input.attachment_set_ids.is_empty() {
+        None
+    } else {
+        Some(
+            evidence
+                .prepare(
+                    c,
+                    SupplierBillEvidenceRequest {
+                        set_ids: input.attachment_set_ids.clone(),
+                        target_id: id.to_owned(),
+                        expected_target_version: invoice.version,
+                        command_id: command.as_str().to_owned(),
+                        binding_type: SUPPLIER_BILL_EVIDENCE_BINDING_TYPE.into(),
+                        binding_id: format!("{id}:{}", invoice.version + 1),
+                    },
+                )
+                .await?,
+        )
+    };
     let chart = chart_for_debit(c, &actor.company_id, &invoice.debit_account_id).await?;
     let debit = account(
         c,
@@ -1968,6 +2351,11 @@ where
         plan.now().get(),
     )
     .await?;
+    if let Some(prepared) = prepared_evidence.as_ref() {
+        // Files re-reads the exact bound sets/links after every posting effect;
+        // drift aborts the whole serializable unit.
+        evidence.require_current(c, prepared).await?;
+    }
     Ok(result)
 }
 
