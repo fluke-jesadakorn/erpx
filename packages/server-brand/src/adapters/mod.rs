@@ -1,3 +1,4 @@
+pub(crate) mod branding_http;
 pub(crate) mod branding;
 pub(crate) mod identity;
 pub(crate) mod identity_read;

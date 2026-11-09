@@ -67,7 +67,7 @@ impl BrandIdentityConfiguration {
 }
 
 #[derive(Clone, Copy)]
-struct BrandSources;
+pub(crate) struct BrandSources;
 
 impl HoldingWorkSourcePreparation for BrandSources {
     fn prepare<'c>(&'c self, _: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
@@ -140,7 +140,7 @@ fn rendered(current: &AuthorizedWorkContext) -> Result<BrandRenderedWorkContext,
     })
 }
 
-fn command_actor(current: &AuthorizedWorkContext) -> Result<CommandActor, BusinessError> {
+pub(crate) fn command_actor(current: &AuthorizedWorkContext) -> Result<CommandActor, BusinessError> {
     let selected = current.selection();
     let workspace = selected.workspace();
     let assignment = selected.assignment();
@@ -180,7 +180,7 @@ fn command_actor(current: &AuthorizedWorkContext) -> Result<CommandActor, Busine
     })
 }
 
-fn brand_actor(current: &AuthorizedWorkContext) -> Result<BrandActor, BusinessError> {
+pub(crate) fn brand_actor(current: &AuthorizedWorkContext) -> Result<BrandActor, BusinessError> {
     Ok(BrandActor::new(
         current.holding_id().as_str(),
         command_actor(current)?,

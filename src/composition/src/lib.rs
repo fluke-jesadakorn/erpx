@@ -56,6 +56,7 @@ pub mod benefits;
 pub mod billing;
 #[cfg(feature = "existing-business")]
 pub mod brand_identity;
+pub mod branding;
 #[cfg(feature = "existing-business")]
 pub mod brand_identity_http;
 #[cfg(feature = "existing-business")]

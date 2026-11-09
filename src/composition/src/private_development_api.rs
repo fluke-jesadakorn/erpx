@@ -587,12 +587,8 @@ impl DevelopmentApiConfiguration {
         if doc.version != 1
             || doc.mode != expected_mode
             || doc.transport != "direct-loopback"
-            || doc.holdings.len()
-                != if contributor || browser_loopback {
-                    3
-                } else {
-                    2
-                }
+            || !(2..=3).contains(&doc.holdings.len())
+            || (contributor || browser_loopback) && doc.holdings.len() != 3
             || !(1..=8).contains(&doc.password_workers)
             || !(1..=64).contains(&doc.maximum_requests)
             || !(250..=60_000).contains(&doc.request_timeout_ms)
@@ -736,12 +732,18 @@ impl DevelopmentApiConfiguration {
                 read_database,
             });
         }
-        let expected_ids = if contributor || browser_loopback {
-            BTreeSet::from(["h001".to_owned(), "h002".to_owned(), "h003".to_owned()])
+        let two_ids = BTreeSet::from(["h001".to_owned(), "h002".to_owned()]);
+        let three_ids = BTreeSet::from([
+            "h001".to_owned(),
+            "h002".to_owned(),
+            "h003".to_owned(),
+        ]);
+        let valid_ids = if contributor || browser_loopback {
+            ids == three_ids
         } else {
-            BTreeSet::from(["h001".to_owned(), "h002".to_owned()])
+            ids == two_ids || ids == three_ids
         };
-        if ids != expected_ids
+        if !valid_ids
             || (contributor
                 && ![("h001", "acme"), ("h002", "northstar"), ("h003", "erpx")]
                     .iter()
@@ -751,6 +753,11 @@ impl DevelopmentApiConfiguration {
                                 && h.registration.slug == *slug
                         })
                     }))
+            || (ids.contains("h003")
+                && !holdings.iter().any(|h| {
+                    h.registration.holding_id.as_str() == "h003"
+                        && h.registration.slug == "erpx"
+                }))
         {
             return Err("EXACT_H001_H002_RESOURCES_REQUIRED");
         }
@@ -2019,6 +2026,7 @@ async fn assemble_checked(
         let mut targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut brand_targets = Vec::new();
+        let mut branding_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut organization_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -2638,6 +2646,42 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                branding_targets.push(erpx_server_brand::public::branding_http::BrandingHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: Arc::new(crate::branding::BrandingBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::branding::BrandingService::new(
+                            authorizer.clone(),
+                            crate::branding::BrandingConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    )),
+                });
+                quality_targets.push(
+                    erpx_server_quality::public::quality_http::QualityHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::quality::QualityBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::quality::QualityService::new(
+                                authorizer.clone(),
+                                crate::quality::QualityConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
                 customer_notes_targets.push(
                     erpx_server_customer_360::public::customer_notes_http::CustomerNotesHttpTarget {
                         host: holding.host.clone(),
@@ -2837,25 +2881,6 @@ async fn assemble_checked(
                         Arc::new(SharedClock(clock.clone())),
                     )),
                 });
-                quality_targets.push(
-                    erpx_server_quality::public::quality_http::QualityHttpTarget {
-                        host: holding.host.clone(),
-                        holding_slug: holding.registration.slug.clone(),
-                        origin: format!("https://{}", holding.host),
-                        backend: Arc::new(crate::quality::QualityBackend::new(
-                            config.policy.clone(),
-                            Arc::new(FinanceJournalReadScopeHeaders),
-                            Arc::new(crate::quality::QualityService::new(
-                                authorizer.clone(),
-                                crate::quality::QualityConfiguration::new(
-                                    holding.registration.holding_id.clone(),
-                                    company.clone(),
-                                ),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )),
-                    },
-                );
                 billing_targets.push(
                     erpx_server_billing::public::billing_http::BillingHttpTarget {
                         host: holding.host.clone(),
@@ -3433,6 +3458,15 @@ async fn assemble_checked(
                     brand_targets,
                 )
                 .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !branding_targets.is_empty() {
+            router = router.merge(
+                erpx_server_brand::public::branding_http::branding_http_router(
+                    branding_targets,
+                )
+                .map_err(|_| "PRIVATE_API_BRANDING_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]
@@ -4699,6 +4733,18 @@ async fn assemble_checked(
             })
             .collect(),
         #[cfg(feature = "existing-business")]
+        branding_targets: config
+            .operations_companies
+            .keys()
+            .filter_map(|holding_id| {
+                config
+                    .holdings
+                    .iter()
+                    .find(|h| &h.registration.holding_id == holding_id)
+                    .map(|h| (h.host.clone(), h.registration.slug.clone()))
+            })
+            .collect(),
+        #[cfg(feature = "existing-business")]
         brand_targets: config
             .finance_journal_reads
             .keys()
@@ -4892,6 +4938,7 @@ struct Boundary {
     crm_command_targets: BTreeSet<(String, String)>,
     marketing_command_targets: BTreeSet<(String, String)>,
     brand_targets: BTreeSet<(String, String)>,
+    branding_targets: BTreeSet<(String, String)>,
     bank_targets: BTreeSet<(String, String)>,
     generic_payment_targets: BTreeSet<(String, String)>,
     bank_workspace_targets: BTreeSet<(String, String)>,
@@ -6609,6 +6656,23 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .contains(&(host.to_owned(), (*slug).to_owned())),
         _ => false,
     };
+    let branding = match (
+        request.method(),
+        request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) {
+        (
+            &axum::http::Method::GET | &axum::http::Method::POST,
+            ["", "api", "v1", "holdings", slug, "branding"],
+        ) => state
+            .branding_targets
+            .contains(&(host.to_owned(), (*slug).to_owned())),
+        _ => false,
+    };
     let generic_payment = match (
         request.method(),
         request
@@ -7622,6 +7686,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || handbook
         || learning
         || brand
+        || branding
         || bank
         || generic_payment
         || finance_supplier_bill

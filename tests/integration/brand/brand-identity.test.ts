@@ -60,7 +60,7 @@ async function seedRollback(publishedId:string,identityValue:BrandIdentity,input
 async function seedMedia(state:"draft"|"approved"){
  const token=key(),setId=`brand-media-set-${token}`,linkId=`brand-media-link-${token}`,publicationId=`brand-media-${token}`,revision=state==="approved"?1:2;
  await db.batch([
-  db.prepare("INSERT INTO attachment_sets(id,company_id,target_type,target_id,component_kind,purpose_key,expected_target_version,policy_version,classification,audience_json,created_by,created_at,updated_at) VALUES(?,?, 'company_storefront_brand',?,'publication','logo',1,1,'public','[]',?,?,?)").bind(setId,f.company,f.company,f.owner.userId,1,1),
+  db.prepare("INSERT INTO attachment_sets(id,company_id,target_type,target_id,component_kind,purpose_key,expected_target_version,policy_version,classification,audience_json,created_by,created_at,updated_at) VALUES(?,?, 'company_storefront_brand',?,'publication','logo',?,1,'public','[]',?,?,?)").bind(setId,f.company,f.company,revision,f.owner.userId,1,1),
   db.prepare("INSERT INTO attachment_links(id,set_id,state,created_by,created_at,expires_at) VALUES(?,?,'draft',?,?,?)").bind(linkId,setId,f.owner.userId,1,9007199254740000),
   db.prepare("INSERT INTO attachment_publications(id,company_id,source_link_id,target_type,target_id,derivative_object_key,derivative_media_type,derivative_checksum_sha256,derivative_bytes,alt_text,revision,state,created_by,created_at,approved_by,approved_at) VALUES(?,?,?,'company_storefront_brand',?,?,'image/webp','checksum',10,'Fixture approved logo',?,?,?,?,?,?)").bind(publicationId,f.company,linkId,f.company,`${token}.webp`,revision,state,f.owner.userId,1,state==="approved"?f.head.userId:null,state==="approved"?2:null),
  ]);

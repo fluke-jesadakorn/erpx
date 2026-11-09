@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T21:19:26+07:00",
+  "updatedAt": "2026-11-09T22:42:51+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -22,7 +22,7 @@
     "workflowsPartial": 55,
     "workflowsVerified": 68,
     "workflowsMerged": 68,
-    "ownersComplete": 2,
+    "ownersComplete": 3,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
   },
@@ -3556,6 +3556,15 @@
       "sourceIdentity": "working tree on eb0cd282f",
       "evidenceRef": "docs/testing/evidence/2026-11-09-field-service-owner-certification.json",
       "durableContractRefs": []
+    },
+    {
+      "id": "brand-owner-certification",
+      "kind": "owner-certification",
+      "status": "owner-complete",
+      "scope": "Brand owner: 3/3 workflows verified, all applicable surfaces active, h003 mounted in the native Account/private API, native /branding GET/POST and /brand identity routes mounted, TypeScript identity/branding writers retired, authenticated desktop/mobile draft create-save-reload and media/storefront command browser gates, brand unit/integration/cargo suites green.",
+      "sourceIdentity": "working tree on fd20896de",
+      "evidenceRef": "docs/testing/evidence/2026-11-09-brand-owner-certification.json",
+      "durableContractRefs": []
     }
   ],
   "workflows": [
@@ -6643,7 +6652,7 @@
         "partial": 0,
         "unstarted": 0,
         "phase": "active",
-        "businessMigrationComplete": false
+        "businessMigrationComplete": true
       },
       "commercial": {
         "workflows": 5,

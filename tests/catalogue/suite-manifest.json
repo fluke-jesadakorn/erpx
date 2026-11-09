@@ -86731,6 +86731,61 @@
       }
     },
     {
+      "id": "brand.rust-branding-http.integration",
+      "lane": "integration",
+      "owner": "brand",
+      "modules": [
+        "brand"
+      ],
+      "files": [
+        "tests/integration/brand/rust-branding-http.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Branding HTTP ingress retains exact targets, bounded reads/commands and fail-closed errors."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-brand",
+        "targets": [
+          "branding_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-brand/Cargo.toml"
+      ],
+      "apps": [
+        "admin"
+      ],
+      "packages": [
+        "@erpx/server-brand",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
       "id": "workflow.rust-task-decision-postgres.integration",
       "lane": "integration",
       "owner": "workflow",

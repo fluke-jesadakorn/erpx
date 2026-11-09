@@ -10,7 +10,7 @@
       "id": "brand",
       "package": "erpx-server-brand",
       "phase": "active",
-      "businessMigrationComplete": false,
+      "businessMigrationComplete": true,
       "surfaces": {
         "domain": "active",
         "application": "active",
