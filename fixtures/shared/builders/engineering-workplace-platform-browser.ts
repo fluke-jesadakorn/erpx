@@ -24,7 +24,6 @@ import {connectionInput,saveConnection} from "@erpx/server-identity_access/publi
 import {accessReviewCampaignInput,startAccessReviewCampaign} from "@erpx/server-identity_access/public/iam-service";
 import {selectWorkRole} from "@erpx/server-work_projection/public/work-role-store";
 import {createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,drainAttachmentScans,bindRecordAttachmentSet,createAttachmentPublication,approveAttachmentPublication} from "@erpx/server-files/public/attachments/service";
-import {saveBrandIdentityDraft} from "@erpx/server-brand/public/brand-identity";
 import {savePostDraft,publishPost,postDraftSchema,postView} from '@erpx/server-collaboration/public/social-home';
 import {createMessagingRoom,sendMessagingMessage,roomSchema,messageSchema} from '@erpx/server-collaboration/public/messaging';
 import {createRecordRelation,createActionCard,collaborationWorkspace} from "@erpx/server-collaboration/public/collaboration-work";
@@ -69,7 +68,15 @@ export async function seedEngineeringWorkplacePlatformBrowser(input:Input){
  const task=await saveTask(input.h001,author,null,taskSchema.parse({title:'Fictional shipment exception source',description:'Native task source; no real customer incident',projectId:String(showcaseProject.id),assigneeUserId:operator.userId,dueAt:'2026-10-20T00:00:00+07:00'}),key());
  const showcaseSource=await saveTask(input.h001,author,null,taskSchema.parse({title:'Fictional shared delivery review source',description:'Native project evidence readable only by its owner, members and task participants',projectId:String(showcaseProject.id),assigneeUserId:operator.userId}),key());
  const showcaseTarget=await saveTask(input.h001,author,null,taskSchema.parse({title:'Fictional shared delivery confirmation',description:'Second native task in the same participant-controlled project',projectId:String(showcaseProject.id),assigneeUserId:reviewer.userId}),key());
- const brandDraft=await saveBrandIdentityDraft(author,{expectedPublishedVersion:0,identity:{identity:{shortName:'Fictional Workplace',tagline:'Declared engineering example awaiting independent publication'},visual:{accentColor:'#2864a0',logoPublicationId:null}},reason:'Native unused identity draft for the all-module fictional showcase; no publication'},key());
+ // Fixture state for the all-module showcase. Brand identity commands are owned
+ // by the native command/HTTP path; this unreviewed draft is seeded directly so
+ // the retained Brand read surface has an unpublished draft to display.
+ const brandDraftId=`brand-draft-fixture-${key()}`,brandIdentity={identity:{shortName:'Fictional Workplace',tagline:'Declared engineering example awaiting independent publication'},visual:{accentColor:'#2864a0',logoPublicationId:null}};
+ await input.h001.batch([
+  input.h001.prepare("INSERT INTO brand_identity_drafts(id,company_id,based_revision,identity_json,created_by,updated_by,created_at,updated_at) VALUES(?,?,0,?,?,?,?,?)").bind(brandDraftId,workplace.company,JSON.stringify(brandIdentity),author.userId,author.userId,now,now),
+  input.h001.prepare("INSERT INTO brand_identity_events(id,company_id,record_id,action,version,actor_id,reason,details_json,created_at) VALUES(?,?,?,'draft',1,?,?,?,?)").bind(`brand-event-${brandDraftId}`,workplace.company,brandDraftId,author.userId,'Native unused identity draft fixture; no publication',JSON.stringify({identity:brandIdentity,basedRevision:0}),now),
+ ]);
+ const brandDraft={id:brandDraftId,status:'draft',version:1};
  const socialDraft=await savePostDraft(input.h001,author,null,postDraftSchema.parse({body:'Fictional delivery team update: the native exception source is ready for human review. Only the selected engineering participants can read this post.',purpose:'handover',audience:{kind:'participants',userIds:[reviewer.userId,operator.userId]},sources:[{kind:'staff_task',id:String(showcaseSource.id),version:1}]}),key()),socialPost=await publishPost(input.h001,author,String(socialDraft.id),1,key());
  const room=await createMessagingRoom(input.h001,author,roomSchema.parse({kind:'group',name:'Fictional delivery review thread',members:[reviewer.userId,operator.userId]}),key()),message=await sendMessagingMessage(input.h001,reviewer,room.id,messageSchema.parse({body:'Independent fictional reviewer: retain the source evidence and confirm the delivery before closing the exception.'}),key());
  const relation=await createRecordRelation(author,{sourceType:'staff_task',sourceId:String(showcaseSource.id),targetType:'staff_task',targetId:String(showcaseTarget.id),relation:'related',reason:'Declared fictional native source relation for the human review handoff'},key()),card=await createActionCard(author,{sourceType:'staff_task',sourceId:String(showcaseSource.id),title:'Fictional delivery review action',ownerId:operator.userId,dueAt:now+3*86400000,reason:'Human-owned action linked to the current native task source'},key());

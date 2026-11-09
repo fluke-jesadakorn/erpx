@@ -24,7 +24,6 @@
     "./public/business-document": "./src/public/business-document.ts",
     "./public/front-brand-projection": "./src/public/front-brand-projection.ts",
     "./index": "./src/index.ts",
-    "./application/identity": "./src/application/identity.ts",
     "./application/identity-read": "./src/application/identity-read.ts",
     "./application/branding": "./src/application/branding.ts",
     "./application/business-document": "./src/application/business-document.ts",

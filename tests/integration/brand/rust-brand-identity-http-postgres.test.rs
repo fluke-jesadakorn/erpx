@@ -193,6 +193,70 @@ async fn brand_http_reads_and_saves_a_draft_under_normal_session_authority() {
         .await
         .unwrap();
         assert_eq!((audit, outbox), (1, 1));
+        let unpublished_storefront: Option<(String, String)> = sqlx::query_as(
+            "SELECT short_name,accent_color FROM storefront_app_brands WHERE company_id='company'",
+        )
+        .fetch_optional(p.system.holdings[0].raw())
+        .await
+        .unwrap();
+        assert!(
+            unpublished_storefront.is_none(),
+            "an unpublished HTTP draft leaves the storefront projection unchanged"
+        );
+        let before: (i64, i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM brand_identity_drafts WHERE company_id='company'),(SELECT count(*) FROM brand_identity_events WHERE company_id='company'),(SELECT count(*) FROM command_receipts WHERE command_id='brand-http-save-1'),(SELECT count(*) FROM audit_events WHERE command_id='brand-http-save-1'),(SELECT count(*) FROM outbox_events WHERE command_id='brand-http-save-1')",
+        ).fetch_one(p.system.holdings[0].raw()).await.unwrap();
+        assert_eq!(before, (1, 1, 1, 1, 1));
+        let snapshot_sql = "SELECT jsonb_build_object('drafts',(SELECT coalesce(jsonb_agg(to_jsonb(d) ORDER BY d.id),'[]'::jsonb) FROM brand_identity_drafts d WHERE d.company_id='company'),'events',(SELECT coalesce(jsonb_agg(to_jsonb(e) ORDER BY e.id),'[]'::jsonb) FROM brand_identity_events e WHERE e.company_id='company'),'receipt',(SELECT coalesce(jsonb_agg(to_jsonb(r) ORDER BY r.command_id),'[]'::jsonb) FROM command_receipts r WHERE r.command_id='brand-http-save-1'),'audit',(SELECT coalesce(jsonb_agg(to_jsonb(a) ORDER BY to_jsonb(a)::text),'[]'::jsonb) FROM audit_events a WHERE a.command_id='brand-http-save-1'),'outbox',(SELECT coalesce(jsonb_agg(to_jsonb(o) ORDER BY to_jsonb(o)::text),'[]'::jsonb) FROM outbox_events o WHERE o.command_id='brand-http-save-1'))::text";
+        let snapshot: String = sqlx::query_scalar(snapshot_sql).fetch_one(p.system.holdings[0].raw()).await.unwrap();
+        let replay = Request::builder()
+            .method("POST").uri("/api/v1/holdings/acme/brand")
+            .header("host", "acme.example.test").header("cookie", cookie(&p))
+            .header("origin", "https://acme.example.test").header("idempotency-key", "brand-http-save-1")
+            .header("x-erpx-context-company", "company").header("x-erpx-context-assignment", "brand-fixture-a")
+            .header("x-erpx-context-revision", "7").header("x-erpx-context-assignment-version", "3")
+            .header("content-type", "application/json")
+            .body(Body::from(r##"{"action":"save","expectedPublishedVersion":0,"identity":{"identity":{"shortName":"Acme HTTP","tagline":"Native brand"},"visual":{"accentColor":"#224488","logoPublicationId":null}},"reason":"Prepare the current storefront identity."}"##)).unwrap();
+        let response = app.clone().oneshot(replay).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let replay_value: serde_json::Value = serde_json::from_slice(&to_bytes(response.into_body(), 64 * 1024).await.unwrap()).unwrap();
+        assert_eq!(replay_value["data"], value["data"]);
+        let after: (i64, i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM brand_identity_drafts WHERE company_id='company'),(SELECT count(*) FROM brand_identity_events WHERE company_id='company'),(SELECT count(*) FROM command_receipts WHERE command_id='brand-http-save-1'),(SELECT count(*) FROM audit_events WHERE command_id='brand-http-save-1'),(SELECT count(*) FROM outbox_events WHERE command_id='brand-http-save-1')",
+        ).fetch_one(p.system.holdings[0].raw()).await.unwrap();
+        assert_eq!(after, before);
+        let after_replay: String = sqlx::query_scalar(snapshot_sql).fetch_one(p.system.holdings[0].raw()).await.unwrap();
+        assert_eq!(after_replay, snapshot);
+        let conflict = Request::builder()
+            .method("POST").uri("/api/v1/holdings/acme/brand")
+            .header("host", "acme.example.test").header("cookie", cookie(&p))
+            .header("origin", "https://acme.example.test").header("idempotency-key", "brand-http-save-1")
+            .header("x-erpx-context-company", "company").header("x-erpx-context-assignment", "brand-fixture-a")
+            .header("x-erpx-context-revision", "7").header("x-erpx-context-assignment-version", "3")
+            .header("content-type", "application/json")
+            .body(Body::from(r##"{"action":"save","expectedPublishedVersion":0,"identity":{"identity":{"shortName":"Changed HTTP","tagline":"Native brand"},"visual":{"accentColor":"#224488","logoPublicationId":null}},"reason":"Prepare the current storefront identity."}"##)).unwrap();
+        let response = app.clone().oneshot(conflict).await.unwrap();
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        let error: serde_json::Value = serde_json::from_slice(&to_bytes(response.into_body(), 64 * 1024).await.unwrap()).unwrap();
+        assert_eq!(error["error"]["code"], "IDEMPOTENCY_CONFLICT");
+        let after_conflict: String = sqlx::query_scalar(snapshot_sql).fetch_one(p.system.holdings[0].raw()).await.unwrap();
+        assert_eq!(after_conflict, snapshot);
+        // A stale selected-work revision must be rejected even for a previously
+        // committed key, before a replay can return the retained receipt.
+        let stale = Request::builder()
+            .method("POST").uri("/api/v1/holdings/acme/brand")
+            .header("host", "acme.example.test").header("cookie", cookie(&p))
+            .header("origin", "https://acme.example.test").header("idempotency-key", "brand-http-save-1")
+            .header("x-erpx-context-company", "company").header("x-erpx-context-assignment", "brand-fixture-a")
+            .header("x-erpx-context-revision", "6").header("x-erpx-context-assignment-version", "3")
+            .header("content-type", "application/json")
+            .body(Body::from(r##"{"action":"save","expectedPublishedVersion":0,"identity":{"identity":{"shortName":"Acme HTTP","tagline":"Native brand"},"visual":{"accentColor":"#224488","logoPublicationId":null}},"reason":"Prepare the current storefront identity."}"##)).unwrap();
+        let response = app.clone().oneshot(stale).await.unwrap();
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        let error: serde_json::Value = serde_json::from_slice(&to_bytes(response.into_body(), 64 * 1024).await.unwrap()).unwrap();
+        assert_eq!(error["error"]["code"], "WORK_CONTEXT_CHANGED");
+        let after_stale: String = sqlx::query_scalar(snapshot_sql).fetch_one(p.system.holdings[0].raw()).await.unwrap();
+        assert_eq!(after_stale, snapshot);
         let _ = owned_maker(&p);
     })
     .await;
@@ -290,4 +354,64 @@ async fn brand_route_is_reachable_through_the_private_api_boundary() {
         assert!(value["data"]["drafts"].is_array());
     })
     .await;
+}
+
+#[tokio::test]
+async fn brand_http_independent_publication_replays_and_rejects_self_review() {
+    // The retained TS policy is an oracle for its own error contract. Native
+    // must return the same forbidden status and code for the same condition.
+    let script = r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);try{m.assertBrandIndependentPublisher(id=>id==='fixture-a','fixture-a','fixture-a');throw Error('EXPECTED_REJECTION')}catch(e){process.stdout.write(JSON.stringify({status:e.status,code:e.code}))}"#;
+    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let oracle=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
+        .current_dir(&root).args(["--conditions=react-server","-e",script])
+        .arg(root.join("packages/server-brand/src/domain/policy.ts")).output().unwrap();
+    assert!(oracle.status.success(),"actual TS Brand oracle: {}",String::from_utf8_lossy(&oracle.stderr));
+    let ts_error:serde_json::Value=serde_json::from_slice(&oracle.stdout).unwrap();
+    assert_eq!(ts_error,serde_json::json!({"status":403,"code":"BRAND_INDEPENDENT_PUBLICATION"}));
+    review::account::with_system(|system| async move {
+        let p=review::setup_with_finance(system,false).await;
+        seed(&p).await;
+        let db=p.system.holdings[0].raw();
+        sqlx::raw_sql("INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,status,version,created_by,created_at,updated_at) VALUES('brand-person-b','fixture-b','company','Synthetic Brand reviewer','TH','active',1,'synthetic-fixture',0,0); INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,job_title,currency,version,created_by,created_at,updated_at) VALUES('brand-engagement-b','brand-person-b','company','employee','salaried','active','2026-01-01','Brand reviewer','THB',1,'synthetic-fixture',0,0); INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy,version) VALUES('company','fixture-b','local:fixture-b','brand-person-b','active','local',1); INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind) VALUES('brand-fixture-b','fixture-b','custom_brand_manager','[\"brand\"]','company',0,9007199254740991,3,'holding'); UPDATE active_work_contexts SET assignment_id='brand-fixture-b',assignment_version=3,revision=7 WHERE user_id='fixture-b'").execute(db).await.unwrap();
+        let app=router(&p);
+        let request=|token:&str,assignment:&str,key:&str,body:&str| Request::builder()
+            .method("POST").uri("/api/v1/holdings/acme/brand").header("host","acme.example.test")
+            .header("cookie",format!("__Host-erpx-product={token}"))
+            .header("origin","https://acme.example.test").header("idempotency-key",key)
+            .header("x-erpx-context-company","company").header("x-erpx-context-assignment",assignment)
+            .header("x-erpx-context-revision","7").header("x-erpx-context-assignment-version","3")
+            .header("content-type","application/json").body(Body::from(body.to_owned())).unwrap();
+        let maker=p.maker_token.expose(); let reviewer=p.reviewer_token.expose();
+        let draft=r##"{"action":"save","expectedPublishedVersion":0,"identity":{"identity":{"shortName":"Reviewed HTTP","tagline":"Independent review"},"visual":{"accentColor":"#224488","logoPublicationId":null}},"reason":"Prepare reviewable identity"}"##;
+        let response=app.clone().oneshot(request(maker,"brand-fixture-a","brand-http-independent-draft",draft)).await.unwrap(); assert_eq!(response.status(),StatusCode::OK);
+        let unpublished_storefront:Option<(String,String)>=sqlx::query_as("SELECT short_name,accent_color FROM storefront_app_brands WHERE company_id='company'").fetch_optional(db).await.unwrap(); assert!(unpublished_storefront.is_none(),"an unpublished HTTP draft leaves the storefront projection unchanged");
+        let publish=r#"{"action":"publish","id":"brand-draft-brand-http-independent-draft","expectedVersion":1,"expectedPublishedVersion":0,"reason":"Independent publication review"}"#;
+        let response=app.clone().oneshot(request(maker,"brand-fixture-a","brand-http-self-publish",publish)).await.unwrap(); assert_eq!(response.status(),StatusCode::FORBIDDEN);
+        let error:serde_json::Value=serde_json::from_slice(&to_bytes(response.into_body(),64*1024).await.unwrap()).unwrap(); assert_eq!(error["error"]["code"],"BRAND_INDEPENDENT_PUBLICATION");
+        let denied:(i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM brand_identity_versions),(SELECT count(*) FROM command_receipts WHERE command_id='brand-http-self-publish'),(SELECT count(*) FROM audit_events WHERE command_id='brand-http-self-publish'),(SELECT count(*) FROM outbox_events WHERE command_id='brand-http-self-publish')").fetch_one(db).await.unwrap(); assert_eq!(denied,(0,0,0,0));
+        let response=app.clone().oneshot(request(reviewer,"brand-fixture-b","brand-http-independent-publish",publish)).await.unwrap(); assert_eq!(response.status(),StatusCode::OK);
+        let published:serde_json::Value=serde_json::from_slice(&to_bytes(response.into_body(),64*1024).await.unwrap()).unwrap();
+        assert_eq!(published["data"]["status"],"published"); assert_eq!(published["data"]["version"],2); assert_eq!(published["data"]["revision"],1);
+        let snapshot_sql="SELECT jsonb_build_object('draft',(SELECT to_jsonb(d) FROM brand_identity_drafts d WHERE d.id='brand-draft-brand-http-independent-draft'),'versions',(SELECT coalesce(jsonb_agg(to_jsonb(v) ORDER BY v.id),'[]'::jsonb) FROM brand_identity_versions v WHERE v.company_id='company'),'active',(SELECT to_jsonb(a) FROM brand_identity_active a WHERE a.company_id='company'),'events',(SELECT coalesce(jsonb_agg(to_jsonb(e) ORDER BY e.id),'[]'::jsonb) FROM brand_identity_events e WHERE e.company_id='company'),'receipt',(SELECT to_jsonb(r) FROM command_receipts r WHERE r.command_id='brand-http-independent-publish'),'audit',(SELECT coalesce(jsonb_agg(to_jsonb(a) ORDER BY to_jsonb(a)::text),'[]'::jsonb) FROM audit_events a WHERE a.command_id='brand-http-independent-publish'),'outbox',(SELECT coalesce(jsonb_agg(to_jsonb(o) ORDER BY to_jsonb(o)::text),'[]'::jsonb) FROM outbox_events o WHERE o.command_id='brand-http-independent-publish'))::text";
+        let snapshot:String=sqlx::query_scalar(snapshot_sql).fetch_one(db).await.unwrap(); let facts:serde_json::Value=serde_json::from_str(&snapshot).unwrap();
+        assert_eq!(facts["draft"]["status"],"published"); assert_eq!(facts["draft"]["version"],2);
+        assert_eq!(facts["draft"]["created_by"],"fixture-a");
+        assert_eq!(facts["versions"].as_array().unwrap().len(),1);
+        assert_eq!(facts["versions"][0]["created_by"],"fixture-a"); assert_eq!(facts["versions"][0]["published_by"],"fixture-b");
+        assert_eq!(facts["versions"][0]["draft_id"],"brand-draft-brand-http-independent-draft");
+        assert_eq!(facts["active"]["identity_version_id"],facts["versions"][0]["id"]);
+        assert_eq!(facts["active"]["version"],1); assert_eq!(facts["active"]["updated_by"],"fixture-b");
+        let identity:serde_json::Value=serde_json::from_str(facts["versions"][0]["identity_json"].as_str().unwrap()).unwrap();
+        assert_eq!(identity["identity"]["shortName"],"Reviewed HTTP"); assert_eq!(identity["visual"]["accentColor"],"#224488");
+        let published_storefront:(String,String)=sqlx::query_as("SELECT short_name,accent_color FROM storefront_app_brands WHERE company_id='company'").fetch_one(db).await.unwrap(); assert_eq!(published_storefront,("Reviewed HTTP".into(),"#224488".into()),"publication activates the exact storefront projection");
+        assert_eq!(facts["events"].as_array().unwrap().len(),2); assert!(facts["receipt"].is_object()); assert_eq!(facts["audit"].as_array().unwrap().len(),1); assert_eq!(facts["outbox"].as_array().unwrap().len(),1);
+        let response=app.clone().oneshot(request(reviewer,"brand-fixture-b","brand-http-independent-publish",publish)).await.unwrap(); assert_eq!(response.status(),StatusCode::OK);
+        let replay:serde_json::Value=serde_json::from_slice(&to_bytes(response.into_body(),64*1024).await.unwrap()).unwrap(); assert_eq!(replay["data"],published["data"]);
+        let after:String=sqlx::query_scalar(snapshot_sql).fetch_one(db).await.unwrap(); assert_eq!(after,snapshot);
+        let stale=r#"{"action":"publish","id":"brand-draft-brand-http-independent-draft","expectedVersion":1,"expectedPublishedVersion":0,"reason":"Stale independent publication"}"#;
+        let response=app.clone().oneshot(request(reviewer,"brand-fixture-b","brand-http-stale-publish",stale)).await.unwrap(); assert_eq!(response.status(),StatusCode::NOT_FOUND);
+        let error:serde_json::Value=serde_json::from_slice(&to_bytes(response.into_body(),64*1024).await.unwrap()).unwrap(); assert_eq!(error["error"]["code"],"BRAND_DRAFT_UNAVAILABLE");
+        let after_stale:String=sqlx::query_scalar(snapshot_sql).fetch_one(db).await.unwrap(); assert_eq!(after_stale,snapshot);
+        let stale_effects:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id='brand-http-stale-publish'),(SELECT count(*) FROM audit_events WHERE command_id='brand-http-stale-publish'),(SELECT count(*) FROM outbox_events WHERE command_id='brand-http-stale-publish')").fetch_one(db).await.unwrap(); assert_eq!(stale_effects,(0,0,0));
+    }).await;
 }

@@ -307,6 +307,16 @@ where
 
 async fn exercise(pool: &DatabasePool, pool_people: &People) {
     // --- draft create, replay and CAS ---
+    let storefront_before: Option<(String, String)> = sqlx::query_as(
+        "SELECT short_name,accent_color FROM storefront_app_brands WHERE company_id='company'",
+    )
+    .fetch_optional(pool.raw())
+    .await
+    .unwrap();
+    assert!(
+        storefront_before.is_none(),
+        "the fixture starts without a storefront brand row"
+    );
     let first = save(
         pool,
         &pool_people.owner,
@@ -333,6 +343,29 @@ async fn exercise(pool: &DatabasePool, pool_people: &People) {
         first,
         "an exact replay returns the retained result"
     );
+    let draft_effects: (i64, i64, i64) = sqlx::query_as(
+        "SELECT (SELECT count(*) FROM brand_identity_drafts WHERE company_id='company'),\
+         (SELECT count(*) FROM brand_identity_versions WHERE company_id='company'),\
+         (SELECT count(*) FROM brand_identity_events WHERE company_id='company')",
+    )
+    .fetch_one(pool.raw())
+    .await
+    .unwrap();
+    assert_eq!(
+        draft_effects,
+        (1, 0, 1),
+        "a draft save and its replay create exactly one draft and one event without publishing"
+    );
+    let storefront_after_draft: Option<(String, String)> = sqlx::query_as(
+        "SELECT short_name,accent_color FROM storefront_app_brands WHERE company_id='company'",
+    )
+    .fetch_optional(pool.raw())
+    .await
+    .unwrap();
+    assert_eq!(
+        storefront_after_draft, storefront_before,
+        "an unpublished draft never changes the storefront projection"
+    );
     assert_eq!(
         code(
             save(
@@ -347,8 +380,25 @@ async fn exercise(pool: &DatabasePool, pool_people: &People) {
         ),
         "IDEMPOTENCY_CONFLICT"
     );
+    let after_conflict: (i64, i64, i64) = sqlx::query_as(
+        "SELECT (SELECT count(*) FROM brand_identity_drafts WHERE company_id='company'),\
+         (SELECT count(*) FROM brand_identity_versions WHERE company_id='company'),\
+         (SELECT count(*) FROM brand_identity_events WHERE company_id='company')",
+    )
+    .fetch_one(pool.raw())
+    .await
+    .unwrap();
+    assert_eq!(
+        after_conflict, draft_effects,
+        "a changed-body replay conflict leaves the draft and evidence unchanged"
+    );
     let initial = workspace(pool, &pool_people.owner, NOW + 100).await.unwrap();
     assert_eq!(initial.drafts.len(), 1);
+    assert_eq!(
+        serde_json::from_str::<Value>(&initial.drafts[0].identity_json).unwrap(),
+        identity("Engineering demo", "#224488", None),
+        "the retained draft row exposes the exact canonical identity payload"
+    );
     assert!(initial.active.is_none());
     assert_eq!(initial.initial.identity.short_name, "Acme");
     assert_eq!(initial.initial.visual.accent_color, "#3659c9");
@@ -422,6 +472,21 @@ async fn exercise(pool: &DatabasePool, pool_people: &People) {
         ),
         "BRAND_INDEPENDENT_PUBLICATION"
     );
+    let denied_effects: (i64, i64, i64, i64, i64) = sqlx::query_as(
+        "SELECT (SELECT count(*) FROM brand_identity_versions WHERE company_id='company'),\
+         (SELECT count(*) FROM brand_identity_active WHERE company_id='company'),\
+         (SELECT count(*) FROM command_receipts WHERE command_id='brand-publish-0004'),\
+         (SELECT count(*) FROM audit_events WHERE command_id='brand-publish-0004'),\
+         (SELECT count(*) FROM outbox_events WHERE command_id='brand-publish-0004')",
+    )
+    .fetch_one(pool.raw())
+    .await
+    .unwrap();
+    assert_eq!(
+        denied_effects,
+        (0, 0, 0, 0, 0),
+        "a maker self-publication attempt writes no version, active identity or command effects"
+    );
     let published = publish(
         pool,
         &pool_people.head,
@@ -480,6 +545,17 @@ async fn exercise(pool: &DatabasePool, pool_people: &People) {
             .await
             .unwrap();
     assert_eq!(storefront, ("Reviewed demo name".into(), "#224488".into()));
+    let active_row: (String, i64) = sqlx::query_as(
+        "SELECT identity_version_id,version FROM brand_identity_active WHERE company_id='company'",
+    )
+    .fetch_one(pool.raw())
+    .await
+    .unwrap();
+    assert_eq!(
+        active_row,
+        ("brand-version-brand-publish-0004".into(), 1),
+        "the active pointer selects the exact immutable published version"
+    );
     let receipt: String =
         scalar(pool, "SELECT operation FROM command_receipts WHERE command_id='brand-publish-0004'").await;
     assert_eq!(receipt, "brand.identity.publish");
@@ -555,6 +631,20 @@ async fn exercise(pool: &DatabasePool, pool_people: &People) {
             "CONFLICT",
             "unapproved media {logo} is rejected"
         );
+        let rejected: (i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM brand_identity_drafts WHERE id=?),\
+             (SELECT count(*) FROM brand_identity_events WHERE id=?)",
+        )
+        .bind(format!("brand-draft-{key}"))
+        .bind(format!("brand-event-{key}"))
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            rejected,
+            (0, 0),
+            "a rejected media save writes no draft or event"
+        );
     }
 
     // --- category locks ---
@@ -619,6 +709,18 @@ async fn exercise(pool: &DatabasePool, pool_people: &People) {
             .unwrap_err()
         ),
         "BRAND_CATEGORY_LOCKED"
+    );
+    let locked_rejection: (i64, i64) = sqlx::query_as(
+        "SELECT (SELECT count(*) FROM brand_identity_drafts WHERE id='brand-draft-brand-lock-0010'),\
+         (SELECT count(*) FROM brand_identity_events WHERE id='brand-event-brand-lock-0010')",
+    )
+    .fetch_one(pool.raw())
+    .await
+    .unwrap();
+    assert_eq!(
+        locked_rejection,
+        (0, 0),
+        "a locked-category save writes no draft or event"
     );
     let permitted = save(
         pool,
@@ -786,6 +888,17 @@ async fn rollback_cas_cancel_and_immutable_evidence() {
         )
         .await
         .unwrap();
+        let active_before_locked_rollback: (String, i64) = sqlx::query_as(
+            "SELECT v.id,a.version FROM brand_identity_active a JOIN brand_identity_versions v \
+             ON v.id=a.identity_version_id AND v.company_id=a.company_id WHERE a.company_id='company'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            active_before_locked_rollback.1, 2,
+            "the second publication is active before the blocked restore"
+        );
         assert_eq!(
             code(
                 rollback(
@@ -799,6 +912,21 @@ async fn rollback_cas_cancel_and_immutable_evidence() {
                 .unwrap_err()
             ),
             "BRAND_CATEGORY_LOCKED"
+        );
+        let locked_rollback_effects: (String, i64, i64, i64) = sqlx::query_as(
+            "SELECT v.id,(SELECT count(*) FROM command_receipts WHERE command_id='brand-rollback-0006'),\
+             (SELECT count(*) FROM audit_events WHERE command_id='brand-rollback-0006'),\
+             (SELECT count(*) FROM outbox_events WHERE command_id='brand-rollback-0006') \
+             FROM brand_identity_active a JOIN brand_identity_versions v \
+             ON v.id=a.identity_version_id AND v.company_id=a.company_id WHERE a.company_id='company'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            locked_rollback_effects,
+            (active_before_locked_rollback.0.clone(), 0, 0, 0),
+            "a locked restore leaves the active identity and command effects unchanged"
         );
         change_lock(
             &pool,
@@ -850,6 +978,17 @@ async fn rollback_cas_cancel_and_immutable_evidence() {
             data.active.as_ref().unwrap().identity.identity.short_name,
             "First identity"
         );
+        let rolled_back_storefront: (String, String) = sqlx::query_as(
+            "SELECT short_name,accent_color FROM storefront_app_brands WHERE company_id='company'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            rolled_back_storefront,
+            ("First identity".into(), "#224488".into()),
+            "rollback activates the exact retained storefront projection"
+        );
         assert_eq!(data.versions.len(), 2);
         assert_eq!(
             data.history
@@ -885,6 +1024,21 @@ async fn rollback_cas_cancel_and_immutable_evidence() {
                 .unwrap_err()
             ),
             "BRAND_VERSION_UNAVAILABLE"
+        );
+        let rejected_rollbacks: (i64, i64, i64, String) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM command_receipts WHERE command_id IN ('brand-rollback-0009','brand-rollback-0010')),\
+             (SELECT count(*) FROM audit_events WHERE command_id IN ('brand-rollback-0009','brand-rollback-0010')),\
+             (SELECT count(*) FROM outbox_events WHERE command_id IN ('brand-rollback-0009','brand-rollback-0010')),\
+             (SELECT v.id FROM brand_identity_active a JOIN brand_identity_versions v \
+              ON v.id=a.identity_version_id AND v.company_id=a.company_id WHERE a.company_id='company')",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            rejected_rollbacks,
+            (0, 0, 0, first_published.clone()),
+            "stale or unavailable restores write no effects and keep the restored publication active"
         );
 
         // Cancellation retains both the draft row and its event.
@@ -970,6 +1124,32 @@ async fn rollback_cas_cancel_and_immutable_evidence() {
                 .unwrap_err()
             ),
             "BRAND_DRAFT_UNAVAILABLE"
+        );
+        let cancel_effects: (i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM command_receipts WHERE command_id='brand-cancel-0012'),\
+             (SELECT count(*) FROM audit_events WHERE command_id='brand-cancel-0012'),\
+             (SELECT count(*) FROM outbox_events WHERE command_id='brand-cancel-0012'),\
+             (SELECT count(*) FROM brand_identity_events WHERE record_id='brand-draft-brand-cancel-0011' AND action='cancel')",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            cancel_effects,
+            (1, 1, 1, 1),
+            "cancel replay retains one receipt, audit, outbox and cancel event"
+        );
+        let unavailable_save_effects: (i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM command_receipts WHERE command_id='brand-cancel-0013'),\
+             (SELECT count(*) FROM brand_identity_events WHERE id='brand-event-brand-cancel-0013')",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            unavailable_save_effects,
+            (0, 0),
+            "a withdrawn draft cannot be overwritten and the refusal writes no effects"
         );
         assert!(
             sqlx::query("DELETE FROM brand_identity_events WHERE company_id='company'")
@@ -1193,6 +1373,20 @@ async fn company_isolation_and_current_authority() {
                 .unwrap_err()
             ),
             "BRAND_AUTHORITY_CHANGED"
+        );
+        let isolation_effects: (i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM brand_identity_drafts WHERE company_id='company'),\
+             (SELECT count(*) FROM brand_identity_versions WHERE company_id='company'),\
+             (SELECT count(*) FROM command_receipts WHERE command_id IN ('brand-scope-0004','brand-scope-0005','brand-scope-0007','brand-scope-0008a','brand-scope-0010')),\
+             (SELECT count(*) FROM brand_identity_events WHERE company_id='company' AND id LIKE 'brand-event-brand-scope-00%')",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            isolation_effects,
+            (1, 0, 0, 1),
+            "scope refusals add no draft, version, receipt or event beyond the one legitimate owner draft"
         );
     })
     .await;
