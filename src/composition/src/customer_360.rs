@@ -84,6 +84,10 @@ impl Customer360Configuration {
     pub fn company(&self) -> &CompanyId {
         &self.company
     }
+
+    pub fn holding(&self) -> &HoldingId {
+        &self.holding
+    }
 }
 
 struct SupportEntitlement {

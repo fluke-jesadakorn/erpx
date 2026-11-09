@@ -3184,6 +3184,7 @@
 @source "../../../../packages/server-customer_360/src/adapters/attachment-request.ts";
 @source "../../../../packages/server-customer_360/src/adapters/executive-main-evidence-sources.ts";
 @source "../../../../packages/server-customer_360/src/adapters/final-root-owner-projection-sources.ts";
+@source "../../../../packages/server-customer_360/src/adapters/native-notes.ts";
 @source "../../../../packages/server-customer_360/src/adapters/package-obligations.ts";
 @source "../../../../packages/server-customer_360/src/adapters/portal-attachments.ts";
 @source "../../../../packages/server-customer_360/src/adapters/portal-command-request.ts";
@@ -3201,6 +3202,7 @@
 @source "../../../../packages/server-customer_360/src/application/timeline.ts";
 @source "../../../../packages/server-customer_360/src/domain/portal.ts";
 @source "../../../../packages/server-customer_360/src/domain/timeline.ts";
+@source "../../../../packages/server-customer_360/src/public/customer-notes.ts";
 @source "../../../../packages/server-customer_360/src/public/customer-portal-attachments.ts";
 @source "../../../../packages/server-customer_360/src/public/customer-portal.ts";
 @source "../../../../packages/server-customer_360/src/public/customer-timeline.ts";

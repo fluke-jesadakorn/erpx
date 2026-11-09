@@ -1126,10 +1126,12 @@
 @source "../../../../packages/server-crm/src/public/purchases.ts";
 @source "../../../../packages/server-crm/src/public/record-purchases.ts";
 @source "../../../../packages/server-crm/src/public/sales-projection.ts";
+@source "../../../../packages/server-customer_360/src/adapters/native-notes.ts";
 @source "../../../../packages/server-customer_360/src/adapters/portal-source-locks.ts";
 @source "../../../../packages/server-customer_360/src/adapters/timeline.ts";
 @source "../../../../packages/server-customer_360/src/application/timeline.ts";
 @source "../../../../packages/server-customer_360/src/domain/timeline.ts";
+@source "../../../../packages/server-customer_360/src/public/customer-notes.ts";
 @source "../../../../packages/server-customer_360/src/public/customer-timeline.ts";
 @source "../../../../packages/server-customer_360/src/public/portal-source-locks.ts";
 @source "../../../../packages/server-customer_authority/src/adapters/access.ts";

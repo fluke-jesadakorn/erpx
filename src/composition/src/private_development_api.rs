@@ -2039,6 +2039,7 @@ async fn assemble_checked(
         let mut commerce_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut customer_360_targets = Vec::new();
+        let mut customer_notes_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut customer_authority_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -2627,6 +2628,25 @@ async fn assemble_checked(
                             config.policy.clone(),
                             Arc::new(FinanceJournalReadScopeHeaders),
                             Arc::new(crate::customer_360::Customer360Service::new(
+                                authorizer.clone(),
+                                crate::customer_360::Customer360Configuration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
+                customer_notes_targets.push(
+                    erpx_server_customer_360::public::customer_notes_http::CustomerNotesHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::customer_360_notes::CustomerNotesBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::customer_360_notes::CustomerNotesService::new(
                                 authorizer.clone(),
                                 crate::customer_360::Customer360Configuration::new(
                                     holding.registration.holding_id.clone(),
@@ -3560,6 +3580,15 @@ async fn assemble_checked(
                     customer_360_targets,
                 )
                 .map_err(|_| "PRIVATE_API_CUSTOMER_360_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !customer_notes_targets.is_empty() {
+            router = router.merge(
+                erpx_server_customer_360::public::customer_notes_http::customer_notes_http_router(
+                    customer_notes_targets,
+                )
+                .map_err(|_| "PRIVATE_API_CUSTOMER_NOTES_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]
@@ -7233,6 +7262,18 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         }
         _ => false,
     };
+    let customer_notes = match request
+        .uri()
+        .path()
+        .split('/')
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        ["", "api", "v1", "holdings", _, "customer-notes"] => {
+            state.policy.audience(host).is_some()
+        }
+        _ => false,
+    };
     let planning = match request
         .uri()
         .path()
@@ -7537,6 +7578,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || pms
         || legal
         || customer_timeline
+        || customer_notes
         || planning
         || manufacturing
         || procurement

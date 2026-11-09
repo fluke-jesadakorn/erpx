@@ -71,6 +71,7 @@ pub mod crm_reassign_wire;
 pub mod crm_recipient_eligibility;
 #[cfg(feature = "existing-business")]
 pub mod customer_360;
+pub mod customer_360_notes;
 #[cfg(feature = "existing-business")]
 pub mod customer_authority;
 #[cfg(feature = "existing-business")]
