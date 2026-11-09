@@ -3762,9 +3762,13 @@ async fn assemble_checked(
             );
         }
         #[cfg(feature = "files-scan-worker")]
-        let field_files_router_owned = config.field_files_providers.is_some();
+        let field_files_providers_owned = config.field_files_providers.is_some();
         #[cfg(not(feature = "files-scan-worker"))]
-        let field_files_router_owned = false;
+        let field_files_providers_owned = false;
+        let field_files_router_owned = field_files_providers_owned
+            || !config.field_service_reads.is_empty()
+            || !config.field_attachment_links.is_empty()
+            || !config.field_attachment_binds.is_empty();
         if !files_targets.is_empty() && !field_files_router_owned {
             router = router.merge(
                 erpx_server_files::public::attachment_http::attachment_read_router(files_targets)
