@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T10:05:00+07:00",
+  "updatedAt": "2026-11-09T11:30:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -16,12 +16,12 @@
     "interpretation": "The 206 items are catalogue workflows, not the number of bounded flows. Each listed ID occurs once below. A partial item has supporting qualified slices, not whole-workflow verification."
   },
   "counts": {
-    "qualifiedBusinessFlows": 106,
+    "qualifiedBusinessFlows": 107,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 39,
-    "workflowsVerified": 83,
-    "workflowsMerged": 83,
+    "workflowsPartial": 38,
+    "workflowsVerified": 84,
+    "workflowsMerged": 84,
     "ownersComplete": 8,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -3460,6 +3460,17 @@
       "durableContractRefs": [
         "docs/contracts/next/rust-finance-journal-detail.md"
       ]
+    },
+    {
+      "id": "commerce-save-order-and-source-witnesses",
+      "kind": "business-flow-evidence",
+      "status": "flow-complete",
+      "scope": "Original Commerce save order: replay before semantic validation, Finance Money before party/price/version guards, owner CAS, retained Finance party/Money and Sales selected-pricing/price witnesses revalidated after deferred effects, plus conversion Money preflight/insert position; verified by clean-archive selected-route, Commerce/Finance PostgreSQL and Sales pricing suites.",
+      "sourceIdentity": "fb21feadf",
+      "evidenceRef": "docs/testing/evidence/2026-11-09-commerce-save-order-and-witnesses.json",
+      "durableContractRefs": [
+        "docs/contracts/next/rust-finance-journal-detail.md"
+      ]
     }
   ],
   "workflows": [
@@ -4278,17 +4289,17 @@
       "kind": "module",
       "owner": "sales",
       "scope": "Quotes",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "sales-native-documents",
         "sales-native-documents-http",
         "sales-native-price-lists"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Native quotation, browser, selected-route isolation and Money rollback evidence is recorded; mergeCommit identifies an implementation slice. Before whole-workflow verification, resolve conversion Money validation versus stale-version precedence against the original TypeScript/PostgreSQL oracle, require a real Finance Money port for native conversion, constrain unique-violation mapping to evidenced cases and retain Finance Money sources through deferred effects. Complete affected integration and review gates on the final source.",
-      "mergeCommit": "5dfadc0f4"
+      "gap": "Verified native quotation workflow on the pushed integration tree: price-list draft/update/activate/cancel, quotation list/detail, draft create/update with the original save preparation and guard order (replay before semantic validation; Finance order-revision Money 1+3N before Finance party and Sales price/version guards; owner CAS on version/draft state), exact 422 pre-read versus generic CONFLICT assertion codes, Sales selected-pricing and Finance party/Money witnesses retained and revalidated after deferred constraints, quote submit/approve/return/cancel/conversion with Money preflight before the stale guard and INSERT after the quote update before the sales row, desktop/mobile create/edit browser evidence, and clean full-service archive build/tests. Purchase orders, sales-order goods fulfillment/invoicing/settlement/returns and independent sales-approver browser approval remain separate.",
+      "mergeCommit": "fb21feadf"
     },
     {
       "id": "sales/orders",
@@ -6514,8 +6525,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-09T10:05:00+07:00",
-    "sourceHead": "0798c70af",
+    "generatedAt": "2026-11-09T11:30:00+07:00",
+    "sourceHead": "fb21feadf",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6600,8 +6611,8 @@
       },
       "sales": {
         "workflows": 5,
-        "verified": 0,
-        "partial": 4,
+        "verified": 1,
+        "partial": 3,
         "unstarted": 1,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -7186,7 +7197,7 @@
       "Recheck the integrated Files/Workflow attachment modules and the full service on the final frozen source; the historical clean archive build predates current shared work.",
       "Await Stripe/Connect configuration for POS tenders/refunds/retry.",
       "Reconcile remote HEAD and keep counts tied to browser/HTTP evidence.",
-      "Restore sales/quotes verification after conversion Money precedence, required Finance port and retained-effect gates; close sales/orders and sales/fulfillment with goods fulfillment (reservations, stock, lots/serials, goods journal), then invoicing/settlement/returns."
+      "sales/quotes is verified with original save ordering and retained source witnesses; close sales/orders and sales/fulfillment with goods fulfillment (reservations, stock, lots/serials, goods journal), then invoicing/settlement/returns."
     ],
     "integrationLog": [
       {
@@ -8537,6 +8548,23 @@
           "sales/quotes reverification"
         ],
         "evidence": "Clean archive selected-route suite 1/1; Commerce 69/69; clean full-service archive check; conversion Money/replay/stale; 84 verified / 38 partial / 84 unstarted / 8 of 41 owners",
+        "counts": {
+          "owners": 8,
+          "verified": 84,
+          "partial": 38,
+          "unstarted": 84,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-09T11:30:00+07:00",
+        "commit": "fb21feadf",
+        "bundles": [
+          "original Commerce save preparation/guard order",
+          "Sales selected-pricing and Finance party witnesses",
+          "replay-before-validation and conversion Money position"
+        ],
+        "evidence": "Clean archive selected-route 1/1; order_postgres 18/18; Finance Money 7/7; full private service build; worktree oracles Commerce 31/31, Finance credit/party 4/4, Sales pricing 7/7; 84 verified / 38 partial / 84 unstarted / 8 of 41 owners",
         "counts": {
           "owners": 8,
           "verified": 84,

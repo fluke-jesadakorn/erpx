@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "date": "2026-11-09",
+  "status": "The reviewer findings on the native Commerce save are closed on the pushed tree: replay happens before semantic validation, Finance Money is written and retained before the party/price/version guards, the owner CAS enforces version/draft state, Sales selected pricing and Finance party/Money witnesses are retained across deferred constraints, and conversion validates Money before the stale guard but inserts it after the quote update and before the sales row. sales/quotes returns to verified; sales/orders, fulfillment, cancellations and revenue handoff remain open.",
+  "capability": "commerce-save-order-and-source-witnesses",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "331fd8ff5d87c70d22cb2d38239ae372d2dd316c",
+  "commits": [
+    "74b3e7496d4418135ef17958e56dc326c236d355",
+    "d52916df950ad0ad44ae0eef0875e98cd2210bc3",
+    "fb21feadf3ce259a1f995f9211fbbe268f53bf27"
+  ],
+  "saveOrder": {
+    "order": "actor/module admission -> command lock/digest/replay -> semantic validation -> current IAM -> setup currency -> existing order read -> party/warehouse/product/price-list reads and amount calculation -> Finance Money INSERT retained + Finance party assertion + Sales selected-pricing/price guard -> owner update/insert CAS on expected version and draft state -> lines -> receipt/audit/outbox -> SET CONSTRAINTS ALL IMMEDIATE -> Finance/Sales witness revalidation.",
+    "replay": "An exact retry returns the original receipt before semantic validation, source reads or Finance work. The selected-route suite replays a saved create and a conversion while a conflicting Money table lock is held and still receives 200 with the original receipt.",
+    "moneyBeforeGuards": "Native save writes the 1+3N order-revision Money rows before the party/version assertions. A stale version with an already-written revision fails on the duplicate Money key as generic CONFLICT; a foreign party returns generic CONFLICT; foreign product/price list remain 422 before Money.",
+    "witnesses": "The Finance party guard uses the exact active customer/company/currency predicate (personal parties excluded), the Sales selected-pricing witness captures the exact list and bounded items, and the Sales price guard asserts active/company/version/date after Money. All three plus the retained Money quote/rows are revalidated after deferred constraints.",
+    "legacyRetirement": "The Next Commerce route selects the native save for quotation/sales drafts once configured and surfaces a native failure instead of falling back; purchase/request handoffs remain retained and explicitly fall back only outside the workflow."
+  },
+  "conversion": {
+    "preflight": "Money quote/scale/rate/amount validation runs before the stale-version guard, matching the original TS awaited commerceMoney preparation.",
+    "apply": "The retained Money INSERT runs after the quote state update and before the new sales-order row and line copy; a stale conversion therefore returns generic CONFLICT before any Finance lock or write.",
+    "retention": "The prepared quote is transaction-bound; the applied quote/rows are revalidated after deferred constraints. A preflight from a rolled-back transaction cannot be applied in a fresh one."
+  },
+  "verification": {
+    "cleanArchiveSelectedRoute": "Fresh git archive of fb21feadf: cargo test -p erpx-service --locked --test commerce_selected_http_postgres --features existing-business,private-field-api passed 1/1.",
+    "cleanArchiveOrderPostgres": "Fresh git archive: cargo test -p erpx-server-commerce --locked --test order_postgres passed 18/18.",
+    "cleanArchiveFinanceMoney": "Fresh git archive: cargo test -p erpx-server-finance --locked --test commerce_order_money_postgres passed 7/7.",
+    "cleanArchiveBuild": "Fresh git archive: cargo check -p erpx-service --locked --no-default-features --features private-field-api,files-scan-worker,existing-business passed.",
+    "worktreeOracles": "With installed node_modules and pinned Bun: Commerce unit 31/31, Finance sales-order credit/party guard 4/4, Sales price-lists/selected-pricing 7/7.",
+    "checks": "tsc --noEmit and rustfmt --check pass on the changed files."
+  },
+  "browser": "The sales record/create/edit UI is unchanged by this backend ordering fix; desktop create/edit and mobile create/edit were previously browser-verified through the native Next route with persisted order/line/Money readback. No browser fallback exists for an eligible native save.",
+  "workflowClosure": {
+    "sales/quotes": "Verified on fb21feadf: native price lists, quotation list/detail, draft create/update with original save preparation/guard order and Finance Money (1+3N), replay before semantic validation, selected Sales price and Finance party witnesses retained through deferred effects, exact conflict/pre-read error precedence, quote submit/approve/return/cancel/conversion with Money preflight and insert position, desktop/mobile create/edit browser evidence, and clean full-service archive build/tests. Purchase orders, sales-order goods fulfillment/invoicing/settlement/returns and independent sales-approver browser approval remain separate."
+  },
+  "counts": {
+    "verified": 84,
+    "partial": 38,
+    "unstarted": 84,
+    "total": 206,
+    "ownersComplete": 8,
+    "ownerTotal": 41,
+    "salesOwner": "1 verified / 3 partial / 1 unstarted of 5"
+  },
+  "nextAction": "Close sales/orders and sales/fulfillment with goods fulfillment (reservations, stock, lots/serials, goods journal), then invoicing/settlement/returns."
+}
