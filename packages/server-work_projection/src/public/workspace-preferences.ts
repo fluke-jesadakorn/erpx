@@ -1,1 +1,1 @@
-export {readNativeAccountPreferences,selectNativeCompanyPreference,readWorkspacePreference,readCompanyPreference,rememberWorkspace,rememberPlatformRole} from "@erpx/server-work_projection/adapters/workspace-preferences";
+export {readNativeAccountPreferences,selectNativeCompanyPreference,readWorkspacePreference,readCompanyPreference,rememberWorkspace} from "@erpx/server-work_projection/adapters/workspace-preferences";

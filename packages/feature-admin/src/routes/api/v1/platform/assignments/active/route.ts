@@ -1,9 +1,13 @@
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
-import { rememberPlatformRole } from "@erpx/server-work_projection/public/workspace-preferences";
+import { randomUUID } from "node:crypto";
 import { runtimeEnv } from "../../../../../../../../../packages/server-runtime/src/public/runtime";
+import { isTransactionalSqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireManageErpxContext, requirePlatformContext } from "@erpx/server-identity_access/public/authorization";
+import { sessionFromRequest } from "@erpx/server-identity_access/public/account-session";
+import { providerContextStore } from "@erpx/server-identity_access/adapters/provider-context-store";
+import { ssoAudienceForHost } from "@erpx/feature-runtime/lib/product-hosts";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 
 const schema = z.object({ assignmentId: z.string().min(1).max(128) });
@@ -21,14 +25,35 @@ export async function POST(request: Request) {
     const parsed = schema.safeParse(await request.json());
     if (!parsed.success)
       throw new ApiError(422, "VALIDATION_FAILED", "Choose a valid Platform role.");
-    const selected = actor.assignments.find(
-      (assignment) => assignment.id === parsed.data.assignmentId,
-    );
-    if (!selected)
+    if (!actor.assignments.some((assignment) => assignment.id === parsed.data.assignmentId))
       throw new ApiError(403, "ASSIGNMENT_UNAVAILABLE", "That Platform assignment is unavailable.");
-    await rememberPlatformRole((await runtimeEnv()).CONTROL_DB,actor.userId,selected.id);
-    const response = NextResponse.json(canonicalDestinationLinks({ data: selected }));
-    response.cookies.set("erpx_assignment_platform", selected.id, {
+    const origin = request.headers.get("origin");
+    if (origin && origin !== new URL(request.url).origin)
+      throw new ApiError(403, "ORIGIN_FORBIDDEN", "Choose a Platform role from the current Administration application.");
+    const session = await sessionFromRequest(request);
+    if (!session) throw new ApiError(401, "SIGN_IN_REQUIRED", "Sign in to Administration.");
+    const owner = (await runtimeEnv()).CONTROL_DB;
+    if (!isTransactionalSqlDatabase(owner))
+      throw new ApiError(503, "PROVIDER_CONTEXT_TRANSACTION_REQUIRED", "Platform role selection is unavailable.");
+    const store = providerContextStore(owner, {
+      userId: session.user.id,
+      sessionId: session.session.id,
+      selectedCookie: null,
+      audience: ssoAudienceForHost(request.headers.get("host")) ?? undefined,
+      remember: true,
+    });
+    const seed = await store.read();
+    const choice = seed.choices.find((item) => item.id === parsed.data.assignmentId);
+    if (!choice) throw new ApiError(403, "ASSIGNMENT_UNAVAILABLE", "That Platform assignment is unavailable.");
+    const selected = await store.select({
+      accountKey: seed.accountKey,
+      expectedContext: seed.contextKey,
+      expectedRevision: seed.revision,
+      assignmentId: choice.id,
+      choiceVersion: choice.version,
+    }, randomUUID());
+    const response = NextResponse.json(canonicalDestinationLinks({ data: { id: choice.id, role: choice.label } }));
+    response.cookies.set("erpx_assignment_platform", selected.selectedId, {
       httpOnly: true,
       sameSite: "lax",
       secure: new URL(request.url).protocol === "https:",
