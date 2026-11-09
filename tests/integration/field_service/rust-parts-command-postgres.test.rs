@@ -583,7 +583,7 @@ async fn selected_parts_waits_between_finance_owner_locks_then_replays() {
         let (selected_pid,early_locks,has_commercial)=observed.expect("selected source fence did not wait").expect("lock observation failed");
         assert_ne!(selected_pid,writer_pid);
         assert_eq!(early_locks,3,"selected backend must already hold all Finance write-intent locks");
-        assert!(!has_commercial,"Commercial fence must follow the blocked Finance source lock");
+        assert!(has_commercial,"Commercial fence must precede the blocked Finance source lock");
         let first=result.expect("selected command timed out").expect("selected task failed").expect("selected command failed");
         assert!(!first.replayed);
         assert_eq!(p.counts("field-inter-lock").await,(1,1,1,1,1));
