@@ -54,7 +54,7 @@ const tracks={CONTROL_DB:'control',CONTROL_READ_DB:'control-read',H001_DB:'holdi
 const mode=process.argv[2],diagnostic=mode==='prepare-diagnostic',run=mode==='prepare'||diagnostic?(process.env.ERPX_BROWSER_SIMULATION_RUN_ID??randomBytes(6).toString('hex')):process.argv[3];
 if(!run||!/^([a-f0-9]{12})$/.test(run))throw new Error('EXACT_BROWSER_RUN_ID_REQUIRED');
 const directory=join(parent,run),app=join(directory,'app'),manifestPath=join(directory,'databases.json'),statePath=join(directory,'state.json');
-type State={nativeAccount?:{pid:number;port:number};workspaceFixtureProfile?:WorkspaceFixtureProfile;executionMode?:"development-smoke";workspaceApps?:string[];workspaceBundler?:"webpack"|"turbopack";workspaceConsoleRetired?:boolean;run:string;prefix:string;createdAt:string;origin:string;port?:number;profile?:string;providerFixture?:boolean;templateRun?:string;ready?:boolean;diagnostic?:boolean;pid?:number;applicationPoolMax?:number;controlPoolMax?:number;jobsPid?:number|null;jobsStartedAt?:string;jobsPaused?:boolean;sourceFingerprint?:string;softwareVersion?:string;webEntrypoint?:string;jobsEntrypoint?:string;productHosts?:boolean;executiveWorkHosts?:boolean;formsHosts?:boolean;release?:{id:string;fileManifestSha256:string};fixture?:Record<string,unknown>};
+type State={nativeAccount?:{pid:number;port:number;bin:string};workspaceFixtureProfile?:WorkspaceFixtureProfile;executionMode?:"development-smoke";workspaceApps?:string[];workspaceBundler?:"webpack"|"turbopack";workspaceConsoleRetired?:boolean;run:string;prefix:string;createdAt:string;origin:string;port?:number;profile?:string;providerFixture?:boolean;templateRun?:string;ready?:boolean;diagnostic?:boolean;pid?:number;applicationPoolMax?:number;controlPoolMax?:number;jobsPid?:number|null;jobsStartedAt?:string;jobsPaused?:boolean;sourceFingerprint?:string;softwareVersion?:string;webEntrypoint?:string;jobsEntrypoint?:string;productHosts?:boolean;executiveWorkHosts?:boolean;formsHosts?:boolean;release?:{id:string;fileManifestSha256:string};fixture?:Record<string,unknown>};
 const productHosts=process.env.ERPX_BROWSER_SIMULATION_PRODUCT_HOSTS==='1';
 if(productHosts&&(port!==3104||!process.env.ERPX_PRODUCT_HOST_PLAN||!process.env.ERPX_PRODUCT_HOST_PLAN_SHA256))throw Error('EXPLICIT_PRODUCT_HOST_ARM_REQUIRED');
 const executiveWorkHosts=process.env.ERPX_BROWSER_SIMULATION_EXECUTIVE_WORK_HOSTS==='1';
@@ -652,10 +652,11 @@ if(mode==='prepare'||diagnostic){
    await controlDb.prepare('UPDATE account SET password=? WHERE "userId" IN (SELECT id FROM "user" WHERE email=?)').bind(nativeHash.stdout.trim(),'mali@erpx.dev').run();
   }finally{await controlDb.close();}
   const nativeLog=await open(`/tmp/erpx-browser-native-${run}.log`,'a',0o600);
-  const native=spawn(join(root,'target/debug/erpx-server'),['private-api','--development-config',configPath],{cwd:root,env:{...process.env,ERPX_BROWSER_SIMULATION_RUN_ID:run},detached:true,stdio:['ignore',nativeLog.fd,nativeLog.fd]});
+  const nativeBinary=process.env.ERPX_BROWSER_NATIVE_ACCOUNT_BIN??join(root,'target/debug/erpx-server');
+ const native=spawn(nativeBinary,['private-api','--development-config',configPath],{cwd:root,env:{...process.env,ERPX_BROWSER_SIMULATION_RUN_ID:run},detached:true,stdio:['ignore',nativeLog.fd,nativeLog.fd]});
   native.unref();await nativeLog.close();
   if(!native.pid)throw new Error('BROWSER_NATIVE_ACCOUNT_FAILED');
-  state.nativeAccount={pid:native.pid,port:servicePort};await writePrivate(statePath,state);
+  state.nativeAccount={pid:native.pid,port:servicePort,bin:nativeBinary};await writePrivate(statePath,state);
   let ready=false;
   for(let attempt=0;attempt<300;attempt++){try{const response=await fetch(`http://127.0.0.1:${servicePort}/api/health`);if(response.status===200){ready=true;break;}}catch{}await new Promise(resolve=>setTimeout(resolve,100));}
   if(!ready)throw new Error('BROWSER_NATIVE_ACCOUNT_NOT_READY');
@@ -717,7 +718,7 @@ if(mode==='prepare'||diagnostic){
   if(command.trim()){
    const actualCwd=Bun.spawnSync(['lsof','-a','-p',String(pid),'-d','cwd','-Fn']).stdout.toString().split('\n').find(line=>line.startsWith('n'))?.slice(1);
    const listening=Bun.spawnSync(['lsof','-nP','-a','-p',String(pid),'-iTCP:'+nativePort,'-sTCP:LISTEN','-Fn']).stdout.toString();
-   if(!command.includes(join(root,'target/debug/erpx-server'))||!command.includes('private-api')||actualCwd!==root||!listening.includes('n127.0.0.1:'+nativePort))throw new Error('BROWSER_NATIVE_ACCOUNT_IDENTITY_CHANGED');
+   if(!command.includes(state.nativeAccount.bin)||!command.includes('private-api')||actualCwd!==root||!listening.includes('n127.0.0.1:'+nativePort))throw new Error('BROWSER_NATIVE_ACCOUNT_IDENTITY_CHANGED');
    process.kill(pid,'SIGTERM');stopped=true;
   }
   delete state.nativeAccount;
