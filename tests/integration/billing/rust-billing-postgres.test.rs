@@ -1662,6 +1662,243 @@ fn target_evidence_commands_are_immutable_month_gated_and_owner_scoped() {
 }
 
 #[test]
+fn approve_target_extra_requires_assignment_evidence_dates_and_records_audit() {
+    with_database(|pool| async move {
+        migrate(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES \
+             ('h001','acme','Acme','write-h001','read-h001','files-h001','active');\
+             INSERT INTO billing_accounts(holding_id,version,customer_id,payment_mode,created_at) VALUES \
+             ('h001',2,'customer-1','manual',100);\
+             INSERT INTO billing_evidence\
+             (id,holding_id,filename,mime,size,sha256,actor,created_at,object_key,detected_mime,source_state,scanned_at,scanner_definition_at) VALUES \
+             ('evidence-extra','h001','quote.pdf','application/pdf',10,repeat('a',64),'fixture',100,'h001/evidence-extra','application/pdf','available',100,100),\
+             ('evidence-bad','h001','bad.pdf','application/pdf',10,repeat('b',64),'fixture',100,'h001/evidence-bad','application/pdf','quarantined',NULL,NULL);\
+             INSERT INTO billing_target_prices\
+             (id,effective_month,base_monthly_satang,included_original_bytes,storage_satang_per_gb_month,ai_markup_percent,created_at,created_by,seat_terms_status,included_seats,seat_monthly_satang,storage_allowance_mode,rating_enabled) VALUES \
+             ('price-extra','2027-01',0,20000000000,500,10,0,'fixture','defined',0,49900,'per_paid_seat_time',TRUE);\
+             INSERT INTO billing_target_assignments\
+             (holding_id,effective_month,price_id,mode,service_started_at,assigned_by,reason,created_at) VALUES \
+             ('h001','2027-01','price-extra','sandbox_invoice',1798736400000,'fixture','fixture',0);",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        use erpx_server_billing::public::target_evidence_command::{
+            ApproveTargetExtra, BillingTargetEvidenceCommand,
+        };
+        let now = TimestampMillis::new(1_802_667_600_000);
+        let owner = BillingActor {
+            user_id: UserId::new("owner").unwrap(),
+            assignment_id: AssignmentId::new("assignment").unwrap(),
+            holding_id: Some(HoldingId::new("h001").unwrap()),
+            platform: false,
+            role: "holding_owner".into(),
+            expires_at: None,
+        };
+        let extra = |key_value: &str,
+                     version: i64,
+                     month: &str,
+                     kind: &str,
+                     start: i64,
+                     end: i64,
+                     evidence: &str| {
+            BillingTargetEvidenceCommand::Extra(ApproveTargetExtra {
+                key: key(key_value),
+                expected_version: version,
+                reason: "Approved separately quoted service".into(),
+                target_month: month.into(),
+                extra_kind: kind.into(),
+                amount_satang: 50_000,
+                service_start: start,
+                service_end: end,
+                note: "Setup service for January".into(),
+                evidence_id: RecordId::new(evidence).unwrap(),
+            })
+        };
+        let h001 = HoldingId::new("h001").unwrap();
+        let first = run_evidence(
+            &pool,
+            &owner,
+            &h001,
+            &extra(
+                "target:extra:1",
+                2,
+                "2027-01",
+                "setup",
+                1_798_736_400_001,
+                1_801_414_799_999,
+                "evidence-extra",
+            ),
+            now,
+        )
+        .await
+        .unwrap();
+        assert_eq!(first.result_json, "{\"ok\":true}");
+        let row: (String, i64, String, String) = sqlx::query_as(
+            "SELECT kind,amount_satang,description,approved_by FROM billing_target_extras \
+             WHERE holding_id='h001' AND month='2027-01'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            row,
+            (
+                "setup".into(),
+                50_000,
+                "Setup service for January".into(),
+                "owner".into()
+            )
+        );
+        let version: i32 =
+            sqlx::query_scalar("SELECT version FROM billing_accounts WHERE holding_id='h001'")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        assert_eq!(version, 3);
+        let replay = run_evidence(
+            &pool,
+            &owner,
+            &h001,
+            &extra(
+                "target:extra:1",
+                2,
+                "2027-01",
+                "setup",
+                1_798_736_400_001,
+                1_801_414_799_999,
+                "evidence-extra",
+            ),
+            now,
+        )
+        .await
+        .unwrap();
+        assert_eq!(replay, first);
+        let rows: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM billing_target_extras WHERE holding_id='h001' AND month='2027-01'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(rows, 1);
+        let dates = run_evidence(
+            &pool,
+            &owner,
+            &h001,
+            &extra(
+                "target:extra:dates",
+                3,
+                "2027-01",
+                "setup",
+                1_798_736_000_000,
+                1_801_414_799_999,
+                "evidence-extra",
+            ),
+            now,
+        )
+        .await
+        .err()
+        .expect("extra service dates must stay inside the month");
+        assert_eq!(business(dates).code, "EXTRA_SERVICE_DATES");
+        let missing_assignment = run_evidence(
+            &pool,
+            &owner,
+            &h001,
+            &extra(
+                "target:extra:no-assignment",
+                3,
+                "2026-12",
+                "setup",
+                1_796_058_000_001,
+                1_798_736_399_999,
+                "evidence-extra",
+            ),
+            now,
+        )
+        .await
+        .err()
+        .expect("target assignment is required before extra approval");
+        assert_eq!(
+            business(missing_assignment).code,
+            "TARGET_ASSIGNMENT_REQUIRED"
+        );
+        let bad_evidence = run_evidence(
+            &pool,
+            &owner,
+            &h001,
+            &extra(
+                "target:extra:bad-evidence",
+                3,
+                "2027-01",
+                "support",
+                1_798_736_400_001,
+                1_801_414_799_999,
+                "evidence-bad",
+            ),
+            now,
+        )
+        .await
+        .err()
+        .expect("quarantined evidence is not available");
+        assert_eq!(business(bad_evidence).code, "EVIDENCE_REQUIRED");
+        let stale = run_evidence(
+            &pool,
+            &owner,
+            &h001,
+            &extra(
+                "target:extra:stale",
+                2,
+                "2027-01",
+                "support",
+                1_798_736_400_001,
+                1_801_414_799_999,
+                "evidence-extra",
+            ),
+            now,
+        )
+        .await
+        .err()
+        .expect("stale account version conflicts");
+        assert_eq!(business(stale).code, "VERSION_CONFLICT");
+        let platform = BillingActor {
+            platform: true,
+            role: "platform_admin".into(),
+            holding_id: None,
+            ..owner.clone()
+        };
+        let denied = run_evidence(
+            &pool,
+            &platform,
+            &h001,
+            &extra(
+                "target:extra:platform",
+                3,
+                "2027-01",
+                "support",
+                1_798_736_400_001,
+                1_801_414_799_999,
+                "evidence-extra",
+            ),
+            now,
+        )
+        .await
+        .err()
+        .expect("extra approval is a Holding-owner command");
+        assert_eq!(business(denied).code, "FORBIDDEN");
+        let audit: i64 = sqlx::query_scalar("SELECT count(*) FROM billing_audit")
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+        let receipts: i64 = sqlx::query_scalar("SELECT count(*) FROM billing_receipts")
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+        assert_eq!((audit, receipts), (1, 1));
+    });
+}
+
+#[test]
 fn target_provider_cost_and_statement_commands_verify_fx_evidence_and_totals() {
     with_database(|pool| async move {
         migrate(&pool).await;

@@ -6,7 +6,9 @@ use crate::application::BillingFuture;
 use crate::application::cost::{AccountSnapshot, AuditEntry, ReceiptSnapshot};
 use crate::application::target_evidence_command::TargetEvidenceRepository;
 use crate::domain::actor::BillingActor;
-use crate::domain::target_evidence_command::{ValidatedCapacity, ValidatedOperatingCost};
+use crate::domain::target_evidence_command::{
+    ValidatedCapacity, ValidatedOperatingCost, ValidatedTargetExtra,
+};
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, HoldingId, TimestampMillis};
 use sqlx::{Connection, PgConnection, Row};
@@ -204,6 +206,76 @@ impl TargetEvidenceRepository for PgTargetEvidenceRepository<'_> {
             .bind(draft.backup_available_bytes)
             .bind(draft.reserved_bytes)
             .bind(draft.company_limit_bytes)
+            .bind(&draft.evidence_id)
+            .bind(actor.user_id.as_str())
+            .bind(reason)
+            .bind(now.get())
+            .fetch_optional(&mut *self.connection)
+            .await?;
+            Ok(row.is_some())
+        })
+    }
+
+    fn extra_target_assignment<'a>(
+        &'a mut self,
+        holding: &'a HoldingId,
+        month: &'a str,
+    ) -> BillingFuture<'a, bool, Self::Error> {
+        Box::pin(async move {
+            serializable(&mut *self.connection).await?;
+            Ok(sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS(SELECT 1 FROM billing_target_assignments \
+                 WHERE holding_id=$1 AND effective_month<=$2)",
+            )
+            .bind(holding.as_str())
+            .bind(month)
+            .fetch_one(&mut *self.connection)
+            .await?)
+        })
+    }
+
+    fn approved_extra_period<'a>(
+        &'a mut self,
+        holding: &'a HoldingId,
+        month: &'a str,
+    ) -> BillingFuture<'a, bool, Self::Error> {
+        Box::pin(async move {
+            serializable(&mut *self.connection).await?;
+            Ok(sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS(SELECT 1 FROM billing_target_rated_periods \
+                 WHERE holding_id=$1 AND month=$2 AND state='approved')",
+            )
+            .bind(holding.as_str())
+            .bind(month)
+            .fetch_one(&mut *self.connection)
+            .await?)
+        })
+    }
+
+    fn insert_target_extra<'a>(
+        &'a mut self,
+        draft: &'a ValidatedTargetExtra,
+        holding: &'a HoldingId,
+        actor: &'a BillingActor,
+        reason: &'a str,
+        now: TimestampMillis,
+    ) -> BillingFuture<'a, bool, Self::Error> {
+        Box::pin(async move {
+            serializable(&mut *self.connection).await?;
+            let row = sqlx::query(
+                "INSERT INTO billing_target_extras\
+                 (id,holding_id,month,kind,description,amount_satang,service_start,service_end,\
+                  evidence_id,approved_by,approval_reason,approved_at) \
+                 VALUES(gen_random_uuid()::text,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) \
+                 ON CONFLICT DO NOTHING RETURNING id",
+            )
+            .bind(holding.as_str())
+            .bind(&draft.target_month)
+            .bind(&draft.extra_kind)
+            .bind(&draft.note)
+            .bind(draft.amount_satang)
+            .bind(draft.service_start)
+            .bind(draft.service_end)
             .bind(&draft.evidence_id)
             .bind(actor.user_id.as_str())
             .bind(reason)

@@ -13,8 +13,9 @@ use crate::domain::command::{
 use crate::domain::forecast_read::billing_month;
 use crate::domain::target_evidence_command::{
     BillingTargetEvidenceCommand, ValidatedCapacity, ValidatedOperatingCost,
-    ValidatedTargetEvidence, capacity_already_reviewed, evidence_required, future_month_required,
-    month_not_closed, operating_cost_already_verified,
+    ValidatedTargetEvidence, capacity_already_reviewed, evidence_required, extra_approval_required,
+    extra_service_dates, future_month_required, month_not_closed, operating_cost_already_verified,
+    target_assignment_required, target_period_frozen,
 };
 use crate::domain::target_pricing::month_bounds;
 use erpx_server_shared::public::{BusinessError, HoldingId, TimestampMillis};
@@ -62,6 +63,27 @@ pub trait TargetEvidenceRepository: Send {
     fn insert_capacity<'a>(
         &'a mut self,
         draft: &'a ValidatedCapacity,
+        holding: &'a HoldingId,
+        actor: &'a BillingActor,
+        reason: &'a str,
+        now: TimestampMillis,
+    ) -> BillingFuture<'a, bool, Self::Error>;
+
+    fn extra_target_assignment<'a>(
+        &'a mut self,
+        holding: &'a HoldingId,
+        month: &'a str,
+    ) -> BillingFuture<'a, bool, Self::Error>;
+
+    fn approved_extra_period<'a>(
+        &'a mut self,
+        holding: &'a HoldingId,
+        month: &'a str,
+    ) -> BillingFuture<'a, bool, Self::Error>;
+
+    fn insert_target_extra<'a>(
+        &'a mut self,
+        draft: &'a crate::domain::target_evidence_command::ValidatedTargetExtra,
         holding: &'a HoldingId,
         actor: &'a BillingActor,
         reason: &'a str,
@@ -168,6 +190,32 @@ pub async fn execute_target_evidence<R: TargetEvidenceRepository>(
                 .await?
             {
                 return Err(capacity_already_reviewed().into());
+            }
+        }
+        ValidatedTargetEvidence::Extra(draft) => {
+            if !repository
+                .extra_target_assignment(target, &draft.target_month)
+                .await?
+            {
+                return Err(target_assignment_required().into());
+            }
+            if repository
+                .approved_extra_period(target, &draft.target_month)
+                .await?
+            {
+                return Err(target_period_frozen().into());
+            }
+            if !repository
+                .available_evidence(&draft.evidence_id, target)
+                .await?
+            {
+                return Err(evidence_required().into());
+            }
+            if !repository
+                .insert_target_extra(draft, target, actor, js_trim(command.reason()), now)
+                .await?
+            {
+                return Err(extra_approval_required().into());
             }
         }
     }

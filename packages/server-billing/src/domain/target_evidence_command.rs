@@ -40,9 +40,24 @@ pub struct ReviewTargetCapacity {
 }
 
 #[derive(Clone, Debug)]
+pub struct ApproveTargetExtra {
+    pub key: CommandKey,
+    pub expected_version: i64,
+    pub reason: String,
+    pub target_month: String,
+    pub extra_kind: String,
+    pub amount_satang: i64,
+    pub service_start: i64,
+    pub service_end: i64,
+    pub note: String,
+    pub evidence_id: RecordId,
+}
+
+#[derive(Clone, Debug)]
 pub enum BillingTargetEvidenceCommand {
     OperatingCost(RecordOperatingCost),
     Capacity(ReviewTargetCapacity),
+    Extra(ApproveTargetExtra),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -65,9 +80,21 @@ pub struct ValidatedCapacity {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ValidatedTargetExtra {
+    pub target_month: String,
+    pub extra_kind: String,
+    pub amount_satang: i64,
+    pub service_start: i64,
+    pub service_end: i64,
+    pub note: String,
+    pub evidence_id: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ValidatedTargetEvidence {
     OperatingCost(ValidatedOperatingCost),
     Capacity(ValidatedCapacity),
+    Extra(ValidatedTargetExtra),
 }
 
 fn valid_reason(value: &str) -> bool {
@@ -139,11 +166,48 @@ impl ReviewTargetCapacity {
     }
 }
 
+impl ApproveTargetExtra {
+    pub fn validate(&self) -> Result<ValidatedTargetExtra, BusinessError> {
+        let note = js_trim(&self.note);
+        if self.expected_version < 0 || !valid_reason(&self.reason) {
+            return Err(request_invalid());
+        }
+        if !valid_month(&self.target_month)
+            || !matches!(self.extra_kind.as_str(), "setup" | "support")
+            || !valid_amount(self.amount_satang)
+            || note.is_empty()
+            || note.chars().count() > REASON_LIMIT
+            || note.chars().any(char::is_control)
+            || self.evidence_id.as_str().len() > 100
+        {
+            return Err(extra_approval_required());
+        }
+        let (start, end) =
+            month_bounds(&self.target_month).map_err(|_| extra_approval_required())?;
+        if self.service_start < start
+            || self.service_end > end
+            || self.service_end <= self.service_start
+        {
+            return Err(extra_service_dates());
+        }
+        Ok(ValidatedTargetExtra {
+            target_month: self.target_month.clone(),
+            extra_kind: self.extra_kind.clone(),
+            amount_satang: self.amount_satang,
+            service_start: self.service_start,
+            service_end: self.service_end,
+            note: note.to_owned(),
+            evidence_id: self.evidence_id.as_str().to_owned(),
+        })
+    }
+}
+
 impl BillingTargetEvidenceCommand {
     pub fn expected_version(&self) -> i64 {
         match self {
             Self::OperatingCost(command) => command.expected_version,
             Self::Capacity(command) => command.expected_version,
+            Self::Extra(command) => command.expected_version,
         }
     }
 
@@ -151,6 +215,7 @@ impl BillingTargetEvidenceCommand {
         match self {
             Self::OperatingCost(command) => &command.key,
             Self::Capacity(command) => &command.key,
+            Self::Extra(command) => &command.key,
         }
     }
 
@@ -158,6 +223,7 @@ impl BillingTargetEvidenceCommand {
         match self {
             Self::OperatingCost(command) => &command.reason,
             Self::Capacity(command) => &command.reason,
+            Self::Extra(command) => &command.reason,
         }
     }
 
@@ -165,6 +231,7 @@ impl BillingTargetEvidenceCommand {
         match self {
             Self::OperatingCost(_) => "record-operating-cost",
             Self::Capacity(_) => "review-target-capacity",
+            Self::Extra(_) => "approve-target-extra",
         }
     }
 
@@ -174,6 +241,7 @@ impl BillingTargetEvidenceCommand {
                 .validate()
                 .map(ValidatedTargetEvidence::OperatingCost),
             Self::Capacity(command) => command.validate().map(ValidatedTargetEvidence::Capacity),
+            Self::Extra(command) => command.validate().map(ValidatedTargetEvidence::Extra),
         }
     }
 
@@ -225,6 +293,17 @@ fn input_json(command: &BillingTargetEvidenceCommand) -> Value {
             "companyLimitBytes": command.company_limit_bytes,
             "evidenceId": command.evidence_id.as_str(),
         }),
+        BillingTargetEvidenceCommand::Extra(command) => serde_json::json!({
+            "version": command.expected_version,
+            "reason": js_trim(&command.reason),
+            "targetMonth": command.target_month,
+            "extraKind": command.extra_kind,
+            "amountSatang": command.amount_satang,
+            "serviceStart": command.service_start,
+            "serviceEnd": command.service_end,
+            "note": js_trim(&command.note),
+            "evidenceId": command.evidence_id.as_str(),
+        }),
     }
 }
 
@@ -265,5 +344,34 @@ pub fn capacity_already_reviewed() -> BusinessError {
         FailureKind::Conflict,
         "CAPACITY_ALREADY_REVIEWED",
         "Capacity evidence for this effective month is immutable.",
+    )
+}
+
+pub fn extra_approval_required() -> BusinessError {
+    BusinessError::invalid(
+        "EXTRA_APPROVAL_REQUIRED",
+        "Service kind, amount, dates, description and approved quote evidence are required.",
+    )
+}
+
+pub fn extra_service_dates() -> BusinessError {
+    BusinessError::invalid(
+        "EXTRA_SERVICE_DATES",
+        "Extra service dates must fall inside the chosen month.",
+    )
+}
+
+pub fn target_assignment_required() -> BusinessError {
+    BusinessError::invalid(
+        "TARGET_ASSIGNMENT_REQUIRED",
+        "Assign the target offering before approving extra services.",
+    )
+}
+
+pub fn target_period_frozen() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "TARGET_PERIOD_FROZEN",
+        "Approved target charges cannot be changed.",
     )
 }
