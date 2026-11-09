@@ -82,7 +82,7 @@ async fn cancel_proofs(
     sqlx::query("UPDATE native_account_proofs SET consumed_at=$3 WHERE user_id=$1 AND ($2::text IS NULL OR kind=$2) AND consumed_at IS NULL").bind(user_id).bind(kind).bind(now).execute(connection).await?;
     Ok(())
 }
-async fn queue(connection: &mut PgConnection, input: PreparedCredentialMail) -> TxResult<()> {
+async fn queue(connection: &mut PgConnection, input: PreparedCredentialMail, queue_outbox: bool) -> TxResult<()> {
     let Some(current) = credential(connection, &input.email)
         .await?
         .filter(|value| value.can_authenticate(false))
@@ -108,7 +108,9 @@ async fn queue(connection: &mut PgConnection, input: PreparedCredentialMail) -> 
         .checked_add(CREDENTIAL_PROOF_LIFETIME_MS)
         .ok_or_else(invalid_proof)?;
     sqlx::query("INSERT INTO native_account_proofs(id,user_id,kind,token_digest,email,credential_fingerprint,created_at,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8)").bind(&input.proof_id).bind(&current.user_id).bind(input.kind.as_str()).bind(input.token_digest.as_str()).bind(&current.email).bind(fingerprint(&current.password_hash)).bind(input.now).bind(expires).execute(&mut *connection).await?;
-    sqlx::query("INSERT INTO native_account_mail_outbox(id,proof_id,user_id,kind,payload_ciphertext,next_attempt_at,expires_at,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$6,$6)").bind(input.outbox_id).bind(&input.proof_id).bind(&current.user_id).bind(input.kind.as_str()).bind(input.ciphertext).bind(input.now).bind(expires).execute(&mut *connection).await?;
+    if queue_outbox {
+        sqlx::query("INSERT INTO native_account_mail_outbox(id,proof_id,user_id,kind,payload_ciphertext,next_attempt_at,expires_at,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$6,$6)").bind(input.outbox_id).bind(&input.proof_id).bind(&current.user_id).bind(input.kind.as_str()).bind(input.ciphertext).bind(input.now).bind(expires).execute(&mut *connection).await?;
+    }
     audit(
         connection,
         &input.event_id,
@@ -247,7 +249,7 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
                         Box::pin(async move {
                             locks(connection).await?;
                             input.now = clock.now().get();
-                            queue(connection, input).await
+                            queue(connection, input, true).await
                         })
                     })
                     .await,
@@ -434,12 +436,68 @@ impl AccountCredentialRepository for PostgresAccountCredentials {
    sqlx::query("INSERT INTO account(id,\"accountId\",\"providerId\",issuer,\"userId\",password,\"createdAt\",\"updatedAt\") VALUES($1,$2,'credential','local:credential',$2,$3,$4,$4)").bind(input.credential_id).bind(&user_id).bind(input.password_hash.as_str()).bind(input.mail.now).execute(&mut *connection).await?;
    sqlx::query("INSERT INTO principals(id,user_id,display_name,status,created_at) VALUES($1,$2,$3,'active',$4)").bind(input.principal_id).bind(&user_id).bind(name).bind(input.mail.now).execute(&mut *connection).await?;
    sqlx::query("UPDATE account_invitations SET status='accepted',accepted_user_id=$2 WHERE id=$1 AND status='pending'").bind(&id).bind(&user_id).execute(&mut *connection).await?;
-   queue(connection,input.mail.clone()).await?;audit(connection,&format!("signup-{}",input.mail.event_id),&user_id,"invitation_credential_created",Some(&input.mail.proof_id),input.mail.now).await?;
+   queue(connection,input.mail.clone(),true).await?;audit(connection,&format!("signup-{}",input.mail.event_id),&user_id,"invitation_credential_created",Some(&input.mail.proof_id),input.mail.now).await?;
    lease.recheck(clock.now().get()).await?;
    Ok(((),lease))
   })}).await;
             // The owner lease remains alive through the successful Control commit, including retries.
             finish(result).map(|(output, _lease)| output)
+        })
+    }
+    fn sign_up_legal(&self, input: SignUpCredential) -> AccountFuture<'_, ()> {
+        Box::pin(async move {
+            let result = self.unit.run(options(), |connection| {
+                let mut input = input.clone();
+                let clock = self.clock.clone();
+                Box::pin(async move {
+                    locks(connection).await?;
+                    input.mail.now = clock.now().get();
+                    let exists: bool = sqlx::query_scalar(
+                        "SELECT EXISTS(SELECT 1 FROM \"user\" WHERE lower(email)=$1)",
+                    )
+                    .bind(input.email.as_str())
+                    .fetch_one(&mut *connection)
+                    .await?;
+                    if exists {
+                        return Err(signup_unavailable().into());
+                    }
+                    let user_id = format!("usr_legal_{}", input.credential_id);
+                    sqlx::query("INSERT INTO \"user\"(id,name,email,\"emailVerified\",\"createdAt\",\"updatedAt\") VALUES($1,$2,$3,0,$4,$4)")
+                        .bind(&user_id)
+                        .bind(&input.name)
+                        .bind(input.email.as_str())
+                        .bind(input.mail.now)
+                        .execute(&mut *connection)
+                        .await?;
+                    sqlx::query("INSERT INTO account(id,\"accountId\",\"providerId\",issuer,\"userId\",password,\"createdAt\",\"updatedAt\") VALUES($1,$2,'credential','local:credential',$2,$3,$4,$4)")
+                        .bind(&input.credential_id)
+                        .bind(&user_id)
+                        .bind(input.password_hash.as_str())
+                        .bind(input.mail.now)
+                        .execute(&mut *connection)
+                        .await?;
+                    sqlx::query("INSERT INTO principals(id,user_id,display_name,status,created_at) VALUES($1,$2,$3,'active',$4)")
+                        .bind(&input.principal_id)
+                        .bind(&user_id)
+                        .bind(&input.name)
+                        .bind(input.mail.now)
+                        .execute(&mut *connection)
+                        .await?;
+                    queue(connection, input.mail.clone(), false).await?;
+                    audit(
+                        connection,
+                        &format!("legal-signup-{}", input.mail.event_id),
+                        &user_id,
+                        "invitation_credential_created",
+                        Some(&input.mail.proof_id),
+                        input.mail.now,
+                    )
+                    .await?;
+                    Ok(())
+                })
+            })
+            .await;
+            finish(result)
         })
     }
 }

@@ -83,6 +83,7 @@ pub trait AccountCredentialRepository: Send + Sync {
     ) -> AccountFuture<'_, CredentialSnapshot>;
     fn change_password(&self, input: ChangeCredential) -> AccountFuture<'_, ()>;
     fn sign_up(&self, input: SignUpCredential) -> AccountFuture<'_, ()>;
+    fn sign_up_legal(&self, input: SignUpCredential) -> AccountFuture<'_, ()>;
 }
 
 /// A trusted Holding adapter must retain current IAM/People source locks until the Control commit.
@@ -153,12 +154,12 @@ impl AccountCredentials {
             clock,
         })
     }
-    fn prepared_mail(
+    fn prepared_mail_with_token(
         &self,
         kind: CredentialProofKind,
         email: EmailAddress,
         return_path: Option<&str>,
-    ) -> Result<PreparedCredentialMail, BusinessError> {
+    ) -> Result<(PreparedCredentialMail, OpaqueSecret), BusinessError> {
         let path = account_return_path(return_path.or(
             if kind == CredentialProofKind::PasswordReset {
                 Some("/reset-password")
@@ -171,16 +172,27 @@ impl AccountCredentials {
         let ciphertext =
             self.mail
                 .seal(&proof_id, kind, &self.policy.account_origin, &path, &token)?;
-        Ok(PreparedCredentialMail {
-            proof_id,
-            outbox_id: self.secrets.identifier()?,
-            event_id: self.secrets.identifier()?,
-            kind,
-            email,
-            token_digest: self.secrets.digest(kind.purpose(), &token),
-            ciphertext,
-            now: self.clock.now().get(),
-        })
+        Ok((
+            PreparedCredentialMail {
+                proof_id,
+                outbox_id: self.secrets.identifier()?,
+                event_id: self.secrets.identifier()?,
+                kind,
+                email,
+                token_digest: self.secrets.digest(kind.purpose(), &token),
+                ciphertext,
+                now: self.clock.now().get(),
+            },
+            token,
+        ))
+    }
+    fn prepared_mail(
+        &self,
+        kind: CredentialProofKind,
+        email: EmailAddress,
+        return_path: Option<&str>,
+    ) -> Result<PreparedCredentialMail, BusinessError> {
+        Ok(self.prepared_mail_with_token(kind, email, return_path)?.0)
     }
     pub async fn request(
         &self,
@@ -329,5 +341,51 @@ impl AccountCredentials {
                 mail,
             })
             .await
+    }
+    /// Legal portal enrollment creates a native credential without an Account
+    /// staff invitation. The caller has already validated the exact Legal share
+    /// token; the token digest is retained only as the idempotency/audit source.
+    /// The raw verification proof token is returned so the existing Legal email
+    /// adapter can deliver the verification link without a second outbox.
+    pub async fn sign_up_legal(
+        &self,
+        name: String,
+        email: &str,
+        password: String,
+        legal_token: String,
+        return_path: Option<&str>,
+    ) -> Result<String, BusinessError> {
+        use sha2::{Digest, Sha256};
+        let token = OpaqueSecret::new(hex::encode(Sha256::digest(legal_token.as_bytes())))
+            .map_err(|_| signup_unavailable())?;
+        let name = name.trim().to_owned();
+        if name.is_empty() || name.chars().count() > 100 || name.chars().any(char::is_control) {
+            return Err(BusinessError::invalid(
+                "INVALID_ACCOUNT_NAME",
+                "Enter a name of at most 100 characters.",
+            ));
+        }
+        let email = EmailAddress::new(email)?;
+        let password_hash = self
+            .passwords
+            .hash(Password::new_credential(password)?)
+            .await?;
+        let (mail, verification_token) = self.prepared_mail_with_token(
+            CredentialProofKind::EmailVerification,
+            email.clone(),
+            return_path,
+        )?;
+        self.repository
+            .sign_up_legal(SignUpCredential {
+                invitation_digest: self.secrets.digest(SecretPurpose::Invitation, &token),
+                name,
+                email,
+                password_hash,
+                credential_id: self.secrets.identifier()?,
+                principal_id: self.secrets.identifier()?,
+                mail,
+            })
+            .await?;
+        Ok(verification_token.expose().to_owned())
     }
 }

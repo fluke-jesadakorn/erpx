@@ -90,7 +90,7 @@ use erpx_server_runtime::public::{
     },
     validate_foundation_address,
 };
-use erpx_server_shared::public::{Clock, CompanyId, HoldingId, TimestampMillis};
+use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId, TimestampMillis};
 use erpx_server_support::public::sla_drain::{
     DEFAULT_INTERVAL_MS, SlaDrainSchedule, run_sla_drain_tick,
 };
@@ -1764,6 +1764,229 @@ fn test_account_password_hash_router() -> Router {
     )
 }
 
+#[derive(Clone)]
+struct LegalEnrollmentState {
+    credentials: Arc<AccountCredentials>,
+    account_origin: String,
+    holdings: Vec<(String, String, DatabasePool)>,
+    secret: Arc<Vec<u8>>,
+    clock: Arc<dyn Clock + Send + Sync>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct LegalEnrollmentRequest {
+    token: String,
+    name: String,
+    password: String,
+    continuation: String,
+}
+
+fn hmac_sha256(key: &[u8], data: &[u8]) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+    const BLOCK: usize = 64;
+    let mut normalized = [0_u8; BLOCK];
+    if key.len() > BLOCK {
+        normalized[..32].copy_from_slice(&Sha256::digest(key));
+    } else {
+        normalized[..key.len()].copy_from_slice(key);
+    }
+    let mut inner_pad = [0x36_u8; BLOCK];
+    let mut outer_pad = [0x5c_u8; BLOCK];
+    for index in 0..BLOCK {
+        inner_pad[index] ^= normalized[index];
+        outer_pad[index] ^= normalized[index];
+    }
+    let mut inner = Sha256::new();
+    inner.update(inner_pad);
+    inner.update(data);
+    let inner = inner.finalize();
+    let mut outer = Sha256::new();
+    outer.update(outer_pad);
+    outer.update(inner);
+    outer.finalize().into()
+}
+
+fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
+    if left.len() != right.len() {
+        return false;
+    }
+    let mut difference = 0_u8;
+    for (left, right) in left.iter().zip(right) {
+        difference |= left ^ right;
+    }
+    difference == 0
+}
+
+fn verify_legal_enrollment_token(
+    secret: &[u8],
+    token: &str,
+    now: i64,
+) -> Result<(String, String), BusinessError> {
+    use base64::Engine;
+    let invalid = || {
+        BusinessError::invalid(
+            "LEGAL_ENROLLMENT_TOKEN_INVALID",
+            "This Legal invitation is unavailable.",
+        )
+    };
+    if token.len() > 8192 {
+        return Err(invalid());
+    }
+    let mut parts = token.split('.');
+    let (raw_header, raw_payload, signature) = (
+        parts.next().ok_or_else(invalid)?,
+        parts.next().ok_or_else(invalid)?,
+        parts.next().ok_or_else(invalid)?,
+    );
+    if parts.next().is_some() {
+        return Err(invalid());
+    }
+    let decode = |value: &str| {
+        base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(value)
+            .map_err(|_| invalid())
+    };
+    let header: serde_json::Value =
+        serde_json::from_slice(&decode(raw_header)?).map_err(|_| invalid())?;
+    if header.get("alg").and_then(serde_json::Value::as_str) != Some("HS256") {
+        return Err(invalid());
+    }
+    let payload: serde_json::Value =
+        serde_json::from_slice(&decode(raw_payload)?).map_err(|_| invalid())?;
+    let expected = hmac_sha256(secret, format!("{raw_header}.{raw_payload}").as_bytes());
+    if !constant_time_eq(&decode(signature)?, &expected) {
+        return Err(invalid());
+    }
+    if payload.get("aud").and_then(serde_json::Value::as_str) != Some("erpx-legal-enrollment") {
+        return Err(invalid());
+    }
+    let expires = payload
+        .get("exp")
+        .and_then(serde_json::Value::as_i64)
+        .ok_or_else(invalid)?;
+    if expires <= now / 1000 {
+        return Err(invalid());
+    }
+    let slug = payload
+        .get("slug")
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| !value.is_empty() && value.len() <= 128)
+        .ok_or_else(invalid)?
+        .to_owned();
+    let share = payload
+        .get("shareId")
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| !value.is_empty() && value.len() <= 200)
+        .ok_or_else(invalid)?
+        .to_owned();
+    Ok((slug, share))
+}
+
+async fn legal_enrollment_inner(
+    state: &LegalEnrollmentState,
+    body: LegalEnrollmentRequest,
+) -> Result<serde_json::Value, BusinessError> {
+    let now = state.clock.now().get();
+    let (slug, share_id) = verify_legal_enrollment_token(&state.secret, &body.token, now)?;
+    if !body.continuation.starts_with("/legal-portal/continue?")
+        || body.continuation.len() > 4096
+    {
+        return Err(BusinessError::invalid(
+            "LEGAL_ENROLLMENT_CONTINUATION_INVALID",
+            "This Legal invitation return is unavailable.",
+        ));
+    }
+    let pool = state
+        .holdings
+        .iter()
+        .find(|(holding_id, holding_slug, _)| holding_id == &slug || holding_slug == &slug)
+        .map(|(_, _, pool)| pool)
+        .ok_or_else(|| {
+            BusinessError::invalid(
+                "LEGAL_ENROLLMENT_TOKEN_INVALID",
+                "This Legal invitation is unavailable.",
+            )
+        })?;
+    let row = sqlx::query(
+        "SELECT s.email FROM legal_shares s \
+         JOIN legal_items i ON i.id=s.item_id \
+         JOIN legal_documents d ON d.id=s.document_id AND d.item_id=i.id \
+         JOIN legal_settings st ON st.company_id=i.company_id AND st.enabled \
+         WHERE s.id=$1 AND s.expires_at>$2 AND s.revoked_at IS NULL \
+         AND NOT EXISTS(SELECT 1 FROM legal_destructions x WHERE x.item_id=i.id AND x.state IN ('executing','completed'))",
+    )
+    .bind(&share_id)
+    .bind(now)
+    .fetch_optional(pool.raw())
+    .await
+    .map_err(|_| {
+        BusinessError::new(
+            FailureKind::Unavailable,
+            "LEGAL_ENROLLMENT_UNAVAILABLE",
+            "The Legal invitation is unavailable.",
+        )
+    })?
+    .ok_or_else(|| {
+        BusinessError::new(
+            FailureKind::NotFound,
+            "LEGAL_INVITATION_UNAVAILABLE",
+            "This Legal invitation is unavailable.",
+        )
+    })?;
+    use sqlx::Row;
+    let email: String = row.try_get("email").map_err(|_| {
+        BusinessError::new(
+            FailureKind::Unavailable,
+            "LEGAL_ENROLLMENT_UNAVAILABLE",
+            "The Legal invitation is unavailable.",
+        )
+    })?;
+    let verification_token = state
+        .credentials
+        .sign_up_legal(
+            body.name,
+            &email,
+            body.password,
+            body.token,
+            Some(&body.continuation),
+        )
+        .await?;
+    Ok(serde_json::json!({
+        "verificationToken": verification_token,
+        "accountOrigin": state.account_origin,
+        "callbackURL": body.continuation,
+    }))
+}
+
+async fn legal_enrollment(
+    State(state): State<Arc<LegalEnrollmentState>>,
+    Json(body): Json<LegalEnrollmentRequest>,
+) -> Response {
+    match legal_enrollment_inner(&state, body).await {
+        Ok(data) => Json(serde_json::json!({ "data": data })).into_response(),
+        Err(error) => (
+            StatusCode::from_u16(match error.kind {
+                FailureKind::InvalidInput => 422,
+                FailureKind::Unauthenticated => 401,
+                FailureKind::Forbidden => 403,
+                FailureKind::NotFound => 404,
+                FailureKind::Conflict => 409,
+                FailureKind::Unavailable => 503,
+            })
+            .unwrap_or(StatusCode::SERVICE_UNAVAILABLE),
+            Json(serde_json::json!({"error":{"code":error.code,"message":error.message}})),
+        )
+            .into_response(),
+    }
+}
+
+fn legal_enrollment_router(state: Arc<LegalEnrollmentState>) -> Router {
+    Router::new()
+        .route("/api/v1/account/legal-enrollment", post(legal_enrollment))
+        .with_state(state)
+}
+
 pub async fn assemble_development_api(
     config: DevelopmentApiConfiguration,
     clock: Arc<dyn Clock + Send + Sync>,
@@ -1994,6 +2217,29 @@ async fn assemble_checked(
         account_invitations_router(auth.clone(), invitations)
             .map_err(|_| "PRIVATE_API_ACCOUNT_UNAVAILABLE")?,
     );
+    let legal_enrollment_state = Arc::new(LegalEnrollmentState {
+        credentials: credentials.clone(),
+        account_origin: config.policy.account_origin.clone(),
+        holdings: config
+            .holdings
+            .iter()
+            .enumerate()
+            .map(|(index, holding)| {
+                (
+                    holding.registration.holding_id.as_str().to_owned(),
+                    holding.registration.slug.clone(),
+                    pools[index + 1].clone(),
+                )
+            })
+            .collect(),
+        secret: Arc::new(
+            std::env::var("BETTER_AUTH_SECRET")
+                .unwrap_or_default()
+                .into_bytes(),
+        ),
+        clock: clock.clone(),
+    });
+    router = router.merge(legal_enrollment_router(legal_enrollment_state));
 
     if config.account_bootstrap {
         let sso_policy = SsoPolicy::new((*config.policy).clone())
@@ -6488,6 +6734,13 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 | "/api/v1/account/device-accounts/active"
                 | "/api/v1/account/device-accounts/sign-in",
             ) => host == state.policy.account_host,
+            (
+                &axum::http::Method::POST,
+                "/api/v1/account/legal-enrollment",
+            ) => host == state.policy.account_host,
+            (&axum::http::Method::GET, "/api/auth/verify-email") => {
+                host == state.policy.account_host
+            }
             (&axum::http::Method::GET, "/sso/authorize") => host == state.policy.account_host,
             (&axum::http::Method::GET, "/sso/start" | "/sso/callback") => {
                 state.sso_product_hosts.contains(host)
@@ -8637,4 +8890,19 @@ pub async fn run_production_workers_file(
         }
     }
     first_error.map_or(Ok(()), Err)
+}
+
+#[cfg(test)]
+mod legal_enrollment_tests {
+    use super::hmac_sha256;
+    #[test]
+    fn hmac_matches_node_vector() {
+        use base64::Engine;
+        let secret = b"test-secret-private-local-fixtures-only-2026";
+        let data = b"eyJhbGciOiJIUzI1NiJ9.eyJzbHVnIjoiaDAwMSIsInNoYXJlSWQiOiJzaGFyZS0xIiwiYXVkIjoiZXJweC1sZWdhbC1lbnJvbGxtZW50IiwiaWF0IjoxNzAwMDAwMDAwLCJleHAiOjE3MDAwMDM2MDB9";
+        assert_eq!(
+            base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(hmac_sha256(secret, data)),
+            "Ae-5Aa5p-PhWzJcHwonGJlg4MIjyeARMceX2G8vGg6M"
+        );
+    }
 }

@@ -213,7 +213,7 @@ export function createNativeAccountHttpTransport(configuration:NativeSessionClie
     if(origin&&!origins.includes(origin)||!['GET','OPTIONS'].includes(incoming.method)&&!origin)return fail('NATIVE_ACCOUNT_ORIGIN_FORBIDDEN',403);
   }
   if(!['GET','POST','DELETE','OPTIONS'].includes(incoming.method))return new Response(null,{status:405,headers:{allow:'GET, POST, DELETE, OPTIONS'}});
-  if(!(/^\/api\/auth\/[A-Za-z0-9_/-]+$/.test(publicUrl.pathname)||/^\/api\/v1\/account\/device-accounts(?:\/(initialize|active|sign-in))?$/.test(publicUrl.pathname)||/^\/api\/v1\/account\/iam\/mfa\/(enroll|verify)$/.test(publicUrl.pathname)||/^\/api\/v1\/account\/security$/.test(publicUrl.pathname)||/^\/sso\/(start|authorize|callback)$/.test(publicUrl.pathname)))return new Response(null,{status:404});
+  if(!(/^\/api\/auth\/[A-Za-z0-9_/-]+$/.test(publicUrl.pathname)||/^\/api\/v1\/account\/device-accounts(?:\/(initialize|active|sign-in))?$/.test(publicUrl.pathname)||/^\/api\/v1\/account\/iam\/mfa\/(enroll|verify)$/.test(publicUrl.pathname)||/^\/api\/v1\/account\/security$/.test(publicUrl.pathname)||/^\/api\/v1\/account\/legal-enrollment$/.test(publicUrl.pathname)||/^\/sso\/(start|authorize|callback)$/.test(publicUrl.pathname)))return new Response(null,{status:404});
   if(publicUrl.search.length>8192)return fail('NATIVE_ACCOUNT_QUERY_LIMIT',400);
   const cookie=incoming.headers.get('cookie');if(cookie&&new TextEncoder().encode(cookie).length>8192)return fail('NATIVE_ACCOUNT_COOKIE_LIMIT',400);
   const idempotencyKey=incoming.headers.get('idempotency-key');if(idempotencyKey!==null&&(idempotencyKey.length<8||idempotencyKey.length>128))return fail('NATIVE_ACCOUNT_HEADER_LIMIT',400);
