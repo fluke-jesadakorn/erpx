@@ -2201,6 +2201,7 @@ async fn assemble_checked(
         let mut quality_targets = Vec::new();
         let mut identity_access_targets = Vec::new();
         let mut billing_targets = Vec::new();
+        let mut billing_rollout_targets = Vec::new();
         let mut pos_targets = Vec::new();
         let mut pos_command_targets = Vec::new();
         let mut commercial_targets = Vec::new();
@@ -3056,23 +3057,32 @@ async fn assemble_checked(
                         Arc::new(SharedClock(clock.clone())),
                     )),
                 });
+                let billing_backend = Arc::new(crate::billing::BillingBackend::new(
+                    config.policy.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    Arc::new(crate::billing::BillingService::new(
+                        authorizer.clone(),
+                        crate::billing::BillingConfiguration::new(
+                            holding.registration.holding_id.clone(),
+                            company.clone(),
+                        ),
+                        Arc::new(SharedClock(clock.clone())),
+                    )),
+                ));
                 billing_targets.push(
                     erpx_server_billing::public::billing_http::BillingHttpTarget {
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
-                        backend: Arc::new(crate::billing::BillingBackend::new(
-                            config.policy.clone(),
-                            Arc::new(FinanceJournalReadScopeHeaders),
-                            Arc::new(crate::billing::BillingService::new(
-                                authorizer.clone(),
-                                crate::billing::BillingConfiguration::new(
-                                    holding.registration.holding_id.clone(),
-                                    company.clone(),
-                                ),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )),
+                        backend: billing_backend.clone(),
+                    },
+                );
+                billing_rollout_targets.push(
+                    erpx_server_billing::public::target_rollout_http::BillingTargetRolloutHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: billing_backend,
                     },
                 );
                 commercial_targets.push(
@@ -3704,6 +3714,14 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_billing::public::billing_http::billing_router(billing_targets)
                     .map_err(|_| "PRIVATE_API_BILLING_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !billing_rollout_targets.is_empty() {
+            router = router.merge(
+                erpx_server_billing::public::target_rollout_http::billing_target_rollout_router(
+                    billing_rollout_targets,
+                )
+                .map_err(|_| "PRIVATE_API_BILLING_ROLLOUT_CONFIGURATION_INVALID")?,
             );
         }
         if !pos_targets.is_empty() {
