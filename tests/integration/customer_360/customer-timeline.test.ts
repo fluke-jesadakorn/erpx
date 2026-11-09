@@ -66,6 +66,7 @@ it('federates scoped Field Service, Finance and Legal state with module and perm
  const invoiceId=key(),legalId=key(),legalEventId=key();
  const created=await native.requestAs<{id:string}>('owner','POST','/api/v1/holdings/acme/field-service',{entity:'agreement',branchId:f.branch,departmentId:f.department,customerId:customer,title:'Timeline service',startDate:'2026-09-01',endDate:'2027-09-01',currency:'THB',visitRateMinor:2500,warrantyDiscountBps:0},key());
  expect(created.status,JSON.stringify(created.json)).toBe(200);
+ await native.advanceClock();
  const reviewed=await native.requestAs('reviewer','POST','/api/v1/holdings/acme/field-service',{entity:'agreement',id:created.json.data.id,action:'activate',expectedVersion:1,reason:'Independent service manager accepted the timeline fixture agreement'},key());
  expect(reviewed.status,JSON.stringify(reviewed.json)).toBe(200);
  await db.prepare(`INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,debit_account_id,credit_account_id,source_type,status,version,created_by,created_at,updated_at)

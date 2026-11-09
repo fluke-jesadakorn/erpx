@@ -412,7 +412,7 @@ required-features = ["private-field-api", "files-scan-worker"]
 [[example]]
 name = "field_files_vitest_held_provider"
 path = "../../tests/support/files/rust-field-files-vitest-held-provider.rs"
-required-features = ["private-field-api", "files-scan-worker"]
+required-features = ["private-field-api", "files-scan-worker", "existing-business"]
 
 [[test]]
 name = "field_collaboration_selected_postgres"
