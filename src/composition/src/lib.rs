@@ -107,7 +107,10 @@ pub mod pos;
 pub mod identity_access;
 pub mod quality;
 pub mod quality_commands;
+#[cfg(any(feature = "existing-business", feature = "records-command"))]
 pub mod records;
+#[cfg(any(feature = "existing-business", feature = "records-command"))]
+pub mod records_command;
 #[cfg(feature = "existing-business")]
 pub mod sales;
 

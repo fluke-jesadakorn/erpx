@@ -68,7 +68,7 @@ fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
 }
 
 #[derive(Clone, Copy)]
-struct RecordsSources;
+pub(crate) struct RecordsSources;
 
 impl HoldingWorkSourcePreparation for RecordsSources {
     fn prepare<'c>(&'c self, _: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
@@ -89,6 +89,10 @@ impl RecordsConfiguration {
 
     pub fn company(&self) -> &CompanyId {
         &self.company
+    }
+
+    pub fn holding_id(&self) -> &HoldingId {
+        &self.holding
     }
 }
 

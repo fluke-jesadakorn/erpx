@@ -1,0 +1,421 @@
+//! Native generic Records create command. Support is the first bounded module;
+//! current Identity authority, Company/workspace scope, command receipt,
+//! version CAS, audit and outbox all live in the caller's serializable unit.
+use crate::records::RecordsConfiguration;
+use erpx_server_identity_access::public::{
+    DeviceProof,
+    effective_authority::{AuthorizedWorkContext, HoldingWorkAuthorizer, WorkAuthorizationRequest},
+    work_context::{HoldingWorkspaceRequest, WorkScopeKind},
+};
+use erpx_server_records::public::record_write::{
+    CreateRecordInput, ValidatedRecord, validate_create,
+};
+use erpx_server_runtime::public::postgres::PgTransactionError;
+use erpx_server_shared::public::{
+    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, IdentifierSource,
+    RecordId, TimestampMillis,
+};
+use erpx_server_workflow::public::commands::{
+    CommandActor, CommandDisposition, CommandField, CommandJson, PgCommandAuthority,
+    PgCommandLedger, PgOwnerCommandEffects, WorkAuthority, WorkflowOutput, WorkflowRequest,
+};
+use sqlx::{Connection, PgConnection};
+use std::sync::Arc;
+
+type Error = PgTransactionError<BusinessError>;
+
+fn changed() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "WORK_CONTEXT_CHANGED",
+        "Your selected work context changed. Choose a current role again.",
+    )
+}
+
+fn unavailable() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "RECORDS_WRITE_UNAVAILABLE",
+        "The Records write is unavailable.",
+    )
+}
+
+fn scope() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Forbidden,
+        "RECORDS_SCOPE_REQUIRED",
+        "Choose the current authorized Company workspace.",
+    )
+}
+
+fn forbidden() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Forbidden,
+        "RECORDS_MODULE_FORBIDDEN",
+        "Change to a role with access to this module.",
+    )
+}
+
+fn actor(
+    current: &AuthorizedWorkContext,
+    now: TimestampMillis,
+) -> Result<CommandActor, BusinessError> {
+    current.require_permission("records.write")?;
+    if now.get() >= current.expires_at() {
+        return Err(changed());
+    }
+    let selected = current.selection();
+    let workspace = selected.workspace();
+    let assignment = selected.assignment();
+    Ok(CommandActor {
+        user_id: current.user_id().clone(),
+        assignment_id: assignment.id.clone(),
+        role: assignment.role.clone(),
+        company_id: workspace.company_id.clone(),
+        branch_id: workspace
+            .branch_id
+            .as_ref()
+            .map(|value| CommandField::Value(value.as_str().into()))
+            .unwrap_or(CommandField::Null),
+        department_id: workspace
+            .department_id
+            .as_ref()
+            .map(|value| CommandField::Value(value.as_str().into()))
+            .unwrap_or(CommandField::Null),
+        authority: CommandField::Value(WorkAuthority {
+            session_id: current.session_id().as_str().into(),
+            revision: selected.revision(),
+            assignment_version: assignment.version,
+        }),
+        iam: CommandField::Value(CommandJson::from_serializable(
+            &erpx_server_identity_access::public::command_metadata::project_command_iam(current)?,
+        )?),
+        assignment_scope_kind: match assignment.scope_kind {
+            WorkScopeKind::Holding => "holding",
+            WorkScopeKind::Branch => "branch",
+            WorkScopeKind::Department => "department",
+        }
+        .into(),
+        assignment_scope_node_id: assignment
+            .scope_node_id
+            .as_ref()
+            .map(|value| value.as_str().into()),
+    })
+}
+
+fn require_module(current: &AuthorizedWorkContext, module_id: &str) -> Result<(), BusinessError> {
+    if current.modules().iter().any(|value| value == module_id) {
+        Ok(())
+    } else {
+        Err(forbidden())
+    }
+}
+
+struct Authority<'a, C> {
+    current: &'a AuthorizedWorkContext,
+    request: &'a WorkflowRequest,
+    clock: &'a C,
+}
+
+impl<C: Clock + Sync> PgCommandAuthority for Authority<'_, C> {
+    async fn lock_sources(
+        &mut self,
+        connection: &mut PgConnection,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        if !connection.is_in_transaction() {
+            return Err(
+                erpx_server_runtime::public::postgres::PersistenceError::new(
+                    "RECORDS_WRITE_TRANSACTION_REQUIRED",
+                )
+                .into(),
+            );
+        }
+        Ok(())
+    }
+
+    async fn authorize(
+        &mut self,
+        _: &mut PgConnection,
+        request: &WorkflowRequest,
+    ) -> Result<CommandActor, Error> {
+        if request.key != self.request.key
+            || request.operation != self.request.operation
+            || request.record_id != self.request.record_id
+            || request.input.as_str() != self.request.input.as_str()
+        {
+            return Err(changed().into());
+        }
+        Ok(actor(self.current, self.clock.now())?)
+    }
+
+    async fn verify_command(
+        &mut self,
+        _: &mut PgConnection,
+        current: &CommandActor,
+        _: &WorkflowRequest,
+        _: CommandDisposition,
+    ) -> Result<(), Error> {
+        if &actor(self.current, self.clock.now())? != current {
+            return Err(changed().into());
+        }
+        Ok(())
+    }
+}
+
+struct Effects<'a, C> {
+    current: &'a AuthorizedWorkContext,
+    request: &'a WorkflowRequest,
+    clock: &'a C,
+    module_id: &'a str,
+    input: &'a CreateRecordInput,
+    validated: &'a ValidatedRecord,
+}
+
+impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
+    async fn lock_sources(
+        &mut self,
+        connection: &mut PgConnection,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        sqlx::query(
+            "LOCK TABLE workspace_records,workspace_record_transitions \
+             IN SHARE ROW EXCLUSIVE MODE NOWAIT",
+        )
+        .execute(&mut *connection)
+        .await
+        .map_err(
+            erpx_server_runtime::public::postgres::PersistenceError::pre_snapshot_lock_conflict,
+        )?;
+        Ok(())
+    }
+
+    async fn prepare(
+        &mut self,
+        _: &mut PgConnection,
+        _: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<WorkflowOutput, Error> {
+        Ok(WorkflowOutput {
+            version: 1,
+            result: CommandJson::from_serializable(
+                &serde_json::json!({ "id": self.validated.id }),
+            )?,
+            event_scope: None,
+        })
+    }
+
+    async fn apply(
+        &mut self,
+        connection: &mut PgConnection,
+        current: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        let selected = self.current.selection().workspace();
+        let now = self.clock.now().get();
+        sqlx::query(
+            "INSERT INTO workspace_records(module_id,id,section_id,title,description,status,\
+             fields_json,company_id,branch_id,department_id,version,created_by,updated_by,\
+             created_at,updated_at) VALUES($1,$2,$3,$4,$5,'draft',$6,$7,$8,$9,1,$10,$10,$11,$11)",
+        )
+        .bind(self.module_id)
+        .bind(&self.validated.id)
+        .bind(&self.validated.section_id)
+        .bind(&self.validated.title)
+        .bind(&self.validated.description)
+        .bind(&self.validated.fields_json)
+        .bind(selected.company_id.as_str())
+        .bind(selected.branch_id.as_ref().map(|value| value.as_str()))
+        .bind(selected.department_id.as_ref().map(|value| value.as_str()))
+        .bind(current.user_id.as_str())
+        .bind(now)
+        .execute(&mut *connection)
+        .await?;
+        Ok(())
+    }
+
+    async fn retain(
+        &mut self,
+        connection: &mut PgConnection,
+        current: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        let row: Option<(String, Option<String>, Option<String>, String, String, String, String, i64, String)> =
+            sqlx::query_as(
+                "SELECT company_id,branch_id,department_id,section_id,title,description,\
+                 fields_json,version,created_by FROM workspace_records WHERE module_id=$1 AND id=$2",
+            )
+            .bind(self.module_id)
+            .bind(&self.validated.id)
+            .fetch_optional(&mut *connection)
+            .await?;
+        let selected = self.current.selection().workspace();
+        let Some((
+            company,
+            branch,
+            department,
+            section,
+            title,
+            description,
+            fields,
+            version,
+            created_by,
+        )) = row
+        else {
+            return Err(unavailable().into());
+        };
+        if company != selected.company_id.as_str()
+            || branch.as_deref() != selected.branch_id.as_ref().map(|value| value.as_str())
+            || department.as_deref() != selected.department_id.as_ref().map(|value| value.as_str())
+            || section != self.validated.section_id
+            || title != self.validated.title
+            || description != self.validated.description
+            || fields != self.validated.fields_json
+            || version != 1
+            || created_by != current.user_id.as_str()
+        {
+            return Err(changed().into());
+        }
+        Ok(())
+    }
+}
+
+struct Ids;
+
+impl IdentifierSource for Ids {
+    fn next(&mut self) -> RecordId {
+        RecordId::new(uuid::Uuid::new_v4().to_string()).expect("generated UUID")
+    }
+}
+
+pub struct RecordsCommandService<C> {
+    pub authorizer: Arc<HoldingWorkAuthorizer>,
+    pub configuration: RecordsConfiguration,
+    pub clock: Arc<C>,
+}
+
+impl<C: Clock + Send + Sync + 'static> RecordsCommandService<C> {
+    pub fn new(
+        authorizer: Arc<HoldingWorkAuthorizer>,
+        configuration: RecordsConfiguration,
+        clock: Arc<C>,
+    ) -> Self {
+        Self {
+            authorizer,
+            configuration,
+            clock,
+        }
+    }
+
+    fn access(module_id: &str) -> WorkAuthorizationRequest {
+        WorkAuthorizationRequest {
+            permission: erpx_server_identity_access::public::effective_authority::WorkPermissionRequirement::Exact("records.write".into()),
+            module: Some(module_id.into()),
+            destination: "records".into(),
+            api: true,
+        }
+    }
+
+    fn input<Input>(
+        &self,
+        input: Input,
+    ) -> impl FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let company = self.configuration.company().clone();
+        move || {
+            let mut request = input()?;
+            if request.company_id != company {
+                return Err(scope());
+            }
+            request.mutation = true;
+            Ok(request)
+        }
+    }
+
+    pub async fn create<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        module_id: String,
+        create: CreateRecordInput,
+        key: CommandKey,
+    ) -> Result<CommandJson, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        validate_create(&module_id, key.as_str(), &create)?;
+        let holding = self.configuration.holding_id().clone();
+        let company = self.configuration.company().clone();
+        let clock = self.clock.clone();
+        let wire = CommandJson::from_serializable(&serde_json::json!({
+            "moduleId": module_id,
+            "sectionId": create.section_id,
+            "title": create.title,
+            "description": create.description,
+            "fields": create.fields,
+        }))?;
+        let record_id = format!("rec-{module_id}-{}", key.as_str());
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(&module_id),
+                crate::records::RecordsSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let module_id = module_id.clone();
+                    let wire = wire.clone();
+                    let record_id = record_id.clone();
+                    let create = create.clone();
+                    let command_key = key.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.write")?;
+                        require_module(current, &module_id)?;
+                        let validated = validate_create(&module_id, command_key.as_str(), &create)?;
+                        let request = WorkflowRequest {
+                            key: command_key.as_str().to_owned(),
+                            operation: "record.create".into(),
+                            record_id,
+                            input: wire,
+                        };
+                        let clock_ref = clock.as_ref();
+                        let mut authority = Authority {
+                            current,
+                            request: &request,
+                            clock: clock_ref,
+                        };
+                        let mut effects = Effects {
+                            current,
+                            request: &request,
+                            clock: clock_ref,
+                            module_id: &module_id,
+                            input: &create,
+                            validated: &validated,
+                        };
+                        let mut ids = Ids;
+                        let mut ledger = PgCommandLedger::new(
+                            current.selection().workspace().company_id.clone(),
+                            connection,
+                            &mut authority,
+                            clock_ref,
+                            &mut ids,
+                        );
+                        let outcome = ledger.execute(&request, &mut effects).await?;
+                        Ok(outcome.result)
+                    })
+                },
+            )
+            .await
+    }
+}

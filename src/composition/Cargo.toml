@@ -16,6 +16,7 @@ field-service = ["dep:base64", "dep:time", "dep:erpx-server-work-projection", "d
 field-service-http = ["field-service"]
 existing-business = ["field-service", "dep:erpx-server-brand", "finance-field-write", "dep:erpx-server-organization", "dep:erpx-server-quality", "dep:erpx-server-billing", "dep:erpx-server-crm", "dep:erpx-server-manage-erpx", "dep:erpx-server-records", "dep:erpx-server-benefits", "dep:erpx-server-procurement", "dep:erpx-server-projects", "dep:erpx-server-field-service", "dep:erpx-server-support", "dep:erpx-server-assets", "dep:erpx-server-collaboration", "dep:erpx-server-commerce", "dep:erpx-server-inventory", "dep:erpx-server-maintenance", "dep:erpx-server-manufacturing", "dep:erpx-server-marketing", "dep:erpx-server-customer-360", "dep:erpx-server-customer-authority", "dep:erpx-server-ecommerce", "dep:erpx-server-talent", "dep:erpx-server-sales", "dep:erpx-server-benefits", "dep:erpx-server-learning", "dep:erpx-server-people-payroll", "dep:erpx-server-workflow", "dep:erpx-server-identity-access", "dep:erpx-server-legal", "dep:erpx-server-files", "dep:erpx-server-finance", "dep:erpx-server-commercial", "dep:erpx-server-platform-administration", "dep:erpx-server-pms"]
 module-example = []
+records-command = ["dep:erpx-server-records", "dep:erpx-server-workflow", "dep:erpx-server-identity-access"]
 field-push-worker = ["field-service", "erpx-server-collaboration/push-provider"]
 files-scan-worker = ["field-service", "erpx-server-files/preview-provider"]
 directory-ldaps = ["existing-business", "erpx-server-identity-access/directory-ldaps"]
@@ -431,6 +432,11 @@ required-features = ["existing-business"]
 [[test]]
 name = "support_session_command_postgres"
 path = "../../tests/integration/support/rust-support-session-command-postgres.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
+name = "records_write_postgres"
+path = "../../tests/integration/shared.records/rust-record-write-postgres.test.rs"
 required-features = ["existing-business"]
 
 [[test]]

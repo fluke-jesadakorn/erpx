@@ -37,6 +37,72 @@
   ],
   "suites": [
     {
+      "id": "records.rust-record-write-postgres.integration",
+      "lane": "integration",
+      "owner": "shared.records",
+      "modules": [
+        "manage_erpx"
+      ],
+      "files": [
+        "tests/integration/shared.records/rust-record-write-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native generic Records create retains current IAM/module scope, command receipt replay, version CAS, audit/outbox and Company isolation through the Workflow ledger."
+      },
+      "apps": [
+        "admin"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "records_write_postgres"
+        ],
+        "features": [
+          "existing-business"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml",
+        "packages/server-records/Cargo.toml",
+        "tests/support/rust-postgres.rs",
+        "tests/support/finance/review-composition.rs",
+        "src/composition/src/records_command.rs",
+        "packages/server-records/src/domain/record_write.rs",
+        "packages/server-records/src/public/record_write.rs"
+      ],
+      "packages": [
+        "@erpx/server-records",
+        "@erpx/server-workflow",
+        "@erpx/server-identity_access",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
       "id": "assets.rust-asset-cost-composition-postgres.integration",
       "lane": "integration",
       "owner": "assets",
