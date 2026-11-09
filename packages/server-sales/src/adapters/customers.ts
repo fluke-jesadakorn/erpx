@@ -19,6 +19,7 @@ import { crmWork } from "@erpx/server-crm/public/crm";
 import { customerFollowupWorkspace, customerFollowupWork } from "@erpx/server-sales/adapters/followups";
 
 import { nativeCustomerNotes } from "@erpx/server-customer_360/public/customer-notes";
+import { customerNotesForCustomer } from "@erpx/server-sales/public/customer-notes";
 import { headers } from "next/headers";
 import { ApiError } from "@erpx/server-runtime/public/http";
 
@@ -53,7 +54,7 @@ function repository(write:SqlDatabase,actor:WorkContext):SalesCustomerRepository
  opportunityCounts:ids=>salesOpportunityCounts(write,actor,ids),supportCounts:ids=>salesSupportCounts(write,actor,ids),
  async directory(search,status,cursor){return salesCustomerDirectory(write,actor,search,status,cursor);},
  customer:async id=>salesCustomerProfile(write,actor,id),orders:async id=>salesCustomerOpenOrders(write,actor,id),followups:async id=>{const purchase=await followupProjectionScope(write,actor,'c');return (await write.prepare(`SELECT c.id,c.next_action,c.due_date,c.status,c.order_id,o.number order_number FROM customer_followups c JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=c.order_id AND o.company_id=c.company_id WHERE ${s.sql} AND ${purchase.where} AND o.party_id=? AND c.status='open' ORDER BY c.due_date,c.id LIMIT 30`).bind(...s.args,...purchase.args, id).all<Row>()).results;},opportunities:id=>salesOpenOpportunities(write,actor,id),cases:id=>salesOpenSupportCases(write,actor,id),supportSource:id=>salesSupportOrderSource(write,actor,id),
-notes:async id=>nativeCustomerNotes(await headers(),actor,{customerId:id}),reviews:()=>salesCustomerReviewCounts(write,actor),
+notes:async id=>{let incoming;try{incoming=await headers();}catch{return customerNotesForCustomer(actor,id);}return nativeCustomerNotes(incoming,actor,{customerId:id});},reviews:()=>salesCustomerReviewCounts(write,actor),
  crmWork:()=>crmWork(reader),followupWork:()=>customerFollowupWork(reader),orderWork:()=>salesOrderWork(reader),followupIds:async id=>(await customerFollowupWorkspace(reader,id)).items.map(row=>String(row.id)),
 };}
 async function translated<Result>(action:()=>Promise<Result>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}

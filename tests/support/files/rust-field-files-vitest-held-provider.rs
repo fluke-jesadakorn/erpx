@@ -246,6 +246,10 @@ async fn run_fixture(
         "company"
     };
     doc["fieldServiceReads"] = serde_json::json!([{"holdingId":"h001","companyId":read_company}]);
+    if doc.get("fieldServiceIssues").is_some() {
+        doc["fieldServiceReservations"] = serde_json::json!(["h001"]);
+        doc["financeJournalReads"] = serde_json::json!([{"holdingId":"h001","companyId":read_company}]);
+    }
     if parts_mixed {
         doc["fieldServicePartsPostingSetups"] = serde_json::json!(["h001"]);
         doc["fieldServicePartsPrerequisites"] = serde_json::json!(["h001"]);
@@ -269,6 +273,7 @@ async fn run_fixture(
             doc[flag]=serde_json::json!(["h001"]);
         }
         doc["fieldServiceSourceRecordReads"]=serde_json::json!([{"holdingId":"h001","mode":"enforced"}]);
+        doc["financeJournalReads"]=serde_json::json!([{"holdingId":"h001","companyId":read_company}]);
     }
     // Retained generic Finance read consumers receive native-owned invoices
     // and books. This finite test profile has no full Finance or Parts purchase.
@@ -302,6 +307,9 @@ async fn run_fixture(
         assert!(parts_mixed && engineering.is_some(),"Commercial profile requires the owned mixed cohort");
         doc["accountSecurityKeys"] = serde_json::json!({"current":"fixture","keys":[{"id":"fixture","keyHex":"07".repeat(32)}]});
         doc["servicePackageLifecycle"] = serde_json::json!({"providerHoldingId":"h001","holdingIds":["h001"],"reviewSecret":"fixture-only-secret-32-characters-minimum"});
+    }
+    if doc.get("fieldServiceReads").is_none() {
+        doc["fieldServiceReads"] = serde_json::json!([{"holdingId":"h001","companyId":"company"}]);
     }
     doc["fieldAttachmentLinks"] = serde_json::json!([{"holdingId":"h001","mode":"enabled"}]);
     doc["fieldAttachmentBinds"] = serde_json::json!([{"holdingId":"h001","mode":"enabled"}]);

@@ -167,7 +167,7 @@ it("filters unpurchased Support Calendar sources while retaining draining owner 
 it("applies purchase and current owner authority to actual Executive customer evidence without a second connection", async () => {
   vi.stubEnv("ERPX_SUPPORT_PACKAGE_ENFORCEMENT", "disabled"); const ticket = await orderTicket();
   const event = await db.prepare("SELECT id FROM support_ticket_events WHERE ticket_id=? ORDER BY version LIMIT 1").bind(ticket.id).first<{ id: string }>();
-  const filters = { from: "2026-10-01", to: "2026-11-01", currency: "THB" }, recordId = `support:${event!.id}`;
+  const filters = { from: "2026-01-01", to: "2027-01-01", currency: "THB" }, recordId = `support:${event!.id}`;
   vi.stubEnv("ERPX_SUPPORT_PACKAGE_ENFORCEMENT", "enforced");
   expect((await executiveMainEvidenceSources(db).factsReadCustomerActivityEvidence(f.owner, recordId, filters)).row).toBeNull();
   expect((await executiveMainEvidenceSources(db).factsSearchCustomerActivityEvidence(f.owner, { filters, query: "Private source ticket", limit: 100, metric: "recent-customer-activity" }, null)).rows).toEqual([]);

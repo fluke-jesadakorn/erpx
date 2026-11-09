@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T19:47:30+07:00",
+  "updatedAt": "2026-11-09T20:15:02+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -22,7 +22,7 @@
     "workflowsPartial": 55,
     "workflowsVerified": 68,
     "workflowsMerged": 68,
-    "ownersComplete": 0,
+    "ownersComplete": 1,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
   },
@@ -3538,6 +3538,15 @@
       "sourceIdentity": "working tree on 713275183",
       "evidenceRef": "docs/testing/evidence/2026-11-09-finance-period-close-browser.json",
       "durableContractRefs": []
+    },
+    {
+      "id": "support-owner-certification",
+      "kind": "owner-certification",
+      "status": "owner-complete",
+      "scope": "Support owner: 6/6 workflows verified, all six surfaces active, support.package-surfaces.integration 22/22 on the exact working source, native Support page/read/commands and desktop/mobile browser evidence; retained TS Support bridges are other-owner consumers with named removal conditions.",
+      "sourceIdentity": "working tree on 1d855bfeb",
+      "evidenceRef": "docs/testing/evidence/2026-11-09-support-owner-certification.json",
+      "durableContractRefs": []
     }
   ],
   "workflows": [
@@ -6681,7 +6690,7 @@
         "partial": 0,
         "unstarted": 0,
         "phase": "active",
-        "businessMigrationComplete": false
+        "businessMigrationComplete": true
       },
       "finance": {
         "workflows": 10,

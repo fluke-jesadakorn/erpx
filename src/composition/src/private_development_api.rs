@@ -3761,7 +3761,11 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_RECORDS_CONFIGURATION_INVALID")?,
             );
         }
-        if !files_targets.is_empty() {
+        #[cfg(feature = "files-scan-worker")]
+        let field_files_router_owned = config.field_files_providers.is_some();
+        #[cfg(not(feature = "files-scan-worker"))]
+        let field_files_router_owned = false;
+        if !files_targets.is_empty() && !field_files_router_owned {
             router = router.merge(
                 erpx_server_files::public::attachment_http::attachment_read_router(files_targets)
                     .map_err(|_| "PRIVATE_API_FILES_CONFIGURATION_INVALID")?,

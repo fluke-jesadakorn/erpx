@@ -18,5 +18,7 @@ export function attachmentToolEnvironment(root: string, environment: NodeJS.Proc
     ERPX_HEIF_CONVERT: environment.ERPX_HEIF_CONVERT ?? "/opt/homebrew/opt/libheif/bin/heif-convert",
     ERPX_HEIF_ENC: environment.ERPX_HEIF_ENC ?? "/opt/homebrew/opt/libheif/bin/heif-enc",
     ERPX_PDFTOPPM_BIN: environment.ERPX_PDFTOPPM_BIN ?? "/opt/homebrew/bin/pdftoppm",
+    ERPX_FILES_PREVIEW_BIN:
+      environment.ERPX_FILES_PREVIEW_BIN ?? join(root, "target/debug/erpx-render-preview"),
   };
 }
