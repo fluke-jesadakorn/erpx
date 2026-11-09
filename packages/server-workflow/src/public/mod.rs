@@ -33,3 +33,4 @@ pub mod quality_return_receipts;
 pub mod task_cancel;
 pub mod task_decision;
 pub mod task_reroute;
+pub mod task_revise;

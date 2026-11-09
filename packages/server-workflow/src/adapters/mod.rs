@@ -30,3 +30,4 @@ pub(crate) mod quality_return_receipts;
 pub(crate) mod task_cancel;
 pub(crate) mod task_decision;
 pub(crate) mod task_reroute;
+pub(crate) mod task_revise;
