@@ -39,11 +39,12 @@
     },
     "financePeriodCloseCandidate": {
       "command": "cargo test -p erpx-service --locked --test period_close_postgres --features private-field-api",
-      "result": "6 passed, 0 failed, 0 ignored (37.01s)",
-      "log": ".scratch/dev/rust-migration/finance-period-close-workpapers-final2.log",
+      "result": "6 passed, 0 failed, 0 ignored (30.27s) on the final working source after the Files table-lock, empty-set and require_current manifest changes",
+      "log": ".scratch/dev/rust-migration/current/finance-period-close-final.log",
       "filesCommand": "cargo test -p erpx-server-files --locked --test business_evidence_postgres",
-      "filesResult": "3 passed, 0 failed, 0 ignored (3.64s)",
-      "filesLog": ".scratch/dev/rust-migration/files-business-evidence-lock-final.log",
+      "filesResult": "3 passed, 0 failed, 0 ignored (3.77s) on the final working source",
+      "filesLog": ".scratch/dev/rust-migration/current/files-business-evidence-final.log",
+      "compile": "cargo check -p erpx-service --all-targets --features business-http,private-field-api,production-api --locked finished successfully in 2m07s on the working source (external Common verification log .scratch/dev/rust-migration/verification/cargo-check-service.log).",
       "limitations": "Not commit-ready. Common-owned Files port and shared composition; reviewer blocker: Commercial↔Finance lock-order cycle with the Field parts consumer. Additional gaps: empty-set acceptance, require_current does not retain purpose/component/ref/checksum, missing Files V2/freeze/read-only checks, 404/503 collapse, event-manifest and exact error-code parity, policy-version check blocked by the shared DTO. No authenticated browser or global-lock proof."
     }
   },
