@@ -328,7 +328,7 @@
           "src/composition/src/service_stock_setup.rs",
           "packages/feature-field_service/src/adapters/server/native-parts-setup.ts"
         ],
-        "current": "PR12 native Parts setup/prerequisites/masters and reads qualified; replaced TS writers/fallback removed. ProductEntry authority remains a scoped shared read.",
+        "current": "PR12 native Parts setup/prerequisites/masters and reads qualified; replaced TS writers/fallback removed. ProductEntry authority remains a scoped shared read. At eb5989b59 the committed Inventory Field parts consumption source is mounted into the setup prior-history read: a positive Field consumption sets has_consumption/has_history and blocks a new mapping. Owner suite 5/5 and product context read 1/1 passed; no workflow promoted.",
         "withdrawal": "Retained generic non-Service and ProductEntry consumers require separate migrations; no duplicate scoped setup writer remains."
       },
       {
@@ -8841,6 +8841,22 @@
           "Assets exact-source browser re-run"
         ],
         "evidence": "Keyed workspace synced to clean acf; positive-cost registration AST-01204724/asset-e728d4aa with USD 125050 Finance snapshot; zero-cost AST-LIFE-345821 place v2/condition v3/retirement request v4 with DB readback; maintenance AST-FINAL-01244346 work order create/start/complete v1-v3, asset v4, 4 asset events/3 work events, 0 page errors. Work-order create still TS; hydration mismatch/font 404 documented. No promotion; counts 65 verified/65 merged/57 partial/84 unstarted, owners 0/41.",
+        "counts": {
+          "owners": 0,
+          "verified": 65,
+          "partial": 57,
+          "unstarted": 84,
+          "merged": 65,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-09T12:45:00+07:00",
+        "commit": "eb5989b59",
+        "bundles": [
+          "Field parts consumption prior-history mount"
+        ],
+        "evidence": "Mounted the committed Inventory Field parts consumption source into the Field Service parts posting setup prior-history read. A positive Field consumption sets has_consumption/has_history and blocks a new mapping; the Inventory dependency is declared in Field Service Cargo.toml/Cargo.lock. Owner service_parts_history_postgres 5/5 and product field_service_http_parity_postgres context test 1/1 passed. No workflow or owner promoted; Count/Files/Finance mounts and browser remain open.",
         "counts": {
           "owners": 0,
           "verified": 65,
