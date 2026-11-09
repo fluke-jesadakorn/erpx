@@ -16,6 +16,7 @@ pub struct FinanceJournalRecordWorkspace {
 }
 pub use crate::adapters::postgres_journal_workspace::{
     CurrentFieldServiceJournalWorkspace, CurrentJournalRecordWorkspace,
-    lock_journal_workspace_sources, read_field_service_journal_workspace,
-    read_journal_record_workspace, read_field_service_invoice_journal_workspace,
+    lock_journal_workspace_sources, read_field_finance_journal_workspace,
+    read_field_service_journal_workspace, read_journal_record_workspace,
+    read_field_service_invoice_journal_workspace,
 };

@@ -285,6 +285,7 @@ pub mod field_inbox_command;
 pub mod field_support_read;
 #[cfg(feature = "field-service")]
 mod finance_field_journal_history;
+mod finance_generic_history;
 #[cfg(feature = "field-service")]
 mod finance_service_invoice_history;
 

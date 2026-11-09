@@ -54,6 +54,15 @@ export function createNativeJournalDetailClient(configuration:NativeFinanceReadC
 export function createNativeJournalWorkspaceClient(configuration:NativeFinanceReadConfiguration,transport:NativeFinanceReadTransport=directHttp):NativeJournalWorkspaceRead {
  return createRead(configuration,transport,workspaceResponse,'journals','/workspace');
 }
+/** Generic Field Finance History journal detail/workspace. The response has the
+ * same bounded Finance shape; the distinct path proves the joined Field source
+ * before the payload is exposed. */
+export function createNativeFieldHistoryClient(configuration:NativeFinanceReadConfiguration,transport:NativeFinanceReadTransport=directHttp):NativeJournalDetailRead {
+ return createRead(configuration,transport,response,'journals','/field-history');
+}
+export function createNativeFieldHistoryWorkspaceClient(configuration:NativeFinanceReadConfiguration,transport:NativeFinanceReadTransport=directHttp):NativeJournalWorkspaceRead {
+ return createRead(configuration,transport,workspaceResponse,'journals','/field-history/workspace');
+}
 export function createNativeFinanceWorkspaceRead<T>(configuration:NativeFinanceReadConfiguration,transport:NativeFinanceReadTransport|undefined,validate:(value:unknown,holding:{holdingId:string},input:NativeJournalReadInput)=>T):NativeJournalRead<T>{
  return createRead(configuration,transport??directHttp,validate,'invoices','/workspace');
 }
@@ -72,7 +81,7 @@ export {workspaceResponse as validateNativeJournalWorkspaceResponse};
 export function createNativeFieldJournalFlowRead<T>(configuration:NativeFinanceReadConfiguration,transport:NativeFinanceReadTransport|undefined,validate:(value:unknown,holding:{holdingId:string},input:NativeJournalReadInput)=>T):NativeJournalRead<T>{
  return createRead(configuration,transport??directHttp,validate,'journals','/flow');
 }
-function createRead<T>(configuration:NativeFinanceReadConfiguration,transport:NativeFinanceReadTransport,validate:(value:unknown,holding:{holdingId:string},input:NativeJournalReadInput)=>T,kind:'journals'|'invoices'|'payments'|'sales/receipts',suffix:''|'/workspace'|'/runtime'|'/post-runtime'|'/flow'):NativeJournalRead<T>{
+function createRead<T>(configuration:NativeFinanceReadConfiguration,transport:NativeFinanceReadTransport,validate:(value:unknown,holding:{holdingId:string},input:NativeJournalReadInput)=>T,kind:'journals'|'invoices'|'payments'|'sales/receipts',suffix:''|'/workspace'|'/runtime'|'/post-runtime'|'/flow'|'/field-history'|'/field-history/workspace'):NativeJournalRead<T>{
  let base:URL;try{base=new URL(configuration.privateBaseUrl);}catch{return failure('NATIVE_FINANCE_CONFIGURATION_INVALID');}
  const port=Number(base.port);
  if(base.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(base.hostname)||!base.port||reserved.has(port)||port>=3200&&port<=3299||base.username||base.password||configuration.privateBaseUrl!==base.origin||!integer(configuration.timeoutMs,250)||configuration.timeoutMs>30000||configuration.holdings.length<1||configuration.holdings.length>64)return failure('NATIVE_FINANCE_CONFIGURATION_INVALID');

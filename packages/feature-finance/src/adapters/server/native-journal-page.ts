@@ -1,6 +1,6 @@
 import 'server-only';
 import type { FinanceJournalRecordWorkspace } from '@erpx/contracts/finance-journal-read';
-import { createNativeJournalWorkspaceClient, NativeFinanceReadError, type NativeFinanceReadConfiguration, type NativeJournalWorkspaceRead } from './native-journal-detail';
+import { createNativeFieldHistoryWorkspaceClient, createNativeJournalWorkspaceClient, NativeFinanceReadError, type NativeFinanceReadConfiguration, type NativeJournalWorkspaceRead } from './native-journal-detail';
 import { createNextNativeJournalWorkspaceReader } from './next-native-journal-detail';
 
 /** Data needed to compare the existing page authorization with the native read.
@@ -20,8 +20,9 @@ const sameSet = (left: readonly string[], right: readonly string[]) => {
 
 /** The existing page still uses its own actor for branding and actions. The
  * native response supplies render data only and must describe the same scope. */
-export function createNativeJournalPageReader(read: NativeJournalWorkspaceRead) {
+export function createNativeJournalPageReader(read: NativeJournalWorkspaceRead, fieldHistory?: NativeJournalWorkspaceRead) {
   const nextRead = createNextNativeJournalWorkspaceReader(read);
+  const nextFieldHistory = fieldHistory ? createNextNativeJournalWorkspaceReader(fieldHistory) : undefined;
   return async (actor: NativeJournalPageContext, holdingSlug: string, journalId: string): Promise<FinanceJournalRecordWorkspace> => {
     const authority = actor.authority;
     if (!authority || !actor.iam || actor.holdingSlug !== holdingSlug) throw new NativeFinanceReadError('NATIVE_FINANCE_CONTEXT_CHANGED');
@@ -36,10 +37,20 @@ export function createNativeJournalPageReader(read: NativeJournalWorkspaceRead) 
     };
     const modules = [...actor.modules];
     const permissions = [...actor.iam.permissions];
-    const result = await nextRead({
+    const request = {
       holdingSlug, journalId, branchSlug, departmentSlug,
       expected: { companyId: captured.companyId, assignmentId: captured.assignmentId, revision: captured.revision, assignmentVersion: captured.assignmentVersion },
-    });
+    };
+    let result;
+    try {
+      result = await nextRead(request);
+    } catch (error) {
+      // Only a bounded native 404 selects the distinct generic Field History
+      // route. A denial or transport failure never falls through to another
+      // source; the generic route repeats the same authority and purchase checks.
+      if (!nextFieldHistory || !(error instanceof NativeFinanceReadError) || error.status !== 404) throw error;
+      result = await nextFieldHistory(request);
+    }
     const context = result.context;
     if (Object.entries(captured).some(([key, value]) => context[key as keyof typeof context] !== value) ||
         !sameSet(modules, context.modules) || !sameSet(permissions, context.permissions)) {
@@ -80,6 +91,8 @@ export function nativeFinanceConfiguration(raw: string): NativeFinanceReadConfig
 export async function nativeJournalPageWorkspace(actor: NativeJournalPageContext, holdingSlug: string, journalId: string): Promise<FinanceJournalRecordWorkspace | undefined> {
   const raw = process.env.ERPX_NATIVE_FINANCE_JOURNAL_CONFIG;
   if (raw === undefined) return undefined;
-  const read = createNativeJournalWorkspaceClient(nativeFinanceConfiguration(raw));
-  return createNativeJournalPageReader(read)(actor, holdingSlug, journalId);
+  const configuration = nativeFinanceConfiguration(raw);
+  const read = createNativeJournalWorkspaceClient(configuration);
+  const fieldHistory = createNativeFieldHistoryWorkspaceClient(configuration);
+  return createNativeJournalPageReader(read, fieldHistory)(actor, holdingSlug, journalId);
 }

@@ -750,7 +750,7 @@ impl HoldingWorkSourcePreparation for JournalListPreparation {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 enum ReadKind {
     Detail,
     Workspace,
@@ -760,27 +760,41 @@ struct ReadPreparation {
     kind: ReadKind,
     field_service_parts: bool,
     field_service_invoices: bool,
+    field_finance_history: bool,
+    generic_only: bool,
 }
 impl HoldingWorkSourcePreparation for ReadPreparation {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
             lock_commercial_authority_sources(c).await?;
-            // Take Finance's retained writer/source gate before shared table
-            // reads so concurrent Field invoice posting cannot meet an upgrade.
-            if self.field_service_parts || self.field_service_invoices {
-                erpx_server_finance::public::journal_review::lock_journal_review_sources(c).await?;
-            }
-            if self.field_service_invoices {
-                crate::finance_service_invoice_history::lock_service_invoice_history_sources(c)
+            // Generic Field History owns its complete Finance/Workflow/
+            // Inventory/Field source order. Acquire it before the narrower
+            // invoice/parts gates so a generic-only route cannot interleave
+            // the shared Finance tables in a second order.
+            if self.field_finance_history {
+                crate::finance_generic_history::lock_generic_field_finance_history_sources(c)
                     .await?;
             }
-            match self.kind {
-                ReadKind::Detail => lock_journal_detail_sources(c).await?,
-                ReadKind::Workspace => lock_journal_workspace_sources(c).await?,
-            }
-            if self.field_service_parts {
-                erpx_server_inventory::public::field_service_consumption_finance::lock_consumption_finance_sources(c).await?;
-                erpx_server_field_service::public::finance_lineage::lock_field_service_parts_finance_sources(c).await?;
+            if !self.generic_only {
+                // Take Finance's retained writer/source gate before shared table
+                // reads so concurrent Field invoice posting cannot meet an upgrade.
+                if self.field_service_parts || self.field_service_invoices {
+                    erpx_server_finance::public::journal_review::lock_journal_review_sources(c).await?;
+                }
+                if self.field_service_invoices {
+                    crate::finance_service_invoice_history::lock_service_invoice_history_sources(c)
+                        .await?;
+                }
+                match self.kind {
+                    ReadKind::Detail => lock_journal_detail_sources(c).await?,
+                    ReadKind::Workspace => lock_journal_workspace_sources(c).await?,
+                }
+                if self.field_service_parts {
+                    erpx_server_inventory::public::field_service_consumption_finance::lock_consumption_finance_sources(c).await?;
+                    erpx_server_field_service::public::finance_lineage::lock_field_service_parts_finance_sources(c).await?;
+                }
+            } else if self.kind == ReadKind::Workspace {
+                lock_journal_workspace_sources(c).await?;
             }
             lock_finance_journal_name_sources(c).await
         })
@@ -805,6 +819,8 @@ enum ReadSource {
         Box<CurrentFieldServiceJournalWorkspace>,
         Box<crate::finance_service_invoice_history::CurrentServiceInvoiceHistory>,
     ),
+    GenericFieldDetail(Box<crate::finance_generic_history::CurrentGenericFieldFinanceHistory>),
+    GenericFieldWorkspace(Box<crate::finance_generic_history::CurrentGenericFieldFinanceHistory>),
 }
 impl ReadSource {
     fn journal(&self) -> &FinanceLedgerRow {
@@ -813,6 +829,7 @@ impl ReadSource {
             Self::Workspace(s) => &s.data().journal,
             Self::FieldDetail(s, _) | Self::InvoiceDetail(s, _) => &s.detail().journal,
             Self::FieldWorkspace(s, _) | Self::InvoiceWorkspace(s, _) => &s.data().journal,
+            Self::GenericFieldDetail(s) | Self::GenericFieldWorkspace(s) => s.journal(),
         }
     }
     async fn require_current<C: Clock>(
@@ -838,6 +855,9 @@ impl ReadSource {
             Self::InvoiceWorkspace(s, history) => {
                 s.require_current(c).await?;
                 history.require_current(c, ctx).await
+            }
+            Self::GenericFieldDetail(s) | Self::GenericFieldWorkspace(s) => {
+                s.require_current(c, ctx).await
             }
         }
     }
@@ -870,6 +890,24 @@ impl ReadSource {
             }
             Self::FieldWorkspace(s, _) | Self::InvoiceWorkspace(s, _) => {
                 let mut data = s.data().clone();
+                names(&mut data.journal);
+                ReadResponse::Workspace(FinanceJournalWorkspaceReadResponse { data, context })
+            }
+            Self::GenericFieldDetail(s) => {
+                let mut data = s
+                    .detail()
+                    .expect("generic Field detail source")
+                    .detail()
+                    .clone();
+                names(&mut data.journal);
+                ReadResponse::Detail(FinanceJournalReadResponse { data, context })
+            }
+            Self::GenericFieldWorkspace(s) => {
+                let mut data = s
+                    .workspace()
+                    .expect("generic Field workspace source")
+                    .data()
+                    .clone();
                 names(&mut data.journal);
                 ReadResponse::Workspace(FinanceJournalWorkspaceReadResponse { data, context })
             }
@@ -983,6 +1021,8 @@ impl HoldingWorkSourcePreparation for FieldFinanceWorkSources {
                 kind: ReadKind::Workspace,
                 field_service_parts: true,
                 field_service_invoices: true,
+                field_finance_history: false,
+                generic_only: false,
             }
             .prepare(c)
             .await?;
@@ -3827,7 +3867,28 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
         match self
-            .read_kind(host, proof, input, id, ReadKind::Detail)
+            .read_kind(host, proof, input, id, ReadKind::Detail, false)
+            .await?
+        {
+            ReadResponse::Detail(reply) => Ok(reply),
+            _ => Err(scope().into()),
+        }
+    }
+    /// Generic Field Finance History detail. This route is a real product read
+    /// for journals whose owner lineage is the joined Field source, including
+    /// payment/reversal journals that the manual/opening detail reader rejects.
+    pub async fn read_field_history<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        id: RecordId,
+    ) -> Result<FinanceJournalReadResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        match self
+            .read_kind(host, proof, input, id, ReadKind::Detail, true)
             .await?
         {
             ReadResponse::Detail(reply) => Ok(reply),
@@ -3845,7 +3906,27 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
         match self
-            .read_kind(host, proof, input, id, ReadKind::Workspace)
+            .read_kind(host, proof, input, id, ReadKind::Workspace, false)
+            .await?
+        {
+            ReadResponse::Workspace(reply) => Ok(reply),
+            _ => Err(scope().into()),
+        }
+    }
+    /// Generic Field Finance History workspace. Retains the same bounded
+    /// Finance references and joined Field decision as the detail route.
+    pub async fn read_field_history_workspace<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        id: RecordId,
+    ) -> Result<FinanceJournalWorkspaceReadResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        match self
+            .read_kind(host, proof, input, id, ReadKind::Workspace, true)
             .await?
         {
             ReadResponse::Workspace(reply) => Ok(reply),
@@ -3859,6 +3940,7 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
         input: Input,
         id: RecordId,
         kind: ReadKind,
+        generic_only: bool,
     ) -> Result<ReadResponse, Error>
     where
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
@@ -3876,8 +3958,10 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
         let clock = self.clock.clone();
         let preparation = ReadPreparation {
             kind,
-            field_service_parts: configuration.field_service_parts,
-            field_service_invoices: configuration.field_service_invoices,
+            field_service_parts: configuration.field_service_parts && !generic_only,
+            field_service_invoices: configuration.field_service_invoices && !generic_only,
+            field_finance_history: generic_only,
+            generic_only,
         };
         self.authorizer
             .execute_with_sources_deferred(
@@ -3961,7 +4045,52 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                             let included=PgCompanyPurchaseReader::new(configuration.holding.clone(),configuration.company.clone(),c,&configuration.purchases).inspect(&PurchaseRequest{capabilities:vec!["finance.service-invoice".into(),"service.parts-assets".into()],purpose:CapabilityPurpose::History,mode:PackageEnforcementMode::Enforced},clock.now()).await?;
                             included.require_allowed()?;Some(included.witness)
                         }else{None};
-                        if !invoice_admission && parts_purchase.is_none(){base_access.require_allowed()?;}
+                        // Generic Field History is a distinct product read. It
+                        // proves the joined Field source before any payload is
+                        // exposed and never turns a request label into admission.
+                        let generic_source = if generic_only {
+                            let read_kind = match kind {
+                                ReadKind::Detail => crate::finance_generic_history::GenericHistoryReadKind::Detail,
+                                ReadKind::Workspace => crate::finance_generic_history::GenericHistoryReadKind::Workspace,
+                            };
+                            crate::finance_generic_history::read_generic_field_finance_history(
+                                c,
+                                &source_context,
+                                read_kind,
+                                id.as_str(),
+                            )
+                            .await?
+                        } else {
+                            None
+                        };
+                        if generic_only && generic_source.is_none() {
+                            return Err(scope().into());
+                        }
+                        let generic_admission = generic_source.is_some();
+                        let generic_purchase = if generic_admission
+                            && base_access.require_allowed().is_err()
+                        {
+                            let included = PgCompanyPurchaseReader::new(
+                                configuration.holding.clone(),
+                                configuration.company.clone(),
+                                c,
+                                &configuration.purchases,
+                            )
+                            .inspect(
+                                &PurchaseRequest {
+                                    capabilities: vec!["finance.service-invoice".into()],
+                                    purpose: CapabilityPurpose::History,
+                                    mode: PackageEnforcementMode::Enforced,
+                                },
+                                clock.now(),
+                            )
+                            .await?;
+                            included.require_allowed()?;
+                            Some(included.witness)
+                        } else {
+                            None
+                        };
+                        if !invoice_admission && !generic_admission && parts_purchase.is_none(){base_access.require_allowed()?;}
                         let source = if let Some(source)=invoice_source {source} else if let Some(target) = target {
                             match kind {
                                 ReadKind::Detail => {
@@ -3974,6 +4103,11 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                                     let lineage = crate::finance_field_service_lineage::FieldServicePartsSource::retain(c, target).await?;
                                     ReadSource::FieldWorkspace(Box::new(workspace), Box::new(lineage))
                                 }
+                            }
+                        } else if let Some(generic) = generic_source {
+                            match kind {
+                                ReadKind::Detail => ReadSource::GenericFieldDetail(Box::new(generic)),
+                                ReadKind::Workspace => ReadSource::GenericFieldWorkspace(Box::new(generic)),
                             }
                         } else {
                             match kind {
@@ -4010,8 +4144,11 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                         let base=PgCompanyPurchaseReader::new(
                             configuration.holding.clone(),configuration.company.clone(),c,&configuration.purchases,
                         ).revalidate(&purchase, TimestampMillis::new(clock.now().get())).await?;
-                        if !invoice_admission && parts_purchase.is_none(){base.require_allowed()?;}
+                        if !invoice_admission && !generic_admission && parts_purchase.is_none(){base.require_allowed()?;}
                         if let Some(witness)=parts_purchase {
+                            PgCompanyPurchaseReader::new(configuration.holding.clone(),configuration.company.clone(),c,&configuration.purchases).revalidate(&witness,clock.now()).await?.require_allowed()?;
+                        }
+                        if let Some(witness)=generic_purchase {
                             PgCompanyPurchaseReader::new(configuration.holding.clone(),configuration.company.clone(),c,&configuration.purchases).revalidate(&witness,clock.now()).await?.require_allowed()?;
                         }
                         // Invoice history above also retains denied-base versus

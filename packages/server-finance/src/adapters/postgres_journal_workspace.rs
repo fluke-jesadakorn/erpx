@@ -257,6 +257,40 @@ pub async fn read_field_service_journal_workspace(
     })
 }
 
+/// Read-only generic Field Finance History workspace. The caller must retain
+/// the returned parent through the joined Field History decision before
+/// exposing this payload.
+pub async fn read_field_finance_journal_workspace(
+    c: &mut PgConnection,
+    actor: &FinanceActor,
+    id: &RecordId,
+) -> Result<CurrentFieldServiceJournalWorkspace, Error> {
+    let source =
+        crate::public::journal_detail::read_field_finance_journal_detail(c, actor, id).await?;
+    let identity = identity(c).await?;
+    let references = references(c, actor, source.detail()).await?;
+    let detail = source.detail();
+    let data = FinanceJournalRecordWorkspace {
+        journal: detail.journal.clone(),
+        lines: detail.lines.clone(),
+        history: detail.history.clone(),
+        chart: references.chart.clone(),
+        accounts: references.accounts.clone(),
+        periods: references.periods.clone(),
+        dimensions: references.dimensions.clone(),
+        dimension_values: references.dimension_values.clone(),
+    };
+    let result = CurrentFieldServiceJournalWorkspace {
+        actor: actor.clone(),
+        source,
+        data,
+        identity,
+        references,
+    };
+    result.require_current(c).await?;
+    Ok(result)
+}
+
 /// Read-only invoice-derived workspace. The caller must retain the returned
 /// parent through native Field invoice history before exposing this payload.
 pub async fn read_field_service_invoice_journal_workspace(

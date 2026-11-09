@@ -356,6 +356,7 @@ pub struct CurrentFieldServiceJournalDetail {
     transaction: (String, i32, String, String),
     detail: FinanceJournalDetail,
     invoice_source: Option<(String,String)>,
+    field_finance_link: Option<()>,
 }
 impl CurrentFieldServiceJournalDetail {
     pub fn detail(&self) -> &FinanceJournalDetail {
@@ -369,6 +370,11 @@ impl CurrentFieldServiceJournalDetail {
         }
         if let Some(expected) = &self.invoice_source
             && invoice_journal_link(c, &self.actor, &self.id).await?.as_ref() != Some(expected)
+        {
+            return Err(denied());
+        }
+        if self.field_finance_link.is_some()
+            && !field_finance_journal_link(c, &self.actor, &self.id).await?
         {
             return Err(denied());
         }
@@ -395,7 +401,54 @@ pub async fn read_field_service_journal_detail(
         transaction: witness(c).await?,
         detail: payload(c, actor, id.as_str()).await?,
         invoice_source: None,
+        field_finance_link: None,
     })
+}
+
+/// Finance-owned structural link for a generic Field Finance History journal.
+/// The selected journal must be an actual payment/reversal journal, a Field
+/// invoice journal, or a Field parts journal in the same Company. Field lineage,
+/// purchase admission and the retained joined decision remain the composition's
+/// responsibility; this only prevents an arbitrary journal payload from being
+/// exposed through the generic source port.
+async fn field_finance_journal_link(
+    c: &mut PgConnection,
+    actor: &FinanceActor,
+    id: &str,
+) -> Result<bool, Error> {
+    Ok(sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM finance_journals j WHERE j.company_id=$1 AND j.id=$2 AND (\
+         EXISTS(SELECT 1 FROM finance_payments p WHERE p.company_id=j.company_id AND (p.journal_id=j.id OR p.fx_journal_id=j.id))\
+         OR EXISTS(SELECT 1 FROM finance_payment_reversals r JOIN finance_payments p ON p.id=r.payment_id AND p.company_id=j.company_id WHERE r.reversal_journal_id=j.id OR r.fx_reversal_journal_id=j.id)\
+         OR EXISTS(SELECT 1 FROM finance_invoices i WHERE i.company_id=j.company_id AND i.journal_id=j.id AND i.source_type='field_service')\
+         OR (j.source_type='field_service_parts' AND EXISTS(SELECT 1 FROM operational_inventory_consumptions x WHERE x.company_id=j.company_id AND x.journal_id=j.id AND x.source_kind='field_service'))\
+         ))",
+    )
+    .bind(actor.company_id.as_str())
+    .bind(id)
+    .fetch_one(c)
+    .await?)
+}
+/// Bounded payload for an already inspected generic Field Finance History
+/// journal. The caller must retain and revalidate the joined Field decision.
+pub async fn read_field_finance_journal_detail(
+    c: &mut PgConnection,
+    actor: &FinanceActor,
+    id: &RecordId,
+) -> Result<CurrentFieldServiceJournalDetail, Error> {
+    if !field_finance_journal_link(c, actor, id.as_str()).await? {
+        return Err(denied());
+    }
+    let result = CurrentFieldServiceJournalDetail {
+        actor: actor.clone(),
+        id: id.as_str().into(),
+        transaction: witness(c).await?,
+        detail: payload(c, actor, id.as_str()).await?,
+        invoice_source: None,
+        field_finance_link: Some(()),
+    };
+    result.require_current(c).await?;
+    Ok(result)
 }
 
 // A book label alone grants nothing. Retain the exact Finance-owned invoice,
@@ -413,6 +466,7 @@ pub async fn read_field_service_invoice_journal_detail(
     let result=CurrentFieldServiceJournalDetail{
         actor:actor.clone(),id:id.as_str().into(),transaction:witness(c).await?,
         detail:payload(c,actor,id.as_str()).await?,invoice_source:Some(source.clone()),
+        field_finance_link:None,
     };
     result.require_current(c).await?;
     Ok(Some((source.0,result)))

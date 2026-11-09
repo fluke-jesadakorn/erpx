@@ -227,6 +227,14 @@ pub fn finance_journal_read_router<C: Clock + Send + Sync + 'static>(
             get(workspace::<C>),
         )
         .route(
+            "/api/v1/holdings/{holding_slug}/finance/journals/{id}/field-history",
+            get(field_history::<C>),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/journals/{id}/field-history/workspace",
+            get(field_history_workspace::<C>),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/finance/invoices/{id}/workspace",
             get(invoice_workspace::<C>),
         )
@@ -377,14 +385,28 @@ async fn detail<C: Clock + Send + Sync + 'static>(
     Path((slug, id)): Path<(String, String)>,
     headers: HeaderMap,
 ) -> Response {
-    read(state, slug, id, headers, false).await
+    read(state, slug, id, headers, false, false).await
 }
 async fn workspace<C: Clock + Send + Sync + 'static>(
     State(state): State<Arc<ReadState<C>>>,
     Path((slug, id)): Path<(String, String)>,
     headers: HeaderMap,
 ) -> Response {
-    read(state, slug, id, headers, true).await
+    read(state, slug, id, headers, true, false).await
+}
+async fn field_history<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Response {
+    read(state, slug, id, headers, false, true).await
+}
+async fn field_history_workspace<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Response {
+    read(state, slug, id, headers, true, true).await
 }
 async fn finance_invoices_page<C: Clock + Send + Sync + 'static>(
     State(state): State<Arc<ReadState<C>>>,
@@ -2649,6 +2671,7 @@ async fn read<C: Clock + Send + Sync + 'static>(
     id: String,
     headers: HeaderMap,
     workspace: bool,
+    field_history: bool,
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
@@ -2678,7 +2701,21 @@ async fn read<C: Clock + Send + Sync + 'static>(
             scope?;
             captured.resolve_read(company)
         };
-        if workspace {
+        if field_history {
+            if workspace {
+                target
+                    .service
+                    .read_field_history_workspace(host, proof, input, id)
+                    .await
+                    .and_then(|reply| serde_json::to_value(reply).map_err(|_| serialization()))
+            } else {
+                target
+                    .service
+                    .read_field_history(host, proof, input, id)
+                    .await
+                    .and_then(|reply| serde_json::to_value(reply).map_err(|_| serialization()))
+            }
+        } else if workspace {
             target
                 .service
                 .read_workspace(host, proof, input, id)

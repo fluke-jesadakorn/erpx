@@ -279,3 +279,116 @@ async fn unrelated_reference_bodies_are_excluded_and_one_aggregate_budget_preced
   sqlx::query("INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,created_at,updated_at)SELECT 'workspace-big-'||n,'company','chart','big-'||n,repeat('x',250000),'asset',0,0 FROM generate_series(1,9)n").execute(pool.raw()).await.unwrap();let(status,value)=invoke(&app,workspace_request(&p,"journal-workspace-budget")).await;assert_eq!(status,StatusCode::SERVICE_UNAVAILABLE,"{value}");assert!(value.get("data").is_none());
  }).await;
 }
+
+/// Seed one committed-shape Field invoice/payment chain. The rows are real
+/// owner-table facts; this is not a request label or a source grant.
+async fn seed_field_payment_journal(pool: &DatabasePool) {
+    sqlx::raw_sql(
+        r#"
+INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status)
+VALUES('field-branch','branch','field-branch','Field Branch','company','company','field-branch','active');
+INSERT INTO finance_parties(id,company_id,kind,code,name,currency,created_at,updated_at)
+VALUES('field-customer','company','customer','FIELD-CUSTOMER','Synthetic Field customer','THB',0,0);
+INSERT INTO commerce_warehouses(id,company_id,branch_id,code,name)
+VALUES('field-warehouse','company','field-branch','FIELD-WAREHOUSE','Synthetic Field warehouse');
+INSERT INTO commerce_products(id,company_id,sku,name,price_minor)
+VALUES('field-product','company','FIELD-PRODUCT','Synthetic Field product',100);
+INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor)
+VALUES('field-warehouse','field-product',2000,200);
+INSERT INTO commerce_orders(id,company_id,branch_id,kind,number,party_id,warehouse_id,currency,order_date,due_date,subtotal_minor,tax_minor,created_by,created_at,updated_at)
+VALUES('field-sale','company','field-branch','sales','FIELD-SALE','field-customer','field-warehouse','THB','2026-01-01','2026-01-02',0,0,'fixture',0,0);
+INSERT INTO support_tickets(id,company_id,branch_id,order_id,customer_id,title,issue,owner_id,due_date,created_by,created_at,updated_at)
+VALUES('field-ticket','company','field-branch','field-sale','field-customer','Field ticket','Field issue','fixture','2026-01-02','fixture',0,0);
+INSERT INTO field_service_agreements(id,company_id,branch_id,customer_id,title,start_date,end_date,currency,visit_rate_minor,status,created_by,created_at,updated_at)
+VALUES('field-agreement','company','field-branch','field-customer','Field agreement','2026-01-01','2026-12-31','THB',100,'draft','fixture',0,0);
+INSERT INTO field_service_orders(id,company_id,branch_id,ticket_id,ticket_version,agreement_id,agreement_version,issue,site,technician_id,status,version,created_by,created_at,updated_at)
+VALUES('field-order','company','field-branch','field-ticket',1,'field-agreement',1,'Field issue','Field site','field-tech','open',2,'fixture',0,0);
+INSERT INTO field_service_order_events(id,order_id,version,action,actor_id,reason,status,technician_id,details_json,created_at)
+VALUES('service-order-event-field-billing-key','field-order',2,'release-billing','field-releaser','fixture','billed','field-tech','{}',0);
+INSERT INTO field_service_billing_releases(id,order_id,agreement_id,customer_id,currency,amount_minor,source_order_version,status,released_by,reason,created_at,pricing_date)
+VALUES('field-billing-field-billing-key','field-order','field-agreement','field-customer','THB',100,2,'released','field-releaser','fixture',0,'2026-01-01');
+INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,source_type,source_id,created_by,created_at,updated_at)
+VALUES('journal-field-invoice','company','chart','period','J-FIELD-INVOICE','2026-01-01','THB','invoice','field-invoice-field-billing-key','fixture',0,0),
+      ('journal-field-payment','company','chart','period','J-FIELD-PAYMENT','2026-01-01','THB','payment','payment-field','fixture',0,0);
+INSERT INTO finance_journal_lines(id,journal_id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,ordinal)
+VALUES('journal-field-payment-debit','journal-field-payment','cash',100,0,100,0,0),
+      ('journal-field-payment-credit','journal-field-payment','sales',0,100,0,100,1);
+INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,debit_account_id,credit_account_id,source_type,source_id,journal_id,created_by,created_at,updated_at)
+VALUES('field-invoice-field-billing-key','company','field-customer','receivable','FIELD-INVOICE','2026-01-01','2026-01-02','THB',100,0,100,100,'cash','sales','field_service','field-order','journal-field-invoice','fixture',0,0);
+INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at)
+VALUES('field-billing-key','field.order.release-billing','field-releaser','synthetic','field-order','{}','{"companyId":"company"}',0);
+INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,status,journal_id,fx_journal_id,version,created_by,created_at,updated_at)
+VALUES('payment-field','company','field-customer','receipt','FIELD-PAYMENT','2026-01-01','THB',100,100,'draft','journal-field-payment',NULL,1,'field-payer',0,0);
+INSERT INTO money_transaction_snapshots(company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,used_latest_fallback,captured_at)
+VALUES('company','field_service_billing_release','field-billing-field-billing-key','invoice_total','2026-01-01','THB',2,100,100,false,0);
+"#,
+    )
+    .execute(pool.raw())
+    .await
+    .unwrap();
+    // The deferred native payment guard checks the create receipt at commit.
+    // Seed the payment before that receipt so the committed fixture has the
+    // exact native writer shape without disabling any guard.
+    sqlx::raw_sql(
+        r#"
+INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at)
+VALUES('field-payment-key','finance.payment.create','field-payer','synthetic','payment-field','{"id":"payment-field","settlementInvoiceId":"field-invoice-field-billing-key"}','{"companyId":"company"}',0);
+"#,
+    )
+    .execute(pool.raw())
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn generic_field_finance_history_reads_a_field_payment_journal_on_both_native_routes() {
+    account::with_system(|system| async move {
+        let p = setup(system).await;
+        let pool = &p.system.holdings[0];
+        seed_field_payment_journal(pool).await;
+        p.create("ordinary-field-history", false).await.unwrap();
+        read_only(&p).await;
+        let app = router(&p);
+        // The ordinary manual/opening detail source still rejects this journal.
+        assert_eq!(
+            invoke(&app, request(&p, "journal-field-payment")).await.0,
+            StatusCode::NOT_FOUND
+        );
+        let detail = |id: &str| {
+            let mut r = request(&p, id);
+            *r.uri_mut() = format!(
+                "/api/v1/holdings/acme/finance/journals/{id}/field-history"
+            )
+            .parse()
+            .unwrap();
+            r
+        };
+        let workspace = |id: &str| {
+            let mut r = request(&p, id);
+            *r.uri_mut() = format!(
+                "/api/v1/holdings/acme/finance/journals/{id}/field-history/workspace"
+            )
+            .parse()
+            .unwrap();
+            r
+        };
+        let (status, value) = invoke(&app, detail("journal-field-payment")).await;
+        assert_eq!(status, StatusCode::OK, "{value}");
+        assert_eq!(value["data"]["journal"]["id"], "journal-field-payment");
+        assert_eq!(value["data"]["journal"]["source_type"], "payment");
+        assert_eq!(value["data"]["lines"].as_array().unwrap().len(), 2);
+        assert_eq!(value["context"]["userId"], "fixture-b");
+        let (status, value) = invoke(&app, workspace("journal-field-payment")).await;
+        assert_eq!(status, StatusCode::OK, "{value}");
+        assert_eq!(value["data"]["journal"]["id"], "journal-field-payment");
+        assert_eq!(value["data"]["chart"]["id"], "chart");
+        assert_eq!(value["data"]["accounts"].as_array().unwrap().len(), 2);
+        // A manual journal with no joined Field source is not admitted by the
+        // generic route even though it exists in the same Company.
+        assert_eq!(
+            invoke(&app, detail("journal-ordinary-field-history")).await.0,
+            StatusCode::NOT_FOUND
+        );
+    })
+    .await;
+}
