@@ -19,19 +19,14 @@ impl Clock for TestClock {
 }
 
 fn asset(cost_minor: i64, currency: &str, acquired_date: &str) -> NewAsset {
-    NewAsset {
-        branch_id: "branch".into(),
-        department_id: None,
-        code: "COMPOSITION-COST-1".into(),
-        name: "Composition cost asset".into(),
-        category: "equipment".into(),
-        currency: currency.into(),
-        cost_minor,
-        acquired_date: acquired_date.into(),
-        warranty_end: None,
-        finance_asset_id: None,
-        finance_asset_version: None,
-    }
+    NewAsset::parse(&serde_json::json!({
+        "branchId": "branch",
+        "code": "COMPOSITION-COST-1",
+        "name": "Composition cost asset",
+        "category": "equipment",
+        "currency": currency,
+        "acquiredDate": acquired_date,
+    }), cost_minor).expect("valid Asset fixture")
 }
 
 #[tokio::test]
