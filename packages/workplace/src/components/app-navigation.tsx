@@ -38,6 +38,7 @@ import { NavigationBadge } from "@erpx/workplace/components/navigation-badge";
 import { useNavigationState } from "@erpx/workplace/components/navigation-counts";
 import { NewWork } from "@erpx/workplace/components/new-work";
 import { StartActions } from "@erpx/feature-work_projection/components/today/start-actions";
+import { workViews, workViewAvailable } from "@erpx/feature-work_projection/lib/work-item";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import styles from "@erpx/workplace/components/shell.module.css";
 import appStyles from "@erpx/workplace/components/app-navigation.module.css";
@@ -70,6 +71,7 @@ export function AppNavigation({
   const sidebar = context.productId ? sidebarSelection(model, active, pathname) : null;
   const activeCategoryId = sidebar?.categoryId ?? navigationCategory(model, active)?.id ?? null;
   const [launcherOpen, setLauncherOpen] = useState(false);
+  const [workViewsOpen, setWorkViewsOpen] = useState(false);
   const [startOpen, setStartOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [rail, setRail] = useState(false);
@@ -220,7 +222,12 @@ export function AppNavigation({
         }
         aria-label={rail && !mobile ? item.label : undefined}
         title={rail && !mobile ? item.label : undefined}
-        onClick={() => {
+        onClick={(event) => {
+          if (item.id === "work" && mobile) {
+            event.preventDefault();
+            setWorkViewsOpen(true);
+            return;
+          }
           if (item.id === "home") readHome();
           setOpenCategoryId(null);
         }}
@@ -336,6 +343,15 @@ export function AppNavigation({
     );
   }
 
+  function workViewHref(view: string) {
+    const params = new URLSearchParams({ view });
+    for (const key of ["type", "q"]) {
+      const value = query.get(key);
+      if (value && (key !== "type" || value !== "all")) params.set(key, value);
+    }
+    return `${base}/work?${params}`;
+  }
+
   const entries = (
     <>
       {model.primary
@@ -425,6 +441,18 @@ export function AppNavigation({
           </Button>
         )}
       </nav>
+
+      {mobile && (
+        <Dialog appearance={appearance} title="My work views" open={workViewsOpen} onClose={() => setWorkViewsOpen(false)}>
+          <nav aria-label="My work views" className={appStyles.content}>
+            {workViews.filter(([id]) => workViewAvailable(id, workViewAvailability)).map(([id, label]) => (
+              <a key={id} className={appStyles.launcherRow} href={workViewHref(id)} onClick={() => setWorkViewsOpen(false)}>
+                <span>{label}</span>
+              </a>
+            ))}
+          </nav>
+        </Dialog>
+      )}
 
       <Dialog appearance={appearance}
         title="App launcher"
