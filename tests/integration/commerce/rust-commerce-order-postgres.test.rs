@@ -480,12 +480,12 @@ async fn setup(pool: &DatabasePool) {
          ('assignment-other-branch','other-branch','sales_operator','[]','company','other-branch',0,9000000000000,NULL,'branch','other-branch','manual'),\
          ('assignment-foreign','foreign-user','sales_operator','[]','foreign','foreign-branch',0,9000000000000,NULL,'branch','foreign-branch','manual');\
          INSERT INTO finance_parties(id,company_id,kind,code,name,currency,payment_terms_days,credit_limit_minor,status,version,created_at,updated_at) VALUES \
-         ('party-1','company','customer','C1','Customer','THB',30,0,'active',1,1,1),\
+         ('party-1','company','customer','C1','Customer','THB',30,0,'active',1,1,1),('supplier-1','company','supplier','S1','Supplier','THB',30,0,'active',1,1,1),\
          ('party-f','foreign','customer','CF','Foreign customer','THB',30,0,'active',1,1,1);\
          INSERT INTO commerce_warehouses(id,company_id,branch_id,code,name,status,version) VALUES \
          ('warehouse-1','company','branch','WH1','Main warehouse','active',1);\
          INSERT INTO commerce_products(id,company_id,sku,name,unit,price_minor,tax_bps,status,version,tracking_mode,item_type) VALUES \
-         ('product-1','company','SVC-1','Service','each',10000,700,'active',1,'none','service'),\
+         ('product-1','company','SVC-1','Service','each',10000,700,'active',1,'none','service'),('product-stock','company','STK-1','Stock item','each',10000,700,'active',1,'none','stock'),\
          ('product-f','foreign','SVC-F','Foreign service','each',10000,700,'active',1,'none','service');",
     )
     .execute(pool.raw())
@@ -1452,11 +1452,11 @@ async fn service_completion_writes_fulfillment_receipt_money_and_replay() {
         changed.lines[0].line_id = "service-stock-line".into();
         sqlx::raw_sql(
             "INSERT INTO commerce_products(id,company_id,sku,name,unit,price_minor,tax_bps,status,version,tracking_mode,item_type) \
-             VALUES('product-stock','company','STOCK-1','Stock item','each',1000,0,'active',1,'none','stock');\
+             VALUES('service-stock-product','company','STOCK-1','Stock item','each',1000,0,'active',1,'none','stock');\
              INSERT INTO commerce_orders(id,company_id,branch_id,kind,number,party_id,warehouse_id,currency,order_date,due_date,note,state,subtotal_minor,tax_minor,version,created_by,created_at,updated_at) \
              VALUES('service-stock-order','company','branch','sales','SO-STOCK','party-1','warehouse-1','THB','2026-11-01','2026-11-08','','confirmed',1000,0,1,'creator',1,1);\
              INSERT INTO commerce_order_lines(id,order_id,product_id,description,quantity_milli,fulfilled_milli,price_minor,tax_bps,subtotal_minor,tax_minor,ordinal,item_type) \
-             VALUES('service-stock-line','service-stock-order','product-stock','Stock',1000,0,1000,0,1000,0,0,'stock');",
+             VALUES('service-stock-line','service-stock-order','service-stock-product','Stock',1000,0,1000,0,1000,0,0,'stock');",
         )
         .execute(pool.raw())
         .await
@@ -1565,6 +1565,111 @@ async fn save_replay_conflict_and_late_failure_roll_back_exactly() {
         assert_eq!(
             run_save_error(&pool, creator(), changed).await.code,
             "IDEMPOTENCY_CONFLICT"
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn purchase_order_save_uses_supplier_guard_and_po_number_while_transition_stays_retained() {
+    use erpx_server_commerce::public::order::{OrderKind, SaveOrderInput, SaveOrderLineInput};
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        let purchase = SaveOrderCommand {
+            key: CommandKey::new("commerce:purchase:save:1").unwrap(),
+            order_id: None,
+            input: SaveOrderInput {
+                kind: OrderKind::Purchase,
+                party_id: "supplier-1".into(),
+                warehouse_id: Some("warehouse-1".into()),
+                order_date: "2026-11-01".into(),
+                due_date: "2026-11-08".into(),
+                note: "Supplier order".into(),
+                price_list_id: None,
+                discount_reason: None,
+                lines: vec![SaveOrderLineInput {
+                    product_id: "product-stock".into(),
+                    quantity: "2".into(),
+                    price: "5000".into(),
+                    tax_bps: 700,
+                }],
+                expected_version: None,
+            },
+        };
+        let receipt = run_save(&pool, creator(), purchase.clone()).await.unwrap();
+        assert_eq!(receipt.id, "order-commerce:purchase:save:1");
+        assert_eq!(receipt.version, 1);
+        let detail = run_detail(&pool, creator(), &receipt.id).await.unwrap();
+        assert_eq!(detail.order.kind, "purchase");
+        assert!(detail.order.number.starts_with("PO-"));
+        assert_eq!(detail.order.party_id, "supplier-1");
+        assert_eq!(detail.lines.len(), 1);
+        assert_eq!(detail.lines[0].product_id, "product-stock");
+        let replay = run_save(&pool, creator(), purchase).await.unwrap();
+        assert_eq!(replay, receipt);
+        let service = SaveOrderCommand {
+            key: CommandKey::new("commerce:purchase:service:1").unwrap(),
+            order_id: None,
+            input: SaveOrderInput {
+                kind: OrderKind::Purchase,
+                party_id: "supplier-1".into(),
+                warehouse_id: Some("warehouse-1".into()),
+                order_date: "2026-11-01".into(),
+                due_date: "2026-11-08".into(),
+                note: String::new(),
+                price_list_id: None,
+                discount_reason: None,
+                lines: vec![SaveOrderLineInput {
+                    product_id: "product-1".into(),
+                    quantity: "1".into(),
+                    price: "5000".into(),
+                    tax_bps: 700,
+                }],
+                expected_version: None,
+            },
+        };
+        assert_eq!(
+            run_save_error(&pool, creator(), service).await.code,
+            "SERVICE_SUPPLIER_BILL_REQUIRED"
+        );
+        let customer_party = SaveOrderCommand {
+            key: CommandKey::new("commerce:purchase:customer:1").unwrap(),
+            order_id: None,
+            input: SaveOrderInput {
+                kind: OrderKind::Purchase,
+                party_id: "party-1".into(),
+                warehouse_id: Some("warehouse-1".into()),
+                order_date: "2026-11-01".into(),
+                due_date: "2026-11-08".into(),
+                note: String::new(),
+                price_list_id: None,
+                discount_reason: None,
+                lines: vec![SaveOrderLineInput {
+                    product_id: "product-stock".into(),
+                    quantity: "1".into(),
+                    price: "5000".into(),
+                    tax_bps: 700,
+                }],
+                expected_version: None,
+            },
+        };
+        assert_eq!(
+            run_save_error(&pool, creator(), customer_party).await.code,
+            "CONFLICT"
+        );
+        let cancel = command(
+            &receipt.id,
+            OrderAction::Cancel,
+            1,
+            "commerce:purchase:cancel:1",
+        );
+        assert_eq!(
+            run_transition(&pool, creator(), cancel)
+                .await
+                .map_err(business)
+                .unwrap_err()
+                .code,
+            "COMMERCE_ORDER_SOURCE_INVALID"
         );
     })
     .await;

@@ -2170,6 +2170,7 @@ impl erpx_server_commerce::public::order::CommerceOrderSaveRepository for Comman
         &'a mut self,
         _: &'a CompanyId,
         _: &'a str,
+        _: erpx_server_commerce::public::order::OrderKind,
         _: &'a str,
     ) -> CommerceOrderFuture<'a, bool, Self::Error> {
         self.calls.push("save-party");

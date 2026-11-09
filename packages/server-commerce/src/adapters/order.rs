@@ -678,17 +678,23 @@ impl CommerceOrderSaveRepository for PgCommerceOrders<'_> {
         &'a mut self,
         company: &'a CompanyId,
         party_id: &'a str,
+        kind: crate::domain::order::OrderKind,
         currency: &'a str,
     ) -> CommerceOrderFuture<'a, bool, Self::Error> {
         Box::pin(async move {
             self.ready().await?;
+            let party_kind = match kind {
+                crate::domain::order::OrderKind::Purchase => "supplier",
+                _ => "customer",
+            };
             Ok(sqlx::query(
                 "SELECT id FROM finance_parties WHERE id=$1 AND company_id=$2 \
-                 AND kind='customer' AND status='active' AND currency=$3 \
+                 AND kind=$3 AND status='active' AND currency=$4 \
                  AND person_id IS NULL FOR SHARE",
             )
             .bind(party_id)
             .bind(company.as_str())
+            .bind(party_kind)
             .bind(currency)
             .fetch_optional(&mut *self.connection)
             .await?
@@ -826,7 +832,7 @@ impl CommerceOrderSaveRepository for PgCommerceOrders<'_> {
                  discount_approval_required=$14,discount_approved_by=NULL,\
                  discount_approved_at=NULL,version=version+1,updated_at=$15 \
                  WHERE id=$1 AND company_id=$2 AND version=$16 AND state='draft' \
-                 AND kind IN ('quote','sales')",
+                 AND kind IN ('quote','sales','purchase')",
             )
             .bind(&plan.id)
             .bind(&plan.company_id)

@@ -305,9 +305,11 @@ impl CommerceOrderSaveRepository for ComposedCommerceOrders<'_> {
         &'a mut self,
         company: &'a CompanyId,
         party_id: &'a str,
+        kind: erpx_server_commerce::public::order::OrderKind,
         currency: &'a str,
     ) -> CommerceOrderFuture<'a, bool, Self::Error> {
-        self.inner.save_party_valid(company, party_id, currency)
+        self.inner
+            .save_party_valid(company, party_id, kind, currency)
     }
 
     fn save_price_list<'a>(
@@ -410,9 +412,11 @@ impl CommerceOrderSaveRepository for ComposedCommerceOrders<'_> {
                 )
                 .await?,
             );
-            // Native save is quotation/sales-only; purchase remains retained.
-            let kind =
-                erpx_server_finance::public::commerce_order_party_guard::CommerceOrderPartyKind::Customer;
+            let kind = if plan.kind == "purchase" {
+                erpx_server_finance::public::commerce_order_party_guard::CommerceOrderPartyKind::Supplier
+            } else {
+                erpx_server_finance::public::commerce_order_party_guard::CommerceOrderPartyKind::Customer
+            };
             let guard =
                 erpx_server_finance::public::commerce_order_party_guard::observe_commerce_order_party_guard(
                     self.inner.connection(),

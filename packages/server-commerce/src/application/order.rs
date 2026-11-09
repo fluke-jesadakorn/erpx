@@ -474,6 +474,7 @@ pub trait CommerceOrderSaveRepository: CommerceOrderCommandRepository {
         &'a mut self,
         company: &'a CompanyId,
         party_id: &'a str,
+        kind: crate::domain::order::OrderKind,
         currency: &'a str,
     ) -> CommerceOrderFuture<'a, bool, Self::Error>;
 
@@ -674,7 +675,12 @@ async fn save_order_outcome_inner<R: CommerceOrderSaveRepository>(
         command.validate_native_semantics()?;
     }
     let party_valid = repository
-        .save_party_valid(&actor.company_id, &command.input.party_id, &currency)
+        .save_party_valid(
+            &actor.company_id,
+            &command.input.party_id,
+            command.input.kind,
+            &currency,
+        )
         .await?;
     let warehouse = match command.input.warehouse_id.as_deref() {
         Some(id) => repository.save_warehouse(actor, id).await?,
@@ -683,14 +689,18 @@ async fn save_order_outcome_inner<R: CommerceOrderSaveRepository>(
     if command.input.warehouse_id.is_some() && warehouse.is_none() {
         return Err(crate::domain::order::warehouse_invalid().into());
     }
-    let price_list = repository
-        .save_price_list(
-            &actor.company_id,
-            &command.input.party_id,
-            &command.input.order_date,
-            command.input.price_list_id.as_deref(),
-        )
-        .await?;
+    let price_list = if command.input.kind == crate::domain::order::OrderKind::Purchase {
+        None
+    } else {
+        repository
+            .save_price_list(
+                &actor.company_id,
+                &command.input.party_id,
+                &command.input.order_date,
+                command.input.price_list_id.as_deref(),
+            )
+            .await?
+    };
     if command.input.price_list_id.is_some() && price_list.is_none() {
         return Err(crate::domain::order::price_list_invalid().into());
     }
@@ -714,7 +724,7 @@ async fn save_order_outcome_inner<R: CommerceOrderSaveRepository>(
                 crate::domain::order::sales_order_number(&command.key)
             }
             crate::domain::order::OrderKind::Purchase => {
-                return Err(crate::domain::order::order_kind_locked().into());
+                crate::domain::order::purchase_order_number(&command.key)
             }
         }
     } else {

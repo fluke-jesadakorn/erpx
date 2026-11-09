@@ -1425,6 +1425,13 @@ pub fn order_amount_invalid() -> BusinessError {
     )
 }
 
+pub fn service_supplier_bill_required() -> BusinessError {
+    BusinessError::invalid(
+        "SERVICE_SUPPLIER_BILL_REQUIRED",
+        "Record purchased services through supplier bills.",
+    )
+}
+
 pub fn price_list_invalid() -> BusinessError {
     BusinessError::invalid(
         "PRICE_LIST_INVALID",
@@ -1672,6 +1679,17 @@ pub fn sales_order_number(key: &CommandKey) -> String {
     format!("SO-{suffix}")
 }
 
+pub fn purchase_order_number(key: &CommandKey) -> String {
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(key.as_str().as_bytes());
+    let mut suffix = String::with_capacity(24);
+    for byte in &digest[..12] {
+        use std::fmt::Write;
+        let _ = write!(suffix, "{byte:02X}");
+    }
+    format!("PO-{suffix}")
+}
+
 pub fn save_identity(actor: &CommerceOrderActor, command: &SaveOrderCommand) -> String {
     json!({
         "user": actor.user_id.as_str(),
@@ -1786,6 +1804,9 @@ pub(crate) fn prepare_save_values(
         let product = products[index].as_ref().ok_or_else(product_invalid)?;
         if !matches!(product.item_type.as_str(), "stock" | "service") {
             return Err(product_invalid());
+        }
+        if command.input.kind == OrderKind::Purchase && product.item_type == "service" {
+            return Err(service_supplier_bill_required());
         }
         if product.item_type == "stock" && warehouse.is_none() {
             return Err(warehouse_required());
