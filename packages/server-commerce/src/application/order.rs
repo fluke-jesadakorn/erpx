@@ -713,6 +713,9 @@ async fn save_order_outcome_inner<R: CommerceOrderSaveRepository>(
             crate::domain::order::OrderKind::Sales => {
                 crate::domain::order::sales_order_number(&command.key)
             }
+            crate::domain::order::OrderKind::Purchase => {
+                return Err(crate::domain::order::order_kind_locked().into());
+            }
         }
     } else {
         String::new()

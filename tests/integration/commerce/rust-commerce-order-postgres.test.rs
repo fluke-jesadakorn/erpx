@@ -729,7 +729,7 @@ async fn run_service_completion(
                     let lines = repository.fulfillment_money_lines(&outcome.receipt.fulfillment_id).await?;
                     let currency = repository.order_currency(command.order_id.as_str()).await?.ok_or_else(|| BusinessError::new(erpx_server_shared::public::FailureKind::NotFound, "NOT_FOUND", "Not found."))?;
                     drop(repository);
-                    let money = lines.into_iter().map(|(id, subtotal, tax)| erpx_server_finance::public::commerce_order_money::CommerceFulfillmentMoneyLine { id, subtotal, tax, stock_value: None }).collect::<Vec<_>>();
+                    let money = lines.into_iter().map(|(id, subtotal, tax)| erpx_server_finance::public::commerce_order_money::CommerceFulfillmentMoneyLine { id, subtotal, tax }).collect::<Vec<_>>();
                     erpx_server_finance::public::commerce_order_money::snapshot_commerce_fulfillment_money(connection, &actor.company_id, &command.date, &currency, &money, now).await?;
                 }
                 Ok(outcome)
@@ -1596,11 +1596,12 @@ async fn read_is_company_and_branch_scoped_and_requires_current_iam() {
             .map_err(business)
             .unwrap_err();
         assert_eq!(error.code, "ORDER_NOT_FOUND");
-        let error = run_detail(&pool, creator(), "purchase-draft")
+        let purchase = run_detail(&pool, creator(), "purchase-draft")
             .await
-            .map_err(business)
-            .unwrap_err();
-        assert_eq!(error.code, "ORDER_NOT_FOUND");
+            .unwrap();
+        assert_eq!(purchase.order.kind, "purchase");
+        assert_eq!(purchase.order.number, "PO-1");
+        assert_eq!(purchase.lines.len(), 1);
 
         let revoked = actor(
             "revoked",

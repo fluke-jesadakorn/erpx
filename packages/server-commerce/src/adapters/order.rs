@@ -147,7 +147,7 @@ impl<'c> PgCommerceOrders<'c> {
              source_id,version,created_by,approved_by,created_at,updated_at,price_list_id,\
              price_list_version,discount_reason,discount_approval_required,\
              discount_approved_by,discount_approved_at FROM commerce_orders \
-             WHERE id=$1 AND company_id=$2 AND kind IN ('quote','sales') \
+             WHERE id=$1 AND company_id=$2 AND kind IN ('quote','sales','purchase') \
              AND ($3::text IS NULL OR branch_id=$3) \
              AND ($4::text IS NULL OR department_id=$4) FOR UPDATE"
         } else {
@@ -156,7 +156,7 @@ impl<'c> PgCommerceOrders<'c> {
              source_id,version,created_by,approved_by,created_at,updated_at,price_list_id,\
              price_list_version,discount_reason,discount_approval_required,\
              discount_approved_by,discount_approved_at FROM commerce_orders \
-             WHERE id=$1 AND company_id=$2 AND kind IN ('quote','sales') \
+             WHERE id=$1 AND company_id=$2 AND kind IN ('quote','sales','purchase') \
              AND ($3::text IS NULL OR branch_id=$3) \
              AND ($4::text IS NULL OR department_id=$4)"
         };

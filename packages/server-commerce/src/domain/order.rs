@@ -129,6 +129,7 @@ impl CommerceOrderActor {
 pub enum OrderKind {
     Quote,
     Sales,
+    Purchase,
 }
 
 impl OrderKind {
@@ -136,6 +137,7 @@ impl OrderKind {
         match value {
             "quote" => Some(Self::Quote),
             "sales" => Some(Self::Sales),
+            "purchase" => Some(Self::Purchase),
             _ => None,
         }
     }
@@ -144,6 +146,7 @@ impl OrderKind {
         match self {
             Self::Quote => "quote",
             Self::Sales => "sales",
+            Self::Purchase => "purchase",
         }
     }
 }
@@ -962,6 +965,11 @@ pub fn authorize_transition_with_guard_mode(
     validate_transition_approval_reason(command, order)?;
     let state = order.state().ok_or_else(source_invalid)?;
     let kind = order.kind().ok_or_else(source_invalid)?;
+    // Purchase writes and transitions remain retained until their Inventory and
+    // Finance guards are native. The read path admits purchase documents.
+    if kind == OrderKind::Purchase {
+        return Err(source_invalid());
+    }
     if command.action == OrderAction::Convert && kind != OrderKind::Quote {
         return Err(quote_required());
     }

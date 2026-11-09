@@ -641,7 +641,7 @@ fn read_policy_precedes_every_source_read() {
 }
 
 #[test]
-fn read_rejects_foreign_scope_purchase_kind_and_invalid_documents() {
+fn read_rejects_foreign_scope_and_invalid_documents_but_admits_purchase() {
     let mut foreign = ReadProbe::ready(SalesOrderRow {
         company_id: "foreign".into(),
         ..order("quote", "draft", 1, "creator")
@@ -665,10 +665,10 @@ fn read_rejects_foreign_scope_purchase_kind_and_invalid_documents() {
         number: "PO-1".into(),
         ..order("quote", "draft", 1, "creator")
     });
-    assert_eq!(
-        read(&mut purchase, &actor()).unwrap_err().code,
-        "COMMERCE_ORDER_SOURCE_INVALID"
-    );
+    let document =
+        sqlx::test_block_on(order_detail(&actor(), "order-1", &mut purchase, NOW)).unwrap();
+    assert_eq!(document.order.kind, "purchase");
+    assert_eq!(document.order.number, "PO-1");
 
     let mut totals = ReadProbe::ready(order("quote", "draft", 1, "creator"));
     totals.lines[0].subtotal_minor = 9_999;
