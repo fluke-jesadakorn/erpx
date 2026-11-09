@@ -202,16 +202,23 @@ impl SsoPolicy {
     pub fn account(&self) -> &AccountPolicy {
         &self.account
     }
-    pub fn holding(&self, audience: &str) -> Result<&HoldingOrigin, BusinessError> {
+    pub fn origin(&self, audience: &str) -> Result<&str, BusinessError> {
         self.account
             .holdings
             .iter()
-            .chain(self.account.products.iter())
             .find(|holding| holding.audience == audience)
+            .map(|holding| holding.origin.as_str())
+            .or_else(|| {
+                self.account
+                    .products
+                    .iter()
+                    .find(|product| product.audience == audience)
+                    .map(|product| product.origin.as_str())
+            })
             .ok_or_else(rejected_sso)
     }
     pub fn callback(&self, audience: &str) -> Result<String, BusinessError> {
-        Ok(format!("{}/sso/callback", self.holding(audience)?.origin))
+        Ok(format!("{}/sso/callback", self.origin(audience)?))
     }
 }
 #[derive(Clone)]

@@ -1,6 +1,6 @@
 {
   "schema": "erpx.evidence/native-account-sso-test-fixture/v1",
-  "recorded_at": "2026-11-10T02:20:00+07:00",
+  "recorded_at": "2026-11-10T02:40:00+07:00",
   "head": "db11b3dd8c9f824cf0e6c40bc7ef5511072872e6",
   "status": "partial",
   "scope": "Native Account SSO test fixture bound to the disposable erpx_test_* Control/Holding databases, plus native product-origin audiences and a test-only native Argon2id password hash route.",
@@ -15,14 +15,13 @@
   },
   "legal_integration": {
     "suite": "legal.legal.integration",
-    "before": "3 passed / 49 failed (the shared 3199 native Account API is bound to the clone Control database and cannot authenticate disposable-test users).",
-    "after": "43 passed / 9 failed",
-    "passing": "Native credential sign-in, SSO start/authorize/callback on the product host, Legal writer transactions, replay/stale/authority/audit/outbox cases, and the core register/detail/portal reads.",
+    "before": "3 passed / 49 failed (shared 3199 native Account API bound to the clone Control database).",
+    "after": "51 passed / 1 failed",
+    "passing": "Native credential sign-in, SSO start/authorize/callback on the product host, the portal child session and all portal comment concurrency cases, Legal writer transactions, replay/stale/authority/audit/outbox cases.",
     "remaining_failures": [
-      "The child session binding issued by the native SSO uses a holding audience (holding:development:h001:legal-portal-dev-erpx.jesadakorn.com), while the retained TypeScript product SSO store expects the product audience key (legal-portal). The portal comment concurrency tests therefore return before reaching the writer lock.",
-      "legal.test.ts invitation continuation still returns 303 instead of the expected 403 for an unverified invited account."
+      "legal.test.ts invitation enrollment: the Legal enroll route still calls the TypeScript createAuth sign-up, which writes a Better Auth scrypt credential without issuer=local:credential. The native Account sign-in correctly rejects that credential (401), so the unverified continuation redirects to login (303) instead of the expected 403."
     ],
-    "remaining_count": 9
+    "remaining_count": 1
   },
   "no_regression": {
     "support.package-surfaces.integration": "22/22 pass after rebuilding the Field held-provider example with the updated AccountPolicy constructors.",
@@ -33,10 +32,15 @@
   },
   "not_certified": {
     "owner": "legal",
-    "reason": "9 Legal integration failures remain on the product-host child-session audience, and secondary TypeScript Legal views still keep http/ssr partial. Legal is not owner 5/41 in this record."
+    "reason": "One Legal integration case remains: Legal portal enrollment must create the account through the native Account credential/invitation service (Argon2id + local:credential issuer) instead of the TypeScript Better Auth sign-up. Secondary TypeScript Legal views also keep http/ssr partial. Legal is not owner 5/41."
   },
   "notes": [
     "No production, staging, deploy, release, schema deletion or destructive cleanup was performed.",
     "The test profile and password-hash route are unreachable from the development and production parsers."
-  ]
+  ],
+  "product_audience": {
+    "change": "Configured product origins now issue their product key as the SSO audience (for example legal-portal). SsoPolicy.origin resolves both Holding and product origins; ConfiguredHoldingRegistry maps the product audience to the exact configured Holding binding.",
+    "result": "The nine portal child-session audience/concurrency failures are resolved. legal.legal.integration is 51 passed / 1 failed."
+  },
+  "next": "Migrate the Legal enroll route to the native Account credential/invitation service, then rerun legal.legal.integration to 52/52 and migrate the secondary TS views before certifying Legal."
 }

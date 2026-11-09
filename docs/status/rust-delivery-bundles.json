@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-10T02:13:31+07:00",
+  "updatedAt": "2026-11-10T02:28:25+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -3588,7 +3588,7 @@
       "id": "native-account-sso-test-fixture",
       "kind": "supporting-delivery",
       "status": "partial",
-      "scope": "Native Account SSO test fixture bound to disposable erpx_test_* databases: Profile::Test, test-only native Argon2id hash route, product-origin audiences, lazy loopback proxy. legal.legal.integration improves from 3/52 to 43/52; 9 portal product-audience/verification cases remain. Support package surfaces stay 22/22; Legal is not certified.",
+      "scope": "Native Account SSO test fixture bound to disposable erpx_test_* databases with product-key audiences. legal.legal.integration improves from 3/52 to 51/52; the only remaining case is the Legal enroll route still using the TypeScript Better Auth sign-up (scrypt, no local:credential issuer), which the native sign-in correctly rejects. Support stays 22/22; Legal is not certified.",
       "sourceIdentity": "working tree on db11b3dd8c9f824cf0e6c40bc7ef5511072872e6",
       "evidenceRef": "docs/testing/evidence/2026-11-10-native-account-sso-test-fixture.json",
       "durableContractRefs": []

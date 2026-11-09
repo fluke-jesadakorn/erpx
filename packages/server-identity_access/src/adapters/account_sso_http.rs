@@ -203,8 +203,8 @@ async fn callback(State(service): State<Arc<AccountSso>>, request: Request) -> R
             return Err(not_found());
         };
         let issued = service.consume(target, &code, &state, browser).await?;
-        let holding = service.policy.holding(target)?;
-        let url = Url::parse(&holding.origin)
+        let origin = service.policy.origin(target)?;
+        let url = Url::parse(origin)
             .expect("validated Holding origin")
             .join(issued.result.return_path.as_str())
             .expect("canonical relative return");

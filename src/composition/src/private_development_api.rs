@@ -56,22 +56,21 @@ use crate::{
     finance_journal_environment::FinanceJournalEnvironment,
 };
 use axum::{
-    Router,
+    Json, Router,
     extract::{Request, State},
     http::{HeaderValue, StatusCode, header},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::post,
-    Json,
 };
 use erpx_server_commercial::public::purchases::current_package_catalogue;
 use erpx_server_identity_access::public::{
     AccountAuthentication, AccountCredentials, AccountInvitations, AccountMailKeyring,
     AccountPolicy, Argon2Passwords, AuthenticationSecrets, HoldingOrigin, Password,
-    PasswordHashing,
-    PostgresAccountCredentials, PostgresAccountInvitations, PostgresAccountRepository,
-    PostgresInvitationCredentialAuthority, SystemAccountClock, SystemAuthenticationSecrets,
-    account_auth_router, account_credentials_router,
+    PasswordHashing, PostgresAccountCredentials, PostgresAccountInvitations,
+    PostgresAccountRepository, PostgresInvitationCredentialAuthority, ProductOrigin,
+    SystemAccountClock, SystemAuthenticationSecrets, account_auth_router,
+    account_credentials_router,
     account_holding_bindings::{
         ConfiguredAccountHolding, ConfiguredHoldingRegistry, lock_holding_binding_sources,
     },
@@ -138,6 +137,7 @@ struct HoldingDocument {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ProductOriginDocument {
     host: String,
+    key: String,
     holding_id: String,
 }
 #[derive(Deserialize)]
@@ -341,7 +341,7 @@ pub struct DevelopmentApiConfiguration {
     holdings_registry: Arc<ConfiguredHoldingRegistry>,
     control: RuntimeDatabase,
     holdings: Vec<HoldingConfiguration>,
-    products: Vec<HoldingOrigin>,
+    products: Vec<ProductOrigin>,
     finance_journal_reads: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     pos_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     crm_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
@@ -818,17 +818,11 @@ impl DevelopmentApiConfiguration {
             });
         }
         let two_ids = BTreeSet::from(["h001".to_owned(), "h002".to_owned()]);
-        let three_ids = BTreeSet::from([
-            "h001".to_owned(),
-            "h002".to_owned(),
-            "h003".to_owned(),
-        ]);
+        let three_ids = BTreeSet::from(["h001".to_owned(), "h002".to_owned(), "h003".to_owned()]);
         let valid_ids = if contributor || browser_loopback {
             ids == three_ids
         } else if profile == Profile::Test {
-            ids == BTreeSet::from(["h001".to_owned()])
-                || ids == two_ids
-                || ids == three_ids
+            ids == BTreeSet::from(["h001".to_owned()]) || ids == two_ids || ids == three_ids
         } else {
             ids == two_ids || ids == three_ids
         };
@@ -844,8 +838,7 @@ impl DevelopmentApiConfiguration {
                     }))
             || (ids.contains("h003")
                 && !holdings.iter().any(|h| {
-                    h.registration.holding_id.as_str() == "h003"
-                        && h.registration.slug == "erpx"
+                    h.registration.holding_id.as_str() == "h003" && h.registration.slug == "erpx"
                 }))
         {
             return Err("EXACT_H001_H002_RESOURCES_REQUIRED");
@@ -1395,19 +1388,31 @@ impl DevelopmentApiConfiguration {
                     .bytes()
                     .any(|b| !b.is_ascii_alphanumeric() && !matches!(b, b'.' | b'-' | b':'))
                 || !product_hosts.insert(product.host.clone())
-                || !holdings.iter().any(|holding| {
-                    holding.registration.holding_id.as_str() == product.holding_id
-                })
+                || !holdings
+                    .iter()
+                    .any(|holding| holding.registration.holding_id.as_str() == product.holding_id)
             {
                 return Err("PRIVATE_API_PRODUCT_ORIGIN_INVALID");
             }
-            products.push(HoldingOrigin {
+            let holding_id = holdings
+                .iter()
+                .find(|holding| holding.registration.holding_id.as_str() == product.holding_id)
+                .map(|holding| holding.registration.holding_id.clone())
+                .ok_or("PRIVATE_API_PRODUCT_ORIGIN_INVALID")?;
+            if product.key.is_empty()
+                || product.key.len() > 128
+                || !product
+                    .key
+                    .bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
+            {
+                return Err("PRIVATE_API_PRODUCT_ORIGIN_INVALID");
+            }
+            products.push(ProductOrigin {
                 origin: format!("{origin_scheme}://{}", product.host),
-                audience: format!(
-                    "holding:{environment}:{}:{}",
-                    product.holding_id, product.host
-                ),
+                audience: product.key,
                 host: product.host,
+                holding_id,
             });
         }
         let policy = Arc::new(AccountPolicy {
@@ -1738,7 +1743,9 @@ struct TestPasswordHashRequest {
 async fn test_account_password_hash(Json(body): Json<TestPasswordHashRequest>) -> Response {
     let hasher = match Argon2Passwords::new(1) {
         Ok(hasher) => hasher,
-        Err(_) => return (StatusCode::SERVICE_UNAVAILABLE, "PASSWORD_HASH_UNAVAILABLE").into_response(),
+        Err(_) => {
+            return (StatusCode::SERVICE_UNAVAILABLE, "PASSWORD_HASH_UNAVAILABLE").into_response();
+        }
     };
     let password = match Password::sign_in(body.password) {
         Ok(password) => password,
@@ -1751,7 +1758,10 @@ async fn test_account_password_hash(Json(body): Json<TestPasswordHashRequest>) -
 }
 
 fn test_account_password_hash_router() -> Router {
-    Router::new().route("/api/v1/test/account-password-hash", post(test_account_password_hash))
+    Router::new().route(
+        "/api/v1/test/account-password-hash",
+        post(test_account_password_hash),
+    )
 }
 
 pub async fn assemble_development_api(
@@ -2779,19 +2789,20 @@ async fn assemble_checked(
                         )),
                     },
                 );
-                let customer_360_backend: Arc<crate::customer_360::Customer360Backend<SharedClock>> =
-                    Arc::new(crate::customer_360::Customer360Backend::new(
-                        config.policy.clone(),
-                        Arc::new(FinanceJournalReadScopeHeaders),
-                        Arc::new(crate::customer_360::Customer360Service::new(
-                            authorizer.clone(),
-                            crate::customer_360::Customer360Configuration::new(
-                                holding.registration.holding_id.clone(),
-                                company.clone(),
-                            ),
-                            Arc::new(SharedClock(clock.clone())),
-                        )),
-                    ));
+                let customer_360_backend: Arc<
+                    crate::customer_360::Customer360Backend<SharedClock>,
+                > = Arc::new(crate::customer_360::Customer360Backend::new(
+                    config.policy.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    Arc::new(crate::customer_360::Customer360Service::new(
+                        authorizer.clone(),
+                        crate::customer_360::Customer360Configuration::new(
+                            holding.registration.holding_id.clone(),
+                            company.clone(),
+                        ),
+                        Arc::new(SharedClock(clock.clone())),
+                    )),
+                ));
                 customer_360_targets.push(
                     erpx_server_customer_360::public::customer_timeline_http::CustomerTimelineHttpTarget {
                         host: holding.host.clone(),
@@ -2808,23 +2819,25 @@ async fn assemble_checked(
                         backend: customer_360_backend,
                     },
                 );
-                branding_targets.push(erpx_server_brand::public::branding_http::BrandingHttpTarget {
-                    host: holding.host.clone(),
-                    holding_slug: holding.registration.slug.clone(),
-                    origin: format!("https://{}", holding.host),
-                    backend: Arc::new(crate::branding::BrandingBackend::new(
-                        config.policy.clone(),
-                        Arc::new(FinanceJournalReadScopeHeaders),
-                        Arc::new(crate::branding::BrandingService::new(
-                            authorizer.clone(),
-                            crate::branding::BrandingConfiguration::new(
-                                holding.registration.holding_id.clone(),
-                                company.clone(),
-                            ),
-                            Arc::new(SharedClock(clock.clone())),
+                branding_targets.push(
+                    erpx_server_brand::public::branding_http::BrandingHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::branding::BrandingBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::branding::BrandingService::new(
+                                authorizer.clone(),
+                                crate::branding::BrandingConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
                         )),
-                    )),
-                });
+                    },
+                );
                 quality_targets.push(
                     erpx_server_quality::public::quality_http::QualityHttpTarget {
                         host: holding.host.clone(),
@@ -3625,10 +3638,8 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         if !branding_targets.is_empty() {
             router = router.merge(
-                erpx_server_brand::public::branding_http::branding_http_router(
-                    branding_targets,
-                )
-                .map_err(|_| "PRIVATE_API_BRANDING_CONFIGURATION_INVALID")?,
+                erpx_server_brand::public::branding_http::branding_http_router(branding_targets)
+                    .map_err(|_| "PRIVATE_API_BRANDING_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]
@@ -4826,7 +4837,11 @@ async fn assemble_checked(
         service_package_provider_host,
         account_mfa: config.account_security_keys.is_some(),
         policy: config.policy.clone(),
-        sso_product_hosts: config.products.iter().map(|product| product.host.clone()).collect(),
+        sso_product_hosts: config
+            .products
+            .iter()
+            .map(|product| product.host.clone())
+            .collect(),
         test_profile: config.profile == Profile::Test,
         loopback: config.listen.to_string(),
         permits: Arc::new(Semaphore::new(config.maximum_requests)),
@@ -6456,14 +6471,14 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 | "/api/v1/account/device-accounts/sign-in",
             ) => host == state.policy.account_host,
             (&axum::http::Method::GET, "/sso/authorize") => host == state.policy.account_host,
-            (&axum::http::Method::GET, "/sso/start" | "/sso/callback") => state
-                .sso_product_hosts
-                .contains(host)
-                || state
-                    .finance_targets
-                    .iter()
-                    .chain(state.service_read_targets.iter())
-                    .any(|(target_host, _)| target_host == host),
+            (&axum::http::Method::GET, "/sso/start" | "/sso/callback") => {
+                state.sso_product_hosts.contains(host)
+                    || state
+                        .finance_targets
+                        .iter()
+                        .chain(state.service_read_targets.iter())
+                        .any(|(target_host, _)| target_host == host)
+            }
             _ => false,
         };
     let support_ticket = request.method() == axum::http::Method::POST
@@ -7527,9 +7542,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         .collect::<Vec<_>>()
         .as_slice()
     {
-        ["", "api", "v1", "holdings", _, "customer-notes"] => {
-            state.policy.audience(host).is_some()
-        }
+        ["", "api", "v1", "holdings", _, "customer-notes"] => state.policy.audience(host).is_some(),
         _ => false,
     };
     let customer_activity = match request

@@ -22,23 +22,23 @@ const HOLDING_HOSTS: Record<string, string> = {
   h003: 'erpx-internal.jesadakorn.com',
 };
 const PRODUCT_HOSTS = [
-  'admin-dev-erpx.jesadakorn.com',
-  'apps-dev-erpx.jesadakorn.com',
-  'assets-dev-erpx.jesadakorn.com',
-  'booking-dev-erpx.jesadakorn.com',
-  'console-dev-erpx.jesadakorn.com',
-  'finance-dev-erpx.jesadakorn.com',
-  'forms-dev-erpx.jesadakorn.com',
-  'learn-dev-erpx.jesadakorn.com',
-  'legal-portal-dev-erpx.jesadakorn.com',
-  'people-dev-erpx.jesadakorn.com',
-  'pms-dev-erpx.jesadakorn.com',
-  'portal-dev-erpx.jesadakorn.com',
-  'pos-dev-erpx.jesadakorn.com',
-  'sales-dev-erpx.jesadakorn.com',
-  'shop-dev-erpx.jesadakorn.com',
-  'supply-dev-erpx.jesadakorn.com',
-  'support-dev-erpx.jesadakorn.com',
+  ['admin', 'admin-dev-erpx.jesadakorn.com'],
+  ['apps', 'apps-dev-erpx.jesadakorn.com'],
+  ['assets', 'assets-dev-erpx.jesadakorn.com'],
+  ['booking', 'booking-dev-erpx.jesadakorn.com'],
+  ['console', 'console-dev-erpx.jesadakorn.com'],
+  ['finance', 'finance-dev-erpx.jesadakorn.com'],
+  ['forms', 'forms-dev-erpx.jesadakorn.com'],
+  ['learn', 'learn-dev-erpx.jesadakorn.com'],
+  ['legal-portal', 'legal-portal-dev-erpx.jesadakorn.com'],
+  ['people', 'people-dev-erpx.jesadakorn.com'],
+  ['pms', 'pms-dev-erpx.jesadakorn.com'],
+  ['portal', 'portal-dev-erpx.jesadakorn.com'],
+  ['pos', 'pos-dev-erpx.jesadakorn.com'],
+  ['sales', 'sales-dev-erpx.jesadakorn.com'],
+  ['shop', 'shop-dev-erpx.jesadakorn.com'],
+  ['supply', 'supply-dev-erpx.jesadakorn.com'],
+  ['support', 'support-dev-erpx.jesadakorn.com'],
 ] as const;
 
 type Manifest = {
@@ -149,7 +149,7 @@ async function start(): Promise<Started> {
       database: { url: current.databases[slot.write] },
       ...(current.databases[slot.read] ? { readDatabase: { url: current.databases[slot.read] } } : {}),
     })),
-    productOrigins: PRODUCT_HOSTS.map(host => ({ host, holdingId: firstHolding })),
+    productOrigins: PRODUCT_HOSTS.map(([key, host]) => ({ host, key, holdingId: firstHolding })),
     accountBootstrap: true,
   };
   writeFileSync(path, JSON.stringify(configuration, null, 2) + '\n', { mode: 0o600 });
@@ -278,7 +278,7 @@ export async function startNativeAccountSsoProxy(): Promise<void> {
   const holdings = manifest().slots.filter(slot => HOLDING_HOSTS[slot.id]);
   const holdingOrigins = [
     ...holdings.map(slot => `https://${HOLDING_HOSTS[slot.id]}`),
-    ...PRODUCT_HOSTS.map(host => `https://${host}`),
+    ...PRODUCT_HOSTS.map(([, host]) => `https://${host}`),
   ];
   process.env.ERPX_NATIVE_ACCOUNT_SESSION_CONFIG = JSON.stringify({
     privateBaseUrl: proxyBaseUrl,

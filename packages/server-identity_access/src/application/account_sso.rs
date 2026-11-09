@@ -151,7 +151,7 @@ impl AccountSso {
         state: &SsoSecret,
         browser_cookie: SsoBrowserCookie,
     ) -> Result<IssuedSso, BusinessError> {
-        self.policy.holding(audience)?;
+        self.policy.origin(audience)?;
         let token = self.sessions.issue()?;
         let result = self
             .repository

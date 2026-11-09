@@ -72,11 +72,9 @@ impl ConfiguredHoldingRegistry {
         // Product hosts share the exact configured Holding entry; they never
         // mint a second binding or relax the startup coverage check.
         for target in &policy.products {
-            let parts = target.audience.splitn(4, ':').collect::<Vec<_>>();
-            let id = HoldingId::new(parts[2]).map_err(|_| invalid())?;
             let entry = entries
                 .values()
-                .find(|entry| entry.holding_id == id)
+                .find(|entry| entry.holding_id == target.holding_id)
                 .cloned()
                 .ok_or_else(invalid)?;
             if entries.insert(target.audience.clone(), entry).is_some() {

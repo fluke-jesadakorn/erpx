@@ -1,5 +1,5 @@
 use super::environment::valid_environment;
-use erpx_server_shared::public::{BusinessError, FailureKind};
+use erpx_server_shared::public::{BusinessError, FailureKind, HoldingId};
 use std::collections::BTreeSet;
 
 pub const SESSION_LIFETIME_MS: i64 = 12 * 60 * 60 * 1000;
@@ -251,6 +251,16 @@ pub struct HoldingOrigin {
     pub host: String,
     pub audience: String,
 }
+
+/// A configured public product host. Its audience is the product key (for the
+/// retained product SSO store) and it shares one exact Holding binding.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProductOrigin {
+    pub origin: String,
+    pub host: String,
+    pub audience: String,
+    pub holding_id: HoldingId,
+}
 #[derive(Clone)]
 pub struct AccountPolicy {
     pub account_origin: String,
@@ -260,7 +270,7 @@ pub struct AccountPolicy {
     pub holdings: Vec<HoldingOrigin>,
     /// Additional public product hosts that start SSO for an existing Holding.
     /// They share the Holding ID/bindings but keep their own host-only callback.
-    pub products: Vec<HoldingOrigin>,
+    pub products: Vec<ProductOrigin>,
 }
 impl AccountPolicy {
     pub fn validate(&self) -> Result<(), BusinessError> {
@@ -298,15 +308,17 @@ impl AccountPolicy {
             ));
         }
         hosts.insert(self.account_host.clone());
+        let mut product_audiences = BTreeSet::new();
         for product in &self.products {
-            let parts = product.audience.splitn(4, ':').collect::<Vec<_>>();
             if product.origin != format!("https://{}", product.host)
                 || !exact_host(&product.host)
-                || parts.len() != 4
-                || parts[0] != "holding"
-                || parts[1] != self.environment
-                || parts[2].is_empty()
-                || parts[3] != product.host
+                || product.audience.is_empty()
+                || product.audience.len() > 128
+                || !product
+                    .audience
+                    .bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
+                || !product_audiences.insert(product.audience.clone())
                 || !hosts.insert(product.host.clone())
             {
                 return Err(BusinessError::invalid(
@@ -343,20 +355,24 @@ impl AccountPolicy {
         } else {
             self.holdings
                 .iter()
-                .chain(self.products.iter())
                 .find(|holding| holding.host == host)
                 .map(|holding| RequestAudience::Holding {
                     audience: holding.audience.clone(),
+                })
+                .or_else(|| {
+                    self.products
+                        .iter()
+                        .find(|product| product.host == host)
+                        .map(|product| RequestAudience::Holding {
+                            audience: product.audience.clone(),
+                        })
                 })
         }
     }
     pub fn device_origin_allowed(&self, origin: &str) -> bool {
         origin == self.account_origin
-            || self
-                .holdings
-                .iter()
-                .chain(self.products.iter())
-                .any(|holding| holding.origin == origin)
+            || self.holdings.iter().any(|holding| holding.origin == origin)
+            || self.products.iter().any(|product| product.origin == origin)
     }
 }
 pub(crate) fn contributor_holding_host(host: &str) -> bool {

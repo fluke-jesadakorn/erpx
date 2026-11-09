@@ -20,7 +20,8 @@ pub use crate::application::account_ports::{
 pub use crate::domain::account_auth::{
     AccountPolicy, AccountSession, AccountUser, CredentialSnapshot, DeviceAccount, DeviceAccounts,
     EmailAddress, HoldingOrigin, MAXIMUM_SAVED_ACCOUNTS, OpaqueSecret, Password, PasswordHash,
-    RequestAudience, SESSION_LIFETIME_MS, SecretDigest, SecretPurpose, valid_session_window,
+    ProductOrigin, RequestAudience, SESSION_LIFETIME_MS, SecretDigest, SecretPurpose,
+    valid_session_window,
 };
 
 pub mod work_context;
