@@ -11,6 +11,11 @@ pub use crate::adapters::postgres::unit_of_work::{
     PgTransactionError, PgUnitOfWork, PgWorkFuture, SessionLock, TransactionOptions,
 };
 
+pub use crate::adapters::postgres::jobs::{claim, complete, fail, renew};
+pub use crate::domain::jobs::{
+    DEFAULT_LEASE_MILLIS, MAX_ATTEMPTS, OutboxJob, retry_delay_millis, truncate_error_code,
+};
+
 pub use crate::adapters::postgres::development_lease::LeasedDevelopmentDatabase;
 
 pub use crate::adapters::postgres::development_schema::{

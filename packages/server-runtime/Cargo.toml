@@ -73,3 +73,7 @@ sysinfo = { workspace = true, optional = true }
 name = "owned_process"
 path = "../../tests/unit/shared.architecture/rust-owned-process.test.rs"
 required-features = ["owned-process"]
+
+[[test]]
+name = "outbox_jobs_postgres"
+path = "../../tests/integration/shared.persistence/rust-outbox-jobs-postgres.test.rs"

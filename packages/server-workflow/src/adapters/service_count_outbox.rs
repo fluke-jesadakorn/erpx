@@ -1,5 +1,9 @@
 //! Scoped Service Count outbox effects. The caller owns worker activation and
 //! ensures the legacy claimant excludes exactly the same Company scope.
+use erpx_server_runtime::public::postgres::{
+    claim as runtime_claim, complete as runtime_complete, fail as runtime_fail,
+    renew as runtime_renew,
+};
 use sqlx::{Connection, PgConnection, Row};
 
 /// Port of ECMAScript `String.prototype.trim` edge whitespace. Rust's
@@ -50,12 +54,16 @@ pub async fn retry_owned_dead_letter(
     input: DeadLetterRetry<'_>,
 ) -> Result<bool, sqlx::Error> {
     if !valid_retry_reason(input.reason)
-        || input.event_id.is_empty() || input.event_id.len() > 180
-        || input.holding_id.is_empty() || input.audit_id.is_empty()
+        || input.event_id.is_empty()
+        || input.event_id.len() > 180
+        || input.holding_id.is_empty()
+        || input.audit_id.is_empty()
         || !(0..=9_007_199_254_740_991).contains(&input.now)
         || !(0..=input.now).contains(&input.dead_letter_at)
     {
-        return Err(sqlx::Error::Protocol("Invalid native job recovery input".into()));
+        return Err(sqlx::Error::Protocol(
+            "Invalid native job recovery input".into(),
+        ));
     }
     let mut tx = c.begin().await?;
     let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
@@ -76,12 +84,14 @@ pub async fn retry_owned_dead_letter(
     let purpose = serde_json::json!({
         "reason": js_trim(input.reason), "previousAttempts": attempts,
         "previousError": error, "deadLetterAt": input.dead_letter_at,
-    }).to_string();
+    })
+    .to_string();
     let authority = serde_json::json!({
         "kind":"runtime_service", "runtime":"native-rust",
         "worker":"field-dependency-worker", "holdingId":input.holding_id,
         "companyId":company,
-    }).to_string();
+    })
+    .to_string();
     sqlx::query("WITH runtime_owner AS MATERIALIZED (SELECT set_config('erpx.outbox_runtime','native-rust',true)) UPDATE outbox_events SET next_attempt_at=$1,last_error=NULL,dead_letter_at=NULL,attempts=0 FROM runtime_owner WHERE id=$2")
         .bind(input.now).bind(input.event_id).execute(&mut *tx).await?;
     // Preserve the old failure in the audit before clearing retry metadata.
@@ -110,21 +120,15 @@ pub async fn claim(
     token: &str,
     now: i64,
 ) -> Result<Option<ServiceCountEvent>, sqlx::Error> {
-    let mut q = sqlx::QueryBuilder::<sqlx::Postgres>::new(
-        "WITH runtime_owner AS MATERIALIZED (SELECT set_config('erpx.outbox_runtime','native-rust',true)) UPDATE outbox_events o SET lease_token=",
-    );
-    q.push_bind(token).push(",claim_until=").push_bind(now.saturating_add(90_000)).push(",attempts=attempts+1 FROM runtime_owner WHERE o.id=(SELECT e.id FROM outbox_events e WHERE e.processed_at IS NULL AND e.dead_letter_at IS NULL AND e.next_attempt_at<=").push_bind(now).push(" AND (e.claim_until IS NULL OR e.claim_until<").push_bind(now).push(") AND (").push(owned).push(") ORDER BY e.created_at,e.id FOR UPDATE OF e SKIP LOCKED LIMIT 1) RETURNING o.id,o.aggregate_id,o.aggregate_version,o.attempts,o.lease_token");
-    let row = q.build().fetch_optional(c).await?;
-    row.map(|r| {
-        Ok(ServiceCountEvent {
-            id: r.try_get("id")?,
-            aggregate_id: r.try_get("aggregate_id")?,
-            aggregate_version: r.try_get("aggregate_version")?,
-            attempts: r.try_get("attempts")?,
-            lease_token: r.try_get("lease_token")?,
-        })
-    })
-    .transpose()
+    Ok(runtime_claim(c, owned, token, now)
+        .await?
+        .map(|event| ServiceCountEvent {
+            id: event.id,
+            aggregate_id: event.aggregate_id,
+            aggregate_version: event.aggregate_version,
+            attempts: event.attempts,
+            lease_token: event.lease_token,
+        }))
 }
 
 pub async fn eligible(
@@ -167,8 +171,7 @@ pub async fn complete(
     event: &ServiceCountEvent,
     now: i64,
 ) -> Result<bool, sqlx::Error> {
-    Ok(sqlx::query("WITH runtime_owner AS MATERIALIZED (SELECT set_config('erpx.outbox_runtime','native-rust',true)) UPDATE outbox_events SET processed_at=$1,published_at=$1,claim_until=NULL,lease_token=NULL,last_error=NULL FROM runtime_owner WHERE id=$2 AND lease_token=$3 AND processed_at IS NULL")
-        .bind(now).bind(&event.id).bind(&event.lease_token).execute(c).await?.rows_affected()==1)
+    runtime_complete(c, &event.id, &event.lease_token, now).await
 }
 
 pub async fn fail(
@@ -177,10 +180,7 @@ pub async fn fail(
     now: i64,
     code: &str,
 ) -> Result<bool, sqlx::Error> {
-    let delay = (1000_i64 * (1_i64 << event.attempts.clamp(0, 6))).min(60_000);
-    let bounded: String = code.chars().take(64).collect();
-    Ok(sqlx::query("WITH runtime_owner AS MATERIALIZED (SELECT set_config('erpx.outbox_runtime','native-rust',true)) UPDATE outbox_events SET claim_until=NULL,lease_token=NULL,next_attempt_at=$1,last_error=$2,dead_letter_at=$3 FROM runtime_owner WHERE id=$4 AND lease_token=$5 AND processed_at IS NULL")
-        .bind(now.saturating_add(delay)).bind(bounded).bind((event.attempts>=6).then_some(now)).bind(&event.id).bind(&event.lease_token).execute(c).await?.rows_affected()==1)
+    runtime_fail(c, &event.id, &event.lease_token, event.attempts, now, code).await
 }
 
 pub async fn renew(
@@ -188,8 +188,7 @@ pub async fn renew(
     event: &ServiceCountEvent,
     now: i64,
 ) -> Result<bool, sqlx::Error> {
-    Ok(sqlx::query("WITH runtime_owner AS MATERIALIZED (SELECT set_config('erpx.outbox_runtime','native-rust',true)) UPDATE outbox_events SET claim_until=$1 FROM runtime_owner WHERE id=$2 AND lease_token=$3 AND processed_at IS NULL AND dead_letter_at IS NULL")
-        .bind(now.saturating_add(90_000)).bind(&event.id).bind(&event.lease_token).execute(c).await?.rows_affected()==1)
+    runtime_renew(c, &event.id, &event.lease_token, now).await
 }
 
 #[cfg(test)]
@@ -200,7 +199,9 @@ mod tests {
     /// Zod code-point length semantics, not Rust `str::trim` + byte `len()`.
     #[test]
     fn retry_reason_minimum_uses_js_trimmed_utf16_length() {
-        assert!(valid_retry_reason("Retry after correcting native owner evidence"));
+        assert!(valid_retry_reason(
+            "Retry after correcting native owner evidence"
+        ));
         assert!(!valid_retry_reason("  ok  "));
         assert!(valid_retry_reason("  abc  "));
         assert!(!valid_retry_reason(" \t\r\n  "));
