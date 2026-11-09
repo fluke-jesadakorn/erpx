@@ -1,0 +1,51 @@
+{
+  "recordedAt": "2026-11-09T10:15:00+07:00",
+  "branch": "codex/rust-backend-migration",
+  "sourceIdentity": "8e96a6ef1f90f8689eeb3dda6c2458ba2445b682",
+  "previousIdentity": "cee5ec9b4a02670c00095a80681687436c0cef3b",
+  "bundle": "billing-native-cost-command-transport",
+  "scope": "Billing cost commands only. This is not Billing owner closure and does not promote a catalogue workflow.",
+  "commits": [
+    "3a613208d feat(billing): route cost commands through the native owner",
+    "8e96a6ef1 fix(billing): reject foreign native command origins"
+  ],
+  "owner": {
+    "id": "billing",
+    "status": "partial",
+    "changed": [
+      "packages/server-billing/src/adapters/billing-api.ts",
+      "packages/server-billing/src/adapters/native-billing.ts",
+      "packages/server-billing/src/application/api.ts",
+      "packages/server-billing/src/domain/billing.ts",
+      "packages/server-billing/src/public/native-billing-page.ts",
+      "packages/server-billing/src/public/native-billing.ts"
+    ],
+    "tests": [
+      "npx tsc --noEmit -p packages/server-billing/tsconfig.json",
+      "npx tsc --noEmit --project tests/config/tsconfig.json",
+      "npx vitest run tests/unit/billing/native-billing-transport.test.ts",
+      "npx vitest run tests/unit/billing/billing-owner-services.test.ts"
+    ],
+    "result": "19 passed (native transport); 160 passed (Billing owner services); both TypeScript projects clean",
+    "behavior": "With ERPX_NATIVE_BILLING_CONFIG present, cost, delete-cost and complete-costs POSTs are mapped to the Rust cost routes and return the native {ok:true} receipt. The request carries the exact retained Idempotency-Key, registered Holding origin and current assignment context. A foreign Origin is rejected before the owner request. Other Billing actions remain on the retained command path.",
+    "limits": "Forecast, target, target rollout, provider/job surfaces, native SSR enablement in this local development process, and authenticated desktop/mobile browser readback are not verified. The current local gateway has no native private API listener or native Billing configuration.",
+    "next": "Start the authorized native private API in the keyed workspace, set the exact Billing configuration, then perform an authenticated Platform cost record/delete/complete journey with persisted readback and desktop/mobile evidence before removing the retained cost writer."
+  },
+  "environment": {
+    "postgres": "not required for these unit tests",
+    "node": "v26.12.0 observed",
+    "bun": "/Users/fluke/.bun/bin/bun (not on PATH)",
+    "nativePrivateApi": "not running on 127.0.0.1:44817; no ERPX_NATIVE_* key in the local .env files"
+  },
+  "notRun": [
+    "No production or staging access.",
+    "No public gateway, Cloudflare, SSO or PostgreSQL change.",
+    "No authenticated browser journey; native private API and native configuration are absent from the current macOS development process.",
+    "No full workspace build or clippy."
+  ],
+  "mapping": {
+    "ownersComplete": 0,
+    "workflowCountsChanged": false,
+    "note": "No owner or workflow is counted complete from this transport slice."
+  }
+}
