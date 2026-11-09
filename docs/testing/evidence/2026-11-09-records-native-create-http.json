@@ -1,0 +1,46 @@
+{
+  "recordedAt": "2026-11-09T12:35:00+07:00",
+  "branch": "codex/rust-backend-migration",
+  "sourceIdentity": "32d306e50",
+  "bundle": "records-native-create-http-cutover",
+  "scope": "Native Records create HTTP route and the generic workplace POST cutover for the bounded support module. The TypeScript writer remains the explicit fallback when the native Records configuration is absent.",
+  "changes": [
+    "POST /api/v1/holdings/{holding_slug}/records/{module_id} on the owner-local native router.",
+    "The route requires the exact origin, a valid Idempotency-Key, application/json, a bounded body and the current Account/Holding target before reaching the backend.",
+    "RecordsBackend now owns the command service and returns the created id plus the current validated context.",
+    "The native transport client has a create method that sends the exact origin, idempotency key, cookie and bounded JSON, and returns the created id.",
+    "The workplace generic POST calls the native client and performs a fresh native list readback only when ERPX_NATIVE_RECORDS_CONFIG is present; otherwise the retained TypeScript writer remains the explicit fallback.",
+    "The Rust router test covers valid create plus foreign origin, short key and malformed JSON."
+  ],
+  "checks": [
+    {
+      "command": "cargo test --offline -p erpx-server-records --test record_registry_http -- --test-threads=1",
+      "result": "4 passed; 0 failed"
+    },
+    {
+      "command": "cargo test --offline -p erpx-service --features existing-business --test records_write_postgres -- --test-threads=1",
+      "result": "2 passed; 0 failed; 90.75s"
+    },
+    {
+      "command": "bun x vitest run --config tests/config/vitest.unit.config.mts tests/unit/shared.records/native-record-registry-transport.test.ts tests/unit/shared.records/native-record-registry-route.test.ts",
+      "result": "12 passed (7 transport + 5 route)"
+    },
+    {
+      "command": "bun run typecheck (packages/workplace)",
+      "result": "passed"
+    }
+  ],
+  "limits": [
+    "Only the support module is accepted by this first native create slice.",
+    "The native route returns the created id; the workplace route performs a separate current-authority native list readback to return the full record view.",
+    "The TypeScript create writer remains in the tree for environments without ERPX_NATIVE_RECORDS_CONFIG; it is not yet retired.",
+    "The registry/context guards are still module-scope and do not yet reproduce every per-owner row scope.",
+    "No authenticated browser/SSO, gateway, staging or production journey was run."
+  ],
+  "externalWork": "The shared worktree contains external Assets/CRM/Records-request WIP and an external Cargo.lock Assets->Finance edge. The committed bundle is based on HEAD plus only the listed files; the external Cargo.lock and unrelated source changes were not staged.",
+  "next": [
+    "Run the authenticated Records create browser/API journey with ERPX_NATIVE_RECORDS_CONFIG present and the support module fixture.",
+    "Port record.update/record.reference and the full per-owner registry/context scopes before retiring the TypeScript writer.",
+    "Then move to the next owner bundle (Workflow approvals/routing/outbox or Billing forecast/target)."
+  ]
+}
