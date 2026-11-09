@@ -159,6 +159,7 @@
 @source "../../../../packages/feature-pms/src/lib/pms-receipt-funding.ts";
 @source "../../../../packages/feature-pms/src/lib/pms-room-charge.ts";
 @source "../../../../packages/feature-records/src/components/collection-record-link.tsx";
+@source "../../../../packages/feature-records/src/components/embedded-page-header.tsx";
 @source "../../../../packages/feature-records/src/components/loaders/modules--support-console.tsx";
 @source "../../../../packages/feature-records/src/components/loaders/modules--support-evidence-console.tsx";
 @source "../../../../packages/feature-records/src/components/loaders/modules--support-incident-console.tsx";

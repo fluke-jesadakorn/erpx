@@ -1225,6 +1225,7 @@
 @source "../../../../packages/server-crm/src/public/purchases.ts";
 @source "../../../../packages/server-crm/src/public/record-purchases.ts";
 @source "../../../../packages/server-customer_360/src/adapters/executive-main-evidence-sources.ts";
+@source "../../../../packages/server-customer_360/src/adapters/native-executive-customer-activity.ts";
 @source "../../../../packages/server-customer_360/src/adapters/portal-source-locks.ts";
 @source "../../../../packages/server-customer_360/src/adapters/timeline.ts";
 @source "../../../../packages/server-customer_360/src/application/timeline.ts";

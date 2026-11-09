@@ -1822,6 +1822,7 @@
 @source "../../../../packages/feature-quality/src/public/native-quality.ts";
 @source "../../../../packages/feature-records/src/components/billing-cost-editor.tsx";
 @source "../../../../packages/feature-records/src/components/collection-record-link.tsx";
+@source "../../../../packages/feature-records/src/components/embedded-page-header.tsx";
 @source "../../../../packages/feature-records/src/components/loaders/attachments--record-document-panel.tsx";
 @source "../../../../packages/feature-records/src/components/loaders/finance--consolidation-run-console.tsx";
 @source "../../../../packages/feature-records/src/components/loaders/finance--finance-accrual-controls.tsx";
@@ -3186,6 +3187,7 @@
 @source "../../../../packages/server-customer_360/src/adapters/attachment-request.ts";
 @source "../../../../packages/server-customer_360/src/adapters/executive-main-evidence-sources.ts";
 @source "../../../../packages/server-customer_360/src/adapters/final-root-owner-projection-sources.ts";
+@source "../../../../packages/server-customer_360/src/adapters/native-executive-customer-activity.ts";
 @source "../../../../packages/server-customer_360/src/adapters/native-notes.ts";
 @source "../../../../packages/server-customer_360/src/adapters/package-obligations.ts";
 @source "../../../../packages/server-customer_360/src/adapters/portal-attachments.ts";
