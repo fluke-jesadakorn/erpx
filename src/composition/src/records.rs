@@ -190,7 +190,7 @@ fn records_actor(current: &AuthorizedWorkContext) -> Result<RecordContextActor, 
     })
 }
 
-fn context_value(current: &AuthorizedWorkContext) -> Value {
+pub(crate) fn context_value(current: &AuthorizedWorkContext) -> Value {
     let selected = current.selection();
     let workspace = selected.workspace();
     let assignment = selected.assignment();
@@ -350,6 +350,9 @@ impl<C: Clock + Send + Sync + 'static> RecordsService<C> {
                 q,
                 cursor,
             } => (true, module_id, section_id, q, cursor),
+            RecordsRegistryHttpCommand::Create { .. } => {
+                return Err(unavailable().into());
+            }
         };
         self.authorizer
             .execute_with_sources_deferred(
@@ -422,6 +425,7 @@ pub struct RecordsBackend<C> {
     policy: Arc<AccountPolicy>,
     scopes: Arc<dyn BusinessScopeSlugs>,
     service: Arc<RecordsService<C>>,
+    command: Arc<crate::records_command::RecordsCommandService<C>>,
 }
 
 impl<C: Clock + Send + Sync + 'static> RecordsBackend<C> {
@@ -429,11 +433,13 @@ impl<C: Clock + Send + Sync + 'static> RecordsBackend<C> {
         policy: Arc<AccountPolicy>,
         scopes: Arc<dyn BusinessScopeSlugs>,
         service: Arc<RecordsService<C>>,
+        command: Arc<crate::records_command::RecordsCommandService<C>>,
     ) -> Self {
         Self {
             policy,
             scopes,
             service,
+            command,
         }
     }
 
@@ -493,11 +499,35 @@ impl<C: Clock + Send + Sync + 'static> RecordsRegistryHttpBackend for RecordsBac
     ) -> RecordsRegistryHttpFuture<'a, RecordsRegistryHttpResponse> {
         Box::pin(async move {
             let (proof, selection) = self.context_request(request.headers)?;
-            let command = request.command.clone();
-            self.service
-                .registry(request.host, proof, move || Ok(selection), command)
-                .await
-                .map_err(business)
+            match request.command.clone() {
+                RecordsRegistryHttpCommand::Create {
+                    module_id,
+                    input,
+                    key,
+                } => {
+                    let (result, context) = self
+                        .command
+                        .create_with_context(
+                            request.host,
+                            proof,
+                            move || Ok(selection),
+                            module_id,
+                            input,
+                            erpx_server_shared::public::CommandKey::new(key)?,
+                        )
+                        .await
+                        .map_err(business)?;
+                    Ok(RecordsRegistryHttpResponse {
+                        data: serde_json::json!({"id": result.as_str()}),
+                        context,
+                    })
+                }
+                command => self
+                    .service
+                    .registry(request.host, proof, move || Ok(selection), command)
+                    .await
+                    .map_err(business),
+            }
         })
     }
 }

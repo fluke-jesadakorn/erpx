@@ -49,6 +49,14 @@ impl RecordsRegistryHttpBackend for Probe {
                         "hasMore": false
                     }),
                 ),
+                RecordsRegistryHttpCommand::Create {
+                    module_id,
+                    input,
+                    key,
+                } => (
+                    format!("create|{module_id}|{key}|{}", input.section_id),
+                    serde_json::json!({"id": format!("rec-{module_id}-{key}")}),
+                ),
             };
             self.seen.lock().unwrap().push(format!(
                 "{}|{}|{}|{cookie:?}",
@@ -138,6 +146,13 @@ async fn http(addr: std::net::SocketAddr, raw: String) -> (u16, serde_json::Valu
         status,
         serde_json::from_str(body).unwrap_or(serde_json::Value::Null),
         text,
+    )
+}
+
+fn post(path: &str, host: &str, origin: &str, key: &str, body: &str) -> String {
+    format!(
+        "POST {path} HTTP/1.1\r\nHost: {host}\r\nOrigin: {origin}\r\nCookie: erpx=session\r\nIdempotency-Key: {key}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
     )
 }
 
@@ -324,4 +339,82 @@ async fn invalid_queries_bodies_hosts_and_paths_never_reach_the_backend() {
     assert_eq!(status, 422);
     assert_eq!(body["error"]["code"], "RECORDS_REGISTRY_REQUEST_INVALID");
     assert!(seen.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn actual_router_forwards_create_with_origin_idempotency_and_body() {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let router = records_registry_http_router(vec![target(
+        "acme.example.test",
+        "acme",
+        seen.clone(),
+        false,
+    )])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let _server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+    let body = r#"{"sectionId":"tickets","title":"Native record","description":"","fields":[{"key":"priority","label":"Priority","type":"text","value":"high"}]}"#;
+    let (status, response, headers) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/records/support",
+            "acme.example.test",
+            "https://acme.example.test",
+            "records:http-1",
+            body,
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(response["data"]["id"], "rec-support-records:http-1");
+    assert!(headers.contains("cache-control: private, no-store"));
+    assert_eq!(
+        *seen.lock().unwrap(),
+        vec!["acme.example.test|acme|create|support|records:http-1|tickets|Some(\"erpx=session\")"]
+    );
+    let (status, response, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/records/support",
+            "acme.example.test",
+            "https://foreign.example.test",
+            "records:http-2",
+            body,
+        ),
+    )
+    .await;
+    assert_eq!(status, 403);
+    assert_eq!(response["error"]["code"], "ORIGIN_FORBIDDEN");
+    let (status, response, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/records/support",
+            "acme.example.test",
+            "https://acme.example.test",
+            "short",
+            body,
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(response["error"]["code"], "IDEMPOTENCY_KEY_REQUIRED");
+    let (status, response, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/records/support",
+            "acme.example.test",
+            "https://acme.example.test",
+            "records:http-3",
+            "{",
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(
+        response["error"]["code"],
+        "RECORDS_REGISTRY_REQUEST_INVALID"
+    );
 }

@@ -17,6 +17,7 @@ const state = vi.hoisted(() => ({
   available: true,
   page: vi.fn(),
   list: vi.fn(),
+  create: vi.fn(),
   retainedList: vi.fn(),
   retainedPage: vi.fn(),
 }));
@@ -28,12 +29,12 @@ vi.mock('@erpx/server-records/adapters/records', () => ({
   listRecords: state.retainedList,
   recordsPage: state.retainedPage,
   createRecord: vi.fn(),
-  createRecordSchema: { safeParse: () => ({ success: false }) },
+  createRecordSchema: { safeParse: (value: unknown) => ({ success: true, data: value }) },
 }));
 vi.mock('@erpx/server-records/public/native-record-registry', () => ({
   nativeRecordRegistryAvailable: () => state.available,
   nativeRecordRegistryConfiguration: () => ({}),
-  createNativeRecordRegistryClient: () => ({ page: state.page, list: state.list }),
+  createNativeRecordRegistryClient: () => ({ page: state.page, list: state.list, create: state.create }),
   nativeRecordRegistryFailure: (error: unknown) =>
     error instanceof Error
       ? {
@@ -44,7 +45,7 @@ vi.mock('@erpx/server-records/public/native-record-registry', () => ({
       : undefined,
 }));
 
-import { GET } from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/[module]/route';
+import { GET, POST } from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/[module]/route';
 
 const params = { params: Promise.resolve({ holdingSlug: 'acme', module: 'operations' }) };
 const request = (query: string) =>
@@ -119,4 +120,52 @@ it('retains the existing owner path only when native configuration is absent', a
   expect(state.retainedList).toHaveBeenCalledWith(state.actor, 'operations', 'overview');
   expect(state.page).not.toHaveBeenCalled();
   expect(state.list).not.toHaveBeenCalled();
+});
+
+it('uses native create with the current authority then reads back the created record', async () => {
+  state.create.mockResolvedValue({ id: 'rec-support-records:http-1' });
+  const record = {
+    moduleId: 'support',
+    id: 'rec-support-records:http-1',
+    sectionId: 'tickets',
+    title: 'Native record',
+    description: '',
+    status: 'draft',
+    fields: [{ key: 'priority', label: 'Priority', type: 'text', value: 'high' }],
+    version: 1,
+    createdBy: 'actor',
+    updatedAt: 1,
+  };
+  state.list.mockResolvedValue([record]);
+  const input = {
+    sectionId: 'tickets',
+    title: 'Native record',
+    description: '',
+    fields: [{ key: 'priority', label: 'Priority', type: 'text', value: 'high' }],
+  };
+  const request = new Request('https://acme.example.com/api/v1/holdings/acme/records/support', {
+    method: 'POST',
+    headers: {
+      origin: 'https://acme.example.com',
+      'idempotency-key': 'records:http-1',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+  const response = await POST(request, {
+    params: Promise.resolve({ holdingSlug: 'acme', module: 'support' }),
+  });
+  expect(response.status).toBe(201);
+  expect(state.create).toHaveBeenCalledWith(
+    expect.any(Headers),
+    expect.objectContaining({ userId: 'actor', holdingId: 'h001', holdingSlug: 'acme' }),
+    { holdingSlug: 'acme', moduleId: 'support', ...input },
+    'records:http-1',
+  );
+  expect(state.list).toHaveBeenCalledWith(
+    expect.any(Headers),
+    expect.objectContaining({ holdingId: 'h001' }),
+    { holdingSlug: 'acme', moduleId: 'support', sectionId: 'tickets' },
+  );
+  expect((await response.json()).data).toEqual(record);
 });

@@ -21,6 +21,15 @@ export type NativeRecordRegistryInput = Readonly<{
   cursor?: string;
 }>;
 
+export type NativeRecordWriteInput = Readonly<{
+  holdingSlug: string;
+  moduleId: string;
+  sectionId: string;
+  title: string;
+  description: string;
+  fields: readonly NativeRecordField[];
+}>;
+
 export type NativeRecordRegistryPage = Readonly<{
   items: NativeRecordView[];
   nextCursor: string | null;
@@ -29,10 +38,10 @@ export type NativeRecordRegistryPage = Readonly<{
 }>;
 
 export type NativeRecordRegistryTransport = (
-  method: 'GET',
+  method: 'GET' | 'POST',
   url: URL,
   headers: Headers,
-  body: undefined,
+  body: string | undefined,
   signal: AbortSignal,
 ) => Promise<Response>;
 
@@ -406,6 +415,78 @@ function transportCall(
   });
 }
 
+function writeCall(
+  transport: NativeRecordRegistryTransport,
+  config: ReturnType<typeof configuration>,
+  incoming: Pick<Headers, 'get'>,
+  actor: NativeRecordsPageContext,
+  input: NativeRecordWriteInput,
+  key: string,
+  signal?: AbortSignal,
+): Promise<Response> {
+  const host = incoming.get('host');
+  const holding = host ? config.holdings.get(host) : undefined;
+  if (!holding || holding.holdingSlug !== input.holdingSlug || holding.holdingId !== actor.holdingId)
+    return Promise.reject(
+      new NativeRecordRegistryError('NATIVE_RECORD_REGISTRY_AUTHORITY_INVALID'),
+    );
+  const origin = incoming.get('origin');
+  if (!origin || origin !== `https://${host}`)
+    return Promise.reject(new NativeRecordRegistryError('ORIGIN_FORBIDDEN', 403));
+  if (
+    !/^[a-z0-9_-]{1,64}$/.test(input.moduleId) ||
+    !section(input.sectionId) ||
+    !trimmed(input.title, 1, 160) ||
+    typeof input.description !== 'string' ||
+    new TextEncoder().encode(input.description).length > 2_000 ||
+    input.description.includes('\u0000') ||
+    !Array.isArray(input.fields) ||
+    input.fields.length < 1 ||
+    input.fields.length > 64 ||
+    !input.fields.every(field) ||
+    new Set(input.fields.map((entry) => entry.key)).size !== input.fields.length
+  )
+    return Promise.reject(
+      new NativeRecordRegistryError('NATIVE_RECORD_REGISTRY_REQUEST_INVALID'),
+    );
+  if (!/^[A-Za-z0-9_.:-]{8,180}$/.test(key))
+    return Promise.reject(new NativeRecordRegistryError('IDEMPOTENCY_KEY_REQUIRED', 422));
+  const body = JSON.stringify({
+    sectionId: input.sectionId,
+    title: input.title.trim(),
+    description: input.description.trim(),
+    fields: input.fields,
+  });
+  if (new TextEncoder().encode(body).length > 64 * 1024)
+    return Promise.reject(new NativeRecordRegistryError('NATIVE_RECORD_REGISTRY_REQUEST_INVALID'));
+  const headers = new Headers({
+    host: host!,
+    accept: 'application/json',
+    'content-type': 'application/json',
+    origin,
+    'idempotency-key': key,
+  });
+  const cookie = incoming.get('cookie');
+  if (cookie) {
+    if (new TextEncoder().encode(cookie).length > 8192)
+      return Promise.reject(new NativeRecordRegistryError('NATIVE_RECORD_REGISTRY_COOKIE_LIMIT'));
+    headers.set('cookie', cookie);
+  }
+  const url = new URL(
+    `/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/records/${encodeURIComponent(input.moduleId)}`,
+    config.base,
+  );
+  const controller = new AbortController();
+  const cancel = () => controller.abort();
+  signal?.addEventListener('abort', cancel, { once: true });
+  if (signal?.aborted) controller.abort();
+  const timer = setTimeout(cancel, config.timeout);
+  return transport('POST', url, headers, body, controller.signal).finally(() => {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', cancel);
+  });
+}
+
 async function boundedBytes(response: Response, limit: number): Promise<Uint8Array> {
   if (!response.body) return new Uint8Array();
   const reader = response.body.getReader();
@@ -587,7 +668,39 @@ export function createNativeRecordRegistryClient(
     });
     return boundedJson(response, paged ? 4 * 1024 * 1024 : 32 * 1024 * 1024);
   };
+  const write = async (
+    incoming: Pick<Headers, 'get'>,
+    actor: NativeRecordsPageContext,
+    input: NativeRecordWriteInput,
+    key: string,
+    signal?: AbortSignal,
+  ) => {
+    if (!actor.authority || !actor.iam || actor.holdingSlug !== input.holdingSlug)
+      return failure('NATIVE_RECORD_REGISTRY_CONTEXT_CHANGED');
+    const response = await writeCall(transport, config, incoming, actor, input, key, signal).catch(
+      (error: unknown) => {
+        if (error instanceof NativeRecordRegistryError) throw error;
+        return failure('NATIVE_RECORD_REGISTRY_UNAVAILABLE');
+      },
+    );
+    return boundedJson(response, 64 * 1024);
+  };
   return {
+    create: async (
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeRecordsPageContext,
+      input: NativeRecordWriteInput,
+      key: string = crypto.randomUUID(),
+      signal?: AbortSignal,
+    ): Promise<Readonly<{ id: string }>> => {
+      const value = await write(incoming, actor, input, key, signal);
+      if (!exact(value, ['data', 'context']))
+        return failure('NATIVE_RECORD_REGISTRY_RESPONSE_INVALID');
+      context(value.context, actor);
+      if (!record(value.data) || !exact(value.data, ['id']) || !boundedId(value.data.id))
+        return failure('NATIVE_RECORD_REGISTRY_RESPONSE_INVALID');
+      return { id: value.data.id };
+    },
     page: async (
       incoming: Pick<Headers, 'get'>,
       actor: NativeRecordsPageContext,

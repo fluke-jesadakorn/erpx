@@ -2762,17 +2762,26 @@ async fn assemble_checked(
                         backend: sales_backend.clone(),
                     },
                 );
+                let records_configuration = crate::records::RecordsConfiguration::new(
+                    holding.registration.holding_id.clone(),
+                    company.clone(),
+                );
+                let records_command = Arc::new(
+                    crate::records_command::RecordsCommandService::new(
+                        authorizer.clone(),
+                        records_configuration.clone(),
+                        Arc::new(SharedClock(clock.clone())),
+                    ),
+                );
                 let records_backend = Arc::new(crate::records::RecordsBackend::new(
                     config.policy.clone(),
                     Arc::new(FinanceJournalReadScopeHeaders),
                     Arc::new(crate::records::RecordsService::new(
                         authorizer.clone(),
-                        crate::records::RecordsConfiguration::new(
-                            holding.registration.holding_id.clone(),
-                            company.clone(),
-                        ),
+                        records_configuration,
                         Arc::new(SharedClock(clock.clone())),
                     )),
+                    records_command,
                 ));
                 records_context_targets.push(
                     erpx_server_records::public::record_context_http::RecordsContextHttpTarget {

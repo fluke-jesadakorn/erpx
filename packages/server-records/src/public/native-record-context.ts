@@ -109,10 +109,10 @@ export type NativeRecordContext = Readonly<{
 }>;
 
 export type NativeRecordContextTransport = (
-  method: 'GET',
+  method: 'GET' | 'POST',
   url: URL,
   headers: Headers,
-  body: undefined,
+  body: string | undefined,
   signal: AbortSignal,
 ) => Promise<Response>;
 
@@ -708,10 +708,10 @@ export function createNativeRecordContextClient(
 
 /** Fresh bounded socket; bypasses patched fetch/HMR and ambient proxies. */
 export function directHttp(
-  method: 'GET',
+  method: 'GET' | 'POST',
   url: URL,
   headers: Headers,
-  body: undefined,
+  body: string | undefined,
   signal: AbortSignal,
 ): Promise<Response> {
   return new Promise((resolve, reject) => {

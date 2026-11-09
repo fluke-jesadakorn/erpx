@@ -346,6 +346,24 @@ impl<C: Clock + Send + Sync + 'static> RecordsCommandService<C> {
     where
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
+        Ok(self
+            .create_with_context(host, proof, input, module_id, create, key)
+            .await?
+            .0)
+    }
+
+    pub async fn create_with_context<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        module_id: String,
+        create: CreateRecordInput,
+        key: CommandKey,
+    ) -> Result<(CommandJson, serde_json::Value), Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
         validate_create(&module_id, key.as_str(), &create)?;
         let holding = self.configuration.holding_id().clone();
         let company = self.configuration.company().clone();
@@ -412,7 +430,7 @@ impl<C: Clock + Send + Sync + 'static> RecordsCommandService<C> {
                             &mut ids,
                         );
                         let outcome = ledger.execute(&request, &mut effects).await?;
-                        Ok(outcome.result)
+                        Ok((outcome.result, crate::records::context_value(current)))
                     })
                 },
             )

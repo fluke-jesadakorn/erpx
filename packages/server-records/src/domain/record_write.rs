@@ -5,7 +5,7 @@
 //! Company scope, module access, command receipt, audit and outbox. The module
 //! list is checked against the installed catalogue registry by a test oracle.
 use erpx_server_shared::public::BusinessError;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 pub const MAX_SECTION_ID: usize = 128;
@@ -30,8 +30,8 @@ pub const SUPPORT_SECTIONS: &[&str] = &[
     "activity",
 ];
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RecordFieldInput {
     pub key: String,
     pub label: String,
@@ -42,7 +42,8 @@ pub struct RecordFieldInput {
     pub options: Option<Vec<String>>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CreateRecordInput {
     pub section_id: String,
     pub title: String,

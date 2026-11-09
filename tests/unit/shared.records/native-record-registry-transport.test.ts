@@ -327,4 +327,76 @@ describe('native Records registry transport', () => {
       ),
     ).toMatchObject({ status: 422, code: 'RECORDS_REGISTRY_REQUEST_INVALID' });
   });
+  it('posts a bounded create with origin and idempotency and returns the created id', async () => {
+    const calls: { method: string; url: URL; headers: Headers; body: string | undefined }[] = [];
+    const transport: NativeRecordRegistryTransport = async (method, url, headers, body) => {
+      calls.push({ method, url, headers, body });
+      return new Response(JSON.stringify({ data: { id: 'rec-support-records:http-1' }, context }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+    const writer = createNativeRecordRegistryClient(config() as never, transport);
+    const input = {
+      holdingSlug: 'acme',
+      moduleId: 'support',
+      sectionId: 'tickets',
+      title: 'Native record',
+      description: '',
+      fields: [{ key: 'priority', label: 'Priority', type: 'text', value: 'high' as const }],
+    };
+    const created = await writer.create(
+      incoming({ origin: 'https://acme.example.com' }),
+      actor,
+      input,
+      'records:http-1',
+    );
+    expect(created).toEqual({ id: 'rec-support-records:http-1' });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.method).toBe('POST');
+    expect(calls[0]!.url.toString()).toBe(
+      'http://127.0.0.1:44994/api/v1/holdings/acme/records/support',
+    );
+    expect(calls[0]!.headers.get('origin')).toBe('https://acme.example.com');
+    expect(calls[0]!.headers.get('idempotency-key')).toBe('records:http-1');
+    expect(calls[0]!.headers.get('content-type')).toBe('application/json');
+    expect(calls[0]!.headers.get('cookie')).toBe('__Host-erpx-product=session');
+    expect(JSON.parse(calls[0]!.body!)).toEqual({
+      sectionId: 'tickets',
+      title: 'Native record',
+      description: '',
+      fields: input.fields,
+    });
+  });
+
+  it('rejects missing origin, bad keys and duplicate fields before transport', async () => {
+    const calls: string[] = [];
+    const transport: NativeRecordRegistryTransport = async (method) => {
+      calls.push(method);
+      return new Response('{}', { status: 200 });
+    };
+    const writer = createNativeRecordRegistryClient(config() as never, transport);
+    const base = {
+      holdingSlug: 'acme',
+      moduleId: 'support',
+      sectionId: 'tickets',
+      title: 'Native record',
+      description: '',
+      fields: [{ key: 'priority', label: 'Priority', type: 'text', value: 'high' as const }],
+    };
+    await expect(
+      writer.create(incoming(), actor, base, 'records:http-1'),
+    ).rejects.toMatchObject({ code: 'ORIGIN_FORBIDDEN' });
+    await expect(
+      writer.create(incoming({ origin: 'https://acme.example.com' }), actor, base, 'short'),
+    ).rejects.toMatchObject({ code: 'IDEMPOTENCY_KEY_REQUIRED' });
+    await expect(
+      writer.create(incoming({ origin: 'https://acme.example.com' }), actor, {
+        ...base,
+        fields: [base.fields[0]!, base.fields[0]!],
+      }, 'records:http-2'),
+    ).rejects.toMatchObject({ code: 'NATIVE_RECORD_REGISTRY_REQUEST_INVALID' });
+    expect(calls).toEqual([]);
+  });
+
 });
