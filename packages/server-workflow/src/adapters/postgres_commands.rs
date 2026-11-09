@@ -17,6 +17,7 @@ use std::future::Future;
 type Error = PgTransactionError<BusinessError>;
 /// Trusted request identity. No result preparation or current business state is
 /// required to inspect an exact receipt; this data supplies no authority.
+#[derive(Clone)]
 pub struct WorkflowRequest {
     pub key: String,
     pub operation: String,

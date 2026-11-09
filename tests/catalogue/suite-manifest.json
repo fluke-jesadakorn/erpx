@@ -154,6 +154,123 @@
       }
     },
     {
+      "id": "shared.work.rust-work-card-preferences-postgres.integration",
+      "lane": "integration",
+      "owner": "shared.work",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "files": [
+        "tests/integration/shared.work/rust-work-card-preferences-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Work Projection work-card preferences retain Company/workspace membership, current catalogue availability, ordered pins, exact replay and CAS/version conflicts."
+      },
+      "applications": [
+        "apps",
+        "pos",
+        "pms",
+        "finance",
+        "people",
+        "sales",
+        "supply",
+        "assets",
+        "projects",
+        "recruit",
+        "learn",
+        "support",
+        "service",
+        "legal",
+        "manufacturing",
+        "account",
+        "admin",
+        "booking",
+        "portal",
+        "legal-portal",
+        "forms"
+      ],
+      "apps": [
+        "workplace"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-work-projection",
+        "targets": [
+          "work_card_preferences_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-work_projection/Cargo.toml",
+        "tests/support/rust-postgres.rs",
+        "packages/server-work_projection/src/domain/work_card_preferences.rs",
+        "packages/server-work_projection/src/adapters/work_card_preferences.rs",
+        "packages/server-work_projection/src/public/work_card_preferences.rs",
+        "tests/integration/shared.work/rust-work-card-preferences-postgres.test.rs",
+        "packages/server-workflow/src/adapters/postgres_commands.rs"
+      ],
+      "packages": [
+        "@erpx/server-work_projection",
+        "@erpx/server-runtime",
+        "@erpx/server-shared",
+        "@erpx/server-workflow"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
       "id": "pms.booking-payment-recovery.e2e",
       "lane": "e2e",
       "owner": "pms",
