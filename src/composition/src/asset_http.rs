@@ -10,10 +10,15 @@ use erpx_server_assets::public::asset_http::{
 };
 use erpx_server_assets::public::asset_http::{AssetHttpCommand, decode_asset_command};
 use erpx_server_assets::public::asset_register::{
-    AcquisitionCostProvider, AssetActor, AssetChangeResult, NoCommandLedger, PgAssetRegister,
-    asset_detail, asset_workspace, change_asset, create_asset_in_unit,
+    AcquisitionCostProvider, AssetActor, AssetChangeResult, AssetCurrencyCatalogue,
+    NoCommandLedger, PgAssetRegister, asset_detail, asset_workspace, change_asset,
+    create_asset_in_unit, validate_registration_currency,
 };
 use erpx_server_assets::public::asset_register::{AssetFuture, NewAsset};
+#[cfg(feature = "existing-business")]
+use erpx_server_assets::public::retirement_work::{
+    AssetRetirementWorkEffect, AssetRetirementWorkSource,
+};
 use erpx_server_identity_access::public::{
     AccountPolicy, RequestAudience,
     account_inbound_http::{CapturedHoldingMutation, parse_inbound_account_request},
@@ -24,6 +29,13 @@ use erpx_server_identity_access::public::{
     },
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
+#[cfg(feature = "existing-business")]
+use erpx_server_maintenance::public::asset_purchase_locks::{
+    MaintenanceAssetPurchaseLocks, bind_maintenance_asset_purchase_sources,
+    lock_maintenance_asset_purchase_sources,
+};
+#[cfg(feature = "existing-business")]
+use erpx_server_maintenance::public::asset_purchase_record::observe_asset_retirement_work;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
     BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
@@ -37,6 +49,59 @@ use sqlx::{PgConnection, Row};
 use std::sync::Arc;
 
 pub type AssetError = PgTransactionError<BusinessError>;
+
+fn asset_create_error(error: AssetError) -> AssetError {
+    match error {
+        PgTransactionError::Business(ref business)
+            if matches!(
+                business.code,
+                "ASSET_CURRENCY_SCALE_REQUIRED" | "MONEY_PRECISION_EXCEEDED"
+            ) =>
+        {
+            BusinessError::new(
+                FailureKind::Unavailable,
+                "ASSET_REGISTRATION_MONEY_INTERNAL",
+                "The request could not be completed.",
+            )
+            .into()
+        }
+        other => other,
+    }
+}
+
+struct FinanceCurrencyCatalogue;
+
+impl AssetCurrencyCatalogue for FinanceCurrencyCatalogue {
+    fn contains(&self, currency: &str) -> Result<bool, BusinessError> {
+        erpx_server_finance::public::embedded_currency_rules()
+            .map(|rules| rules.contains(currency))
+            .map_err(|_| {
+                BusinessError::new(
+                    FailureKind::Unavailable,
+                    "CURRENCY_CATALOGUE_UNAVAILABLE",
+                    "The currency catalogue is unavailable.",
+                )
+            })
+    }
+
+    fn scale(
+        &self,
+        currency: &str,
+        company_scale: Option<u32>,
+    ) -> Result<Option<u32>, BusinessError> {
+        let rules = erpx_server_finance::public::embedded_currency_rules().map_err(|_| {
+            BusinessError::new(
+                FailureKind::Unavailable,
+                "CURRENCY_CATALOGUE_UNAVAILABLE",
+                "The currency catalogue is unavailable.",
+            )
+        })?;
+        Ok(rules
+            .scale(currency, company_scale.map(i64::from))
+            .ok()
+            .map(u32::from))
+    }
+}
 
 #[derive(Clone)]
 pub struct AssetHttpConfiguration {
@@ -59,6 +124,121 @@ struct AssetSources;
 impl HoldingWorkSourcePreparation for AssetSources {
     fn prepare<'c>(&'c self, _: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async { Ok(()) })
+    }
+}
+
+/// Retire-request preparation. It takes the Maintenance-owned utility fences
+/// before the first Holding snapshot and hands the bound witness to the owner
+/// adapter, which rechecks it after deferred effects.
+#[cfg(feature = "existing-business")]
+#[derive(Clone, Default)]
+struct AssetCommandSources {
+    retirement: bool,
+    locks: Arc<std::sync::Mutex<Option<Arc<MaintenanceAssetPurchaseLocks>>>>,
+}
+
+#[cfg(feature = "existing-business")]
+impl HoldingWorkSourcePreparation for AssetCommandSources {
+    fn prepare<'c>(
+        &'c self,
+        connection: &'c mut PgConnection,
+    ) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            if !self.retirement {
+                return Ok(());
+            }
+            lock_maintenance_asset_purchase_sources(&mut *connection)
+                .await
+                .map_err(source_conflict)?;
+            let locks = bind_maintenance_asset_purchase_sources(&mut *connection)
+                .await
+                .map_err(source_conflict)?;
+            *self
+                .locks
+                .lock()
+                .map_err(|_| source_conflict_unavailable())? = Some(Arc::new(locks));
+            Ok(())
+        })
+    }
+}
+
+#[cfg(feature = "existing-business")]
+fn source_conflict(error: PgTransactionError<BusinessError>) -> BusinessError {
+    match error {
+        PgTransactionError::Business(error) => error,
+        _ => BusinessError::new(
+            FailureKind::Conflict,
+            "ASSETS_MAINTENANCE_SOURCE_CONFLICT",
+            "The Maintenance source changed. Refresh and review again.",
+        ),
+    }
+}
+
+#[cfg(feature = "existing-business")]
+fn source_conflict_unavailable() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "ASSETS_MAINTENANCE_SOURCE_UNAVAILABLE",
+        "The Maintenance source is unavailable.",
+    )
+}
+
+#[cfg(feature = "existing-business")]
+struct MaintenanceRetirementSource {
+    locks: Arc<MaintenanceAssetPurchaseLocks>,
+}
+
+#[cfg(feature = "existing-business")]
+struct MaintenanceRetirementEffect {
+    locks: Arc<MaintenanceAssetPurchaseLocks>,
+    asset_id: String,
+    clear: bool,
+}
+
+#[cfg(feature = "existing-business")]
+impl AssetRetirementWorkEffect for MaintenanceRetirementEffect {
+    fn is_clear(&self) -> bool {
+        self.clear
+    }
+    fn require_current<'a>(
+        &'a self,
+        connection: &'a mut PgConnection,
+    ) -> AssetFuture<'a, (), AssetError> {
+        Box::pin(async move {
+            let witness =
+                observe_asset_retirement_work(connection, &self.locks, &self.asset_id).await?;
+            witness.require_current(connection).await?;
+            if witness.is_clear() != self.clear {
+                return Err(BusinessError::new(
+                    FailureKind::Conflict,
+                    "ASSET_RETIREMENT_WORK_CHANGED",
+                    "The Maintenance work affecting the Asset changed.",
+                )
+                .into());
+            }
+            Ok(())
+        })
+    }
+}
+
+#[cfg(feature = "existing-business")]
+impl AssetRetirementWorkSource for MaintenanceRetirementSource {
+    type Effect = Box<dyn AssetRetirementWorkEffect + 'static>;
+    fn observe<'a>(
+        &'a mut self,
+        connection: &'a mut PgConnection,
+        asset_id: &'a str,
+    ) -> AssetFuture<'a, Self::Effect, AssetError> {
+        Box::pin(async move {
+            let witness = observe_asset_retirement_work(connection, &self.locks, asset_id).await?;
+            witness.require_current(connection).await?;
+            let effect = MaintenanceRetirementEffect {
+                locks: self.locks.clone(),
+                asset_id: asset_id.to_owned(),
+                clear: witness.is_clear(),
+            };
+            Ok(Box::new(effect) as Box<dyn AssetRetirementWorkEffect + 'static>)
+        })
     }
 }
 
@@ -267,7 +447,7 @@ async fn retain_asset_receipt(
     .bind(actor.user_id.as_str())
     .bind(&request_hash)
     .bind(record_id)
-    .bind(result.value().to_string())
+    .bind(asset_result_value(operation, result).to_string())
     .bind(at)
     .bind(actor.receipt_authority()?.as_str())
     .fetch_one(&mut *connection)
@@ -282,7 +462,7 @@ async fn retain_asset_receipt(
     let record_type = operation.split('.').take(2).collect::<Vec<_>>().join("_");
     sqlx::query(
         "INSERT INTO audit_events(id,command_id,actor_id,assignment_id,action,record_type,record_id,record_version,purpose,created_at,authority_json) \
-         VALUES($1,$2,$3,$4,$2,$5,$6,$7,$2,$8,(SELECT authority_json FROM command_receipts WHERE command_id=$2))",
+         VALUES($1,$2,$3,$4,$9,$5,$6,$7,$9,$8,(SELECT authority_json FROM command_receipts WHERE command_id=$2))",
     )
     .bind(format!("asset-audit-{key}"))
     .bind(key)
@@ -292,13 +472,18 @@ async fn retain_asset_receipt(
     .bind(record_id)
     .bind(result.version)
     .bind(at)
+    .bind(operation)
     .execute(&mut *connection)
     .await?;
     let scope = CommandEventScope::from(actor);
     let payload = actor.outbox_payload(
         record_id,
         result.version,
-        Some(result.status.as_str()),
+        if operation == "asset.create" {
+            None
+        } else {
+            Some(result.status.as_str())
+        },
         &scope,
     )?;
     sqlx::query(
@@ -318,21 +503,14 @@ async fn retain_asset_receipt(
     Ok(())
 }
 
-fn prior_result(id: &str, prior: &Value) -> Result<AssetChangeResult, BusinessError> {
-    let version = prior
-        .get("version")
-        .and_then(Value::as_i64)
-        .filter(|value| (0..=9_007_199_254_740_991).contains(value))
-        .ok_or_else(unavailable)?;
-    let status = prior
-        .get("status")
-        .and_then(Value::as_str)
-        .ok_or_else(unavailable)?;
-    Ok(AssetChangeResult {
-        id: id.to_owned(),
-        version,
-        status: status.to_owned(),
-    })
+// The retained create command stores only id and version; lifecycle commands
+// additionally expose status. Keep that shape in receipts and response data.
+fn asset_result_value(operation: &str, result: &AssetChangeResult) -> Value {
+    if operation == "asset.create" {
+        serde_json::json!({"id": result.id, "version": result.version})
+    } else {
+        result.value()
+    }
 }
 
 /// Reference backend. Composition supplies the current Account policy, the
@@ -490,20 +668,36 @@ impl<C: Clock + Send + Sync + 'static> AssetHttpService<C> {
         let company = self.configuration.company_id().clone();
         let clock = self.clock.clone();
         let cost = self.cost.clone();
+        let parsed = decode_asset_command(&raw)?;
+        #[cfg(feature = "existing-business")]
+        let sources = AssetCommandSources {
+            retirement: matches!(
+                &parsed,
+                AssetHttpCommand::Change { operation, .. } if operation == "asset.retire-request"
+            ),
+            locks: Default::default(),
+        };
+        #[cfg(feature = "existing-business")]
+        let sources_action = sources.clone();
+        #[cfg(not(feature = "existing-business"))]
+        let sources = AssetSources;
         self.authorizer
             .execute_with_sources_deferred(
                 host,
                 proof,
                 self.scoped_input(input, true),
                 Self::access(true),
-                AssetSources,
+                sources,
                 move |connection, current| {
+                    #[cfg(feature = "existing-business")]
+                    let sources_action = sources_action.clone();
                     let holding = holding.clone();
                     let company = company.clone();
                     let clock = clock.clone();
                     let cost = cost.clone();
                     let raw = raw.clone();
                     let key = key.clone();
+                    let locks = Arc::clone(&sources_action.locks);
                     Box::pin(async move {
                         if current.holding_id() != &holding
                             || current.selection().workspace().company_id != company
@@ -514,6 +708,9 @@ impl<C: Clock + Send + Sync + 'static> AssetHttpService<C> {
                         let command = command_actor(current)?;
                         let at = clock.now().get();
                         let parsed = decode_asset_command(&raw)?;
+                        if matches!(parsed, AssetHttpCommand::Create) {
+                            validate_registration_currency(&FinanceCurrencyCatalogue, &raw)?;
+                        }
                         let (record_id, operation) = match &parsed {
                             AssetHttpCommand::Create => {
                                 (format!("asset-{}", key.as_str()), "asset.create".to_owned())
@@ -533,26 +730,44 @@ impl<C: Clock + Send + Sync + 'static> AssetHttpService<C> {
                         .await?
                         {
                             return Ok(AssetCommandResponse {
-                                data: prior_result(&record_id, &prior)?,
+                                data: prior,
                                 context: rendered(current)?,
                             });
                         }
+                        #[cfg(feature = "existing-business")]
+                        let source_locks = Arc::clone(&locks);
+                        #[cfg(feature = "existing-business")]
+                        let retirement_source = if sources_action.retirement {
+                            source_locks
+                                .lock()
+                                .map_err(|_| source_conflict_unavailable())?
+                                .clone()
+                                .map(|locks| MaintenanceRetirementSource { locks })
+                        } else {
+                            None
+                        };
+                        #[cfg(feature = "existing-business")]
+                        let mut retirement_effect = None;
                         let mut ledger = NoCommandLedger::<AssetError>::default();
                         let outcome = {
                             let mut register = PgAssetRegister::new(connection, actor.clone())
                                 .with_cost_provider(cost);
-                            match parsed {
-                                AssetHttpCommand::Create => {
-                                    create_asset_in_unit(
-                                        &actor,
-                                        &mut register,
-                                        &mut ledger,
-                                        &raw,
-                                        key.as_str(),
-                                        at,
-                                    )
-                                    .await?
-                                }
+                            #[cfg(feature = "existing-business")]
+                            if let Some(source) = retirement_source {
+                                register = register.with_retirement_work_source(source);
+                            }
+                            let outcome = match parsed {
+                                AssetHttpCommand::Create => create_asset_in_unit(
+                                    &actor,
+                                    &mut register,
+                                    &mut ledger,
+                                    &FinanceCurrencyCatalogue,
+                                    &raw,
+                                    key.as_str(),
+                                    at,
+                                )
+                                .await
+                                .map_err(asset_create_error)?,
                                 AssetHttpCommand::Change { .. } => {
                                     change_asset(
                                         &actor,
@@ -565,7 +780,12 @@ impl<C: Clock + Send + Sync + 'static> AssetHttpService<C> {
                                     )
                                     .await?
                                 }
+                            };
+                            #[cfg(feature = "existing-business")]
+                            {
+                                retirement_effect = register.take_retirement_work_effect();
                             }
+                            outcome
                         };
                         let receipt = outcome.receipt;
                         retain_asset_receipt(
@@ -584,8 +804,12 @@ impl<C: Clock + Send + Sync + 'static> AssetHttpService<C> {
                         if let Some(receipt) = receipt {
                             receipt.require_current(connection).await?;
                         }
+                        #[cfg(feature = "existing-business")]
+                        if let Some(effect) = retirement_effect {
+                            effect.require_current(connection).await?;
+                        }
                         Ok(AssetCommandResponse {
-                            data: outcome.result,
+                            data: asset_result_value(&operation, &outcome.result),
                             context: rendered(current)?,
                         })
                     })
@@ -701,7 +925,12 @@ impl<C: Clock + Send + Sync + 'static> AssetHttpBackend for AssetHttpService<C> 
                 request.host,
                 inbound.into_proof(),
                 move || captured.resolve(),
-                request.body.clone(),
+                serde_json::from_slice(request.body).map_err(|_| {
+                    BusinessError::invalid(
+                        "ASSET_COMMAND_REQUIRED",
+                        "Choose a current Asset registration or lifecycle action.",
+                    )
+                })?,
                 request.key.clone(),
             )
             .await
@@ -735,14 +964,6 @@ fn _assert_serializable<T: Serialize>(_: &T) {}
 /// Composition-level Finance acquisition-cost handoff. The snapshot is
 /// prepared and persisted by the Finance-owned public port on the same
 /// serializable Holding transaction before the Asset register row is written.
-struct AssetCostClock<'a>(&'a (dyn Clock + Send + Sync));
-
-impl Clock for AssetCostClock<'_> {
-    fn now(&self) -> erpx_server_shared::public::TimestampMillis {
-        self.0.now()
-    }
-}
-
 pub struct FinanceAssetCost {
     company: CompanyId,
     clock: Arc<dyn Clock + Send + Sync>,
@@ -762,6 +983,14 @@ fn asset_cost_error(error: PgTransactionError<BusinessError>) -> BusinessError {
             "ASSET_ACQUISITION_COST_UNAVAILABLE",
             "The Finance acquisition-cost handoff is unavailable.",
         ),
+    }
+}
+
+struct AssetCostClock<'a>(&'a (dyn Clock + Send + Sync));
+
+impl Clock for AssetCostClock<'_> {
+    fn now(&self) -> erpx_server_shared::public::TimestampMillis {
+        self.0.now()
     }
 }
 

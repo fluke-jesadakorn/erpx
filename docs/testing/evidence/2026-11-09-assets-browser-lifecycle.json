@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "recordedAt": "2026-11-09T03:51:01Z",
+  "sourceHead": "4f3bfaf492c2757b76de2f88474728a8749c8050",
+  "sourceWorkingDiffSha256": "bc5ef8efae038945d58ee824e33a275e4ec384beed7212ec6b141c2cfd226703",
+  "environment": "keyed contributor workspace erpx-dev-migration-20261107b, https://acme.erpx.localhost:3443, ERPX native private API 127.0.0.1:44817, normal Account/SSO session",
+  "positiveCostRegistration": {
+    "code": "AST-95486854",
+    "createStatus": 200,
+    "created": {
+      "id": "asset-d4e5ef33-dc28-4af0-bfc6-562a98ed3156",
+      "version": 1
+    },
+    "desktopStatus": 200,
+    "desktopVisible": true,
+    "mobileStatus": 200,
+    "mobileVisible": true,
+    "pageErrors": 0,
+    "consoleErrors": 9
+  },
+  "lifecycle": {
+    "code": "AST-LIFE-508370",
+    "id": "asset-db04474b-bc24-46b7-80ce-9398c2eccf7d",
+    "createStatus": 200,
+    "steps": [
+      {
+        "action": "Place into service",
+        "status": 200,
+        "skipped": null
+      },
+      {
+        "action": "Record condition",
+        "status": 200,
+        "skipped": null
+      },
+      {
+        "action": "Request retirement",
+        "status": 200,
+        "skipped": null
+      }
+    ],
+    "error": "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('tr').filter({ hasText: 'AST-LIFE-508370' }).first().getByText('View details', { exact: true })\u001b[22m\n"
+  },
+  "maintenance": {
+    "workId": null,
+    "steps": [
+      {
+        "action": "Open work order",
+        "status": 409,
+        "skipped": null
+      }
+    ],
+    "error": "Open work order failed 409 {\"error\":{\"code\":\"CONFLICT\",\"message\":\"The record changed, a reference is unavailable, or this value already exists. Refresh and review again.\"}}"
+  },
+  "nativeChecks": {
+    "asset_cost_composition_postgres": "4 passed; 0 failed (assets-final-composition.log)",
+    "asset_register_policy": "14 passed; 0 failed (assets-final-policy.log)",
+    "asset_register_postgres": "25 passed; 0 failed (assets-final-register-pg-3.log)",
+    "asset_http_postgres": "5 passed; 0 failed (assets-final-http-pg-3.log)"
+  },
+  "persistedFinance": {
+    "sourceType": "operational_asset",
+    "amountKind": "acquisition_cost",
+    "currency": "USD",
+    "currencyScale": 2,
+    "amountUnits": "125050",
+    "usdUnits": "125050",
+    "fxRateId": null,
+    "sourceId": "asset-d4e5ef33-dc28-4af0-bfc6-562a98ed3156"
+  },
+  "limitations": [
+    "The browser registration and lifecycle journeys used Mali (holding_owner). The independent retirement approval is covered by the native asset_http_postgres independent-review case; a second browser account with an Assets-authorized role was not available in the keyed fixture.",
+    "The maintenance work-order browser lifecycle was not completed because the seeded eligible asset already carries active maintenance work and the newly registered retirement-pending asset is not selectable for a new work order. The native maintenance-source/retirement checks pass.",
+    "The Assets owner remains partial: two of five catalogue workflows are not fully browser-qualified."
+  ]
+}

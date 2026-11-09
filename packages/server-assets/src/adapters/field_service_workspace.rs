@@ -155,7 +155,19 @@ async fn unit(c: &mut PgConnection) -> Result<Unit, Error> {
     {
         return Err(PersistenceError::new("ASSETS_SERIALIZABLE_REQUIRED").into());
     }
+    require_service_workspace_assets_held(&mut *c).await?;
     Ok(sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text").fetch_one(c).await?)
+}
+/// Require the existing Assets read fence without acquiring it. This does
+/// not prove pre-snapshot timing, selected authority, or purchase eligibility.
+pub async fn require_service_workspace_assets_held(c:&mut PgConnection)->Result<(),Error>{
+    if !c.is_in_transaction(){return Err(PersistenceError::new("ASSETS_TRANSACTION_REQUIRED").into());}
+    let held:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND relation='operational_assets'::regclass AND granted AND mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock'))").fetch_one(c).await?;
+    if !held{return Err(PersistenceError::new("FIELD_SERVICE_ASSETS_LOCK_REQUIRED").into());}Ok(())
+}
+async fn require_settlement_lock(c:&mut PgConnection)->Result<(),Error>{
+    let held:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND relation='operational_asset_events'::regclass AND granted AND mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock'))").fetch_one(c).await?;
+    if !held{return Err(PersistenceError::new("FIELD_SERVICE_ASSET_SETTLEMENT_LOCK_REQUIRED").into());}Ok(())
 }
 fn changed() -> Error {
     BusinessError::new(
@@ -211,6 +223,7 @@ impl CurrentServiceAssetSettlement {
     pub fn facts(&self)->&[ServiceAssetSettlementFact]{&self.facts}
     pub async fn require_current(&self,c:&mut PgConnection)->Result<(),Error>{
         if unit(c).await?!=self.unit{return Err(changed());}
+        require_settlement_lock(c).await?;
         let(facts,digest)=capture_service_asset_settlement(c,&self.company,&self.sources).await?;
         if facts!=self.facts||digest!=self.digest{return Err(changed());}
         Ok(())
@@ -218,6 +231,7 @@ impl CurrentServiceAssetSettlement {
 }
 pub async fn read_service_asset_settlement(c:&mut PgConnection,company:&CompanyId,sources:&[ServiceAssetSettlementSource])->Result<CurrentServiceAssetSettlement,Error>{
     let unit=unit(c).await?;
+    require_settlement_lock(c).await?;
     let(facts,digest)=capture_service_asset_settlement(c,company,sources).await?;
     Ok(CurrentServiceAssetSettlement{company:company.clone(),sources:sources.to_vec(),unit,facts,digest})
 }

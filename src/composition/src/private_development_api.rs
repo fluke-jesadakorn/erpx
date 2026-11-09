@@ -64,14 +64,15 @@ use axum::{
 };
 use erpx_server_commercial::public::purchases::current_package_catalogue;
 use erpx_server_identity_access::public::{
-    AccountAuthentication, AccountCredentials, AccountInvitations, AccountMailKeyring, AccountPolicy,
-    Argon2Passwords, AuthenticationSecrets, HoldingOrigin, PostgresAccountCredentials,
-    PostgresAccountInvitations, PostgresAccountRepository, PostgresInvitationCredentialAuthority,
-    SystemAccountClock, SystemAuthenticationSecrets,
-    account_auth_router, account_credentials_router, account_invitations_router,
+    AccountAuthentication, AccountCredentials, AccountInvitations, AccountMailKeyring,
+    AccountPolicy, Argon2Passwords, AuthenticationSecrets, HoldingOrigin,
+    PostgresAccountCredentials, PostgresAccountInvitations, PostgresAccountRepository,
+    PostgresInvitationCredentialAuthority, SystemAccountClock, SystemAuthenticationSecrets,
+    account_auth_router, account_credentials_router,
     account_holding_bindings::{
         ConfiguredAccountHolding, ConfiguredHoldingRegistry, lock_holding_binding_sources,
     },
+    account_invitations_router,
     account_revocation::{AccountHoldingWriter, PostgresAccountWorkContextInvalidation},
     account_session_router,
     account_sso::{
@@ -207,6 +208,8 @@ struct ConfigurationDocument {
     #[serde(default)]
     commerce_companies: Vec<FinanceReadDocument>,
     #[serde(default)]
+    assets_companies: Vec<FinanceReadDocument>,
+    #[serde(default)]
     platform_administration_companies: Vec<FinanceReadDocument>,
     #[serde(default)]
     maintenance_companies: Vec<FinanceReadDocument>,
@@ -324,6 +327,7 @@ pub struct DevelopmentApiConfiguration {
     crm_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     operations_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     commerce_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
+    assets_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     platform_administration_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     maintenance_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     finance_field_service_invoice_reads: BTreeSet<HoldingId>,
@@ -670,7 +674,10 @@ impl DevelopmentApiConfiguration {
             let company = CompanyId::new(&read.company_id)
                 .map_err(|_| "PRIVATE_API_OPERATIONS_CONFIGURATION_INVALID")?;
             if !ids.contains(&read.holding_id)
-                || !operations_companies.entry(holding).or_default().insert(company)
+                || !operations_companies
+                    .entry(holding)
+                    .or_default()
+                    .insert(company)
             {
                 return Err("PRIVATE_API_OPERATIONS_CONFIGURATION_INVALID");
             }
@@ -682,9 +689,24 @@ impl DevelopmentApiConfiguration {
             let company = CompanyId::new(&read.company_id)
                 .map_err(|_| "PRIVATE_API_COMMERCE_CONFIGURATION_INVALID")?;
             if !ids.contains(&read.holding_id)
-                || !commerce_companies.entry(holding).or_default().insert(company)
+                || !commerce_companies
+                    .entry(holding)
+                    .or_default()
+                    .insert(company)
             {
                 return Err("PRIVATE_API_COMMERCE_CONFIGURATION_INVALID");
+            }
+        }
+        let mut assets_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>> = BTreeMap::new();
+        for read in doc.assets_companies {
+            let holding = HoldingId::new(&read.holding_id)
+                .map_err(|_| "PRIVATE_API_ASSETS_CONFIGURATION_INVALID")?;
+            let company = CompanyId::new(&read.company_id)
+                .map_err(|_| "PRIVATE_API_ASSETS_CONFIGURATION_INVALID")?;
+            if !ids.contains(&read.holding_id)
+                || !assets_companies.entry(holding).or_default().insert(company)
+            {
+                return Err("PRIVATE_API_ASSETS_CONFIGURATION_INVALID");
             }
         }
         let mut platform_administration_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>> =
@@ -710,7 +732,10 @@ impl DevelopmentApiConfiguration {
             let company = CompanyId::new(&read.company_id)
                 .map_err(|_| "PRIVATE_API_MAINTENANCE_CONFIGURATION_INVALID")?;
             if !ids.contains(&read.holding_id)
-                || !maintenance_companies.entry(holding).or_default().insert(company)
+                || !maintenance_companies
+                    .entry(holding)
+                    .or_default()
+                    .insert(company)
             {
                 return Err("PRIVATE_API_MAINTENANCE_CONFIGURATION_INVALID");
             }
@@ -1326,6 +1351,7 @@ impl DevelopmentApiConfiguration {
             crm_companies,
             operations_companies,
             commerce_companies,
+            assets_companies,
             platform_administration_companies,
             maintenance_companies,
             finance_field_service_invoice_reads,
@@ -1622,8 +1648,11 @@ async fn assemble_checked(
         clock.clone(),
     ));
     let mail_keyring = Arc::new(
-        AccountMailKeyring::new("erpx-development".into(), vec![("erpx-development".into(), [7u8; 32])])
-            .map_err(|_| "PRIVATE_API_ACCOUNT_UNAVAILABLE")?,
+        AccountMailKeyring::new(
+            "erpx-development".into(),
+            vec![("erpx-development".into(), [7u8; 32])],
+        )
+        .map_err(|_| "PRIVATE_API_ACCOUNT_UNAVAILABLE")?,
     );
     let credentials = Arc::new(
         AccountCredentials::new(
@@ -1899,7 +1928,9 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut legal_targets = Vec::new();
         let mut benefits_targets = Vec::new();
-        let mut benefits_command_targets: Vec<erpx_server_benefits::public::command_http::BenefitsCommandHttpTarget> = Vec::new();
+        let mut benefits_command_targets: Vec<
+            erpx_server_benefits::public::command_http::BenefitsCommandHttpTarget,
+        > = Vec::new();
         let mut pms_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut maintenance_targets = Vec::new();
@@ -1943,11 +1974,55 @@ async fn assemble_checked(
         let mut create_targets = Vec::new();
         #[cfg(feature = "finance-field-write")]
         let mut edit_targets = Vec::new();
+        // Assets mounts from its own Company scope so the keyed development
+        // profile can expose the owner without mounting every Finance-linked
+        // router. Production keeps the Finance-read fallback.
         for (i, holding) in config.holdings.iter().enumerate() {
             let Some(companies) = config
-                .pos_companies
+                .assets_companies
                 .get(&holding.registration.holding_id)
+                .or_else(|| {
+                    config
+                        .finance_journal_reads
+                        .get(&holding.registration.holding_id)
+                })
             else {
+                continue;
+            };
+            for company in companies {
+                let authorizer = Arc::new(
+                    HoldingWorkAuthorizer::new(
+                        pools[0].clone(),
+                        pools[i + 1].clone(),
+                        holding.registration.holding_id.clone(),
+                        (*config.policy).clone(),
+                        clock.clone(),
+                        config.holdings_registry.clone(),
+                    )
+                    .map_err(|_| "PRIVATE_API_ASSETS_CONFIGURATION_INVALID")?,
+                );
+                asset_targets.push(erpx_server_assets::public::asset_http::AssetHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: Arc::new(crate::asset_http::AssetHttpService::new(
+                        config.policy.clone(),
+                        authorizer,
+                        crate::asset_http::AssetHttpConfiguration::new(
+                            holding.registration.holding_id.clone(),
+                            company.clone(),
+                        ),
+                        Arc::new(SharedClock(clock.clone())),
+                        Arc::new(crate::asset_http::FinanceAssetCost::new(
+                            company.clone(),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    )),
+                });
+            }
+        }
+        for (i, holding) in config.holdings.iter().enumerate() {
+            let Some(companies) = config.pos_companies.get(&holding.registration.holding_id) else {
                 continue;
             };
             let authorizer = Arc::new(
@@ -1962,34 +2037,34 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_POS_CONFIGURATION_INVALID")?,
             );
             for company in companies {
-                    let pos_backend = Arc::new(crate::pos::PosBackend::new(
-                        config.policy.clone(),
-                        Arc::new(FinanceJournalReadScopeHeaders),
-                        Arc::new(crate::pos::PosService::new(
-                            authorizer.clone(),
-                            crate::pos::PosConfiguration::new(
-                                holding.registration.holding_id.clone(),
-                                company.clone(),
-                            ),
-                            Arc::new(SharedClock(clock.clone())),
-                        )),
-                    ));
-                    pos_targets.push(
-                        erpx_server_pos::public::cash_movement_http::CashMovementHttpTarget {
-                            host: holding.host.clone(),
-                            holding_slug: holding.registration.slug.clone(),
-                            origin: format!("https://{}", holding.host),
-                            backend: pos_backend.clone(),
-                        },
-                    );
-                    pos_command_targets.push(
-                        erpx_server_pos::public::commands_http::PosCommandHttpTarget {
-                            host: holding.host.clone(),
-                            holding_slug: holding.registration.slug.clone(),
-                            origin: format!("https://{}", holding.host),
-                            backend: pos_backend,
-                        },
-                    );
+                let pos_backend = Arc::new(crate::pos::PosBackend::new(
+                    config.policy.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    Arc::new(crate::pos::PosService::new(
+                        authorizer.clone(),
+                        crate::pos::PosConfiguration::new(
+                            holding.registration.holding_id.clone(),
+                            company.clone(),
+                        ),
+                        Arc::new(SharedClock(clock.clone())),
+                    )),
+                ));
+                pos_targets.push(
+                    erpx_server_pos::public::cash_movement_http::CashMovementHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: pos_backend.clone(),
+                    },
+                );
+                pos_command_targets.push(
+                    erpx_server_pos::public::commands_http::PosCommandHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: pos_backend,
+                    },
+                );
             }
         }
         #[cfg(feature = "existing-business")]
@@ -2175,27 +2250,26 @@ async fn assemble_checked(
                     },
                 );
                 #[cfg(feature = "existing-business")]
-                let manufacturing_backend = Arc::new(crate::manufacturing::ManufacturingBackend::new(
-                    config.policy.clone(),
-                    Arc::new(FinanceJournalReadScopeHeaders),
-                    Arc::new(crate::manufacturing::ManufacturingService::new(
-                        authorizer.clone(),
-                        crate::manufacturing::ManufacturingConfiguration::new(
-                            holding.registration.holding_id.clone(),
-                            company.clone(),
-                        ),
-                        Arc::new(SharedClock(clock.clone())),
-                    )),
-                ));
+                let manufacturing_backend =
+                    Arc::new(crate::manufacturing::ManufacturingBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::manufacturing::ManufacturingService::new(
+                            authorizer.clone(),
+                            crate::manufacturing::ManufacturingConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    ));
                 #[cfg(feature = "existing-business")]
-                bom_targets.push(
-                    erpx_server_manufacturing::public::bom_http::BomHttpTarget {
-                        host: holding.host.clone(),
-                        holding_slug: holding.registration.slug.clone(),
-                        origin: format!("https://{}", holding.host),
-                        backend: manufacturing_backend.clone(),
-                    },
-                );
+                bom_targets.push(erpx_server_manufacturing::public::bom_http::BomHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: manufacturing_backend.clone(),
+                });
                 pms_targets.push(erpx_server_pms::public::pms_http::PmsHttpTarget {
                     host: holding.host.clone(),
                     holding_slug: holding.registration.slug.clone(),
@@ -2461,18 +2535,20 @@ async fn assemble_checked(
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
-                        backend: Arc::new(crate::customer_authority::CustomerAuthorityBackend::new(
-                            config.policy.clone(),
-                            Arc::new(FinanceJournalReadScopeHeaders),
-                            Arc::new(crate::customer_authority::CustomerAuthorityService::new(
-                                authorizer.clone(),
-                                crate::customer_authority::CustomerAuthorityConfiguration::new(
-                                    holding.registration.holding_id.clone(),
-                                    company.clone(),
-                                ),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )),
+                        backend: Arc::new(
+                            crate::customer_authority::CustomerAuthorityBackend::new(
+                                config.policy.clone(),
+                                Arc::new(FinanceJournalReadScopeHeaders),
+                                Arc::new(crate::customer_authority::CustomerAuthorityService::new(
+                                    authorizer.clone(),
+                                    crate::customer_authority::CustomerAuthorityConfiguration::new(
+                                        holding.registration.holding_id.clone(),
+                                        company.clone(),
+                                    ),
+                                    Arc::new(SharedClock(clock.clone())),
+                                )),
+                            ),
+                        ),
                     },
                 );
             }
@@ -2711,8 +2787,8 @@ async fn assemble_checked(
                         },
                     );
                 }
-            #[cfg(feature = "existing-business")]
-            maintenance_targets.push(
+                #[cfg(feature = "existing-business")]
+                maintenance_targets.push(
                     erpx_server_maintenance::public::http::MaintenanceHttpTarget {
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
@@ -2766,13 +2842,11 @@ async fn assemble_checked(
                     holding.registration.holding_id.clone(),
                     company.clone(),
                 );
-                let records_command = Arc::new(
-                    crate::records_command::RecordsCommandService::new(
-                        authorizer.clone(),
-                        records_configuration.clone(),
-                        Arc::new(SharedClock(clock.clone())),
-                    ),
-                );
+                let records_command = Arc::new(crate::records_command::RecordsCommandService::new(
+                    authorizer.clone(),
+                    records_configuration.clone(),
+                    Arc::new(SharedClock(clock.clone())),
+                ));
                 let records_backend = Arc::new(crate::records::RecordsBackend::new(
                     config.policy.clone(),
                     Arc::new(FinanceJournalReadScopeHeaders),
@@ -2916,24 +2990,6 @@ async fn assemble_checked(
                     )),
                 },
             );
-                asset_targets.push(erpx_server_assets::public::asset_http::AssetHttpTarget {
-                    host: holding.host.clone(),
-                    holding_slug: holding.registration.slug.clone(),
-                    origin: format!("https://{}", holding.host),
-                    backend: Arc::new(crate::asset_http::AssetHttpService::new(
-                        config.policy.clone(),
-                        authorizer.clone(),
-                        crate::asset_http::AssetHttpConfiguration::new(
-                            holding.registration.holding_id.clone(),
-                            company.clone(),
-                        ),
-                        Arc::new(SharedClock(clock.clone())),
-                        Arc::new(crate::asset_http::FinanceAssetCost::new(
-                            company.clone(),
-                            Arc::new(SharedClock(clock.clone())),
-                        )),
-                    )),
-                });
                 let configuration = if config
                     .field_service_issues
                     .contains(&holding.registration.holding_id)
@@ -3306,8 +3362,10 @@ async fn assemble_checked(
         }
         if !commercial_targets.is_empty() {
             router = router.merge(
-                erpx_server_commercial::public::purchases::company_package_router(commercial_targets)
-                    .map_err(|_| "PRIVATE_API_COMMERCIAL_CONFIGURATION_INVALID")?,
+                erpx_server_commercial::public::purchases::company_package_router(
+                    commercial_targets,
+                )
+                .map_err(|_| "PRIVATE_API_COMMERCIAL_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]
@@ -3343,7 +3401,8 @@ async fn assemble_checked(
                                 crate::commerce::CommerceConfiguration::for_companies(
                                     holding.registration.holding_id.clone(),
                                     companies.iter().cloned().collect(),
-                                ).map_err(|_| "PRIVATE_API_COMMERCE_CONFIGURATION_INVALID")?,
+                                )
+                                .map_err(|_| "PRIVATE_API_COMMERCE_CONFIGURATION_INVALID")?,
                                 Arc::new(SharedClock(clock.clone())),
                             )),
                         )),
@@ -3353,9 +3412,19 @@ async fn assemble_checked(
         }
         #[cfg(feature = "existing-business")]
         if !commerce_targets.is_empty() {
+            // The development workspace uses the exact local HTTPS port 3443;
+            // production keeps the strict default-origin policy.
+            let origin_policy = if config.environment == "development" {
+                erpx_server_commerce::public::order_http::CommerceOriginPolicy::NonProduction
+            } else {
+                erpx_server_commerce::public::order_http::CommerceOriginPolicy::Production
+            };
             router = router.merge(
-                erpx_server_commerce::public::order_http::commerce_order_http_router(commerce_targets)
-                    .map_err(|_| "PRIVATE_API_COMMERCE_CONFIGURATION_INVALID")?,
+                erpx_server_commerce::public::order_http::commerce_order_http_router_with_origin_policy(
+                    commerce_targets,
+                    origin_policy,
+                )
+                .map_err(|_| "PRIVATE_API_COMMERCE_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]
@@ -3476,8 +3545,10 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         if !marketing_lead_targets.is_empty() {
             router = router.merge(
-                erpx_server_marketing::public::lead_candidate_http::marketing_lead_http_router(marketing_lead_targets)
-                    .map_err(|_| "PRIVATE_API_MARKETING_LEAD_CONFIGURATION_INVALID")?,
+                erpx_server_marketing::public::lead_candidate_http::marketing_lead_http_router(
+                    marketing_lead_targets,
+                )
+                .map_err(|_| "PRIVATE_API_MARKETING_LEAD_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]
@@ -3490,8 +3561,10 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         if !talent_targets.is_empty() {
             router = router.merge(
-                erpx_server_talent::public::requisition_http::talent_requisition_http_router(talent_targets)
-                    .map_err(|_| "PRIVATE_API_TALENT_CONFIGURATION_INVALID")?,
+                erpx_server_talent::public::requisition_http::talent_requisition_http_router(
+                    talent_targets,
+                )
+                .map_err(|_| "PRIVATE_API_TALENT_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]
@@ -6928,14 +7001,33 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .collect::<Vec<_>>()
             .as_slice()
         {
-            ["", "api", "v1", "holdings", slug, "crm", "leads", _, "changes"] => state
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "crm",
+                "leads",
+                _,
+                "changes",
+            ] => state
                 .crm_command_targets
                 .contains(&(host.to_owned(), (*slug).to_owned())),
-            ["", "api", "v1", "holdings", slug, "crm", "leads", _, "opportunity", "changes"] => {
-                state
-                    .crm_command_targets
-                    .contains(&(host.to_owned(), (*slug).to_owned()))
-            }
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "crm",
+                "leads",
+                _,
+                "opportunity",
+                "changes",
+            ] => state
+                .crm_command_targets
+                .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
     let marketing_command = request.method() == axum::http::Method::POST
@@ -6946,7 +7038,17 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .collect::<Vec<_>>()
             .as_slice()
         {
-            ["", "api", "v1", "holdings", slug, "marketing", "leads", _, "changes"] => state
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "marketing",
+                "leads",
+                _,
+                "changes",
+            ] => state
                 .marketing_command_targets
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
@@ -7013,33 +7115,41 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .collect::<Vec<_>>()
             .as_slice()
         {
-            ["", "api", "v1", "holdings", _, "projects", project_id, "wbs"]
-                if !project_id.is_empty() =>
-            {
-                state.policy.audience(host).is_some()
-            }
-            ["", "api", "v1", "holdings", _, "projects", project_id, "graph"]
-                if !project_id.is_empty() =>
-            {
-                state.policy.audience(host).is_some()
-            }
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                _,
+                "projects",
+                project_id,
+                "wbs",
+            ] if !project_id.is_empty() => state.policy.audience(host).is_some(),
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                _,
+                "projects",
+                project_id,
+                "graph",
+            ] if !project_id.is_empty() => state.policy.audience(host).is_some(),
             _ => false,
         };
     let benefits = matches!(
         *request.method(),
         axum::http::Method::GET | axum::http::Method::POST
     ) && match request
-            .uri()
-            .path()
-            .split('/')
-            .collect::<Vec<_>>()
-            .as_slice()
-        {
-            ["", "api", "v1", "holdings", _, "benefits"] => {
-                state.policy.audience(host).is_some()
-            }
-            _ => false,
-        };
+        .uri()
+        .path()
+        .split('/')
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        ["", "api", "v1", "holdings", _, "benefits"] => state.policy.audience(host).is_some(),
+        _ => false,
+    };
     let account_security = match request
         .uri()
         .path()
@@ -7075,7 +7185,16 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .is_some_and(|_| !slug.is_empty()),
         (
             &axum::http::Method::GET | &axum::http::Method::POST,
-            ["", "api", "v1", "holdings", slug, "commerce", "orders", order_id],
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "commerce",
+                "orders",
+                order_id,
+            ],
         ) if !slug.is_empty() && !order_id.is_empty() => state.policy.audience(host).is_some(),
         (
             &axum::http::Method::POST,
@@ -7124,9 +7243,17 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         {
             state.policy.audience(host).is_some()
         }
-        ["", "api", "v1", "holdings", _, "iam", "assignments", id, "revoke"]
-            if request.method() == axum::http::Method::POST && !id.is_empty() =>
-        {
+        [
+            "",
+            "api",
+            "v1",
+            "holdings",
+            _,
+            "iam",
+            "assignments",
+            id,
+            "revoke",
+        ] if request.method() == axum::http::Method::POST && !id.is_empty() => {
             state.policy.audience(host).is_some()
         }
         _ => false,
@@ -7152,11 +7279,17 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .collect::<Vec<_>>()
             .as_slice()
         {
-            ["", "api", "v1", "holdings", _, "procurement", "purchase-orders", order_id, "supplier-promises"]
-                if !order_id.is_empty() =>
-            {
-                state.policy.audience(host).is_some()
-            }
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                _,
+                "procurement",
+                "purchase-orders",
+                order_id,
+                "supplier-promises",
+            ] if !order_id.is_empty() => state.policy.audience(host).is_some(),
             _ => false,
         };
     let manufacturing = request.method() == axum::http::Method::GET
@@ -7167,9 +7300,15 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .collect::<Vec<_>>()
             .as_slice()
         {
-            ["", "api", "v1", "holdings", _, "manufacturing", "specifications"] => {
-                state.policy.audience(host).is_some()
-            }
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                _,
+                "manufacturing",
+                "specifications",
+            ] => state.policy.audience(host).is_some(),
             _ => false,
         };
     let customer_access = match request
@@ -7208,6 +7347,16 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         }
         _ => false,
     };
+    let assets = match request
+        .uri()
+        .path()
+        .split('/')
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        ["", "api", "v1", "holdings", _, "assets", ..] => state.policy.audience(host).is_some(),
+        _ => false,
+    };
     let pos_command = request.method() == axum::http::Method::POST
         && match request
             .uri()
@@ -7219,13 +7368,18 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             ["", "api", "v1", "holdings", slug, "pos", "cash", "create"] => state
                 .pos_targets
                 .contains(&(host.to_owned(), (*slug).to_owned())),
-            ["", "api", "v1", "holdings", slug, "pos", "commands", operation]
-                if !operation.is_empty() =>
-            {
-                state
-                    .pos_targets
-                    .contains(&(host.to_owned(), (*slug).to_owned()))
-            }
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "pos",
+                "commands",
+                operation,
+            ] if !operation.is_empty() => state
+                .pos_targets
+                .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
     let allowed = (matches!(
@@ -7239,6 +7393,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || crm_command
         || marketing_command
         || maintenance
+        || assets
         || payroll
         || quality
         || pms

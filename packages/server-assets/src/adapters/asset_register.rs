@@ -10,13 +10,14 @@ use crate::{
         AssetWorkspaceData, FinanceAsset, FinanceCandidate, MaintenanceReference, NodeOption,
         PersonOption,
     },
+    application::retirement_work::{AssetRetirementWorkEffect, AssetRetirementWorkSource, prepare_asset_retirement_work},
     domain::asset::{
         AssetChange, AssetTransition, MAX_SAFE_INTEGER, NewAsset, require_expected_version,
     },
     domain::maintenance::MaintenanceAssetLifecycle,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
-use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, RecordId, UserId};
+use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, UserId};
 use sqlx::{Connection, PgConnection, Row};
 use std::sync::Arc;
 
@@ -33,6 +34,19 @@ pub trait AcquisitionCostProvider: Send + Sync {
         id: &'a str,
         asset: &'a NewAsset,
     ) -> AssetFuture<'a, (), BusinessError>;
+}
+
+/// A same-unit Finance effect retained until composition has written its
+/// ledger/deferred effects. It is not Asset or actor authorization.
+pub trait AcquisitionCostEffect: Send + Sync {
+    fn require_current<'a>(&'a self, connection: &'a mut PgConnection) -> AssetFuture<'a, (), PgTransactionError<BusinessError>>;
+}
+
+/// Typed, retained acquisition handoff. Pre-snapshot locks are the caller's
+/// responsibility; persistence errors preserve their SQLSTATE for retries.
+pub trait RetainedAcquisitionCostProvider: Send + Sync {
+    fn prepare_retained<'a>(&'a self, connection: &'a mut PgConnection, id: &'a str, asset: &'a NewAsset)
+        -> AssetFuture<'a, Box<dyn AcquisitionCostEffect>, PgTransactionError<BusinessError>>;
 }
 
 const WORKSPACE_LIMIT: i64 = 2_000;
@@ -138,12 +152,16 @@ impl AssetChangeReceipt {
     }
 }
 
-pub struct PgAssetRegister<'c> {
+pub struct PgAssetRegister<'c, 's> {
     connection: &'c mut PgConnection,
     actor: crate::application::asset::AssetActor,
     cost: Option<Arc<dyn AcquisitionCostProvider>>,
+    retained_cost_provider: Option<Arc<dyn RetainedAcquisitionCostProvider>>,
+    retained_cost_effect: Option<Box<dyn AcquisitionCostEffect>>,
+    retirement_source: Option<Box<dyn AssetRetirementWorkSource<Effect = Box<dyn AssetRetirementWorkEffect + 's>> + 's>>,
+    retirement_effect: Option<Box<dyn AssetRetirementWorkEffect + 's>>,
 }
-impl<'c> PgAssetRegister<'c> {
+impl<'c, 's> PgAssetRegister<'c, 's> {
     pub fn new(
         connection: &'c mut PgConnection,
         actor: crate::application::asset::AssetActor,
@@ -152,6 +170,10 @@ impl<'c> PgAssetRegister<'c> {
             connection,
             actor,
             cost: None,
+            retained_cost_provider: None,
+            retained_cost_effect: None,
+            retirement_source: None,
+            retirement_effect: None,
         }
     }
 
@@ -161,6 +183,32 @@ impl<'c> PgAssetRegister<'c> {
     pub fn with_cost_provider(mut self, provider: Arc<dyn AcquisitionCostProvider>) -> Self {
         self.cost = Some(provider);
         self
+    }
+
+    /// Select the typed retained path explicitly. It never falls back to the
+    /// legacy provider if preparation fails or returns an error.
+    pub fn with_retained_cost_provider(mut self, provider: Arc<dyn RetainedAcquisitionCostProvider>) -> Self {
+        self.retained_cost_provider = Some(provider);
+        self
+    }
+
+    /// Transfer the witness to composition, which must keep it through all
+    /// deferred/receipt effects and call require_current before commit.
+    pub fn take_acquisition_cost_effect(&mut self) -> Option<Box<dyn AcquisitionCostEffect>> {
+        self.retained_cost_effect.take()
+    }
+
+    /// Bind the Maintenance owner source to this same unit; the coordinator
+    /// takes all required source locks before the first snapshot.
+    pub fn with_retirement_work_source<S>(mut self, source: S) -> Self
+    where S: AssetRetirementWorkSource<Effect = Box<dyn AssetRetirementWorkEffect + 's>> + 's {
+        self.retirement_source = Some(Box::new(source));
+        self
+    }
+
+    /// Retain through all deferred effects and recheck before committing.
+    pub fn take_retirement_work_effect(&mut self) -> Option<Box<dyn AssetRetirementWorkEffect + 's>> {
+        self.retirement_effect.take()
     }
 
     fn scope_args(&self) -> (String, Option<String>, Option<String>) {
@@ -371,20 +419,6 @@ impl<'c> PgAssetRegister<'c> {
                 }
             }
             crate::domain::asset::AssetAction::RetireRequest => {
-                let active: bool = sqlx::query_scalar(
-                    "SELECT EXISTS(SELECT 1 FROM maintenance_work_orders WHERE asset_id=$1 AND company_id=$2 AND status NOT IN ('completed','cancelled'))",
-                )
-                .bind(id)
-                .bind(self.actor.company_id.as_str())
-                .fetch_one(&mut *self.connection)
-                .await?;
-                if active {
-                    return Err(conflict(
-                        "CONFLICT",
-                        "The record changed, a reference is unavailable, or this value already exists. Refresh and review again.",
-                    )
-                    .into());
-                }
                 if state.lifecycle == MaintenanceAssetLifecycle::RetirementPending {
                     let requester = self.latest_requester(id).await?;
                     if requester.as_ref() != Some(&change.actor_id) {
@@ -396,6 +430,12 @@ impl<'c> PgAssetRegister<'c> {
                         .into());
                     }
                 }
+                // Maintenance owns the globally keyed work predicate and its
+                // retained same-unit source. A missing handoff fails closed.
+                let source = self.retirement_source.as_deref_mut().ok_or_else(||
+                    PersistenceError::new("ASSET_RETIREMENT_WORK_SOURCE_REQUIRED"))?;
+                let effect = prepare_asset_retirement_work(source, &mut *self.connection, id).await?;
+                self.retirement_effect = Some(effect);
             }
             crate::domain::asset::AssetAction::RetireApprove => {
                 self.require_independent_request(id, &change.actor_id)
@@ -594,7 +634,7 @@ async fn expected_event_digest(
     .await?)
 }
 
-impl AssetRepository for PgAssetRegister<'_> {
+impl AssetRepository for PgAssetRegister<'_, '_> {
     type Error = Error;
     type Receipt = AssetChangeReceipt;
 
@@ -913,7 +953,7 @@ impl AssetRepository for PgAssetRegister<'_> {
             .bind(id)
             .bind(self.actor.company_id.as_str())
             .bind(asset.branch_id.as_str())
-            .bind(asset.department_id.as_ref().map(RecordId::as_str))
+            .bind(asset.department_id.as_deref())
             .bind(&asset.code)
             .bind(&asset.name)
             .bind(&asset.category)
@@ -992,7 +1032,7 @@ impl AssetRepository for PgAssetRegister<'_> {
     fn currency_scale<'a>(&'a mut self, currency: &'a str) -> AssetFuture<'a, Option<u32>, Error> {
         Box::pin(async move {
             let scale: Option<i32> = sqlx::query_scalar(
-                "SELECT scale FROM company_currency_scales WHERE company_id=$1 AND currency=$2",
+                "SELECT scale::int FROM company_currency_scales WHERE company_id=$1 AND currency=$2",
             )
             .bind(self.actor.company_id.as_str())
             .bind(currency)
@@ -1005,7 +1045,7 @@ impl AssetRepository for PgAssetRegister<'_> {
     }
 }
 
-impl AcquisitionCostPort for PgAssetRegister<'_> {
+impl AcquisitionCostPort for PgAssetRegister<'_, '_> {
     type Error = Error;
 
     fn prepare<'a>(
@@ -1014,6 +1054,14 @@ impl AcquisitionCostPort for PgAssetRegister<'_> {
         asset: &'a NewAsset,
     ) -> AssetFuture<'a, (), Self::Error> {
         Box::pin(async move {
+            if let Some(provider) = self.retained_cost_provider.as_ref() {
+                if self.retained_cost_effect.is_some() {
+                    return Err(BusinessError::new(FailureKind::Conflict,"ASSET_ACQUISITION_EFFECT_ALREADY_PREPARED","The acquisition-cost effect is already prepared.").into());
+                }
+                let effect = provider.prepare_retained(&mut *self.connection, id, asset).await?;
+                self.retained_cost_effect = Some(effect);
+                return Ok(());
+            }
             if let Some(provider) = self.cost.as_ref() {
                 return provider
                     .prepare(&mut *self.connection, id, asset)

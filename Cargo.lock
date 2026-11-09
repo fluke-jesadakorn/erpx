@@ -705,6 +705,7 @@ name = "erpx-server-assets"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "erpx-server-finance",
  "erpx-server-identity-access",
  "erpx-server-runtime",
  "erpx-server-shared",

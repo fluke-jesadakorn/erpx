@@ -1,10 +1,11 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 use erpx_server_assets::public::asset_register::*;
+use erpx_server_assets::public::retirement_work::{AssetRetirementWorkEffect, AssetRetirementWorkSource};
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
-use erpx_server_shared::public::{BusinessError, CompanyId, RecordId, UserId};
+use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, RecordId, UserId};
 use serde_json::{Value, json};
 use std::sync::{
     Arc,
@@ -13,6 +14,55 @@ use std::sync::{
 use std::time::Duration;
 
 type Error = PgTransactionError<BusinessError>;
+
+struct FinanceCurrencyCatalogue;
+impl AssetCurrencyCatalogue for FinanceCurrencyCatalogue {
+    fn contains(&self, currency: &str) -> Result<bool, BusinessError> {
+        erpx_server_finance::public::embedded_currency_rules()
+            .map(|rules| rules.contains(currency))
+            .map_err(|_| BusinessError::new(erpx_server_shared::public::FailureKind::Unavailable, "ASSET_CURRENCY_CATALOGUE_UNAVAILABLE", "The currency catalogue is unavailable."))
+    }
+    fn scale(&self, currency: &str, company_scale: Option<u32>) -> Result<Option<u32>, BusinessError> {
+        let rules=erpx_server_finance::public::embedded_currency_rules()
+            .map_err(|_| BusinessError::new(erpx_server_shared::public::FailureKind::Unavailable,"ASSET_CURRENCY_CATALOGUE_UNAVAILABLE","The currency catalogue is unavailable."))?;
+        Ok(rules.scale(currency,company_scale.map(i64::from)).ok().map(u32::from))
+    }
+}
+
+
+
+struct TestRetirementSource;
+struct TestRetirementEffect { asset_id: String, clear: bool }
+impl AssetRetirementWorkEffect for TestRetirementEffect {
+    fn is_clear(&self) -> bool { self.clear }
+    fn require_current<'a>(&'a self, c: &'a mut sqlx::PgConnection) -> AssetFuture<'a, (), Error> {
+        Box::pin(async move {
+            let clear: bool = sqlx::query_scalar("SELECT NOT EXISTS(SELECT 1 FROM public.maintenance_work_orders WHERE asset_id=$1 AND status NOT IN ('completed','cancelled'))")
+                .bind(&self.asset_id).fetch_one(c).await?;
+            if clear != self.clear {
+                return Err(BusinessError::new(FailureKind::Conflict, "ASSET_RETIREMENT_WORK_CHANGED", "The Maintenance work affecting the Asset changed.").into());
+            }
+            Ok(())
+        })
+    }
+}
+impl AssetRetirementWorkSource for TestRetirementSource {
+    type Effect = Box<dyn AssetRetirementWorkEffect + 'static>;
+    fn observe<'a>(&'a mut self, c: &'a mut sqlx::PgConnection, asset_id: &'a str) -> AssetFuture<'a, Self::Effect, Error> {
+        Box::pin(async move {
+            let clear: bool = sqlx::query_scalar("SELECT NOT EXISTS(SELECT 1 FROM public.maintenance_work_orders WHERE asset_id=$1 AND status NOT IN ('completed','cancelled'))")
+                .bind(asset_id).fetch_one(c).await?;
+            Ok(Box::new(TestRetirementEffect { asset_id: asset_id.to_owned(), clear }) as Box<dyn AssetRetirementWorkEffect + 'static>)
+        })
+    }
+}
+
+
+macro_rules! register_retirement {
+    ($($arg:expr),* $(,)?) => {
+        PgAssetRegister::new($($arg),*).with_retirement_work_source(TestRetirementSource)
+    };
+}
 
 async fn setup(pool: &DatabasePool) {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
@@ -261,6 +311,7 @@ async fn registration_is_scoped_uses_the_cost_handoff_and_persists_direct_readba
                     &mut repository,
                     &mut ledger,
                     &mut cost,
+                    &FinanceCurrencyCatalogue,
                     &input,
                     "create-key",
                     500,
@@ -322,7 +373,7 @@ async fn placement_condition_and_retirement_are_persisted_with_direct_readback()
             Box::pin(async move {
                 let actor = actor("user-1", "company", None, None);
                 let mut ledger = NoCommandLedger::<Error>::default();
-                let mut repository = PgAssetRegister::new(c, actor.clone());
+                let mut repository = register_retirement!(c, actor.clone());
                 let placed = change_asset(
                     &actor,
                     &mut repository,
@@ -402,7 +453,7 @@ async fn placement_condition_and_retirement_are_persisted_with_direct_readback()
             Box::pin(async move {
                 let reviewer = actor("user-2", "company", None, None);
                 let mut ledger = NoCommandLedger::<Error>::default();
-                let mut repository = PgAssetRegister::new(c, reviewer.clone());
+                let mut repository = register_retirement!(c, reviewer.clone());
                 let retired = change_asset(
                     &reviewer,
                     &mut repository,
@@ -657,7 +708,7 @@ async fn retirement_requires_independent_review_and_a_posted_disposal() {
             Box::pin(async move {
                 let actor = actor("user-1", "company", None, None);
                 let mut ledger = NoCommandLedger::<Error>::default();
-                let mut repository = PgAssetRegister::new(c, actor.clone());
+                let mut repository = register_retirement!(c, actor.clone());
                 change_asset(
                     &actor,
                     &mut repository,
@@ -678,7 +729,7 @@ async fn retirement_requires_independent_review_and_a_posted_disposal() {
             Box::pin(async move {
                 let actor = actor("user-1", "company", None, None);
                 let mut ledger = NoCommandLedger::<Error>::default();
-                let mut repository = PgAssetRegister::new(c, actor.clone());
+                let mut repository = register_retirement!(c, actor.clone());
                 change_asset(
                     &actor,
                     &mut repository,
@@ -702,7 +753,7 @@ async fn retirement_requires_independent_review_and_a_posted_disposal() {
             Box::pin(async move {
                 let reviewer = actor("user-2", "company", None, None);
                 let mut ledger = NoCommandLedger::<Error>::default();
-                let mut repository = PgAssetRegister::new(c, reviewer.clone());
+                let mut repository = register_retirement!(c, reviewer.clone());
                 change_asset(
                     &reviewer,
                     &mut repository,
@@ -734,7 +785,7 @@ async fn retirement_requires_independent_review_and_a_posted_disposal() {
             Box::pin(async move {
                 let reviewer = actor("user-2", "company", None, None);
                 let mut ledger = NoCommandLedger::<Error>::default();
-                let mut repository = PgAssetRegister::new(c, reviewer.clone());
+                let mut repository = register_retirement!(c, reviewer.clone());
                 let retired = change_asset(
                     &reviewer,
                     &mut repository,
@@ -773,7 +824,7 @@ async fn retirement_refresh_is_limited_to_the_original_requester() {
             Box::pin(async move {
                 let actor = actor("user-1", "company", None, None);
                 let mut ledger = NoCommandLedger::<Error>::default();
-                let mut repository = PgAssetRegister::new(c, actor.clone());
+                let mut repository = register_retirement!(c, actor.clone());
                 change_asset(
                     &actor,
                     &mut repository,
@@ -793,7 +844,7 @@ async fn retirement_refresh_is_limited_to_the_original_requester() {
             Box::pin(async move {
                 let other = actor("user-2", "company", None, None);
                 let mut ledger = NoCommandLedger::<Error>::default();
-                let mut repository = PgAssetRegister::new(c, other.clone());
+                let mut repository = register_retirement!(c, other.clone());
                 change_asset(
                     &other,
                     &mut repository,
@@ -816,7 +867,7 @@ async fn retirement_refresh_is_limited_to_the_original_requester() {
             Box::pin(async move {
                 let actor = actor("user-1", "company", None, None);
                 let mut ledger = NoCommandLedger::<Error>::default();
-                let mut repository = PgAssetRegister::new(c, actor.clone());
+                let mut repository = register_retirement!(c, actor.clone());
                 let renewed = change_asset(
                     &actor,
                     &mut repository,
@@ -862,7 +913,7 @@ async fn retired_condition_placement_during_maintenance_and_active_work_are_refu
             Box::pin(async move {
                 let actor = actor("user-1", "company", None, None);
                 let mut ledger = NoCommandLedger::<Error>::default();
-                let mut repository = PgAssetRegister::new(c, actor.clone());
+                let mut repository = register_retirement!(c, actor.clone());
                 change_asset(
                     &actor,
                     &mut repository,
@@ -889,7 +940,7 @@ async fn retired_condition_placement_during_maintenance_and_active_work_are_refu
             Box::pin(async move {
                 let actor = actor("user-1", "company", None, None);
                 let mut ledger = NoCommandLedger::<Error>::default();
-                let mut repository = PgAssetRegister::new(c, actor.clone());
+                let mut repository = register_retirement!(c, actor.clone());
                 change_asset(
                     &actor,
                     &mut repository,
@@ -909,7 +960,7 @@ async fn retired_condition_placement_during_maintenance_and_active_work_are_refu
             Box::pin(async move {
                 let actor = actor("user-1", "company", None, None);
                 let mut ledger = NoCommandLedger::<Error>::default();
-                let mut repository = PgAssetRegister::new(c, actor.clone());
+                let mut repository = register_retirement!(c, actor.clone());
                 change_asset(
                     &actor,
                     &mut repository,
@@ -1154,7 +1205,7 @@ async fn conditional_retirement_rule_keeps_unsafe_assets_from_being_placed_and_r
             Box::pin(async move {
                 let actor = actor("user-1", "company", None, None);
                 let mut ledger = NoCommandLedger::<Error>::default();
-                let mut repository = PgAssetRegister::new(c, actor.clone());
+                let mut repository = register_retirement!(c, actor.clone());
                 change_asset(
                     &actor,
                     &mut repository,
@@ -1174,7 +1225,7 @@ async fn conditional_retirement_rule_keeps_unsafe_assets_from_being_placed_and_r
             Box::pin(async move {
                 let actor = actor("user-1", "company", None, None);
                 let mut ledger = NoCommandLedger::<Error>::default();
-                let mut repository = PgAssetRegister::new(c, actor.clone());
+                let mut repository = register_retirement!(c, actor.clone());
                 change_asset(
                     &actor,
                     &mut repository,
@@ -1197,7 +1248,7 @@ async fn conditional_retirement_rule_keeps_unsafe_assets_from_being_placed_and_r
             Box::pin(async move {
                 let actor = actor("user-1", "company", None, None);
                 let mut ledger = NoCommandLedger::<Error>::default();
-                let mut repository = PgAssetRegister::new(c, actor.clone());
+                let mut repository = register_retirement!(c, actor.clone());
                 change_asset(
                     &actor,
                     &mut repository,
@@ -1217,7 +1268,7 @@ async fn conditional_retirement_rule_keeps_unsafe_assets_from_being_placed_and_r
             Box::pin(async move {
                 let reviewer = actor("user-2", "company", None, None);
                 let mut ledger = NoCommandLedger::<Error>::default();
-                let mut repository = PgAssetRegister::new(c, reviewer.clone());
+                let mut repository = register_retirement!(c, reviewer.clone());
                 change_asset(
                     &reviewer,
                     &mut repository,
@@ -1237,7 +1288,7 @@ async fn conditional_retirement_rule_keeps_unsafe_assets_from_being_placed_and_r
             Box::pin(async move {
                 let actor = actor("user-1", "company", None, None);
                 let mut ledger = NoCommandLedger::<Error>::default();
-                let mut repository = PgAssetRegister::new(c, actor.clone());
+                let mut repository = register_retirement!(c, actor.clone());
                 change_asset(
                     &actor,
                     &mut repository,
@@ -1293,6 +1344,7 @@ async fn registration_refuses_foreign_company_sources_and_unscoped_users() {
                     &mut repository,
                     &mut ledger,
                     &mut cost,
+                    &FinanceCurrencyCatalogue,
                     &input,
                     "foreign-finance-key",
                     100,
@@ -1393,4 +1445,380 @@ async fn deletion_and_event_mutation_remain_blocked_by_the_schema_guard() {
         let _ = Duration::from_millis(0);
     })
     .await;
+}
+
+#[tokio::test]
+async fn asset_unicode_owner_rows_events_and_invalid_rollback() {
+    // Owner SQL readback only: NoCommandLedger and RecordingCost are fixture
+    // ports, not a claim about selected IAM, Workflow or Money handoff.
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        // Exercise the real Finance catalogue before any owner effect. A
+        // scale-less ISO entry is valid with minor units, while unknown codes
+        // are invalid regardless of which cost representation was supplied.
+        assert!(validate_registration_currency(&FinanceCurrencyCatalogue, &json!({"currency":"XAU"})).is_ok());
+        for (key,cost) in [("unknown-iso-minor",json!({"costMinor":0})),("unknown-iso-decimal",json!({"cost":"0"}))] {
+            let mut input=json!({"branchId":"branch","code":key,"name":"Unknown currency","category":"equipment","currency":"ZZZ","acquiredDate":"2026-01-01"});
+            input.as_object_mut().unwrap().extend(cost.as_object().unwrap().clone());
+            let cost_calls=Arc::new(AtomicUsize::new(0));let observed=cost_calls.clone();
+            let result=command(&pool,|c|Box::pin(async move {let a=actor("user-1","company",None,None);let mut repo=PgAssetRegister::new(c,a.clone());let mut ledger=NoCommandLedger::<Error>::default();let mut cost=RecordingCost{calls:cost_calls};create_asset(&a,&mut repo,&mut ledger,&mut cost,&FinanceCurrencyCatalogue,&input,key,500).await?;Ok(())})).await;
+            assert!(matches!(result,Err(PgTransactionError::Business(ref e)) if e.code=="VALIDATION_FAILED"));
+            assert_eq!(observed.load(Ordering::SeqCst),0);
+            let count:i64=sqlx::query_scalar("SELECT count(*) FROM operational_assets WHERE id=$1").bind(format!("asset-{key}")).fetch_one(pool.raw()).await.unwrap();assert_eq!(count,0);
+        }
+        let title="😀".repeat(160);let category="🧭".repeat(80);let placement="📍".repeat(200);let reason="🛠".repeat(2000);
+        for (key,name) in [("unicode-asset-too-long","😀".repeat(161)),("unicode-asset-too-short","😀".to_owned())] {
+            let input=json!({"branchId":"branch","code":format!("BAD-{key}"),"name":name,"category":"equipment","currency":"THB","costMinor":0,"acquiredDate":"2026-01-01"});
+            let result=command(&pool,|c|Box::pin(async move {let a=actor("user-1","company",None,None);let mut repo=PgAssetRegister::new(c,a.clone());let mut ledger=NoCommandLedger::<Error>::default();let mut cost=RecordingCost::default();create_asset(&a,&mut repo,&mut ledger,&mut cost,&FinanceCurrencyCatalogue,&input,key,500).await?;Ok(())})).await;
+            assert!(matches!(result,Err(PgTransactionError::Business(ref e)) if e.code=="VALIDATION_FAILED"));
+            let counts:(i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM operational_assets WHERE id=$1),(SELECT count(*) FROM operational_asset_events WHERE asset_id=$1)").bind(format!("asset-{key}")).fetch_one(pool.raw()).await.unwrap();assert_eq!(counts,(0,0));
+        }
+        let input=json!({"branchId":"branch","code":"unicode-asset","name":format!("\u{feff}{title}\u{feff}"),"category":category,"currency":"uſd","costMinor":0,"acquiredDate":"2026-01-01"});
+        command(&pool,|c|Box::pin(async move {let a=actor("user-1","company",None,None);let mut repo=PgAssetRegister::new(c,a.clone());let mut ledger=NoCommandLedger::<Error>::default();let mut cost=RecordingCost::default();create_asset(&a,&mut repo,&mut ledger,&mut cost,&FinanceCurrencyCatalogue,&input,"unicode-asset-create",500).await?;Ok(())})).await.unwrap();
+        let before:(String,String,i64)=sqlx::query_as("SELECT name,category,version FROM operational_assets WHERE id='asset-unicode-asset-create'").fetch_one(pool.raw()).await.unwrap();assert_eq!(before,(title.clone(),category.clone(),1));
+        let currency:String=sqlx::query_scalar("SELECT currency FROM operational_assets WHERE id='asset-unicode-asset-create'").fetch_one(pool.raw()).await.unwrap();assert_eq!(currency,"USD");
+        let input=json!({"action":"place","expectedVersion":1,"placement":placement,"custodianId":"user-1","reason":reason});
+        command(&pool,|c|Box::pin(async move {let a=actor("user-1","company",None,None);let mut repo=PgAssetRegister::new(c,a.clone());let mut ledger=NoCommandLedger::<Error>::default();change_asset(&a,&mut repo,&mut ledger,"asset-unicode-asset-create",&input,"unicode-asset-place",600).await?;Ok(())})).await.unwrap();
+        let stored:(String,String,i64)=sqlx::query_as("SELECT placement,lifecycle_status,version FROM operational_assets WHERE id='asset-unicode-asset-create'").fetch_one(pool.raw()).await.unwrap();assert_eq!(stored,(placement,"in_service".into(),2));
+        let events:Vec<(i64,String,String)>=sqlx::query_as("SELECT version,action,reason FROM operational_asset_events WHERE asset_id='asset-unicode-asset-create' ORDER BY version").fetch_all(pool.raw()).await.unwrap();assert_eq!(events.len(),2);assert_eq!(events[0].0,1);assert_eq!(events[0].1,"register");assert_eq!(events[1],(2,"place".into(),reason));
+    }).await;
+}
+
+#[tokio::test]
+async fn asset_request_ids_obey_selected_scope_and_foreign_sources_do_not_write() {
+    // The actor and cost port are fixture facts; this exercises persisted
+    // Assets scope and owner source checks, not composed IAM or Money.
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        for (key,branch,department) in [
+            ("scope-long", "x".repeat(201), "y".repeat(201)),
+            ("scope-control", "\u{0001}branch".to_owned(), "".to_owned()),
+        ] {
+            let input=json!({"branchId":branch,"departmentId":department,"code":key,"name":"Scoped Asset","category":"equipment","currency":"THB","costMinor":0,"acquiredDate":"2026-01-01"});
+            command(&pool,|c|Box::pin(async move {
+                let a=actor("user-1","company",Some("branch"),Some("department"));
+                let mut repo=PgAssetRegister::new(c,a.clone());let mut ledger=NoCommandLedger::<Error>::default();let mut cost=RecordingCost::default();
+                create_asset(&a,&mut repo,&mut ledger,&mut cost,&FinanceCurrencyCatalogue,&input,key,500).await?;Ok(())
+            })).await.unwrap();
+            let scope:(String,Option<String>)=sqlx::query_as("SELECT branch_id,department_id FROM operational_assets WHERE id=$1").bind(format!("asset-{key}")).fetch_one(pool.raw()).await.unwrap();
+            assert_eq!(scope,("branch".into(),Some("department".into())));
+        }
+        for (key,finance) in [("foreign-finance-source","finance-foreign".to_owned()),("long-finance-source","f".repeat(201)),("control-finance-source","\u{0001}finance".to_owned())] {
+            let input=json!({"branchId":"branch","code":key,"name":"Invalid Finance","category":"equipment","currency":"THB","costMinor":1000,"acquiredDate":"2026-01-01","financeAssetId":finance,"financeAssetVersion":1});
+            let result=command(&pool,|c|Box::pin(async move {
+                let a=actor("user-1","company",None,None);let mut repo=PgAssetRegister::new(c,a.clone());let mut ledger=NoCommandLedger::<Error>::default();let mut cost=RecordingCost::default();
+                create_asset(&a,&mut repo,&mut ledger,&mut cost,&FinanceCurrencyCatalogue,&input,key,500).await?;Ok(())
+            })).await;
+            assert!(matches!(result,Err(PgTransactionError::Business(ref e)) if e.code=="CONFLICT"),"Finance source {key}: {result:?}");
+            let counts:(i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM operational_assets WHERE id=$1),(SELECT count(*) FROM operational_asset_events WHERE asset_id=$1)").bind(format!("asset-{key}")).fetch_one(pool.raw()).await.unwrap();
+            assert_eq!(counts,(0,0));
+        }
+        insert_asset(&pool,"scope-custodian","company","branch",None,0,None).await;
+        for (key,custodian) in [("foreign-custodian","user-3".to_owned()),("long-custodian","u".repeat(201)),("control-custodian","\u{0001}user".to_owned())] {
+            let input=json!({"action":"place","expectedVersion":1,"placement":"Desk","custodianId":custodian,"reason":"Assign asset"});
+            let result=command(&pool,|c|Box::pin(async move {
+                let a=actor("user-1","company",None,None);let mut repo=PgAssetRegister::new(c,a.clone());let mut ledger=NoCommandLedger::<Error>::default();
+                change_asset(&a,&mut repo,&mut ledger,"scope-custodian",&input,key,600).await?;Ok(())
+            })).await;
+            assert!(matches!(result,Err(PgTransactionError::Business(ref e)) if e.code=="CONFLICT"),"custodian {key}: {result:?}");
+            let row:(i64,Option<String>)=sqlx::query_as("SELECT version,custodian_id FROM operational_assets WHERE id='scope-custodian'").fetch_one(pool.raw()).await.unwrap();assert_eq!(row,(1,None));
+        }
+    }).await;
+}
+
+#[tokio::test]
+async fn registration_uses_iso_scale_and_replays_before_current_scale_lookup() {
+    // This uses the real Finance catalogue and database scale, while the
+    // command ledger/cost handoff are test ports, not composed authorization.
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        sqlx::query("INSERT INTO company_currency_scales(company_id,currency,scale,configured_by,configured_at) VALUES('company','THB',4,'fixture',0),('company','XAG',3,'fixture',0)").execute(pool.raw()).await.unwrap();
+        for (key,currency,cost,expected) in [("fixed-usd","USD","1.23",123_i64),("fixed-thb","THB","1.23",123),("custom-xag","XAG","1.234",1234)] {
+            let input=json!({"branchId":"branch","code":key,"name":"Scale Asset","category":"equipment","currency":currency,"cost":cost,"acquiredDate":"2026-01-01"});
+            command(&pool,|c|Box::pin(async move {let a=actor("user-1","company",None,None);let mut repo=PgAssetRegister::new(c,a.clone());let mut ledger=NoCommandLedger::<Error>::default();let mut cost=RecordingCost::default();create_asset(&a,&mut repo,&mut ledger,&mut cost,&FinanceCurrencyCatalogue,&input,key,500).await?;Ok(())})).await.unwrap();
+            let actual:i64=sqlx::query_scalar("SELECT cost_minor FROM operational_assets WHERE id=$1").bind(format!("asset-{key}")).fetch_one(pool.raw()).await.unwrap();assert_eq!(actual,expected,"{key}");
+        }
+        let too_precise=json!({"branchId":"branch","code":"precise","name":"Precise Asset","category":"equipment","currency":"XAG","cost":"1.2345","acquiredDate":"2026-01-01"});
+        let result=command(&pool,|c|Box::pin(async move {let a=actor("user-1","company",None,None);let mut repo=PgAssetRegister::new(c,a.clone());let mut ledger=NoCommandLedger::<Error>::default();let mut cost=RecordingCost::default();create_asset(&a,&mut repo,&mut ledger,&mut cost,&FinanceCurrencyCatalogue,&too_precise,"too-precise",500).await?;Ok(())})).await;
+        assert!(matches!(result,Err(PgTransactionError::Business(ref e)) if e.code=="MONEY_PRECISION_EXCEEDED"));
+        for (key,amount) in [("unsafe-decimal","90071992547409.92".to_owned()),("huge-decimal","9".repeat(100))] {
+            let input=json!({"branchId":"branch","code":key,"name":"Scale Asset","category":"equipment","currency":"USD","cost":amount,"acquiredDate":"2026-01-01"});
+            let result=command(&pool,|c|Box::pin(async move {let a=actor("user-1","company",None,None);let mut repo=PgAssetRegister::new(c,a.clone());let mut ledger=NoCommandLedger::<Error>::default();let mut cost=RecordingCost::default();create_asset(&a,&mut repo,&mut ledger,&mut cost,&FinanceCurrencyCatalogue,&input,key,500).await?;Ok(())})).await;
+            assert!(matches!(result,Err(PgTransactionError::Business(ref e)) if e.code=="MONEY_OVERFLOW"));
+        }
+        sqlx::query("DELETE FROM company_currency_scales WHERE company_id='company' AND currency='XAG'").execute(pool.raw()).await.unwrap();
+        let input=json!({"branchId":"branch","code":"custom-xag","name":"Scale Asset","category":"equipment","currency":"XAG","cost":"1.234","acquiredDate":"2026-01-01"});
+        struct MatchingLedger { expected:Value }
+        impl AssetCommandLedger for MatchingLedger {
+            type Error=Error;
+            fn replay<'a>(&'a mut self,key:&'a str,operation:&'a str,id:&'a str,input:&'a Value)->AssetFuture<'a,Option<Value>,Error>{
+                Box::pin(async move {
+                    assert_eq!((key,operation,id),("custom-xag","asset.create","asset-custom-xag"));
+                    if input!=&self.expected { return Err(BusinessError::new(FailureKind::Conflict,"IDEMPOTENCY_CONFLICT","Changed request.").into()); }
+                    Ok(Some(json!({"id":"asset-custom-xag","version":1,"status":"registered"})))
+                })
+            }
+        }
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        let a=actor("user-1","company",None,None);let mut repo=PgAssetRegister::new(&mut tx,a.clone());let mut ledger=MatchingLedger{expected:input.clone()};let mut cost=RecordingCost::default();
+        let replay=create_asset(&a,&mut repo,&mut ledger,&mut cost,&FinanceCurrencyCatalogue,&input,"custom-xag",600).await.unwrap();assert_eq!(replay.result.version,1);assert!(replay.receipt.is_none());assert_eq!(cost.calls.load(Ordering::SeqCst),0);
+        let mut changed=input.clone();changed["cost"]=json!("1.235");let conflict=create_asset(&a,&mut repo,&mut ledger,&mut cost,&FinanceCurrencyCatalogue,&changed,"custom-xag",600).await;
+        assert!(matches!(conflict,Err(PgTransactionError::Business(ref e)) if e.code=="IDEMPOTENCY_CONFLICT"));
+        let mut malformed=input.clone();malformed["cost"]=json!("1.2x");let rejected=create_asset(&a,&mut repo,&mut ledger,&mut cost,&FinanceCurrencyCatalogue,&malformed,"custom-xag",600).await;
+        assert!(matches!(rejected,Err(PgTransactionError::Business(ref e)) if e.code=="VALIDATION_FAILED"));drop(repo);tx.rollback().await.unwrap();
+        let missing=json!({"branchId":"branch","code":"missing-scale","name":"Scale Asset","category":"equipment","currency":"XAG","cost":"1.234","acquiredDate":"2026-01-01"});
+        let result=command(&pool,|c|Box::pin(async move {let a=actor("user-1","company",None,None);let mut repo=PgAssetRegister::new(c,a.clone());let mut ledger=NoCommandLedger::<Error>::default();let mut cost=RecordingCost::default();create_asset(&a,&mut repo,&mut ledger,&mut cost,&FinanceCurrencyCatalogue,&missing,"missing-scale",500).await?;Ok(())})).await;
+        assert!(matches!(result,Err(PgTransactionError::Business(ref e)) if e.code=="ASSET_CURRENCY_SCALE_REQUIRED"));
+        let count:i64=sqlx::query_scalar("SELECT count(*) FROM operational_assets WHERE id IN ('asset-too-precise','asset-missing-scale','asset-unsafe-decimal','asset-huge-decimal')").fetch_one(pool.raw()).await.unwrap();assert_eq!(count,0);
+    }).await;
+}
+
+#[tokio::test]
+async fn asset_purchase_source_preserves_scope_image_and_writer_fence() {
+    use erpx_server_assets::public::asset_purchase_source::*;
+    use sqlx::Acquire;
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        insert_asset(&pool,"purchase-source","company","branch",Some("department"),1000,None).await;
+        insert_asset(&pool,"purchase-linked","company","branch",Some("department"),1000,Some(("finance-1",2))).await;
+        let company=CompanyId::new("company").unwrap();
+        let foreign=CompanyId::new("company-b").unwrap();
+        let mut conn=pool.raw().acquire().await.unwrap();
+        sqlx::raw_sql("CREATE TEMP TABLE operational_assets(id text,company_id text);CREATE TEMP TABLE operational_asset_finance_links(id text,asset_id text)").execute(&mut *conn).await.unwrap();
+        let mut no_lock=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *no_lock).await.unwrap();assert!(observe_asset_purchase_source(&mut no_lock,&company,None,None,"purchase-source",false).await.is_err());no_lock.rollback().await.unwrap();
+        let mut tx=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_asset_purchase_sources(&mut tx).await.unwrap();
+        let command=observe_asset_purchase_source(&mut tx,&company,Some("branch"),Some("department"),"purchase-source",false).await.unwrap();
+        let file=observe_asset_purchase_source(&mut tx,&company,Some("branch"),Some("department"),"purchase-source",true).await.unwrap();
+        assert!(command.exists() && file.exists());assert_eq!(command.finance_asset_id(),None);
+        let linked=observe_asset_purchase_source(&mut tx,&company,None,None,"purchase-linked",false).await.unwrap();assert_eq!(linked.finance_asset_id(),Some("finance-1"));
+        for (scope,branch,department,id) in [(&foreign,None,None,"purchase-source"),(&company,Some("branch-b"),None,"purchase-source"),(&company,None,Some("department-b"),"purchase-source"),(&company,None,None,"purchase-missing")] {
+            let absent=observe_asset_purchase_source(&mut tx,scope,branch,department,id,false).await.unwrap();assert!(!absent.exists());absent.require_current(&mut tx).await.unwrap();
+        }
+        let legacy=r#"SELECT jsonb_build_object('asset',CASE WHEN $5 THEN to_jsonb(r)-'version'-'updated_at' ELSE to_jsonb(r) END,'finance',to_jsonb(f),'links',(SELECT jsonb_agg(to_jsonb(link) ORDER BY link.id) FROM public.operational_asset_finance_links link WHERE link.asset_id=r.id))::text FROM public.operational_assets r LEFT JOIN public.finance_assets f ON f.id=r.finance_asset_id AND f.company_id=r.company_id WHERE r.id=$1 AND r.company_id=$2 AND ($3::text IS NULL OR r.branch_id=$3) AND ($4::text IS NULL OR r.department_id=$4)"#;
+        let before_command:Option<String>=sqlx::query_scalar(legacy).bind("purchase-source").bind("company").bind(Some("branch")).bind(Some("department")).bind(false).fetch_optional(&mut *tx).await.unwrap();
+        let before_file:Option<String>=sqlx::query_scalar(legacy).bind("purchase-source").bind("company").bind(Some("branch")).bind(Some("department")).bind(true).fetch_optional(&mut *tx).await.unwrap();
+        sqlx::query("SAVEPOINT asset_version").execute(&mut *tx).await.unwrap();sqlx::query("UPDATE public.operational_assets SET version=version+1,updated_at=updated_at+1 WHERE id='purchase-source'").execute(&mut *tx).await.unwrap();
+        let after_command:Option<String>=sqlx::query_scalar(legacy).bind("purchase-source").bind("company").bind(Some("branch")).bind(Some("department")).bind(false).fetch_optional(&mut *tx).await.unwrap();
+        let after_file:Option<String>=sqlx::query_scalar(legacy).bind("purchase-source").bind("company").bind(Some("branch")).bind(Some("department")).bind(true).fetch_optional(&mut *tx).await.unwrap();
+        assert_ne!(before_command,after_command);assert_eq!(before_file,after_file);assert!(command.require_current(&mut tx).await.is_err());file.require_current(&mut tx).await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT asset_version").execute(&mut *tx).await.unwrap();command.require_current(&mut tx).await.unwrap();
+        sqlx::query("SAVEPOINT asset_link").execute(&mut *tx).await.unwrap();sqlx::query("UPDATE public.operational_assets SET finance_asset_id='finance-2',finance_asset_version=1 WHERE id='purchase-source'").execute(&mut *tx).await.unwrap();
+        let before_link=observe_asset_purchase_source(&mut tx,&company,None,None,"purchase-source",false).await.unwrap();assert_eq!(before_link.finance_asset_id(),Some("finance-2"));
+        let legacy_before_link:Option<String>=sqlx::query_scalar(legacy).bind("purchase-source").bind("company").bind(None::<&str>).bind(None::<&str>).bind(false).fetch_optional(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO public.operational_asset_finance_links(id,asset_id,finance_asset_id,asset_version,finance_asset_version,cost_minor,currency,reason,created_by,created_at) VALUES('purchase-link','purchase-source','finance-2',1,1,1000,'THB','fixture','fixture',0)").execute(&mut *tx).await.unwrap();
+        let legacy_after_link:Option<String>=sqlx::query_scalar(legacy).bind("purchase-source").bind("company").bind(None::<&str>).bind(None::<&str>).bind(false).fetch_optional(&mut *tx).await.unwrap();
+        assert_ne!(legacy_before_link,legacy_after_link);assert!(before_link.require_current(&mut tx).await.is_err());
+        sqlx::query("ROLLBACK TO SAVEPOINT asset_link").execute(&mut *tx).await.unwrap();command.require_current(&mut tx).await.unwrap();tx.rollback().await.unwrap();
+        sqlx::raw_sql("DROP TABLE pg_temp.operational_assets;DROP TABLE pg_temp.operational_asset_finance_links").execute(&mut *conn).await.unwrap();
+        let mut other=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();lock_asset_purchase_sources(&mut other).await.unwrap();assert!(command.require_current(&mut other).await.is_err());other.rollback().await.unwrap();
+        let mut writer=pool.raw().begin().await.unwrap();sqlx::query("UPDATE public.operational_assets SET name='changed' WHERE id='purchase-source'").execute(&mut *writer).await.unwrap();let mut blocked=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *blocked).await.unwrap();let conflict=lock_asset_purchase_sources(&mut blocked).await;assert!(matches!(conflict,Err(PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));blocked.rollback().await.unwrap();writer.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn retained_finance_cost_survives_asset_write_and_deferred_checks() {
+    use erpx_server_finance::public::asset_acquisition_money::{RetainedAssetAcquisitionMoney,lock_asset_acquisition_money_sources,prepare_asset_acquisition_money};
+    use erpx_server_shared::public::{Clock,TimestampMillis};
+    struct FixedClock;
+    impl Clock for FixedClock {fn now(&self)->TimestampMillis {TimestampMillis::new(1_800_000_000_000)}}
+    struct FinanceEffect(RetainedAssetAcquisitionMoney);
+    impl AcquisitionCostEffect for FinanceEffect {
+        fn require_current<'a>(&'a self,c:&'a mut sqlx::PgConnection)->AssetFuture<'a,(),Error> {
+            Box::pin(async move {self.0.require_current(c).await})
+        }
+    }
+    struct FinanceProvider;
+    impl RetainedAcquisitionCostProvider for FinanceProvider {
+        fn prepare_retained<'a>(&'a self,c:&'a mut sqlx::PgConnection,id:&'a str,asset:&'a NewAsset)->AssetFuture<'a,Box<dyn AcquisitionCostEffect>,Error> {
+            Box::pin(async move {
+                let company=CompanyId::new("company").unwrap();
+                let retained=prepare_asset_acquisition_money(c,&company,id,&asset.acquired_date,&asset.currency,asset.cost_minor,&FixedClock).await?.persist(c).await?;
+                Ok(Box::new(FinanceEffect(retained)) as Box<dyn AcquisitionCostEffect>)
+            })
+        }
+    }
+    fixture::with_database(2,|pool|async move {
+        setup(&pool).await;
+        sqlx::query("INSERT INTO company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at) VALUES('retained-cost-rate','company','THB','2026-01-01',2,'fixture',1)").execute(pool.raw()).await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_asset_acquisition_money_sources(&mut tx).await.unwrap();
+        let actor=actor("user-1","company",Some("branch"),Some("department"));
+        let raw=json!({"branchId":"branch","departmentId":"department","code":"RETAIN-COST","name":"Retained cost","category":"equipment","currency":"THB","costMinor":101,"acquiredDate":"2026-01-15"});
+        let mut ledger=NoCommandLedger::<Error>::default();
+        let mut register=PgAssetRegister::new(&mut tx,actor.clone()).with_retained_cost_provider(Arc::new(FinanceProvider));
+        let result=create_asset_in_unit(&actor,&mut register,&mut ledger,&FinanceCurrencyCatalogue,&raw,"retained-cost",1234).await.unwrap();
+        let effect=register.take_acquisition_cost_effect().expect("new create must transfer the actual Finance witness");
+        assert!(register.take_acquisition_cost_effect().is_none());drop(register);
+        assert_eq!(result.result.id,"asset-retained-cost");
+        sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut *tx).await.unwrap();
+        effect.require_current(&mut tx).await.unwrap();
+        let stored:(i64,String,Option<String>)=sqlx::query_as("SELECT a.cost_minor,m.usd_units::text,m.fx_rate_id FROM public.operational_assets a JOIN public.money_transaction_snapshots m ON m.company_id=a.company_id AND m.source_type='operational_asset' AND m.source_id=a.id AND m.amount_kind='acquisition_cost' WHERE a.id='asset-retained-cost'").fetch_one(&mut *tx).await.unwrap();
+        assert_eq!(stored,(101,"51".into(),Some("retained-cost-rate".into())));
+        sqlx::query("SAVEPOINT changed_quote").execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO public.company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at) VALUES('retained-cost-newer','company','THB','2026-01-02',4,'fixture',2)").execute(&mut *tx).await.unwrap();
+        assert!(effect.require_current(&mut tx).await.is_err());
+        sqlx::query("ROLLBACK TO SAVEPOINT changed_quote").execute(&mut *tx).await.unwrap();effect.require_current(&mut tx).await.unwrap();
+        tx.rollback().await.unwrap();
+        let absent:(i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM public.operational_assets WHERE id='asset-retained-cost'),(SELECT count(*) FROM public.money_transaction_snapshots WHERE source_type='operational_asset' AND source_id='asset-retained-cost')").fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(absent,(0,0));
+    }).await;
+}
+
+#[tokio::test]
+async fn typed_acquisition_cost_preserves_real_lock_conflict_without_legacy_fallback() {
+    use erpx_server_finance::public::asset_acquisition_money::{RetainedAssetAcquisitionMoney,lock_asset_acquisition_money_sources,prepare_asset_acquisition_money};
+    use erpx_server_shared::public::{Clock,TimestampMillis};
+    struct FixedClock;
+    impl Clock for FixedClock {fn now(&self)->TimestampMillis {TimestampMillis::new(1_800_000_000_000)}}
+    struct FinanceEffect(RetainedAssetAcquisitionMoney);
+    impl AcquisitionCostEffect for FinanceEffect {
+        fn require_current<'a>(&'a self,c:&'a mut sqlx::PgConnection)->AssetFuture<'a,(),Error> {Box::pin(async move {self.0.require_current(c).await})}
+    }
+    struct FinanceProvider;
+    impl RetainedAcquisitionCostProvider for FinanceProvider {
+        fn prepare_retained<'a>(&'a self,c:&'a mut sqlx::PgConnection,id:&'a str,asset:&'a NewAsset)->AssetFuture<'a,Box<dyn AcquisitionCostEffect>,Error> {
+            Box::pin(async move {
+                // Deliberate contention probe for typed error propagation;
+                // production must acquire this lock before its first snapshot.
+                lock_asset_acquisition_money_sources(c).await?;
+                let company=CompanyId::new("company").unwrap();
+                let retained=prepare_asset_acquisition_money(c,&company,id,&asset.acquired_date,&asset.currency,asset.cost_minor,&FixedClock).await?.persist(c).await?;
+                Ok(Box::new(FinanceEffect(retained)) as Box<dyn AcquisitionCostEffect>)
+            })
+        }
+    }
+    struct LegacySentinel(Arc<AtomicUsize>);
+    impl AcquisitionCostProvider for LegacySentinel {
+        fn prepare<'a>(&'a self,_c:&'a mut sqlx::PgConnection,_id:&'a str,_asset:&'a NewAsset)->AssetFuture<'a,(),BusinessError> {
+            self.0.fetch_add(1,Ordering::SeqCst);
+            Box::pin(async {Err(BusinessError::invalid("UNEXPECTED_LEGACY_FALLBACK","Legacy fallback was invoked."))})
+        }
+    }
+    fixture::with_database(2,|pool|async move {
+        setup(&pool).await;
+        let mut writer=pool.raw().begin().await.unwrap();
+        sqlx::query("LOCK TABLE public.company_fx_rates IN ROW EXCLUSIVE MODE").execute(&mut *writer).await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        let actor=actor("user-1","company",Some("branch"),Some("department"));
+        let input=json!({"branchId":"branch","code":"FX-CONTENDED","name":"Contended asset","category":"equipment","currency":"THB","costMinor":101,"acquiredDate":"2026-01-15"});
+        let asset=NewAsset::parse(&input,101).unwrap();
+        let calls=Arc::new(AtomicUsize::new(0));
+        let mut register=PgAssetRegister::new(&mut tx,actor).with_cost_provider(Arc::new(LegacySentinel(calls.clone()))).with_retained_cost_provider(Arc::new(FinanceProvider));
+        let result=AcquisitionCostPort::prepare(&mut register,"asset-contended",&asset).await;
+        assert!(matches!(result,Err(PgTransactionError::Persistence(ref error)) if error.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && error.sql_state()==Some("55P03") && error.retryable()));
+        assert!(register.take_acquisition_cost_effect().is_none());assert_eq!(calls.load(Ordering::SeqCst),0);
+        drop(register);tx.rollback().await.unwrap();writer.rollback().await.unwrap();
+        let count:i64=sqlx::query_scalar("SELECT (SELECT count(*) FROM public.operational_assets WHERE id='asset-contended')+(SELECT count(*) FROM public.money_transaction_snapshots WHERE source_type='operational_asset' AND source_id='asset-contended')").fetch_one(pool.raw()).await.unwrap();assert_eq!(count,0);
+    }).await;
+}
+
+#[tokio::test]
+async fn asset_maintenance_join_matches_actual_ts_asset_image() {
+    use erpx_server_assets::public::asset_purchase_source::{inspect_asset_maintenance_join,lock_asset_purchase_sources};
+    fixture::with_database(2,|pool|async move {
+        setup(&pool).await;
+        insert_asset(&pool,"asset-join-source","company","branch",Some("department"),1000,None).await;
+        sqlx::query("INSERT INTO public.maintenance_work_orders(id,company_id,branch_id,department_id,asset_id,title,priority,status,owner_id,created_by,created_at,updated_at) VALUES('asset-join-work','company','branch','department','asset-join-source','Inspect asset','normal','open','user-1','user-1',1,1)").execute(pool.raw()).await.unwrap();
+        let oracle=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
+            .current_dir(concat!(env!("CARGO_MANIFEST_DIR"),"/../.."))
+            .args(["--conditions=react-server","-e","import {maintenancePurchaseSourceQuery as q} from './packages/server-maintenance/src/adapters/purchase-sources.ts'; let n=0; process.stdout.write(q('work',true).replace(/\\?/g,()=>'$'+(++n)))"])
+            .output().unwrap();
+        assert!(oracle.status.success(),"actual Maintenance TS source unavailable");
+        let legacy=String::from_utf8(oracle.stdout).unwrap();
+        let rewritten=legacy.replace("FROM maintenance_work_orders r JOIN operational_assets a", "FROM maintenance_asset_purchase_source r JOIN asset_maintenance_source a");
+        assert_ne!(legacy,rewritten,"actual Maintenance source shape changed");
+        let mut unlocked=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unlocked).await.unwrap();
+        assert!(inspect_asset_maintenance_join(&mut unlocked).await.is_err());unlocked.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        sqlx::query("SAVEPOINT asset_source_locks").execute(&mut *tx).await.unwrap();
+        lock_asset_purchase_sources(&mut tx).await.unwrap();
+        sqlx::query("LOCK TABLE public.maintenance_work_orders,public.maintenance_preventive_plans,public.maintenance_preventive_occurrences IN SHARE ROW EXCLUSIVE MODE").execute(&mut *tx).await.unwrap();
+        let source=inspect_asset_maintenance_join(&mut tx).await.unwrap();source.require_current(&mut tx).await.unwrap();
+        let projected=format!("WITH maintenance_asset_purchase_source AS (SELECT r.* FROM public.maintenance_work_orders r WHERE r.id='asset-join-work'), {} {}",source.cte_sql(),rewritten);
+        async fn image(c:&mut sqlx::PgConnection,sql:&str,branch:&str,department:Option<&str>)->Option<Value>{
+            let row=sqlx::query(sqlx::AssertSqlSafe(sql)).bind("asset-join-work").bind("company").bind(Some(branch)).bind(Some(branch)).bind(department).bind(department).fetch_optional(c).await.unwrap()?;
+            Some(serde_json::from_str(sqlx::Row::try_get::<&str,_>(&row,"image").unwrap()).unwrap())
+        }
+        let original=image(&mut tx,&legacy,"branch",Some("department")).await;
+        let joined=image(&mut tx,&projected,"branch",Some("department")).await;
+        assert!(original.is_some());assert_eq!(joined,original);
+        assert!(image(&mut tx,&projected,"branch-b",Some("department")).await.is_none());
+        assert!(image(&mut tx,&projected,"branch",Some("department-b")).await.is_none());
+        sqlx::query("SAVEPOINT asset_version_change").execute(&mut *tx).await.unwrap();
+        sqlx::query("UPDATE public.operational_assets SET version=version+1,updated_at=updated_at+1 WHERE id='asset-join-source'").execute(&mut *tx).await.unwrap();
+        let changed=image(&mut tx,&projected,"branch",Some("department")).await;
+        assert_ne!(changed,joined,"Maintenance file image retains the full Asset version");
+        assert_eq!(changed,image(&mut tx,&legacy,"branch",Some("department")).await);
+        source.require_current(&mut tx).await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT asset_version_change").execute(&mut *tx).await.unwrap();
+        source.require_current(&mut tx).await.unwrap();
+        let mut other=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+        assert!(source.require_current(&mut other).await.is_err());other.rollback().await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT asset_source_locks").execute(&mut *tx).await.unwrap();
+        assert!(source.require_current(&mut tx).await.is_err());tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn selected_asset_purchase_ctes_match_actual_ts_source_query() {
+    use erpx_server_assets::public::asset_purchase_source::*;
+    use sqlx::{Postgres, QueryBuilder};
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        insert_asset(&pool,"selected-asset","company","branch",Some("department"),1000,None).await;
+        insert_asset(&pool,"other-asset","company","branch",Some("department"),1000,None).await;
+        // Capture only the query from the actual TS owner function; execution
+        // and all data below are real PostgreSQL in the original fenced unit.
+        let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);const db={prepare(sql){return {bind(){return {async first(){return sql}}}}}};const actor={companyId:'company',branchId:'branch',departmentId:'department'};let sqls=[];for(const file of [false,true]){let n=0;const sql=await m.assetOwnerSourceImage(db,actor,{kind:'asset',id:'selected-asset'},file);sqls.push(sql.replace(/\?/g,()=>'$'+(++n)))}process.stdout.write(JSON.stringify(sqls));"#;
+        let path=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/server-assets/src/adapters/purchases.ts");
+        let out=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).args(["--conditions=react-server","-e",script]).arg(path).output().unwrap();
+        assert!(out.status.success(),"actual Assets TS query unavailable");
+        let legacy:Vec<String>=serde_json::from_slice(&out.stdout).unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        sqlx::query("SET LOCAL search_path TO pg_catalog, public, pg_temp").execute(&mut *tx).await.unwrap();
+        lock_asset_purchase_sources(&mut tx).await.unwrap();
+        let company=CompanyId::new("company").unwrap();
+        for (id,branch,department) in [("selected-asset",Some("branch"),Some("department")),("selected-asset",Some("wrong"),None),("missing",None,None)] {
+            for file in [false,true] {
+                let source=observe_asset_purchase_source(&mut tx,&company,branch,department,id,file).await.unwrap();
+                assert_eq!(source.source_id(),id);
+                assert_eq!(source.file_mode(),file);
+                source.require_current(&mut tx).await.unwrap();
+                let mut q=QueryBuilder::<Postgres>::new("WITH ");source.append_purchase_ctes(&mut q);
+                q.push(" SELECT jsonb_build_object('asset',");
+                if file {q.push("to_jsonb(r)-'version'-'updated_at'");}else{q.push("to_jsonb(r)");}
+                q.push(",'finance',to_jsonb(f),'links',(SELECT jsonb_agg(to_jsonb(link) ORDER BY link.id) FROM asset_purchase_links link WHERE link.asset_id=r.id))::text FROM asset_purchase_selected r LEFT JOIN public.finance_assets f ON f.id=r.finance_asset_id AND f.company_id=r.company_id");
+                let joined:Option<String>=q.build_query_scalar().fetch_optional(&mut *tx).await.unwrap();
+                let original:Option<String>=sqlx::query_scalar(sqlx::AssertSqlSafe(legacy[usize::from(file)].as_str())).bind(id).bind("company").bind(branch).bind(branch).bind(department).bind(department).fetch_optional(&mut *tx).await.unwrap();
+                assert_eq!(joined,original,"source scope and file={file}");
+                source.require_current(&mut tx).await.unwrap();
+            }
+        }
+        tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn asset_files_descriptor_matches_actual_typescript_owner_sql() {
+    use erpx_server_assets::public::asset_purchase_source::{lock_asset_purchase_sources,observe_asset_attachment_descriptor};
+    fixture::with_database(3,|pool|async move {
+        setup(&pool).await;
+        let long_id=format!("descriptor-{}","x".repeat(220));
+        for (id,company,department,code) in [(long_id.as_str(),"company",Some("department"),"DESC-LONG"),("descriptor-null","company",None,"DESC-NULL"),("descriptor-foreign","foreign",None,"DESC-FOREIGN")] {
+            sqlx::query("INSERT INTO operational_assets(id,company_id,branch_id,department_id,code,name,category,currency,created_by,created_at,updated_at) VALUES($1,$2,'branch',$3,$4,'Synthetic','equipment','THB','fixture',0,0)").bind(id).bind(company).bind(department).bind(code).execute(pool.raw()).await.unwrap();
+        }
+        // Call actual TS owner adapter to get its fixed SQL and binding order.
+        let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);const db={prepare(sql){return {bind(...args){return {async first(){return {sql,args}}}}}}};const r=await m.OperationalAttachmentAssetsFacts(db).readModuleScoped({targetId:'sample',companyId:'company',targetType:'asset'});let n=0;process.stdout.write(JSON.stringify({sql:r.sql.replace(/\?/g,()=>'$'+(++n)),args:r.args}));"#;
+        let path=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/adapters/attachments-operational-facts.ts");let output=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).arg("--conditions=react-server").arg("-e").arg(script).arg(path).output().unwrap();assert!(output.status.success(),"actual Assets operational descriptor oracle unavailable");let oracle:Value=serde_json::from_slice(&output.stdout).unwrap();assert_eq!(oracle["args"],json!(["sample","company"]));let sql=format!("SELECT row_to_json(d) FROM ({}) d",oracle["sql"].as_str().unwrap());
+        let company=CompanyId::new("company").unwrap();let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_asset_purchase_sources(&mut tx).await.unwrap();
+        for id in [long_id.as_str(),"descriptor-null","descriptor-foreign","descriptor-missing"] {
+            let source=observe_asset_attachment_descriptor(&mut tx,&company,id).await.unwrap();let expected:Option<Value>=sqlx::query_scalar(sqlx::AssertSqlSafe(sql.as_str())).bind(id).bind("company").fetch_optional(&mut *tx).await.unwrap();
+            assert_eq!(source.data().map(|value|serde_json::to_value(value).unwrap()),expected,"{id}");source.require_current(&mut tx).await.unwrap();
+            if id=="descriptor-null"{assert_eq!(source.data().unwrap().department_id,None);}
+            if id=="descriptor-foreign"||id=="descriptor-missing"{assert!(source.data().is_none());}
+        }
+        let source=observe_asset_attachment_descriptor(&mut tx,&company,&long_id).await.unwrap();
+        sqlx::query("SAVEPOINT descriptor_drift").execute(&mut *tx).await.unwrap();sqlx::query("UPDATE operational_assets SET version=version+1 WHERE id=$1").bind(&long_id).execute(&mut *tx).await.unwrap();assert!(source.require_current(&mut tx).await.is_err());sqlx::query("ROLLBACK TO SAVEPOINT descriptor_drift").execute(&mut *tx).await.unwrap();source.require_current(&mut tx).await.unwrap();
+        tx.rollback().await.unwrap();
+    }).await;
 }

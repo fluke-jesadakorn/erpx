@@ -25,6 +25,7 @@ tower.workspace = true
 uuid.workspace = true
 erpx-server-identity-access.workspace = true
 erpx-server-workflow.workspace = true
+erpx-server-finance.workspace = true
 
 [[test]]
 name = "maintenance_source"

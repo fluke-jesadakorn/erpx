@@ -21,7 +21,7 @@ use erpx_server_runtime::public::postgres::DatabasePool;
 use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
 use serde_json::{Value, json};
 use sqlx::PgConnection;
-use std::sync::Arc;
+use std::sync::{Arc,atomic::{AtomicUsize,Ordering}};
 use tower::ServiceExt;
 
 const MAKER_PRODUCT: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -31,7 +31,7 @@ const REVIEWER_BROWSER: &str = "dddddddddddddddddddddddddddddddddddddddddddddddd
 
 /// Test-only Finance handoff. It writes the same `money_transaction_snapshots`
 /// identity the retained snapshot producer writes, on the request transaction.
-struct PostedCost;
+struct PostedCost(Arc<AtomicUsize>);
 impl AcquisitionCostProvider for PostedCost {
     fn prepare<'a>(
         &'a self,
@@ -40,6 +40,7 @@ impl AcquisitionCostProvider for PostedCost {
         asset: &'a NewAsset,
     ) -> AssetFuture<'a, (), BusinessError> {
         Box::pin(async move {
+            self.0.fetch_add(1,Ordering::SeqCst);
             sqlx::query(
                 "INSERT INTO money_transaction_snapshots(company_id,source_type,source_id,amount_kind,transaction_date,currency,currency_scale,amount_units,usd_units,fx_rate_id,used_latest_fallback,captured_at) \
                  VALUES('company','operational_asset',$1,'acquisition_cost',$2::date,$3,2,$4::numeric,$4::numeric,NULL,true,0)",
@@ -70,6 +71,7 @@ struct Fixture {
     clock: Arc<auth::MutableClock>,
     maker: String,
     reviewer: String,
+    cost_calls: Arc<AtomicUsize>,
 }
 
 impl Fixture {
@@ -82,7 +84,7 @@ impl Fixture {
                 CompanyId::new("company").unwrap(),
             ),
             self.clock.clone(),
-            Arc::new(PostedCost),
+            Arc::new(PostedCost(self.cost_calls.clone())),
         )
     }
 
@@ -247,6 +249,7 @@ async fn seed(control: &DatabasePool, holding: &DatabasePool) -> Fixture {
         clock,
         maker: MAKER_PRODUCT.into(),
         reviewer: REVIEWER_PRODUCT.into(),
+        cost_calls: Arc::new(AtomicUsize::new(0)),
     }
 }
 
@@ -356,6 +359,32 @@ async fn post(
         ),
     )
     .await
+}
+
+#[tokio::test]
+async fn registration_decimal_errors_match_legacy_http_without_owner_effects() {
+    fixture::with_database(2, |control| async move {
+        fixture::with_database(2, move |holding| async move {
+            let f=seed(&control,&holding).await;let app=f.router();
+            for (key,currency,cost,status,code) in [
+                ("asset-xag-missing-scale","XAG","1.234",StatusCode::INTERNAL_SERVER_ERROR,"INTERNAL_ERROR"),
+                ("asset-usd-precision","USD","1.234",StatusCode::INTERNAL_SERVER_ERROR,"INTERNAL_ERROR"),
+                ("asset-usd-overflow","USD","90071992547409.92",StatusCode::UNPROCESSABLE_ENTITY,"MONEY_OVERFLOW"),
+            ] {
+                let input=json!({"branchId":"branch","code":key,"name":"Scale Asset","category":"equipment","currency":currency,"cost":cost,"acquiredDate":"2026-01-01"});
+                let (actual,body)=post(&app,&f,input,false,"assets-grant",key,Some("https://acme.example.test")).await;
+                assert_eq!(actual,status,"{key}: {body}");assert_eq!(body["error"]["code"],code,"{key}");
+                if status==StatusCode::INTERNAL_SERVER_ERROR {assert_eq!(body["error"]["message"],"The request could not be completed.");}
+                let counts:(i64,i64,i64,i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM operational_assets WHERE id=$1),(SELECT count(*) FROM operational_asset_events WHERE asset_id=$1),(SELECT count(*) FROM operational_asset_finance_links WHERE asset_id=$1),(SELECT count(*) FROM money_transaction_snapshots WHERE source_type='operational_asset' AND source_id=$1),(SELECT count(*) FROM command_receipts WHERE command_id=$2),(SELECT count(*) FROM audit_events WHERE command_id=$2),(SELECT count(*) FROM outbox_events WHERE command_id=$2)").bind(format!("asset-{key}")).bind(key).fetch_one(holding.raw()).await.unwrap();assert_eq!(counts,(0,0,0,0,0,0,0));
+                assert_eq!(f.cost_calls.load(Ordering::SeqCst),0,"Finance test provider called for {key}");
+            }
+            // Trailing zero precision is allowed by the legacy decimal parser.
+            let input=json!({"branchId":"branch","code":"ZERO-TRAIL","name":"Scale Asset","category":"equipment","currency":"USD","cost":"1.2300","acquiredDate":"2026-01-01"});
+            let (status,body)=post(&app,&f,input,false,"assets-grant","asset-zero-trailing",Some("https://acme.example.test")).await;assert_eq!(status,StatusCode::OK,"{body}");
+            let units:i64=sqlx::query_scalar("SELECT cost_minor FROM operational_assets WHERE id='asset-asset-zero-trailing'").fetch_one(holding.raw()).await.unwrap();assert_eq!(units,123);
+            assert_eq!(f.cost_calls.load(Ordering::SeqCst),1);
+        }).await;
+    }).await;
 }
 
 #[tokio::test]
@@ -563,7 +592,7 @@ async fn http_origin_idempotency_and_replay_are_closed_and_persisted() {
             assert_eq!(created.0, StatusCode::OK, "{}", created.1);
             assert_eq!(created.1["data"]["id"], "asset-asset-http-create-1");
             assert_eq!(created.1["data"]["version"], 1);
-            assert_eq!(created.1["data"]["status"], "registered");
+            assert_eq!(created.1["data"], json!({"id":"asset-asset-http-create-1","version":1}));
 
             let replay = post(&app, &f, input.clone(), false, "assets-grant", "asset-http-create-1", Some("https://acme.example.test")).await;
             assert_eq!(replay.0, StatusCode::OK, "{}", replay.1);
@@ -602,6 +631,11 @@ async fn http_origin_idempotency_and_replay_are_closed_and_persisted() {
             .await
             .unwrap();
             assert_eq!(readback, ("NEW-1".into(), "Native Asset".into(), 1, 1, 1, 1, 1));
+            let (operation,result,event_type,aggregate_type,aggregate_id,aggregate_version,payload,audit_action,audit_purpose):(String,Value,String,String,String,i64,Value,String,String)=sqlx::query_as("SELECT r.operation,r.result_json::jsonb,o.event_type,o.aggregate_type,o.aggregate_id,o.aggregate_version,o.payload_json::jsonb,a.action,a.purpose FROM command_receipts r JOIN outbox_events o ON o.command_id=r.command_id JOIN audit_events a ON a.command_id=r.command_id WHERE r.command_id='asset-http-create-1'").fetch_one(holding.raw()).await.unwrap();
+            assert_eq!(operation,"asset.create");assert_eq!(result,json!({"id":"asset-asset-http-create-1","version":1}));
+            assert_eq!((event_type.as_str(),aggregate_type.as_str(),aggregate_id.as_str(),aggregate_version,audit_action.as_str()),("asset.create","asset_create","asset-asset-http-create-1",1,"asset.create"));
+            assert_eq!(audit_purpose,"asset.create");
+            assert_eq!(payload["id"],"asset-asset-http-create-1");assert_eq!(payload["companyId"],"company");assert_eq!(payload["version"],1);assert!(payload.get("state").is_none());
             assert_eq!(
                 sqlx::query_scalar::<_, i64>(
                     "SELECT count(*) FROM money_transaction_snapshots WHERE source_type='operational_asset' AND source_id='asset-asset-http-create-1' AND amount_kind='acquisition_cost' AND amount_units=1000"

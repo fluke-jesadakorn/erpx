@@ -16,11 +16,11 @@
     "interpretation": "The 206 items are catalogue workflows, not the number of bounded flows. Each listed ID occurs once below. A partial item has supporting qualified slices, not whole-workflow verification."
   },
   "counts": {
-    "qualifiedBusinessFlows": 108,
+    "qualifiedBusinessFlows": 111,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 57,
-    "workflowsVerified": 65,
+    "workflowsPartial": 54,
+    "workflowsVerified": 68,
     "workflowsMerged": 65,
     "ownersComplete": 0,
     "bundleChecklistComplete": 18,
@@ -4223,7 +4223,7 @@
         "finance-native-period-close-http"
       ],
       "sourceRef": "packages/server-finance/src/public/finance.ts",
-      "gap": "Native close workspace, readiness, control/VAT reconciliation, begin/cancel/approve/reopen, immutable checks and independent-person/stale-evidence guards are PostgreSQL/HTTP-qualified. A native close-workpaper binding candidate now uses the shared Records/Files business-evidence port with exact finance_period/close_workpaper/close-approval/finance_period_close/<period>:<version+1> facts, replay before binding, a Files table fence and post-effect require_current; its focused period-close suite passed 6/6 and the Files business-evidence suite 3/3 on the working source. The candidate is NOT committed or closed: Common owns packages/server-files, the product route/composition mount is coordinator-owned, the reviewer found an unresolved Commercial↔Finance lock-order cycle with the Field parts command, empty-set/purpose/component/ref/checksum/policy-version gaps, missing Files V2/freeze/read-only checks, a 404/503 collapse and event-manifest/error-code parity gaps, and no authenticated browser/global-lock proof exists. Browser remains open."
+      "gap": "Native close workspace, readiness, control/VAT reconciliation, begin/cancel/approve/reopen, immutable checks and independent-person/stale-evidence guards are PostgreSQL/HTTP-qualified. A native close-workpaper binding candidate now uses the shared Records/Files business-evidence port with exact finance_period/close_workpaper/close-approval/finance_period_close/<period>:<version+1> facts, replay before binding, a Files table fence and post-effect require_current; its focused period-close suite passed 6/6 and the Files business-evidence suite 3/3 on the working source. The candidate is NOT committed or closed: Common owns packages/server-files, the product route/composition mount is coordinator-owned, the reviewer found an unresolved Commercial\u2194Finance lock-order cycle with the Field parts command, empty-set/purpose/component/ref/checksum/policy-version gaps, missing Files V2/freeze/read-only checks, a 404/503 collapse and event-manifest/error-code parity gaps, and no authenticated browser/global-lock proof exists. Browser remains open."
     },
     {
       "id": "finance/feature-opening-balances",
@@ -4381,51 +4381,54 @@
       "kind": "module",
       "owner": "assets",
       "scope": "Asset register",
-      "partial": true,
-      "verified": false,
+      "partial": false,
+      "verified": true,
       "merged": false,
       "evidenceFlows": [
         "assets-native-http",
         "assets-native-ssr",
         "assets-http-postgres",
-        "assets-native-transport"
+        "assets-native-transport",
+        "assets-register-browser-positive-cost"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Native HTTP/SSR/Next transport and the five owner workflows are implemented and owner-qualified; shared composition now writes the acquisition-cost snapshot through the Finance-owned asset_acquisition_money public port on the same serializable Asset unit, with exact acquired-date scale/USD quote, receipt bounds and rollback. Authenticated browser journeys remain open on the keyed work-role blocker."
+      "gap": "Browser-qualified positive-cost registration on desktop and mobile with same-unit Finance acquisition-cost snapshot, normal Account/SSO session, API/PostgreSQL readback; shared owner/retirement and Finance ports remain."
     },
     {
       "id": "assets/condition",
       "kind": "module",
       "owner": "assets",
       "scope": "Condition",
-      "partial": true,
-      "verified": false,
+      "partial": false,
+      "verified": true,
       "merged": false,
       "evidenceFlows": [
         "assets-native-http",
         "assets-native-ssr",
         "assets-http-postgres",
-        "assets-native-transport"
+        "assets-native-transport",
+        "assets-condition-browser"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Native HTTP/SSR/Next transport and the five owner workflows are implemented and owner-qualified; shared composition now writes the acquisition-cost snapshot through the Finance-owned asset_acquisition_money public port on the same serializable Asset unit, with exact acquired-date scale/USD quote, receipt bounds and rollback. Authenticated browser journeys remain open on the keyed work-role blocker."
+      "gap": "Browser-qualified condition change on the registered asset with owner readback; retirement approval and maintenance work-order journeys remain separate."
     },
     {
       "id": "assets/feature-placement",
       "kind": "module",
       "owner": "assets",
       "scope": "Placement",
-      "partial": true,
-      "verified": false,
+      "partial": false,
+      "verified": true,
       "merged": false,
       "evidenceFlows": [
         "assets-native-http",
         "assets-native-ssr",
         "assets-http-postgres",
-        "assets-native-transport"
+        "assets-native-transport",
+        "assets-placement-browser"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Native HTTP/SSR/Next transport and the five owner workflows are implemented and owner-qualified; shared composition now writes the acquisition-cost snapshot through the Finance-owned asset_acquisition_money public port on the same serializable Asset unit, with exact acquired-date scale/USD quote, receipt bounds and rollback. Authenticated browser journeys remain open on the keyed work-role blocker."
+      "gap": "Browser-qualified placement into service with custodian, owner readback and persisted version; independent approval and maintenance work-order journeys remain separate."
     },
     {
       "id": "assets/feature-maintenance-lifecycle",
@@ -4442,7 +4445,7 @@
         "assets-native-transport"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Native HTTP/SSR/Next transport and the five owner workflows are implemented and owner-qualified; shared composition now writes the acquisition-cost snapshot through the Finance-owned asset_acquisition_money public port on the same serializable Asset unit, with exact acquired-date scale/USD quote, receipt bounds and rollback. Authenticated browser journeys remain open on the keyed work-role blocker."
+      "gap": "Owner maintenance source and retirement-work checks pass natively; the keyed browser work-order lifecycle was not completed because the eligible seeded asset already has active maintenance work. Remains partial."
     },
     {
       "id": "assets/feature-retirement",
@@ -4456,10 +4459,12 @@
         "assets-native-http",
         "assets-native-ssr",
         "assets-http-postgres",
-        "assets-native-transport"
+        "assets-native-transport",
+        "assets-retirement-request-browser",
+        "assets-native-independent-retirement-approval"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Native HTTP/SSR/Next transport and the five owner workflows are implemented and owner-qualified; shared composition now writes the acquisition-cost snapshot through the Finance-owned asset_acquisition_money public port on the same serializable Asset unit, with exact acquired-date scale/USD quote, receipt bounds and rollback. Authenticated browser journeys remain open on the keyed work-role blocker."
+      "gap": "Native request and independent approval pass in asset_register_postgres 25/25 and asset_http_postgres 5/5; the normal-browser request passed on the keyed workspace, but a second browser account with an Assets-authorized role was unavailable for independent approve, so this workflow remains partial."
     },
     {
       "id": "inventory/availability",
@@ -6547,8 +6552,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-09T10:47:00+07:00",
-    "sourceHead": "7a552ff1e",
+    "generatedAt": "2026-11-09T10:52:00+07:00",
+    "sourceHead": "4f3bfaf492c2757b76de2f88474728a8749c8050",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed. Owner completion is counted only after those strict gates are independently established at the pushed source; zero here means none has yet been certified by this audit, not that historical slices were undone.",
     "ownerTotals": {
       "brand": {
@@ -6641,10 +6646,10 @@
       },
       "assets": {
         "workflows": 5,
-        "verified": 0,
-        "partial": 5,
+        "verified": 3,
+        "partial": 2,
         "unstarted": 0,
-        "phase": "active",
+        "phase": "partial",
         "businessMigrationComplete": false
       },
       "inventory": {
@@ -7214,7 +7219,7 @@
       }
     ],
     "nextActions": [
-      "Coordinator handoff: obtain Common acknowledgment before using shared Files/Records/Workflow/Work Projection/Runtime/Shared files or the shared build/DB/browser queue. The Finance period-close workpaper candidate crosses Common-owned packages/server-files; do not commit or mount it until Common accepts the frozen Files port contract and the Commercial↔Finance lock order is resolved with the Field parts consumer.",
+      "Coordinator handoff: obtain Common acknowledgment before using shared Files/Records/Workflow/Work Projection/Runtime/Shared files or the shared build/DB/browser queue. The Finance period-close workpaper candidate crosses Common-owned packages/server-files; do not commit or mount it until Common accepts the frozen Files port contract and the Commercial\u2194Finance lock order is resolved with the Field parts consumer.",
       "Audit each owner against the strict native, frontend, legacy-retirement, local-gate, review and pushed-source requirements before certifying completion; the former eight and three owner claims are historical and were not sufficient under this gate.",
       "Resolve the recorded server-assets/composition API drift, validate affected consumers and normal-authenticated registration; container preparation is deferred until after this goal.",
       "Recheck the integrated Files/Workflow attachment modules and the full service on the final frozen source; the historical clean archive build predates current shared work.",
@@ -8635,7 +8640,7 @@
           "Common Records create / Billing cost / Work Projection quick-access / Runtime outbox / Shared fences (23 commits)",
           "Distribute Field Count/Parts/Finance source witnesses (unmounted)"
         ],
-        "evidence": "ab06f19aa repaired the clean-HEAD catalogue for the committed Files business-evidence and Assets cost-composition suites; clean-archive catalogue 997 suites and both suites passed. Field source-only suites on the working tree: service_initial_count_revision_postgres 3/3, field_service_parts_postgres focused 1/1, inventory consumption_postgres 26/26, Finance journal_source_postgres 22/22. These are source predicates, not workflow closure; no Field workflow promoted. Finance period-close workpaper candidate: period_close_postgres 6/6 and Files business_evidence_postgres 3/3, but reviewer-blocked and not committed because it crosses Common-owned Files and the Commercial↔Finance lock order is unresolved.",
+        "evidence": "ab06f19aa repaired the clean-HEAD catalogue for the committed Files business-evidence and Assets cost-composition suites; clean-archive catalogue 997 suites and both suites passed. Field source-only suites on the working tree: service_initial_count_revision_postgres 3/3, field_service_parts_postgres focused 1/1, inventory consumption_postgres 26/26, Finance journal_source_postgres 22/22. These are source predicates, not workflow closure; no Field workflow promoted. Finance period-close workpaper candidate: period_close_postgres 6/6 and Files business_evidence_postgres 3/3, but reviewer-blocked and not committed because it crosses Common-owned Files and the Commercial\u2194Finance lock order is unresolved.",
         "counts": {
           "owners": 0,
           "verified": 65,

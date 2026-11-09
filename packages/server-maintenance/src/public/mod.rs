@@ -13,3 +13,7 @@ pub mod work_wire;
 
 pub mod finance_lineage;
 pub mod work_commands;
+
+pub mod asset_purchase_locks;
+
+pub mod asset_purchase_record;

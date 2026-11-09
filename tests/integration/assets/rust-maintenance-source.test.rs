@@ -25,6 +25,108 @@ fn scope() -> (HoldingId, CompanyId, RecordId) {
     )
 }
 #[tokio::test]
+async fn creation_source_retains_scoped_lifecycle_and_rejects_drift() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        sqlx::query("INSERT INTO operational_assets(id,company_id,branch_id,department_id,code,name,category,currency,cost_minor,created_by,created_at,updated_at) VALUES('asset-null-department','company','branch',NULL,'NULL-DEPARTMENT','Synthetic','synthetic','THB',0,'fixture',0,0)").execute(pool.raw()).await.unwrap();
+        let (holding, company, id) = scope();
+        let branch = RecordId::new("branch").unwrap();
+        let department = RecordId::new("department").unwrap();
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        assert!(inspect_maintenance_creation_asset(&mut tx, &holding, &company, None, None, &id, 1).await.is_err());
+        tx.rollback().await.unwrap();
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_maintenance_creation_asset_sources(&mut tx).await.unwrap();
+        let source = inspect_maintenance_creation_asset(&mut tx, &holding, &company, Some(&branch), Some(&department), &id, 1).await.unwrap().unwrap();
+        assert_eq!(source.lifecycle(), "registered");
+        assert_eq!(source.facts().asset_id, id);
+        assert!(!format!("{:?}", source.facts()).contains("PRIVATE_NAME"));
+        assert!(inspect_maintenance_creation_asset(&mut tx, &holding, &company, Some(&RecordId::new("other").unwrap()), None, &id, 1).await.unwrap().is_none());
+        assert!(inspect_maintenance_creation_asset(&mut tx, &holding, &company, None, Some(&RecordId::new("other").unwrap()), &id, 1).await.unwrap().is_none());
+        assert!(inspect_maintenance_creation_asset(&mut tx, &holding, &company, None, None, &id, 2).await.unwrap().is_none());
+        assert!(inspect_maintenance_creation_asset(&mut tx, &holding, &CompanyId::new("foreign").unwrap(), None, None, &id, 1).await.unwrap().is_none());
+        assert!(inspect_maintenance_creation_asset(&mut tx, &holding, &company, None, None, &id, 1).await.unwrap().is_some());
+        source.require_current(&mut tx).await.unwrap();
+        for lifecycle in ["in_service", "maintenance"] {
+            sqlx::query("UPDATE operational_assets SET lifecycle_status=$1,placement='fixture' WHERE id='asset'").bind(lifecycle).execute(&mut *tx).await.unwrap();
+            let observed = inspect_maintenance_creation_asset(&mut tx, &holding, &company, None, None, &id, 1).await.unwrap().unwrap();
+            assert_eq!(observed.lifecycle(), lifecycle);
+            observed.require_current(&mut tx).await.unwrap();
+        }
+        let null_department_id = RecordId::new("asset-null-department").unwrap();
+        assert!(inspect_maintenance_creation_asset(&mut tx, &holding, &company, None, None, &null_department_id, 1).await.unwrap().is_some());
+        assert!(inspect_maintenance_creation_asset(&mut tx, &holding, &company, None, Some(&department), &null_department_id, 1).await.unwrap().is_none());
+        sqlx::query("UPDATE operational_assets SET lifecycle_status='retirement_pending',retirement_reason='Synthetic retirement' WHERE id='asset'").execute(&mut *tx).await.unwrap();
+        assert!(source.require_current(&mut tx).await.is_err());
+        assert!(inspect_maintenance_creation_asset(&mut tx, &holding, &company, None, None, &id, 1).await.unwrap().is_none());
+        // A zero-cost Asset can be retired without a Finance disposal; the
+        // valued source above must retain its real disposal guard.
+        sqlx::query("UPDATE operational_assets SET lifecycle_status='retired',retirement_reason='Synthetic retirement' WHERE id='asset-null-department'").execute(&mut *tx).await.unwrap();
+        assert!(inspect_maintenance_creation_asset(&mut tx, &holding, &company, None, None, &null_department_id, 1).await.unwrap().is_none());
+        tx.rollback().await.unwrap();
+        let mut other = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+        lock_maintenance_creation_asset_sources(&mut other).await.unwrap();
+        assert!(source.require_current(&mut other).await.is_err());
+        other.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn creation_source_lock_blocks_concurrent_asset_writer() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        let (holding, company, id) = scope();
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_maintenance_creation_asset_sources(&mut tx).await.unwrap();
+        let blocker: i32 = sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *tx).await.unwrap();
+        let source = inspect_maintenance_creation_asset(&mut tx, &holding, &company, None, None, &id, 1).await.unwrap().unwrap();
+        let (pid_tx, pid_rx) = tokio::sync::oneshot::channel();
+        let writer_pool = pool.clone();
+        let writer = tokio::spawn(async move {
+            let mut conn = writer_pool.raw().acquire().await.unwrap();
+            sqlx::query("SET statement_timeout='5s'").execute(&mut *conn).await.unwrap();
+            let pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *conn).await.unwrap();
+            let _ = pid_tx.send(pid);
+            sqlx::query("UPDATE operational_assets SET version=version+1 WHERE id='asset'").execute(&mut *conn).await
+        });
+        let pid = tokio::time::timeout(Duration::from_secs(2), pid_rx).await.unwrap().unwrap();
+        let blocked = tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                let found: bool = sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(blocker).bind(pid).fetch_one(pool.raw()).await.unwrap();
+                if found { break; }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        }).await.is_ok();
+        let current = source.require_current(&mut tx).await;
+        tx.rollback().await.unwrap();
+        let result = tokio::time::timeout(Duration::from_secs(7), writer).await.unwrap().unwrap();
+        assert!(blocked, "the Asset writer must be blocked by this source transaction");
+        current.unwrap();
+        assert_eq!(result.unwrap().rows_affected(), 1);
+    }).await;
+}
+
+#[tokio::test]
+async fn creation_source_rejects_lock_released_by_savepoint_rollback() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let (holding, company, id) = scope();
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        sqlx::query("SELECT pg_current_xact_id()").execute(&mut *tx).await.unwrap();
+        sqlx::query("SAVEPOINT before_asset_lock").execute(&mut *tx).await.unwrap();
+        lock_maintenance_creation_asset_sources(&mut tx).await.unwrap();
+        let source = inspect_maintenance_creation_asset(&mut tx, &holding, &company, None, None, &id, 1).await.unwrap().unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT before_asset_lock").execute(&mut *tx).await.unwrap();
+        assert!(source.require_current(&mut tx).await.is_err());
+        tx.rollback().await.unwrap();
+    }).await;
+}
+#[tokio::test]
 async fn physical_asset_reference_is_minimal_company_scoped_and_not_lifecycle_admission() {
     fixture::with_database(2,|pool|async move{
         setup(&pool).await;let(holding,company,id)=scope();let mut outside=pool.raw().acquire().await.unwrap();assert!(read_current_maintenance_asset(&mut outside,&holding,&company,&id).await.is_err());drop(outside);
@@ -247,5 +349,27 @@ async fn nul_reason_waits_for_physical_apply_and_late_start_guard() {
             assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM operational_asset_events").fetch_one(&mut *tx).await.unwrap(), 0);
             tx.rollback().await.unwrap();
         }
+    }).await;
+}
+
+#[tokio::test]
+async fn service_asset_sources_retain_distinct_owner_locks() {
+    use erpx_server_assets::public::field_service_workspace::*;
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        sqlx::query("INSERT INTO operational_assets(id,company_id,branch_id,code,name,category,currency,created_by,created_at,updated_at) VALUES('service-lock-asset','company','branch','SERVICE-LOCK','Synthetic asset','synthetic','THB','fixture',0,0)").execute(pool.raw()).await.unwrap();
+        let company=CompanyId::new("company").unwrap();let ids=vec!["service-lock-asset".to_owned()];
+        let mut outside=pool.raw().acquire().await.unwrap();assert!(require_service_workspace_assets_held(&mut outside).await.is_err());drop(outside);
+        let references=vec![ServiceAssetSettlementSource{id:"service-order".into(),company_id:"company".into(),branch_id:"branch".into(),department_id:None,asset_id:ids[0].clone()}];
+        let mut unlocked=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unlocked).await.unwrap();
+        assert!(read_service_workspace_assets(&mut unlocked,&company,None,None,false,&ids).await.is_err());assert!(read_service_asset_settlement(&mut unlocked,&company,&references).await.is_err());assert!(require_service_workspace_assets_held(&mut unlocked).await.is_err());unlocked.rollback().await.unwrap();
+        let mut weak=pool.raw().begin().await.unwrap();sqlx::query("LOCK TABLE operational_assets IN ROW SHARE MODE").execute(&mut *weak).await.unwrap();assert!(require_service_workspace_assets_held(&mut weak).await.is_err());weak.rollback().await.unwrap();
+        let mut insufficient=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *insufficient).await.unwrap();lock_service_workspace_assets(&mut insufficient).await.unwrap();
+        require_service_workspace_assets_held(&mut insufficient).await.unwrap();let workspace=read_service_workspace_assets(&mut insufficient,&company,None,None,false,&ids).await.unwrap();workspace.require_current(&mut insufficient).await.unwrap();assert!(read_service_asset_settlement(&mut insufficient,&company,&references).await.is_err());insufficient.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();sqlx::query("SELECT pg_current_xact_id()").execute(&mut *tx).await.unwrap();sqlx::query("SAVEPOINT before_service_asset_locks").execute(&mut *tx).await.unwrap();
+        lock_service_asset_settlement(&mut tx).await.unwrap();let modes:i64=sqlx::query_scalar("SELECT count(DISTINCT relation) FROM pg_locks WHERE pid=pg_backend_pid() AND granted AND mode='ShareLock' AND relation IN ('operational_assets'::regclass,'operational_asset_events'::regclass)").fetch_one(&mut *tx).await.unwrap();assert_eq!(modes,2);
+        let workspace=read_service_workspace_assets(&mut tx,&company,None,None,false,&ids).await.unwrap();let settlement=read_service_asset_settlement(&mut tx,&company,&references).await.unwrap();
+        assert!(workspace.data().display.iter().any(|row|row.id==ids[0]));assert!(settlement.facts().is_empty());workspace.require_current(&mut tx).await.unwrap();settlement.require_current(&mut tx).await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT before_service_asset_locks").execute(&mut *tx).await.unwrap();assert!(workspace.require_current(&mut tx).await.is_err());assert!(settlement.require_current(&mut tx).await.is_err());assert!(require_service_workspace_assets_held(&mut tx).await.is_err());sqlx::query("LOCK TABLE operational_assets IN EXCLUSIVE MODE").execute(&mut *tx).await.unwrap();require_service_workspace_assets_held(&mut tx).await.unwrap();tx.rollback().await.unwrap();
     }).await;
 }

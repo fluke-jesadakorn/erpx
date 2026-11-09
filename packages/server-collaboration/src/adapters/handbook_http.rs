@@ -201,11 +201,18 @@ fn unique_header(
 
 fn valid_origin(host: &str, origin: &str) -> bool {
     let expected = format!("https://{host}");
-    origin == expected
-        && !host.is_empty()
-        && !host
-            .bytes()
-            .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'@' | b':'))
+    if origin != expected || host.is_empty() {
+        return false;
+    }
+    if !host
+        .bytes()
+        .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'@' | b':'))
+    {
+        return true;
+    }
+    // The keyed contributor workspace uses its exact local HTTPS port.
+    host.strip_suffix(":3443")
+        .is_some_and(|name| name.ends_with(".erpx.localhost"))
 }
 
 fn key_valid(value: &str) -> bool {

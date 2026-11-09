@@ -3,8 +3,10 @@
 //! The route selects create or change from the body's optional `id`. All
 //! business defaults and bounds stay in the owner domain/application; this
 //! module only rejects an ambiguous transport shape before authorization.
-use crate::domain::asset::{AssetChangeInput, NewAsset, validate_reason};
+use crate::domain::asset::{AssetAction, AssetChangeInput, AssetCostInput, NewAsset, parse_asset_cost, validate_reason};
 use erpx_server_shared::public::BusinessError;
+use serde::ser::SerializeMap;
+use serde::Serializer;
 use serde_json::Value;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -20,17 +22,13 @@ fn invalid() -> BusinessError {
     )
 }
 
-/// Decode one registered Asset command body. `raw` must be a JSON object; an
-/// absent/null `id` means registration, a non-empty string means a lifecycle
-/// change. Unknown fields are discarded by the owner parsers.
+/// Decode the retained route selector: any string `id` selects change;
+/// missing, null or a non-string value selects registration. Unknown fields
+/// are discarded by the owner parsers.
 pub fn decode_asset_command(raw: &Value) -> Result<AssetHttpCommand, BusinessError> {
     let object = raw.as_object().ok_or_else(invalid)?;
     match object.get("id") {
-        None | Some(Value::Null) => {
-            NewAsset::parse(raw, 0)?;
-            Ok(AssetHttpCommand::Create)
-        }
-        Some(Value::String(id)) if !id.is_empty() => {
+        Some(Value::String(id)) => {
             let input = AssetChangeInput::parse(raw)?;
             let reason = raw.get("reason").and_then(Value::as_str).ok_or_else(|| {
                 BusinessError::invalid(
@@ -44,8 +42,63 @@ pub fn decode_asset_command(raw: &Value) -> Result<AssetHttpCommand, BusinessErr
                 operation: input.action.operation().to_owned(),
             })
         }
-        Some(_) => Err(invalid()),
+        _ => {
+            parse_asset_cost(raw)?;
+            NewAsset::parse(raw, 0)?;
+            Ok(AssetHttpCommand::Create)
+        }
     }
+}
+
+/// Serialize the retained Zod-parsed command input in schema order. The HTTP
+/// selector `id` and unknown fields are not part of the command fingerprint.
+/// This accepts valid Unicode JSON values; the transport must separately
+/// preserve lone UTF-16 code units if it accepts them.
+pub fn normalized_asset_command_input(raw: &Value) -> Result<String, BusinessError> {
+    let command = decode_asset_command(raw)?;
+    let invalid = || BusinessError::invalid("VALIDATION_FAILED", "Review the requested Asset command.");
+    let object = raw.as_object().ok_or_else(invalid)?;
+    let mut result = Vec::new();
+    let mut serializer = serde_json::Serializer::new(&mut result);
+    let mut map = serializer.serialize_map(None).map_err(|_| invalid())?;
+    match command {
+        AssetHttpCommand::Create => {
+            let cost = parse_asset_cost(raw)?;
+            let asset = NewAsset::parse(raw, match &cost { AssetCostInput::Minor(value) => *value, AssetCostInput::Decimal(_) => 0 })?;
+            map.serialize_entry("branchId", asset.branch_id.as_str()).map_err(|_| invalid())?;
+            if object.contains_key("departmentId") { map.serialize_entry("departmentId", &asset.department_id.as_ref().map(|v| v.as_str())).map_err(|_| invalid())?; }
+            map.serialize_entry("code", &asset.code).map_err(|_| invalid())?;
+            map.serialize_entry("name", &asset.name).map_err(|_| invalid())?;
+            map.serialize_entry("category", &asset.category).map_err(|_| invalid())?;
+            map.serialize_entry("currency", &asset.currency).map_err(|_| invalid())?;
+            match &cost { AssetCostInput::Minor(value) => map.serialize_entry("costMinor", value).map_err(|_| invalid())?, AssetCostInput::Decimal(value) => map.serialize_entry("cost", value).map_err(|_| invalid())? }
+            map.serialize_entry("acquiredDate", &asset.acquired_date).map_err(|_| invalid())?;
+            if object.contains_key("warrantyEnd") { map.serialize_entry("warrantyEnd", &asset.warranty_end).map_err(|_| invalid())?; }
+            if let Some(value) = &asset.finance_asset_id { map.serialize_entry("financeAssetId", value.as_str()).map_err(|_| invalid())?; }
+            if let Some(value) = asset.finance_asset_version { map.serialize_entry("financeAssetVersion", &value).map_err(|_| invalid())?; }
+        }
+        AssetHttpCommand::Change { .. } => {
+            let change = AssetChangeInput::parse(raw)?;
+            let reason = validate_reason(object.get("reason").and_then(Value::as_str).ok_or_else(invalid)?)?;
+            map.serialize_entry("action", change.action.name()).map_err(|_| invalid())?;
+            map.serialize_entry("expectedVersion", &change.expected_version).map_err(|_| invalid())?;
+            match change.action {
+                AssetAction::Place { placement, custodian_id } => {
+                    map.serialize_entry("placement", &placement).map_err(|_| invalid())?;
+                    map.serialize_entry("custodianId", custodian_id.as_str()).map_err(|_| invalid())?;
+                }
+                AssetAction::Condition { .. } => map.serialize_entry("condition", object.get("condition").ok_or_else(invalid)?).map_err(|_| invalid())?,
+                AssetAction::LinkFinance { finance_asset_id, finance_asset_version } => {
+                    map.serialize_entry("financeAssetId", finance_asset_id.as_str()).map_err(|_| invalid())?;
+                    map.serialize_entry("financeAssetVersion", &finance_asset_version).map_err(|_| invalid())?;
+                }
+                AssetAction::RetireRequest | AssetAction::RetireApprove => {}
+            }
+            map.serialize_entry("reason", &reason).map_err(|_| invalid())?;
+        }
+    }
+    map.end().map_err(|_| invalid())?;
+    String::from_utf8(result).map_err(|_| invalid())
 }
 
 #[cfg(test)]

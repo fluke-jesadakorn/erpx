@@ -4,7 +4,7 @@
 //! bounded JSON and error mapping. Normal Account session resolution, current
 //! Company/branch/department scope and the serializable owner unit are supplied
 //! by the composition backend, which must implement `AssetHttpBackend`.
-use crate::application::asset::{AssetChangeResult, AssetDetail, AssetWorkspace};
+use crate::application::asset::{AssetDetail, AssetWorkspace};
 use axum::{
     Json, Router,
     body::to_bytes,
@@ -57,7 +57,7 @@ pub struct AssetDetailResponse {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct AssetCommandResponse {
-    pub data: AssetChangeResult,
+    pub data: Value,
     pub context: AssetRenderedContext,
 }
 
@@ -77,7 +77,9 @@ pub struct AssetHttpCommandRequest<'a> {
     pub host: &'a str,
     pub holding_slug: &'a str,
     pub headers: &'a HeaderMap,
-    pub body: &'a Value,
+    /// Bounded raw JSON bytes. The composition backend owns parsing so it can
+    /// retain the original UTF-16 units used by the Workflow fingerprint.
+    pub body: &'a [u8],
     pub key: &'a CommandKey,
 }
 
@@ -146,10 +148,19 @@ fn unique_header(
 
 fn valid_origin(origin: &str) -> bool {
     origin.strip_prefix("https://").is_some_and(|rest| {
-        !rest.is_empty()
-            && !rest
+        if rest.is_empty()
+            || rest
                 .bytes()
-                .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'@' | b':'))
+                .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'@'))
+        {
+            return false;
+        }
+        // The keyed development container serves exact Holding origins on its
+        // local HTTPS port. Production origins remain port-free.
+        if let Some((host, port)) = rest.rsplit_once(':') {
+            return host.ends_with(".erpx.localhost") && port == "3443";
+        }
+        true
     })
 }
 
@@ -191,6 +202,11 @@ fn status(kind: FailureKind) -> StatusCode {
 }
 
 fn error_response(error: BusinessError) -> Response {
+    if error.code == "ASSET_REGISTRATION_MONEY_INTERNAL" {
+        return (StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error":{"code":"INTERNAL_ERROR","message":"The request could not be completed."}})))
+            .into_response();
+    }
     (
         status(error.kind),
         Json(serde_json::json!({"error":{"code":error.code,"message":error.message}})),
@@ -292,14 +308,13 @@ async fn command(
             .map_err(|_| {
                 BusinessError::invalid("BODY_TOO_LARGE", "Use a smaller Asset command.")
             })?;
-        let raw = serde_json::from_slice::<Value>(&body).map_err(|_| malformed())?;
         target
             .backend
             .command(AssetHttpCommandRequest {
                 host: &target.host,
                 holding_slug: &target.holding_slug,
                 headers: &headers,
-                body: &raw,
+                body: &body,
                 key: &key,
             })
             .await

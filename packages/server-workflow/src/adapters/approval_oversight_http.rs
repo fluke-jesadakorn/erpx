@@ -97,10 +97,20 @@ fn unique_header(headers: &HeaderMap, name: HeaderName) -> Result<Option<&str>, 
 }
 fn valid_origin(origin: &str) -> bool {
     origin.strip_prefix("https://").is_some_and(|rest| {
-        !rest.is_empty()
-            && !rest
+        if rest.is_empty()
+            || rest
                 .bytes()
-                .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'@' | b':'))
+                .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'@'))
+        {
+            return false;
+        }
+        // The keyed contributor workspace uses its exact local HTTPS port.
+        // Production origins never carry a port here.
+        match rest.rsplit_once(':') {
+            None => true,
+            Some((host, "3443")) => host.ends_with(".erpx.localhost"),
+            Some(_) => false,
+        }
     })
 }
 fn valid_slug(slug: &str) -> bool {

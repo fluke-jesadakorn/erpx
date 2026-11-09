@@ -6,8 +6,8 @@
 //! current source, action policy, then the late expected-version guard. It
 //! never mints Commercial purchase, IAM, Money or Workflow authority.
 use crate::domain::asset::{
-    AssetAction, AssetChange, AssetChangeInput, AssetState, AssetTransition, NewAsset, asset_after,
-    json_integer, require_independent_retirement_review, validate_currency, validate_reason,
+    AssetAction, AssetChange, AssetChangeInput, AssetCostInput, AssetState, AssetTransition, NewAsset, AssetPurchaseDisposition, AssetPurchaseRequirements, asset_create_purchase_from_validated, asset_action_purchase_from_validated, asset_after,
+    parse_asset_cost, require_independent_retirement_review, validate_currency, validate_reason,
 };
 use crate::domain::maintenance::{MaintenanceAssetCondition, MaintenanceAssetLifecycle};
 use erpx_server_shared::public::{
@@ -348,6 +348,58 @@ pub trait AcquisitionCostPort: Send {
     ) -> AssetFuture<'a, (), Self::Error>;
 }
 
+/// Current ISO catalogue supplied by the Finance owner at composition time.
+/// Membership does not imply that a currency has a configured decimal scale.
+pub trait AssetCurrencyCatalogue: Send + Sync {
+    fn contains(&self, currency: &str) -> Result<bool, BusinessError>;
+    /// Fixed ISO scale takes precedence; a nullable ISO scale uses the
+    /// Company override. None means no usable scale is configured.
+    fn scale(&self, currency: &str, company_scale: Option<u32>) -> Result<Option<u32>, BusinessError>;
+}
+
+fn require_catalogued_currency(
+    catalogue: &dyn AssetCurrencyCatalogue,
+    currency: &str,
+) -> Result<(), BusinessError> {
+    if !catalogue.contains(currency)? {
+        return Err(BusinessError::invalid("VALIDATION_FAILED", "Use a current ISO currency."));
+    }
+    Ok(())
+}
+
+pub fn validate_registration_currency(
+    catalogue: &dyn AssetCurrencyCatalogue,
+    raw: &Value,
+) -> Result<(), BusinessError> {
+    let currency = raw.get("currency").and_then(Value::as_str).ok_or_else(|| {
+        BusinessError::invalid("VALIDATION_FAILED", "Use a current ISO currency.")
+    })?;
+    require_catalogued_currency(catalogue, &validate_currency(currency)?)
+}
+
+/// Validate the parsed create schema and ISO membership before the purchase
+/// gate, without consulting Company scale, converting cost or writing data.
+/// Unknown properties (including route selector `id`) have no influence.
+pub fn asset_create_purchase_requirements(
+    raw: &Value,
+    catalogue: &dyn AssetCurrencyCatalogue,
+    disposition: AssetPurchaseDisposition,
+) -> Result<AssetPurchaseRequirements, BusinessError> {
+    let asset = NewAsset::parse(raw, 0)?;
+    validate_registration_currency(catalogue, raw)?;
+    parse_asset_cost(raw)?;
+    Ok(asset_create_purchase_from_validated(&asset, disposition))
+}
+
+/// Validate the full lifecycle schema, including reason, before purchase
+/// routing; unknown actions or malformed inputs cannot reach that gate.
+pub fn asset_action_purchase_requirements(raw:&Value,disposition:AssetPurchaseDisposition)->Result<AssetPurchaseRequirements,BusinessError> {
+    let input=AssetChangeInput::parse(raw)?;
+    let reason=raw.get("reason").and_then(Value::as_str).ok_or_else(||BusinessError::invalid("VALIDATION_FAILED","Enter a reason between 3 and 2000 characters."))?;
+    validate_reason(reason)?;
+    Ok(asset_action_purchase_from_validated(&input.action,disposition))
+}
+
 pub async fn asset_workspace<R: AssetRepository>(
     actor: &AssetActor,
     repository: &mut R,
@@ -404,30 +456,15 @@ pub async fn asset_detail<R: AssetRepository>(
 /// is already exact.
 async fn registration_cost<R: AssetRepository>(
     repository: &mut R,
-    raw: &Value,
+    catalogue: &dyn AssetCurrencyCatalogue,
+    currency: &str,
+    cost: &AssetCostInput,
 ) -> Result<i64, R::Error> {
-    let object = raw.as_object().ok_or_else(|| {
-        BusinessError::invalid(
-            "VALIDATION_FAILED",
-            "Review the Asset registration details.",
-        )
-    })?;
-    let cost_minor = match (object.get("costMinor"), object.get("cost")) {
-        (Some(value), None) => json_integer(value, 0).ok_or_else(|| {
-            BusinessError::invalid(
-                "VALIDATION_FAILED",
-                "Acquisition cost must be a nonnegative safe integer.",
-            )
-        })?,
-        (None, Some(Value::String(cost))) => {
-            let currency = object
-                .get("currency")
-                .and_then(Value::as_str)
-                .ok_or_else(|| {
-                    BusinessError::invalid("VALIDATION_FAILED", "Use a three-letter ISO currency.")
-                })
-                .and_then(validate_currency)?;
-            let scale = repository.currency_scale(&currency).await?.ok_or_else(|| {
+    let cost_minor = match cost {
+        AssetCostInput::Minor(value) => *value,
+        AssetCostInput::Decimal(cost) => {
+            let configured = repository.currency_scale(currency).await?;
+            let scale = catalogue.scale(currency, configured)?.ok_or_else(|| {
                 BusinessError::new(
                     FailureKind::InvalidInput,
                     "ASSET_CURRENCY_SCALE_REQUIRED",
@@ -439,21 +476,18 @@ async fn registration_cost<R: AssetRepository>(
                 u8::try_from(scale).map_err(|_| {
                     BusinessError::invalid("VALIDATION_FAILED", "Use the current currency scale.")
                 })?,
-            )?;
-            i64::try_from(amount.units()).map_err(|_| {
+            ).map_err(|error| {
+                if error.code == "MONEY_OUT_OF_RANGE" {
+                    BusinessError::new(FailureKind::InvalidInput,"MONEY_OVERFLOW","Acquisition cost exceeds supported ledger precision.")
+                } else { error }
+            })?;
+            i64::try_from(amount.units()).ok().filter(|value| *value <= crate::domain::asset::MAX_SAFE_INTEGER).ok_or_else(|| {
                 BusinessError::new(
                     FailureKind::InvalidInput,
                     "MONEY_OVERFLOW",
                     "Acquisition cost exceeds supported ledger precision.",
                 )
             })?
-        }
-        _ => {
-            return Err(BusinessError::invalid(
-                "VALIDATION_FAILED",
-                "Supply one acquisition cost.",
-            )
-            .into());
         }
     };
     Ok(cost_minor)
@@ -468,14 +502,16 @@ pub async fn create_asset<
     repository: &mut R,
     ledger: &mut L,
     cost: &mut M,
+    catalogue: &dyn AssetCurrencyCatalogue,
     raw: &Value,
     key: &str,
     at: i64,
 ) -> Result<AssetChangeOutcome<R::Receipt>, R::Error> {
     actor.require("records.write")?;
     actor.require_module()?;
-    let cost_minor = registration_cost(repository, raw).await?;
-    let asset = NewAsset::parse(raw, cost_minor)?;
+    validate_registration_currency(catalogue, raw)?;
+    let cost_input = parse_asset_cost(raw)?;
+    let mut asset = NewAsset::parse(raw, 0)?;
     let id = format!("asset-{key}");
     if let Some(prior) = ledger.replay(key, "asset.create", &id, raw).await? {
         return Ok(AssetChangeOutcome {
@@ -491,6 +527,7 @@ pub async fn create_asset<
             receipt: None,
         });
     }
+    asset.cost_minor = registration_cost(repository, catalogue, &asset.currency, &cost_input).await?;
     if asset.finance_asset_id.is_some() {
         actor.require("finance.write")?;
     }
@@ -511,6 +548,7 @@ pub async fn create_asset_in_unit<R, L>(
     actor: &AssetActor,
     unit: &mut R,
     ledger: &mut L,
+    catalogue: &dyn AssetCurrencyCatalogue,
     raw: &Value,
     key: &str,
     at: i64,
@@ -521,8 +559,9 @@ where
 {
     actor.require("records.write")?;
     actor.require_module()?;
-    let cost_minor = registration_cost(unit, raw).await?;
-    let asset = NewAsset::parse(raw, cost_minor)?;
+    validate_registration_currency(catalogue, raw)?;
+    let cost_input = parse_asset_cost(raw)?;
+    let mut asset = NewAsset::parse(raw, 0)?;
     let id = format!("asset-{key}");
     if let Some(prior) = ledger.replay(key, "asset.create", &id, raw).await? {
         return Ok(AssetChangeOutcome {
@@ -538,6 +577,7 @@ where
             receipt: None,
         });
     }
+    asset.cost_minor = registration_cost(unit, catalogue, &asset.currency, &cost_input).await?;
     if asset.finance_asset_id.is_some() {
         actor.require("finance.write")?;
     }

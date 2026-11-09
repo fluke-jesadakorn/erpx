@@ -6,4 +6,4 @@ pub use crate::adapters::asset_http::{
     AssetHttpFuture, AssetHttpReadReply, AssetHttpReadRequest, AssetHttpTarget,
     AssetRenderedContext, AssetWorkspaceResponse, asset_router,
 };
-pub use crate::adapters::asset_wire::{AssetHttpCommand, decode_asset_command};
+pub use crate::adapters::asset_wire::{AssetHttpCommand, decode_asset_command, normalized_asset_command_input};

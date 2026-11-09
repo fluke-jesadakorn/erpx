@@ -38,7 +38,7 @@ pub fn ecma_trim(value: &str) -> &str {
     })
 }
 
-/// Zod string limits count UTF-16 code units, not Unicode scalar values.
+/// Count UTF-16 code units for JavaScript operations that explicitly need them.
 pub fn utf16_len(value: &str) -> usize {
     value.encode_utf16().count()
 }
@@ -51,7 +51,8 @@ pub fn validate_trimmed_text(
     message: &'static str,
 ) -> Result<String, BusinessError> {
     let value = ecma_trim(value);
-    let length = utf16_len(value);
+    // Zod 4 min/max count Unicode code points for valid UTF-8 strings.
+    let length = value.chars().count();
     if length < minimum || length > maximum {
         return Err(BusinessError::new(FailureKind::InvalidInput, code, message));
     }
@@ -76,6 +77,9 @@ pub fn validate_date(value: &str) -> Result<String, BusinessError> {
         || value.len() != 10
         || value.as_bytes()[4] != b'-'
         || value.as_bytes()[7] != b'-'
+        || value.bytes().enumerate().any(|(index, byte)| {
+            index != 4 && index != 7 && !byte.is_ascii_digit()
+        })
     {
         return Err(invalid());
     }
@@ -109,14 +113,38 @@ pub fn json_integer(value: &serde_json::Value, minimum: i64) -> Option<i64> {
         .then_some(float as i64)
 }
 
+/// Parse the retained Zod cost shape without loading a Company scale. This is
+/// done before replay; decimal conversion belongs after an authorized replay.
+pub(crate) enum AssetCostInput {
+    Minor(i64),
+    Decimal(String),
+}
+pub(crate) fn parse_asset_cost(raw: &serde_json::Value) -> Result<AssetCostInput, BusinessError> {
+    let invalid = || BusinessError::invalid("VALIDATION_FAILED", "Supply one valid acquisition cost.");
+    let object = raw.as_object().ok_or_else(invalid)?;
+    match (object.get("costMinor"), object.get("cost")) {
+        (Some(value), None) => json_integer(value, 0).map(AssetCostInput::Minor).ok_or_else(invalid),
+        (None, Some(serde_json::Value::String(value))) => {
+            let mut parts = value.split('.');
+            let whole = parts.next().unwrap_or_default();
+            let fractional = parts.next();
+            if whole.is_empty() || !whole.bytes().all(|b| b.is_ascii_digit())
+                || fractional.is_some_and(|v| v.is_empty() || v.len() > 12 || !v.bytes().all(|b| b.is_ascii_digit()))
+                || parts.next().is_some() { return Err(invalid()); }
+            Ok(AssetCostInput::Decimal(value.clone()))
+        }
+        _ => Err(invalid()),
+    }
+}
+
 pub fn validate_currency(value: &str) -> Result<String, BusinessError> {
-    if value.len() != 3 || !value.bytes().all(|byte| byte.is_ascii_alphabetic()) {
+    if value.chars().count() != 3 {
         return Err(BusinessError::invalid(
             "VALIDATION_FAILED",
             "Use a three-letter ISO currency.",
         ));
     }
-    Ok(value.to_ascii_uppercase())
+    Ok(value.to_uppercase())
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -137,7 +165,7 @@ pub struct AssetState {
 pub enum AssetAction {
     Place {
         placement: String,
-        custodian_id: RecordId,
+        custodian_id: String,
     },
     Condition {
         condition: MaintenanceAssetCondition,
@@ -145,7 +173,7 @@ pub enum AssetAction {
     RetireRequest,
     RetireApprove,
     LinkFinance {
-        finance_asset_id: RecordId,
+        finance_asset_id: String,
         finance_asset_version: i64,
     },
 }
@@ -168,6 +196,41 @@ impl AssetAction {
             Self::LinkFinance { .. } => "asset.link-finance",
         }
     }
+}
+
+/// The coordinator supplies this only after checking command key, operation,
+/// actor and selected Company against an actual receipt. This is not replay
+/// authorization or fingerprint validation and never comes from client labels.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AssetPurchaseDisposition { Fresh, MatchingReceipt }
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AssetPurchasePurpose { NewWork, SettleExisting, History }
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AssetPurchaseRequirements {
+    pub operation: &'static str,
+    pub capability: &'static str,
+    pub purpose: AssetPurchasePurpose,
+    pub permissions: &'static [&'static str],
+    pub creating: bool,
+}
+fn purchase_purpose(fresh:AssetPurchasePurpose,disposition:AssetPurchaseDisposition)->AssetPurchasePurpose {
+    match disposition {AssetPurchaseDisposition::Fresh=>fresh,AssetPurchaseDisposition::MatchingReceipt=>AssetPurchasePurpose::History}
+}
+/// Closed mapping from parsed owner input to the legacy purchase request.
+/// It proves neither receipt provenance nor current Company/actor authority.
+pub(crate) fn asset_create_purchase_from_validated(input:&NewAsset,disposition:AssetPurchaseDisposition)->AssetPurchaseRequirements {
+    AssetPurchaseRequirements {operation:"asset.create",capability:"assets.register",purpose:purchase_purpose(AssetPurchasePurpose::NewWork,disposition),permissions:if input.finance_asset_id.is_some(){&["records.write","finance.write"]}else{&["records.write"]},creating:true}
+}
+/// Only a schema-parsed action can reach this mapping; invalid or unknown
+/// wire actions must fail validation before any purchase decision.
+pub(crate) fn asset_action_purchase_from_validated(action:&AssetAction,disposition:AssetPurchaseDisposition)->AssetPurchaseRequirements {
+    let (capability,fresh,permissions):(&str,AssetPurchasePurpose,&[&str])=match action {
+        AssetAction::Place{..}=>("assets.custody",AssetPurchasePurpose::NewWork,&["records.write"]),
+        AssetAction::LinkFinance{..}=>("assets.register",AssetPurchasePurpose::SettleExisting,&["records.write","finance.write"]),
+        AssetAction::RetireApprove=>("assets.register",AssetPurchasePurpose::SettleExisting,&["records.write","records.review"]),
+        AssetAction::Condition{..}|AssetAction::RetireRequest=>("assets.register",AssetPurchasePurpose::SettleExisting,&["records.write"]),
+    };
+    AssetPurchaseRequirements {operation:action.operation(),capability,purpose:purchase_purpose(fresh,disposition),permissions,creating:false}
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -202,10 +265,11 @@ impl AssetChangeInput {
                 let custodian = object
                     .get("custodianId")
                     .and_then(|value| value.as_str())
+                    .filter(|value| !value.is_empty())
                     .ok_or_else(invalid)?;
                 AssetAction::Place {
                     placement,
-                    custodian_id: RecordId::new(custodian).map_err(|_| invalid())?,
+                    custodian_id: custodian.to_owned(),
                 }
             }
             Some("condition") => AssetAction::Condition {
@@ -222,6 +286,7 @@ impl AssetChangeInput {
                 let finance_asset_id = object
                     .get("financeAssetId")
                     .and_then(|value| value.as_str())
+                    .filter(|value| !value.is_empty())
                     .ok_or_else(invalid)?;
                 let finance_asset_version =
                     object
@@ -229,7 +294,7 @@ impl AssetChangeInput {
                         .ok_or_else(invalid)
                         .and_then(|value| json_integer(value, 1).ok_or_else(invalid))?;
                 AssetAction::LinkFinance {
-                    finance_asset_id: RecordId::new(finance_asset_id).map_err(|_| invalid())?,
+                    finance_asset_id: finance_asset_id.to_owned(),
                     finance_asset_version,
                 }
             }
@@ -452,8 +517,8 @@ pub fn require_expected_version(
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NewAsset {
-    pub branch_id: RecordId,
-    pub department_id: Option<RecordId>,
+    pub branch_id: String,
+    pub department_id: Option<String>,
     pub code: String,
     pub name: String,
     pub category: String,
@@ -461,7 +526,7 @@ pub struct NewAsset {
     pub cost_minor: i64,
     pub acquired_date: String,
     pub warranty_end: Option<String>,
-    pub finance_asset_id: Option<RecordId>,
+    pub finance_asset_id: Option<String>,
     pub finance_asset_version: Option<i64>,
 }
 impl NewAsset {
@@ -511,16 +576,13 @@ impl NewAsset {
         let department_id = match object.get("departmentId") {
             None | Some(serde_json::Value::Null) => None,
             Some(value) => {
-                Some(RecordId::new(value.as_str().ok_or_else(invalid)?).map_err(|_| invalid())?)
+                Some(value.as_str().ok_or_else(invalid)?.to_owned())
             }
         };
         let finance_asset_id = object
             .get("financeAssetId")
-            .map(|value| value.as_str().ok_or_else(invalid))
-            .transpose()?
-            .map(RecordId::new)
-            .transpose()
-            .map_err(|_| invalid())?;
+            .map(|value| value.as_str().filter(|value| !value.is_empty()).map(str::to_owned).ok_or_else(invalid))
+            .transpose()?;
         let finance_asset_version = object
             .get("financeAssetVersion")
             .map(|value| json_integer(value, 1).ok_or_else(invalid))
@@ -535,7 +597,7 @@ impl NewAsset {
             ));
         }
         Ok(Self {
-            branch_id: RecordId::new(text("branchId")?).map_err(|_| invalid())?,
+            branch_id: text("branchId").and_then(|value| (!value.is_empty()).then_some(value).ok_or_else(invalid))?.to_owned(),
             department_id,
             code,
             name,
@@ -553,10 +615,10 @@ impl NewAsset {
     /// the retained registration contract.
     pub fn scoped(mut self, branch: Option<&RecordId>, department: Option<&RecordId>) -> Self {
         if let Some(branch) = branch {
-            self.branch_id = branch.clone();
+            self.branch_id = branch.as_str().to_owned();
         }
         if let Some(department) = department {
-            self.department_id = Some(department.clone());
+            self.department_id = Some(department.as_str().to_owned());
         }
         self
     }
