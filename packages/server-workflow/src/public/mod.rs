@@ -32,3 +32,4 @@ pub mod flow_command_target;
 pub mod quality_return_receipts;
 pub mod task_cancel;
 pub mod task_decision;
+pub mod task_reroute;

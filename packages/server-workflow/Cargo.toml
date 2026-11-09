@@ -62,3 +62,7 @@ path = "../../tests/integration/workflow/rust-task-decision-postgres.test.rs"
 [[test]]
 name = "task_cancel_postgres"
 path = "../../tests/integration/workflow/rust-task-cancel-postgres.test.rs"
+
+[[test]]
+name = "task_reroute_postgres"
+path = "../../tests/integration/workflow/rust-task-reroute-postgres.test.rs"
