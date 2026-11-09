@@ -90,6 +90,7 @@ export async function setupDatabases(){
 }
 export async function cleanupDatabases(){
   if(fixturePlan?.benchmark)await writeFile(join(fixturePlan.benchmark.directory,prefix+'.json'),JSON.stringify({file:fixtureFile,mode:fixturePlan.benchmark.mode,...fixtureTimings})+'\n',{mode:0o600});
+  if (process.env.ERPX_NATIVE_ACCOUNT_TEST_PROXY === '1') await stopNativeAccountSsoProxy();
   try{
     await Promise.all(Object.values(databases).map(db=>db.close()));
     if(fixturePlan){if(brokerDatabasesCreated)await cleanupSuiteDatabases(fixturePlan.root,prefix);}
@@ -103,7 +104,6 @@ export async function cleanupDatabases(){
       }}finally{await admin.end();}
     }
   }finally{
-    if (process.env.ERPX_NATIVE_ACCOUNT_TEST_PROXY === '1') await stopNativeAccountSsoProxy();
     await rm(directory,{recursive:true,force:true});
     for(const [name,value] of originalRuntimeEnvironment){if(value===undefined)delete process.env[name];else process.env[name]=value;}
     originalRuntimeEnvironment.clear();

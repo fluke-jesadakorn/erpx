@@ -247,20 +247,20 @@
     {
       "id": "legal",
       "package": "erpx-server-legal",
-      "phase": "partial",
-      "businessMigrationComplete": false,
+      "phase": "active",
+      "businessMigrationComplete": true,
       "surfaces": {
         "domain": "active",
         "application": "active",
-        "http": "partial",
-        "ssr": "partial",
+        "http": "active",
+        "ssr": "active",
         "jobs": "active",
         "providers": "active"
       },
       "capabilities": {
         "offlinePdfValidation": {
           "implementation": "active",
-          "conformance": "in-progress",
+          "conformance": "active",
           "runtimeBinding": "operator-supplied"
         }
       }
