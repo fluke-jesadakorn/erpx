@@ -35,7 +35,13 @@ export function workSnapshotPorts(write: SqlDatabase): WorkSnapshotPorts {
                 case "projectHandoffWork": return (await import("@erpx/server-projects/public/project-structure")).projectHandoffWork(actor);
                 case "fieldServiceWork": {
                     const native=await (await import("@erpx/server-field_service/public/native-work")).nativeServiceWork(actor);
-                    if(!native)throw new ApiError(503,"NATIVE_SERVICE_UNAVAILABLE","The native Service work queue is unavailable.");
+                    if(!native){
+                        // The native Field source is optional in development. An
+                        // absent config means the source is disabled, not that a
+                        // purchased source is degraded; production still fails closed.
+                        if(process.env.NODE_ENV==="production")throw new ApiError(503,"NATIVE_SERVICE_UNAVAILABLE","The native Service work queue is unavailable.");
+                        return [];
+                    }
                     return native.data;
                 }
                 case "collaborationActionWork": return (await import("@erpx/server-collaboration/public/collaboration-work")).collaborationActionWork(actor,async()=>(await import("@erpx/server-field_service/public/native-work")).nativeFieldCollaborationWork(actor));
