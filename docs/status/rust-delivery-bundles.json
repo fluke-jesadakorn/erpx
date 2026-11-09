@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T12:20:00+07:00",
+  "updatedAt": "2026-11-09T13:30:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -16,12 +16,12 @@
     "interpretation": "The 206 items are catalogue workflows, not the number of bounded flows. Each listed ID occurs once below. A partial item has supporting qualified slices, not whole-workflow verification."
   },
   "counts": {
-    "qualifiedBusinessFlows": 108,
+    "qualifiedBusinessFlows": 109,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 39,
-    "workflowsVerified": 83,
-    "workflowsMerged": 83,
+    "workflowsPartial": 38,
+    "workflowsVerified": 84,
+    "workflowsMerged": 84,
     "ownersComplete": 8,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -3482,6 +3482,17 @@
       "durableContractRefs": [
         "docs/contracts/next/rust-finance-journal-detail.md"
       ]
+    },
+    {
+      "id": "commerce-save-lock-replay-pricing-freeze",
+      "kind": "business-flow-evidence",
+      "status": "flow-complete",
+      "scope": "Reviewed Commerce save path: replay before validation/locks, Finance/party/Sales fences before protected snapshots, explicit/auto/absent pricing comparison and deferred revalidation, conversion Money preflight/retain; clean-archive selected-route, Commerce, Finance and Sales pricing gates.",
+      "sourceIdentity": "750d31420",
+      "evidenceRef": "docs/testing/evidence/2026-11-09-commerce-save-lock-replay-pricing-freeze.json",
+      "durableContractRefs": [
+        "docs/contracts/next/rust-finance-journal-detail.md"
+      ]
     }
   ],
   "workflows": [
@@ -4300,17 +4311,17 @@
       "kind": "module",
       "owner": "sales",
       "scope": "Quotes",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "sales-native-documents",
         "sales-native-documents-http",
         "sales-native-price-lists"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Native quotation, browser and Money evidence is recorded; mergeCommit identifies an implementation slice. The pushed save path still locks Sales sources after its snapshot, observes explicit list ID instead of retaining original auto-selection or absence, and does not compare selected item facts with the plan. The pushed conversion path also needs its Finance lock restored before snapshot. Complete same-unit source guards, current-source concurrency, revalidation and legacy retirement gates before whole-workflow verification.",
-      "mergeCommit": "fb21feadf"
+      "gap": "Verified native quotation workflow on the pushed tree: price-list lifecycle, quotation list/detail, draft create/update with replay before semantic validation and Finance/Sales work, Finance Money + party + Sales selected-pricing fences before protected snapshots, explicit/auto-selected/absent pricing observations compared with the plan and revalidated after deferred constraints, exact TypeScript pre-read/conflict order, quote submit/approve/return/cancel/conversion with Money preflight/retain, desktop/mobile create/edit browser evidence, and clean full-service archive tests. Purchase orders, sales-order goods fulfillment/invoicing/settlement/returns and independent sales-approver browser approval remain separate.",
+      "mergeCommit": "750d31420"
     },
     {
       "id": "sales/orders",
@@ -6536,8 +6547,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-09T12:20:00+07:00",
-    "sourceHead": "3e46cd091",
+    "generatedAt": "2026-11-09T13:30:00+07:00",
+    "sourceHead": "750d31420",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6622,8 +6633,8 @@
       },
       "sales": {
         "workflows": 5,
-        "verified": 0,
-        "partial": 4,
+        "verified": 1,
+        "partial": 3,
         "unstarted": 1,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -7208,7 +7219,7 @@
       "Recheck the integrated Files/Workflow attachment modules and the full service on the final frozen source; the historical clean archive build predates current shared work.",
       "Await Stripe/Connect configuration for POS tenders/refunds/retry.",
       "Reconcile remote HEAD and keep counts tied to browser/HTTP evidence.",
-      "Finance goods journal is ready; wire it with Inventory stock_issue, Commerce fulfillment/order state and Money to close sales/orders and sales/fulfillment, after the reviewer source-lock/auto-selection findings are frozen."
+      "sales/quotes is verified with the frozen save lock/replay/pricing witnesses; implement the native goods-fulfillment command next."
     ],
     "integrationLog": [
       {
@@ -8595,6 +8606,22 @@
           "owners": 8,
           "verified": 83,
           "partial": 39,
+          "unstarted": 84,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-09T13:30:00+07:00",
+        "commit": "750d31420",
+        "bundles": [
+          "Commerce save replay/lock/pricing witness freeze",
+          "sales/quotes reverification"
+        ],
+        "evidence": "Clean archive selected-route 1/1; order_postgres 18/18; Finance Money 7/7; full private build; worktree Commerce 35/35 and Sales pricing 7/7; 84 verified / 38 partial / 84 unstarted / 8 of 41 owners",
+        "counts": {
+          "owners": 8,
+          "verified": 84,
+          "partial": 38,
           "unstarted": 84,
           "total": 206
         }
