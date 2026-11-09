@@ -64270,6 +64270,22 @@
       }
     },
     {
+      "id": "finance.rust-commerce-goods-journal-postgres.integration",
+      "lane": "integration",
+      "owner": "finance",
+      "modules": ["finance", "inventory", "sales"],
+      "fixture": "postgres",
+      "requires": {"jobs": false, "scanner": false},
+      "apps": ["finance", "sales"],
+      "packages": ["@erpx/server-finance", "@erpx/server-runtime", "@erpx/server-shared"],
+      "ci": {"critical": true, "reason": "Finance-owned goods journal must preserve open periods, exact chart/accounts/base currency, balanced delivery lines, deterministic source binding and rollback with the caller unit."},
+      "files": ["tests/integration/finance/rust-commerce-goods-journal-postgres.test.rs"],
+      "framework": "cargo",
+      "cargo": {"package": "erpx-server-finance", "targets": ["commerce_goods_journal_postgres"]},
+      "verificationInputs": ["packages/server-finance/Cargo.toml", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "tests/support/rust-postgres.rs", "packages/server-finance/src/adapters/commerce_goods_journal.rs"],
+      "postgres": {"mode": "raw", "slots": ["CONTROL_DB", "CONTROL_READ_DB", "H001_DB", "H001_READ_DB", "H002_DB", "H002_READ_DB", "H003_DB", "H003_READ_DB"], "migratedSlots": []}
+    },
+    {
       "id": "finance.rust-sales-order-credit-postgres.integration",
       "lane": "integration",
       "owner": "finance",

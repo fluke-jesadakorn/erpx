@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T11:30:00+07:00",
+  "updatedAt": "2026-11-09T12:20:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Single-agent aggressive owner cutover. Next business PR closes the complete Field Service owner with native required dependencies, frontend journeys, one authoritative writer and legacy retirement; no additional header/infrastructure checkpoint PRs. Unsupported candidate operations are explicitly unavailable without TS fallback. Merge only via scoped PR into codex/rust-backend-migration, then qualify shared Docker/Dev Container for that owner before selecting the next dependency-ready owner. Use targeted local verification and frozen self-review, preserving matching historical evidence. Development requires another maintainer instruction.",
   "catalogue": {
@@ -16,12 +16,12 @@
     "interpretation": "The 206 items are catalogue workflows, not the number of bounded flows. Each listed ID occurs once below. A partial item has supporting qualified slices, not whole-workflow verification."
   },
   "counts": {
-    "qualifiedBusinessFlows": 107,
+    "qualifiedBusinessFlows": 108,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 38,
-    "workflowsVerified": 84,
-    "workflowsMerged": 84,
+    "workflowsPartial": 39,
+    "workflowsVerified": 83,
+    "workflowsMerged": 83,
     "ownersComplete": 8,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -3471,6 +3471,17 @@
       "durableContractRefs": [
         "docs/contracts/next/rust-finance-journal-detail.md"
       ]
+    },
+    {
+      "id": "finance-goods-journal-handoff",
+      "kind": "business-flow-evidence",
+      "status": "flow-complete",
+      "scope": "Finance-owned native draft goods journal for a Commerce sales delivery: open period, exact chart/accounts/base currency, balanced cost-of-sales/inventory lines, deterministic draft source binding, replay/conflict behavior and rollback; PostgreSQL-qualified prerequisite, not a workflow closure.",
+      "sourceIdentity": "3e46cd091",
+      "evidenceRef": "docs/testing/evidence/2026-11-09-finance-goods-journal-handoff.json",
+      "durableContractRefs": [
+        "docs/contracts/next/rust-finance-journal-detail.md"
+      ]
     }
   ],
   "workflows": [
@@ -4289,16 +4300,16 @@
       "kind": "module",
       "owner": "sales",
       "scope": "Quotes",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [
         "sales-native-documents",
         "sales-native-documents-http",
         "sales-native-price-lists"
       ],
       "sourceRef": "packages/server-commerce/src/public/commerce.ts",
-      "gap": "Verified native quotation workflow on the pushed integration tree: price-list draft/update/activate/cancel, quotation list/detail, draft create/update with the original save preparation and guard order (replay before semantic validation; Finance order-revision Money 1+3N before Finance party and Sales price/version guards; owner CAS on version/draft state), exact 422 pre-read versus generic CONFLICT assertion codes, Sales selected-pricing and Finance party/Money witnesses retained and revalidated after deferred constraints, quote submit/approve/return/cancel/conversion with Money preflight before the stale guard and INSERT after the quote update before the sales row, desktop/mobile create/edit browser evidence, and clean full-service archive build/tests. Purchase orders, sales-order goods fulfillment/invoicing/settlement/returns and independent sales-approver browser approval remain separate.",
+      "gap": "Native quotation, browser and Money evidence is recorded; mergeCommit identifies an implementation slice. The pushed save path still locks Sales sources after its snapshot, observes explicit list ID instead of retaining original auto-selection or absence, and does not compare selected item facts with the plan. The pushed conversion path also needs its Finance lock restored before snapshot. Complete same-unit source guards, current-source concurrency, revalidation and legacy retirement gates before whole-workflow verification.",
       "mergeCommit": "fb21feadf"
     },
     {
@@ -6525,8 +6536,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-09T11:30:00+07:00",
-    "sourceHead": "fb21feadf",
+    "generatedAt": "2026-11-09T12:20:00+07:00",
+    "sourceHead": "3e46cd091",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6611,8 +6622,8 @@
       },
       "sales": {
         "workflows": 5,
-        "verified": 1,
-        "partial": 3,
+        "verified": 0,
+        "partial": 4,
         "unstarted": 1,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -7197,7 +7208,7 @@
       "Recheck the integrated Files/Workflow attachment modules and the full service on the final frozen source; the historical clean archive build predates current shared work.",
       "Await Stripe/Connect configuration for POS tenders/refunds/retry.",
       "Reconcile remote HEAD and keep counts tied to browser/HTTP evidence.",
-      "sales/quotes is verified with original save ordering and retained source witnesses; close sales/orders and sales/fulfillment with goods fulfillment (reservations, stock, lots/serials, goods journal), then invoicing/settlement/returns."
+      "Finance goods journal is ready; wire it with Inventory stock_issue, Commerce fulfillment/order state and Money to close sales/orders and sales/fulfillment, after the reviewer source-lock/auto-selection findings are frozen."
     ],
     "integrationLog": [
       {
@@ -8569,6 +8580,21 @@
           "owners": 8,
           "verified": 84,
           "partial": 38,
+          "unstarted": 84,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-09T12:20:00+07:00",
+        "commit": "3e46cd091",
+        "bundles": [
+          "Finance draft goods journal for sales delivery"
+        ],
+        "evidence": "Clean archive commerce_goods_journal_postgres 2/2; private-field full-service build; no workflow count change",
+        "counts": {
+          "owners": 8,
+          "verified": 83,
+          "partial": 39,
           "unstarted": 84,
           "total": 206
         }
