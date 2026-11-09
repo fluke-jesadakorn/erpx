@@ -13,6 +13,7 @@ pub mod attachment_scan;
 pub mod field_visit_link;
 
 pub mod count_evidence_policy;
+pub mod quality_hold_policy;
 pub mod count_submission;
 pub mod field_visit_bind;
 pub mod record_version_receipts;

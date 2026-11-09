@@ -889,3 +889,254 @@ async fn service_posting_receipt_lock_waits_before_snapshot() {
         writer.commit().await.unwrap();assert!(task.await.unwrap().unwrap());
     }).await;
 }
+
+#[tokio::test]
+async fn count_origin_marker_collection_is_global_exact_and_retained() {
+    use erpx_server_workflow::public::count_origin_markers::*;
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let count=RecordId::new("real-count").unwrap();
+        let mut no_lock=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *no_lock).await.unwrap();
+        assert!(inspect_count_origin_markers(&mut no_lock,&count).await.is_err());
+        no_lock.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_count_origin_marker_sources(&mut tx).await.unwrap();
+        let empty=inspect_count_origin_markers(&mut tx,&count).await.unwrap();
+        assert_eq!(empty.markers(),CountOriginMarkers{initial:false,service:false,pos:false,manufacturing:false});
+        // These synthetic legacy receipts deliberately do not derive their
+        // command IDs from the Count or share its Company label.
+        for (id,operation,record,result,authority) in [
+            ("marker-service","inventory.count.create","real-count",Some(r#"{"_serviceInitialPhysicalStockCount":null}"#),Some(r#"{"companyId":"foreign"}"#)),
+            ("marker-array","inventory.count.create","real-count",Some(r#"["_posInitialPhysicalStockCount"]"#),None),
+            ("marker-manufacturing","inventory.count.create","real-count",Some(r#"{"_manufacturingInitialPhysicalStockCount":false}"#),None),
+            ("other-record","inventory.count.create","other-count",Some(r#"{"_initialPhysicalStockCount":true}"#),None),
+            ("other-operation","other","real-count",Some(r#"{"ordinary":true}"#),None),
+            // SQL NULL is rejected by the current Service setup birth trigger;
+            // JSON null is accepted and still exercises a null-valued document.
+            ("json-null-result","inventory.count.create","real-count",Some("null"),None),
+        ] {
+            sqlx::query("INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) VALUES($1,$2,'fixture','synthetic',$3,$4,0,$5)").bind(id).bind(operation).bind(record).bind(result).bind(authority).execute(&mut *tx).await.unwrap();
+        }
+        assert!(empty.require_current(&mut tx).await.is_err());
+        let present=inspect_count_origin_markers(&mut tx,&count).await.unwrap();
+        assert_eq!(present.count_id(),&count);
+        assert_eq!(present.markers(),CountOriginMarkers{initial:false,service:true,pos:true,manufacturing:true});
+        present.require_current(&mut tx).await.unwrap();
+        tx.rollback().await.unwrap();
+        let mut other=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+        lock_count_origin_marker_sources(&mut other).await.unwrap();
+        assert!(present.require_current(&mut other).await.is_err());
+        other.rollback().await.unwrap();
+        let mut invalid=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *invalid).await.unwrap();
+        lock_count_origin_marker_sources(&mut invalid).await.unwrap();
+        // Current marker birth triggers parse result_json on INSERT; malformed
+        // historic rows cannot be fabricated in this migrated fixture.
+        let malformed=sqlx::query("INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at) VALUES('bad-marker','inventory.count.create','fixture','synthetic','real-count','{invalid',0)").execute(&mut *invalid).await.unwrap_err();
+        assert_eq!(malformed.as_database_error().and_then(|e|e.code()).as_deref(),Some("22P02"));
+        invalid.rollback().await.unwrap();
+        let mut saved=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *saved).await.unwrap();
+        sqlx::query("SELECT pg_current_xact_id()").execute(&mut *saved).await.unwrap();
+        sqlx::query("SAVEPOINT before_marker_lock").execute(&mut *saved).await.unwrap();
+        lock_count_origin_marker_sources(&mut saved).await.unwrap();
+        let retained=inspect_count_origin_markers(&mut saved,&count).await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT before_marker_lock").execute(&mut *saved).await.unwrap();
+        assert!(retained.require_current(&mut saved).await.is_err());
+        saved.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn record_origin_require_held_checks_existing_lock_without_upgrade() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let mut plain=pool.raw().acquire().await.unwrap();
+        assert!(matches!(require_record_origin_sources_held(&mut plain).await,Err(Error::Persistence(ref e)) if e.code=="WORKFLOW_OWNER_TRANSACTION_REQUIRED"));
+        drop(plain);
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        assert!(matches!(require_record_origin_sources_held(&mut tx).await,Err(Error::Persistence(ref e)) if e.code=="WORKFLOW_ORIGIN_LOCK_REQUIRED"));
+        sqlx::query("LOCK TABLE command_receipts IN ACCESS SHARE MODE").execute(&mut *tx).await.unwrap();
+        assert!(matches!(require_record_origin_sources_held(&mut tx).await,Err(Error::Persistence(ref e)) if e.code=="WORKFLOW_ORIGIN_LOCK_REQUIRED"));
+        sqlx::query("SAVEPOINT before_record_origin_lock").execute(&mut *tx).await.unwrap();
+        lock_record_origin_sources(&mut tx).await.unwrap();
+        require_record_origin_sources_held(&mut tx).await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT before_record_origin_lock").execute(&mut *tx).await.unwrap();
+        assert!(matches!(require_record_origin_sources_held(&mut tx).await,Err(Error::Persistence(ref e)) if e.code=="WORKFLOW_ORIGIN_LOCK_REQUIRED"));
+        tx.rollback().await.unwrap();
+        let mut stronger=pool.raw().begin().await.unwrap();
+        sqlx::query("LOCK TABLE command_receipts IN ROW EXCLUSIVE MODE").execute(&mut *stronger).await.unwrap();
+        require_record_origin_sources_held(&mut stronger).await.unwrap();stronger.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn field_history_receipt_join_retains_exact_candidates_without_temp_tables() {
+    use erpx_server_workflow::public::record_origin::*;
+    use sqlx::Acquire;
+    fixture::with_database(2,|pool|async move {
+        setup(&pool).await;
+        let mut conn=pool.raw().acquire().await.unwrap();
+        sqlx::query("CREATE TEMP TABLE command_receipts(command_id text)").execute(&mut *conn).await.unwrap();
+        let mut unlocked=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unlocked).await.unwrap();assert!(inspect_field_history_receipt_join(&mut unlocked).await.is_err());unlocked.rollback().await.unwrap();
+        let mut tx=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_field_history_receipt_join_sources(&mut tx).await.unwrap();let source=inspect_field_history_receipt_join(&mut tx).await.unwrap();source.require_current(&mut tx).await.unwrap();
+        let initial_temp_count:i64=sqlx::query_scalar("SELECT count(*) FROM pg_class WHERE relnamespace=pg_my_temp_schema()").fetch_one(&mut *tx).await.unwrap();
+        // With an empty TEMP shadow, the fixed source still sees the canonical
+        // public table. No receipt contents are returned as a Rust array.
+        let count_sql=format!("WITH {} SELECT count(*) FROM field_history_receipts",source.cte_sql());
+        let n:i64=sqlx::query_scalar(sqlx::AssertSqlSafe(count_sql.as_str())).fetch_one(&mut *tx).await.unwrap();assert_eq!(n,0);
+        let after_temp_count:i64=sqlx::query_scalar("SELECT count(*) FROM pg_class WHERE relnamespace=pg_my_temp_schema()").fetch_one(&mut *tx).await.unwrap();assert_eq!(after_temp_count,initial_temp_count);
+        sqlx::query("DROP TABLE pg_temp.command_receipts").execute(&mut *tx).await.unwrap();
+        // Real database rows, deliberately uncommitted and with all native
+        // guards enabled, verify this Workflow join only—not Finance authority.
+        sqlx::query("INSERT INTO public.finance_payments(id,company_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,created_by,created_at,updated_at) VALUES('payment','company','receipt','PAY','2026-01-01','THB',100,100,'maker',0,0)").execute(&mut *tx).await.unwrap();
+        sqlx::raw_sql("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES('good-a','finance.payment.create','maker','synthetic','payment','{\"id\":\"payment\",\"settlementInvoiceId\":\"invoice-a\"}','{\"companyId\":\"company\"}',0),('wrong-record','finance.payment.create','maker','synthetic','other','{\"id\":\"payment\",\"settlementInvoiceId\":\"invoice-b\"}','{\"companyId\":\"company\"}',0),('wrong-actor','finance.payment.create','other','synthetic','payment','{\"id\":\"payment\",\"settlementInvoiceId\":\"invoice-c\"}','{\"companyId\":\"company\"}',0),('wrong-company','finance.payment.create','maker','synthetic','payment','{\"id\":\"payment\",\"settlementInvoiceId\":\"invoice-d\"}','{\"companyId\":\"foreign\"}',0),('null-result','finance.payment.create','maker','synthetic','payment','null','{\"companyId\":\"company\"}',0),('different-op','unrelated','maker','synthetic','payment','{\"id\":\"payment\",\"settlementInvoiceId\":\"invoice-e\"}','{\"companyId\":\"company\"}',0)").execute(&mut *tx).await.unwrap();
+        // Existing migrated marker guard rejects SQL NULL at receipt birth.
+        // Do not disable it or claim a persisted SQL-NULL receipt fixture.
+        sqlx::query("SAVEPOINT null_receipt").execute(&mut *tx).await.unwrap();
+        let sql_null=sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES('sql-null','finance.payment.create','maker','synthetic','payment',NULL,'{\"companyId\":\"company\"}',0)").execute(&mut *tx).await.unwrap_err();
+        assert_eq!(sql_null.as_database_error().and_then(|e|e.code()).as_deref(),Some("23514"));sqlx::query("ROLLBACK TO SAVEPOINT null_receipt").execute(&mut *tx).await.unwrap();
+        let joins="SELECT count(*) FROM public.finance_payments p JOIN field_history_receipts r ON r.record_id=p.id AND r.operation='finance.payment.create' AND r.actor_id=p.created_by AND r.authority_json::jsonb->>'companyId'=p.company_id AND r.result_json::jsonb->>'id'=p.id WHERE p.id=$1 AND p.company_id=$2 AND r.result_json::jsonb->>'settlementInvoiceId' IS NOT NULL";
+        let sql=format!("WITH {} {joins}",source.cte_sql());
+        let observed:i64=sqlx::query_scalar(sqlx::AssertSqlSafe(sql.as_str())).bind("payment").bind("company").fetch_one(&mut *tx).await.unwrap();assert_eq!(observed,1);
+        let direct:i64=sqlx::query_scalar("SELECT count(*) FROM public.finance_payments p JOIN public.command_receipts r ON r.record_id=p.id AND r.operation='finance.payment.create' AND r.actor_id=p.created_by AND r.authority_json::jsonb->>'companyId'=p.company_id AND r.result_json::jsonb->>'id'=p.id WHERE p.id=$1 AND p.company_id=$2 AND r.result_json::jsonb->>'settlementInvoiceId' IS NOT NULL").bind("payment").bind("company").fetch_one(&mut *tx).await.unwrap();assert_eq!(observed,direct);
+        assert_eq!(sqlx::query_scalar::<_,i64>(sqlx::AssertSqlSafe(sql.as_str())).bind("payment").bind("foreign").fetch_one(&mut *tx).await.unwrap(),0);
+        sqlx::query("SAVEPOINT second_receipt").execute(&mut *tx).await.unwrap();sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES('good-b','finance.payment.create','maker','synthetic','payment','{\"id\":\"payment\",\"settlementInvoiceId\":\"invoice-b\"}','{\"companyId\":\"company\"}',0)").execute(&mut *tx).await.unwrap();
+        let changed_count:i64=sqlx::query_scalar(sqlx::AssertSqlSafe(sql.as_str())).bind("payment").bind("company").fetch_one(&mut *tx).await.unwrap();assert_eq!(changed_count,2);source.require_current(&mut tx).await.unwrap();
+        // Source fencing is intentionally not content retention: consumer must
+        // compare its complete joined decision after its own late effects.
+        assert_ne!(observed,changed_count);sqlx::query("ROLLBACK TO SAVEPOINT second_receipt").execute(&mut *tx).await.unwrap();assert_eq!(sqlx::query_scalar::<_,i64>(sqlx::AssertSqlSafe(sql.as_str())).bind("payment").bind("company").fetch_one(&mut *tx).await.unwrap(),observed);
+        sqlx::query("SAVEPOINT bad_receipt").execute(&mut *tx).await.unwrap();let malformed=sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES('bad-json','finance.payment.create','maker','synthetic','payment','{invalid','{\"companyId\":\"company\"}',0)").execute(&mut *tx).await;
+        match malformed {Err(error)=>assert_eq!(error.as_database_error().and_then(|e|e.code()).as_deref(),Some("22P02")),Ok(_)=>{let error=sqlx::query_scalar::<_,i64>(sqlx::AssertSqlSafe(sql.as_str())).bind("payment").bind("company").fetch_one(&mut *tx).await.unwrap_err();assert_eq!(error.as_database_error().and_then(|e|e.code()).as_deref(),Some("22P02"));}}
+        sqlx::query("ROLLBACK TO SAVEPOINT bad_receipt").execute(&mut *tx).await.unwrap();source.require_current(&mut tx).await.unwrap();tx.rollback().await.unwrap();
+        sqlx::query("DROP TABLE pg_temp.command_receipts").execute(&mut *conn).await.unwrap();let mut fresh=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *fresh).await.unwrap();lock_field_history_receipt_join_sources(&mut fresh).await.unwrap();assert!(source.require_current(&mut fresh).await.is_err());fresh.rollback().await.unwrap();
+        let mut saved=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *saved).await.unwrap();sqlx::query("SAVEPOINT receipt_lock").execute(&mut *saved).await.unwrap();lock_field_history_receipt_join_sources(&mut saved).await.unwrap();let saved_source=inspect_field_history_receipt_join(&mut saved).await.unwrap();sqlx::query("ROLLBACK TO SAVEPOINT receipt_lock").execute(&mut *saved).await.unwrap();assert!(saved_source.require_current(&mut saved).await.is_err());saved.rollback().await.unwrap();
+        let mut writer=pool.raw().begin().await.unwrap();sqlx::query("LOCK TABLE public.command_receipts IN ROW EXCLUSIVE MODE").execute(&mut *writer).await.unwrap();let mut blocked=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *blocked).await.unwrap();let conflict=lock_field_history_receipt_join_sources(&mut blocked).await;assert!(matches!(conflict,Err(PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));blocked.rollback().await.unwrap();writer.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn initial_count_history_receipts_match_actual_legacy_marker_sources() {
+    use erpx_server_workflow::public::record_origin::*;
+    use sqlx::Acquire;
+    fixture::with_database(2,|pool|async move {
+        setup(&pool).await;
+        let mut conn=pool.raw().acquire().await.unwrap();sqlx::query("CREATE TEMP TABLE command_receipts(command_id text)").execute(&mut *conn).await.unwrap();
+        let mut unlocked=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unlocked).await.unwrap();assert!(inspect_initial_count_history_receipt_join(&mut unlocked).await.is_err());unlocked.rollback().await.unwrap();
+        let mut tx=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_initial_count_history_receipt_sources(&mut tx).await.unwrap();let source=inspect_initial_count_history_receipt_join(&mut tx).await.unwrap();
+        let temp_before:i64=sqlx::query_scalar("SELECT count(*) FROM pg_class WHERE relnamespace=pg_my_temp_schema()").fetch_one(&mut *tx).await.unwrap();let rows_sql=format!("WITH {} SELECT count(*) FROM initial_count_history_receipts",source.cte_sql());assert_eq!(sqlx::query_scalar::<_,i64>(sqlx::AssertSqlSafe(rows_sql.as_str())).fetch_one(&mut *tx).await.unwrap(),0);let temp_after:i64=sqlx::query_scalar("SELECT count(*) FROM pg_class WHERE relnamespace=pg_my_temp_schema()").fetch_one(&mut *tx).await.unwrap();assert_eq!(temp_after,temp_before);
+        // Allow actual legacy unqualified SQL to see public; rollback restores
+        // this TEMP shadow. No production table/trigger is altered.
+        sqlx::query("DROP TABLE pg_temp.command_receipts").execute(&mut *tx).await.unwrap();
+        let long_id=format!("count-{}","x".repeat(240));
+        let names=["_initialPhysicalStockCount","_serviceInitialPhysicalStockCount","_posInitialPhysicalStockCount","_manufacturingInitialPhysicalStockCount"];
+        for (n,marker) in names.iter().enumerate(){
+            // A JSON-null marker is still present under jsonb_exists. These
+            // synthetic receipts stay uncommitted with deferred guards enabled.
+            let result=serde_json::json!({(*marker):null}).to_string();
+            sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES($1,'inventory.count.create','fixture','synthetic',$2,$3,'{\"companyId\":\"foreign\"}',0)").bind(format!("marker-{n}")).bind(&long_id).bind(result).execute(&mut *tx).await.unwrap();
+        }
+        sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES('count-plain','inventory.count.create','fixture','synthetic',$1,'null','{\"companyId\":\"company\"}',0)").bind(&long_id).execute(&mut *tx).await.unwrap();
+        let node=std::env::var("ERPX_NODE_BIN").unwrap_or_else(|_|"node".into());let dir=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../server-inventory/src/adapters");
+        let script=r#"if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const keys=['initialPhysicalStockMarkedRows','serviceInitialPhysicalStockMarkedRows','posInitialPhysicalStockMarkedRows','manufacturingInitialPhysicalStockMarkedRows'];const out=[];for(let i=0;i<keys.length;i++){const m=await import(process.argv[i+1]);out.push(m[keys[i]])}process.stdout.write(JSON.stringify(out));"#;
+        let output=std::process::Command::new(node).arg("--conditions=react-server").arg("--input-type=module").arg("-e").arg(script).arg(dir.join("initial-physical-stock-count-source-sql.ts")).arg(dir.join("service-initial-physical-stock-count-source-sql.ts")).arg(dir.join("pos-initial-physical-stock-count-source-sql.ts")).arg(dir.join("manufacturing-initial-physical-stock-count-source-sql.ts")).output().expect("pinned Node marker source");
+        assert!(output.status.success(),"actual TS marker sources: {}",String::from_utf8_lossy(&output.stderr));let actual:serde_json::Value=serde_json::from_slice(&output.stdout).unwrap();
+        let projected=format!("WITH {} SELECT count(*) FROM initial_count_history_receipts r WHERE r.record_id=$1 AND jsonb_exists(r.result_json::jsonb,$2)",source.cte_sql());
+        for (n,marker) in names.iter().enumerate(){let legacy=format!("SELECT count(*) FROM ({}) marker WHERE marker.id=$1",actual[n].as_str().unwrap());let expected:i64=sqlx::query_scalar(sqlx::AssertSqlSafe(legacy.as_str())).bind(&long_id).fetch_one(&mut *tx).await.unwrap();let got:i64=sqlx::query_scalar(sqlx::AssertSqlSafe(projected.as_str())).bind(&long_id).bind(marker).fetch_one(&mut *tx).await.unwrap();assert_eq!((got,expected),(1,1),"marker {marker}");}
+        let foreign_is_not_a_filter:i64=sqlx::query_scalar("SELECT count(*) FROM public.command_receipts WHERE operation='inventory.count.create' AND record_id=$1 AND authority_json::jsonb->>'companyId'='foreign' AND jsonb_exists(result_json::jsonb,'_serviceInitialPhysicalStockCount')").bind(&long_id).fetch_one(&mut *tx).await.unwrap();assert_eq!(foreign_is_not_a_filter,1);
+        source.require_current(&mut tx).await.unwrap();sqlx::query("SAVEPOINT extra_count_marker").execute(&mut *tx).await.unwrap();sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES('marker-extra','inventory.count.create','fixture','synthetic',$1,'{\"_serviceInitialPhysicalStockCount\":null}','{\"companyId\":\"another\"}',0)").bind(&long_id).execute(&mut *tx).await.unwrap();let count:i64=sqlx::query_scalar(sqlx::AssertSqlSafe(projected.as_str())).bind(&long_id).bind("_serviceInitialPhysicalStockCount").fetch_one(&mut *tx).await.unwrap();assert_eq!(count,2);source.require_current(&mut tx).await.unwrap();sqlx::query("ROLLBACK TO SAVEPOINT extra_count_marker").execute(&mut *tx).await.unwrap();assert_eq!(sqlx::query_scalar::<_,i64>(sqlx::AssertSqlSafe(projected.as_str())).bind(&long_id).bind("_serviceInitialPhysicalStockCount").fetch_one(&mut *tx).await.unwrap(),1);
+        tx.rollback().await.unwrap();sqlx::query("DROP TABLE pg_temp.command_receipts").execute(&mut *conn).await.unwrap();let mut other=conn.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();lock_initial_count_history_receipt_sources(&mut other).await.unwrap();assert!(source.require_current(&mut other).await.is_err());other.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn initial_count_history_support_receipts_match_actual_setup_sql() {
+    use erpx_server_workflow::public::record_origin::*;
+    fixture::with_database(2,|pool|async move {
+        setup(&pool).await;
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_initial_count_history_receipt_sources(&mut tx).await.unwrap();
+        let source=inspect_initial_count_history_receipt_join(&mut tx).await.unwrap();
+        let operations=["commerce.service-parts-posting-setup.initialize","commerce.service-parts-posting-setup.confirm-existing","inventory.count.post","inventory.count.reject","inventory.count.cancel","attachment.record.bind","attachment.compatibility.bind"];
+        let long_id=format!("company-{}","x".repeat(240));
+        for (n,operation) in operations.iter().enumerate(){
+            let command=format!("support-{n}");let status=if n==0{"configured"}else{"confirmed-existing"};
+            let result=if n<2 {serde_json::json!({"id":long_id,"version":1,"status":status,"_servicePartsPostingSetup":{"kind":"service-parts-posting-setup","companyId":long_id,"commandId":command,"mapping":{"company_id":long_id}}}).to_string()} else {"null".to_owned()};
+            let authority=serde_json::json!({"companyId":long_id}).to_string();
+            sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES($1,$2,'fixture','synthetic',$3,$4,$5,0)").bind(&command).bind(operation).bind(&long_id).bind(result).bind(authority).execute(&mut *tx).await.unwrap();
+        }
+        sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES('support-unrelated','other.operation','fixture','synthetic',$1,'null','{}',0)").bind(&long_id).execute(&mut *tx).await.unwrap();
+        let all=format!("WITH {} SELECT count(*) FROM initial_count_history_support_receipts WHERE record_id=$1",source.cte_sql());assert_eq!(sqlx::query_scalar::<_,i64>(sqlx::AssertSqlSafe(all.as_str())).bind(&long_id).fetch_one(&mut *tx).await.unwrap(),7);
+        let dir=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../server-commerce/src/adapters/service-parts-posting-proof.ts");
+        let script=r#"if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const m=await import(process.argv[1]);process.stdout.write(JSON.stringify(m.servicePartsPostingSourceRows));"#;
+        let output=std::process::Command::new(std::env::var("ERPX_NODE_BIN").unwrap_or_else(|_|"node".into())).arg("--conditions=react-server").arg("--input-type=module").arg("-e").arg(script).arg(dir).output().unwrap();assert!(output.status.success(),"actual TS source: {}",String::from_utf8_lossy(&output.stderr));let actual:String=serde_json::from_slice(&output.stdout).unwrap();
+        let replaced=actual.replace("FROM command_receipts receipt","FROM initial_count_history_support_receipts receipt");assert_ne!(actual,replaced);
+        let legacy=format!("SELECT count(*) FROM ({actual}) source WHERE source.company_id=$1");let projected=format!("WITH {} SELECT count(*) FROM ({replaced}) source WHERE source.company_id=$1",source.cte_sql());
+        async fn compare(c:&mut sqlx::PgConnection,id:&str,a:&str,b:&str)->i64{let expected:i64=sqlx::query_scalar(sqlx::AssertSqlSafe(a)).bind(id).fetch_one(&mut *c).await.unwrap();let got=sqlx::query_scalar(sqlx::AssertSqlSafe(b)).bind(id).fetch_one(&mut *c).await.unwrap();assert_eq!(expected,got);got}
+        assert_eq!(compare(&mut tx,&long_id,&legacy,&projected).await,2);assert_eq!(compare(&mut tx,"foreign",&legacy,&projected).await,0);
+        source.require_current(&mut tx).await.unwrap();sqlx::query("SAVEPOINT changed_setup").execute(&mut *tx).await.unwrap();sqlx::query("UPDATE public.command_receipts SET result_json=jsonb_set(result_json::jsonb,'{status}',to_jsonb('wrong'::text))::text WHERE command_id='support-1'").execute(&mut *tx).await.unwrap();assert_eq!(compare(&mut tx,&long_id,&legacy,&projected).await,1);source.require_current(&mut tx).await.unwrap();sqlx::query("ROLLBACK TO SAVEPOINT changed_setup").execute(&mut *tx).await.unwrap();assert_eq!(compare(&mut tx,&long_id,&legacy,&projected).await,2);
+        // Synthetic receipts never commit and deferred guards remain enabled.
+        tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn asset_purchase_receipt_purpose_matches_actual_ts_without_hash_or_target() {
+    use erpx_server_workflow::public::asset_purchase_receipt::*;
+    fixture::with_database(2,|pool|async move {
+        setup(&pool).await;
+        let mut unlocked=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unlocked).await.unwrap();assert!(inspect_asset_purchase_receipt_purpose(&mut unlocked,"asset-key","asset.create","user",&CompanyId::new("company").unwrap()).await.is_err());unlocked.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_asset_purchase_receipt_sources(&mut tx).await.unwrap();
+        let company=CompanyId::new("company").unwrap();
+        for (key,op,actor,authority) in [("asset-key","asset.create","user",Some("{\"companyId\":\"company\"}")),("asset-op","asset.place","user",Some("{\"companyId\":\"company\"}")),("asset-actor","asset.create","other",Some("{\"companyId\":\"company\"}")),("asset-company","asset.create","user",Some("{\"companyId\":\"other\"}")),("asset-null","asset.create","user",None),("asset-json-null","asset.create","user",Some("null"))] {sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES($1,$2,$3,'noncanonical-hash','different-target','{}',$4,0)").bind(key).bind(op).bind(actor).bind(authority).execute(&mut *tx).await.unwrap();}
+        // Extract the exact repo-owned purpose lookup; values remain SQL binds.
+        let script=r#"import fs from 'node:fs';const s=fs.readFileSync(process.argv[1],'utf8');const prefix='database.prepare(\"SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>\'companyId\'=?\")';const start=s.indexOf(prefix);if(start<0)throw Error('ASSET_RECEIPT_SOURCE_MISSING');let n=0;const q=prefix.slice('database.prepare(\"'.length,-2).replace(/\?/g,()=>'$'+(++n));process.stdout.write(JSON.stringify(q));"#;
+        let path=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../server-assets/src/adapters/purchases.ts");let output=std::process::Command::new(std::env::var("ERPX_BUN_BIN").unwrap_or_else(|_|"bun".into())).arg("-e").arg(script).arg(path).output().unwrap();assert!(output.status.success(),"actual TS receipt lookup: {}",String::from_utf8_lossy(&output.stderr));let legacy:String=serde_json::from_slice(&output.stdout).unwrap();
+        for (key,expected) in [("asset-key",true),("asset-op",false),("asset-actor",false),("asset-company",false),("asset-null",false),("asset-json-null",false),("asset-missing",false)] {let oracle:Option<i32>=sqlx::query_scalar(sqlx::AssertSqlSafe(legacy.as_str())).bind(key).bind("asset.create").bind("user").bind("company").fetch_optional(&mut *tx).await.unwrap();let observed=inspect_asset_purchase_receipt_purpose(&mut tx,key,"asset.create","user",&company).await.unwrap();assert_eq!((observed.selects_history(),oracle.is_some()),(expected,expected),"{key}");observed.require_unchanged_before_effects(&mut tx).await.unwrap();}
+        let fresh=inspect_asset_purchase_receipt_purpose(&mut tx,"fresh-key","asset.create","user",&company).await.unwrap();assert!(!fresh.selects_history());sqlx::query("SAVEPOINT own_receipt").execute(&mut *tx).await.unwrap();sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES('fresh-key','asset.create','user','different-hash','new-target','{}','{\"companyId\":\"company\"}',0)").execute(&mut *tx).await.unwrap();assert!(fresh.require_unchanged_before_effects(&mut tx).await.is_err());assert!(inspect_asset_purchase_receipt_purpose(&mut tx,"fresh-key","asset.create","user",&company).await.unwrap().selects_history());sqlx::query("ROLLBACK TO SAVEPOINT own_receipt").execute(&mut *tx).await.unwrap();fresh.require_unchanged_before_effects(&mut tx).await.unwrap();
+        // HoldingWrite migrations include an expression index casting authority
+        // JSON. This is a real migrated schema, not a hand-built receipt table:
+        // malformed authority is rejected on INSERT before a lookup can see it.
+        let authority_index:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_index i WHERE i.indrelid='public.command_receipts'::regclass AND pg_get_indexdef(i.indexrelid) LIKE '%authority_json%' AND pg_get_indexdef(i.indexrelid) LIKE '%jsonb%')").fetch_one(&mut *tx).await.unwrap();assert!(authority_index,"the migrated authority JSON expression index must remain present");
+        sqlx::query("SAVEPOINT malformed_authority").execute(&mut *tx).await.unwrap();let insertion=sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES('bad-authority','asset.create','user','hash','target','{}','{bad',0)").execute(&mut *tx).await.unwrap_err();assert_eq!(insertion.as_database_error().and_then(|e|e.code()).as_deref(),Some("22P02"));sqlx::query("ROLLBACK TO SAVEPOINT malformed_authority").execute(&mut *tx).await.unwrap();
+        tx.rollback().await.unwrap();let mut other=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();lock_asset_purchase_receipt_sources(&mut other).await.unwrap();assert!(fresh.require_unchanged_before_effects(&mut other).await.is_err());other.rollback().await.unwrap();
+        let mut saved=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *saved).await.unwrap();sqlx::query("SAVEPOINT before_receipt_lock").execute(&mut *saved).await.unwrap();lock_asset_purchase_receipt_sources(&mut saved).await.unwrap();let retained=inspect_asset_purchase_receipt_purpose(&mut saved,"fresh-key","asset.create","user",&company).await.unwrap();sqlx::query("ROLLBACK TO SAVEPOINT before_receipt_lock").execute(&mut *saved).await.unwrap();assert!(retained.require_unchanged_before_effects(&mut saved).await.is_err());saved.rollback().await.unwrap();
+        let mut writer=pool.raw().begin().await.unwrap();sqlx::query("LOCK TABLE public.command_receipts IN ROW EXCLUSIVE MODE").execute(&mut *writer).await.unwrap();let mut blocked=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *blocked).await.unwrap();let e=lock_asset_purchase_receipt_sources(&mut blocked).await;assert!(matches!(e,Err(PgTransactionError::Persistence(ref p)) if p.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && p.sql_state()==Some("55P03") && p.retryable()));blocked.rollback().await.unwrap();writer.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn quality_return_receipts_match_actual_typescript_join_and_retain_fence() {
+    use erpx_server_workflow::public::quality_return_receipts::{lock_quality_return_receipts,inspect_quality_return_receipts};
+    fixture::with_database(2,|pool|async move {
+        setup(&pool).await;
+        let script=r#"
+if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');
+const {commerceQualityOriginRows}=await import('./packages/server-commerce/src/adapters/quality-purchase-sources.ts');
+const matches=[...commerceQualityOriginRows.matchAll(/JOIN command_receipts receipt ON ([^\n]+)/g)].map(x=>x[1]);
+if(matches.length!==2||matches[0]!==matches[1])throw Error('QUALITY_RETURN_TS_JOIN_CHANGED');
+process.stdout.write(matches[0]);
+"#;
+        let out=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).arg("--conditions=react-server").arg("-e").arg(script).output().unwrap();assert!(out.status.success(),"actual Commerce Quality TS join unavailable");let predicate=String::from_utf8(out.stdout).unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        assert!(inspect_quality_return_receipts(&mut tx).await.is_err());tx.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_quality_return_receipts(&mut tx).await.unwrap();
+        sqlx::raw_sql("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES('return-a','commerce.return.approve','reviewer','synthetic','return','{}','{\"companyId\":\"company\"}',0),('return-b','commerce.return.approve','reviewer','synthetic','return','{}','{\"companyId\":\"company\"}',0),('return-wrong-actor','commerce.return.approve','other','synthetic','return','{}','{\"companyId\":\"company\"}',0),('return-wrong-company','commerce.return.approve','reviewer','synthetic','return','{}','{\"companyId\":\"foreign\"}',0),('return-wrong-record','commerce.return.approve','reviewer','synthetic','other','{}','{\"companyId\":\"company\"}',0),('return-other-op','other.operation','reviewer','synthetic','return','{}','{\"companyId\":\"company\"}',0)").execute(&mut *tx).await.unwrap();
+        let source=inspect_quality_return_receipts(&mut tx).await.unwrap();
+        let prefix="(SELECT 'return'::text id,'reviewer'::text approved_by,'company'::text company_id) r";
+        let original=format!("SELECT receipt.command_id FROM {prefix} JOIN command_receipts receipt ON {predicate} ORDER BY receipt.command_id");
+        let joined=format!("WITH {} SELECT receipt.command_id FROM {prefix} JOIN quality_return_receipts receipt ON {predicate} ORDER BY receipt.command_id",source.cte_sql());
+        let expected:Vec<String>=sqlx::query_scalar(sqlx::AssertSqlSafe(original)).fetch_all(&mut *tx).await.unwrap();let actual:Vec<String>=sqlx::query_scalar(sqlx::AssertSqlSafe(joined)).fetch_all(&mut *tx).await.unwrap();assert_eq!(expected,vec!["return-a","return-b"]);assert_eq!(actual,expected);source.require_current(&mut tx).await.unwrap();
+        sqlx::query("SAVEPOINT receipt_null_authority").execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES('return-null-authority','commerce.return.approve','reviewer','synthetic',repeat('x',2097153),'{}',NULL,0)").execute(&mut *tx).await.unwrap();
+        assert!(matches!(source.require_current(&mut tx).await,Err(PgTransactionError::Business(ref e)) if e.code=="QUALITY_RETURN_RECEIPT_LIMIT"),"SQL NULL authority must not hide oversized receipt bytes");
+        sqlx::query("ROLLBACK TO SAVEPOINT receipt_null_authority").execute(&mut *tx).await.unwrap();source.require_current(&mut tx).await.unwrap();
+        sqlx::query("SAVEPOINT receipt_limit").execute(&mut *tx).await.unwrap();sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) SELECT 'quality-limit-'||n,'commerce.return.approve','reviewer','synthetic','unrelated','{}','{\"companyId\":\"company\"}',0 FROM generate_series(1,10001) n").execute(&mut *tx).await.unwrap();assert!(matches!(source.require_current(&mut tx).await,Err(PgTransactionError::Business(ref e)) if e.code=="QUALITY_RETURN_RECEIPT_LIMIT"));sqlx::query("ROLLBACK TO SAVEPOINT receipt_limit").execute(&mut *tx).await.unwrap();source.require_current(&mut tx).await.unwrap();
+        sqlx::query("SAVEPOINT receipt_shadow").execute(&mut *tx).await.unwrap();sqlx::query("CREATE TEMP TABLE command_receipts(command_id text)").execute(&mut *tx).await.unwrap();assert!(source.require_current(&mut tx).await.is_err());sqlx::query("ROLLBACK TO SAVEPOINT receipt_shadow").execute(&mut *tx).await.unwrap();source.require_current(&mut tx).await.unwrap();tx.rollback().await.unwrap();
+    }).await;
+}

@@ -9,6 +9,7 @@ pub mod attachment_scan;
 pub mod field_visit_link;
 
 pub(crate) mod count_evidence_policy;
+pub(crate) mod quality_hold_policy;
 pub(crate) mod count_submission;
 pub(crate) mod field_visit_bind;
 

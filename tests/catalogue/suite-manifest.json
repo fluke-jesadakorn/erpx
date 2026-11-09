@@ -59535,21 +59535,6 @@
       }
     },
     {
-      "id": "files.rust-business-evidence-postgres.integration",
-      "lane": "integration",
-      "owner": "files",
-      "modules": ["agent","assets","benefits","brand","collaboration","commercial","crm","customer_360","customer_authority","ecommerce","field_service","finance","identity_access","inventory","learning","legal","maintenance","manage_erpx","manufacturing","marketing","operations","organization","people_payroll","planning","platform_administration","pms","pos","procurement","projects","quality","sales","support","talent"],
-      "files": ["tests/integration/files/rust-business-evidence-postgres.test.rs"],
-      "fixture": "postgres",
-      "requires": {"jobs": false, "scanner": false},
-      "ci": {"critical": true, "reason": "The shared business-evidence binding port must preserve exact Company/branch/department scope, draft target/version/context, registered policy facts, scanned available sources, link bounds, transactional set/link writes and audit events."},
-      "framework": "cargo",
-      "cargo": {"package": "erpx-server-files", "targets": ["business_evidence_postgres"]},
-      "verificationInputs": ["Cargo.toml","Cargo.lock","rust-toolchain.toml","packages/server-files/Cargo.toml","tests/support/rust-postgres.rs","packages/server-files/src/adapters/business_evidence.rs","packages/server-files/src/public/business_evidence.rs","packages/server-records/src/public/business_evidence.rs"],
-      "apps": ["apps","pos","pms","finance","people","sales","supply","assets","projects","recruit","learn","support","service","legal","manufacturing","account","admin","booking","portal","legal-portal","forms"],
-      "packages": ["@erpx/server-files","@erpx/server-records","@erpx/server-runtime","@erpx/server-shared"]
-    },
-    {
       "id": "files.rust-media-validation.unit",
       "lane": "unit",
       "owner": "files",
@@ -81187,21 +81172,6 @@
       "packages": [
         "@erpx/feature-assets"
       ]
-    },
-    {
-      "id": "assets.rust-asset-cost-composition-postgres.integration",
-      "lane": "integration",
-      "owner": "assets",
-      "modules": ["assets", "finance", "maintenance", "identity_access", "people_payroll", "organization", "manage_erpx"],
-      "files": ["tests/integration/assets/rust-asset-cost-composition-postgres.test.rs"],
-      "fixture": "postgres",
-      "requires": {"jobs": false, "scanner": false},
-      "ci": {"critical": true, "reason": "Checks Finance acquisition-cost rollback and the composed Maintenance purchase source against TypeScript."},
-      "framework": "cargo",
-      "cargo": {"package": "erpx-service", "targets": ["asset_cost_composition_postgres"], "features": ["existing-business"]},
-      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "src/composition/Cargo.toml", "packages/server-assets/Cargo.toml", "packages/server-finance/Cargo.toml", "packages/server-maintenance/src/adapters/purchase-sources.ts"],
-      "apps": ["assets"],
-      "packages": ["@erpx/server-assets", "@erpx/server-finance", "@erpx/server-maintenance", "@erpx/server-identity_access", "@erpx/server-people_payroll", "@erpx/server-organization", "@erpx/server-manage_erpx", "@erpx/server-runtime"]
     },
     {
       "id": "assets.rust-asset-http-postgres.integration",

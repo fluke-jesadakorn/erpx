@@ -26,3 +26,4 @@ pub(crate) mod service_invoice_flow;
 pub(crate) mod field_journal_flow;
 
 pub mod asset_purchase_receipt;
+pub(crate) mod quality_return_receipts;

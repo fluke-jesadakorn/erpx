@@ -28,3 +28,4 @@ pub mod service_invoice_flow;
 pub mod field_journal_flow;
 
 pub mod asset_purchase_receipt;
+pub mod quality_return_receipts;
