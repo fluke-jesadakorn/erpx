@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T11:55:00+07:00",
+  "updatedAt": "2026-11-09T12:05:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -7279,6 +7279,11 @@
         "id": "assets-composition-api-drift",
         "detail": "The committed Assets Finance handoff now compiles with the shared dyn Clock, but the keyed container cannot rebuild it: its server-assets adapter and composition asset_http.rs come from different uncommitted API revisions (AssetChangeResult/command body decode), and the positive-cost Assets page still returns NATIVE_ASSETS_UNAVAILABLE. Container source was restored to its last building revision; the native Commerce/guard API is healthy.",
         "unblock": "Reconcile the server-assets/AssetHttp API revision, validate affected consumers and verify positive-cost registration through the authorized development environment; do not change public runtime and defer container work until after the goal."
+      },
+      {
+        "id": "development-holding-native-session-config",
+        "detail": "Registered Holding hosts acme/northstar/erpx-internal.jesadakorn.com return 500 because the host development apps have no ERPX_NATIVE_ACCOUNT_SESSION_CONFIG; native-session.ts:30 fails closed with NATIVE_SESSION_CONFIGURATION_REQUIRED. 3100, console-dev and 3101 health remain 200 and the Console root remains 404.",
+        "unblock": "Point the host gateway/apps at a reviewed native Account session API and set ERPX_NATIVE_ACCOUNT_SESSION_CONFIG, or explicitly authorize a development-only legacy session fallback; do not fake readiness."
       }
     ],
     "nextActions": [
