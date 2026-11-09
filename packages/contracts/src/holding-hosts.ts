@@ -12,7 +12,7 @@ const contributorHoldingHosts = [
   { holdingId: 'h003', holdingSlug: 'erpx', hostname: 'erpx-internal.erpx.localhost:3443', environment:'development' },
 ] as const;
 /** Origin choice is supplied by the outer runtime; this module has no ambient state. */
-export type OriginProfile = 'public' | 'contributor';
+export type OriginProfile = 'public' | 'contributor' | 'loopback';
 export function activeHoldingHosts(profile: OriginProfile = 'public') { return profile === 'contributor' ? contributorHoldingHosts : holdingHosts; }
 export function accountDevelopmentOrigin(profile: OriginProfile = 'public') { return profile === 'contributor' ? 'https://account.erpx.localhost:3443' : 'https://account-dev-erpx.jesadakorn.com'; }
 export function contributorExactOrigin(host: string | null | undefined, profile: OriginProfile = 'public') {

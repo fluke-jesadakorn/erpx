@@ -2,6 +2,7 @@
 import * as hosts from '@erpx/contracts/holding-hosts';
 export * from '@erpx/contracts/holding-hosts';
 export function originProfile(): hosts.OriginProfile {
+  if (process.env.NODE_ENV === 'development' && (process.env.NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE === 'loopback' || process.env.ERPX_NATIVE_ORIGIN_PROFILE === 'loopback')) return 'loopback';
   return process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE === 'container-localhost' ? 'contributor' : 'public';
 }
 export function contributorOriginProfile() { return originProfile() === 'contributor'; }

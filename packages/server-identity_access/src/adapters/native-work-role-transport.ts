@@ -18,11 +18,14 @@ function validPresentation(v:unknown):boolean{
 /** Mandatory native transport. Caller identities only bind the response; they
  * cannot construct the account proof, choose grants or authorize SQL writes. */
 export function createNativeWorkRoleTransport(raw:string,send:typeof nativeWorkRolesRequest=nativeWorkRolesRequest){
- let config:NativeHoldingConfiguration;try{config=nativeHoldingConfiguration(raw,originProfile());}catch{return fail('NATIVE_WORK_ROLE_CONFIGURATION_INVALID');}
+ const profile=originProfile();let config:NativeHoldingConfiguration;try{config=nativeHoldingConfiguration(raw,profile);}catch{return fail('NATIVE_WORK_ROLE_CONFIGURATION_INVALID');}
  const {privateBaseUrl:base,timeoutMs,holdings:targets}=config;
  return async(incoming:Pick<Headers,'get'>,identity:Identity,mode:'current'|'restore'|'initialize'|'select'|'access'|'context',body?:string):Promise<NativeWorkRoleState>=>{
-  const target=targets.find(h=>new URL(h.origin).host===incoming.get('host'));if(!target)return fail('NATIVE_WORK_ROLE_TARGET_UNAVAILABLE');
-  const origin=incoming.get('origin');if(origin&&origin!==target.origin||mode==='select'&&origin!==target.origin)return fail('ORIGIN_FORBIDDEN',403);
+  const sourceHost=incoming.get('host'),loopback=profile==='loopback'&&sourceHost!==null&&/^127\.0\.0\.1:\d+$/.test(sourceHost);
+  const target=loopback?targets[0]:targets.find(h=>new URL(h.origin).host===sourceHost);if(!target)return fail('NATIVE_WORK_ROLE_TARGET_UNAVAILABLE');
+  const sourceOrigin=incoming.get('origin');
+  if(loopback){if(sourceOrigin&&sourceOrigin!==`http://${sourceHost}`)return fail('ORIGIN_FORBIDDEN',403);if(mode==='select'&&!sourceOrigin)return fail('ORIGIN_FORBIDDEN',403);}
+  const origin=loopback?target.origin:sourceOrigin;if(!loopback&&(origin&&origin!==target.origin||mode==='select'&&origin!==target.origin))return fail('ORIGIN_FORBIDDEN',403);
   const resolving=mode==='access'||mode==='context';
   const headers=new Headers({host:new URL(target.origin).host,accept:'application/json'});
   if(identity.companyId)headers.set(resolving?'x-erpx-requested-company':'x-erpx-context-company',identity.companyId);

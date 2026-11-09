@@ -16,7 +16,11 @@ export function nativeHoldingConfiguration(raw:string,profile:OriginProfile='pub
  for(const h of c.holdings){
   if(!object(h)||typeof h.origin!=='string'||typeof h.holdingId!=='string'||!h.holdingId||new TextEncoder().encode(h.holdingId).length>200||typeof h.holdingSlug!=='string'||!/^[a-z0-9_-]{1,128}$/.test(h.holdingSlug))return fail();
   let u:URL;try{u=new URL(h.origin);}catch{return fail();}
-  if(u.protocol!=='https:'||u.origin!==h.origin||u.username||u.password||u.port&&contributorExactOrigin(u.host,profile)!==h.origin||!u.hostname.includes('.')||!u.hostname.split('.').every(p=>/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(p))||hosts.has(u.host)||slugs.has(h.holdingSlug))return fail();hosts.add(u.host);slugs.add(h.holdingSlug);
+  if(profile==='loopback'){
+   const port=Number(u.port);
+   if(c.production===true||u.protocol!=='http:'||!u.hostname.endsWith('.erpxbrowser.test')||!u.port||!allowedPrivateLoopbackPort(port,false)||u.username||u.password||u.origin!==h.origin||hosts.has(u.host)||slugs.has(h.holdingSlug))return fail();
+  }else if(u.protocol!=='https:'||u.origin!==h.origin||u.username||u.password||u.port&&contributorExactOrigin(u.host,profile)!==h.origin||!u.hostname.includes('.')||!u.hostname.split('.').every(p=>/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(p))||hosts.has(u.host)||slugs.has(h.holdingSlug))return fail();
+  hosts.add(u.host);slugs.add(h.holdingSlug);
  }
  return c as NativeHoldingConfiguration;
 }

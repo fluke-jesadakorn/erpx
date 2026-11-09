@@ -12,7 +12,9 @@ export function nativeAccountConfiguration(raw: string): NativeSessionClientConf
       !Array.isArray(record.holdingOrigins) || !record.holdingOrigins.every((origin: unknown) => typeof origin === 'string')) {
     throw new NativeSessionReadError('NATIVE_SESSION_CONFIGURATION_INVALID');
   }
-  return {...record,originProfile:process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE === 'container-localhost' ? 'contributor' : 'public'} as NativeSessionClientConfiguration;
+  const loopback = process.env.NODE_ENV === 'development' && (process.env.NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE === 'loopback' || process.env.ERPX_NATIVE_ORIGIN_PROFILE === 'loopback');
+  const profile = loopback ? 'loopback' : process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE === 'container-localhost' ? 'contributor' : 'public';
+  return {...record,originProfile:profile} as NativeSessionClientConfiguration;
 }
 
 type NativeIdentitySession = IdentitySession & {

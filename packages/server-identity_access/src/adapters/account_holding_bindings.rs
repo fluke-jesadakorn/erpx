@@ -165,10 +165,10 @@ pub struct CurrentHoldingBinding {
 }
 impl CurrentHoldingBinding {
     /// Structural display metadata only; the opaque binding grants no access.
-    pub async fn display_name(&self,c:&mut PgConnection)->Result<String,Error>{
+    pub async fn display_name(&self, c: &mut PgConnection) -> Result<String, Error> {
         self.require_current(c).await?;
         let name:Option<String>=sqlx::query_scalar("SELECT CASE WHEN octet_length(display_name)<=8192 THEN display_name END FROM holding_bindings WHERE holding_id=$1").bind(self.holding_id().as_str()).fetch_one(c).await?;
-        name.ok_or_else(||unavailable().into())
+        name.ok_or_else(|| unavailable().into())
     }
     pub fn holding_id(&self) -> &HoldingId {
         &self.expected.holding_id

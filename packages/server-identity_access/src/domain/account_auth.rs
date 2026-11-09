@@ -263,6 +263,8 @@ impl AccountPolicy {
     pub fn validate(&self) -> Result<(), BusinessError> {
         let mut hosts = BTreeSet::new();
         let contributor = self.account_host == "account.erpx.localhost:3443";
+        let loopback =
+            self.environment == "development" && browser_loopback_host(&self.account_host);
         if contributor
             && (self.holdings.len() != 3
                 || ![
@@ -283,7 +285,8 @@ impl AccountPolicy {
             ));
         }
         if self.account_origin != format!("https://{}", self.account_host)
-            || !(exact_host(&self.account_host) || contributor)
+            && !(loopback && self.account_origin == format!("http://{}", self.account_host))
+            || !(exact_host(&self.account_host) || contributor || loopback)
             || !valid_environment(&self.environment)
         {
             return Err(BusinessError::invalid(
@@ -295,8 +298,10 @@ impl AccountPolicy {
         for holding in &self.holdings {
             let parts = holding.audience.splitn(4, ':').collect::<Vec<_>>();
             if holding.origin != format!("https://{}", holding.host)
+                && !(loopback && holding.origin == format!("http://{}", holding.host))
                 || !(exact_host(&holding.host)
-                    || contributor && contributor_holding_host(&holding.host))
+                    || contributor && contributor_holding_host(&holding.host)
+                    || loopback && browser_loopback_host(&holding.host))
                 || parts.len() != 4
                 || parts[0] != "holding"
                 || parts[1] != self.environment
@@ -337,6 +342,22 @@ pub(crate) fn contributor_holding_host(host: &str) -> bool {
             | "erpx-internal.erpx.localhost:3443"
     )
 }
+fn browser_loopback_host(host: &str) -> bool {
+    let Some((name, port)) = host.rsplit_once(':') else {
+        return false;
+    };
+    let Ok(port) = port.parse::<u16>() else {
+        return false;
+    };
+    name.ends_with(".erpxbrowser.test")
+        && port >= 1024
+        && !matches!(
+            port,
+            3000 | 3001 | 3100 | 3101 | 3103 | 5432 | 5433 | 5435 | 8080
+        )
+        && !(3200..=3299).contains(&port)
+}
+
 fn exact_host(host: &str) -> bool {
     host.len() <= 253
         && host.contains('.')

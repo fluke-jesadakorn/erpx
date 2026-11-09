@@ -625,6 +625,33 @@ if(mode==='prepare'||diagnostic){
  }
  // The preload validates persisted release identity before either process executes.
  await writePrivate(statePath,state);
+ if(process.env.ERPX_NATIVE_BROWSER_ACCOUNT==='1'){
+  const templatePath=process.env.ERPX_NATIVE_BROWSER_ACCOUNT_TEMPLATE;
+  if(!templatePath)throw new Error('BROWSER_NATIVE_ACCOUNT_TEMPLATE_REQUIRED');
+  const template=JSON.parse(await readFile(templatePath,'utf8')),manifest=JSON.parse(await readFile(manifestPath,'utf8')),databases=manifest.databases;
+  const servicePort=3300+(parseInt(run.slice(0,4),16)%100);
+  template.listen=`127.0.0.1:${servicePort}`;
+  template.accountHost='account.erpxbrowser.test:3102';
+  template.holdings=[0,1,2].map((i:number)=>({...template.holdings[Math.min(i,template.holdings.length-1)],
+   holdingId:`h00${i+1}`,slug:i===0?'acme':i===1?'northstar':'erpx',
+   host:i===0?'holding.erpxbrowser.test:3102':i===1?'holding2.erpxbrowser.test:3104':'holding3.erpxbrowser.test:3105',
+   writeBinding:`H00${i+1}_DB`,readBinding:`H00${i+1}_READ_DB`,filesBinding:`H00${i+1}_FILES`,
+   database:{url:databases[`H00${i+1}_DB`],browser:true},
+   readDatabase:{url:databases[`H00${i+1}_READ_DB`],browser:true}}));
+  template.control={url:databases.CONTROL_DB,browser:true};
+  template.financeJournalReads=[];template.posCompanies=[];template.crmCompanies=[];template.operationsCompanies=[];template.commerceCompanies=[];template.assetsCompanies=[];template.platformAdministrationCompanies=[];template.maintenanceCompanies=[];
+  template.fieldServiceReads=[{holdingId:'h001',companyId:'acme-co'}];
+  const account={privateBaseUrl:`http://127.0.0.1:${servicePort}`,accountOrigin:'http://account.erpxbrowser.test:3102',holdingOrigins:['http://holding.erpxbrowser.test:3102'],timeoutMs:5000};
+  const work={privateBaseUrl:`http://127.0.0.1:${servicePort}`,timeoutMs:5000,holdings:[{origin:'http://holding.erpxbrowser.test:3102',holdingSlug:'acme',holdingId:'h001'}]};
+  Object.assign(environment,{NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE:'loopback',ERPX_NATIVE_ORIGIN_PROFILE:'loopback',ERPX_NATIVE_ACCOUNT_SESSION_CONFIG:JSON.stringify(account),ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG:JSON.stringify(work)});
+  const configPath=join(directory,'browser-native-account.json');await writePrivate(configPath,template);
+  const nativeLog=await open(`/tmp/erpx-browser-native-${run}.log`,'a',0o600);
+  const native=spawn(join(root,'target/debug/erpx-server'),['private-api','--development-config',configPath],{cwd:root,env:{...process.env,ERPX_BROWSER_SIMULATION_RUN_ID:run},detached:true,stdio:['ignore',nativeLog.fd,nativeLog.fd]});
+  native.unref();await nativeLog.close();
+  let ready=false;
+  for(let attempt=0;attempt<300;attempt++){try{const response=await fetch(`http://127.0.0.1:${servicePort}/api/health`);if(response.status===200){ready=true;break;}}catch{}await new Promise(resolve=>setTimeout(resolve,100));}
+  if(!ready)throw new Error('BROWSER_NATIVE_ACCOUNT_NOT_READY');
+ }
  if(pmsProviderFixtureEnabled)environment.NODE_OPTIONS+=` --import=${join(workingDirectory,'tools/pms-provider-fixture.mjs')}`;
  const log=await open(join(directory,'server.log'),'a',0o600);
  const child=spawn(node,webArgs,{cwd:workingDirectory,env:environment,detached:true,stdio:['ignore',log.fd,log.fd]});if(!child.pid)throw new Error('BROWSER_SERVER_FAILED');state.pid=child.pid;state.applicationPoolMax=Number(environment.ERPX_APP_PG_POOL_MAX??1);state.controlPoolMax=Number(environment.ERPX_CONTROL_PG_POOL_MAX??5);state.webEntrypoint=webEntrypoint;await writePrivate(statePath,state);child.unref();await log.close();

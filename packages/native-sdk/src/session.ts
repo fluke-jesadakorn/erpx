@@ -11,7 +11,7 @@ export type NativeSessionClientConfiguration = Readonly<{
   accountOrigin: string;
   holdingOrigins: readonly string[];
   timeoutMs: number;
-  originProfile?: 'public' | 'contributor';
+  originProfile?: 'public' | 'contributor' | 'loopback';
   /** Explicit private production runtime opt-in; admits loopback 3101. */
   production?: boolean;
 }>;
@@ -26,9 +26,16 @@ export class NativeSessionReadError extends Error {
   }
 }
 const fail = (code: string, status?: number): never => { throw new NativeSessionReadError(code, status); };
-function exactOrigin(value: string, profile: 'public' | 'contributor'): URL {
+function exactOrigin(value: string, profile: 'public' | 'contributor' | 'loopback'): URL {
   let url: URL;
   try { url = new URL(value); } catch { return fail('NATIVE_SESSION_CONFIGURATION_INVALID'); }
+  if (profile === 'loopback') {
+    const port = Number(url.port);
+    if (url.protocol !== 'http:' || !url.hostname.endsWith('.erpxbrowser.test') || !url.port || !allowedPrivateLoopbackPort(port, false)
+      || url.username || url.password || url.pathname !== '/' || url.search || url.hash) return fail('NATIVE_SESSION_CONFIGURATION_INVALID');
+    if (value !== url.origin) return fail('NATIVE_SESSION_CONFIGURATION_INVALID');
+    return url;
+  }
   const contributor = contributorExactOrigin(url.host, profile) === value;
   if (url.protocol !== 'https:' || url.username || url.password || (url.port && !contributor) || url.pathname !== '/' || url.search || url.hash
     || url.hostname.length > 253 || !url.hostname.includes('.') || !url.hostname.split('.').every(part => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(part)))
@@ -115,14 +122,17 @@ export function createNativeSessionClient(configuration: NativeSessionClientConf
     || configuration.holdingOrigins.length < 1 || configuration.holdingOrigins.length > 64
     || (configuration.production !== undefined && typeof configuration.production !== 'boolean')) return fail('NATIVE_SESSION_CONFIGURATION_INVALID');
   const profile=configuration.originProfile ?? 'public';
-  if (profile !== 'public' && profile !== 'contributor') return fail('NATIVE_SESSION_CONFIGURATION_INVALID');
+  if (profile !== 'public' && profile !== 'contributor' && profile !== 'loopback') return fail('NATIVE_SESSION_CONFIGURATION_INVALID');
   const origins = [configuration.accountOrigin, ...configuration.holdingOrigins].map(value => exactOrigin(value,profile));
   if (profile === 'contributor' && (configuration.accountOrigin !== accountDevelopmentOrigin(profile) || origins.slice(1).some(origin => contributorExactOrigin(origin.host, profile) !== origin.origin || origin.origin === configuration.accountOrigin))) return fail('NATIVE_SESSION_CONFIGURATION_INVALID');
   const hosts = new Set(origins.map(origin => origin.host));
   if (hosts.size !== origins.length) return fail('NATIVE_SESSION_CONFIGURATION_INVALID');
   const timeoutMs = configuration.timeoutMs;
   return async (incoming: Pick<Headers, 'get'>, signal?: AbortSignal): Promise<AccountSessionResponse | null> => {
-    const host = incoming.get('host'), cookie = incoming.get('cookie');
+    const incomingHost = incoming.get('host'), cookie = incoming.get('cookie');
+    const host = profile === 'loopback' && incomingHost !== null && /^127\.0\.0\.1:\d+$/.test(incomingHost)
+      ? new URL(configuration.accountOrigin).host
+      : incomingHost;
     if (!host || !hosts.has(host)) return fail('NATIVE_SESSION_AUTHORITY_INVALID');
     if (cookie && new TextEncoder().encode(cookie).length > 8192) return fail('NATIVE_SESSION_COOKIE_LIMIT');
     const headers = new Headers({ host, accept: 'application/json', 'cache-control': 'no-cache' });
@@ -184,12 +194,23 @@ function directSessionHttp(url: URL, init: RequestInit): Promise<Response> {
 export function createNativeAccountHttpTransport(configuration:NativeSessionClientConfiguration,send:NativeSessionFetch=directSessionHttp){
  createNativeSessionClient(configuration,send); // Reuse exact authority/private-target validation without IO.
  const origins=[configuration.accountOrigin,...configuration.holdingOrigins],hostOrigins=new Map(origins.map(value=>[new URL(value).host,value]));
+ const loopback=configuration.originProfile==='loopback';
  return async(incoming:Request):Promise<Response>=>{
-  const host=incoming.headers.get('host'),origin=incoming.headers.get('origin'),publicUrl=new URL(incoming.url);
-  if(!host||!hostOrigins.has(host))return fail('NATIVE_ACCOUNT_AUTHORITY_INVALID');
+  const sourceHost=incoming.headers.get('host'),sourceOrigin=incoming.headers.get('origin'),publicUrl=new URL(incoming.url);
+  let host:string|undefined,origin:string|undefined;
+  if(loopback){
+    if(!sourceHost||!/^127\.0\.0\.1:\d+$/.test(sourceHost))return fail('NATIVE_ACCOUNT_AUTHORITY_INVALID');
+    const accountPath=/^\/(?:api\/auth|api\/v1\/account|sso)\//.test(publicUrl.pathname);
+    const targetOrigin=accountPath?configuration.accountOrigin:configuration.holdingOrigins[0];
+    host=new URL(targetOrigin).host;origin=targetOrigin;
+    if(sourceOrigin&&sourceOrigin!==`http://${sourceHost}`)return fail('NATIVE_ACCOUNT_ORIGIN_FORBIDDEN',403);
+  }else{
+    host=sourceHost??undefined;origin=sourceOrigin??undefined;
+    if(!host||!hostOrigins.has(host))return fail('NATIVE_ACCOUNT_AUTHORITY_INVALID');
+    if(origin&&!origins.includes(origin)||!['GET','OPTIONS'].includes(incoming.method)&&!origin)return fail('NATIVE_ACCOUNT_ORIGIN_FORBIDDEN',403);
+  }
   if(!['GET','POST','DELETE','OPTIONS'].includes(incoming.method))return new Response(null,{status:405,headers:{allow:'GET, POST, DELETE, OPTIONS'}});
   if(!(/^\/api\/auth\/[A-Za-z0-9_/-]+$/.test(publicUrl.pathname)||/^\/api\/v1\/account\/device-accounts(?:\/(initialize|active|sign-in))?$/.test(publicUrl.pathname)||/^\/api\/v1\/account\/iam\/mfa\/(enroll|verify)$/.test(publicUrl.pathname)||/^\/api\/v1\/account\/security$/.test(publicUrl.pathname)||/^\/sso\/(start|authorize|callback)$/.test(publicUrl.pathname)))return new Response(null,{status:404});
-  if(origin&&!origins.includes(origin)||!['GET','OPTIONS'].includes(incoming.method)&&!origin)return fail('NATIVE_ACCOUNT_ORIGIN_FORBIDDEN',403);
   if(publicUrl.search.length>8192)return fail('NATIVE_ACCOUNT_QUERY_LIMIT',400);
   const cookie=incoming.headers.get('cookie');if(cookie&&new TextEncoder().encode(cookie).length>8192)return fail('NATIVE_ACCOUNT_COOKIE_LIMIT',400);
   const idempotencyKey=incoming.headers.get('idempotency-key');if(idempotencyKey!==null&&(idempotencyKey.length<8||idempotencyKey.length>128))return fail('NATIVE_ACCOUNT_HEADER_LIMIT',400);

@@ -115,6 +115,8 @@ struct DatabaseDocument {
     /// admits a production database or an arbitrary role.
     #[serde(default)]
     direct: bool,
+    #[serde(default)]
+    browser: bool,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -432,6 +434,52 @@ fn durable_database(url: &str) -> Result<RuntimeDatabase, &'static str> {
         identity,
     })
 }
+fn browser_development_database(url: &str) -> Result<RuntimeDatabase, &'static str> {
+    let run = std::env::var("ERPX_BROWSER_SIMULATION_RUN_ID")
+        .map_err(|_| "EXACT_BROWSER_DATABASE_RUN_REQUIRED")?;
+    if run.len() != 12
+        || !run
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+    {
+        return Err("EXACT_BROWSER_DATABASE_RUN_REQUIRED");
+    }
+    let endpoint = url::Url::parse(url).map_err(|_| "EXACT_BROWSER_DATABASE_REQUIRED")?;
+    let database = endpoint.path().trim_matches('/');
+    let prefix = format!("erpx_browser_{run}_");
+    let suffix = database
+        .strip_prefix(&prefix)
+        .ok_or("EXACT_BROWSER_DATABASE_REQUIRED")?;
+    let exact = matches!(
+        suffix,
+        "control_db"
+            | "control_read_db"
+            | "h001_db"
+            | "h001_read_db"
+            | "h002_db"
+            | "h002_read_db"
+            | "h003_db"
+            | "h003_read_db"
+    );
+    if !matches!(endpoint.scheme(), "postgres" | "postgresql")
+        || endpoint.host_str() != Some("127.0.0.1")
+        || endpoint.port() != Some(5432)
+        || endpoint.username() != "erpx_test_admin"
+        || endpoint.password().is_none_or(str::is_empty)
+        || !exact
+        || endpoint.query().is_some()
+        || endpoint.fragment().is_some()
+    {
+        return Err("EXACT_BROWSER_DATABASE_REQUIRED");
+    }
+    let configuration =
+        DatabaseConfig::from_url(url).map_err(|_| "EXACT_BROWSER_DATABASE_REQUIRED")?;
+    Ok(RuntimeDatabase::Durable {
+        configuration,
+        identity: (database.to_owned(), "erpx_test_admin".to_owned()),
+    })
+}
+
 fn direct_development_database(url: &str) -> Result<RuntimeDatabase, &'static str> {
     let endpoint = url::Url::parse(url).map_err(|_| "EXACT_DEVELOPMENT_DATABASE_REQUIRED")?;
     let database = endpoint.path().trim_matches('/');
@@ -458,8 +506,8 @@ fn direct_development_database(url: &str) -> Result<RuntimeDatabase, &'static st
     {
         return Err("EXACT_DEVELOPMENT_DATABASE_REQUIRED");
     }
-    let configuration = DatabaseConfig::from_url(url)
-        .map_err(|_| "EXACT_DEVELOPMENT_DATABASE_REQUIRED")?;
+    let configuration =
+        DatabaseConfig::from_url(url).map_err(|_| "EXACT_DEVELOPMENT_DATABASE_REQUIRED")?;
     Ok(RuntimeDatabase::Durable {
         configuration,
         identity: (database.to_owned(), expected_role),
@@ -472,6 +520,12 @@ fn runtime_database(
 ) -> Result<RuntimeDatabase, &'static str> {
     match profile {
         Profile::Development => {
+            if document.browser {
+                if document.direct || document.lease_token.is_some() {
+                    return Err("DEVELOPMENT_DATABASE_SELECTION_CONFLICT");
+                }
+                return browser_development_database(&document.url);
+            }
             if document.direct {
                 if document.lease_token.is_some() {
                     return Err("DEVELOPMENT_DATABASE_SELECTION_CONFLICT");
@@ -484,7 +538,7 @@ fn runtime_database(
                 .map_err(|_| development_error)
         }
         Profile::Production => {
-            if document.lease_token.is_some() || document.direct {
+            if document.lease_token.is_some() || document.direct || document.browser {
                 return Err("PRODUCTION_API_LEASE_TOKEN_FORBIDDEN");
             }
             durable_database(&document.url)
@@ -528,10 +582,17 @@ impl DevelopmentApiConfiguration {
             Profile::Production => "production",
         };
         let contributor = doc.account_host == "account.erpx.localhost:3443";
+        let browser_loopback = doc.account_host.ends_with(".erpxbrowser.test:3102")
+            || doc.account_host.ends_with(".erpxbrowser.test:3103");
         if doc.version != 1
             || doc.mode != expected_mode
             || doc.transport != "direct-loopback"
-            || doc.holdings.len() != if contributor { 3 } else { 2 }
+            || doc.holdings.len()
+                != if contributor || browser_loopback {
+                    3
+                } else {
+                    2
+                }
             || !(1..=8).contains(&doc.password_workers)
             || !(1..=64).contains(&doc.maximum_requests)
             || !(250..=60_000).contains(&doc.request_timeout_ms)
@@ -569,6 +630,7 @@ impl DevelopmentApiConfiguration {
         let mut hosts = BTreeSet::from([doc.account_host.clone()]);
         let mut writes = BTreeSet::new();
         let mut holdings = Vec::new();
+        let origin_scheme = if browser_loopback { "http" } else { "https" };
         let mut origins = Vec::new();
         for h in doc.holdings {
             let holding_id =
@@ -597,7 +659,11 @@ impl DevelopmentApiConfiguration {
             }
             match profile {
                 Profile::Development => {
-                    if h.database.direct {
+                    if h.database.browser {
+                        if h.database.direct || h.database.lease_token.is_some() {
+                            return Err("DEVELOPMENT_DATABASE_SELECTION_CONFLICT");
+                        }
+                    } else if h.database.direct {
                         if h.database.lease_token.is_some() {
                             return Err("DEVELOPMENT_DATABASE_SELECTION_CONFLICT");
                         }
@@ -624,7 +690,11 @@ impl DevelopmentApiConfiguration {
                         runtime_database(&read, profile, "EXACT_LEASED_API_DATABASE_REQUIRED")?;
                     match profile {
                         Profile::Development => {
-                            if read.direct {
+                            if read.browser {
+                                if read.direct || read.lease_token.is_some() {
+                                    return Err("DEVELOPMENT_DATABASE_SELECTION_CONFLICT");
+                                }
+                            } else if read.direct {
                                 if read.lease_token.is_some() {
                                     return Err("DEVELOPMENT_DATABASE_SELECTION_CONFLICT");
                                 }
@@ -649,7 +719,7 @@ impl DevelopmentApiConfiguration {
                 None => None,
             };
             origins.push(HoldingOrigin {
-                origin: format!("https://{}", h.host),
+                origin: format!("{origin_scheme}://{}", h.host),
                 host: h.host.clone(),
                 audience: format!("holding:{}:{}:{}", environment, h.holding_id, h.host),
             });
@@ -666,7 +736,7 @@ impl DevelopmentApiConfiguration {
                 read_database,
             });
         }
-        let expected_ids = if contributor {
+        let expected_ids = if contributor || browser_loopback {
             BTreeSet::from(["h001".to_owned(), "h002".to_owned(), "h003".to_owned()])
         } else {
             BTreeSet::from(["h001".to_owned(), "h002".to_owned()])
@@ -1219,7 +1289,7 @@ impl DevelopmentApiConfiguration {
             return Err("PRIVATE_API_FINANCE_CONFIGURATION_INVALID");
         }
         let policy = Arc::new(AccountPolicy {
-            account_origin: format!("https://{}", doc.account_host),
+            account_origin: format!("{origin_scheme}://{}", doc.account_host),
             account_host: doc.account_host,
             environment: environment.clone(),
             require_email_verification: doc.require_email_verification,
