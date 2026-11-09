@@ -8901,6 +8901,22 @@
           "merged": 65,
           "total": 206
         }
+      },
+      {
+        "at": "2026-11-09T13:20:00+07:00",
+        "commit": "86de0b0ae",
+        "bundles": [
+          "Field Count terminal/History native detail mount"
+        ],
+        "evidence": "Mounted initial Count terminal/History source witnesses into read_service_initial_count. The read acquires Inventory/Workflow/Files terminal fences and returns terminalHistory from the exact joined Count/decision/receipt/Files recursive version-chain predicate. Exact archive 86de0b0ae service_initial_physical_stock_postgres 2/2 (51.77s) with terminalHistory=true on the posted selected Account Count. No workflow/owner promoted; Files/Finance History mounts, browser and legacy remain open.",
+        "counts": {
+          "owners": 0,
+          "verified": 65,
+          "partial": 57,
+          "unstarted": 84,
+          "merged": 65,
+          "total": 206
+        }
       }
     ]
   }
