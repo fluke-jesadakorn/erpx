@@ -710,7 +710,7 @@ export function createNativeRecordContextClient(
 
 /** Fresh bounded socket; bypasses patched fetch/HMR and ambient proxies. */
 export function directHttp(
-  method: 'GET' | 'POST',
+  method: 'GET' | 'POST' | 'PATCH',
   url: URL,
   headers: Headers,
   body: string | undefined,

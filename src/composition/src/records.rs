@@ -353,6 +353,9 @@ impl<C: Clock + Send + Sync + 'static> RecordsService<C> {
             RecordsRegistryHttpCommand::Create { .. } => {
                 return Err(unavailable().into());
             }
+            RecordsRegistryHttpCommand::Update { .. } => {
+                return Err(unavailable().into());
+            }
         };
         self.authorizer
             .execute_with_sources_deferred(
@@ -544,7 +547,11 @@ impl<C: Clock + Send + Sync + 'static> RecordsRegistryHttpBackend for RecordsBac
         request: RecordsRegistryHttpRequest<'a>,
     ) -> RecordsRegistryHttpFuture<'a, RecordsRegistryHttpResponse> {
         Box::pin(async move {
-            let create = matches!(request.command, RecordsRegistryHttpCommand::Create { .. });
+            let create = matches!(
+                request.command,
+                RecordsRegistryHttpCommand::Create { .. }
+                    | RecordsRegistryHttpCommand::Update { .. }
+            );
             let (proof, selection) = if create {
                 self.write_request(request.headers)?
             } else {
@@ -563,6 +570,30 @@ impl<C: Clock + Send + Sync + 'static> RecordsRegistryHttpBackend for RecordsBac
                             proof,
                             move || Ok(selection),
                             module_id,
+                            input,
+                            erpx_server_shared::public::CommandKey::new(key)?,
+                        )
+                        .await
+                        .map_err(business)?;
+                    Ok(RecordsRegistryHttpResponse {
+                        data: view,
+                        context,
+                    })
+                }
+                RecordsRegistryHttpCommand::Update {
+                    module_id,
+                    record_id,
+                    input,
+                    key,
+                } => {
+                    let (_, context, view) = self
+                        .command
+                        .update_with_context(
+                            request.host,
+                            proof,
+                            move || Ok(selection),
+                            module_id,
+                            record_id,
                             input,
                             erpx_server_shared::public::CommandKey::new(key)?,
                         )

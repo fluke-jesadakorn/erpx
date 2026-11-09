@@ -7,7 +7,9 @@ mod review;
 use erpx_server_records::public::record_registry_http::{
     RecordsRegistryHttpTarget, records_registry_http_router,
 };
-use erpx_server_records::public::record_write::{CreateRecordInput, RecordFieldInput};
+use erpx_server_records::public::record_write::{
+    CreateRecordInput, RecordFieldInput, UpdateRecordInput,
+};
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{BusinessError, Clock, CommandKey, CompanyId, HoldingId};
 use erpx_server_workflow::public::commands::CommandJson;
@@ -329,6 +331,208 @@ async fn native_http_create_accepts_real_session_and_returns_context_and_view() 
             .unwrap();
         let denied = router.clone().oneshot(missing).await.unwrap();
         assert_eq!(denied.status(), 403);
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn updates_record_fields_with_version_cas_receipt_audit_outbox_and_replay() {
+    review::account::with_system(|system| async move {
+        let (p, service, _) = records_setup(system).await;
+        let pool = &p.system.holdings[0];
+        let id = "rec-support-records:update-seed".to_owned();
+        service
+            .create(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                input("Seed record"),
+                key("records:update-seed"),
+            )
+            .await
+            .unwrap();
+        let update = UpdateRecordInput {
+            expected_version: 1,
+            fields: std::collections::BTreeMap::from([("priority".into(), json!("low"))]),
+        };
+        let result = service
+            .update(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                id.clone(),
+                update.clone(),
+                key("records:update-1"),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            result.as_str(),
+            CommandJson::from_serializable(&json!({"id": id}))
+                .unwrap()
+                .as_str()
+        );
+        let row: (String, i64, String) = sqlx::query_as(
+            "SELECT fields_json,version,updated_by FROM workspace_records \
+             WHERE module_id='support' AND id=$1",
+        )
+        .bind(&id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            row.0,
+            json!([{"key":"priority","label":"Priority","type":"text","value":"low"}]).to_string()
+        );
+        assert_eq!(row.1, 2);
+        assert_eq!(row.2, "fixture-a");
+        let receipt: (String, String) = sqlx::query_as(
+            "SELECT operation,result_json FROM command_receipts \
+             WHERE command_id='records:update-1'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(receipt.0, "record.update");
+        assert_eq!(receipt.1, json!({"id": id}).to_string());
+        let audit: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM audit_events WHERE command_id='records:update-1' \
+             AND record_type='record_update' AND record_version=1 AND record_id=$1",
+        )
+        .bind(&id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        let outbox: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM outbox_events WHERE command_id='records:update-1' \
+             AND event_type='record.update' AND aggregate_version=1 AND aggregate_id=$1",
+        )
+        .bind(&id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!((audit, outbox), (1, 1));
+        // Exact replay returns the same receipt and writes no second update.
+        let replay = service
+            .update(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                id.clone(),
+                update,
+                key("records:update-1"),
+            )
+            .await
+            .unwrap();
+        assert_eq!(replay.as_str(), result.as_str());
+        let version: i64 = sqlx::query_scalar(
+            "SELECT version FROM workspace_records WHERE module_id='support' AND id=$1",
+        )
+        .bind(&id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(version, 2);
+        let audits: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM audit_events WHERE command_id='records:update-1'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(audits, 1);
+        // The stale expected version is refused before any new receipt.
+        let conflict = service
+            .update(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                id.clone(),
+                UpdateRecordInput {
+                    expected_version: 1,
+                    fields: std::collections::BTreeMap::from([(
+                        "priority".into(),
+                        json!("urgent"),
+                    )]),
+                },
+                key("records:update-2"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(business(conflict).code, "VERSION_CONFLICT");
+        // Unknown fields are refused rather than silently added.
+        let unknown = service
+            .update(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                id.clone(),
+                UpdateRecordInput {
+                    expected_version: 2,
+                    fields: std::collections::BTreeMap::from([("missing".into(), json!(true))]),
+                },
+                key("records:update-3"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(business(unknown).code, "UNKNOWN_FIELD");
+        // A reviewer without records.write cannot update the record.
+        let denied = service
+            .update(
+                "acme.example.test",
+                p.reviewer.clone(),
+                {
+                    let selection = p.reviewer_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                id.clone(),
+                UpdateRecordInput {
+                    expected_version: 2,
+                    fields: std::collections::BTreeMap::from([("priority".into(), json!("low"))]),
+                },
+                key("records:update-4"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(
+            business(denied).kind,
+            erpx_server_shared::public::FailureKind::Forbidden
+        );
+        let receipts: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM command_receipts WHERE command_id LIKE 'records:update-%'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(receipts, 2); // seed create + accepted update; failures add none
+        let version: i64 = sqlx::query_scalar(
+            "SELECT version FROM workspace_records WHERE module_id='support' AND id=$1",
+        )
+        .bind(&id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(version, 2);
     })
     .await;
 }

@@ -18,6 +18,7 @@ pub const MAX_FIELD_TYPE: usize = 30;
 pub const MAX_FIELD_OPTIONS: usize = 50;
 pub const MAX_FIELD_OPTION: usize = 120;
 pub const MAX_FIELD_STRING: usize = 4_000;
+pub const MAX_SAFE: i64 = 9_007_199_254_740_991;
 pub const SUPPORT_SECTIONS: &[&str] = &[
     "tickets",
     "sla-watch",
@@ -49,6 +50,13 @@ pub struct CreateRecordInput {
     pub title: String,
     pub description: String,
     pub fields: Vec<RecordFieldInput>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct UpdateRecordInput {
+    pub expected_version: i64,
+    pub fields: std::collections::BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -141,6 +149,77 @@ pub fn validate_create(
         section_id: input.section_id.clone(),
         title: title.to_owned(),
         description: description.to_owned(),
+        fields_json,
+    })
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ValidatedRecordUpdate {
+    pub version: i64,
+    pub fields_json: String,
+}
+
+pub fn version_conflict() -> BusinessError {
+    BusinessError::new(
+        erpx_server_shared::public::FailureKind::Conflict,
+        "VERSION_CONFLICT",
+        "This record changed. Refresh and review it again.",
+    )
+}
+
+pub fn validate_update(
+    module_id: &str,
+    input: &UpdateRecordInput,
+    current_fields: &[RecordFieldInput],
+    current_version: i64,
+) -> Result<ValidatedRecordUpdate, BusinessError> {
+    if module_id != "support" {
+        return Err(invalid(
+            "RECORD_MODULE_UNSUPPORTED",
+            "This record module is not available in the native workbench yet.",
+        ));
+    }
+    if !(1..=MAX_SAFE).contains(&input.expected_version) {
+        return Err(invalid(
+            "RECORD_VERSION_INVALID",
+            "Reload the record and try again.",
+        ));
+    }
+    if input.expected_version != current_version {
+        return Err(version_conflict());
+    }
+    if input.fields.len() > MAX_FIELDS {
+        return Err(invalid(
+            "RECORD_FIELDS_INVALID",
+            "Use between 1 and 64 fields.",
+        ));
+    }
+    let mut seen = std::collections::HashSet::with_capacity(input.fields.len());
+    for (key, value) in &input.fields {
+        if key.is_empty() || text_units(key) > MAX_FIELD_KEY || !valid_field_value(value) {
+            return Err(invalid(
+                "RECORD_FIELDS_INVALID",
+                "Use unique bounded fields with supported values.",
+            ));
+        }
+        seen.insert(key.as_str());
+    }
+    let mut fields = current_fields.to_vec();
+    for field in &mut fields {
+        if seen.remove(field.key.as_str()) {
+            field.value = input.fields[&field.key].clone();
+        }
+    }
+    if !seen.is_empty() {
+        return Err(invalid(
+            "UNKNOWN_FIELD",
+            "Use only fields that already exist on this record.",
+        ));
+    }
+    let fields_json = serde_json::to_string(&fields)
+        .map_err(|_| invalid("RECORD_FIELDS_INVALID", "Use supported field values."))?;
+    Ok(ValidatedRecordUpdate {
+        version: current_version + 1,
         fields_json,
     })
 }

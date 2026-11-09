@@ -7,10 +7,10 @@
 //! responsibilities behind [`RecordsRegistryHttpBackend`].
 use crate::domain::record_context::valid_module;
 use crate::domain::record_registry::RegistryQuery;
-use crate::domain::record_write::CreateRecordInput;
+use crate::domain::record_write::{CreateRecordInput, UpdateRecordInput};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
-    StatusCode, body::to_bytes, header, routing::get, serde_json,
+    StatusCode, body::to_bytes, header, routing::get, routing::patch, serde_json,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
 use serde_json::Value;
@@ -35,6 +35,12 @@ pub enum RecordsRegistryHttpCommand {
     Create {
         module_id: String,
         input: CreateRecordInput,
+        key: String,
+    },
+    Update {
+        module_id: String,
+        record_id: String,
+        input: UpdateRecordInput,
         key: String,
     },
 }
@@ -284,6 +290,10 @@ pub fn records_registry_http_router(
             "/api/v1/holdings/{holding_slug}/records/{module_id}",
             get(read_registry).post(create_record),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}",
+            patch(update_record),
+        )
         .with_state(Arc::new(RecordsRegistryHttpState {
             targets: configured,
         })))
@@ -374,6 +384,77 @@ async fn create_record(
                 headers: &headers,
                 command: RecordsRegistryHttpCommand::Create {
                     module_id,
+                    input,
+                    key: key.to_owned(),
+                },
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => bounded(reply.value()),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn update_record(
+    State(state): State<Arc<RecordsRegistryHttpState>>,
+    Path((slug, module_id, record_id)): Path<(String, String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let result = async move {
+        let target = target(&state, &headers, &slug)?;
+        if unique_header(&headers, header::ORIGIN)?.is_none_or(|origin| origin != target.origin) {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            ));
+        }
+        let key = unique_header(&headers, HeaderName::from_static("idempotency-key"))?
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                BusinessError::invalid(
+                    "IDEMPOTENCY_KEY_REQUIRED",
+                    "Provide a command key to update this record.",
+                )
+            })?;
+        CommandKey::new(key.to_owned()).map_err(|_| {
+            BusinessError::invalid(
+                "IDEMPOTENCY_KEY_REQUIRED",
+                "Provide a command key to update this record.",
+            )
+        })?;
+        let content_type = unique_header(&headers, header::CONTENT_TYPE)?
+            .unwrap_or_default()
+            .split(';')
+            .next()
+            .unwrap_or_default()
+            .trim()
+            .to_ascii_lowercase();
+        if content_type != "application/json" {
+            return Err(BusinessError::invalid(
+                "JSON_REQUIRED",
+                "Submit the record as JSON.",
+            ));
+        }
+        if !valid_module(&module_id) || !crate::domain::record_context::valid_id(&record_id) {
+            return Err(missing());
+        }
+        let bytes = to_bytes(request.into_body(), 64 * 1024)
+            .await
+            .map_err(|_| malformed())?;
+        let input: UpdateRecordInput = serde_json::from_slice(&bytes).map_err(|_| malformed())?;
+        target
+            .backend
+            .execute(RecordsRegistryHttpRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                command: RecordsRegistryHttpCommand::Update {
+                    module_id,
+                    record_id,
                     input,
                     key: key.to_owned(),
                 },

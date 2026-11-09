@@ -5,6 +5,7 @@ import { errorResponse, ApiError } from "@erpx/server-runtime/public/http";
 import { archiveRecord, getRecord, recordContext, updateRecord, updateRecordSchema } from "@erpx/server-records/public/records";
 import { recordMentionDisplay } from "@erpx/server-records/public/mention-display";
 import { createNativeRecordContextClient, nativeRecordContextAvailable, nativeRecordContextConfiguration, nativeRecordContextFailure } from "@erpx/server-records/public/native-record-context";
+import { createNativeRecordRegistryClient, nativeRecordRegistryAvailable, nativeRecordRegistryConfiguration, nativeRecordRegistryFailure } from "@erpx/server-records/public/native-record-registry";
 
 export const dynamic = "force-dynamic";
 export async function GET(request: Request, context: RouteContext<"/api/v1/holdings/[holdingSlug]/records/[module]/[id]">) {
@@ -39,7 +40,32 @@ export async function DELETE(request:Request,context:RouteContext<"/api/v1/holdi
 export async function PATCH(request: Request, context: RouteContext<"/api/v1/holdings/[holdingSlug]/records/[module]/[id]">) {
   try { const {holdingSlug,module,id}=await context.params; const parsed=updateRecordSchema.safeParse(await request.json());
     if(!parsed.success) throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Invalid fields.");
-    const actor=await requireWorkContext(holdingSlug); await getRecord(actor,module,id);
+    const actor=await requireWorkContext(holdingSlug);
+    if(nativeRecordRegistryAvailable()&&module==="support")return await updateNativeRecord(request,actor,holdingSlug,module,id,parsed.data);
+    await getRecord(actor,module,id);
     return Response.json(canonicalDestinationLinks({data:await updateRecord(actor,module,id,parsed.data,request.headers.get("Idempotency-Key")??undefined)}));
   } catch(error){return errorResponse(error);}
+}
+async function updateNativeRecord(request:Request,actor:Awaited<ReturnType<typeof requireWorkContext>>,holdingSlug:string,moduleId:string,recordId:string,input:{expectedVersion:number;fields:Record<string,string|number|boolean>}){
+  if(!actor.authority||!actor.iam)throw new ApiError(409,"WORK_CONTEXT_CHANGED","Your work role changed. Reload and review before retrying.");
+  const key=request.headers.get("Idempotency-Key");
+  if(!key)throw new ApiError(422,"IDEMPOTENCY_KEY_REQUIRED","Provide a command key to update this record.");
+  try {
+    const raw=process.env.ERPX_NATIVE_RECORDS_CONFIG;
+    if(raw===undefined)throw new ApiError(503,"NATIVE_RECORD_REGISTRY_UNAVAILABLE","The native Records writer is unavailable.");
+    const client=createNativeRecordRegistryClient(nativeRecordRegistryConfiguration(raw));
+    const scope=actor.scope;
+    const branchSlug=scope.kind==="branch"||scope.kind==="department"?(scope.branchSlug??null):null;
+    const departmentSlug=scope.kind==="department"?scope.departmentSlug:null;
+    const context={userId:actor.userId,holdingId:actor.holdingId,holdingSlug,companyId:actor.companyId,branchId:actor.branchId,departmentId:actor.departmentId,
+      branchSlug,departmentSlug,
+      assignmentId:actor.assignmentId,role:actor.role,assignmentScope:actor.assignmentScope,modules:actor.modules,
+      authority:actor.authority,iam:{permissions:actor.iam.permissions}};
+    const record=await client.update(request.headers,context,{holdingSlug,moduleId,recordId,expectedVersion:input.expectedVersion,fields:input.fields},key);
+    return Response.json(canonicalDestinationLinks({data:record}));
+  } catch(error) {
+    const mapped=nativeRecordRegistryFailure(error);
+    if(!mapped)throw error;
+    throw new ApiError(mapped.status,mapped.code,mapped.message);
+  }
 }

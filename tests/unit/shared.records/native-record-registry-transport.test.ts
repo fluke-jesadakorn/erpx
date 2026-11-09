@@ -376,6 +376,45 @@ describe('native Records registry transport', () => {
     });
   });
 
+  it('patches bounded fields with version and origin and returns the updated view', async () => {
+    const calls: { method: string; url: URL; headers: Headers; body: string | undefined }[] = [];
+    const updatedView = view('rec-support-records:http-1', 2, 'support', 'tickets');
+    const transport: NativeRecordRegistryTransport = async (method, url, headers, body) => {
+      calls.push({ method, url, headers, body });
+      return new Response(JSON.stringify({ data: updatedView, context }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+    const writer = createNativeRecordRegistryClient(config() as never, transport);
+    const updated = await writer.update(
+      incoming({ origin: 'https://acme.example.com' }),
+      actor,
+      {
+        holdingSlug: 'acme',
+        moduleId: 'support',
+        recordId: 'rec-support-records:http-1',
+        expectedVersion: 1,
+        fields: { priority: 'low' },
+      },
+      'records:http-update-1',
+    );
+    expect(updated).toEqual(updatedView);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.method).toBe('PATCH');
+    expect(calls[0]!.url.toString()).toBe(
+      'http://127.0.0.1:44994/api/v1/holdings/acme/records/support/rec-support-records%3Ahttp-1',
+    );
+    expect(calls[0]!.headers.get('origin')).toBe('https://acme.example.com');
+    expect(calls[0]!.headers.get('idempotency-key')).toBe('records:http-update-1');
+    expect(calls[0]!.headers.get('x-erpx-context-company')).toBe('company');
+    expect(calls[0]!.headers.get('cookie')).toBe('__Host-erpx-product=session');
+    expect(JSON.parse(calls[0]!.body!)).toEqual({
+      expectedVersion: 1,
+      fields: { priority: 'low' },
+    });
+  });
+
   it('rejects missing origin, bad keys and duplicate fields before transport', async () => {
     const calls: string[] = [];
     const transport: NativeRecordRegistryTransport = async (method) => {

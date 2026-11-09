@@ -57,6 +57,18 @@ impl RecordsRegistryHttpBackend for Probe {
                     format!("create|{module_id}|{key}|{}", input.section_id),
                     serde_json::json!({"id": format!("rec-{module_id}-{key}")}),
                 ),
+                RecordsRegistryHttpCommand::Update {
+                    module_id,
+                    record_id,
+                    input,
+                    key,
+                } => (
+                    format!(
+                        "update|{module_id}|{record_id}|{key}|{}",
+                        input.expected_version
+                    ),
+                    serde_json::json!({"id": record_id}),
+                ),
             };
             self.seen.lock().unwrap().push(format!(
                 "{}|{}|{}|{cookie:?}",
@@ -159,6 +171,13 @@ fn post(path: &str, host: &str, origin: &str, key: &str, body: &str) -> String {
 fn get(path: &str, host: &str) -> String {
     format!(
         "GET {path} HTTP/1.1\r\nHost: {host}\r\nCookie: erpx=session\r\nConnection: close\r\n\r\n"
+    )
+}
+
+fn patch(path: &str, host: &str, origin: &str, key: &str, body: &str) -> String {
+    format!(
+        "PATCH {path} HTTP/1.1\r\nHost: {host}\r\nOrigin: {origin}\r\nCookie: erpx=session\r\nIdempotency-Key: {key}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
     )
 }
 
@@ -409,6 +428,85 @@ async fn actual_router_forwards_create_with_origin_idempotency_and_body() {
             "https://acme.example.test",
             "records:http-3",
             "{",
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(
+        response["error"]["code"],
+        "RECORDS_REGISTRY_REQUEST_INVALID"
+    );
+}
+
+#[tokio::test]
+async fn actual_router_forwards_update_with_version_and_idempotency() {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let router = records_registry_http_router(vec![target(
+        "acme.example.test",
+        "acme",
+        seen.clone(),
+        false,
+    )])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let _server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+    let path = "/api/v1/holdings/acme/records/support/rec-support-records:http-1";
+    let body = r#"{"expectedVersion":1,"fields":{"priority":"low"}}"#;
+    let (status, response, headers) = http(
+        addr,
+        patch(
+            path,
+            "acme.example.test",
+            "https://acme.example.test",
+            "records:http-update-1",
+            body,
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(response["data"]["id"], "rec-support-records:http-1");
+    assert!(headers.contains("cache-control: private, no-store"));
+    assert_eq!(
+        seen.lock().unwrap().last().unwrap(),
+        "acme.example.test|acme|update|support|rec-support-records:http-1|records:http-update-1|1|Some(\"erpx=session\")"
+    );
+    let (status, response, _) = http(
+        addr,
+        patch(
+            path,
+            "acme.example.test",
+            "https://foreign.example.test",
+            "records:http-update-2",
+            body,
+        ),
+    )
+    .await;
+    assert_eq!(status, 403);
+    assert_eq!(response["error"]["code"], "ORIGIN_FORBIDDEN");
+    let (status, response, _) = http(
+        addr,
+        patch(
+            path,
+            "acme.example.test",
+            "https://acme.example.test",
+            "short",
+            body,
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(response["error"]["code"], "IDEMPOTENCY_KEY_REQUIRED");
+    let (status, response, _) = http(
+        addr,
+        patch(
+            path,
+            "acme.example.test",
+            "https://acme.example.test",
+            "records:http-update-3",
+            r#"{"expectedVersion":1,"fields":{"priority":"low"},"extra":true}"#,
         ),
     )
     .await;
