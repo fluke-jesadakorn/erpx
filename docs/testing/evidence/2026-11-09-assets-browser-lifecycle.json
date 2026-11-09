@@ -71,13 +71,41 @@
   "limitations": [
     "The browser registration and lifecycle journeys used Mali (holding_owner). The independent retirement approval is covered by the native asset_http_postgres independent-review case; a second browser account with an Assets-authorized role was not available in the keyed fixture.",
     "The maintenance work-order browser lifecycle was not completed because the seeded eligible asset already carries active maintenance work and the newly registered retirement-pending asset is not selectable for a new work order. The native maintenance-source/retirement checks pass.",
-    "The Assets owner remains partial: two of five catalogue workflows are not fully browser-qualified."
+    "The Assets owner remains partial: two of five catalogue workflows are not fully browser-qualified.",
+    "The browser run is not valid evidence for the pushed commit until repeated at the exact SHA after committing the transport/config source.",
+    "The reviewed promotions were reverted; counts remain 65 verified/65 merged/57 partial."
   ],
-  "pushedCommit": "9bb073161078541575574002dce5c1de6b8bceb3",
-  "remoteVerified": true,
+  "pushedCommit": null,
+  "remoteVerified": false,
   "mergedWorkflows": [
     "assets/asset-register",
     "assets/condition",
     "assets/feature-placement"
+  ],
+  "invalidForTestedSource": true,
+  "testedSource": {
+    "headAtRun": "4f3bfaf492c2757b76de2f88474728a8749c8050",
+    "workingDiffSha256": "bc5ef8efae038945d58ee824e33a275e4ec384beed7212ec6b141c2cfd226703",
+    "note": "Dirty working tree; pushed 9bb073161/b4185f46e omitted the required feature-assets transport/config files."
+  },
+  "lifecycleVersions": {
+    "placement": {
+      "status": "in_service",
+      "version": 2
+    },
+    "condition": {
+      "status": "in_service",
+      "version": 3
+    },
+    "retirementRequest": {
+      "status": "retirement_pending",
+      "version": 4
+    }
+  },
+  "reviewFindings": [
+    "Pushed HEAD lacked native-assets.ts create status/port handling and dev-container-start.ts ERPX_NATIVE_ASSETS_CONFIG.",
+    "asset-register scope still contains a TS financial-assets route and legacy TS asset/maintenance writers.",
+    "Committed evidence did not record condition/placement/custodian/version readback; versions are now retained from the raw run but remain dirty-source evidence.",
+    "Nine console errors and one View details timeout were not explained in limitations."
   ]
 }

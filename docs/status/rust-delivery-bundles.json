@@ -16,12 +16,12 @@
     "interpretation": "The 206 items are catalogue workflows, not the number of bounded flows. Each listed ID occurs once below. A partial item has supporting qualified slices, not whole-workflow verification."
   },
   "counts": {
-    "qualifiedBusinessFlows": 111,
+    "qualifiedBusinessFlows": 108,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 54,
-    "workflowsVerified": 68,
-    "workflowsMerged": 68,
+    "workflowsPartial": 57,
+    "workflowsVerified": 65,
+    "workflowsMerged": 65,
     "ownersComplete": 0,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -4381,9 +4381,9 @@
       "kind": "module",
       "owner": "assets",
       "scope": "Asset register",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [
         "assets-native-http",
         "assets-native-ssr",
@@ -4392,16 +4392,16 @@
         "assets-register-browser-positive-cost"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Browser-qualified positive-cost registration on desktop and mobile with same-unit Finance acquisition-cost snapshot, normal Account/SSO session, API/PostgreSQL readback; shared owner/retirement and Finance ports remain."
+      "gap": "Review at b4185f46e found the browser evidence was produced from a dirty working tree: pushed HEAD lacked the `native-assets.ts` no-status create acknowledgement, the contributor `:3443` origin exception and `dev-container-start.ts` `ERPX_NATIVE_ASSETS_CONFIG`. The live `assets/financial-assets` route still uses TS writers, and legacy TS maintenance/asset writers remain exported/consumed. Keep this workflow partial until the transport/config source is committed, the browser journey is re-run at the exact pushed SHA with version/custodian/readback evidence, and the remaining TS sub-surface is migrated or explicitly scoped."
     },
     {
       "id": "assets/condition",
       "kind": "module",
       "owner": "assets",
       "scope": "Condition",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [
         "assets-native-http",
         "assets-native-ssr",
@@ -4410,16 +4410,16 @@
         "assets-condition-browser"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Browser-qualified condition change on the registered asset with owner readback; retirement approval and maintenance work-order journeys remain separate."
+      "gap": "Review at b4185f46e found the browser evidence was produced from a dirty working tree: pushed HEAD lacked the `native-assets.ts` no-status create acknowledgement, the contributor `:3443` origin exception and `dev-container-start.ts` `ERPX_NATIVE_ASSETS_CONFIG`. The live `assets/financial-assets` route still uses TS writers, and legacy TS maintenance/asset writers remain exported/consumed. Keep this workflow partial until the transport/config source is committed, the browser journey is re-run at the exact pushed SHA with version/custodian/readback evidence, and the remaining TS sub-surface is migrated or explicitly scoped."
     },
     {
       "id": "assets/feature-placement",
       "kind": "module",
       "owner": "assets",
       "scope": "Placement",
-      "partial": false,
-      "verified": true,
-      "merged": true,
+      "partial": true,
+      "verified": false,
+      "merged": false,
       "evidenceFlows": [
         "assets-native-http",
         "assets-native-ssr",
@@ -4428,7 +4428,7 @@
         "assets-placement-browser"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Browser-qualified placement into service with custodian, owner readback and persisted version; independent approval and maintenance work-order journeys remain separate."
+      "gap": "Review at b4185f46e found the browser evidence was produced from a dirty working tree: pushed HEAD lacked the `native-assets.ts` no-status create acknowledgement, the contributor `:3443` origin exception and `dev-container-start.ts` `ERPX_NATIVE_ASSETS_CONFIG`. The live `assets/financial-assets` route still uses TS writers, and legacy TS maintenance/asset writers remain exported/consumed. Keep this workflow partial until the transport/config source is committed, the browser journey is re-run at the exact pushed SHA with version/custodian/readback evidence, and the remaining TS sub-surface is migrated or explicitly scoped."
     },
     {
       "id": "assets/feature-maintenance-lifecycle",
@@ -6552,7 +6552,7 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-09T11:05:00+07:00",
+    "generatedAt": "2026-11-09T11:35:00+07:00",
     "sourceHead": "9bb073161078541575574002dce5c1de6b8bceb3",
     "interpretation": "ownerTotals counts catalogue workflows only; the seven workflow owners outside the 41-owner register (account, admin, apps, booking, forms, legal-portal, portal) are surface owners mapped into those register owners. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed. Owner completion is counted only after those strict gates are independently established at the pushed source; zero here means none has yet been certified by this audit, not that historical slices were undone.",
     "ownerTotals": {
@@ -6646,8 +6646,8 @@
       },
       "assets": {
         "workflows": 5,
-        "verified": 3,
-        "partial": 2,
+        "verified": 0,
+        "partial": 5,
         "unstarted": 0,
         "phase": "partial",
         "businessMigrationComplete": false
@@ -8664,6 +8664,22 @@
           "partial": 54,
           "unstarted": 84,
           "merged": 68,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-09T11:35:00+07:00",
+        "commit": "b4185f46e",
+        "bundles": [
+          "Assets evidence correction after frozen review"
+        ],
+        "evidence": "Reviewer found the browser journey ran on a dirty tree missing committed Next transport/config and that TS financial-assets/maintenance writers remain. Reverted Assets promotions: 65 verified/65 merged/57 partial/84 unstarted, owners 0/41. No source was deleted; historical browser evidence retained with a stale-source qualification.",
+        "counts": {
+          "owners": 0,
+          "verified": 65,
+          "partial": 57,
+          "unstarted": 84,
+          "merged": 65,
           "total": 206
         }
       }
