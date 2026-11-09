@@ -105,6 +105,19 @@ impl<C: Clock + Send + Sync + 'static> FinanceBankWorkspaceService<C> {
     where
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
+        self.read_deferred(host, proof, input, Ok(query)).await
+    }
+
+    async fn read_deferred<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        query: Result<BankWorkspaceQuery, BusinessError>,
+    ) -> Result<BankWorkspace, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
         let company = self.configuration.company.clone();
         let input = move || {
             let mut request = input()?;
@@ -133,6 +146,7 @@ impl<C: Clock + Send + Sync + 'static> FinanceBankWorkspaceService<C> {
                     let clock = clock.clone();
                     let query = query.clone();
                     Box::pin(async move {
+                        let query = query?;
                         if current.holding_id() != &configuration.holding
                             || current.selection().workspace().company_id != configuration.company
                         {
@@ -236,7 +250,7 @@ pub struct FinanceBankWorkspaceTarget<C> {
 struct WorkspaceState<C> {
     policy: Arc<AccountPolicy>,
     scopes: Arc<dyn BusinessScopeSlugs>,
-    targets: BTreeMap<(String, String), FinanceBankWorkspaceTarget<C>>,
+    targets: BTreeMap<(String, String, String), FinanceBankWorkspaceTarget<C>>,
 }
 
 pub fn finance_bank_workspace_router<C: Clock + Send + Sync + 'static>(
@@ -251,10 +265,20 @@ pub fn finance_bank_workspace_router<C: Clock + Send + Sync + 'static>(
         let valid = policy
             .audience(&target.host)
             .and_then(|audience| registry.expected_for_audience(&audience).ok())
-            .is_some_and(|holding| holding.slug == target.holding_slug);
+            .is_some_and(|holding| {
+                holding.slug == target.holding_slug
+                    && holding.holding_id == target.service.configuration.holding
+            });
         if !valid
             || configured
-                .insert((target.host.clone(), target.holding_slug.clone()), target)
+                .insert(
+                    (
+                        target.host.clone(),
+                        target.holding_slug.clone(),
+                        target.service.company_id().as_str().to_owned(),
+                    ),
+                    target,
+                )
                 .is_some()
         {
             return Err(BusinessError::invalid(
@@ -394,10 +418,8 @@ async fn read<C: Clock + Send + Sync + 'static>(
         let host = unique_request_header(&headers, "host")?
             .ok_or_else(missing)?
             .to_owned();
-        let target = state
-            .targets
-            .get(&(host.clone(), slug))
-            .ok_or_else(missing)?;
+        let (target, target_selection) =
+            crate::http_scope::deferred_company_target(&state.targets, &host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -412,18 +434,19 @@ async fn read<C: Clock + Send + Sync + 'static>(
             )
             .into());
         }
-        if let Some(company) = unique_request_header(&headers, "x-erpx-context-company")?
-            && company != target.service.company_id().as_str()
-        {
-            return Err(scope().into());
-        }
-        let expected = expected(&headers)?;
-        let query = query(raw.as_deref())?;
-        let scope = state.scopes.slugs(&headers);
-        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let query = query(raw.as_deref());
+        let scope_result = state.scopes.slugs(&headers);
+        let (branch, department) = scope_result.as_ref().cloned().unwrap_or_default();
         let company = target.service.company_id().clone();
         let input = move || {
-            scope?;
+            scope_result?;
+            target_selection?;
+            if let Some(selected) = unique_request_header(&headers, "x-erpx-context-company")?
+                && selected != company.as_str()
+            {
+                return Err(scope());
+            }
+            let expected = expected(&headers)?;
             Ok(HoldingWorkspaceRequest {
                 company_id: company,
                 branch_slug: branch,
@@ -434,7 +457,7 @@ async fn read<C: Clock + Send + Sync + 'static>(
         };
         target
             .service
-            .read(&host, inbound.into_proof(), input, query)
+            .read_deferred(&host, inbound.into_proof(), input, query)
             .await
     }
     .await;

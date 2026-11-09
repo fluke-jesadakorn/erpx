@@ -107,18 +107,9 @@ fn error_response(error: PgTransactionError<BusinessError>) -> Response {
 fn bounded<T: serde::Serialize>(body: &T) -> Response {
     let mut response = (StatusCode::OK, Json(body)).into_response();
     for (name, value) in [
-        (
-            axum::http::header::CACHE_CONTROL,
-            "private, no-store",
-        ),
-        (
-            axum::http::header::REFERRER_POLICY,
-            "no-referrer",
-        ),
-        (
-            axum::http::header::X_CONTENT_TYPE_OPTIONS,
-            "nosniff",
-        ),
+        (axum::http::header::CACHE_CONTROL, "private, no-store"),
+        (axum::http::header::REFERRER_POLICY, "no-referrer"),
+        (axum::http::header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
     ] {
         response
             .headers_mut()
@@ -150,7 +141,9 @@ async fn read<C: Clock + Send + Sync + 'static>(
         let company = target.service.company_id().clone();
         target
             .service
-            .workspace(&host, inbound.into_proof(), move || captured.resolve_read(company))
+            .workspace(&host, inbound.into_proof(), move || {
+                captured.resolve_read(company)
+            })
             .await
     }
     .await;
@@ -218,10 +211,7 @@ async fn command<C: Clock + Send + Sync + 'static>(
         let key = unique_request_header(&keys, "idempotency-key")?
             .filter(|value| !value.is_empty())
             .ok_or_else(|| {
-                BusinessError::invalid(
-                    "COMMAND_KEY_REQUIRED",
-                    "Idempotency-Key is required.",
-                )
+                BusinessError::invalid("COMMAND_KEY_REQUIRED", "Idempotency-Key is required.")
             })?;
         let prepare_value = input.clone();
         let prepare_key = CommandKey::new(key.to_owned())?;
@@ -242,7 +232,13 @@ async fn command<C: Clock + Send + Sync + 'static>(
                 })?;
                 target
                     .service
-                    .publish(&host, proof, move || captured.resolve(), prepare, draft.as_str().to_owned())
+                    .publish(
+                        &host,
+                        proof,
+                        move || captured.resolve(),
+                        prepare,
+                        draft.as_str().to_owned(),
+                    )
                     .await?
             }
             "cancel" => {
@@ -254,7 +250,13 @@ async fn command<C: Clock + Send + Sync + 'static>(
                 })?;
                 target
                     .service
-                    .cancel(&host, proof, move || captured.resolve(), prepare, draft.as_str().to_owned())
+                    .cancel(
+                        &host,
+                        proof,
+                        move || captured.resolve(),
+                        prepare,
+                        draft.as_str().to_owned(),
+                    )
                     .await?
             }
             "rollback" => {

@@ -229,8 +229,8 @@ pub async fn insert_initial_count_draft(
         || draft.product.version <= 0
         || !crate::domain::service_initial_physical_count::valid_date(&selection.count_date)
         || draft.actor_id.is_empty()
-        || js_trim(&draft.reason).encode_utf16().count() < 5
-        || js_trim(&draft.reason).encode_utf16().count() > 2000
+        || js_trim(&draft.reason).chars().count() < 5
+        || js_trim(&draft.reason).chars().count() > 2000
     {
         return Err(BusinessError::new(
             erpx_server_shared::public::FailureKind::Conflict,
@@ -306,7 +306,7 @@ pub async fn apply_initial_count_transition(
     if (action.action != CountAction::Post && action.journal_id.is_some())
         || (action.action != CountAction::Submit && action.reason.is_none())
         || action.reason.as_deref().is_some_and(|r| {
-            js_trim(r).encode_utf16().count() < 3 || js_trim(r).encode_utf16().count() > 2000
+            js_trim(r).chars().count() < 3 || js_trim(r).chars().count() > 2000
         })
     {
         return Err(invalid());

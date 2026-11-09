@@ -97,35 +97,45 @@ pub struct LeadCreateInput {
     #[serde(rename = "contactDetail")]
     pub contact_detail: String,
     pub source: String,
-    #[serde(rename = "sourceEvidence")]
+    #[serde(rename = "sourceEvidence", skip_serializing_if = "Option::is_none")]
     pub source_evidence: Option<String>,
-    #[serde(rename = "sourceKind")]
+    #[serde(rename = "sourceKind", skip_serializing_if = "Option::is_none")]
     pub source_kind: Option<String>,
-    #[serde(rename = "sourceId")]
+    #[serde(rename = "sourceId", skip_serializing_if = "Option::is_none")]
     pub source_id: Option<String>,
-    #[serde(rename = "campaignId")]
+    #[serde(rename = "campaignId", skip_serializing_if = "Option::is_none")]
     pub campaign_id: Option<String>,
-    #[serde(rename = "accountId")]
+    #[serde(rename = "accountId", skip_serializing_if = "Option::is_none")]
     pub account_id: Option<String>,
-    #[serde(rename = "contactId")]
+    #[serde(rename = "contactId", skip_serializing_if = "Option::is_none")]
     pub contact_id: Option<String>,
     pub brief: String,
     #[serde(rename = "dueDate")]
     pub due_date: String,
 }
 
+/// Trimmed create plan in the exact TS schema property order. Serializing this
+/// plan (rather than `LeadCreateInput`) yields the canonical Workflow input
+/// with absent optional keys omitted.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LeadCreatePlan {
     pub branch_id: String,
     pub title: String,
     pub contact_name: String,
     pub contact_detail: String,
     pub source: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub source_evidence: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub source_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub source_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub campaign_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub account_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub contact_id: Option<String>,
     pub brief: String,
     pub due_date: String,
@@ -166,6 +176,45 @@ pub struct LeadChangePlan {
     pub expected_value: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub close_date: Option<String>,
+}
+
+/// Exact ordered qualification input for a Workflow request/fingerprint.
+/// Kept separate from `LeadChangeInput` so the new action does not alter the
+/// historical receipt identity of the already-mounted lead actions.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LeadQualifyCommandInput<'a> {
+    pub action: &'static str,
+    pub expected_version: i64,
+    pub customer_id: &'a str,
+    pub expected_value: &'a str,
+    pub close_date: &'a str,
+    pub reason: &'a str,
+}
+
+pub fn canonical_lead_qualify_input(
+    plan: &LeadChangePlan,
+) -> Result<LeadQualifyCommandInput<'_>, BusinessError> {
+    if plan.action != "qualify" {
+        return Err(invalid(
+            "CRM_LEAD_ACTION_INVALID",
+            "Choose a supported lead action.",
+        ));
+    }
+    Ok(LeadQualifyCommandInput {
+        action: "qualify",
+        expected_version: plan.expected_version,
+        customer_id: plan.customer_id.as_deref().ok_or_else(|| {
+            invalid("CRM_LEAD_INPUT_INVALID", "Use a customer.")
+        })?,
+        expected_value: plan.expected_value.as_deref().ok_or_else(|| {
+            invalid("CRM_LEAD_INPUT_INVALID", "Use an expected value.")
+        })?,
+        close_date: plan.close_date.as_deref().ok_or_else(|| {
+            invalid("CRM_LEAD_INPUT_INVALID", "Use a close date.")
+        })?,
+        reason: &plan.reason,
+    })
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -220,6 +269,12 @@ pub struct OpportunityChangePlan {
 /// Owner-verified change receipt. The wire shape matches the retained Sales
 /// route so the caller can switch transports without changing its UI contract.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct LeadCreateReceipt {
+    pub id: String,
+    pub version: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct LeadChangeReceipt {
     pub id: String,
     pub version: i64,
@@ -237,8 +292,9 @@ pub struct OpportunityChangeReceipt {
 }
 
 /// Lead actions whose native owner effect is complete without a missing
-/// cross-owner witness. `qualify` needs current Finance customer status and
-/// Commerce currency composition; it stays retained until those ports exist.
+/// cross-owner witness. `qualify` has a separate owner preparation/effect
+/// path but needs current Finance customer status and Commerce currency
+/// composition, so it is not part of this mounted action slice.
 pub const NATIVE_LEAD_ACTIONS: [&str; 3] = ["reassign", "disqualify", "reopen"];
 
 /// Opportunity actions with the current Commerce order witness composed in
@@ -252,6 +308,10 @@ pub fn native_lead_action(action: &str) -> bool {
 
 pub fn native_opportunity_action(action: &str) -> bool {
     NATIVE_OPPORTUNITY_ACTIONS.contains(&action)
+}
+
+pub fn lead_record_id(command_key: &str) -> String {
+    format!("lead-{command_key}")
 }
 
 pub fn lead_operation(action: &str) -> String {

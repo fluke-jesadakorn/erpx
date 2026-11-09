@@ -5,6 +5,7 @@ use crate::{
     },
     domain::company_access::{CompanyCapabilityAdmission, CompanyPurchaseAdmission},
     domain::packages::{CommercialCatalogue, CompanyPackageGrant, CompanyPackageHistoryRight},
+    domain::purchase_wire_revision::purchase_wire_revision,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{
@@ -26,6 +27,20 @@ pub async fn lock_commercial_authority_sources(connection: &mut PgConnection) ->
     )
     .execute(connection)
     .await?;
+    Ok(())
+}
+
+/// Require the conflict coverage of the existing ROW EXCLUSIVE fence on both
+/// tables without acquiring or upgrading a lock. SHARE UPDATE EXCLUSIVE also
+/// conflicts with every mode blocked by ROW EXCLUSIVE. A plain SHARE lock does
+/// not conflict with another SHARE lock and is therefore insufficient here.
+/// This does not prove lock timing, purchase, or personal authority.
+pub async fn require_commercial_authority_sources_held(connection: &mut PgConnection) -> Result<(), Error> {
+    if !connection.is_in_transaction() {
+        return Err(PersistenceError::new("COMMERCIAL_OWNER_TRANSACTION_REQUIRED").into());
+    }
+    let held:bool=sqlx::query_scalar("SELECT count(DISTINCT relation)=2 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND relation IN ('company_package_grants'::regclass,'company_package_history_rights'::regclass) AND granted AND mode IN ('RowExclusiveLock','ShareUpdateExclusiveLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock')").fetch_one(connection).await?;
+    if !held{return Err(PersistenceError::new("COMMERCIAL_AUTHORITY_LOCKS_REQUIRED").into());}
     Ok(())
 }
 
@@ -56,6 +71,17 @@ pub struct PurchaseInspection {
     pub access: Vec<CapabilityAccess>,
     pub revision: String,
     pub witness: PurchaseWitness,
+}
+
+/// Presentation revision and native proof derived from the same guarded facts.
+/// The proof is transaction-bound; the wire value itself grants no authority.
+pub struct PurchasePresentationInspection {
+    inspection: PurchaseInspection,
+    wire_revision: String,
+}
+impl PurchasePresentationInspection {
+    pub fn inspection(&self) -> &PurchaseInspection { &self.inspection }
+    pub fn wire_revision(&self) -> &str { &self.wire_revision }
 }
 impl PurchaseInspection {
     /// A source witness also exists for an observed denial. Call this before
@@ -317,6 +343,47 @@ fn changed() -> BusinessError {
     )
 }
 
+/// Writer-capable Commercial fence. The coordinator must acquire it before
+/// the first snapshot and in a globally reviewed lock order. It grants neither
+/// purchase nor actor authority.
+pub struct PurchaseWriteLockPreparation<'a> { connection: &'a mut PgConnection }
+pub struct PurchaseWriteSourceLocks { transaction: (String, i32, String, String) }
+
+pub async fn lock_purchase_write_sources(connection: &mut PgConnection) -> Result<PurchaseWriteLockPreparation<'_>, Error> {
+    if !connection.is_in_transaction() { return Err(PersistenceError::new("COMMERCIAL_OWNER_TRANSACTION_REQUIRED").into()); }
+    sqlx::query("LOCK TABLE company_package_grants,company_package_history_rights IN SHARE ROW EXCLUSIVE MODE NOWAIT")
+        .execute(&mut *connection).await.map_err(PersistenceError::pre_snapshot_lock_conflict)?;
+    Ok(PurchaseWriteLockPreparation { connection })
+}
+impl PurchaseWriteLockPreparation<'_> {
+    pub fn connection(&mut self) -> &mut PgConnection { self.connection }
+    /// Bind after all remaining pre-snapshot utility locks have been acquired.
+    pub async fn bind(self) -> Result<PurchaseWriteSourceLocks, Error> {
+        bind_purchase_write_sources(self.connection).await
+    }
+}
+/// Bind an already-held writer-capable fence without acquiring or upgrading it.
+/// The trusted outer coordinator must have taken it before the first snapshot
+/// and must prevent release/reacquisition within the retained unit; lock
+/// presence alone cannot prove either condition. This grants no authority.
+pub async fn bind_purchase_write_sources(connection: &mut PgConnection) -> Result<PurchaseWriteSourceLocks, Error> {
+    Ok(PurchaseWriteSourceLocks { transaction: purchase_write_unit(connection).await? })
+}
+impl PurchaseWriteSourceLocks {
+    pub async fn require_current(&self, connection: &mut PgConnection) -> Result<(), Error> {
+        if purchase_write_unit(connection).await? != self.transaction { return Err(changed().into()); }
+        Ok(())
+    }
+}
+async fn purchase_write_unit(c: &mut PgConnection) -> Result<(String, i32, String, String), Error> {
+    if !c.is_in_transaction() || sqlx::query_scalar::<_, String>("SHOW transaction_isolation").fetch_one(&mut *c).await? != "serializable" {
+        return Err(PersistenceError::new("COMMERCIAL_SERIALIZABLE_REQUIRED").into());
+    }
+    let held: bool = sqlx::query_scalar("SELECT count(DISTINCT relation)=2 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND granted AND mode IN ('ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock') AND relation IN ('company_package_grants'::regclass,'company_package_history_rights'::regclass)").fetch_one(&mut *c).await?;
+    if !held { return Err(PersistenceError::new("COMMERCIAL_WRITE_LOCKS_REQUIRED").into()); }
+    Ok(sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text").fetch_one(c).await?)
+}
+
 /// A trusted caller starts this utility-only lock preparation before any
 /// Holding snapshot. PostgreSQL does not expose proof that a prior snapshot
 /// was absent; composition must enforce this ordering.
@@ -373,15 +440,40 @@ impl<'c,'g> PgReadOnlyCompanyPurchaseReader<'c,'g> {
         let history=rows.into_iter().map(|r|Ok(CompanyPackageHistoryRight {company_id:r.try_get("company_id")?,package_id:r.try_get("package_id")?,package_version:r.try_get("package_version")?,source_grant_version:r.try_get("source_grant_version")?,source_event_id:r.try_get("source_event_id")?,retained_at:r.try_get("retained_at")?})).collect::<Result<Vec<_>,sqlx::Error>>()?;
         Ok(CompanyPurchaseFacts {grants,history})
     }
-    pub async fn inspect(&mut self,request:&PurchaseRequest,now:TimestampMillis)->Result<PurchaseInspection,Error> {
-        validate_purchase_request(request)?;
-        let facts=self.facts().await?;let revision=self.inner.revision(&facts,now)?;
+    fn inspect_facts(&self,request:&PurchaseRequest,now:TimestampMillis,facts:&CompanyPurchaseFacts)->Result<PurchaseInspection,Error> {
+        let revision=self.inner.revision(facts,now)?;
         let access=request.capabilities.iter().map(|capability| {
             let decision=self.inner.catalogue.purchased_capability(&facts.grants,self.inner.company_id.as_str(),capability,request.purpose,now.get(),&facts.history);
             CapabilityAccess {capability:capability.clone(),purpose:request.purpose,decision,allowed_by_mode:request.mode.permits(decision)}
         }).collect();
         let token=token(&self.inner.holding_id,&self.inner.company_id,request,&self.locks.transaction,&revision)?;
         Ok(PurchaseInspection {access,revision:revision.clone(),witness:PurchaseWitness {holding_id:self.inner.holding_id.clone(),company_id:self.inner.company_id.clone(),request:request.clone(),transaction:self.locks.transaction.clone(),revision,token}})
+    }
+    pub async fn inspect(&mut self,request:&PurchaseRequest,now:TimestampMillis)->Result<PurchaseInspection,Error> {
+        validate_purchase_request(request)?;
+        let facts=self.facts().await?;
+        self.inspect_facts(request,now,&facts)
+    }
+    /// Disabled mode has no purchase presentation snapshot. Its callers must
+    /// follow the trusted disabled contract instead of manufacturing a hash.
+    pub async fn inspect_presentation(&mut self,request:&PurchaseRequest,now:TimestampMillis)->Result<PurchasePresentationInspection,Error> {
+        validate_purchase_request(request)?;
+        if request.mode == crate::domain::packages::PackageEnforcementMode::Disabled {
+            return Err(BusinessError::invalid("COMMERCIAL_PRESENTATION_MODE_INVALID", "Disabled purchase mode has no presentation revision.").into());
+        }
+        let facts=self.facts().await?;
+        let inspection=self.inspect_facts(request,now,&facts)?;
+        let wire_revision=purchase_wire_revision(self.inner.company_id.as_str(),&facts.grants,&facts.history,now)?;
+        Ok(PurchasePresentationInspection { inspection, wire_revision })
+    }
+    /// Revalidate both the native token and presentation phase/source in the
+    /// same unit; an observed denial remains a denial, not an authorization.
+    pub async fn revalidate_presentation(&mut self,previous:&PurchasePresentationInspection,now:TimestampMillis)->Result<PurchasePresentationInspection,Error> {
+        let witness=&previous.inspection.witness;
+        if witness.holding_id!=self.inner.holding_id || witness.company_id!=self.inner.company_id || witness.transaction!=self.locks.transaction { return Err(changed().into()); }
+        let current=self.inspect_presentation(&witness.request,now).await?;
+        if current.inspection.revision!=witness.revision || current.inspection.witness.token!=witness.token || current.wire_revision!=previous.wire_revision { return Err(changed().into()); }
+        Ok(current)
     }
     pub async fn revalidate(&mut self,witness:&PurchaseWitness,now:TimestampMillis)->Result<PurchaseInspection,Error> {
         if witness.holding_id!=self.inner.holding_id || witness.company_id!=self.inner.company_id || witness.transaction!=self.locks.transaction { return Err(changed().into()); }

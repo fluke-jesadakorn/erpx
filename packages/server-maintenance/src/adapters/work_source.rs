@@ -21,7 +21,11 @@ use erpx_server_shared::public::{
 };
 use sqlx::{Connection, PgConnection, Row};
 mod issue_part;
+mod creation_absence;
 mod transitions;
+pub use creation_absence::{CurrentMaintenanceAssetVacancy, inspect_maintenance_asset_vacancy};
+mod creation;
+pub use creation::{MaintenanceCreationPlan, insert_maintenance_creation, maintenance_creation_vacancy};
 pub use issue_part::{
     PgMaintenanceIssuePartEffects, PgMaintenanceIssuePartPlan, PgMaintenanceIssuePartReceipt,
 };
@@ -311,5 +315,3 @@ fn changed() -> BusinessError {
 fn invalid() -> PersistenceError {
     PersistenceError::new("MAINTENANCE_WORK_SOURCE_INVALID")
 }
-mod creation;
-pub use creation::{MaintenanceCreationPlan, insert_maintenance_creation, maintenance_creation_vacancy};

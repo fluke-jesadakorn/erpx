@@ -259,16 +259,9 @@ impl<C: Clock + Send + Sync + 'static> OrganizationSetupService<C> {
                         current.require_permission("organization.manage")?;
                         let actor = organization_actor(current)?;
                         let mut ports = PgOrganizationSetup::new(connection);
-                        apply_template(
-                            &mut ports,
-                            actor,
-                            &key,
-                            &id,
-                            template,
-                            clock.as_ref(),
-                        )
-                        .await
-                        .map_err(Error::from)
+                        apply_template(&mut ports, actor, &key, &id, template, clock.as_ref())
+                            .await
+                            .map_err(Error::from)
                     })
                 },
             )

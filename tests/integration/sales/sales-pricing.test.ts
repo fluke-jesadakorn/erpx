@@ -201,3 +201,112 @@ it('retains original Money error precedence for a stale quotation conversion',as
   for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(command).first(),`${id} ${table}`).toBeNull();
  }
 });
+
+it('enforces selected price list item and tax before Commerce writes',async()=>{
+ const otherProduct=String((await saveMaster(f.owner,'products',null,{sku:key(),name:'Unlisted service',price:'100',taxBps:700},key())).id);
+ const draft=await savePriceList(f.owner,{name:'Price oracle',currency:'THB',customerId,validFrom:'2026-09-01',validUntil:'2026-12-31',maxAutoDiscountBps:0,items:[{productId,price:'100',taxBps:700}]},key());
+ const listId=String(draft.id);await decidePriceList(f.manager,listId,{expectedVersion:1,action:'activate',reason:'Independent commercial review'},key());
+ const beforeList=await db.prepare('SELECT to_jsonb(l)::text image FROM sales_price_lists l WHERE id=?').bind(listId).first<{image:string}>();
+ const beforeItems=(await db.prepare('SELECT to_jsonb(i)::text image FROM sales_price_list_items i WHERE price_list_id=? ORDER BY id').bind(listId).all<{image:string}>()).results;
+ const base={kind:'quote' as const,partyId:customerId,warehouseId,orderDate:'2026-09-02',dueDate:'2026-09-10',priceListId:listId};
+ for(const example of [{product:otherProduct,tax:700,code:'PRICE_LIST_ITEM_REQUIRED'},{product:productId,tax:0,code:'PRICE_LIST_TAX_REQUIRED'}]){
+  const command=key(),orderId=`order-${command}`;
+  await expect(saveOrder(f.owner,null,orderSchema.parse({...base,lines:[{productId:example.product,quantity:'1',price:'100',taxBps:example.tax}]}),command)).rejects.toMatchObject({status:422,code:example.code});
+  expect(await db.prepare('SELECT 1 FROM commerce_orders WHERE id=?').bind(orderId).first(),example.code).toBeNull();
+  expect(await db.prepare('SELECT 1 FROM commerce_order_lines WHERE order_id=?').bind(orderId).first(),example.code).toBeNull();
+  expect(await db.prepare("SELECT 1 FROM money_transaction_snapshots WHERE company_id=? AND (source_id LIKE ? OR source_id LIKE ?)").bind(f.company,`${orderId}:%`,`${orderId}-line-%`).first(),example.code).toBeNull();
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(command).first(),`${example.code} ${table}`).toBeNull();
+  expect(await db.prepare('SELECT to_jsonb(l)::text image FROM sales_price_lists l WHERE id=?').bind(listId).first()).toEqual(beforeList);
+  expect((await db.prepare('SELECT to_jsonb(i)::text image FROM sales_price_list_items i WHERE price_list_id=? ORDER BY id').bind(listId).all()).results).toEqual(beforeItems);
+ }
+ const command=key(),created=await saveOrder(f.owner,null,orderSchema.parse({...base,lines:[{productId,quantity:'1',price:'100',taxBps:700}]}),command),id=String(created.id);
+ expect(created).toMatchObject({id:`order-${command}`,version:1});
+ const detail=await getOrder(f.owner,id);expect(detail.order).toMatchObject({price_list_id:listId,price_list_version:2,subtotal_minor:10000,tax_minor:700});expect(detail.lines).toHaveLength(1);expect(detail.lines[0]).toMatchObject({product_id:productId,price_minor:10000,list_price_minor:10000,tax_bps:700,subtotal_minor:10000,tax_minor:700,discount_bps:0});
+ expect((await db.prepare("SELECT amount_kind FROM money_transaction_snapshots WHERE company_id=? AND (source_id=? OR source_id=?) ORDER BY source_id,amount_kind").bind(f.company,`${id}:1`,`${id}-line-0:1`).all()).results).toHaveLength(4);
+ for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(command).first(),table).not.toBeNull();
+});
+
+it('orders warehouse and whole-list validation before product availability',async()=>{
+ const listedSecond=String((await saveMaster(f.owner,'products',null,{sku:key(),name:'Second listed service',price:'100',taxBps:700},key())).id);
+ const unlisted=String((await saveMaster(f.owner,'products',null,{sku:key(),name:'Unlisted service',price:'100',taxBps:700},key())).id);
+ const draft=await savePriceList(f.owner,{name:'Ordering oracle',currency:'THB',customerId,validFrom:'2026-09-01',validUntil:'2026-12-31',maxAutoDiscountBps:0,items:[{productId,price:'100',taxBps:700},{productId:listedSecond,price:'100',taxBps:700}]},key());
+ const listId=String(draft.id);await decidePriceList(f.manager,listId,{expectedVersion:1,action:'activate',reason:'Independent ordering review'},key());
+ const version=Number(await db.prepare('SELECT version FROM commerce_products WHERE id=?').bind(productId).first('version'));
+ await saveMaster(f.owner,'products',productId,{expectedVersion:version,sku:key(),name:'Archived first listed product',price:'100',taxBps:700,itemType:'service',status:'archived'},key());
+ const beforeList=await db.prepare('SELECT to_jsonb(l)::text image FROM sales_price_lists l WHERE id=?').bind(listId).first();
+ const beforeItems=(await db.prepare('SELECT to_jsonb(i)::text image FROM sales_price_list_items i WHERE price_list_id=? ORDER BY id').bind(listId).all()).results;
+ const beforeProduct=await db.prepare('SELECT to_jsonb(p)::text image FROM commerce_products p WHERE id=?').bind(productId).first();
+ const base={kind:'quote' as const,partyId:customerId,warehouseId,orderDate:'2026-09-02',dueDate:'2026-09-10'};
+ const line=(id:string,taxBps:number)=>({productId:id,quantity:'1',price:'100',taxBps});
+ const cases=[
+  {label:'warehouse before nonexistent list',input:{...base,warehouseId:`missing-${key()}`,priceListId:`missing-${key()}`,lines:[line(productId,700)]},code:'WAREHOUSE_INVALID'},
+  {label:'later item tax before first archived product',input:{...base,priceListId:listId,lines:[line(productId,700),line(listedSecond,0)]},code:'PRICE_LIST_TAX_REQUIRED'},
+  {label:'later missing list item before first archived product',input:{...base,priceListId:listId,lines:[line(productId,700),line(unlisted,700)]},code:'PRICE_LIST_ITEM_REQUIRED'},
+  {label:'first product unavailable when list is valid',input:{...base,priceListId:listId,lines:[line(productId,700),line(listedSecond,700)]},code:'PRODUCT_INVALID'},
+ ] as const;
+ for(const example of cases){
+  const command=key(),id=`order-${command}`;
+  await expect(saveOrder(f.owner,null,orderSchema.parse(example.input),command),example.label).rejects.toMatchObject({status:422,code:example.code});
+  expect(await db.prepare('SELECT 1 FROM commerce_orders WHERE id=?').bind(id).first(),example.label).toBeNull();
+  expect(await db.prepare('SELECT 1 FROM commerce_order_lines WHERE order_id=?').bind(id).first(),example.label).toBeNull();
+  expect(await db.prepare('SELECT 1 FROM money_transaction_snapshots WHERE company_id=? AND (source_id LIKE ? OR source_id LIKE ?)').bind(f.company,`${id}:%`,`${id}-line-%`).first(),example.label).toBeNull();
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(command).first(),`${example.label}: ${table}`).toBeNull();
+  expect(await db.prepare('SELECT to_jsonb(l)::text image FROM sales_price_lists l WHERE id=?').bind(listId).first(),example.label).toEqual(beforeList);
+  expect((await db.prepare('SELECT to_jsonb(i)::text image FROM sales_price_list_items i WHERE price_list_id=? ORDER BY id').bind(listId).all()).results,example.label).toEqual(beforeItems);
+  expect(await db.prepare('SELECT to_jsonb(p)::text image FROM commerce_products p WHERE id=?').bind(productId).first(),example.label).toEqual(beforeProduct);
+ }
+});
+
+it('checks saved order kind before warehouse and pricing validation on update',async()=>{
+ const original=orderSchema.parse({kind:'quote',partyId:customerId,warehouseId,orderDate:'2026-09-02',dueDate:'2026-09-10',lines:[{productId,quantity:'1',price:'120',taxBps:700}]});
+ const created=await saveOrder(f.owner,null,original,key()),id=String(created.id),before=await getOrder(f.owner,id);
+ const beforeMoney=(await db.prepare("SELECT to_jsonb(m)::text image FROM money_transaction_snapshots m WHERE company_id=? AND (source_id LIKE ? OR source_id LIKE ?) ORDER BY source_type,source_id,amount_kind").bind(f.company,`${id}:%`,`${id}-line-%`).all()).results;
+ const command=key(),input=orderSchema.parse({...original,kind:'sales',expectedVersion:99,warehouseId:`missing-${key()}`,priceListId:`missing-${key()}`});
+ await expect(saveOrder(f.owner,id,input,command)).rejects.toMatchObject({status:422,code:'ORDER_KIND_LOCKED'});
+ expect(await getOrder(f.owner,id)).toEqual(before);
+ expect((await db.prepare("SELECT to_jsonb(m)::text image FROM money_transaction_snapshots m WHERE company_id=? AND (source_id LIKE ? OR source_id LIKE ?) ORDER BY source_type,source_id,amount_kind").bind(f.company,`${id}:%`,`${id}-line-%`).all()).results).toEqual(beforeMoney);
+ for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(command).first(),table).toBeNull();
+ const cases=[
+  {label:'changed kind and reversed dates',raw:{...original,kind:'sales',expectedVersion:99,orderDate:'2026-09-10',dueDate:'2026-09-02'}},
+  {label:'changed kind and duplicate products',raw:{...original,kind:'sales',expectedVersion:99,lines:[original.lines[0],original.lines[0]]}},
+ ] as const;
+ for(const example of cases){
+  // Parsing through the retained schema proves these are semantic, rather
+  // than schema-level, errors.
+  const input=orderSchema.parse(example.raw),attempt=key();
+  await expect(saveOrder(f.owner,id,input,attempt),example.label).rejects.toMatchObject({status:422,code:'ORDER_KIND_LOCKED'});
+  expect(await getOrder(f.owner,id),example.label).toEqual(before);
+  expect((await db.prepare("SELECT to_jsonb(m)::text image FROM money_transaction_snapshots m WHERE company_id=? AND (source_id LIKE ? OR source_id LIKE ?) ORDER BY source_type,source_id,amount_kind").bind(f.company,`${id}:%`,`${id}-line-%`).all()).results,example.label).toEqual(beforeMoney);
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(attempt).first(),`${example.label}: ${table}`).toBeNull();
+ }
+});
+
+it('orders zero quantity failures after kind warehouse list and product checks',async()=>{
+ const original=orderSchema.parse({kind:'quote',partyId:customerId,warehouseId,orderDate:'2026-09-02',dueDate:'2026-09-10',lines:[{productId,quantity:'1',price:'120',taxBps:700}]});
+ const created=await saveOrder(f.owner,null,original,key()),existingId=String(created.id),before=await getOrder(f.owner,existingId);
+ const moneyBefore=(await db.prepare("SELECT to_jsonb(m)::text image FROM money_transaction_snapshots m WHERE company_id=? AND (source_id LIKE ? OR source_id LIKE ?) ORDER BY source_type,source_id,amount_kind").bind(f.company,`${existingId}:%`,`${existingId}-line-%`).all()).results;
+ const zero={productId,quantity:'0',price:'120',taxBps:700};
+ const cases=[
+  {label:'changed kind',id:existingId,raw:{...original,kind:'sales',expectedVersion:99,lines:[zero]},code:'ORDER_KIND_LOCKED'},
+  {label:'warehouse unavailable',id:null,raw:{...original,warehouseId:`missing-${key()}`,lines:[zero]},code:'WAREHOUSE_INVALID'},
+  {label:'price list unavailable',id:null,raw:{...original,priceListId:`missing-${key()}`,lines:[zero]},code:'PRICE_LIST_INVALID'},
+  {label:'product unavailable',id:null,raw:{...original,lines:[{...zero,productId:`missing-${key()}`}]},code:'PRODUCT_INVALID'},
+  {label:'zero quantity after valid sources',id:null,raw:{...original,lines:[zero]},code:'INTERNAL_ERROR'},
+ ] as const;
+ const {errorResponse}=await import('@erpx/server-runtime/public/http');
+ for(const example of cases){
+  const parsed=orderSchema.parse(example.raw),command=key(),newId=`order-${command}`;let failure:unknown;
+  try{await saveOrder(f.owner,example.id,parsed,command)}catch(error){failure=error;}
+  expect(failure,example.label).toBeInstanceOf(Error);
+  if(example.code==='INTERNAL_ERROR'){
+   expect(failure).toMatchObject({message:'Quantity must be positive.'});
+   const response=errorResponse(failure),body=await response.json();expect(response.status).toBe(500);expect(body.error).toMatchObject({code:'INTERNAL_ERROR',message:'The request could not be completed.'});
+  }else expect(failure,example.label).toMatchObject({status:422,code:example.code});
+  expect(await getOrder(f.owner,existingId),example.label).toEqual(before);
+  expect((await db.prepare("SELECT to_jsonb(m)::text image FROM money_transaction_snapshots m WHERE company_id=? AND (source_id LIKE ? OR source_id LIKE ?) ORDER BY source_type,source_id,amount_kind").bind(f.company,`${existingId}:%`,`${existingId}-line-%`).all()).results,example.label).toEqual(moneyBefore);
+  expect(await db.prepare('SELECT 1 FROM commerce_orders WHERE id=?').bind(newId).first(),example.label).toBeNull();
+  expect(await db.prepare('SELECT 1 FROM commerce_order_lines WHERE order_id=?').bind(newId).first(),example.label).toBeNull();
+  expect(await db.prepare('SELECT 1 FROM money_transaction_snapshots WHERE company_id=? AND (source_id LIKE ? OR source_id LIKE ?)').bind(f.company,`${newId}:%`,`${newId}-line-%`).first(),example.label).toBeNull();
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(command).first(),`${example.label}: ${table}`).toBeNull();
+ }
+});

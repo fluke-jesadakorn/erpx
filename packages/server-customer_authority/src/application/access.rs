@@ -249,7 +249,7 @@ pub async fn request_access<R: CustomerAccessCommandRepository>(
 ) -> Result<Value, R::Error> {
     actor.require_sales(now)?;
     actor.require_read(now)?;
-    let input = input.validate(now)?;
+    let input = input.validate_schema()?;
     let id = request_id(key.as_str());
     let identity = request_identity(actor, key.as_str(), &id, &input);
     let hash = repository.digest(&identity).await?;
@@ -265,6 +265,7 @@ pub async fn request_access<R: CustomerAccessCommandRepository>(
     )? {
         return Ok(prior);
     }
+    input.validate_expiry(now)?;
     let order = repository
         .order(actor.company_id.as_str(), &input.order_id)
         .await?;

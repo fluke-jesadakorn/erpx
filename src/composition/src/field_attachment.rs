@@ -4,7 +4,7 @@ use erpx_server_commercial::public::purchases::{
     PurchaseRequest, PurchaseWitness,
 };
 use erpx_server_identity_access::public::effective_authority::{
-    AuthorizedWorkContext, HoldingWorkSourcePreparation,
+    AuthorizedWorkContext, HoldingPreparedSource, TypedHoldingWorkSourcePreparation,
 };
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
@@ -26,10 +26,57 @@ fn missing() -> BusinessError {
     )
 }
 #[derive(Clone)]
-pub(crate) struct FieldAttachmentSources;
-impl HoldingWorkSourcePreparation for FieldAttachmentSources {
-    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
-        lock_attachment_sources(c, false)
+pub(crate) struct FieldAttachmentReadSources;
+pub(crate) struct FieldAttachmentReadFence(
+    erpx_server_commercial::public::purchases::PurchaseWriteSourceLocks,
+);
+impl HoldingPreparedSource for FieldAttachmentReadFence {
+    fn require_current<'c>(
+        &'c self,
+        c: &'c mut PgConnection,
+    ) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            self.0.require_current(c).await?;
+            erpx_server_finance::public::field_service_workspace::require_service_workspace_customers_held(c).await?;
+            erpx_server_support::public::field_service_workspace::require_service_workspace_tickets_held(c).await?;
+            erpx_server_assets::public::field_service_workspace::require_service_workspace_assets_held(c).await?;
+            erpx_server_people_payroll::public::field_service_workspace::require_service_workspace_people_held(c).await?;
+            erpx_server_identity_access::public::field_service_workspace::require_service_workspace_authority_fenced_held(c).await?;
+            erpx_server_field_service::public::file_source::require_field_file_sources_held(
+                c,
+                erpx_server_field_service::public::file_source::FieldFileSourceLockMode::Read,
+            )
+            .await?;
+            erpx_server_files::public::field_visit_link::require_field_visit_link_sources_held(c)
+                .await?;
+            Ok(())
+        })
+    }
+}
+impl TypedHoldingWorkSourcePreparation for FieldAttachmentReadSources {
+    type Token = FieldAttachmentReadFence;
+    fn prepare_typed<'c>(
+        &'c self,
+        c: &'c mut PgConnection,
+    ) -> PgWorkFuture<'c, FieldAttachmentReadFence, BusinessError> {
+        Box::pin(async move {
+            let mut commercial =
+                erpx_server_commercial::public::purchases::lock_purchase_write_sources(c).await?;
+            let c = commercial.connection();
+            erpx_server_finance::public::field_service_workspace::lock_service_workspace_customers(
+                c,
+            )
+            .await?;
+            erpx_server_support::public::field_service_workspace::lock_service_workspace_tickets(c)
+                .await?;
+            erpx_server_assets::public::field_service_workspace::lock_service_workspace_assets(c)
+                .await?;
+            erpx_server_people_payroll::public::field_service_workspace::lock_service_workspace_people(c).await?;
+            erpx_server_identity_access::public::field_service_workspace::lock_service_workspace_authority_fenced(c).await?;
+            erpx_server_field_service::public::file_source::lock_field_file_sources(c).await?;
+            erpx_server_files::public::field_visit_link::lock_field_visit_link_sources(c).await?;
+            Ok(FieldAttachmentReadFence(commercial.bind().await?))
+        })
     }
 }
 pub(crate) fn lock_attachment_sources(
@@ -46,7 +93,8 @@ pub(crate) fn lock_attachment_sources(
             // competing binds must not hold Support SHARE while upgrading it.
             erpx_server_support::public::field_service::lock_service_ticket_sources(c).await?;
         } else {
-            erpx_server_support::public::field_service_workspace::lock_service_workspace_tickets(c).await?;
+            erpx_server_support::public::field_service_workspace::lock_service_workspace_tickets(c)
+                .await?;
         }
         erpx_server_assets::public::field_service_workspace::lock_service_workspace_assets(c)
             .await?;
@@ -201,8 +249,8 @@ pub(crate) async fn proof<C: Clock>(
         .any(|v| v.id == f.customer_id && v.kind == "customer")
         || !tickets.data().display.iter().any(|t| {
             t.id == f.ticket_id
-                && t.customer_id == f.customer_id
-                && t.branch_id == f.branch_id
+                && t.customer_id.as_deref() == Some(f.customer_id.as_str())
+                && t.branch_id.as_deref() == Some(f.branch_id.as_str())
                 && t.department_id == f.department_id
         })
         || f.asset_id.as_ref().is_some_and(|id| {
@@ -393,7 +441,7 @@ pub(crate) async fn status<C: Clock>(
     .map_err(|_| unavailable())?;
     link.require_current(c).await?;
     evidence.current(c, a, h, company, catalogue, clock).await?;
-    erpx_server_files::public::field_visit_link::write_status_access(
+    let access = erpx_server_files::public::field_visit_link::write_status_access_retained(
         c,
         company,
         s,
@@ -401,6 +449,12 @@ pub(crate) async fn status<C: Clock>(
         clock.now().get(),
     )
     .await?;
+    // Run deferred owner effects while the retained source witnesses are
+    // still available for the final same-unit revalidation below.
+    sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
+        .execute(&mut *c)
+        .await?;
+    access.require_current(c).await?;
     link.require_current(c).await?;
     if erpx_server_files::public::field_visit_link::read_field_visit_scan(
         c,
@@ -438,8 +492,13 @@ pub(crate) async fn withdraw<C: Clock>(
     )?;
     let evidence = proof(c, ctx, &s.target_id, true).await?;
     evidence.current(c, a, h, company, catalogue, clock).await?;
-    link.withdraw(c, a.user_id().as_str(), reason, key, clock.now().get())
+    let withdrawal = link
+        .withdraw_retained(c, a.user_id().as_str(), reason, key, clock.now().get())
         .await?;
+    sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
+        .execute(&mut *c)
+        .await?;
+    withdrawal.require_current(c).await?;
     evidence.current(c, a, h, company, catalogue, clock).await?;
     Ok(())
 }

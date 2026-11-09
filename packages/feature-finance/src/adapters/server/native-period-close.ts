@@ -164,8 +164,12 @@ export async function nativePeriodClose(
   try {
     const response = await nativeFinanceCommandHttp(url, headers, body, controller.signal);
     if (response.status === 404) {
-      void response.body?.cancel().catch(() => undefined);
-      return undefined;
+      const value = await reply(response, replyLimit).catch(() => undefined);
+      const error = (value as { error?: { code?: unknown; message?: unknown } } | undefined)?.error;
+      if (error && typeof error.code === 'string' && typeof error.message === 'string') {
+        return failure(value, 404);
+      }
+      return closed(404, 'NOT_FOUND', 'Period not found.');
     }
     const value = await reply(response, replyLimit);
     if (response.status === 200) {

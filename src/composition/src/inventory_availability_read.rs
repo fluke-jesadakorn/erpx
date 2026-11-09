@@ -9,8 +9,8 @@ use erpx_server_commercial::public::purchases::{
 use erpx_server_identity_access::public::{
     DeviceProof,
     effective_authority::{
-        HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
-        WorkAuthorizationRequest, WorkPermissionRequirement,
+        HoldingWorkAuthorizer, HoldingWorkSourcePreparation, WorkAuthorizationRequest,
+        WorkPermissionRequirement,
     },
     work_context::HoldingWorkspaceRequest,
 };

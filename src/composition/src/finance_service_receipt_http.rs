@@ -45,7 +45,7 @@ pub struct FinanceServiceReceiptTarget<C> {
 struct PostState<C> {
     policy: Arc<AccountPolicy>,
     scopes: Arc<dyn BusinessScopeSlugs>,
-    targets: BTreeMap<(String, String,String), FinanceServiceReceiptTarget<C>>,
+    targets: BTreeMap<(String, String, String), FinanceServiceReceiptTarget<C>>,
 }
 pub fn finance_service_receipt_router<C: Clock + Send + Sync + 'static>(
     policy: Arc<AccountPolicy>,
@@ -62,7 +62,14 @@ pub fn finance_service_receipt_router<C: Clock + Send + Sync + 'static>(
             .is_some_and(|h| h.slug == target.holding_slug);
         if !valid
             || configured
-                .insert((target.host.clone(), target.holding_slug.clone(),target.configuration.company.as_str().to_owned()), target)
+                .insert(
+                    (
+                        target.host.clone(),
+                        target.holding_slug.clone(),
+                        target.configuration.company.as_str().to_owned(),
+                    ),
+                    target,
+                )
                 .is_some()
         {
             return Err(BusinessError::invalid(
@@ -72,8 +79,14 @@ pub fn finance_service_receipt_router<C: Clock + Send + Sync + 'static>(
         }
     }
     Ok(Router::new()
-        .route("/api/v1/holdings/{holding_slug}/finance/sales/receipts/{id}/workspace",get(customer_receipt_workspace::<C>))
-        .route("/api/v1/holdings/{holding_slug}/finance/sales/receipts/{id}/runtime",get(customer_receipt_runtime::<C>))
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/sales/receipts/{id}/workspace",
+            get(customer_receipt_workspace::<C>),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/sales/receipts/{id}/runtime",
+            get(customer_receipt_runtime::<C>),
+        )
         .route(
             "/api/v1/holdings/{holding_slug}/finance/payments/{id}/workspace",
             get(receipt_workspace::<C>),
@@ -220,11 +233,19 @@ async fn receipt_runtime<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     receipt_read(state, slug, id, headers, true, false).await
 }
-async fn customer_receipt_workspace<C:Clock+Send+Sync+'static>(State(state):State<Arc<PostState<C>>>,Path((slug,id)):Path<(String,String)>,headers:axum::http::HeaderMap)->Response{
- receipt_read(state,slug,id,headers,false,true).await
+async fn customer_receipt_workspace<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<PostState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    headers: axum::http::HeaderMap,
+) -> Response {
+    receipt_read(state, slug, id, headers, false, true).await
 }
-async fn customer_receipt_runtime<C:Clock+Send+Sync+'static>(State(state):State<Arc<PostState<C>>>,Path((slug,id)):Path<(String,String)>,headers:axum::http::HeaderMap)->Response{
- receipt_read(state,slug,id,headers,true,true).await
+async fn customer_receipt_runtime<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<PostState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    headers: axum::http::HeaderMap,
+) -> Response {
+    receipt_read(state, slug, id, headers, true, true).await
 }
 async fn receipt_read<C: Clock + Send + Sync + 'static>(
     state: Arc<PostState<C>>,
@@ -350,7 +371,12 @@ async fn receipt_command<C: Clock + Send + Sync + 'static>(
         let host = unique_request_header(request.headers(), "host")?
             .ok_or_else(missing)?
             .to_owned();
-        let target = crate::http_scope::selected_company_target(&state.targets,&host,&slug,request.headers())?;
+        let target = crate::http_scope::selected_company_target(
+            &state.targets,
+            &host,
+            &slug,
+            request.headers(),
+        )?;
         let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());

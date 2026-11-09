@@ -18,8 +18,8 @@ use erpx_server_identity_access::public::{
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{
-    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, IdentifierSource, RecordId,
-    TimestampMillis,
+    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, IdentifierSource,
+    RecordId, TimestampMillis,
 };
 use erpx_server_support::public::sla::{advance_clock, clock_value, parse_clock};
 use erpx_server_support::public::ticket::{
@@ -39,7 +39,6 @@ type Error = PgTransactionError<BusinessError>;
 
 const OWNER_ELIGIBLE: &str = "SELECT EXISTS(SELECT 1 FROM support_tickets t WHERE t.id=$1 AND EXISTS(SELECT 1 FROM (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\"parent_id\",\"source\",\"source_id\" FROM assignments) a JOIN (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) p ON p.user_id=a.user_id AND p.company_id=a.company_id JOIN (SELECT \"id\",\"person_id\",\"company_id\",\"branch_id\",\"department_id\",\"worker_type\",\"employment_type\",\"status\",\"start_date\",\"end_date\",\"manager_person_id\",\"job_title\",\"currency\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"pay_group_id\" FROM hr_engagements) e ON e.person_id=p.id AND e.company_id=p.company_id WHERE a.company_id=t.company_id AND a.user_id=t.owner_id AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(a.role,a.company_id,'support.work') AND iam_role_allows(a.role,a.company_id,'support.read') AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=t.branch_id) OR (a.scope_kind='department' AND a.scope_node_id=t.department_id)) AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active' AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD'))))";
 
-
 const TICKET_CREATED_NOTIFICATION: &str = "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT $1,company_id,owner_id,'support_ticket',id,version,'New customer support case: accept and review the issue',updated_at FROM support_tickets WHERE id=$2";
 const TICKET_REOPENED_NOTIFICATION: &str = "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT DISTINCT $1||m.user_id,t.company_id,m.user_id,'support_ticket',t.id,t.version,'New issue needs Support triage',t.updated_at FROM support_tickets t JOIN (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\"parent_id\",\"source\",\"source_id\" FROM assignments) m ON m.company_id=t.company_id WHERE t.id=$2 AND m.user_id<>t.created_by AND iam_assignment_active(m.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(m.role,m.company_id,'support.manage') AND (m.scope_kind='holding' OR (m.scope_kind='branch' AND m.scope_node_id=t.branch_id) OR (m.scope_kind='department' AND m.scope_node_id=t.department_id)) AND EXISTS(SELECT 1 FROM (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\"parent_id\",\"source\",\"source_id\" FROM assignments) a JOIN (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) p ON p.user_id=a.user_id AND p.company_id=a.company_id JOIN (SELECT \"id\",\"person_id\",\"company_id\",\"branch_id\",\"department_id\",\"worker_type\",\"employment_type\",\"status\",\"start_date\",\"end_date\",\"manager_person_id\",\"job_title\",\"currency\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"pay_group_id\" FROM hr_engagements) e ON e.person_id=p.id AND e.company_id=p.company_id WHERE a.company_id=t.company_id AND a.user_id=m.user_id AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(a.role,a.company_id,'support.work') AND iam_role_allows(a.role,a.company_id,'support.read') AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=t.branch_id) OR (a.scope_kind='department' AND a.scope_node_id=t.department_id)) AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active' AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD'))) ON CONFLICT DO NOTHING";
 const TICKET_UPDATED_NOTIFICATION: &str = "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT $1,company_id,owner_id,'support_ticket',id,version,'Support case updated: review current status and next action',updated_at FROM support_tickets WHERE id=$2 AND owner_id IS NOT NULL";
@@ -47,7 +46,10 @@ const TICKET_REVIEWERS_NOTIFICATION: &str = "INSERT INTO staff_notifications(id,
 
 #[derive(Clone, Debug)]
 pub enum SupportTicketCreate {
-    General { title: String, issue: String },
+    General {
+        title: String,
+        issue: String,
+    },
     Order {
         order_id: String,
         source_version: i64,
@@ -83,13 +85,22 @@ impl SupportTicketCreate {
                     .as_object()
                     .ok_or_else(|| invalid("SUPPORT_INPUT_INVALID", "Provide a valid source."))?;
                 let kind = source["kind"].as_str().ok_or_else(|| {
-                    invalid("SUPPORT_SOURCE_INVALID", "Choose a supported source record.")
+                    invalid(
+                        "SUPPORT_SOURCE_INVALID",
+                        "Choose a supported source record.",
+                    )
                 })?;
                 let id = source["id"].as_str().ok_or_else(|| {
-                    invalid("SUPPORT_SOURCE_INVALID", "Choose a supported source record.")
+                    invalid(
+                        "SUPPORT_SOURCE_INVALID",
+                        "Choose a supported source record.",
+                    )
                 })?;
                 let version = source["version"].as_i64().ok_or_else(|| {
-                    invalid("SUPPORT_SOURCE_INVALID", "Choose a supported source record.")
+                    invalid(
+                        "SUPPORT_SOURCE_INVALID",
+                        "Choose a supported source record.",
+                    )
                 })?;
                 Ok(Self::Source {
                     kind: kind.to_owned(),
@@ -153,7 +164,9 @@ impl<C: Clock + Send + Sync + 'static> SupportTicketCommand<C> {
         let catalogue = self.catalogue.clone();
         let clock = self.clock.clone();
         let permission = match &input {
-            SupportTicketCreate::Order { .. } => WorkPermissionRequirement::Exact("support.create".into()),
+            SupportTicketCreate::Order { .. } => {
+                WorkPermissionRequirement::Exact("support.create".into())
+            }
             _ => WorkPermissionRequirement::Exact("records.write".into()),
         };
         let expected = key.clone();
@@ -437,9 +450,8 @@ impl<C: Clock + Sync> PgCommandAuthority for Authority<'_, C> {
         match &self.purchases {
             Some(p) => p.check(c, self.current, self.clock.now()).await?,
             None => {
-                self.purchases = Some(
-                    Purchases::read(c, self.current, disposition, self.clock.now()).await?,
-                )
+                self.purchases =
+                    Some(Purchases::read(c, self.current, disposition, self.clock.now()).await?)
             }
         }
         Ok(())
@@ -504,7 +516,10 @@ impl Purchases {
             c,
             &self.catalogue,
         );
-        reader.revalidate(&self.history, now).await?.require_allowed()?;
+        reader
+            .revalidate(&self.history, now)
+            .await?
+            .require_allowed()?;
         if let Some(witness) = &self.new_work {
             reader.revalidate(witness, now).await?.require_allowed()?;
         }
@@ -585,21 +600,22 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
         if let Some(input) = self.create {
             let source = match input {
                 SupportTicketCreate::Source {
-                    kind,
-                    id,
-                    version,
-                    ..
+                    kind, id, version, ..
                 } => {
                     let source_kind = match kind.as_str() {
-                        "pos_sale" => erpx_server_records::public::source_record::SourceKind::PosSale,
-                        "pms_record" => erpx_server_records::public::source_record::SourceKind::PmsRecord,
+                        "pos_sale" => {
+                            erpx_server_records::public::source_record::SourceKind::PosSale
+                        }
+                        "pms_record" => {
+                            erpx_server_records::public::source_record::SourceKind::PmsRecord
+                        }
                         "asset" => erpx_server_records::public::source_record::SourceKind::Asset,
                         _ => {
                             return Err(invalid(
                                 "SUPPORT_SOURCE_INVALID",
                                 "Choose a supported source record.",
                             )
-                            .into())
+                            .into());
                         }
                     };
                     let context = SourceRecordContext {
@@ -683,14 +699,15 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
         let row = load_ticket(c, self.company, id).await?;
         let source = match &row.snapshot.source_kind {
             SourceKind::PosSale | SourceKind::PmsRecord | SourceKind::Asset => {
-                let raw = row
-                    .source_record_json
-                    .as_deref()
-                    .ok_or_else(changed)?;
+                let raw = row.source_record_json.as_deref().ok_or_else(changed)?;
                 let value: Value = serde_json::from_str(raw).map_err(|_| changed())?;
                 let kind = match value["kind"].as_str() {
-                    Some("pos_sale") => erpx_server_records::public::source_record::SourceKind::PosSale,
-                    Some("pms_record") => erpx_server_records::public::source_record::SourceKind::PmsRecord,
+                    Some("pos_sale") => {
+                        erpx_server_records::public::source_record::SourceKind::PosSale
+                    }
+                    Some("pms_record") => {
+                        erpx_server_records::public::source_record::SourceKind::PmsRecord
+                    }
                     Some("asset") => erpx_server_records::public::source_record::SourceKind::Asset,
                     _ => return Err(changed().into()),
                 };
@@ -717,12 +734,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
             }
             _ => None,
         };
-        let plan = match plan_change(
-            &self.actor,
-            &row.snapshot,
-            input,
-            self.clock.now().get(),
-        )? {
+        let plan = match plan_change(&self.actor, &row.snapshot, input, self.clock.now().get())? {
             erpx_server_support::public::ticket::TicketPlan::Change(plan) => plan,
             _ => return Err(changed().into()),
         };
@@ -765,7 +777,14 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
                 source,
                 order,
             } => {
-                apply_create(c, self.request.key.as_str(), &plan, source.as_ref(), order.as_ref()).await?;
+                apply_create(
+                    c,
+                    self.request.key.as_str(),
+                    &plan,
+                    source.as_ref(),
+                    order.as_ref(),
+                )
+                .await?;
             }
             Prepared::Change {
                 snapshot,
@@ -937,7 +956,7 @@ async fn apply_create(
                 .bind(plan.updated_at)
                 .execute(&mut *c)
                 .await?;
-            let eligible:bool=sqlx::query_scalar(OWNER_ELIGIBLE)
+            let eligible: bool = sqlx::query_scalar(OWNER_ELIGIBLE)
                 .bind(&plan.id)
                 .fetch_one(&mut *c)
                 .await?;
@@ -1197,29 +1216,29 @@ async fn load_ticket(
         .into());
     };
     use sqlx::Row;
-    let id:String=row.try_get("id")?;
-    let company_id:String=row.try_get("company_id")?;
-    let branch_id:Option<String>=row.try_get("branch_id")?;
-    let department_id:Option<String>=row.try_get("department_id")?;
-    let source_kind:String=row.try_get("source_kind")?;
-    let status:String=row.try_get("status")?;
-    let owner_id:Option<String>=row.try_get("owner_id")?;
-    let due_date:Option<String>=row.try_get("due_date")?;
-    let resolved_by:Option<String>=row.try_get("resolved_by")?;
-    let created_by:String=row.try_get("created_by")?;
-    let confirmation_note_id:Option<String>=row.try_get("confirmation_note_id")?;
-    let version:i64=row.try_get("version")?;
-    let order_id:Option<String>=row.try_get("order_id")?;
-    let customer_id:Option<String>=row.try_get("customer_id")?;
-    let resolved_at:Option<i64>=row.try_get("resolved_at")?;
-    let blocked_reason:Option<String>=row.try_get("blocked_reason")?;
-    let resolution:Option<String>=row.try_get("resolution")?;
-    let confirmation_note_version:Option<i64>=row.try_get("confirmation_note_version")?;
-    let confirmed_by:Option<String>=row.try_get("confirmed_by")?;
-    let confirmed_at:Option<i64>=row.try_get("confirmed_at")?;
-    let confirmation_reason:Option<String>=row.try_get("confirmation_reason")?;
-    let sla_clock_json:Option<String>=row.try_get("sla_clock_json")?;
-    let source_record_json:Option<String>=row.try_get("source_record_json")?;
+    let id: String = row.try_get("id")?;
+    let company_id: String = row.try_get("company_id")?;
+    let branch_id: Option<String> = row.try_get("branch_id")?;
+    let department_id: Option<String> = row.try_get("department_id")?;
+    let source_kind: String = row.try_get("source_kind")?;
+    let status: String = row.try_get("status")?;
+    let owner_id: Option<String> = row.try_get("owner_id")?;
+    let due_date: Option<String> = row.try_get("due_date")?;
+    let resolved_by: Option<String> = row.try_get("resolved_by")?;
+    let created_by: String = row.try_get("created_by")?;
+    let confirmation_note_id: Option<String> = row.try_get("confirmation_note_id")?;
+    let version: i64 = row.try_get("version")?;
+    let order_id: Option<String> = row.try_get("order_id")?;
+    let customer_id: Option<String> = row.try_get("customer_id")?;
+    let resolved_at: Option<i64> = row.try_get("resolved_at")?;
+    let blocked_reason: Option<String> = row.try_get("blocked_reason")?;
+    let resolution: Option<String> = row.try_get("resolution")?;
+    let confirmation_note_version: Option<i64> = row.try_get("confirmation_note_version")?;
+    let confirmed_by: Option<String> = row.try_get("confirmed_by")?;
+    let confirmed_at: Option<i64> = row.try_get("confirmed_at")?;
+    let confirmation_reason: Option<String> = row.try_get("confirmation_reason")?;
+    let sla_clock_json: Option<String> = row.try_get("sla_clock_json")?;
+    let source_record_json: Option<String> = row.try_get("source_record_json")?;
     let source_kind = match source_kind.as_str() {
         "sales_order" => SourceKind::SalesOrder,
         "general" => SourceKind::General,
@@ -1328,4 +1347,3 @@ impl IdentifierSource for Ids {
         RecordId::new(uuid::Uuid::new_v4().to_string()).expect("generated UUID")
     }
 }
-

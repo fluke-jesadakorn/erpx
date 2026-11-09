@@ -50,10 +50,21 @@ pub(crate) async fn visible<C: Clock + Send + Sync>(
     kind: SourceKind,
     id: &str,
 ) -> Result<Option<(SourceRecord, PreparedRecordsSource)>, Error> {
+    visible_with_purchase_locks(c, current, target, kind, id, None).await
+}
+
+pub(crate) async fn visible_with_purchase_locks<C: Clock + Send + Sync>(
+    c: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    target: &FieldCollaborationTarget<C>,
+    kind: SourceKind,
+    id: &str,
+    purchase_locks: Option<&erpx_server_commercial::public::purchases::PurchaseReadSourceLocks>,
+) -> Result<Option<(SourceRecord, PreparedRecordsSource)>, Error> {
     let mut port = FieldRecordsSourcePort {
         connection: c,
         context: SourceRecordContext {
-            purchase_locks: None,
+            purchase_locks,
             actor: current,
             holding: &target.holding,
             company: &target.company,

@@ -45,14 +45,17 @@ fn whitespace(v: u16) -> bool {
 }
 /// Preserve Zod's finite wire shape, JavaScript UTF-16 length/trim and original
 /// normalized property order. Unknown client fields cannot select source kind.
-pub fn normalize_service_invoice_flow_assignment(body:&[u8])->Result<CommandJson,BusinessError>{
-    normalize_owned_finance_flow_assignment(body,"invoice")
+pub fn normalize_service_invoice_flow_assignment(
+    body: &[u8],
+) -> Result<CommandJson, BusinessError> {
+    normalize_owned_finance_flow_assignment(body, "invoice")
 }
-pub fn normalize_field_journal_flow_assignment(body:&[u8])->Result<CommandJson,BusinessError>{
-    normalize_owned_finance_flow_assignment(body,"journal")
+pub fn normalize_field_journal_flow_assignment(body: &[u8]) -> Result<CommandJson, BusinessError> {
+    normalize_owned_finance_flow_assignment(body, "journal")
 }
 fn normalize_owned_finance_flow_assignment(
-    body: &[u8],kind:&'static str,
+    body: &[u8],
+    kind: &'static str,
 ) -> Result<CommandJson, BusinessError> {
     let body = String::from_utf8_lossy(body);
     let body = body.strip_prefix('\u{feff}').unwrap_or(&body);

@@ -22,6 +22,14 @@ fn strict(v: &CommandJson, allowed: &[&str]) -> Result<(), BusinessError> {
 fn prop(v: &CommandJson, key: &str) -> Result<CommandJson, BusinessError> {
     v.property(key)?.ok_or_else(invalid)
 }
+fn has_unpaired(v: &CommandJson) -> Result<bool, BusinessError> {
+    Ok(v.string_utf16_units()?
+        .is_some_and(|units| char::decode_utf16(units).any(|item| item.is_err())))
+}
+fn property_has_unpaired(v: &CommandJson, key: &str) -> Result<bool, BusinessError> {
+    v.property(key)?
+        .map_or(Ok(false), |value| has_unpaired(&value))
+}
 fn text(
     v: &CommandJson,
     min: usize,
@@ -35,7 +43,10 @@ fn text(
         let b = u.iter().rposition(|c| !white(c)).map_or(a, |i| i + 1);
         u = u[a..b].to_vec();
     }
-    if u.len() < min || u.len() > max {
+    // Zod measures Unicode code points, including an unpaired surrogate as
+    // one point. Retain the original UTF-16 units for the command identity.
+    let length = char::decode_utf16(u.iter().copied()).count();
+    if length < min || length > max {
         return Err(invalid());
     }
     Ok((
@@ -121,6 +132,7 @@ pub struct InitialCountCreate {
     pub unit_cost_minor: Option<i64>,
     pub lots: Vec<InitialCountLot>,
     pub normalized: CommandJson,
+    pub contains_unpaired_surrogate: bool,
 }
 /// Original one-line Zod shape and field order are reproduced for exact replay.
 pub fn normalize_initial_count_create(raw: &str) -> Result<InitialCountCreate, BusinessError> {
@@ -137,6 +149,7 @@ pub fn normalize_initial_count_create(raw: &str) -> Result<InitialCountCreate, B
         return Err(invalid());
     }
     let input = prop(&root, "input")?;
+    let mut contains_unpaired_surrogate = property_has_unpaired(&input, "warehouseId")?;
     strict(&input, &["warehouseId", "countDate", "reason", "lines"])?;
     let (warehouse, wj) = text(&prop(&input, "warehouseId")?, 1, usize::MAX, false)?;
     let (day, dj) = text(&prop(&input, "countDate")?, 10, 10, false)?;
@@ -151,6 +164,7 @@ pub fn normalize_initial_count_create(raw: &str) -> Result<InitialCountCreate, B
         return Err(invalid());
     }
     let line = &lines[0];
+    contains_unpaired_surrogate |= property_has_unpaired(line, "productId")?;
     strict(
         line,
         &["productId", "countedQuantity", "unitCost", "allocations"],
@@ -171,6 +185,9 @@ pub fn normalize_initial_count_create(raw: &str) -> Result<InitialCountCreate, B
     let mut lots = Vec::new();
     let mut encoded = Vec::new();
     for allocation in allocations {
+        for key in ["lotId", "lotCode", "serialNumber"] {
+            contains_unpaired_surrogate |= property_has_unpaired(&allocation, key)?;
+        }
         strict(
             &allocation,
             &[
@@ -261,6 +278,7 @@ pub fn normalize_initial_count_create(raw: &str) -> Result<InitialCountCreate, B
         unit_cost_minor: unit_cost,
         lots,
         normalized,
+        contains_unpaired_surrogate,
     })
 }
 #[derive(Clone, Debug)]
@@ -269,6 +287,7 @@ pub struct InitialCountActionInput {
     pub attachment_set_ids: Vec<String>,
     pub reason: Option<String>,
     pub normalized: CommandJson,
+    pub contains_unpaired_surrogate: bool,
 }
 pub fn normalize_initial_count_action(raw: &str) -> Result<InitialCountActionInput, BusinessError> {
     let input = CommandJson::parse(raw)?;
@@ -286,7 +305,9 @@ pub fn normalize_initial_count_action(raw: &str) -> Result<InitialCountActionInp
     }
     let mut ids = Vec::new();
     let mut tokens = Vec::new();
+    let mut contains_unpaired_surrogate = false;
     for v in array {
+        contains_unpaired_surrogate |= has_unpaired(&v)?;
         let (id, token) = text(&v, 1, usize::MAX, false)?;
         ids.push(id);
         tokens.push(token.as_str().to_owned());
@@ -307,12 +328,15 @@ pub fn normalize_initial_count_action(raw: &str) -> Result<InitialCountActionInp
         attachment_set_ids: ids,
         reason: reason.map(|x| x.0),
         normalized,
+        contains_unpaired_surrogate,
     })
 }
 
 /// Generic stock-count actions strip unknown object fields like the retained
 /// countActionSchema. Inspect only named fields so lone UTF-16 keys are safe.
-pub fn normalize_generic_initial_count_action(raw: &str) -> Result<InitialCountActionInput, BusinessError> {
+pub fn normalize_generic_initial_count_action(
+    raw: &str,
+) -> Result<InitialCountActionInput, BusinessError> {
     let input = CommandJson::parse(raw)?;
     let expected = prop(&input, "expectedVersion")?;
     let mut fields = vec![format!("\"expectedVersion\":{}", expected.as_str())];
@@ -330,14 +354,30 @@ mod tests {
 
     #[test]
     fn generic_action_matches_actual_zod_oracle() {
-        let oracle: serde_json::Value = serde_json::from_str(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../fixtures/field_service/service-count-generic-action-zod-oracle.v1.json"))).unwrap();
+        let oracle: serde_json::Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../fixtures/field_service/service-count-generic-action-zod-oracle.v1.json"
+        )))
+        .unwrap();
         let cases = oracle["cases"].as_array().unwrap();
         assert!(cases.len() >= 12);
         for case in cases {
             let raw = case["raw"].as_str().unwrap();
             match case["normalized"].as_str() {
-                Some(expected) => assert_eq!(normalize_generic_initial_count_action(raw).unwrap().normalized.as_str(), expected, "{}", case["name"]),
-                None => assert!(normalize_generic_initial_count_action(raw).is_err(), "{}", case["name"]),
+                Some(expected) => assert_eq!(
+                    normalize_generic_initial_count_action(raw)
+                        .unwrap()
+                        .normalized
+                        .as_str(),
+                    expected,
+                    "{}",
+                    case["name"]
+                ),
+                None => assert!(
+                    normalize_generic_initial_count_action(raw).is_err(),
+                    "{}",
+                    case["name"]
+                ),
             }
         }
         assert!(normalize_initial_count_action(r#"{"expectedVersion":1,"unknown":true}"#).is_err());

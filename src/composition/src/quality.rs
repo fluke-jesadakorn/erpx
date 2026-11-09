@@ -226,7 +226,12 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
                         current.require_permission("quality.read")?;
                         let actor = quality_actor(current)?;
                         let mut repository = PgQualityRead { connection };
-                        let data = quality_workspace_with_same_person(&actor, &mut repository, |user| erpx_server_shared::public::UserId::new(user.to_owned()).is_ok_and(|id| current.same_person_user(&id))).await?;
+                        let data =
+                            quality_workspace_with_same_person(&actor, &mut repository, |user| {
+                                erpx_server_shared::public::UserId::new(user.to_owned())
+                                    .is_ok_and(|id| current.same_person_user(&id))
+                            })
+                            .await?;
                         let _ = clock;
                         Ok(QualityHttpReadReply::Workspace(Box::new(data)))
                     })
@@ -267,7 +272,12 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
                         current.require_permission("quality.read")?;
                         let actor = quality_actor(current)?;
                         let mut repository = PgQualityRead { connection };
-                        let data = quality_detail_with_same_person(&actor, &id, &mut repository, |user| erpx_server_shared::public::UserId::new(user.to_owned()).is_ok_and(|id| current.same_person_user(&id))).await?;
+                        let data =
+                            quality_detail_with_same_person(&actor, &id, &mut repository, |user| {
+                                erpx_server_shared::public::UserId::new(user.to_owned())
+                                    .is_ok_and(|id| current.same_person_user(&id))
+                            })
+                            .await?;
                         Ok(QualityHttpReadReply::Detail(Box::new(data)))
                     })
                 },
@@ -358,7 +368,10 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
                         Ok(quality_detail_core_with_same_person(
                             &actor,
                             hold_source.data().clone(),
-                            &|user| erpx_server_shared::public::UserId::new(user.to_owned()).is_ok_and(|id| current.same_person_user(&id)),
+                            &|user| {
+                                erpx_server_shared::public::UserId::new(user.to_owned())
+                                    .is_ok_and(|id| current.same_person_user(&id))
+                            },
                         )?)
                     })
                 },
@@ -976,10 +989,7 @@ impl<C: Clock + Send + Sync + 'static> QualityBackend<C> {
         let revision = field("x-erpx-context-revision")?
             .parse::<i64>()
             .map_err(|_| {
-                BusinessError::invalid(
-                    "QUALITY_CONTEXT_REQUIRED",
-                    "Use the current work revision.",
-                )
+                BusinessError::invalid("QUALITY_CONTEXT_REQUIRED", "Use the current work revision.")
             })?;
         if revision < 0 {
             return Err(BusinessError::invalid(

@@ -13,7 +13,9 @@ use erpx_server_identity_access::public::{
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId};
+use erpx_server_shared::public::{
+    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
+};
 use erpx_server_workflow::public::approval_oversight::{
     ApprovalEvidenceQuery, ApprovalOversightActor, PgApprovalOversight, approval_evidence,
     approval_queue_value,
@@ -80,7 +82,9 @@ impl HoldingWorkSourcePreparation for ApprovalOversightSources {
     }
 }
 
-fn approval_actor(current: &AuthorizedWorkContext) -> Result<ApprovalOversightActor, BusinessError> {
+fn approval_actor(
+    current: &AuthorizedWorkContext,
+) -> Result<ApprovalOversightActor, BusinessError> {
     let selected = current.selection();
     let workspace = selected.workspace();
     let assignment = selected.assignment();
@@ -206,8 +210,7 @@ impl<C: Clock + Send + Sync + 'static> ApprovalOversightService<C> {
                         current.require_permission("organization.manage")?;
                         let actor = approval_actor(current)?;
                         let mut ports = PgApprovalOversight::new(connection);
-                        let data =
-                            approval_queue_value(&mut ports, &actor, now.get()).await?;
+                        let data = approval_queue_value(&mut ports, &actor, now.get()).await?;
                         Ok(ApprovalOversightHttpResponse {
                             data,
                             context: context(current),
@@ -317,18 +320,16 @@ impl<C: Clock + Send + Sync + 'static> ApprovalOversightHttpBackend
         Box::pin(async move {
             let (proof, selection) = self.context(request.headers)?;
             match request.command {
-                ApprovalOversightHttpCommand::Queue => {
-                    self.service
-                        .queue(request.host, proof, move || Ok(selection))
-                        .await
-                        .map_err(business)
-                }
-                ApprovalOversightHttpCommand::Evidence { query } => {
-                    self.service
-                        .evidence(request.host, proof, move || Ok(selection), query)
-                        .await
-                        .map_err(business)
-                }
+                ApprovalOversightHttpCommand::Queue => self
+                    .service
+                    .queue(request.host, proof, move || Ok(selection))
+                    .await
+                    .map_err(business),
+                ApprovalOversightHttpCommand::Evidence { query } => self
+                    .service
+                    .evidence(request.host, proof, move || Ok(selection), query)
+                    .await
+                    .map_err(business),
             }
         })
     }

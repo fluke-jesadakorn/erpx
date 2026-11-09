@@ -515,3 +515,65 @@ async fn stock_master_finance_witness_and_product_money_preserve_owner_sources()
     })
     .await;
 }
+
+#[tokio::test]
+async fn asset_acquisition_money_snapshots_use_acquired_date_scale_and_same_unit() {
+    use erpx_server_finance::public::asset_acquisition_money::*;
+    fixture::with_database(2, |p| async move {
+        setup(&p).await;
+        let company=CompanyId::new("company").unwrap();
+        let mut tx=p.raw().begin().await.unwrap();serial(&mut tx).await;lock_asset_acquisition_money_sources(&mut tx).await.unwrap();
+        rate(&mut tx,"asset-old","2026-01-01","2",10).await;
+        rate(&mut tx,"asset-new","2026-02-01","4",20).await;
+        let plan=prepare_asset_acquisition_money(&mut tx,&company,"asset-money-a","2026-01-15","THB",101,&TestClock).await.unwrap();
+        assert_eq!((plan.evidence().transaction_date.as_str(),plan.evidence().currency_scale,plan.evidence().amount_units.as_str(),plan.evidence().usd_units.as_str(),plan.evidence().rate_id.as_deref(),plan.evidence().used_latest_fallback),("2026-01-15",2,"101","51",Some("asset-old"),false));
+        let retained=plan.persist(&mut tx).await.unwrap();retained.require_current(&mut tx).await.unwrap();
+        let stored:(String,i32,String,String,Option<String>,bool,i64)=sqlx::query_as("SELECT transaction_date::text,currency_scale::int,amount_units::text,usd_units::text,fx_rate_id,used_latest_fallback,captured_at FROM public.money_transaction_snapshots WHERE company_id='company' AND source_type='operational_asset' AND source_id='asset-money-a' AND amount_kind='acquisition_cost'").fetch_one(&mut *tx).await.unwrap();
+        assert_eq!(stored,("2026-01-15".into(),2,"101".into(),"51".into(),Some("asset-old".into()),false,1_800_000_000_000));
+        assert!(prepare_asset_acquisition_money(&mut tx,&company,"asset-money-a","2026-01-15","THB",101,&TestClock).await.is_err());
+        let zero=prepare_asset_acquisition_money(&mut tx,&company,"asset-zero","2026-01-15","USD",0,&TestClock).await.unwrap();assert_eq!(zero.evidence().usd_units,"0");assert_eq!(zero.evidence().rate_id,None);zero.persist(&mut tx).await.unwrap().require_current(&mut tx).await.unwrap();
+        // Exercise ISO scale 0 and a Company-configured null-ISO scale against
+        // the actual Node 26 Finance currencyScale and convertUnits functions.
+        sqlx::query("INSERT INTO public.company_currency_scales(company_id,currency,scale,configured_by,configured_at) VALUES('company','XAG',4,'fixture',0)").execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO public.company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at) VALUES('asset-jpy','company','JPY','2026-01-01',200,'fixture',1),('asset-xag','company','XAG','2026-01-01',2,'fixture',1)").execute(&mut *tx).await.unwrap();
+        let node=std::env::var("ERPX_NODE_BIN").unwrap_or_else(|_|"node".into());
+        let finance_source=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../feature-finance/src/lib/company-money.ts");
+        let catalogue=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../catalogue/src/iso-4217-current.json");
+        let currency_oracle=r#"const fs=require('node:fs'),m=require('node:module');if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const s=fs.readFileSync(process.argv[1],'utf8').replace(/^import[^\n]+\n/,'').replace(/\bexport\s+/g,''),cat=JSON.parse(fs.readFileSync(process.argv[2],'utf8')),f=new Function('catalogue',m.stripTypeScriptTypes(s)+';return {currencyScale,convertUnits}')(cat),x=JSON.parse(process.argv[3]),scale=f.currencyScale(x.currency,x.configuredScale);process.stdout.write(JSON.stringify({scale,usd:String(f.convertUnits(x.amount,scale,2,x.rate,'1'))}));"#;
+        for (currency,configured,amount,rate_value) in [("JPY",None,101_i64,"200"),("XAG",Some(4),12345_i64,"2")] {
+            let params=serde_json::json!({"currency":currency,"configuredScale":configured,"amount":amount.to_string(),"rate":rate_value}).to_string();
+            let output=std::process::Command::new(&node).arg("-e").arg(currency_oracle).arg(&finance_source).arg(&catalogue).arg(params).output().expect("pinned Node currency oracle");
+            assert!(output.status.success(),"legacy currency Node oracle: {}",String::from_utf8_lossy(&output.stderr));
+            let expected:Value=serde_json::from_slice(&output.stdout).unwrap();
+            let plan=prepare_asset_acquisition_money(&mut tx,&company,&format!("asset-scale-{currency}"),"2026-01-15",currency,amount,&TestClock).await.unwrap();
+            assert_eq!(Some(i64::from(plan.evidence().currency_scale)),expected["scale"].as_i64());assert_eq!(Some(plan.evidence().usd_units.as_str()),expected["usd"].as_str());
+            plan.persist(&mut tx).await.unwrap().require_current(&mut tx).await.unwrap();
+        }
+        let future=prepare_asset_acquisition_money(&mut tx,&company,"asset-fallback","2025-01-01","THB",101,&TestClock).await.unwrap();assert!(future.evidence().used_latest_fallback);assert_eq!(future.evidence().rate_id.as_deref(),Some("asset-new"));assert_eq!(future.evidence().usd_units,"25");
+        denied(prepare_asset_acquisition_money(&mut tx,&company,"asset-missing","2026-01-15","EUR",0,&TestClock).await,"MANUAL_RATE_REQUIRED");
+        // Node evaluates the actual legacy resolveRate source over rows in the
+        // exact legacy companyRates SQL order. Canonically equivalent Unicode
+        // IDs compare equal under localeCompare despite distinct PostgreSQL IDs.
+        sqlx::query("SAVEPOINT asset_ties").execute(&mut *tx).await.unwrap();
+        rate(&mut tx,"asset-é","2026-03-01","7",40).await;
+        rate(&mut tx,"asset-e\u{301}","2026-03-01","11",40).await;
+        let rows:Vec<(String,String,String,i64)>=sqlx::query_as("SELECT id,effective_date::text,currency_per_usd::text,confirmed_at FROM public.company_fx_rates WHERE company_id='company' AND currency='THB' ORDER BY effective_date DESC,confirmed_at DESC,id DESC").fetch_all(&mut *tx).await.unwrap();
+        let input_rates:Vec<_>=rows.into_iter().map(|(id,date,quote,confirmed)|serde_json::json!({"id":id,"currency":"THB","effectiveDate":date,"currencyPerUsd":quote,"confirmedAt":confirmed})).collect();
+        let legacy_source=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../feature-finance/src/lib/company-money.ts");
+        let script=r#"const fs=require('node:fs'),m=require('node:module');if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const s=fs.readFileSync(process.argv[1],'utf8'),a=s.indexOf('export function resolveRate('),b=s.indexOf('\n}\n',a)+2;if(a<0||b<2)throw Error('SOURCE_REQUIRED');const f=new Function(m.stripTypeScriptTypes(s.slice(a,b).replace('export function','function'))+';return resolveRate')();const p=JSON.parse(process.argv[2]),r=f(p.rates,'THB',p.date);process.stdout.write(JSON.stringify({id:r.rate.id,fallback:r.usedLatestFallback}));"#;
+        for date in ["2026-03-15","2025-01-01"] {
+            let input=serde_json::json!({"rates":input_rates,"date":date}).to_string();
+            let output=std::process::Command::new(&node).arg("-e").arg(script).arg(&legacy_source).arg(input).output().expect("pinned Node oracle");
+            assert!(output.status.success(),"legacy Node oracle: {}",String::from_utf8_lossy(&output.stderr));
+            let expected:Value=serde_json::from_slice(&output.stdout).unwrap();
+            let actual=prepare_asset_acquisition_money(&mut tx,&company,&format!("asset-tie-{date}"),date,"THB",101,&TestClock).await.unwrap();
+            assert_eq!(actual.evidence().rate_id.as_deref(),expected["id"].as_str());assert_eq!(Some(actual.evidence().used_latest_fallback),expected["fallback"].as_bool());
+        }
+        sqlx::query("ROLLBACK TO SAVEPOINT asset_ties").execute(&mut *tx).await.unwrap();future.require_before(&mut tx).await.unwrap();
+        sqlx::query("SAVEPOINT asset_quote_change").execute(&mut *tx).await.unwrap();rate(&mut tx,"asset-changed","2026-01-02","5",30).await;assert!(retained.require_current(&mut tx).await.is_err());assert!(future.require_before(&mut tx).await.is_err());sqlx::query("ROLLBACK TO SAVEPOINT asset_quote_change").execute(&mut *tx).await.unwrap();retained.require_current(&mut tx).await.unwrap();
+        tx.rollback().await.unwrap();
+        let count:i64=sqlx::query_scalar("SELECT count(*) FROM public.money_transaction_snapshots WHERE source_type='operational_asset' AND source_id IN ('asset-money-a','asset-zero','asset-scale-JPY','asset-scale-XAG')").fetch_one(p.raw()).await.unwrap();assert_eq!(count,0);
+        let mut other=p.raw().begin().await.unwrap();serial(&mut other).await;lock_asset_acquisition_money_sources(&mut other).await.unwrap();assert!(retained.require_current(&mut other).await.is_err());other.rollback().await.unwrap();
+        let mut writer=p.raw().begin().await.unwrap();sqlx::query("LOCK TABLE public.company_fx_rates IN ROW EXCLUSIVE MODE").execute(&mut *writer).await.unwrap();let mut blocked=p.raw().begin().await.unwrap();serial(&mut blocked).await;let conflict=lock_asset_acquisition_money_sources(&mut blocked).await;assert!(matches!(conflict,Err(PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));blocked.rollback().await.unwrap();writer.rollback().await.unwrap();
+    }).await;
+}

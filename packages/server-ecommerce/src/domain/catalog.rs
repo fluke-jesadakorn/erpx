@@ -7,7 +7,7 @@
 //! for the candidate options used by create forms.
 use super::actor::EcommerceActor;
 use super::command::{
-    js_trim, source_invalid, valid_configuration, valid_currency, valid_identifier, valid_text,
+    js_trim, source_invalid, valid_configuration, valid_cp_text, valid_currency, valid_identifier, valid_text,
 };
 use erpx_server_shared::public::{BusinessError, FailureKind, TimestampMillis};
 use serde::Serialize;
@@ -86,7 +86,7 @@ impl EcommerceChannelRow {
     fn validate(&self, actor: &EcommerceActor) -> Result<(), BusinessError> {
         if self.company_id != actor.company_id.as_str()
             || !valid_identifier(&self.id)
-            || !valid_text(&self.name, NAME_LIMIT)
+            || !valid_cp_text(&self.name, NAME_LIMIT)
             || js_trim(&self.name).is_empty()
             || !valid_channel_type(&self.channel_type)
             || !valid_configuration(&self.configuration_json)

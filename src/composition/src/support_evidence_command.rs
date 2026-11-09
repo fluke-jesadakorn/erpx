@@ -15,8 +15,8 @@ use erpx_server_identity_access::public::{
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{
-    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, IdentifierSource, RecordId,
-    TimestampMillis,
+    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, IdentifierSource,
+    RecordId, TimestampMillis,
 };
 use erpx_server_support::public::support_evidence::{
     EvidenceActor, EvidenceBind, EvidenceBindPlan, EvidenceLinkFacts, EvidenceRevoke,
@@ -130,14 +130,12 @@ impl<C: Clock + Send + Sync + 'static> SupportEvidenceCommand<C> {
         let clock = self.clock.clone();
         let expected = key.clone();
         let (operation, record_id) = match &write {
-            EvidenceWrite::Bind { ticket_id, .. } => (
-                "support.evidence.bind".to_owned(),
-                ticket_id.clone(),
-            ),
-            EvidenceWrite::Revoke { ticket_id, .. } => (
-                "support.evidence.revoke".to_owned(),
-                ticket_id.clone(),
-            ),
+            EvidenceWrite::Bind { ticket_id, .. } => {
+                ("support.evidence.bind".to_owned(), ticket_id.clone())
+            }
+            EvidenceWrite::Revoke { ticket_id, .. } => {
+                ("support.evidence.revoke".to_owned(), ticket_id.clone())
+            }
         };
         self.authorizer
             .execute_with_sources(
@@ -233,8 +231,7 @@ fn evidence_actor(
             .department_id
             .as_ref()
             .map(|v| v.as_str().to_owned()),
-        can_read: current.has_permission("support.read")
-            || current.has_permission("records.read"),
+        can_read: current.has_permission("support.read") || current.has_permission("records.read"),
         can_work: current.has_permission("support.work"),
         can_manage: current.has_permission("support.manage"),
         same_person_ids: Vec::new(),
@@ -305,9 +302,8 @@ impl<C: Clock + Sync> PgCommandAuthority for Authority<'_, C> {
         match &self.purchases {
             Some(p) => p.check(c, self.current, self.clock.now()).await?,
             None => {
-                self.purchases = Some(
-                    Purchases::read(c, self.current, disposition, self.clock.now()).await?,
-                )
+                self.purchases =
+                    Some(Purchases::read(c, self.current, disposition, self.clock.now()).await?)
             }
         }
         Ok(())
@@ -372,7 +368,10 @@ impl Purchases {
             c,
             &self.catalogue,
         );
-        reader.revalidate(&self.history, now).await?.require_allowed()?;
+        reader
+            .revalidate(&self.history, now)
+            .await?
+            .require_allowed()?;
         if let Some(witness) = &self.new_work {
             reader.revalidate(witness, now).await?.require_allowed()?;
         }
@@ -458,7 +457,11 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
         let _ = input_reason;
         match self.write {
             EvidenceWrite::Bind { input, .. } => {
-                let set_id = input.attachment_set_ids.first().cloned().unwrap_or_default();
+                let set_id = input
+                    .attachment_set_ids
+                    .first()
+                    .cloned()
+                    .unwrap_or_default();
                 let set = load_set(c, self.company, &set_id).await?;
                 let plan = plan_bind(
                     &self.actor,
@@ -493,12 +496,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
                     )
                     .into());
                 }
-                let plan = plan_revoke(
-                    &self.actor,
-                    &ticket,
-                    input,
-                    self.clock.now().get(),
-                )?;
+                let plan = plan_revoke(&self.actor, &ticket, input, self.clock.now().get())?;
                 let result = EvidenceResult {
                     id: plan.ticket_id.clone(),
                     version: plan.ticket_version,
@@ -667,11 +665,7 @@ async fn load_set(
     })
 }
 
-async fn apply_bind(
-    c: &mut PgConnection,
-    key: &str,
-    plan: &EvidenceBindPlan,
-) -> Result<(), Error> {
+async fn apply_bind(c: &mut PgConnection, key: &str, plan: &EvidenceBindPlan) -> Result<(), Error> {
     let updated = sqlx::query("UPDATE support_tickets SET version=version+1,updated_at=$1 WHERE id=$2 AND company_id=$3 AND version=$4")
         .bind(plan.event_at)
         .bind(&plan.ticket_id)

@@ -15,11 +15,11 @@ use erpx_server_pms::public::front_desk::{
     PgPmsFrontDeskRead, PmsFrontDeskSelection, lock_front_desk_sources, pms_front_desk,
 };
 use erpx_server_pms::public::pms_http::{
-    PmsHttpBackend, PmsHttpFuture, PmsHttpResponse, PmsHttpReadRequest, PmsHttpFrontDeskRequest,
+    PmsHttpBackend, PmsHttpFrontDeskRequest, PmsHttpFuture, PmsHttpReadRequest, PmsHttpResponse,
 };
 use erpx_server_pms::public::room_board::{
-    PmsBoardActor, PmsBoardEntitlement, PmsBoardEntitlementPort, PmsBoardSelection, PmsStaff,
-    PmsStaffDirectory, PgPmsBoardRead, pms_room_board,
+    PgPmsBoardRead, PmsBoardActor, PmsBoardEntitlement, PmsBoardEntitlementPort, PmsBoardSelection,
+    PmsStaff, PmsStaffDirectory, pms_room_board,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
@@ -88,7 +88,12 @@ impl PmsBoardEntitlementPort for PmsEntitlementImpl {
         _company_id: &'a str,
     ) -> erpx_server_pms::public::room_board::PmsBoardFuture<'a, PmsBoardEntitlement, Self::Error>
     {
-        Box::pin(async { Ok(PmsBoardEntitlement { enforced: false, history_allowed: false }) })
+        Box::pin(async {
+            Ok(PmsBoardEntitlement {
+                enforced: false,
+                history_allowed: false,
+            })
+        })
     }
 }
 
@@ -114,8 +119,14 @@ fn pms_actor(current: &AuthorizedWorkContext) -> Result<PmsBoardActor, BusinessE
     Ok(PmsBoardActor {
         user_id: current.user_id().as_str().to_owned(),
         company_id: workspace.company_id.as_str().to_owned(),
-        branch_id: workspace.branch_id.as_ref().map(|value| value.as_str().to_owned()),
-        department_id: workspace.department_id.as_ref().map(|value| value.as_str().to_owned()),
+        branch_id: workspace
+            .branch_id
+            .as_ref()
+            .map(|value| value.as_str().to_owned()),
+        department_id: workspace
+            .department_id
+            .as_ref()
+            .map(|value| value.as_str().to_owned()),
         permissions: current.command_iam_metadata().permissions.clone(),
         modules: current.modules().to_vec(),
         expires_at: current.expires_at(),
@@ -352,10 +363,7 @@ impl<C: Clock + Send + Sync + 'static> PmsBackend<C> {
 }
 
 impl<C: Clock + Send + Sync + 'static> PmsHttpBackend for PmsBackend<C> {
-    fn read<'a>(
-        &'a self,
-        request: PmsHttpReadRequest<'a>,
-    ) -> PmsHttpFuture<'a, PmsHttpResponse> {
+    fn read<'a>(&'a self, request: PmsHttpReadRequest<'a>) -> PmsHttpFuture<'a, PmsHttpResponse> {
         Box::pin(async move {
             let (proof, selection) = self.context(request.headers)?;
             let board_selection = request.selection.clone();

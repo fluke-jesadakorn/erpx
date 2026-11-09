@@ -261,11 +261,17 @@ impl<'a> RequestSources<'a> {
         // Initial version/eligibility errors remain Agreement-specific. A
         // retained source changing after owner effects keeps the original
         // direct-intake final-fence wire code, without swallowing persistence errors.
-        self.agreement.require_current(c, self.current).await.map_err(|error| match error {
-            erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e)
-                if e.code == "FIELD_SERVICE_AGREEMENT_CHANGED" => changed().into(),
-            other => other,
-        })?;
+        self.agreement
+            .require_current(c, self.current)
+            .await
+            .map_err(|error| match error {
+                erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e)
+                    if e.code == "FIELD_SERVICE_AGREEMENT_CHANGED" =>
+                {
+                    changed().into()
+                }
+                other => other,
+            })?;
         self.agreement.require_new_work(c).await?;
         self.customer.require_current(c).await?;
         if let Some(asset) = &self.asset {
@@ -380,7 +386,21 @@ impl Purchases {
                 reader
                     .inspect(&inspect(CapabilityPurpose::NewWork), now)
                     .await?
-                    .require_allowed().map_err(|error| if matches!(error.code, "PACKAGE_DRAINING" | "COMMERCIAL_PURCHASE_CHANGED") { BusinessError::new(FailureKind::Conflict,"PACKAGE_CAPABILITY_CHANGED","Package access changed. Reload and review before retrying.") } else { error })?
+                    .require_allowed()
+                    .map_err(|error| {
+                        if matches!(
+                            error.code,
+                            "PACKAGE_DRAINING" | "COMMERCIAL_PURCHASE_CHANGED"
+                        ) {
+                            BusinessError::new(
+                                FailureKind::Conflict,
+                                "PACKAGE_CAPABILITY_CHANGED",
+                                "Package access changed. Reload and review before retrying.",
+                            )
+                        } else {
+                            error
+                        }
+                    })?
                     .clone(),
             )
         } else {
@@ -406,19 +426,28 @@ impl Purchases {
         );
         let original_wire_error = |error: Error| match error {
             erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e)
-                if e.code == "COMMERCIAL_PURCHASE_CHANGED" => BusinessError::new(
+                if e.code == "COMMERCIAL_PURCHASE_CHANGED" =>
+            {
+                BusinessError::new(
                     FailureKind::Conflict,
                     "PACKAGE_CAPABILITY_CHANGED",
                     "Package access changed. Reload and review before retrying.",
-                ).into(),
+                )
+                .into()
+            }
             other => other,
         };
         reader
             .revalidate(&self.history, now)
-            .await.map_err(original_wire_error)?
+            .await
+            .map_err(original_wire_error)?
             .require_allowed()?;
         if let Some(w) = &self.new_work {
-            reader.revalidate(w, now).await.map_err(original_wire_error)?.require_allowed()?;
+            reader
+                .revalidate(w, now)
+                .await
+                .map_err(original_wire_error)?
+                .require_allowed()?;
         }
         Ok(())
     }

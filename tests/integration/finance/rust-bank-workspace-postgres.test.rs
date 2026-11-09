@@ -339,6 +339,9 @@ async fn denies_a_changed_selected_assignment() {
 }
 
 fn router(p: &review::Prepared) -> axum::Router {
+    router_for(p,false)
+}
+fn router_for(p: &review::Prepared,two_companies:bool) -> axum::Router {
     let policy = review::account::fixture::account::policy();
     let registry = ConfiguredHoldingRegistry::new(
         &policy,
@@ -360,15 +363,13 @@ fn router(p: &review::Prepared) -> axum::Router {
         ],
     )
     .unwrap();
+    let mut targets=vec![FinanceBankWorkspaceTarget {host:"acme.example.test".into(),holding_slug:"acme".into(),service:Arc::new(service(p))}];
+    if two_companies {targets.push(FinanceBankWorkspaceTarget {host:"acme.example.test".into(),holding_slug:"acme".into(),service:Arc::new(FinanceBankWorkspaceService::new(p.authorizer.clone(),FinanceBankWorkspaceConfiguration::new(HoldingId::new("h001").unwrap(),CompanyId::new("foreign").unwrap(),Arc::new(current_package_catalogue().unwrap())).unwrap(),p.system.scenario.clock.clone()))});}
     finance_bank_workspace_router(
         Arc::new(policy),
         Arc::new(registry),
         Arc::new(BankWorkspaceScopeHeaders),
-        vec![FinanceBankWorkspaceTarget {
-            host: "acme.example.test".into(),
-            holding_slug: "acme".into(),
-            service: Arc::new(service(p)),
-        }],
+        targets,
     )
     .unwrap()
 }
@@ -395,6 +396,8 @@ async fn bank_workspace_http_reads_under_a_normal_finance_session() {
         seed(&p).await;
         let app = router(&p);
         let cookie = format!("__Host-erpx-product={}", p.maker_token.expose());
+        let mut legacy=get("/api/v1/holdings/acme/finance/bank",&cookie,"company");legacy.headers_mut().remove("x-erpx-context-company");
+        let legacy=app.clone().oneshot(legacy).await.unwrap();assert_eq!(legacy.status(),StatusCode::OK,"single Company legacy read must remain available without Company header");
         let request = get(
             "/api/v1/holdings/acme/finance/bank?chart=chart&view=unmatched&match=txn-010",
             &cookie,
@@ -479,4 +482,23 @@ async fn bank_workspace_is_reachable_through_the_private_api_boundary() {
         assert!(value["data"]["statements"].is_array());
     })
     .await;
+}
+
+#[tokio::test]
+async fn bank_workspace_two_companies_use_authenticated_selected_context() {
+    review::account::with_system(|system| async move {
+        let p=review::setup_with_finance(system,true).await;seed(&p).await;
+        let db=p.system.holdings[0].raw();
+        sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES('foreign','company','foreign','Foreign',NULL,'foreign',NULL,'active'); INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind) VALUES('finance-foreign-b','fixture-b','custom_finance_review','[\"finance\"]','foreign',0,9000000000000,3,'holding'); UPDATE active_work_contexts SET company_id='foreign',assignment_id='finance-foreign-b',assignment_version=3,revision=7 WHERE user_id='fixture-b'").execute(db).await.unwrap();
+        let mut tx=db.begin().await.unwrap();
+        sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at) SELECT 'foreign',package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at FROM company_package_grants WHERE company_id='company' AND package_id='finance'").execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) SELECT 'foreign-finance-grant',company_id,package_id,'fixture-b','foreign-fixture',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),updated_at FROM company_package_grants WHERE company_id='foreign' AND package_id='finance'").execute(&mut *tx).await.unwrap();tx.commit().await.unwrap();
+        let app=router_for(&p,true);
+        let make=|token:Option<&str>,company:&str,assignment:&str,revision:&str|{let mut b=Request::builder().method("GET").uri("/api/v1/holdings/acme/finance/bank").header("host","acme.example.test").header("origin","https://acme.example.test").header("x-erpx-context-company",company).header("x-erpx-context-assignment",assignment).header("x-erpx-context-revision",revision).header("x-erpx-context-assignment-version","3");if let Some(t)=token{b=b.header("cookie",format!("__Host-erpx-product={t}"));}b.body(Body::empty()).unwrap()};
+        let a=p.maker_token.expose();let b=p.reviewer_token.expose();
+        for (token,company,assignment,statement) in [(a,"company","finance-fixture-a","stmt-035"),(b,"foreign","finance-foreign-b","foreign-stmt")] {let response=app.clone().oneshot(make(Some(token),company,assignment,"7")).await.unwrap();let status=response.status();let bytes=to_bytes(response.into_body(),1024*1024).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));let value:serde_json::Value=serde_json::from_slice(&bytes).unwrap();let rows=value["data"]["statements"].as_array().unwrap();assert!(rows.iter().any(|r|r["id"]==statement));assert!(rows.iter().all(|r|r["company_id"]==company));}
+        let mut missing=make(Some(a),"company","finance-fixture-a","7");missing.headers_mut().remove("x-erpx-context-company");
+        let mut duplicate=make(Some(a),"company","finance-fixture-a","7");duplicate.headers_mut().append("x-erpx-context-company","foreign".parse().unwrap());
+        for (label,request,expected,code) in [("unauthenticated",make(None,"unknown","finance-fixture-a","7"),StatusCode::UNAUTHORIZED,"UNAUTHENTICATED"),("foreign selection without actor role",make(Some(a),"foreign","finance-fixture-a","7"),StatusCode::CONFLICT,"WORK_ROLE_REQUIRED"),("stale revision",make(Some(a),"company","finance-fixture-a","6"),StatusCode::CONFLICT,"WORK_CONTEXT_CHANGED"),("missing selection",missing,StatusCode::CONFLICT,"WORK_COMPANY_REQUIRED"),("duplicate selection",duplicate,StatusCode::UNPROCESSABLE_ENTITY,"AMBIGUOUS_REQUEST_AUTHORITY")] {let response=app.clone().oneshot(request).await.unwrap();let status=response.status();let body=to_bytes(response.into_body(),65536).await.unwrap();let v:serde_json::Value=serde_json::from_slice(&body).unwrap();assert_eq!(status,expected,"{label}: {v}");assert_eq!(v["error"]["code"],code,"{label}: {v}");}
+    }).await;
 }

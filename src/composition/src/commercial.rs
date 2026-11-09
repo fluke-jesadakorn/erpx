@@ -3,10 +3,11 @@
 //! package overview and purchase admission facts.
 use crate::business_http::BusinessScopeSlugs;
 use erpx_server_commercial::public::purchases::{
-    CompanyPackageReadHttpBackend, CompanyPackageReadHttpFuture, CompanyPackageReadHttpRequest,
-    CompanyPackageReadHttpResponse, CompanyPackageReadHttpKind, CompanyPackageReadHttpTarget,
-    CompanyPurchaseAdmission, CompanyPackageOverview, CommercialCatalogue, CompanyPurchaseAdmissionPort, PgCompanyPurchaseReader,
-    PurchaseRequest, company_package_overview, company_package_router, current_package_catalogue,
+    CommercialCatalogue, CompanyPackageOverview, CompanyPackageReadHttpBackend,
+    CompanyPackageReadHttpFuture, CompanyPackageReadHttpKind, CompanyPackageReadHttpRequest,
+    CompanyPackageReadHttpResponse, CompanyPackageReadHttpTarget, CompanyPurchaseAdmission,
+    CompanyPurchaseAdmissionPort, PgCompanyPurchaseReader, PurchaseRequest,
+    company_package_overview, company_package_router, current_package_catalogue,
 };
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
@@ -19,7 +20,9 @@ use erpx_server_identity_access::public::{
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId, TimestampMillis};
+use erpx_server_shared::public::{
+    BusinessError, Clock, CompanyId, FailureKind, HoldingId, TimestampMillis,
+};
 use serde_json::Value;
 use sqlx::PgConnection;
 use std::sync::Arc;
@@ -187,10 +190,8 @@ impl<C: Clock + Send + Sync + 'static> CommercialService<C> {
                             return Err(scope().into());
                         }
                         current.require_permission("commerce.read")?;
-                        let catalogue: CommercialCatalogue =
-                            current_package_catalogue().map_err(|_| {
-                                PgTransactionError::Business(unavailable())
-                            })?;
+                        let catalogue: CommercialCatalogue = current_package_catalogue()
+                            .map_err(|_| PgTransactionError::Business(unavailable()))?;
                         let now: TimestampMillis = clock.now();
                         let data = match kind {
                             CompanyPackageReadHttpKind::Overview => {
@@ -200,17 +201,21 @@ impl<C: Clock + Send + Sync + 'static> CommercialService<C> {
                                     connection,
                                     &catalogue,
                                 );
-                                let overview: CompanyPackageOverview =
-                                    company_package_overview(&mut reader, &catalogue, &company, now)
-                                        .await
-                                        .map_err(|error| match error {
-                                            PgTransactionError::Business(error) => {
-                                                PgTransactionError::Business(error)
-                                            }
-                                            PgTransactionError::Persistence(_) => {
-                                                PgTransactionError::Business(unavailable())
-                                            }
-                                        })?;
+                                let overview: CompanyPackageOverview = company_package_overview(
+                                    &mut reader,
+                                    &catalogue,
+                                    &company,
+                                    now,
+                                )
+                                .await
+                                .map_err(|error| match error {
+                                    PgTransactionError::Business(error) => {
+                                        PgTransactionError::Business(error)
+                                    }
+                                    PgTransactionError::Persistence(_) => {
+                                        PgTransactionError::Business(unavailable())
+                                    }
+                                })?;
                                 serde_json::to_value(overview)
                                     .map_err(|_| PgTransactionError::Business(unavailable()))?
                             }

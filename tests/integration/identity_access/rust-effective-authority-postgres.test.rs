@@ -20,6 +20,93 @@ use std::sync::{
 use std::time::Duration;
 
 #[tokio::test]
+async fn quality_same_person_retains_exact_company_mapping_and_unit() {
+    use erpx_server_identity_access::public::quality_same_person::{inspect_quality_same_person, lock_quality_same_person_sources};
+    use erpx_server_shared::public::CompanyId;
+    use sqlx::Connection;
+    fixture::with_database(2, |control| async move { fixture::with_database(3, move |holding| async move {
+        setup(&control, &holding).await;
+        sqlx::raw_sql("INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status) VALUES ('company','quality-a','local:quality-a','shared-person','active'),('company','quality-b','local:quality-b','shared-person','suspended'),('company','quality-null','local:quality-null',NULL,'active'),('foreign','quality-a','foreign:a','different-person','active'),('foreign','quality-b','foreign:b','other-person','active')").execute(holding.raw()).await.unwrap();
+        let company = CompanyId::new("company").unwrap();
+        let mut tx = holding.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        let locks = lock_quality_same_person_sources(&mut tx).await.unwrap().bind().await.unwrap();
+        let same = inspect_quality_same_person(&mut tx, &locks, &company, "quality-a", "quality-b").await.unwrap();
+        assert!(same.same_person(), "iam_same_person ignores member status");
+        let self_without_member = inspect_quality_same_person(&mut tx, &locks, &company, "missing-user", "missing-user").await.unwrap();
+        assert!(self_without_member.same_person());
+        let missing = inspect_quality_same_person(&mut tx, &locks, &company, "quality-a", "missing-user").await.unwrap();
+        assert!(!missing.same_person());
+        let null_person = inspect_quality_same_person(&mut tx, &locks, &company, "quality-a", "quality-null").await.unwrap();
+        assert!(!null_person.same_person());
+        let foreign = inspect_quality_same_person(&mut tx, &locks, &CompanyId::new("foreign").unwrap(), "quality-a", "quality-b").await.unwrap();
+        assert!(!foreign.same_person());
+        sqlx::query("SAVEPOINT changed_members").execute(&mut *tx).await.unwrap();
+        sqlx::query("UPDATE iam_members SET person_id='new-shared-person' WHERE company_id='company' AND user_id IN ('quality-a','quality-b')").execute(&mut *tx).await.unwrap();
+        // Even if the boolean remains true, the retained source mapping changed.
+        assert!(same.require_current(&mut tx).await.is_err());
+        sqlx::query("ROLLBACK TO SAVEPOINT changed_members").execute(&mut *tx).await.unwrap();
+        same.require_current(&mut tx).await.unwrap();
+        tx.rollback().await.unwrap();
+        let mut other = holding.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+        let no_lock = inspect_quality_same_person(&mut other, &locks, &company, "quality-a", "quality-b").await;
+        assert!(matches!(no_lock, Err(PgTransactionError::Persistence(e)) if e.code == "IAM_SAME_PERSON_LOCK_REQUIRED"));
+        other.rollback().await.unwrap();
+        let mut third = holding.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *third).await.unwrap();
+        let _other_locks = lock_quality_same_person_sources(&mut third).await.unwrap().bind().await.unwrap();
+        assert!(same.require_current(&mut third).await.is_err());
+        third.rollback().await.unwrap();
+    }).await; }).await;
+}
+
+#[tokio::test]
+async fn quality_same_person_writer_contention_is_scoped_and_fresh() {
+    use erpx_server_identity_access::public::quality_same_person::{inspect_quality_same_person, lock_quality_same_person_sources};
+    use erpx_server_shared::public::CompanyId;
+    use sqlx::Connection;
+    fixture::with_database(2, |control| async move { fixture::with_database(3, move |holding| async move {
+        setup(&control, &holding).await;
+        sqlx::raw_sql("INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status) VALUES ('company','quality-a','local:quality-a','shared-person','active'),('company','quality-b','local:quality-b','shared-person','active')").execute(holding.raw()).await.unwrap();
+        let company = CompanyId::new("company").unwrap();
+        let mut writer = holding.raw().begin().await.unwrap();
+        sqlx::query("UPDATE iam_members SET person_id='new-person' WHERE company_id='company' AND user_id='quality-b'").execute(&mut *writer).await.unwrap();
+        let mut blocked = holding.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *blocked).await.unwrap();
+        let error = lock_quality_same_person_sources(&mut blocked).await;
+        assert!(matches!(error, Err(PgTransactionError::Persistence(e)) if e.code == "PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state() == Some("55P03") && e.retryable()));
+        blocked.rollback().await.unwrap();
+        writer.commit().await.unwrap();
+        let mut reader = holding.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *reader).await.unwrap();
+        let locks = lock_quality_same_person_sources(&mut reader).await.unwrap().bind().await.unwrap();
+        let witness = inspect_quality_same_person(&mut reader, &locks, &company, "quality-a", "quality-b").await.unwrap();
+        assert!(!witness.same_person());
+        let reader_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *reader).await.unwrap();
+        let cloned = holding.clone();
+        let (send, receive) = tokio::sync::oneshot::channel();
+        let pending = tokio::spawn(async move {
+            let mut connection = cloned.raw().acquire().await.unwrap();
+            let pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *connection).await.unwrap();
+            send.send(pid).unwrap();
+            sqlx::query("UPDATE iam_members SET person_id='shared-person' WHERE company_id='company' AND user_id='quality-b'").execute(&mut *connection).await.unwrap();
+        });
+        let writer_pid = receive.await.unwrap();
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                let blocked: bool = sqlx::query_scalar("SELECT $2=ANY(pg_blocking_pids($1))").bind(writer_pid).bind(reader_pid).fetch_one(holding.raw()).await.unwrap();
+                if blocked { break; }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        }).await.expect("Identity writer must wait for the retained reader");
+        witness.require_current(&mut reader).await.unwrap();
+        reader.rollback().await.unwrap();
+        pending.await.unwrap();
+    }).await; }).await;
+}
+
+#[tokio::test]
 async fn permission_catalog_utility_marks_only_its_nowait_conflict_and_retains_lock() {
     use erpx_server_identity_access::public::permission_catalog_lock::lock_permission_catalog_sources;
     fixture::with_database(2,|control|async move {fixture::with_database(3,move|holding|async move {
@@ -225,7 +312,7 @@ async fn quality_recipient_set_matches_scoped_status_and_alias_rules() {
 
 #[tokio::test]
 async fn sales_recipient_scoped_current_assignment_is_transaction_bound() {
-    use erpx_server_identity_access::public::sales_recipient::{SalesRecipientRequest, inspect_sales_recipient, lock_sales_recipient_sources};
+    use erpx_server_identity_access::public::sales_recipient::{SalesRecipientRequest, inspect_sales_recipient, lock_sales_recipient_sources, inspect_sales_assignment_join};
     use erpx_server_shared::public::CompanyId;
     fixture::with_database(2, |control| async move {
         fixture::with_database(3, move |holding| async move {
@@ -236,6 +323,16 @@ async fn sales_recipient_scoped_current_assignment_is_transaction_bound() {
             let mut tx = holding.raw().begin().await.unwrap();
             sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
             let locks = lock_sales_recipient_sources(&mut tx).await.unwrap().bind().await.unwrap();
+            let join=inspect_sales_assignment_join(&mut tx,&locks).await.unwrap();
+            join.require_current(&mut tx).await.unwrap();
+            let oracle=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
+                .current_dir(concat!(env!("CARGO_MANIFEST_DIR"),"/../.."))
+                .args(["--conditions=react-server","-e", "import {commercialOwnerProjectionSources as s} from './packages/server-identity_access/src/adapters/commercial-owner-projection-sources.ts'; process.stdout.write(s.assignments)"])
+                .output().unwrap();
+            assert!(oracle.status.success());
+            let legacy=String::from_utf8(oracle.stdout).unwrap();
+            let comparison=format!("WITH {}, legacy AS ({legacy}) SELECT NOT EXISTS((SELECT * FROM sales_recipient_assignments EXCEPT ALL SELECT * FROM legacy) UNION ALL (SELECT * FROM legacy EXCEPT ALL SELECT * FROM sales_recipient_assignments))",join.cte_sql());
+            assert!(sqlx::query_scalar::<_,bool>(sqlx::AssertSqlSafe(comparison.as_str())).fetch_one(&mut *tx).await.unwrap());
             let request = || SalesRecipientRequest { company_id: CompanyId::new("company").unwrap(), user_id: "user".into(), branch_id: "branch".into(), department_id: None };
             let witness = inspect_sales_recipient(&mut tx, &locks, request()).await.unwrap();
             assert!(witness.is_eligible());
@@ -244,6 +341,9 @@ async fn sales_recipient_scoped_current_assignment_is_transaction_bound() {
             assert!(inspect_sales_recipient(&mut tx, &locks, request()).await.unwrap().is_eligible());
             let wrong = SalesRecipientRequest { branch_id: "other".into(), ..request() };
             assert!(!inspect_sales_recipient(&mut tx, &locks, wrong).await.unwrap().is_eligible());
+            // Identity seam does not promise row stability: a consumer must rerun its full join.
+            join.require_current(&mut tx).await.unwrap();
+            assert!(sqlx::query_scalar::<_,bool>(sqlx::AssertSqlSafe(comparison.as_str())).fetch_one(&mut *tx).await.unwrap());
             let foreign = SalesRecipientRequest { company_id: CompanyId::new("foreign").unwrap(), ..request() };
             assert!(!inspect_sales_recipient(&mut tx, &locks, foreign).await.unwrap().is_eligible());
             sqlx::query("UPDATE assignments SET scope_kind='department',scope_node_id='recipient-dept' WHERE id='grant'").execute(&mut *tx).await.unwrap();
@@ -262,6 +362,7 @@ async fn sales_recipient_scoped_current_assignment_is_transaction_bound() {
             let mut other = holding.raw().begin().await.unwrap();
             sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
             assert!(witness.require_current(&mut other).await.is_err());
+            assert!(join.require_current(&mut other).await.is_err());
             assert!(inspect_sales_recipient(&mut other, &locks, request()).await.is_err());
             other.rollback().await.unwrap();
             let mut guard = holding.raw().begin().await.unwrap();
@@ -626,7 +727,7 @@ async fn hr_appointment_requires_live_people_facts_and_same_person_and_keeps_ali
     // HR eligibility without an account is not authority for an unrelated login.
     code(authorizer.execute("acme.example.test",proof(),input(),hr.clone(),|_,_|Box::pin(async{Ok(())})).await,"MODULE_UNAVAILABLE");
     sqlx::raw_sql("UPDATE hr_people SET user_id='delegate' WHERE id='person';INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy) VALUES('company','user','local:user','person','active','local'),('company','delegate','local:delegate','person','active','local'),('company','suspended-alias','local:alias','person','suspended','local')").execute(holding.raw()).await.unwrap();
-    authorizer.execute("acme.example.test",proof(),input(),hr.clone(),|_,context|Box::pin(async move{assert_eq!(context.hr_appointment_version(),Some(2));assert!(context.same_person_user(&UserId::new("suspended-alias").unwrap()));assert_eq!(context.person_id().unwrap().as_str(),"person");Ok(())})).await.unwrap();
+    authorizer.execute("acme.example.test",proof(),input(),hr.clone(),|_,context|Box::pin(async move{assert_eq!(context.hr_appointment_version(),Some(2));assert!(context.same_person_user(&UserId::new("suspended-alias").unwrap()));assert!(context.same_person_user_raw("user"));assert!(context.same_person_user_raw("suspended-alias"));assert!(!context.same_person_user_raw(" Suspended-alias"));assert!(!context.same_person_user_raw(&"x".repeat(500)));assert_eq!(context.person_id().unwrap().as_str(),"person");Ok(())})).await.unwrap();
     sqlx::query("UPDATE hr_engagements SET status='suspended',version=version+1 WHERE id='engagement'").execute(holding.raw()).await.unwrap();
     code(authorizer.execute("acme.example.test",proof(),input(),hr,|_,_|Box::pin(async{Ok(())})).await,"MODULE_UNAVAILABLE");
  }).await;}).await;
@@ -928,4 +1029,264 @@ async fn transport_initial_read_tag_is_distinct_from_final_permission_and_local_
         code(final_revoked,"WORK_ROLE_UNAVAILABLE");
         assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM native_owner_effects").fetch_one(holding.raw()).await.unwrap(),0);
     }).await;}).await;
+}
+
+#[tokio::test]
+async fn permission_catalog_require_checks_actual_mode_and_savepoint_release() {
+    use erpx_server_identity_access::public::permission_catalog_lock::{lock_permission_catalog_sources,require_permission_catalog_lock};
+    fixture::with_database(2, |control| async move {fixture::with_database(2, move |holding| async move {
+        setup(&control,&holding).await;
+        let mut outside=holding.raw().acquire().await.unwrap();assert!(require_permission_catalog_lock(&mut outside).await.is_err());drop(outside);
+        let mut weak=holding.raw().begin().await.unwrap();
+        sqlx::query("LOCK TABLE iam_permissions IN ROW SHARE MODE").execute(&mut *weak).await.unwrap();
+        assert!(matches!(require_permission_catalog_lock(&mut weak).await,Err(PgTransactionError::Persistence(ref e)) if e.code=="IAM_PERMISSION_CATALOG_LOCK_REQUIRED"));weak.rollback().await.unwrap();
+        let mut tx=holding.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        sqlx::query("SELECT pg_current_xact_id()").execute(&mut *tx).await.unwrap();sqlx::query("SAVEPOINT before_catalog_lock").execute(&mut *tx).await.unwrap();
+        lock_permission_catalog_sources(&mut tx).await.unwrap();require_permission_catalog_lock(&mut tx).await.unwrap();
+        let actual:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=pg_backend_pid() AND relation='iam_permissions'::regclass AND mode='ShareLock' AND granted)").fetch_one(&mut *tx).await.unwrap();assert!(actual);
+        sqlx::query("ROLLBACK TO SAVEPOINT before_catalog_lock").execute(&mut *tx).await.unwrap();
+        assert!(matches!(require_permission_catalog_lock(&mut tx).await,Err(PgTransactionError::Persistence(ref e)) if e.code=="IAM_PERMISSION_CATALOG_LOCK_REQUIRED"));
+        sqlx::query("LOCK TABLE iam_permissions IN SHARE ROW EXCLUSIVE MODE").execute(&mut *tx).await.unwrap();require_permission_catalog_lock(&mut tx).await.unwrap();tx.rollback().await.unwrap();
+    }).await;}).await;
+}
+
+#[tokio::test]
+async fn effective_authority_requires_all_owner_fences_in_same_unit() {
+    use erpx_server_identity_access::public::effective_authority::require_effective_authority_sources_held;
+    use erpx_server_identity_access::public::field_service_workspace::lock_service_workspace_authority;
+    use erpx_server_manage_erpx::public::lock_beta_policy_sources;
+    use erpx_server_organization::public::lock_organization_authority_sources;
+    use erpx_server_people_payroll::public::identity_facts::lock_people_authority_sources;
+    const IDENTITY_LOCKS:&str="LOCK TABLE assignments,iam_roles,iam_role_revisions,iam_members,iam_identities,iam_connections,iam_revoked_sessions,iam_emergency_sessions,active_work_contexts,iam_access_subjects,iam_access_invitations,um_attributes,um_values,um_groups,um_memberships,um_policies,um_attachments,um_candidates,iam_directory_source_selections,iam_directory_observation_sources IN SHARE MODE";
+    fixture::with_database(2, |control| async move {fixture::with_database(2, move |holding| async move {
+        setup(&control,&holding).await;
+        let mut outside=holding.raw().acquire().await.unwrap();assert!(require_effective_authority_sources_held(&mut outside).await.is_err());drop(outside);
+        for missing in ["identity","organization","people","beta"] {
+            let mut tx=holding.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+            if missing!="identity"{sqlx::query(IDENTITY_LOCKS).execute(&mut *tx).await.unwrap();}
+            if missing!="organization"{lock_organization_authority_sources(&mut tx).await.unwrap();}
+            if missing!="people"{lock_people_authority_sources(&mut tx).await.unwrap();}
+            if missing!="beta"{lock_beta_policy_sources(&mut tx).await.unwrap();}
+            assert!(require_effective_authority_sources_held(&mut tx).await.is_err(),"missing {missing} must fail");tx.rollback().await.unwrap();
+        }
+        let mut partial=holding.raw().begin().await.unwrap();sqlx::query("LOCK TABLE assignments,iam_roles IN SHARE MODE").execute(&mut *partial).await.unwrap();assert!(require_effective_authority_sources_held(&mut partial).await.is_err());partial.rollback().await.unwrap();
+        let mut tx=holding.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();sqlx::query("SELECT pg_current_xact_id()").execute(&mut *tx).await.unwrap();sqlx::query("SAVEPOINT before_authority_sources").execute(&mut *tx).await.unwrap();
+        lock_service_workspace_authority(&mut tx).await.unwrap();require_effective_authority_sources_held(&mut tx).await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT before_authority_sources").execute(&mut *tx).await.unwrap();assert!(require_effective_authority_sources_held(&mut tx).await.is_err());
+        // A stronger lock on every source is equally sufficient.
+        sqlx::query("LOCK TABLE assignments,iam_roles,iam_role_revisions,iam_members,iam_identities,iam_connections,iam_revoked_sessions,iam_emergency_sessions,active_work_contexts,iam_access_subjects,iam_access_invitations,um_attributes,um_values,um_groups,um_memberships,um_policies,um_attachments,um_candidates,iam_directory_source_selections,iam_directory_observation_sources,organization_nodes,authority_seats,organization_positions,hr_people,hr_engagements,people_access_cutoffs,people_lifecycle_cases,people_lifecycle_grants,people_package_revisions,people_applied_packages,people_provision_operations,people_provision_grants,beta_policy IN SHARE ROW EXCLUSIVE MODE").execute(&mut *tx).await.unwrap();
+        require_effective_authority_sources_held(&mut tx).await.unwrap();tx.rollback().await.unwrap();
+    }).await;}).await;
+}
+
+#[tokio::test]
+async fn field_workspace_authority_fence_requires_catalog_and_marks_conflicts_retryable() {
+    use erpx_server_identity_access::public::field_service_workspace::{lock_service_workspace_authority,lock_service_workspace_authority_fenced,require_service_workspace_authority_fenced_held};
+    fixture::with_database(2, |control| async move {fixture::with_database(2, move |holding| async move {
+        setup(&control,&holding).await;
+        let mut absent=holding.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *absent).await.unwrap();lock_service_workspace_authority(&mut absent).await.unwrap();
+        assert!(matches!(require_service_workspace_authority_fenced_held(&mut absent).await,Err(PgTransactionError::Persistence(ref e)) if e.code=="IAM_PERMISSION_CATALOG_LOCK_REQUIRED"));
+        sqlx::query("LOCK TABLE iam_permissions IN ROW SHARE MODE").execute(&mut *absent).await.unwrap();assert!(require_service_workspace_authority_fenced_held(&mut absent).await.is_err());absent.rollback().await.unwrap();
+        let mut writer=holding.raw().begin().await.unwrap();sqlx::query("LOCK TABLE iam_permissions IN ROW EXCLUSIVE MODE").execute(&mut *writer).await.unwrap();
+        let mut blocked=holding.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *blocked).await.unwrap();
+        let failure=lock_service_workspace_authority_fenced(&mut blocked).await;
+        assert!(matches!(failure,Err(PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));blocked.rollback().await.unwrap();writer.rollback().await.unwrap();
+        let mut tx=holding.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();sqlx::query("SELECT pg_current_xact_id()").execute(&mut *tx).await.unwrap();sqlx::query("SAVEPOINT before_field_authority_fence").execute(&mut *tx).await.unwrap();
+        lock_service_workspace_authority_fenced(&mut tx).await.unwrap();require_service_workspace_authority_fenced_held(&mut tx).await.unwrap();
+        let held:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=pg_backend_pid() AND relation='iam_permissions'::regclass AND mode='ShareLock' AND granted)").fetch_one(&mut *tx).await.unwrap();assert!(held);
+        sqlx::query("ROLLBACK TO SAVEPOINT before_field_authority_fence").execute(&mut *tx).await.unwrap();assert!(require_service_workspace_authority_fenced_held(&mut tx).await.is_err());
+        lock_service_workspace_authority(&mut tx).await.unwrap();sqlx::query("LOCK TABLE iam_permissions IN SHARE ROW EXCLUSIVE MODE").execute(&mut *tx).await.unwrap();require_service_workspace_authority_fenced_held(&mut tx).await.unwrap();tx.rollback().await.unwrap();
+    }).await;}).await;
+}
+
+#[derive(Clone)]
+struct TypedCatalogPreparation { attempts:Arc<AtomicUsize>, drops:Arc<AtomicUsize>, conflicts:tokio::sync::mpsc::UnboundedSender<()>, conflict_release:Option<Arc<tokio::sync::Notify>> }
+struct TypedCatalogToken { unit:(String,i32,String,String), drops:Arc<AtomicUsize> }
+impl Drop for TypedCatalogToken {fn drop(&mut self){self.drops.fetch_add(1,Ordering::SeqCst);}}
+impl erpx_server_identity_access::public::effective_authority::HoldingPreparedSource for TypedCatalogToken {
+    fn require_current<'c>(&'c self,c:&'c mut PgConnection)->PgWorkFuture<'c,(),BusinessError>{
+        Box::pin(async move {
+            erpx_server_identity_access::public::permission_catalog_lock::require_permission_catalog_lock(&mut *c).await?;
+            let unit:(String,i32,String,String)=sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text").fetch_one(c).await?;
+            if unit!=self.unit{return Err(BusinessError::new(FailureKind::Conflict,"TEST_TOKEN_UNIT_CHANGED","Token changed unit.").into());}Ok(())
+        })
+    }
+}
+impl erpx_server_identity_access::public::effective_authority::TypedHoldingWorkSourcePreparation for TypedCatalogPreparation {
+    type Token=TypedCatalogToken;
+    fn prepare_typed<'c>(&'c self,c:&'c mut PgConnection)->PgWorkFuture<'c,Self::Token,BusinessError>{
+        Box::pin(async move {
+            self.attempts.fetch_add(1,Ordering::SeqCst);
+            if let Err(error)=erpx_server_identity_access::public::permission_catalog_lock::lock_permission_catalog_sources(&mut *c).await {
+                if matches!(&error,PgTransactionError::Persistence(e) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED") {let _=self.conflicts.send(()); if let Some(release)=&self.conflict_release { release.notified().await; }}
+                return Err(error);
+            }
+            let unit=sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text").fetch_one(c).await?;
+            Ok(TypedCatalogToken{unit,drops:self.drops.clone()})
+        })
+    }
+}
+
+#[tokio::test]
+async fn typed_preparation_is_attempt_local_and_retries_real_catalog_conflict() {
+    fixture::with_database(2,|control|async move {fixture::with_database(3,move|holding|async move {
+        let(authorizer,_clock)=setup(&control,&holding).await;
+        let mut writer=holding.raw().begin().await.unwrap();sqlx::query("LOCK TABLE iam_permissions IN ROW EXCLUSIVE MODE").execute(&mut *writer).await.unwrap();
+        let attempts=Arc::new(AtomicUsize::new(0));let drops=Arc::new(AtomicUsize::new(0));let (send,mut receive)=tokio::sync::mpsc::unbounded_channel();
+        let release=Arc::new(tokio::sync::Notify::new());
+        let prep=TypedCatalogPreparation{attempts:attempts.clone(),drops:drops.clone(),conflicts:send,conflict_release:Some(release.clone())};
+        let selected=tokio::spawn(async move {
+            authorizer.execute_with_typed_sources_deferred("acme.example.test",proof(),||Ok(input()),access(),prep,|c,_actor,token|Box::pin(async move {
+                let actual:(String,i32,String,String)=sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text").fetch_one(c).await?;assert_eq!(actual,token.unit);Ok(actual.2)
+            })).await
+        });
+        tokio::time::timeout(Duration::from_secs(3),receive.recv()).await.unwrap().unwrap();writer.rollback().await.unwrap();release.notify_one();
+        let first=tokio::time::timeout(Duration::from_secs(10),selected).await.unwrap().unwrap().unwrap();assert!(!first.is_empty());assert!(attempts.load(Ordering::SeqCst)>=2);assert_eq!(drops.load(Ordering::SeqCst),1);
+    }).await;}).await;
+}
+
+#[tokio::test]
+async fn selected_transport_typed_token_is_dropped_on_success_and_action_failure() {
+    use erpx_server_identity_access::public::effective_authority::SelectedIngressFuture;
+    fixture::with_database(2,|control|async move {fixture::with_database(2,move|holding|async move {
+        let(authorizer,_clock)=setup(&control,&holding).await;let attempts=Arc::new(AtomicUsize::new(0));let drops=Arc::new(AtomicUsize::new(0));let (send,_receive)=tokio::sync::mpsc::unbounded_channel();
+        let prep=TypedCatalogPreparation{attempts:attempts.clone(),drops:drops.clone(),conflicts:send,conflict_release:None};
+        let selected=authorizer.execute_with_selected_typed_transport_ingress_deferred(
+            "acme.example.test",proof(),||Ok(input()),access(),prep.clone(),
+            |_selected|->SelectedIngressFuture<i64,BusinessError>{Box::pin(async{Ok(7)})},
+            |_,error|Err(error),
+            |c,_actor,value,token|Box::pin(async move {let actual:(String,i32,String,String)=sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text").fetch_one(c).await?;assert_eq!(actual,token.unit);Ok(Ok(value))}),
+        ).await.unwrap().unwrap();assert_eq!(selected,7);assert_eq!(drops.load(Ordering::SeqCst),1);
+        let failed=authorizer.execute_with_typed_sources_deferred("acme.example.test",proof(),||Ok(input()),access(),prep.clone(),|_c,_actor,_token|Box::pin(async move{Err::<(),_>(BusinessError::new(FailureKind::Conflict,"TEST_ABORT","Abort this attempt.").into())})).await;
+        assert!(matches!(failed,Err(PgTransactionError::Business(ref e)) if e.code=="TEST_ABORT"));assert_eq!(attempts.load(Ordering::SeqCst),2);assert_eq!(drops.load(Ordering::SeqCst),2);
+        let mut denied=access(); denied.permission="finance.pay".into();
+        let denied_result:Result<(), &'static str>=authorizer.execute_with_selected_typed_transport_ingress_deferred(
+            "acme.example.test",proof(),||Ok(input()),denied,prep,
+            |_selected|->SelectedIngressFuture<(), &'static str>{Box::pin(async {Ok(())})},
+            |_,error| {assert_eq!(error.code,"PERMISSION_REQUIRED"); Ok("denied")},
+            |_c,_actor,_value,_token|Box::pin(async {panic!("denied action must not run")}),
+        ).await.unwrap();
+        assert_eq!(denied_result,Err("denied")); assert_eq!(attempts.load(Ordering::SeqCst),3); assert_eq!(drops.load(Ordering::SeqCst),3);
+    }).await;}).await;
+}
+
+#[tokio::test]
+async fn typed_preparation_mints_a_fresh_token_after_serialization_retry() {
+    fixture::with_database(2, |control| async move { fixture::with_database(3, move |holding| async move {
+        let (authorizer, _) = setup(&control, &holding).await;
+        sqlx::query("INSERT INTO native_owner_effects VALUES ('typed-before')").execute(holding.raw()).await.unwrap();
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let drops = Arc::new(AtomicUsize::new(0));
+        let (conflicts, _conflict_rx) = tokio::sync::mpsc::unbounded_channel();
+        let prep = TypedCatalogPreparation { attempts: attempts.clone(), drops: drops.clone(), conflicts, conflict_release: None };
+        let (entered, mut entered_rx) = tokio::sync::mpsc::unbounded_channel();
+        let release = Arc::new(tokio::sync::Notify::new());
+        let seen = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+        let action_release = release.clone(); let action_seen = seen.clone();
+        let task = tokio::spawn(async move {
+            authorizer.execute_with_typed_sources_deferred("acme.example.test", proof(), || Ok(input()), access(), prep, move |c, _, token| {
+                let entered = entered.clone(); let release = action_release.clone(); let seen = action_seen.clone();
+                Box::pin(async move {
+                    let old: String = sqlx::query_scalar("SELECT id FROM native_owner_effects WHERE id IN ('typed-before','typed-writer')").fetch_one(&mut *c).await?;
+                    let first = { let mut values = seen.lock().unwrap(); values.push(token.unit.2.clone()); values.len() == 1 };
+                    if first { entered.send(()).unwrap(); release.notified().await; }
+                    sqlx::query("UPDATE native_owner_effects SET id='typed-final' WHERE id=$1").bind(old).execute(&mut *c).await?;
+                    Ok(())
+                })
+            }).await
+        });
+        tokio::time::timeout(Duration::from_secs(3), entered_rx.recv()).await.unwrap().unwrap();
+        sqlx::query("UPDATE native_owner_effects SET id='typed-writer' WHERE id='typed-before'").execute(holding.raw()).await.unwrap();
+        release.notify_one();
+        tokio::time::timeout(Duration::from_secs(10), task).await.unwrap().unwrap().unwrap();
+        { let values = seen.lock().unwrap(); assert_eq!(values.len(), 2); assert_ne!(values[0], values[1]); }
+        assert_eq!(attempts.load(Ordering::SeqCst), 2); assert_eq!(drops.load(Ordering::SeqCst), 2);
+        let id: String = sqlx::query_scalar("SELECT id FROM native_owner_effects WHERE id='typed-final'").fetch_one(holding.raw()).await.unwrap(); assert_eq!(id, "typed-final");
+    }).await; }).await;
+}
+
+#[derive(Clone)]
+struct DeferredFactPreparation(TypedCatalogPreparation);
+struct DeferredFactToken(TypedCatalogToken);
+impl erpx_server_identity_access::public::effective_authority::HoldingPreparedSource for DeferredFactToken {
+    fn require_current<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            use erpx_server_identity_access::public::effective_authority::HoldingPreparedSource;
+            self.0.require_current(&mut *c).await?;
+            let changed: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM native_owner_effects WHERE id='deferred-fact')").fetch_one(c).await?;
+            if changed { return Err(BusinessError::new(FailureKind::Conflict,"TEST_DEFERRED_FACT_CHANGED","Retained fact changed.").into()); }
+            Ok(())
+        })
+    }
+}
+impl erpx_server_identity_access::public::effective_authority::TypedHoldingWorkSourcePreparation for DeferredFactPreparation {
+    type Token = DeferredFactToken;
+    fn prepare_typed<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, Self::Token, BusinessError> {
+        Box::pin(async move {
+            use erpx_server_identity_access::public::effective_authority::{HoldingPreparedSource,TypedHoldingWorkSourcePreparation};
+            let token = DeferredFactToken(self.0.prepare_typed(&mut *c).await?);
+            token.require_current(c).await?;
+            Ok(token)
+        })
+    }
+}
+
+#[tokio::test]
+async fn typed_final_guard_rejects_deferred_trigger_fact_drift_and_rolls_back() {
+    use erpx_server_identity_access::public::effective_authority::SelectedIngressFuture;
+    fixture::with_database(2, |control| async move { fixture::with_database(2, move |holding| async move {
+        let (authorizer, _) = setup(&control, &holding).await;
+        sqlx::raw_sql("CREATE FUNCTION typed_deferred_fact() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN INSERT INTO native_owner_effects VALUES ('deferred-fact'); RETURN NEW; END $$; CREATE CONSTRAINT TRIGGER typed_deferred_fact AFTER INSERT ON native_owner_effects DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.id = 'deferred-action') EXECUTE FUNCTION typed_deferred_fact()").execute(holding.raw()).await.unwrap();
+        let (conflicts, _rx) = tokio::sync::mpsc::unbounded_channel();
+        let prep = DeferredFactPreparation(TypedCatalogPreparation { attempts: Arc::new(AtomicUsize::new(0)), drops: Arc::new(AtomicUsize::new(0)), conflicts, conflict_release: None });
+        let normal = authorizer.execute_with_typed_sources_deferred("acme.example.test", proof(), || Ok(input()), access(), prep.clone(), |c, _, _| Box::pin(async move {
+            sqlx::query("INSERT INTO native_owner_effects VALUES ('deferred-action')").execute(c).await?; Ok(())
+        })).await;
+        assert!(matches!(normal, Err(PgTransactionError::Business(ref e)) if e.code == "TEST_DEFERRED_FACT_CHANGED"));
+        let selected = authorizer.execute_with_selected_typed_transport_ingress_deferred("acme.example.test", proof(), || Ok(input()), access(), prep,
+            |_| -> SelectedIngressFuture<(), &'static str> { Box::pin(async { Ok(()) }) }, |_, _| Ok("denied"),
+            |c, _, _, _| Box::pin(async move { sqlx::query("INSERT INTO native_owner_effects VALUES ('deferred-action')").execute(c).await?; Ok(Ok::<(), &'static str>(())) })
+        ).await;
+        assert!(matches!(selected, Err(PgTransactionError::Business(ref e)) if e.code == "TEST_DEFERRED_FACT_CHANGED"));
+        let count: i64 = sqlx::query_scalar("SELECT count(*) FROM native_owner_effects WHERE id IN ('deferred-action','deferred-fact')").fetch_one(holding.raw()).await.unwrap();
+        assert_eq!(count, 0);
+    }).await; }).await;
+}
+
+#[tokio::test]
+async fn sales_iam_boundary_requires_canonical_sources_and_same_unit() {
+    use erpx_server_identity_access::public::{permission_catalog_lock::lock_permission_catalog_sources, sales_recipient::{lock_sales_recipient_sources,inspect_sales_iam_boundary}};
+    fixture::with_database(2,|control|async move {
+        fixture::with_database(2,move|holding|async move {
+            setup(&control,&holding).await;
+            let mut tx=holding.raw().begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+            sqlx::query("SET LOCAL search_path TO pg_catalog, public, pg_temp").execute(&mut *tx).await.unwrap();
+            sqlx::query("SAVEPOINT sales_iam_locks").execute(&mut *tx).await.unwrap();
+            lock_permission_catalog_sources(&mut tx).await.unwrap();
+            let locks=lock_sales_recipient_sources(&mut tx).await.unwrap().bind().await.unwrap();
+            let released=inspect_sales_iam_boundary(&mut tx,&locks).await.unwrap();
+            released.require_current(&mut tx).await.unwrap();
+            sqlx::query("ROLLBACK TO SAVEPOINT sales_iam_locks").execute(&mut *tx).await.unwrap();
+            assert!(released.require_current(&mut tx).await.is_err());
+            assert!(inspect_sales_iam_boundary(&mut tx,&locks).await.is_err());
+            tx.rollback().await.unwrap();
+            let mut tx=holding.raw().begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+            sqlx::query("CREATE TEMP TABLE assignments(id text)").execute(&mut *tx).await.unwrap();
+            sqlx::query("SET LOCAL search_path TO pg_catalog, public, pg_temp").execute(&mut *tx).await.unwrap();
+            lock_permission_catalog_sources(&mut tx).await.unwrap();
+            let locks=lock_sales_recipient_sources(&mut tx).await.unwrap().bind().await.unwrap();
+            let source=inspect_sales_iam_boundary(&mut tx,&locks).await.unwrap();
+            source.require_current(&mut tx).await.unwrap();
+            sqlx::query("SET LOCAL search_path TO pg_catalog, pg_temp, public").execute(&mut *tx).await.unwrap();
+            assert!(source.require_current(&mut tx).await.is_err());
+            sqlx::query("SET LOCAL search_path TO pg_catalog, public, pg_temp").execute(&mut *tx).await.unwrap();
+            source.require_current(&mut tx).await.unwrap();
+            let mut other=holding.raw().begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+            assert!(source.require_current(&mut other).await.is_err());
+            other.rollback().await.unwrap();tx.rollback().await.unwrap();
+        }).await;
+    }).await;
 }

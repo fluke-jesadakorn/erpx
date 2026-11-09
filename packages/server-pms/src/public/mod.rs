@@ -1,5 +1,6 @@
 pub mod scheduled_legal;
 pub mod initial_count_modules;
+pub mod scheduled_inventory_rollouts;
 
 pub mod record_source;
 pub mod front_desk;

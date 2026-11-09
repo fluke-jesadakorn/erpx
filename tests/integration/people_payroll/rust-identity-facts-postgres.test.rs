@@ -145,6 +145,47 @@ async fn source_snapshot_observes_a_writer_committed_before_lock_acquisition() {
 }
 
 #[tokio::test]
+async fn sales_workforce_join_matches_current_owner_projection_and_unit() {
+    use erpx_server_people_payroll::public::workforce_reference::{inspect_sales_workforce_join,lock_people_authority_sources};
+    fixture::with_database(2,|pool|async move {
+        setup(&pool).await;
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        assert!(inspect_sales_workforce_join(&mut tx).await.is_err());
+        tx.rollback().await.unwrap();
+        let mut released=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *released).await.unwrap();
+        sqlx::query("SAVEPOINT people_locks").execute(&mut *released).await.unwrap();
+        lock_people_authority_sources(&mut released).await.unwrap();
+        let old_join=inspect_sales_workforce_join(&mut released).await.unwrap();
+        old_join.require_current(&mut released).await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT people_locks").execute(&mut *released).await.unwrap();
+        assert!(old_join.require_current(&mut released).await.is_err());
+        released.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_people_authority_sources(&mut tx).await.unwrap();
+        let join=inspect_sales_workforce_join(&mut tx).await.unwrap();
+        join.require_current(&mut tx).await.unwrap();
+        let oracle=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
+            .current_dir(concat!(env!("CARGO_MANIFEST_DIR"),"/../.."))
+            .args(["--conditions=react-server","-e","import {commercialOwnerProjectionSources as s} from './packages/server-people_payroll/src/adapters/commercial-owner-projection-sources.ts'; process.stdout.write(JSON.stringify([s.hr_people,s.hr_engagements]))"])
+            .output().unwrap();
+        assert!(oracle.status.success());
+        let legacy:Vec<String>=serde_json::from_slice(&oracle.stdout).unwrap();
+        let sql=format!("WITH {}, legacy_people AS ({}), legacy_engagements AS ({}) SELECT NOT EXISTS((SELECT * FROM sales_recipient_people EXCEPT ALL SELECT id,user_id,company_id,status,merged_into_id FROM legacy_people) UNION ALL (SELECT id,user_id,company_id,status,merged_into_id FROM legacy_people EXCEPT ALL SELECT * FROM sales_recipient_people)  ) AND NOT EXISTS((SELECT * FROM sales_recipient_engagements EXCEPT ALL SELECT id,person_id,company_id,status,start_date,end_date FROM legacy_engagements) UNION ALL (SELECT id,person_id,company_id,status,start_date,end_date FROM legacy_engagements EXCEPT ALL SELECT * FROM sales_recipient_engagements))",join.cte_sql(),legacy[0],legacy[1]);
+        assert!(sqlx::query_scalar::<_,bool>(sqlx::AssertSqlSafe(sql.as_str())).fetch_one(&mut *tx).await.unwrap());
+        sqlx::query("UPDATE hr_engagements SET status='suspended' WHERE id='engagement'").execute(&mut *tx).await.unwrap();
+        join.require_current(&mut tx).await.unwrap();
+        assert!(sqlx::query_scalar::<_,bool>(sqlx::AssertSqlSafe(sql.as_str())).fetch_one(&mut *tx).await.unwrap());
+        let mut other=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+        assert!(join.require_current(&mut other).await.is_err());
+        other.rollback().await.unwrap();tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
 async fn operational_workforce_reference_preserves_utc_dates_and_company_subject_scope() {
     use erpx_server_people_payroll::public::workforce_reference::inspect_workforce_reference;
     use erpx_server_shared::public::TimestampMillis;
@@ -506,5 +547,79 @@ async fn benefit_person_require_current_detects_engagement_suspension_and_merge(
         sqlx::query("UPDATE hr_people SET merged_into_id=NULL WHERE id='person'").execute(&mut *tx).await.unwrap();
         current.require_current(&mut tx).await.unwrap();
         tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn service_people_source_retains_people_and_engagement_locks() {
+    use erpx_server_people_payroll::public::field_service_workspace::*;
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let company=CompanyId::new("company").unwrap();let ids=vec!["user".to_owned()];
+        let mut outside=pool.raw().acquire().await.unwrap();assert!(require_service_workspace_people_held(&mut outside).await.is_err());drop(outside);
+        let mut unlocked=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unlocked).await.unwrap();
+        assert!(read_service_workspace_people(&mut unlocked,&company,ids.clone(),false).await.is_err());unlocked.rollback().await.unwrap();
+        let mut partial=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *partial).await.unwrap();sqlx::query("LOCK TABLE hr_people IN SHARE MODE").execute(&mut *partial).await.unwrap();
+        assert!(read_service_workspace_people(&mut partial,&company,ids.clone(),false).await.is_err());assert!(require_service_workspace_people_held(&mut partial).await.is_err());partial.rollback().await.unwrap();
+        let mut weak=pool.raw().begin().await.unwrap();sqlx::query("LOCK TABLE hr_people,hr_engagements IN ROW SHARE MODE").execute(&mut *weak).await.unwrap();assert!(require_service_workspace_people_held(&mut weak).await.is_err());weak.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();sqlx::query("SELECT pg_current_xact_id()").execute(&mut *tx).await.unwrap();sqlx::query("SAVEPOINT before_people_sources").execute(&mut *tx).await.unwrap();
+        lock_service_workspace_people(&mut tx).await.unwrap();require_service_workspace_people_held(&mut tx).await.unwrap();let modes:i64=sqlx::query_scalar("SELECT count(DISTINCT relation) FROM pg_locks WHERE pid=pg_backend_pid() AND granted AND mode='ShareLock' AND relation IN ('hr_people'::regclass,'hr_engagements'::regclass)").fetch_one(&mut *tx).await.unwrap();assert_eq!(modes,2);
+        let source=read_service_workspace_people(&mut tx,&company,ids,false).await.unwrap();assert_eq!(source.data().len(),1);assert_eq!(source.data()[0].user_id,"user");assert!(source.data()[0].eligible);source.require_current(&mut tx).await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT before_people_sources").execute(&mut *tx).await.unwrap();assert!(source.require_current(&mut tx).await.is_err());assert!(require_service_workspace_people_held(&mut tx).await.is_err());sqlx::query("LOCK TABLE hr_people,hr_engagements IN EXCLUSIVE MODE").execute(&mut *tx).await.unwrap();require_service_workspace_people_held(&mut tx).await.unwrap();tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn people_authority_held_locks_cover_all_nine_sources() {
+    use erpx_server_people_payroll::public::identity_facts::require_people_authority_sources_held;
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let mut outside=pool.raw().acquire().await.unwrap();assert!(require_people_authority_sources_held(&mut outside).await.is_err());drop(outside);
+        let mut partial=pool.raw().begin().await.unwrap();
+        sqlx::query("LOCK TABLE hr_people,hr_engagements,people_access_cutoffs,people_lifecycle_cases,people_lifecycle_grants,people_package_revisions,people_applied_packages,people_provision_operations IN SHARE MODE").execute(&mut *partial).await.unwrap();
+        assert!(matches!(require_people_authority_sources_held(&mut partial).await,Err(PgTransactionError::Persistence(ref e)) if e.code=="PEOPLE_AUTHORITY_LOCKS_REQUIRED"));partial.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();sqlx::query("SELECT pg_current_xact_id()").execute(&mut *tx).await.unwrap();sqlx::query("SAVEPOINT before_people_authority_locks").execute(&mut *tx).await.unwrap();
+        lock_people_authority_sources(&mut tx).await.unwrap();require_people_authority_sources_held(&mut tx).await.unwrap();
+        let count:i64=sqlx::query_scalar("SELECT count(DISTINCT relation) FROM pg_locks WHERE pid=pg_backend_pid() AND granted AND mode='ShareLock' AND relation IN ('hr_people'::regclass,'hr_engagements'::regclass,'people_access_cutoffs'::regclass,'people_lifecycle_cases'::regclass,'people_lifecycle_grants'::regclass,'people_package_revisions'::regclass,'people_applied_packages'::regclass,'people_provision_operations'::regclass,'people_provision_grants'::regclass)").fetch_one(&mut *tx).await.unwrap();assert_eq!(count,9);
+        sqlx::query("ROLLBACK TO SAVEPOINT before_people_authority_locks").execute(&mut *tx).await.unwrap();assert!(matches!(require_people_authority_sources_held(&mut tx).await,Err(PgTransactionError::Persistence(ref e)) if e.code=="PEOPLE_AUTHORITY_LOCKS_REQUIRED"));
+        sqlx::query("LOCK TABLE hr_people,hr_engagements,people_access_cutoffs,people_lifecycle_cases,people_lifecycle_grants,people_package_revisions,people_applied_packages,people_provision_operations,people_provision_grants IN SHARE ROW EXCLUSIVE MODE").execute(&mut *tx).await.unwrap();require_people_authority_sources_held(&mut tx).await.unwrap();tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn people_sales_authority_boundary_checks_canonical_sources_and_unit() {
+    use erpx_server_people_payroll::public::identity_facts::inspect_people_sales_authority_boundary;
+    fixture::with_database(2,|pool|async move {
+        setup(&pool).await;
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        sqlx::query("SET LOCAL search_path TO pg_catalog, public, pg_temp").execute(&mut *tx).await.unwrap();
+        assert!(inspect_people_sales_authority_boundary(&mut tx).await.is_err());
+        tx.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        sqlx::query("SET LOCAL search_path TO pg_catalog, public, pg_temp").execute(&mut *tx).await.unwrap();
+        sqlx::query("SAVEPOINT people_sources").execute(&mut *tx).await.unwrap();
+        lock_people_authority_sources(&mut tx).await.unwrap();
+        let released=inspect_people_sales_authority_boundary(&mut tx).await.unwrap();
+        released.require_current(&mut tx).await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT people_sources").execute(&mut *tx).await.unwrap();
+        assert!(released.require_current(&mut tx).await.is_err());
+        tx.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        sqlx::query("CREATE TEMP TABLE hr_people(id text)").execute(&mut *tx).await.unwrap();
+        sqlx::query("SET LOCAL search_path TO pg_catalog, public, pg_temp").execute(&mut *tx).await.unwrap();
+        lock_people_authority_sources(&mut tx).await.unwrap();
+        let source=inspect_people_sales_authority_boundary(&mut tx).await.unwrap();
+        source.require_current(&mut tx).await.unwrap();
+        sqlx::query("SET LOCAL search_path TO pg_catalog, pg_temp, public").execute(&mut *tx).await.unwrap();
+        assert!(source.require_current(&mut tx).await.is_err());
+        sqlx::query("SET LOCAL search_path TO pg_catalog, public, pg_temp").execute(&mut *tx).await.unwrap();
+        source.require_current(&mut tx).await.unwrap();
+        let mut other=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+        assert!(source.require_current(&mut other).await.is_err());
+        other.rollback().await.unwrap();tx.rollback().await.unwrap();
     }).await;
 }

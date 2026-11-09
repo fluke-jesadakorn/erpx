@@ -115,10 +115,7 @@ fn selector(value: Option<String>) -> Result<Option<String>, BusinessError> {
     value
         .filter(|value| !value.is_empty())
         .map(|value| {
-            if value.len() > 180
-                || value.chars().any(char::is_control)
-                || value.contains('\0')
-            {
+            if value.len() > 180 || value.chars().any(char::is_control) || value.contains('\0') {
                 return Err(BusinessError::invalid(
                     "SUPPORT_READ_SELECTOR_INVALID",
                     "Use the current Support record selector.",

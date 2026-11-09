@@ -22,7 +22,9 @@ use erpx_server_procurement::public::supplier_promise_history_http::{
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId, RecordId, TimestampMillis};
+use erpx_server_shared::public::{
+    BusinessError, Clock, CompanyId, FailureKind, HoldingId, RecordId, TimestampMillis,
+};
 use serde_json::Value;
 use sqlx::PgConnection;
 use std::sync::Arc;
@@ -81,7 +83,9 @@ impl ProcurementConfiguration {
     }
 }
 
-fn procurement_actor(current: &AuthorizedWorkContext) -> Result<SupplierPromiseReadActor, BusinessError> {
+fn procurement_actor(
+    current: &AuthorizedWorkContext,
+) -> Result<SupplierPromiseReadActor, BusinessError> {
     let selected = current.selection();
     let workspace = selected.workspace();
     Ok(SupplierPromiseReadActor {
@@ -209,7 +213,8 @@ impl<C: Clock + Send + Sync + 'static> ProcurementService<C> {
                         let now = clock.now();
                         let mut repository = PgSupplierPromiseHistoryRead::new(connection);
                         let data: SupplierPromiseHistory =
-                            supplier_promise_history(&actor, &mut repository, &order_id, now).await?;
+                            supplier_promise_history(&actor, &mut repository, &order_id, now)
+                                .await?;
                         let data = serde_json::to_value(data).map_err(|_| unavailable())?;
                         Ok(SupplierPromiseHistoryHttpResponse {
                             data,

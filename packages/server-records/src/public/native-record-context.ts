@@ -10,6 +10,8 @@ export type NativeRecordsPageContext = {
   companyId: string;
   branchId: string | null;
   departmentId: string | null;
+  branchSlug?: string | null;
+  departmentSlug?: string | null;
   assignmentId: string;
   role: string;
   assignmentScope: string;

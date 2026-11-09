@@ -20,7 +20,9 @@ use erpx_server_identity_access::public::{
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId};
+use erpx_server_shared::public::{
+    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
+};
 use serde_json::json;
 use sqlx::PgConnection;
 use std::sync::Arc;
@@ -302,12 +304,7 @@ impl<C: Clock + Send + Sync + 'static> HandbookHttpBackend for HandbookBackend<C
         Box::pin(async move {
             let (proof, selection) = self.context(request.headers)?;
             self.service
-                .read(
-                    request.host,
-                    proof,
-                    move || Ok(selection),
-                    request.kind,
-                )
+                .read(request.host, proof, move || Ok(selection), request.kind)
                 .await
                 .map_err(business)
         })

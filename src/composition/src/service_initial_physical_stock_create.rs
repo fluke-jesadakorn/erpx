@@ -438,6 +438,7 @@ pub async fn create_service_initial_count<C: Clock + Sync, I: IdentifierSource>(
         || checked.unit_cost_minor != input.unit_cost_minor
         || checked.lots != input.lots
         || checked.normalized != input.normalized
+        || checked.contains_unpaired_surrogate != input.contains_unpaired_surrogate
     {
         return Err(changed().into());
     }
@@ -472,6 +473,13 @@ pub async fn create_service_initial_count<C: Clock + Sync, I: IdentifierSource>(
             .remove("_serviceInitialPhysicalStockCount");
         module.require_current(c).await?;
         return Ok(result);
+    }
+    if input.contains_unpaired_surrogate {
+        return Err(BusinessError::invalid(
+            "VALIDATION_FAILED",
+            "Use valid initial physical Count input.",
+        )
+        .into());
     }
     let selected = read_initial_count_selection(
         c,

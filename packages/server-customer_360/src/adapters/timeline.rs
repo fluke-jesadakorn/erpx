@@ -8,7 +8,7 @@
 //! event page cannot observe mixed owner states.
 use crate::application::timeline::{CustomerTimelineFuture, CustomerTimelineRepository};
 use crate::domain::timeline::{
-    CustomerAccount, CustomerTimelineActor, CustomerTimelineCursor, CustomerTimelineItem,
+    source_invalid, CustomerAccount, CustomerTimelineActor, CustomerTimelineCursor, CustomerTimelineItem,
     CustomerTimelineView,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
@@ -142,7 +142,34 @@ impl<'a> PgCustomerTimelineRead<'a> {
             self.crm_activities(actor, customer_id, cursor, limit)
                 .await?,
         );
-        Ok(items)
+        // Source queries are individually bounded and ordered by PostgreSQL. Merge
+        // those candidates with the same database collation used by their cursor
+        // predicates; Rust string ordering is not PostgreSQL collation ordering.
+        let times: Vec<i64> = items.iter().map(|item| item.at).collect();
+        let ids: Vec<&str> = items.iter().map(|item| item.id.as_str()).collect();
+        let ordinals: Vec<i64> = sqlx::query_scalar(
+            "SELECT ordinal FROM unnest($1::bigint[], $2::text[]) WITH ORDINALITY AS e(at,id,ordinal) \
+             WHERE ($3::bigint IS NULL OR e.at < $3 OR (e.at = $3 AND e.id < $4)) \
+             ORDER BY e.at DESC, e.id DESC, e.ordinal",
+        )
+        .bind(&times)
+        .bind(&ids)
+        .bind(cursor.map(|value| value.at))
+        .bind(cursor.map(|value| value.id.as_str()))
+        .fetch_all(&mut *self.connection)
+        .await?;
+        if ordinals.len() != items.len() {
+            return Err(PgTransactionError::Business(source_invalid()));
+        }
+        let mut slots: Vec<Option<CustomerTimelineItem>> = items.into_iter().map(Some).collect();
+        let mut ordered = Vec::with_capacity(slots.len());
+        for ordinal in ordinals {
+            let index = usize::try_from(ordinal).ok().and_then(|n| n.checked_sub(1));
+            let item = index.and_then(|n| slots.get_mut(n)).and_then(Option::take)
+                .ok_or_else(|| PgTransactionError::Business(source_invalid()))?;
+            ordered.push(item);
+        }
+        Ok(ordered)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -555,6 +582,30 @@ impl CustomerTimelineRepository for PgCustomerTimelineRead<'_> {
         Box::pin(
             async move { PgCustomerTimelineRead::customer(self, actor, customer_id, view).await },
         )
+    }
+
+    fn verify_order<'a>(
+        &'a mut self,
+        rows: &'a [CustomerTimelineItem],
+        cursor: Option<&'a CustomerTimelineCursor>,
+    ) -> CustomerTimelineFuture<'a, bool, Self::Error> {
+        Box::pin(async move {
+            serializable(&mut *self.connection).await?;
+            let times: Vec<i64> = rows.iter().map(|item| item.at).collect();
+            let ids: Vec<&str> = rows.iter().map(|item| item.id.as_str()).collect();
+            let ordinals: Vec<i64> = sqlx::query_scalar(
+                "SELECT ordinal FROM unnest($1::bigint[], $2::text[]) WITH ORDINALITY AS e(at,id,ordinal) \
+                 WHERE ($3::bigint IS NULL OR e.at < $3 OR (e.at = $3 AND e.id < $4)) \
+                 ORDER BY e.at DESC, e.id DESC, e.ordinal",
+            )
+            .bind(&times)
+            .bind(&ids)
+            .bind(cursor.map(|value| value.at))
+            .bind(cursor.map(|value| value.id.as_str()))
+            .fetch_all(&mut *self.connection).await?;
+            Ok(ordinals.len() == rows.len() && ordinals.iter().enumerate()
+                .all(|(index, ordinal)| *ordinal == index as i64 + 1))
+        })
     }
 
     fn events<'a>(

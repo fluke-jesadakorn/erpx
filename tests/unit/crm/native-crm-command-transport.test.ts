@@ -1,5 +1,28 @@
 import {afterEach, describe, expect, it, vi} from 'vitest';
+import {createCRMActivityApplication,type CRMActivityPorts} from '../../../packages/server-crm/src/application/activities';
+import {createRequirePermission} from '../../../packages/server-identity_access/src/application/permissions';
+import {ApiError,errorResponse} from '../../../packages/server-runtime/src/adapters/http';
 vi.mock('server-only',()=>({}));
+
+it('retains CRM activity schema, permission and record-gate order',async()=>{
+ const permissions:string[]=[];const actor={userId:'owner',role:'custom',scope:{kind:'holding'},permissions};
+ const requirePermission=createRequirePermission({forbidden:()=>{throw new Error('page only');},error:(status,code,message)=>new ApiError(status,code,message)});
+ const read=vi.fn(async()=>({id:'activity',owner_id:'other',status:'completed',version:2}));
+ const lead=vi.fn(async()=>({id:'lead',status:'disqualified',stage:null,version:2}));
+ const replay=vi.fn(async(_key:string,_operation:string,_id:string,_input:unknown)=>null);
+ const ports={actorId:'owner',hasRead:true,sales:true,manager:false,clock:{now:()=>0},isSamePerson:(id:string)=>id==='owner',authorize:(permission:string)=>{requirePermission(actor,permission);},replay,lead,activities:async()=>[],history:async()=>[],recipients:async()=>[],activity:read,workRows:async()=>[],commit:async()=>{throw new Error('unexpected write');}} as unknown as CRMActivityPorts;
+ const application=createCRMActivityApplication(ports);
+ const change={action:'complete',expectedVersion:1,reason:'Done'};
+ let error=await application.change('activity',{...change,reason:'no'},'activity-key').then(()=>null,e=>e);expect(errorResponse(error).status).toBe(422);expect((await errorResponse(error).json()).error.code).toBe('VALIDATION_FAILED');expect(read).not.toHaveBeenCalled();
+ error=await application.change('activity',change,'activity-key').then(()=>null,e=>e);expect(error).toMatchObject({status:403,code:'PERMISSION_REQUIRED'});expect(read).not.toHaveBeenCalled();
+ permissions.push('commerce.sales','commerce.read');
+ error=await application.change('activity',change,'activity-key').then(()=>null,e=>e);expect(error).toMatchObject({status:403,code:'CRM_ACTIVITY_OWNER_REQUIRED'});
+ read.mockResolvedValueOnce({id:'activity',owner_id:'owner',status:'completed',version:2});
+ error=await application.change('activity',change,'activity-key').then(()=>null,e=>e);expect(error).toMatchObject({status:409,code:'CRM_ACTIVITY_STATE_CHANGED'});
+ const create={leadId:'lead',expectedVersion:1.0,activityType:'call',subject:' Call ',details:' Discuss ',ownerId:'owner',dueDate:'2026-11-20',ignored:true};
+ error=await application.create(create,'create-key').then(()=>null,e=>e);expect(error).toMatchObject({status:409,code:'CRM_ACTIVITY_SOURCE_CLOSED'});
+ expect(replay.mock.calls.at(-1)?.[3]).toEqual({leadId:'lead',expectedVersion:1,activityType:'call',subject:'Call',details:'Discuss',ownerId:'owner',dueDate:'2026-11-20'});
+});
 import {
   NATIVE_CRM_LEAD_ACTIONS,
   NATIVE_CRM_OPPORTUNITY_ACTIONS,

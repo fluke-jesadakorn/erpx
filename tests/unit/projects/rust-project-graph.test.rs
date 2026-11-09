@@ -557,3 +557,14 @@ fn graph_serialization_uses_bounded_camel_case_summary_fields() {
     assert!(value["actuals"][0].get("is_actor").is_none());
     assert!(value["actuals"][0].get("source_kind").is_some());
 }
+
+#[tokio::test]
+async fn graph_cost_totals_preserve_exact_values_above_i64() {
+    let mut repository=repo();
+    let amount=9_007_199_254_740_991_i64;
+    repository.actuals=(0..1025).map(|index| cost(&format!("cost-{index}"),"child",amount)).collect();
+    let graph=project_graph(&actor(&["records.read","finance.read"],&["projects"],true),&mut repository,"project",NOW).await.unwrap();
+    let expected=(i128::from(amount)*1025).to_string();
+    assert_eq!(graph.packages[1].cost_by_currency.get("THB"),Some(&expected));
+    assert_eq!(graph.totals.cost_by_currency.get("THB"),Some(&expected));
+}

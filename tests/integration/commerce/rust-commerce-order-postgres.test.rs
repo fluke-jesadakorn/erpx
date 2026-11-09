@@ -124,6 +124,9 @@ async fn quality_master_lock_waits_for_writer_then_reads_fresh_archival() {
 
 #[tokio::test]
 async fn quality_customer_return_commerce_uses_actual_scoped_untracked_sources() {
+    use erpx_server_commerce::public::quality_return_join::{
+        inspect_quality_return_join, lock_quality_return_join,
+    };
     use erpx_server_commerce::public::quality_return_origin::{
         QualityReturnSelector, inspect_quality_return_commerce, lock_quality_return_commerce,
     };
@@ -135,6 +138,7 @@ async fn quality_customer_return_commerce_uses_actual_scoped_untracked_sources()
         let mut tx=pool.raw().begin().await.unwrap();
         sqlx::raw_sql("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
         lock_quality_return_commerce(&mut tx).await.unwrap();
+        lock_quality_return_join(&mut tx).await.unwrap();
         let company=CompanyId::new("company").unwrap();
         let source=inspect_quality_return_commerce(&mut tx,&company,Some(&RecordId::new("branch").unwrap()),QualityReturnSelector::UntrackedLine("return-line".into())).await.unwrap();
         let facts=source.facts().unwrap();assert_eq!(facts.return_id,"return-1");assert_eq!(facts.approver,"reviewer");assert_eq!(facts.line_ordinal,0);assert_eq!(facts.lot_id,None);
@@ -172,9 +176,15 @@ async fn quality_customer_return_commerce_uses_actual_scoped_untracked_sources()
         tx.rollback().await.unwrap();writer.await.unwrap();
         let mut tx=pool.raw().begin().await.unwrap();sqlx::raw_sql("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
         lock_quality_return_commerce(&mut tx).await.unwrap();
+        lock_quality_return_join(&mut tx).await.unwrap();
+        let join=inspect_quality_return_join(&mut tx).await.unwrap();
         let source=inspect_quality_return_commerce(&mut tx,&company,None,QualityReturnSelector::UntrackedLine("return-line".into())).await.unwrap();
         assert!(source.facts().is_some());
         sqlx::raw_sql("INSERT INTO commerce_return_lot_allocations(id,return_line_id,fulfillment_allocation_id,lot_id,quantity_milli,value_minor,snapshot_quantity_milli,snapshot_value_minor,snapshot_version) VALUES('lot-b','return-line','original-b','return-lot-b',500,500,0,0,0),('lot-a','return-line','original-a','return-lot-a',500,500,0,0,0)").execute(&mut *tx).await.unwrap();
+        let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const {commerceQualityOriginRows}=await import('./packages/server-commerce/src/adapters/quality-purchase-sources.ts');const found=commerceQualityOriginRows.match(/SELECT \*,row_number\(\) OVER \(PARTITION BY return_line_id ORDER BY id\)-1 lot_ordinal FROM commerce_return_lot_allocations/);if(!found)throw Error('QUALITY_RETURN_ORDINAL_SOURCE_MISSING');process.stdout.write(found[0]);"#;
+        let output=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).args(["--conditions=react-server","-e",script]).output().unwrap();assert!(output.status.success(),"actual Commerce Quality TS source unavailable");let original=String::from_utf8(output.stdout).unwrap();
+        let sql=format!("SELECT id,lot_ordinal FROM ({original}) actual WHERE return_line_id='return-line' ORDER BY id");let expected:Vec<(String,i64)>=sqlx::query_as(sqlx::AssertSqlSafe(sql)).fetch_all(&mut *tx).await.unwrap();
+        let sql=format!("WITH {} SELECT id,lot_ordinal FROM quality_commerce_return_allocations WHERE return_line_id='return-line' ORDER BY id",join.cte_sql());let actual:Vec<(String,i64)>=sqlx::query_as(sqlx::AssertSqlSafe(sql)).fetch_all(&mut *tx).await.unwrap();assert_eq!(actual,expected);assert_eq!(actual,vec![("lot-a".into(),0),("lot-b".into(),1)]);join.require_current(&mut tx).await.unwrap();
         assert!(source.require_current(&mut tx).await.is_err());
         assert!(inspect_quality_return_commerce(&mut tx,&company,None,QualityReturnSelector::UntrackedLine("return-line".into())).await.unwrap().facts().is_none());
         let tracked=inspect_quality_return_commerce(&mut tx,&company,None,QualityReturnSelector::TrackedAllocation("lot-b".into())).await.unwrap();
@@ -183,6 +193,11 @@ async fn quality_customer_return_commerce_uses_actual_scoped_untracked_sources()
         sqlx::query("UPDATE commerce_returns SET approved_by='creator' WHERE id='return-1'").execute(&mut *tx).await.unwrap();
         assert!(tracked.require_current(&mut tx).await.is_err());
         tx.rollback().await.unwrap();
+        let mut other=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();lock_quality_return_join(&mut other).await.unwrap();assert!(join.require_current(&mut other).await.is_err());other.rollback().await.unwrap();
+        let mut fenced=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *fenced).await.unwrap();sqlx::query("SAVEPOINT before_quality_return_locks").execute(&mut *fenced).await.unwrap();lock_quality_return_join(&mut fenced).await.unwrap();let retained=inspect_quality_return_join(&mut fenced).await.unwrap();sqlx::query("ROLLBACK TO SAVEPOINT before_quality_return_locks").execute(&mut *fenced).await.unwrap();assert!(retained.require_current(&mut fenced).await.is_err());fenced.rollback().await.unwrap();
+        let mut shadow=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *shadow).await.unwrap();sqlx::query("CREATE TEMP TABLE commerce_return_lines(id text)").execute(&mut *shadow).await.unwrap();lock_quality_return_join(&mut shadow).await.unwrap();assert!(inspect_quality_return_join(&mut shadow).await.is_err());shadow.rollback().await.unwrap();
+        let mut rls=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *rls).await.unwrap();let bypass:bool=sqlx::query_scalar("SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname=current_user").fetch_one(&mut *rls).await.unwrap();assert!(!bypass);sqlx::raw_sql("ALTER TABLE public.commerce_return_lines ENABLE ROW LEVEL SECURITY; ALTER TABLE public.commerce_return_lines FORCE ROW LEVEL SECURITY").execute(&mut *rls).await.unwrap();assert!(sqlx::query_scalar::<_,bool>("SELECT row_security_active('public.commerce_return_lines'::regclass)").fetch_one(&mut *rls).await.unwrap());lock_quality_return_join(&mut rls).await.unwrap();assert!(inspect_quality_return_join(&mut rls).await.is_err());rls.rollback().await.unwrap();
+        let mut limited=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *limited).await.unwrap();lock_quality_return_join(&mut limited).await.unwrap();sqlx::query("UPDATE commerce_orders SET note=repeat('x',2097153) WHERE id='sales-confirmed'").execute(&mut *limited).await.unwrap();assert!(matches!(inspect_quality_return_join(&mut limited).await,Err(PgTransactionError::Business(ref e)) if e.code=="COMMERCE_QUALITY_RETURN_LIMIT"));limited.rollback().await.unwrap();
         // A matching writer that starts first must finish before our first
         // source snapshot; the fresh read must then refuse untracked origin.
         let mut writer=pool.raw().begin().await.unwrap();
@@ -714,7 +729,7 @@ async fn run_service_completion(
                     let lines = repository.fulfillment_money_lines(&outcome.receipt.fulfillment_id).await?;
                     let currency = repository.order_currency(command.order_id.as_str()).await?.ok_or_else(|| BusinessError::new(erpx_server_shared::public::FailureKind::NotFound, "NOT_FOUND", "Not found."))?;
                     drop(repository);
-                    let money = lines.into_iter().map(|(id, subtotal, tax)| erpx_server_finance::public::commerce_order_money::CommerceFulfillmentMoneyLine { id, subtotal, tax }).collect::<Vec<_>>();
+                    let money = lines.into_iter().map(|(id, subtotal, tax)| erpx_server_finance::public::commerce_order_money::CommerceFulfillmentMoneyLine { id, subtotal, tax, stock_value: None }).collect::<Vec<_>>();
                     erpx_server_finance::public::commerce_order_money::snapshot_commerce_fulfillment_money(connection, &actor.company_id, &command.date, &currency, &money, now).await?;
                 }
                 Ok(outcome)
@@ -1074,12 +1089,31 @@ async fn save_price_list_and_master_guards_fail_closed() {
             run_save_error(&pool, creator(), unknown_product).await.code,
             "PRICE_LIST_ITEM_REQUIRED"
         );
+        // November automatically selects a list, so list validation precedes
+        // both missing-product and warehouse-required checks.
+        let mut unknown_without_list = base("commerce-order-guard-no-list-product", "80", 700);
+        unknown_without_list.input.order_date = "2026-12-01".into();
+        unknown_without_list.input.due_date = "2026-12-10".into();
+        unknown_without_list.input.lines[0].product_id = "missing-product".into();
+        assert_eq!(
+            run_save_error(&pool, creator(), unknown_without_list).await.code,
+            "PRODUCT_INVALID"
+        );
         let mut stock = base("commerce-order-guard-0005", "50", 700);
         stock.input.warehouse_id = None;
         stock.input.lines[0].product_id = "stock-1".into();
         assert_eq!(
             run_save_error(&pool, creator(), stock).await.code,
             "PRICE_LIST_ITEM_REQUIRED"
+        );
+        let mut stock_without_list = base("commerce-order-guard-no-list-stock", "50", 700);
+        stock_without_list.input.order_date = "2026-12-01".into();
+        stock_without_list.input.due_date = "2026-12-10".into();
+        stock_without_list.input.warehouse_id = None;
+        stock_without_list.input.lines[0].product_id = "stock-1".into();
+        assert_eq!(
+            run_save_error(&pool, creator(), stock_without_list).await.code,
+            "WAREHOUSE_REQUIRED"
         );
         let mut wrong_warehouse = base("commerce-order-guard-0006", "80", 700);
         wrong_warehouse.input.warehouse_id = Some("missing-warehouse".into());

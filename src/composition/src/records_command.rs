@@ -360,7 +360,7 @@ impl<C: Clock + Send + Sync + 'static> RecordsCommandService<C> {
         module_id: String,
         create: CreateRecordInput,
         key: CommandKey,
-    ) -> Result<(CommandJson, serde_json::Value), Error>
+    ) -> Result<(CommandJson, serde_json::Value, serde_json::Value), Error>
     where
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
@@ -430,7 +430,36 @@ impl<C: Clock + Send + Sync + 'static> RecordsCommandService<C> {
                             &mut ids,
                         );
                         let outcome = ledger.execute(&request, &mut effects).await?;
-                        Ok((outcome.result, crate::records::context_value(current)))
+                        // Return the persisted current row for both a new command and
+                        // exact replay; a later owner transition must be visible here.
+                        let row: (String, String, String, String, String, i64, String, i64) =
+                            sqlx::query_as(
+                                "SELECT section_id,title,description,status,fields_json,version,                                 created_by,updated_at FROM workspace_records                                  WHERE module_id=$1 AND id=$2 AND company_id=$3",
+                            )
+                            .bind(&module_id)
+                            .bind(&validated.id)
+                            .bind(current.selection().workspace().company_id.as_str())
+                            .fetch_one(&mut *connection)
+                            .await?;
+                        let fields: serde_json::Value = serde_json::from_str(&row.4)
+                            .map_err(|_| unavailable())?;
+                        let view = serde_json::json!({
+                            "moduleId": module_id,
+                            "id": validated.id,
+                            "sectionId": row.0,
+                            "title": row.1,
+                            "description": row.2,
+                            "status": row.3,
+                            "fields": fields,
+                            "version": row.5,
+                            "createdBy": row.6,
+                            "updatedAt": row.7,
+                        });
+                        Ok((
+                            outcome.result,
+                            crate::records::context_value(current),
+                            view,
+                        ))
                     })
                 },
             )

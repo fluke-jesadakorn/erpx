@@ -722,3 +722,21 @@ fn catalog_reads_company_isolated_descending_rows_with_transaction_guards() {
         })
     });
 }
+
+#[test]
+fn created_channel_with_multiline_astral_name_survives_catalog_readback() {
+    with_database(|pool| Box::pin(async move {
+        setup(&pool).await;
+        let name=format!("{}\n{}", "😀".repeat(79), "😀".repeat(80));
+        let input=CreateChannel {name:name.clone(),..create_command("ecommerce-multiline-astral")};
+        let receipt=run_create(&pool,actor("company",None),input.clone()).await.unwrap();
+        let persisted:String=sqlx::query_scalar("SELECT name FROM ecommerce_channels WHERE id=$1 AND company_id='company'").bind(&receipt.id).fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(persisted,name);
+        let catalog=read_catalog(&pool,actor("company",None)).await.unwrap();
+        assert_eq!(catalog.channels.iter().find(|row|row.id==receipt.id).unwrap().name,name);
+        let replay=run_create(&pool,actor("company",None),input).await.unwrap();
+        assert_eq!(replay.id,receipt.id);
+        let foreign=read_catalog(&pool,actor("foreign",None)).await.unwrap();
+        assert!(foreign.channels.iter().all(|row|row.id!=receipt.id));
+    }));
+}

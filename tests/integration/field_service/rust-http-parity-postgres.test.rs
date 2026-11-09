@@ -57,6 +57,42 @@ impl tokio::io::AsyncRead for CountingBody {
 }
 use tower::ServiceExt;
 
+/// Exercise the unmounted Field-source classifier against actual committed
+/// owner rows in an isolated test Holding. It grants no IAM or purchase right.
+#[cfg(feature = "private-field-api")]
+async fn assert_actual_field_journal_history(db:&sqlx::PgPool,id:&str,company:&str,expected:bool,stale_order:Option<&str>) {
+    use erpx_server_field_service::public::finance_lineage::{inspect_field_history_join,lock_field_history_join_sources};
+    use erpx_server_finance::public::attachment_target_source::{FinanceAttachmentTargetKind,inspect_canonical_finance_history_journal_roots,lock_canonical_finance_attachment_targets,lock_canonical_finance_history_book_roots,observe_canonical_finance_attachment_target};
+    use erpx_server_finance::public::field_history_candidates::{inspect_field_history_finance_candidates,lock_field_history_finance_candidate_sources};
+    use erpx_server_finance::public::field_history_money_lines::{inspect_field_history_money_lines,lock_field_history_money_line_sources};
+    use erpx_server_inventory::public::field_history_consumption::{inspect_field_history_consumption_join,lock_field_history_consumption_join_sources};
+    use erpx_server_workflow::public::record_origin::{inspect_field_history_receipt_join,lock_field_history_receipt_join_sources};
+    use erpx_service::field_finance_history::{FieldFinanceHistoryPhase,inspect_field_finance_history};
+    let node=std::env::var("ERPX_NODE_BIN").unwrap_or_else(|_|"node".into());
+    let ts=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/server-field_service/src/adapters/finance-record-sources.ts");
+    let output=std::process::Command::new(node).arg("--conditions=react-server").arg("--input-type=module").arg("-e").arg("if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const m=await import(process.argv[1]);process.stdout.write(JSON.stringify({journal:m.fieldServiceFinanceRecordSources.journal,parts:m.fieldServiceFinanceRecordSources.partsJournal}))").arg(ts).output().expect("pinned Node Field source oracle");
+    assert!(output.status.success(),"actual Field TS source: {}",String::from_utf8_lossy(&output.stderr));
+    let legacy:serde_json::Value=serde_json::from_slice(&output.stdout).unwrap();
+    let original=|source:&str|format!("SELECT EXISTS(SELECT 1 FROM public.finance_journals d WHERE d.id=$1 AND d.company_id=$2 AND EXISTS(SELECT 1 FROM (SELECT d.id,d.company_id UNION SELECT p.id,p.company_id FROM public.finance_book_postings b JOIN public.finance_journals p ON p.id=b.primary_journal_id AND p.company_id=d.company_id WHERE b.secondary_journal_id=d.id) root JOIN ({source}) owner_source ON owner_source.id=root.id AND owner_source.company_id=root.company_id))");
+    let journal_sql=original(legacy["journal"].as_str().unwrap());let parts_sql=original(legacy["parts"].as_str().unwrap());
+    let mut tx=db.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+    // Utility locks precede the first protected snapshot. This isolated test
+    // demonstrates one coordinator order, not a proof of global lock ordering.
+    lock_canonical_finance_attachment_targets(&mut tx).await.unwrap();lock_canonical_finance_history_book_roots(&mut tx).await.unwrap();lock_field_history_finance_candidate_sources(&mut tx).await.unwrap();lock_field_history_money_line_sources(&mut tx).await.unwrap();lock_field_history_receipt_join_sources(&mut tx).await.unwrap();lock_field_history_consumption_join_sources(&mut tx).await.unwrap();lock_field_history_join_sources(&mut tx).await.unwrap();
+    let company=CompanyId::new(company).unwrap();let target=observe_canonical_finance_attachment_target(&mut tx,FinanceAttachmentTargetKind::Journal,&company,id).await.unwrap();let roots=inspect_canonical_finance_history_journal_roots(&mut tx,&target).await.unwrap();let finance=inspect_field_history_finance_candidates(&mut tx,&target,Some(&roots)).await.unwrap();let money=inspect_field_history_money_lines(&mut tx,&finance).await.unwrap();let workflow=inspect_field_history_receipt_join(&mut tx).await.unwrap();let inventory=inspect_field_history_consumption_join(&mut tx).await.unwrap();let field=inspect_field_history_join(&mut tx).await.unwrap();
+    let inclusion=inspect_field_finance_history(&mut tx,&finance,&money,&workflow,&inventory,&field,FieldFinanceHistoryPhase::Inclusion).await.unwrap();let parts=inspect_field_finance_history(&mut tx,&finance,&money,&workflow,&inventory,&field,FieldFinanceHistoryPhase::PartsSupplement).await.unwrap();
+    let oracle_included:bool=sqlx::query_scalar(sqlx::AssertSqlSafe(journal_sql.as_str())).bind(id).bind(company.as_str()).fetch_one(&mut *tx).await.unwrap();let oracle_parts:bool=sqlx::query_scalar(sqlx::AssertSqlSafe(parts_sql.as_str())).bind(id).bind(company.as_str()).fetch_one(&mut *tx).await.unwrap();
+    assert_eq!((inclusion.decision(),parts.decision()),(oracle_included,oracle_parts));assert_eq!((oracle_included,oracle_parts),(expected,expected));inclusion.require_current(&mut tx).await.unwrap();parts.require_current(&mut tx).await.unwrap();
+    if let Some(order)=stale_order {
+        // A real owner row is changed only within this rolled-back test unit;
+        // deferred guards stay enabled and no invalid mutation is committed.
+        sqlx::query("SAVEPOINT field_history_stale").execute(&mut *tx).await.unwrap();sqlx::query("UPDATE public.field_service_orders SET version=1 WHERE id=$1 AND company_id=$2").bind(order).bind(company.as_str()).execute(&mut *tx).await.unwrap();
+        assert!(!sqlx::query_scalar::<_,bool>(sqlx::AssertSqlSafe(journal_sql.as_str())).bind(id).bind(company.as_str()).fetch_one(&mut *tx).await.unwrap());assert!(!sqlx::query_scalar::<_,bool>(sqlx::AssertSqlSafe(parts_sql.as_str())).bind(id).bind(company.as_str()).fetch_one(&mut *tx).await.unwrap());assert!(inclusion.require_current(&mut tx).await.is_err());assert!(parts.require_current(&mut tx).await.is_err());
+        sqlx::query("ROLLBACK TO SAVEPOINT field_history_stale").execute(&mut *tx).await.unwrap();inclusion.require_current(&mut tx).await.unwrap();parts.require_current(&mut tx).await.unwrap();
+    }
+    tx.rollback().await.unwrap();
+}
+
 struct Scope;
 impl BusinessScopeSlugs for Scope {
     fn slugs(&self, _: &HeaderMap) -> Result<(Option<String>, Option<String>), BusinessError> {
@@ -1090,6 +1126,11 @@ async fn physical_scope_agreement_to_request_order_visit_parts_and_finance() {
   let finance_cookie=format!("__Host-erpx-product={}",p.review.reviewer_token.expose());let finance_get=Request::builder().uri(format!("/api/v1/holdings/acme/finance/journals/{journal}/workspace")).header("host","acme.example.test").header("cookie",&finance_cookie).body(Body::empty()).unwrap();assert_eq!(runtime.router().oneshot(finance_get).await.unwrap().status(),StatusCode::OK);
   let post=||Request::builder().method("POST").uri(format!("/api/v1/holdings/acme/finance/journals/{journal}/post")).header("host","acme.example.test").header("cookie",&finance_cookie).header("x-erpx-context-company","company").header("x-erpx-context-assignment","finance-fixture-b").header("x-erpx-context-assignment-version","3").header("x-erpx-context-revision","7").header("idempotency-key","raw-scope-finance-post").header("content-type","application/json").body(Body::from(r#"{"expectedVersion":1}"#)).unwrap();let response=runtime.router().oneshot(post()).await.unwrap();let status=response.status();let bytes=to_bytes(response.into_body(),65536).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));assert_eq!(runtime.router().oneshot(post()).await.unwrap().status(),StatusCode::OK);
   let posted:(String,i64)=sqlx::query_as("SELECT status,(SELECT count(*) FROM money_transaction_snapshots m WHERE m.company_id='company' AND m.source_type='finance_journal' AND m.source_id=j.id) FROM finance_journals j WHERE j.id=$1").bind(journal).fetch_one(db).await.unwrap();assert_eq!(posted,("posted".into(),1));
+  // Actual committed native Field issue + Finance post, compared to the
+  // unmounted classifier and the imported legacy Field History SQL.
+  assert_actual_field_journal_history(db,journal,"company",true,Some("service-order-raw-scope-order")).await;
+  assert_actual_field_journal_history(db,journal,"foreign",false,None).await;
+  assert_actual_field_journal_history(db,"field-history-missing-journal","company",false,None).await;
   sqlx::raw_sql("INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,is_control,control_kind,created_at,updated_at)VALUES('billing-ar','company','chart','120','Receivable','asset','THB',1,'receivable',0,0),('billing-revenue','company','chart','420','Revenue','revenue','THB',0,'none',0,0)").execute(db).await.unwrap();
   sqlx::raw_sql("INSERT INTO finance_charts(id,company_id,name,base_currency,created_by,created_at,updated_at) VALUES('billing-book-primary','company','Book primary','THB','maker',0,0); INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,is_control,control_kind,created_at,updated_at) VALUES('billing-book-ar','company','billing-book-primary','300','Book primary receivable','asset','THB',1,'receivable',0,0),('billing-book-revenue','company','billing-book-primary','430','Book primary revenue','revenue','THB',0,'none',0,0),('billing-ar-later','company','chart','121','Later receivable','asset','THB',1,'receivable',0,0),('billing-revenue-later','company','chart','421','Later revenue','revenue','THB',0,'none',0,0),('book-billing-ar','company','book-chart','001','Secondary receivable','asset','THB',1,'receivable',0,0),('book-billing-revenue','company','book-chart','002','Secondary revenue','revenue','THB',0,'none',0,0); INSERT INTO finance_book_rules(id,company_id,primary_chart_id,secondary_chart_id,effective_date,prepared_by,reason,opening_json,opening_hash,opening_period_id,created_at) VALUES('billing-rule','company','billing-book-primary','book-chart','2026-01-01','maker','Reviewed secondary book','[]','synthetic-opening-hash','period',0); INSERT INTO finance_book_account_mappings(rule_id,primary_account_id,secondary_account_id) VALUES('billing-rule','billing-book-ar','book-billing-ar'),('billing-rule','billing-book-revenue','book-billing-revenue'); UPDATE finance_book_rules SET status='approved',reviewed_by='reviewer',reviewed_at=1 WHERE id='billing-rule'").execute(db).await.unwrap();
   let complete=r#"{"id":"service-order-raw-scope-order","action":"complete","expectedVersion":6,"laborMinutes":30,"evidence":"Actual completed work","customerConfirmation":"Customer accepted","reason":"Complete visit"}"#;let v=send(&runtime.router(),&cookie,"raw-scope-complete",complete).await;assert_eq!(v.0,StatusCode::OK,"{}",v.1);
@@ -1272,6 +1313,26 @@ async fn private_field_attachment_withdraws_historical_draft_and_replays() {
         let no_context=Request::builder().method("POST").uri("/api/v1/holdings/acme/attachment-links/files-test-link/withdraw").header("host","acme.example.test").header("cookie",&cookie).header("idempotency-key","fixture-missing-cas").body(Body::from(r#"{"reason":"No longer needed"}"#)).unwrap();assert_eq!(runtime.router().oneshot(no_context).await.unwrap().status(),StatusCode::CONFLICT);
         let stale_context=Request::builder().method("POST").uri("/api/v1/holdings/acme/attachment-links/files-test-link/withdraw").header("host","acme.example.test").header("cookie",&cookie).header("x-erpx-context-company","company").header("x-erpx-context-assignment","field-fixture-a").header("x-erpx-context-assignment-version","3").header("x-erpx-context-revision","7").header("idempotency-key","fixture-stale-cas").body(Body::from(r#"{"reason":"No longer needed"}"#)).unwrap();assert_eq!(runtime.router().oneshot(stale_context).await.unwrap().status(),StatusCode::CONFLICT);
         let untouched:(String,i64)=sqlx::query_as("SELECT state,(SELECT count(*) FROM attachment_events WHERE link_id='files-test-link') FROM attachment_links WHERE id='files-test-link'").fetch_one(db).await.unwrap();assert_eq!(untouched,("draft".into(),0));
+        // A grant writer blocks the pre-snapshot fence for both status and
+        // withdrawal; neither may emit access or withdrawal evidence.
+        {
+            let mut writer=db.begin().await.unwrap();let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();
+            assert_eq!(sqlx::query("UPDATE company_package_grants SET reason=reason WHERE company_id='company' AND package_id='service'").execute(&mut *writer).await.unwrap().rows_affected(),1);
+            let held:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND relation='company_package_grants'::regclass AND mode='RowExclusiveLock' AND granted)").bind(pid).fetch_one(db).await.unwrap();assert!(held);
+            let status=Request::builder().uri("/api/v1/holdings/acme/attachment-links/files-test-link/status").header("host","acme.example.test").header("cookie",&cookie).header("x-erpx-context-company","company").header("x-erpx-context-assignment","field-fixture-a").header("x-erpx-context-assignment-version","3").header("x-erpx-context-revision","8").body(Body::empty()).unwrap();
+            for request in [status,post("fixture-grant-blocked","No longer needed")] {
+                let response=tokio::time::timeout(std::time::Duration::from_secs(5),runtime.router().oneshot(request)).await.unwrap().unwrap();assert_eq!(response.status(),StatusCode::INTERNAL_SERVER_ERROR);
+                let value:serde_json::Value=serde_json::from_slice(&to_bytes(response.into_body(),65536).await.unwrap()).unwrap();assert_eq!(value["error"]["code"],"ATTACHMENT_UNAVAILABLE");
+            }
+            let unchanged:(String,i64,i64)=sqlx::query_as("SELECT state,(SELECT count(*) FROM attachment_events WHERE link_id='files-test-link'),(SELECT count(*) FROM attachment_access_events WHERE link_id='files-test-link') FROM attachment_links WHERE id='files-test-link'").fetch_one(db).await.unwrap();assert_eq!(unchanged,("draft".into(),0,0));writer.rollback().await.unwrap();
+        }
+        // Deferred Files effects must run before retained Field evidence is
+        // checked, so their source drift cannot commit as a successful reply.
+        let original_site:String=sqlx::query_scalar("SELECT site FROM field_service_orders WHERE id='issue-order'").fetch_one(db).await.unwrap();
+        sqlx::raw_sql("CREATE FUNCTION fixture_withdraw_deferred_drift() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE field_service_orders SET site='Deferred withdrawal drift' WHERE id='issue-order'; RETURN NEW; END $$; CREATE CONSTRAINT TRIGGER fixture_withdraw_deferred_drift AFTER INSERT ON attachment_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.link_id='files-test-link' AND NEW.action='link.withdrawn') EXECUTE FUNCTION fixture_withdraw_deferred_drift()").execute(db).await.unwrap();
+        let response=runtime.router().oneshot(post("fixture-withdraw-deferred","No longer needed")).await.unwrap();assert_eq!(response.status(),StatusCode::CONFLICT);let error:serde_json::Value=serde_json::from_slice(&to_bytes(response.into_body(),65536).await.unwrap()).unwrap();assert_eq!(error["error"]["code"],"SERVICE_ATTACHMENT_CHANGED");
+        let withdrawal_rollback:(String,String,i64)=sqlx::query_as("SELECT l.state,o.site,(SELECT count(*) FROM attachment_events WHERE link_id=l.id) FROM attachment_links l JOIN field_service_orders o ON o.id='issue-order' WHERE l.id='files-test-link'").fetch_one(db).await.unwrap();assert_eq!(withdrawal_rollback,("draft".into(),original_site.clone(),0));
+        sqlx::raw_sql("DROP TRIGGER fixture_withdraw_deferred_drift ON attachment_events; DROP FUNCTION fixture_withdraw_deferred_drift()").execute(db).await.unwrap();
         sqlx::raw_sql("CREATE FUNCTION fixture_file_late_drift() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE field_service_orders SET site='Changed by trigger' WHERE id='issue-order'; RETURN NEW; END $$; CREATE TRIGGER fixture_file_late_drift AFTER INSERT ON attachment_events FOR EACH ROW WHEN (NEW.action='link.withdrawn') EXECUTE FUNCTION fixture_file_late_drift()").execute(db).await.unwrap();
         assert_eq!(runtime.router().oneshot(post("fixture-withdraw-rollback","No longer needed")).await.unwrap().status(),StatusCode::CONFLICT);
         let before:(String,i64,String)=sqlx::query_as("SELECT l.state,(SELECT count(*) FROM attachment_events WHERE link_id=l.id),o.site FROM attachment_links l JOIN field_service_orders o ON o.id='issue-order' WHERE l.id='files-test-link'").fetch_one(db).await.unwrap();assert_eq!(before.0,"draft");assert_eq!(before.1,0);assert_ne!(before.2,"Changed by trigger");
@@ -1295,6 +1356,12 @@ async fn private_field_attachment_withdraws_historical_draft_and_replays() {
         sqlx::query("INSERT INTO attachment_sets(id,company_id,branch_id,target_type,target_id,component_kind,purpose_key,expected_target_version,policy_version,classification,audience_json,state,created_by,created_at,updated_at) VALUES('gap-set','company','branch','field_service_visit','issue-order','record','signed_job_sheet',1,1,'confidential','{}','draft','fixture-a',$1,$1)").bind(now).execute(db).await.unwrap();
         sqlx::query("INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) VALUES('gap-link','gap-set','gap-source','draft','fixture-a',$1,$2)").bind(now).bind(now+3600000).execute(db).await.unwrap();
         sqlx::query("INSERT INTO attachment_scan_attempts(id,attachment_id,attempt,state,scanner_signature,scanner_definition_at,completed_at,created_at) VALUES('gap-scan','gap-source',1,'clean','synthetic-signature',$1,$1,$1)").bind(now).execute(db).await.unwrap();
+        sqlx::raw_sql("CREATE FUNCTION fixture_status_deferred_drift() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE field_service_orders SET site='Deferred status drift' WHERE id='issue-order'; RETURN NEW; END $$; CREATE CONSTRAINT TRIGGER fixture_status_deferred_drift AFTER INSERT ON attachment_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.link_id='gap-link') EXECUTE FUNCTION fixture_status_deferred_drift()").execute(db).await.unwrap();
+        let deferred_status=Request::builder().uri("/api/v1/holdings/acme/attachment-links/gap-link/status").header("host","acme.example.test").header("cookie",&cookie).header("x-erpx-context-company","company").header("x-erpx-context-assignment","field-fixture-a").header("x-erpx-context-assignment-version","3").header("x-erpx-context-revision","8").body(Body::empty()).unwrap();
+        let response=runtime.router().oneshot(deferred_status).await.unwrap();assert_eq!(response.status(),StatusCode::CONFLICT);let error:serde_json::Value=serde_json::from_slice(&to_bytes(response.into_body(),65536).await.unwrap()).unwrap();assert_eq!(error["error"]["code"],"SERVICE_ATTACHMENT_CHANGED");
+        let status_rollback:(String,String,i64)=sqlx::query_as("SELECT l.state,o.site,(SELECT count(*) FROM attachment_access_events WHERE link_id=l.id) FROM attachment_links l JOIN field_service_orders o ON o.id='issue-order' WHERE l.id='gap-link'").fetch_one(db).await.unwrap();assert_eq!(status_rollback,("draft".into(),original_site.clone(),0));
+        sqlx::raw_sql("DROP TRIGGER fixture_status_deferred_drift ON attachment_access_events; DROP FUNCTION fixture_status_deferred_drift()").execute(db).await.unwrap();
+
         sqlx::raw_sql("CREATE FUNCTION fixture_status_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic status failure'; END $$; CREATE TRIGGER fixture_status_failure BEFORE INSERT ON attachment_access_events FOR EACH ROW EXECUTE FUNCTION fixture_status_failure()").execute(db).await.unwrap();
         let gap=||Request::builder().method("POST").uri("/api/v1/holdings/acme/attachment-links/gap-link/withdraw").header("host","acme.example.test").header("cookie",&cookie).header("x-erpx-context-company","company").header("x-erpx-context-assignment","field-fixture-a").header("x-erpx-context-assignment-version","3").header("x-erpx-context-revision","8").header("idempotency-key","fixture-gap-key").body(Body::from(r#"{"reason":"Corrected evidence"}"#)).unwrap();
         assert_eq!(runtime.router().oneshot(gap()).await.unwrap().status(),StatusCode::INTERNAL_SERVER_ERROR);
@@ -1377,6 +1444,27 @@ async fn private_field_attachment_bind_replays_component_scanned_manifest() {
             let retained=retain_current_attachment_scan(c,&prepared,&evidence,&*clock,&mut bind_scan_facts::Ids).await?;
             sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut *c).await?;retained.require_current(c,&*clock).await?;Ok(())
         })}).await.unwrap();
+        // A real uncommitted grant writer conflicts with the selected pre-snapshot
+        // fence. Exhausting NOWAIT retries must leave no partial bind effects.
+        {
+            let mut grant_writer=db.begin().await.unwrap();
+            let writer_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *grant_writer).await.unwrap();
+            let updated=sqlx::query("UPDATE company_package_grants SET reason=reason WHERE company_id='company' AND package_id='service'").execute(&mut *grant_writer).await.unwrap();
+            assert_eq!(updated.rows_affected(),1);
+            let writer_holds:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND relation='company_package_grants'::regclass AND mode='RowExclusiveLock' AND granted)").bind(writer_pid).fetch_one(db).await.unwrap();
+            assert!(writer_holds);
+            let mut probe=db.begin().await.unwrap();
+            let conflict=erpx_server_commercial::public::purchases::lock_purchase_write_sources(&mut probe).await.err().expect("writer must conflict with the same owner fence");
+            assert!(matches!(conflict,PgTransactionError::Persistence(ref e) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));
+            probe.rollback().await.unwrap();
+            let response=tokio::time::timeout(std::time::Duration::from_secs(5),runtime.router().oneshot(post("bind-writer-first",3))).await.unwrap().unwrap();
+            assert_eq!(response.status(),StatusCode::INTERNAL_SERVER_ERROR);
+            let body=to_bytes(response.into_body(),65536).await.unwrap();
+            let json:serde_json::Value=serde_json::from_slice(&body).unwrap();assert_eq!(json["error"]["code"],"ATTACHMENT_UNAVAILABLE");
+            let unchanged:(String,String,i64,i64,i64,i64,i64)=sqlx::query_as("SELECT s.state,l.state,o.version,(SELECT count(*) FROM command_receipts WHERE command_id='bind-writer-first'),(SELECT count(*) FROM audit_events WHERE command_id='bind-writer-first'),(SELECT count(*) FROM outbox_events WHERE command_id='bind-writer-first'),(SELECT count(*) FROM field_service_order_events WHERE id='service-file-event-bind-writer-first') FROM attachment_sets s JOIN attachment_links l ON l.set_id=s.id JOIN field_service_orders o ON o.id=s.target_id WHERE s.id='bind-set'").fetch_one(db).await.unwrap();
+            assert_eq!(unchanged,("draft".into(),"draft".into(),3,0,0,0,0));
+            grant_writer.rollback().await.unwrap();
+        }
         assert_eq!(runtime.router().oneshot(post("bind-stale-key",2)).await.unwrap().status(),StatusCode::CONFLICT);
         sqlx::query("INSERT INTO attachment_sets(id,company_id,branch_id,target_type,target_id,component_kind,purpose_key,expected_target_version,policy_version,classification,audience_json,state,created_by,created_at,updated_at) VALUES('bind-foreign','other-company','branch','field_service_visit','issue-order','record','technician_report',3,1,'confidential','{}','draft','fixture-a',$1,$1),('bind-withdrawn','company','branch','field_service_visit','issue-order','record','signed_job_sheet',3,1,'confidential','{}','draft','fixture-a',$1,$1),('bind-terminal','company','branch','field_service_visit','reserve-order','record','technician_report',2,1,'confidential','{}','draft','fixture-a',$1,$1)").bind(now).execute(db).await.unwrap();
         sqlx::query("INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at,withdrawn_at,withdrawn_by,withdrawal_reason) VALUES('bind-withdrawn-link','bind-withdrawn','attachment-bind-upload','withdrawn','fixture-a',$1,$2,$1,'fixture-a','component withdrawal')").bind(now).bind(now+3600000).execute(db).await.unwrap();
@@ -1396,8 +1484,55 @@ async fn private_field_attachment_bind_replays_component_scanned_manifest() {
         assert_ne!(runtime.router().oneshot(post("bind-identity-key",3)).await.unwrap().status(),StatusCode::OK);
         let identity_rolled_back:(String,i64,i64)=sqlx::query_as("SELECT s.state,o.version,(SELECT count(*) FROM command_receipts WHERE command_id='bind-identity-key') FROM attachment_sets s JOIN field_service_orders o ON o.id=s.target_id WHERE s.id='bind-set'").fetch_one(db).await.unwrap();assert_eq!(identity_rolled_back,("draft".into(),3,0));
         sqlx::raw_sql("DROP TRIGGER bind_late_identity_drift ON attachment_events; DROP FUNCTION bind_late_identity_drift()").execute(db).await.unwrap();
-        let (a,b)=tokio::join!(runtime.router().oneshot(post("bind-retry-key",3)),runtime.router().oneshot(post("bind-retry-key",3)));
-        let a=a.unwrap();let b=b.unwrap();let ast=a.status();let bst=b.status();let ab=to_bytes(a.into_body(),65536).await.unwrap();let bb=to_bytes(b.into_body(),65536).await.unwrap();
+        // The selected request pauses while reading the body, after its
+        // pre-snapshot Commercial fence. A real grant writer must wait for
+        // that exact Holding backend until the bind commits.
+        let (mut body_writer,body_reader)=tokio::io::duplex(128);
+        let body_stream=tokio_util::codec::FramedRead::new(body_reader,tokio_util::codec::BytesCodec::new());
+        let gated=Request::builder().method("POST").uri("/api/v1/holdings/acme/attachment-sets/bind-set/bind").header("host","acme.example.test").header("cookie",&cookie).header("x-erpx-context-company","company").header("x-erpx-context-assignment","field-fixture-a").header("x-erpx-context-assignment-version","3").header("x-erpx-context-revision","8").header("idempotency-key","bind-retry-key").body(Body::from_stream(body_stream)).unwrap();
+        let mut selected_task=tokio::spawn(runtime.router().oneshot(gated));
+        let mut writer_task:Option<tokio::task::JoinHandle<Result<(),sqlx::Error>>>=None;
+        let mut selected_joined=false; let mut writer_joined=false;
+        let outcome:Result<_,String>=async {
+            let selected_pid=tokio::time::timeout(std::time::Duration::from_secs(5),async { loop {
+                let pids:Vec<i32>=sqlx::query_scalar("SELECT pid FROM pg_locks WHERE locktype='relation' AND granted AND mode='ShareRowExclusiveLock' AND relation IN ('company_package_grants'::regclass,'company_package_history_rights'::regclass) GROUP BY pid HAVING count(DISTINCT relation)=2").fetch_all(db).await.map_err(|e|e.to_string())?;
+                if pids.len()==1 {break Ok::<i32,String>(pids[0]);}
+                if selected_task.is_finished(){return Err("selected bind ended before body gate".into());}
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }}).await.map_err(|_|"selected fence timeout".to_owned())??;
+            let pool=db.clone();let (pid_send,pid_receive)=tokio::sync::oneshot::channel();
+            writer_task=Some(tokio::spawn(async move {
+                let mut tx=pool.begin().await?;
+                sqlx::query("SET LOCAL statement_timeout='30s'").execute(&mut *tx).await?;
+                let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *tx).await?;let _=pid_send.send(pid);
+                let before:serde_json::Value=sqlx::query_scalar("SELECT jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence) FROM company_package_grants WHERE company_id='company' AND package_id='service-parts-assets'").fetch_one(&mut *tx).await?;
+                sqlx::query("UPDATE company_package_grants SET version=version+1,reason='Synthetic concurrent review',updated_at=$1 WHERE company_id='company' AND package_id='service-parts-assets'").bind(now).execute(&mut *tx).await?;
+                sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) SELECT 'bind-fence-grant',company_id,package_id,'fixture-a','synthetic-bind-fence',$1,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$2 FROM company_package_grants WHERE company_id='company' AND package_id='service-parts-assets'").bind(before).bind(now).execute(&mut *tx).await?;
+                tx.commit().await
+            }));
+            let writer_pid=tokio::time::timeout(std::time::Duration::from_secs(5),pid_receive).await.map_err(|_|"writer startup timeout".to_owned())?.map_err(|e|e.to_string())?;
+            tokio::time::timeout(std::time::Duration::from_secs(5),async { loop {
+                let blocked:bool=sqlx::query_scalar("SELECT $2=ANY(pg_blocking_pids($1))").bind(writer_pid).bind(selected_pid).fetch_one(db).await.map_err(|e|e.to_string())?;
+                if blocked {break Ok::<(),String>(());}
+                if writer_task.as_ref().unwrap().is_finished(){return Err("grant writer ended before it blocked".into());}
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }}).await.map_err(|_|"writer was not blocked by selected bind".to_owned())??;
+            use tokio::io::AsyncWriteExt;
+            body_writer.write_all(br#"{"expectedTargetVersion":3}"#).await.map_err(|e|e.to_string())?;
+            body_writer.shutdown().await.map_err(|e|e.to_string())?;
+            let selected_join=tokio::time::timeout(std::time::Duration::from_secs(10),&mut selected_task).await.map_err(|_|"selected bind timeout".to_owned())?;
+            selected_joined=true; let selected=selected_join.map_err(|e|e.to_string())?.map_err(|e|e.to_string())?;
+            let writer_join=tokio::time::timeout(std::time::Duration::from_secs(10),writer_task.as_mut().unwrap()).await.map_err(|_|"grant writer timeout".to_owned())?;
+            writer_joined=true; writer_join.map_err(|e|e.to_string())?.map_err(|e|e.to_string())?;
+            Ok(selected)
+        }.await;
+        // Always stop and join any outstanding work, including timeout/error.
+        drop(body_writer);
+        if !selected_joined{selected_task.abort();let _=selected_task.await;}
+        if let Some(mut writer)=writer_task {if !writer_joined{writer.abort();let _=(&mut writer).await;}}
+        let a=outcome.expect("selected bind contention failed");
+        let grant_count:(i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM company_package_grants WHERE company_id='company' AND package_id='service-parts-assets' AND state='active' AND version=2 AND reason='Synthetic concurrent review'),(SELECT count(*) FROM company_package_grant_events WHERE id='bind-fence-grant')").fetch_one(db).await.unwrap();assert_eq!(grant_count,(1,1));
+        let b=runtime.router().oneshot(post("bind-retry-key",3)).await.unwrap();let ast=a.status();let bst=b.status();let ab=to_bytes(a.into_body(),65536).await.unwrap();let bb=to_bytes(b.into_body(),65536).await.unwrap();
         assert_eq!(ast,StatusCode::OK,"{}",String::from_utf8_lossy(&ab));assert_eq!(bst,StatusCode::OK,"{}",String::from_utf8_lossy(&bb));
         let value:serde_json::Value=serde_json::from_slice(&ab).unwrap();assert_eq!(value["data"]["manifest"][0]["checksumSha256"],checksum);assert_eq!(value["data"]["manifest"][0]["bytes"],3);
         assert_eq!(runtime.router().oneshot(post("bind-retry-key",2)).await.unwrap().status(),StatusCode::CONFLICT);
@@ -1983,4 +2118,175 @@ async fn service_stock_workspace_uses_actual_mapping_receipt_and_stock_authority
    runtime.close().await;
   }
  }).await;
+}
+
+#[tokio::test]
+#[cfg(feature = "private-field-api")]
+async fn direct_selected_field_bind_persists_and_replays_scanned_source() {
+    use erpx_server_files::public::attachment_scan::*;
+    use erpx_server_runtime::public::postgres::{PgUnitOfWork,TransactionOptions};
+    use erpx_server_shared::public::RecordId;
+    use erpx_service::field_service_parts::FieldServicePartsEnvironment;
+    use erpx_service::field_service_reservation_read::{FieldServiceReservationReadConfiguration,FieldServiceReservationReadService};
+    account::with_system(|system| async move {
+        let p=setup_workspace(system).await;let db=p.pool().raw();let clock=p.review.system.scenario.clock.clone();
+        let now=clock.now().get();let checksum="ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+        sqlx::query("INSERT INTO attachment_sets(id,company_id,branch_id,target_type,target_id,component_kind,purpose_key,expected_target_version,policy_version,classification,audience_json,state,created_by,created_at,updated_at) VALUES('direct-bind-set','company','branch','field_service_visit','issue-order','record','technician_report',3,1,'confidential','{}','draft','fixture-a',$1,$1)").bind(now).execute(db).await.unwrap();
+        sqlx::query("INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,actual_bytes,checksum_sha256,staging_key,final_key,quarantine_key,status,created_by,expires_at,created_at,updated_at,company_id,detected_media_type) VALUES('direct-bind-upload','field_service_visit','issue-order','technician_report','component.csv','text/csv',3,3,$1,'quarantine/direct-bind','quarantine/direct-bind','quarantine/direct-bind','uploaded','fixture-a',$2,$3,$3,'company','text/csv')").bind(checksum).bind(now+3600000).bind(now).execute(db).await.unwrap();
+        sqlx::query("INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at,company_id,source_state,detected_media_type) VALUES('attachment-direct-bind-upload','direct-bind-upload','field_service_visit','issue-order','technician_report','quarantine/direct-bind',1,'component.csv','text/csv',3,$1,'fixture-a',$2,'company','quarantined','text/csv')").bind(checksum).bind(now).execute(db).await.unwrap();
+        sqlx::query("INSERT INTO attachment_links(id,set_id,attachment_id,upload_intent_id,state,created_by,created_at,expires_at) VALUES('direct-bind-link','direct-bind-set','attachment-direct-bind-upload','direct-bind-upload','draft','fixture-a',$1,$2)").bind(now).bind(now+3600000).execute(db).await.unwrap();
+        sqlx::query("UPDATE upload_intents SET attachment_set_id='direct-bind-set',attachment_link_id='direct-bind-link' WHERE id='direct-bind-upload'").execute(db).await.unwrap();
+        sqlx::query("INSERT INTO attachment_storage_ledger(id,company_id,attachment_id,variant,object_key,bytes,state,created_at) VALUES('direct-bind-original','company','attachment-direct-bind-upload','original','quarantine/direct-bind',3,'stored',$1)").bind(now).execute(db).await.unwrap();
+        let details=serde_json::json!({"checksum":checksum,"bytes":3,"detectedMediaType":"text/csv"}).to_string();
+        sqlx::query("INSERT INTO attachment_events(id,company_id,attachment_id,link_id,set_id,actor_id,action,details_json,created_at) VALUES('direct-bind-origin','company','attachment-direct-bind-upload','direct-bind-link','direct-bind-set','fixture-a','file.quarantined',$1,$2)").bind(details).bind(now).execute(db).await.unwrap();
+        sqlx::query("INSERT INTO attachment_scan_attempts(id,attachment_id,attempt,state,created_at) VALUES('direct-bind-scan','attachment-direct-bind-upload',1,'pending',$1)").bind(now).execute(db).await.unwrap();
+        PgUnitOfWork::new(p.pool().clone()).run::<(),BusinessError,_>(TransactionOptions::default(),{let clock=clock.clone();move|c|{let clock=clock.clone();Box::pin(async move{
+            let scope=AttachmentScanScope{holding_id:HoldingId::new("h001").unwrap(),company_id:CompanyId::new("company").unwrap()};let id=RecordId::new("attachment-direct-bind-upload").unwrap();
+            let claim=claim_attachment_scan(c,&scope,Some(&id),&*clock,&mut bind_scan_facts::Ids).await?.expect("pending actual scan");let prepared=prepare_current_attachment_scan(c,claim,&*clock).await?;
+            let evidence=AttachmentScanEvidence::Clean{engine:"deterministic component provider".into(),definition_updated_at:1,preview:None};let retained=retain_current_attachment_scan(c,&prepared,&evidence,&*clock,&mut bind_scan_facts::Ids).await?;sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut *c).await?;retained.require_current(c,&*clock).await?;Ok(())
+        })}}).await.unwrap();
+        let config=FieldServiceReservationReadConfiguration::new(FieldServicePartsEnvironment::Development,HoldingId::new("h001").unwrap(),CompanyId::new("company").unwrap(),Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap())).unwrap().with_attachment_binds(false);
+        let service=FieldServiceReservationReadService::new(p.review.authorizer.clone(),config,clock.clone());
+        let selection=p.selection.clone();let first=service.attachment_bind("acme.example.test",p.review.maker.clone(),move||Ok(selection),"direct-bind-set".into(),"direct-bind-key".into(),Body::from(r#"{"expectedTargetVersion":3}"#)).await.unwrap();
+        let selection=p.selection.clone();let replay=service.attachment_bind("acme.example.test",p.review.maker.clone(),move||Ok(selection),"direct-bind-set".into(),"direct-bind-key".into(),Body::from(r#"{"expectedTargetVersion":3}"#)).await.unwrap();
+        assert_eq!(serde_json::to_value(&first).unwrap(),serde_json::to_value(&replay).unwrap());
+        assert_eq!(first.data.set_id,"direct-bind-set");assert_eq!(first.data.version,4);
+        assert_eq!(first.data.manifest.len(),1);let item=&first.data.manifest[0];
+        assert_eq!((item.link_id.as_str(),item.source_id.as_str(),item.purpose_key.as_str(),item.checksum_sha256.as_str(),item.media_type.as_str(),item.bytes),("direct-bind-link","attachment-direct-bind-upload","technician_report",checksum,"text/csv",3));
+        let persisted:(String,String,i64,i64,i64,i64)=sqlx::query_as("SELECT s.state,l.state,o.version,(SELECT count(*) FROM command_receipts WHERE command_id='direct-bind-key'),(SELECT count(*) FROM field_service_order_events WHERE id='service-file-event-direct-bind-key'),(SELECT count(*) FROM attachment_events WHERE set_id=s.id AND action='set.bound') FROM attachment_sets s JOIN attachment_links l ON l.set_id=s.id JOIN field_service_orders o ON o.id=s.target_id WHERE s.id='direct-bind-set'").fetch_one(db).await.unwrap();
+        assert_eq!(persisted,("bound".into(),"bound".into(),4,1,1,1));
+        let evidence:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM command_receipts WHERE command_id='direct-bind-key' AND operation='attachment.record.bind' AND record_id='issue-order' AND actor_id='fixture-a'),(SELECT count(*) FROM audit_events WHERE command_id='direct-bind-key' AND action='attachment.record.bind' AND record_version=4),(SELECT count(*) FROM outbox_events WHERE command_id='direct-bind-key' AND event_type='attachment.record.bind' AND aggregate_version=4)").fetch_one(db).await.unwrap();assert_eq!(evidence,(1,1,1));
+    }).await;
+}
+
+#[tokio::test]
+#[cfg(feature = "private-field-api")]
+async fn selected_workspace_omits_null_general_ticket_order_without_losing_neighbor() {
+    account::with_system(|system| async move {
+        let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;system.scenario.clock.0.store(now,Ordering::SeqCst);
+        let p=setup_workspace(system).await;let system=&p.review.system;let db=p.pool().raw();
+        // General Support records legally carry NULL customer and branch. The
+        // actual FK permits this historical Field order; no source guard is
+        // disabled or bypassed, and deferred constraints are forced at commit.
+        let mut tx=db.begin().await.unwrap();
+        sqlx::query("INSERT INTO support_tickets(id,company_id,branch_id,customer_id,title,issue,owner_id,due_date,status,version,created_by,created_at,updated_at,source_kind) VALUES('workspace-null-general','company',NULL,NULL,'General issue','Synthetic issue','fixture-a','2026-11-10','open',1,'fixture-a',$1,$1,'general')").bind(now).execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO field_service_orders(id,company_id,branch_id,ticket_id,ticket_version,agreement_id,agreement_version,issue,site,technician_id,status,created_by,version,created_at,updated_at) VALUES('workspace-null-order','company','branch','workspace-null-general',1,'agreement',2,'Synthetic historical issue','Synthetic site','fixture-a','open','fixture-a',1,$1,$1)").bind(now).execute(&mut *tx).await.unwrap();
+        sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut *tx).await.unwrap();tx.commit().await.unwrap();
+        let central=account::login(system,"a@example.test",None).await;let child=account::child(system,&central,account::ACME).await;
+        sqlx::query("INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at)VALUES($1,'fixture-a','company','field-fixture-a',3,8,$2,$3)").bind(&child.result.session_id).bind(now+3_600_000).bind(now).execute(db).await.unwrap();
+        let cookie=format!("__Host-erpx-product={}",child.token.expose());
+        let mut cfg=private_configuration::document(&system.control,&system.holdings).await;
+        cfg["fieldServiceReads"]=serde_json::json!([{"holdingId":"h001","companyId":"company"}]);cfg["fieldServiceWorkspaceReads"]=serde_json::json!(["h001"]);
+        for mode in ["disabled","shadow","enforced"] {
+            cfg["fieldServiceSourceRecordReads"]=serde_json::json!([{"holdingId":"h001","mode":mode}]);
+            let runtime=assemble_development_api(DevelopmentApiConfiguration::parse(&cfg.to_string()).unwrap(),system.scenario.clock.clone(),Arc::new(SystemAuthenticationSecrets)).await.unwrap();
+            let request=Request::builder().uri("/api/v1/holdings/acme/field-service/workspace").header("host","acme.example.test").header("cookie",&cookie).header("x-erpx-context-company","company").header("x-erpx-context-assignment","field-fixture-a").header("x-erpx-context-assignment-version","3").header("x-erpx-context-revision","8").body(Body::empty()).unwrap();
+            let response=runtime.router().oneshot(request).await.unwrap();let status=response.status();let bytes=to_bytes(response.into_body(),2*1024*1024).await.unwrap();assert_eq!(status,StatusCode::OK,"mode={mode}: {}",String::from_utf8_lossy(&bytes));
+            let value:serde_json::Value=serde_json::from_slice(&bytes).unwrap();let orders=value["data"]["orders"].as_array().unwrap();
+            assert!(orders.iter().any(|row|row["id"]=="issue-order"),"valid neighboring order missing in {mode}");
+            assert!(!orders.iter().any(|row|row["id"]=="workspace-null-order"),"general-ticket order was not omitted in {mode}");
+            runtime.close().await;
+        }
+    }).await;
+}
+
+#[tokio::test]
+#[cfg(feature = "private-field-api")]
+async fn selected_field_attachment_denies_null_general_ticket_source() {
+    use erpx_service::field_service_parts::FieldServicePartsEnvironment;
+    use erpx_service::field_service_reservation_read::{FieldServiceReservationReadConfiguration,FieldServiceReservationReadService};
+    account::with_system(|system| async move {
+        let p=setup_workspace(system).await;let db=p.pool().raw();let clock=p.review.system.scenario.clock.clone();let now=clock.now().get();
+        let mut tx=db.begin().await.unwrap();
+        sqlx::query("INSERT INTO support_tickets(id,company_id,branch_id,customer_id,title,issue,owner_id,due_date,status,version,created_by,created_at,updated_at,source_kind) VALUES('file-null-ticket','company',NULL,NULL,'General issue','Synthetic issue','fixture-a','2026-11-10','open',1,'fixture-a',$1,$1,'general')").bind(now).execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO field_service_orders(id,company_id,branch_id,ticket_id,ticket_version,agreement_id,agreement_version,issue,site,technician_id,status,created_by,version,created_at,updated_at) VALUES('file-null-order','company','branch','file-null-ticket',1,'agreement',2,'Synthetic historical issue','Synthetic site','fixture-a','open','fixture-a',1,$1,$1)").bind(now).execute(&mut *tx).await.unwrap();
+        for (set,link,target,version) in [("file-null-set","file-null-link","file-null-order",1_i64),("file-valid-set","file-valid-link","issue-order",3_i64)] {
+            sqlx::query("INSERT INTO attachment_sets(id,company_id,branch_id,target_type,target_id,component_kind,purpose_key,expected_target_version,policy_version,classification,audience_json,state,created_by,created_at,updated_at) VALUES($1,'company','branch','field_service_visit',$2,'record','technician_report',$3,1,'confidential','{}','draft','fixture-a',$4,$4)").bind(set).bind(target).bind(version).bind(now).execute(&mut *tx).await.unwrap();
+            sqlx::query("INSERT INTO attachment_links(id,set_id,state,created_by,created_at,expires_at) VALUES($1,$2,'draft','fixture-a',$3,$4)").bind(link).bind(set).bind(now).bind(now+3600000).execute(&mut *tx).await.unwrap();
+        }
+        sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut *tx).await.unwrap();tx.commit().await.unwrap();
+        let config=FieldServiceReservationReadConfiguration::new(FieldServicePartsEnvironment::Development,HoldingId::new("h001").unwrap(),CompanyId::new("company").unwrap(),Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap())).unwrap().with_attachments(false);
+        let service=FieldServiceReservationReadService::new(p.review.authorizer.clone(),config,clock.clone());
+        let selection=p.selection.clone();let valid=service.attachment_status("acme.example.test",p.review.maker.clone(),move||Ok(selection),"file-valid-link".into()).await.unwrap();assert_eq!(valid.data.link_id,"file-valid-link");
+        let selection=p.selection.clone();let denied=service.attachment_status("acme.example.test",p.review.maker.clone(),move||Ok(selection),"file-null-link".into()).await;
+        assert!(matches!(denied,Err(PgTransactionError::Business(ref error)) if error.code=="ATTACHMENT_LINK_NOT_FOUND"));
+        let effects:(i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM attachment_access_events WHERE link_id='file-null-link'),(SELECT count(*) FROM attachment_events WHERE link_id='file-null-link')").fetch_one(db).await.unwrap();assert_eq!(effects,(0,0));
+    }).await;
+}
+
+#[tokio::test]
+async fn workspace_empty_asset_reference_matches_original_typescript_flags() {
+    use erpx_service::field_service_reservation_read::{FieldServiceReservationReadConfiguration,FieldServiceReservationReadService};
+    use std::io::Write;
+    account::with_system(|system| async move {
+        let p=setup_workspace_without_parts(system).await;
+        // Empty IDs are legal TEXT keys with real FK targets. Insert historical
+        // rows directly; immutable source triggers stay enabled throughout.
+        let mut seed=p.pool().raw().begin().await.unwrap();
+        sqlx::raw_sql("INSERT INTO operational_assets(id,company_id,branch_id,code,name,category,currency,created_by,created_at,updated_at) VALUES('','company','branch','EMPTY-ASSET','Synthetic empty ID asset','equipment','THB','fixture-a',0,0); INSERT INTO field_service_agreements SELECT (jsonb_populate_record(NULL::field_service_agreements,to_jsonb(g)||jsonb_build_object('id','empty-asset-agreement','asset_id','','status','draft','title','Empty Asset agreement'))).* FROM field_service_agreements g WHERE id='agreement'; INSERT INTO support_tickets SELECT (jsonb_populate_record(NULL::support_tickets,to_jsonb(t)||jsonb_build_object('id','ticket-empty-asset-order','service_order_id','empty-asset-order'))).* FROM support_tickets t WHERE id='ticket-issue-order'; INSERT INTO field_service_orders SELECT (jsonb_populate_record(NULL::field_service_orders,to_jsonb(o)||jsonb_build_object('id','empty-asset-order','ticket_id','ticket-empty-asset-order','asset_id',''))).* FROM field_service_orders o WHERE id='issue-order'").execute(&mut *seed).await.unwrap();
+        sqlx::query("INSERT INTO field_service_order_events SELECT (jsonb_populate_record(NULL::field_service_order_events,to_jsonb(e)||jsonb_build_object('id','empty-asset-order-event','order_id','empty-asset-order'))).* FROM field_service_order_events e JOIN field_service_orders o ON o.id=e.order_id AND o.version=e.version WHERE o.id='issue-order'").execute(&mut *seed).await.unwrap();
+        seed.commit().await.unwrap();
+        let clock=p.review.system.scenario.clock.clone();let catalogue=Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap());
+        let cfg=FieldServiceReservationReadConfiguration::new(FieldServicePartsEnvironment::Development,HoldingId::new("h001").unwrap(),CompanyId::new("company").unwrap(),catalogue).unwrap().with_workspace();
+        let service=FieldServiceReservationReadService::new(p.review.authorizer.clone(),cfg,clock);
+        let selection=p.selection.clone();let response=service.read_workspace("acme.example.test",p.review.maker.clone(),move||Ok(selection)).await.unwrap();
+        let data=serde_json::to_value(response.data).unwrap();
+        let agreement=data["agreements"].as_array().unwrap().iter().find(|v|v["id"]=="empty-asset-agreement").unwrap();
+        let order=data["orders"].as_array().unwrap().iter().find(|v|v["id"]=="empty-asset-order").unwrap();
+        assert_eq!(agreement["requires_asset_capability"],0);assert_eq!(order["requires_asset_capability"],0);
+        // With no Parts History, the presentation hides the original reference
+        // and code; the actual TypeScript source receives the pre-mask DB row.
+        assert!(agreement["asset_id"].is_null());assert!(order["asset_id"].is_null());assert!(agreement["asset_code"].is_null());assert!(order["asset_code"].is_null());
+        let raw_agreement:(String,String)=sqlx::query_as("SELECT g.asset_id,a.code FROM field_service_agreements g JOIN operational_assets a ON a.id=g.asset_id WHERE g.id='empty-asset-agreement'").fetch_one(p.pool().raw()).await.unwrap();
+        let raw_order:(String,String)=sqlx::query_as("SELECT o.asset_id,a.code FROM field_service_orders o JOIN operational_assets a ON a.id=o.asset_id WHERE o.id='empty-asset-order'").fetch_one(p.pool().raw()).await.unwrap();
+        assert_eq!(raw_agreement,(String::new(),"EMPTY-ASSET".into()));assert_eq!(raw_order,raw_agreement);
+        let mut a=agreement.clone();a["asset_id"]=serde_json::json!(raw_agreement.0);a["asset_code"]=serde_json::json!(raw_agreement.1);
+        let mut o=order.clone();o["asset_id"]=serde_json::json!(raw_order.0);o["asset_code"]=serde_json::json!(raw_order.1);
+        let script=r#"
+if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const {execFileSync}=await import('node:child_process');
+const src=execFileSync('git',['show','e4be8bddb^:packages/server-field_service/src/adapters/service.ts'],{encoding:'utf8'});
+const start=src.indexOf('agreements: agreements.map(row => {'),end=src.indexOf('    customers: agreementAccess.newWork',start);if(start<0||end<0)throw Error('ORIGINAL_WORKSPACE_SOURCE_MISSING');
+const block=src.slice(start,end);const project=Function('agreements','orders','canWrite','hasPermission','a','samePerson','partsAccess','agreementAccess','orderAccess','today','return ({'+block+'})');
+const input=JSON.parse(await Bun.stdin.text());const result=project([input.agreement],[input.order],input.canWrite,()=>true,{userId:'fixture-a'},(_,id)=>id==='fixture-a',{history:false,newWork:false,settleExisting:false},{newWork:true,settleExisting:true},{newWork:true,settleExisting:true},'2026-11-09');
+const keys=['requires_asset_capability','asset_id','asset_code','can_activate','can_reject','can_retire','can_request','can_work','can_release_billing'];const pick=row=>Object.fromEntries(keys.filter(k=>k in row).map(k=>[k,row[k]]));process.stdout.write(JSON.stringify([pick(result.agreements[0]),pick(result.orders[0])]));
+"#;
+        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");let mut child=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(root).arg("--conditions=react-server").arg("-e").arg(script).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).spawn().unwrap();
+        child.stdin.take().unwrap().write_all(serde_json::json!({"agreement":a,"order":o,"canWrite":data["canWrite"]}).to_string().as_bytes()).unwrap();let output=child.wait_with_output().unwrap();assert!(output.status.success(),"actual TS Field workspace oracle unavailable");let expected:Vec<serde_json::Value>=serde_json::from_slice(&output.stdout).unwrap();
+        for (actual,original,keys) in [(agreement,&expected[0],&["requires_asset_capability","asset_id","asset_code","can_activate","can_reject","can_retire","can_request"][..]),(order,&expected[1],&["requires_asset_capability","asset_id","asset_code","can_work","can_release_billing"][..])] {for key in keys{assert_eq!(actual[*key],original[*key],"{key}");}}
+
+        // An audited active grant followed by withdrawal retains History but
+        // denies settle-existing. Both transitions use real database guards.
+        let now=p.review.system.scenario.clock.now().get();
+        let mut grant=p.pool().raw().begin().await.unwrap();
+        sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,version,reason,evidence,updated_at) VALUES('company','service-parts-assets',1,'active',0,1,'Synthetic retained detail history','public synthetic evidence',$1)").bind(now).execute(&mut *grant).await.unwrap();
+        sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) SELECT 'empty-detail-parts-grant',company_id,package_id,'fixture-a','synthetic-detail-grant',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),$1 FROM company_package_grants WHERE company_id='company' AND package_id='service-parts-assets'").bind(now).execute(&mut *grant).await.unwrap();
+        grant.commit().await.unwrap();
+        withdraw(&p,"service-parts-assets").await;
+        let retained:i64=sqlx::query_scalar("SELECT count(*) FROM company_package_history_rights WHERE company_id='company' AND package_id='service-parts-assets'").fetch_one(p.pool().raw()).await.unwrap();
+        assert!(retained>0);
+        let catalogue=Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap());
+        let cfg=FieldServiceReservationReadConfiguration::new(FieldServicePartsEnvironment::Development,HoldingId::new("h001").unwrap(),CompanyId::new("company").unwrap(),catalogue).unwrap().with_workspace().with_detail();
+        let service=FieldServiceReservationReadService::new(p.review.authorizer.clone(),cfg,p.review.system.scenario.clock.clone());
+        let selection=p.selection.clone();
+        let detail=service.read_detail("acme.example.test",p.review.maker.clone(),move||Ok(selection),"empty-asset-order".into()).await.unwrap();
+        let detail=serde_json::to_value(detail.data).unwrap();
+        assert_eq!(detail["order"]["asset_id"],"");
+        assert_eq!(detail["order"]["requires_asset_capability"],0);
+        let detail_script=r#"
+if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');
+const {execFileSync}=await import('node:child_process');
+const source=execFileSync('git',['show','e4be8bddb^:packages/server-field_service/src/adapters/service.ts'],{encoding:'utf8'});
+const found=source.match(/canEditVisitFiles:(.*),\s*\n/);if(!found)throw Error('ORIGINAL_FIELD_DETAIL_SOURCE_MISSING');
+const predicate=Function('a','order','visitAccess','partsAccess','hasPermission','return ('+found[1]+');');
+const order=JSON.parse(await Bun.stdin.text());
+process.stdout.write(JSON.stringify(predicate({},order,{settleExisting:true},{settleExisting:false},(_a,p)=>p==='records.write')));
+"#;
+        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let mut child=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(root).arg("--conditions=react-server").arg("-e").arg(detail_script).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).spawn().unwrap();
+        child.stdin.take().unwrap().write_all(detail["order"].to_string().as_bytes()).unwrap();
+        let output=child.wait_with_output().unwrap();assert!(output.status.success(),"actual TS Field detail oracle unavailable");
+        let expected:bool=serde_json::from_slice(&output.stdout).unwrap();
+        assert!(expected,"fixture must exercise the allowed empty-ID path");
+        assert_eq!(detail["canEditVisitFiles"],expected);
+    }).await;
 }

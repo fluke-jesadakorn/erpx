@@ -48,15 +48,18 @@ pub trait LeadRepository: Send {
         opportunity_id: &'a str,
     ) -> LeadsFuture<'a, Option<OpportunityFacts>, Self::Error>;
 
+    #[allow(clippy::too_many_arguments)]
     fn insert_lead<'a>(
         &'a mut self,
         company_id: &'a str,
         record_id: &'a str,
+        command_key: &'a str,
         created_by: &'a str,
         plan: &'a LeadCreatePlan,
         input: &'a LeadCreateInput,
         account_id: &'a str,
         contact_id: &'a str,
+        department_id: Option<&'a str>,
         now: i64,
     ) -> LeadsFuture<'a, (), Self::Error>;
 
@@ -87,10 +90,14 @@ pub trait LeadRepository: Send {
     ) -> LeadsFuture<'a, (), Self::Error>;
 }
 
+/// Create the lead in the caller's selected scope. `department_id` is the
+/// current selected department (not client input); composition must validate
+/// the branch and department against Organization before calling.
 pub async fn create_lead<R>(
     actor: &LeadActor,
     command_key: &str,
     input: &LeadCreateInput,
+    department_id: Option<&str>,
     repository: &mut R,
     now: i64,
 ) -> Result<LeadCreatePlan, R::Error>
@@ -111,16 +118,18 @@ where
         .contact_id
         .clone()
         .unwrap_or_else(|| format!("contact-{command_key}"));
-    let record_id = format!("lead-{command_key}");
+    let record_id = crate::domain::leads_native::lead_record_id(command_key);
     repository
         .insert_lead(
             &actor.company_id,
             &record_id,
+            command_key,
             &actor.user_id,
             &plan,
             input,
             &account_id,
             &contact_id,
+            department_id,
             now,
         )
         .await?;
@@ -162,7 +171,7 @@ where
         )
         .into());
     }
-    let is_owner = actor.user_id == record.owner_id || actor.is_same_person(&record.owner_id);
+    let is_owner = actor.user_id == record.owner_id;
     require_lead_state_for_change(
         &plan.action,
         &record.status,
@@ -249,7 +258,7 @@ where
         )
         .into());
     }
-    let is_owner = actor.user_id == lead.owner_id || actor.is_same_person(&lead.owner_id);
+    let is_owner = actor.user_id == lead.owner_id;
     require_opportunity_state(&plan.action, &opportunity.stage, is_owner, actor.can_manage)?;
     repository
         .update_opportunity(

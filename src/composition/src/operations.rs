@@ -1,4 +1,6 @@
 use crate::business_http::BusinessScopeSlugs;
+use erpx_server_assets::public::record_source as asset_source;
+use erpx_server_field_service::public::source_record::read_source_record;
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
     account_inbound_http::{parse_inbound_account_request, unique_request_header},
@@ -9,9 +11,6 @@ use erpx_server_identity_access::public::{
     operations_recipients::operations_recipient_allowed,
     work_context::{ExpectedWorkSelection, HoldingWorkspaceRequest, WorkScopeKind},
 };
-use erpx_server_assets::public::record_source as asset_source;
-use erpx_server_field_service::public::source_record::read_source_record;
-use erpx_server_pos::public::record_source as pos_source;
 use erpx_server_operations::public::field_exceptions::Exception;
 use erpx_server_operations::public::field_policy::{
     OpenException as FieldOpenException, QueuePolicy,
@@ -27,11 +26,12 @@ use erpx_server_operations::public::operations_http::{
     OperationsHttpFuture, OperationsHttpReadKind, OperationsHttpReadRequest,
     OperationsHttpResponse, OperationsHttpTarget,
 };
-use erpx_server_people_payroll::public::operations_people::read_operations_people;
 use erpx_server_operations::public::queue_read::{
     OperationsPeopleDirectory, OperationsReadActor, OperationsSourceVisibility, PersonOption,
     QueueException, SourceView, operations_detail, operations_workspace,
 };
+use erpx_server_people_payroll::public::operations_people::read_operations_people;
+use erpx_server_pos::public::record_source as pos_source;
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::record_source_contract::{
@@ -299,13 +299,7 @@ async fn recipient_allowed(
     now: i64,
 ) -> Result<bool, Error> {
     operations_recipient_allowed(
-        connection,
-        company,
-        branch,
-        department,
-        user_id,
-        review,
-        now,
+        connection, company, branch, department, user_id, review, now,
     )
     .await
 }
@@ -885,15 +879,24 @@ impl<C: Clock + Send + Sync + 'static> OperationsBackend<C> {
         let (proof, mut selection) = self.context(headers)?;
         let revision = unique_request_header(headers, "x-erpx-context-revision")?
             .ok_or_else(|| {
-                BusinessError::invalid("OPERATIONS_CONTEXT_REQUIRED", "Use the current work revision.")
+                BusinessError::invalid(
+                    "OPERATIONS_CONTEXT_REQUIRED",
+                    "Use the current work revision.",
+                )
             })?
             .parse()
             .map_err(|_| {
-                BusinessError::invalid("OPERATIONS_CONTEXT_REQUIRED", "Use the current work revision.")
+                BusinessError::invalid(
+                    "OPERATIONS_CONTEXT_REQUIRED",
+                    "Use the current work revision.",
+                )
             })?;
         let assignment = unique_request_header(headers, "x-erpx-context-assignment")?
             .ok_or_else(|| {
-                BusinessError::invalid("OPERATIONS_CONTEXT_REQUIRED", "Choose the current assignment.")
+                BusinessError::invalid(
+                    "OPERATIONS_CONTEXT_REQUIRED",
+                    "Choose the current assignment.",
+                )
             })?
             .to_owned();
         let assignment_version =

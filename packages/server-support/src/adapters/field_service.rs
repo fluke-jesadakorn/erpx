@@ -214,6 +214,13 @@ pub async fn lock_service_ticket_sources(c: &mut PgConnection) -> Result<(), Err
         .await?;
     Ok(())
 }
+/// Verify the write-capable Field projection fence on this connection. The
+/// caller must have acquired it before the first snapshot; no grant is implied.
+pub async fn require_service_ticket_sources_held(c:&mut PgConnection)->Result<(),Error>{
+    if !c.is_in_transaction(){return Err(invalid());}
+    let held:bool=sqlx::query_scalar("SELECT count(DISTINCT relation)=2 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND relation IN ('support_tickets'::regclass,'support_ticket_events'::regclass) AND granted AND mode IN ('ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock')").fetch_one(c).await?;
+    if !held{return Err(PersistenceError::new("SUPPORT_FIELD_TICKET_LOCKS_REQUIRED").into());}Ok(())
+}
 pub async fn read_current_service_ticket(
     c: &mut PgConnection,
     request: &SupportServiceTicketRequest,

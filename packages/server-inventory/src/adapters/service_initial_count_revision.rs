@@ -217,7 +217,7 @@ fn generic_line(
     history: &CurrentInitialCountInventoryHistory,
 ) -> Result<GenericLinePlan, Error> {
     if !valid_date(&input.count_date)
-        || !(5..=2000).contains(&js_trim(&input.reason).encode_utf16().count())
+        || !(5..=2000).contains(&js_trim(&input.reason).chars().count())
         || input.product.version <= 0
         || input.actor_id.is_empty()
         || input.allocations.len() > 500

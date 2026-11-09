@@ -237,6 +237,8 @@ impl<C: Clock + Send + Sync + 'static> ManageErpxHttpBackend for ManageErpxBacke
 }
 
 #[allow(dead_code)]
-fn _router(targets: Vec<erpx_server_manage_erpx::public::onboarding_http::ManageErpxHttpTarget>) -> Result<axum::Router, BusinessError> {
+fn _router(
+    targets: Vec<erpx_server_manage_erpx::public::onboarding_http::ManageErpxHttpTarget>,
+) -> Result<axum::Router, BusinessError> {
     manage_erpx_router(targets)
 }

@@ -2,6 +2,10 @@
 //! authority remains with the selected coordinator; owner ports supply the
 //! campaign ledger, attribution summary and package entitlement facts.
 use crate::business_http::BusinessScopeSlugs;
+use erpx_server_commercial::public::purchases::{
+    CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
+    current_package_catalogue, lock_commercial_authority_sources,
+};
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
     account_inbound_http::parse_inbound_account_request,
@@ -29,10 +33,6 @@ use erpx_server_marketing::public::lead_candidate_command_http::{
 use erpx_server_marketing::public::lead_candidate_http::{
     MarketingLeadHttpBackend, MarketingLeadHttpFuture, MarketingLeadHttpReadRequest,
     MarketingLeadHttpResponse,
-};
-use erpx_server_commercial::public::purchases::{
-    CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
-    current_package_catalogue, lock_commercial_authority_sources,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
@@ -78,7 +78,9 @@ struct MarketingSources;
 impl HoldingWorkSourcePreparation for MarketingSources {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
-            lock_commercial_authority_sources(c).await.map_err(business)?;
+            lock_commercial_authority_sources(c)
+                .await
+                .map_err(business)?;
             Ok(())
         })
     }
@@ -516,9 +518,10 @@ impl<C: Clock + Send + Sync + 'static> MarketingService<C> {
                         let mut repository = PgMarketingLead;
                         let data = match candidate.as_deref() {
                             Some(id) => {
-                                let detail = lead_detail(&actor, id, &mut repository, connection, now)
-                                    .await
-                                    .map_err(business)?;
+                                let detail =
+                                    lead_detail(&actor, id, &mut repository, connection, now)
+                                        .await
+                                        .map_err(business)?;
                                 serde_json::json!({
                                     "candidate": detail.candidate,
                                     "history": detail.history,
@@ -558,7 +561,6 @@ impl<C: Clock + Send + Sync + 'static> MarketingService<C> {
             )
             .await
     }
-
 }
 
 pub struct MarketingBackend<C> {
@@ -751,6 +753,12 @@ fn command_request_invalid() -> BusinessError {
 }
 
 #[allow(dead_code)]
-fn _router(targets: Vec<erpx_server_marketing::public::campaign_attribution_http::MarketingCampaignHttpTarget>) -> Result<axum::Router, BusinessError> {
-    erpx_server_marketing::public::campaign_attribution_http::marketing_campaign_http_router(targets)
+fn _router(
+    targets: Vec<
+        erpx_server_marketing::public::campaign_attribution_http::MarketingCampaignHttpTarget,
+    >,
+) -> Result<axum::Router, BusinessError> {
+    erpx_server_marketing::public::campaign_attribution_http::marketing_campaign_http_router(
+        targets,
+    )
 }

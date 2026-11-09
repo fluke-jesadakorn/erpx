@@ -89,7 +89,10 @@ impl<'a> Sources<'a> {
         {
             return Err(changed().into());
         }
-        if a.asset_id.as_ref().is_some_and(|v| Some(v.as_str()) != input.asset_id.as_deref()) {
+        if a.asset_id
+            .as_ref()
+            .is_some_and(|v| Some(v.as_str()) != input.asset_id.as_deref())
+        {
             return Err(BusinessError::new(FailureKind::Conflict,"CONFLICT","The record changed, a reference is unavailable, or this value already exists. Refresh and review again.").into());
         }
         let customer =

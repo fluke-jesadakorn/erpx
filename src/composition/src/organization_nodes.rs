@@ -79,7 +79,9 @@ pub struct OrganizationPreviewResponse {
     pub data: PreviewResult,
 }
 
-pub(crate) fn command_actor(current: &AuthorizedWorkContext) -> Result<OrganizationCommand, BusinessError> {
+pub(crate) fn command_actor(
+    current: &AuthorizedWorkContext,
+) -> Result<OrganizationCommand, BusinessError> {
     let selected = current.selection();
     let workspace = selected.workspace();
     let assignment = selected.assignment();

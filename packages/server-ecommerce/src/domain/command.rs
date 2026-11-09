@@ -114,7 +114,8 @@ pub(crate) fn chars_len(value: &str) -> usize {
 
 /// Code-point text check for Zod command paths only.
 pub fn valid_cp_text(value: &str, limit: usize) -> bool {
-    !value.is_empty() && chars_len(value) <= limit && !value.chars().any(char::is_control)
+    // Zod allows embedded controls; PostgreSQL TEXT cannot store NUL.
+    !value.is_empty() && chars_len(value) <= limit && !value.contains('\0')
 }
 
 /// Backwards-compatible alias for [`valid_cp_text`], used by the Zod
@@ -123,9 +124,8 @@ pub fn cp_text(value: &str, limit: usize) -> bool {
     valid_cp_text(value, limit)
 }
 
-/// UTF-16 code-unit length, retained for transport/source rows (catalog
-/// name/reviewer/title and receipt `status`). Do not use for Zod command
-/// input; command paths use [`chars_len`].
+/// UTF-16 code-unit length retained for source reviewer/title and receipt
+/// status fields. Channel names and Zod command inputs use [`chars_len`].
 pub(crate) fn utf16_len(value: &str) -> usize {
     value.encode_utf16().count()
 }

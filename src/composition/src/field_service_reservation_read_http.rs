@@ -78,7 +78,14 @@ pub fn field_service_reservation_read_router<C: Clock + Send + Sync + 'static>(
             .is_some_and(|h| h.slug == target.holding_slug);
         if !valid
             || configured
-                .insert((target.host.clone(), target.holding_slug.clone(),target.service.company_id().as_str().to_owned()), target)
+                .insert(
+                    (
+                        target.host.clone(),
+                        target.holding_slug.clone(),
+                        target.service.company_id().as_str().to_owned(),
+                    ),
+                    target,
+                )
                 .is_some()
         {
             return Err(BusinessError::invalid(
@@ -138,7 +145,8 @@ async fn read_customer_preparation<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -162,15 +170,31 @@ async fn read_customer_preparation<C: Clock + Send + Sync + 'static>(
             .service
             .customer_preparation(host, inbound.into_proof(), move || {
                 scope?;
-                if registered_company { captured.resolve_rendered_read() } else { captured.resolve_read(company) }
+                if registered_company {
+                    captured.resolve_rendered_read()
+                } else {
+                    captured.resolve_read(company)
+                }
             })
             .await
     }
     .await;
     posting_response(result)
 }
-async fn create_customer<C: Clock + Send + Sync + 'static>(s:State<Arc<ReadState<C>>>,p:Path<String>,r:Request)->Response{write_customer(s,p,r,false).await}
-async fn confirm_customer<C: Clock + Send + Sync + 'static>(s:State<Arc<ReadState<C>>>,p:Path<String>,r:Request)->Response{write_customer(s,p,r,true).await}
+async fn create_customer<C: Clock + Send + Sync + 'static>(
+    s: State<Arc<ReadState<C>>>,
+    p: Path<String>,
+    r: Request,
+) -> Response {
+    write_customer(s, p, r, false).await
+}
+async fn confirm_customer<C: Clock + Send + Sync + 'static>(
+    s: State<Arc<ReadState<C>>>,
+    p: Path<String>,
+    r: Request,
+) -> Response {
+    write_customer(s, p, r, true).await
+}
 async fn write_customer<C: Clock + Send + Sync + 'static>(
     State(state): State<Arc<ReadState<C>>>,
     Path(slug): Path<String>,
@@ -181,13 +205,13 @@ async fn write_customer<C: Clock + Send + Sync + 'static>(
     let headers = parts.headers;
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
         }
-        if unique_request_header(&headers, "origin")? != Some(inbound.expected_origin())
-        {
+        if unique_request_header(&headers, "origin")? != Some(inbound.expected_origin()) {
             return Err(BusinessError::new(
                 FailureKind::Forbidden,
                 "ORIGIN_FORBIDDEN",
@@ -212,7 +236,11 @@ async fn write_customer<C: Clock + Send + Sync + 'static>(
                     scope?;
                     captured.resolve()
                 },
-                crate::service_customer_preparation::ServiceCustomerTransportCommand { key, body, confirmation },
+                crate::service_customer_preparation::ServiceCustomerTransportCommand {
+                    key,
+                    body,
+                    confirmation,
+                },
             )
             .await
     }
@@ -251,7 +279,11 @@ async fn write_customer<C: Clock + Send + Sync + 'static>(
                 header::X_CONTENT_TYPE_OPTIONS,
                 HeaderValue::from_static("nosniff"),
             );
-            *response.status_mut() = if confirmation { StatusCode::OK } else { StatusCode::CREATED };
+            *response.status_mut() = if confirmation {
+                StatusCode::OK
+            } else {
+                StatusCode::CREATED
+            };
             response
         }
         Err(error) => posting_response::<serde_json::Value>(Err(error)),
@@ -264,7 +296,8 @@ async fn read_stock_setup<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -288,7 +321,11 @@ async fn read_stock_setup<C: Clock + Send + Sync + 'static>(
             .service
             .stock_setup(host, inbound.into_proof(), move || {
                 scope?;
-                if registered_company { captured.resolve_rendered_read() } else { captured.resolve_read(company) }
+                if registered_company {
+                    captured.resolve_rendered_read()
+                } else {
+                    captured.resolve_read(company)
+                }
             })
             .await
     }
@@ -319,7 +356,8 @@ async fn write_stock_master<C: Clock + Send + Sync + 'static>(
     let headers = parts.headers;
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -402,7 +440,8 @@ async fn read_parts_prerequisites<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -426,7 +465,11 @@ async fn read_parts_prerequisites<C: Clock + Send + Sync + 'static>(
             .service
             .parts_prerequisites(host, inbound.into_proof(), move || {
                 scope?;
-                if registered_company { captured.resolve_rendered_read() } else { captured.resolve_read(company) }
+                if registered_company {
+                    captured.resolve_rendered_read()
+                } else {
+                    captured.resolve_read(company)
+                }
             })
             .await
     }
@@ -495,7 +538,8 @@ async fn write_parts_prerequisite<C: Clock + Send + Sync + 'static>(
     let headers = parts.headers;
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -597,7 +641,8 @@ async fn read_parts_posting<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -621,7 +666,11 @@ async fn read_parts_posting<C: Clock + Send + Sync + 'static>(
             .service
             .parts_posting_setup(host, inbound.into_proof(), move || {
                 scope?;
-                if registered_company { captured.resolve_rendered_read() } else { captured.resolve_read(company) }
+                if registered_company {
+                    captured.resolve_rendered_read()
+                } else {
+                    captured.resolve_read(company)
+                }
             })
             .await
     }
@@ -664,7 +713,8 @@ async fn write_parts_posting<C: Clock + Send + Sync + 'static>(
     let headers = parts.headers;
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -714,7 +764,8 @@ async fn read<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -776,7 +827,8 @@ async fn read_issue<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -838,7 +890,8 @@ async fn read_workspace<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -885,7 +938,8 @@ async fn read_work<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -937,7 +991,8 @@ async fn read_source_record<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1011,7 +1066,8 @@ async fn read_detail<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1066,7 +1122,8 @@ async fn read_visit<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1122,7 +1179,8 @@ async fn read_billing<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1178,7 +1236,8 @@ async fn read_agreement_review<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1234,7 +1293,8 @@ async fn read_agreement_create<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1290,7 +1350,8 @@ async fn read_request<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1346,7 +1407,8 @@ async fn read_created_order<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1424,7 +1486,8 @@ async fn attachment_status<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1454,7 +1517,11 @@ async fn attachment_status<C: Clock + Send + Sync + 'static>(
                 inbound.into_proof(),
                 move || {
                     scope?;
-                    if registered_company { captured.resolve_rendered_read() } else { captured.resolve_read(company) }
+                    if registered_company {
+                        captured.resolve_rendered_read()
+                    } else {
+                        captured.resolve_read(company)
+                    }
                 },
                 id,
             )
@@ -1472,7 +1539,8 @@ async fn attachment_withdraw<C: Clock + Send + Sync + 'static>(
     let headers = parts.headers;
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1536,7 +1604,11 @@ async fn attachment_withdraw<C: Clock + Send + Sync + 'static>(
                 proof,
                 move || {
                     scope_read?;
-                    if registered_company { captured_read.resolve_rendered_read() } else { captured_read.resolve_read(company_read) }
+                    if registered_company {
+                        captured_read.resolve_rendered_read()
+                    } else {
+                        captured_read.resolve_read(company_read)
+                    }
                 },
                 id,
             )
@@ -1555,7 +1627,8 @@ async fn attachment_bind<C: Clock + Send + Sync + 'static>(
     let headers = parts.headers;
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1656,8 +1729,10 @@ async fn read_initial_count_record<C: Clock + Send + Sync + 'static>(
     .await
 }
 async fn read_initial_count_generic_detail<C: Clock + Send + Sync + 'static>(
-    state: State<Arc<ReadState<C>>>, Path((slug,id)): Path<(String,String)>,
-    axum::extract::RawQuery(query): axum::extract::RawQuery, headers: HeaderMap,
+    state: State<Arc<ReadState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    axum::extract::RawQuery(query): axum::extract::RawQuery,
+    headers: HeaderMap,
 ) -> Response {
     read_initial_count(state,slug,headers,crate::service_initial_physical_stock_transport::ServiceInitialCountReadRoute::GenericDetail{id,query}).await
 }
@@ -1685,12 +1760,14 @@ async fn read_initial_count<C: Clock + Send + Sync + 'static>(
     route: crate::service_initial_physical_stock_transport::ServiceInitialCountReadRoute,
 ) -> Response {
     use crate::service_initial_physical_stock_transport::ServiceInitialCountReadRoute;
-    if matches!(&route, ServiceInitialCountReadRoute::Record {id,..} | ServiceInitialCountReadRoute::Flow {id,..} | ServiceInitialCountReadRoute::GenericDetail {id,..} if id == "masters") {
+    if matches!(&route, ServiceInitialCountReadRoute::Record {id,..} | ServiceInitialCountReadRoute::Flow {id,..} | ServiceInitialCountReadRoute::GenericDetail {id,..} if id == "masters")
+    {
         return initial_count_response::<serde_json::Value>(Err(missing().into()), false);
     }
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1813,7 +1890,8 @@ async fn write_initial_count<C: Clock + Send + Sync + 'static>(
     route: crate::service_initial_physical_stock_transport::ServiceInitialCountCommandRoute,
 ) -> Response {
     use crate::service_initial_physical_stock_transport::ServiceInitialCountCommandRoute;
-    if matches!(&route, ServiceInitialCountCommandRoute::Action {id,..} | ServiceInitialCountCommandRoute::Assign {id} | ServiceInitialCountCommandRoute::Update {id} | ServiceInitialCountCommandRoute::GenericAction {id,..} | ServiceInitialCountCommandRoute::GenericAssign {id} if id == "masters") {
+    if matches!(&route, ServiceInitialCountCommandRoute::Action {id,..} | ServiceInitialCountCommandRoute::Assign {id} | ServiceInitialCountCommandRoute::Update {id} | ServiceInitialCountCommandRoute::GenericAction {id,..} | ServiceInitialCountCommandRoute::GenericAssign {id} if id == "masters")
+    {
         return initial_count_response::<serde_json::Value>(Err(missing().into()), false);
     }
     let created = matches!(
@@ -1854,172 +1932,597 @@ fn initial_count_response<T: serde::Serialize>(
     response
 }
 
-async fn read_collaboration<C:Clock+Send+Sync+'static>(State(state):State<Arc<ReadState<C>>>,Path(slug):Path<String>,headers:HeaderMap)->Response {
-    let result=async{
-        let host=unique_request_header(&headers,"host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
-        let inbound=parse_inbound_account_request(&state.policy,&headers)?;
-        if !matches!(inbound.audience(),RequestAudience::Holding{..}) {return Err(missing().into());}
-        if unique_request_header(&headers,"origin")?.is_some_and(|v|v!=inbound.expected_origin()){return Err(BusinessError::new(FailureKind::Forbidden,"ORIGIN_FORBIDDEN","Use the application origin.").into());}
-        let scope=state.scopes.slugs(&headers);let (branch,department)=scope.as_ref().cloned().unwrap_or_default();
-        let captured=CapturedHoldingMutation::capture(&headers,branch,department);let company=target.service.company_id().clone();
-        target.service.collaboration_read(host,inbound.into_proof(),move||{scope?;captured.resolve_read(company)}).await
-    }.await;posting_response(result)
+async fn read_collaboration<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|v| v != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let company = target.service.company_id().clone();
+        target
+            .service
+            .collaboration_read(host, inbound.into_proof(), move || {
+                scope?;
+                captured.resolve_read(company)
+            })
+            .await
+    }
+    .await;
+    posting_response(result)
 }
-async fn write_collaboration<C:Clock+Send+Sync+'static>(State(state):State<Arc<ReadState<C>>>,Path(slug):Path<String>,request:Request)->Response {
-    let (parts,body)=request.into_parts();let headers=parts.headers;
-    let result=async{
-        let host=unique_request_header(&headers,"host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
-        let inbound=parse_inbound_account_request(&state.policy,&headers)?;
-        if !matches!(inbound.audience(),RequestAudience::Holding{..}) {return Err(missing().into());}
-        if unique_request_header(&headers,"origin")?!=Some(inbound.expected_origin()){return Err(BusinessError::new(FailureKind::Forbidden,"ORIGIN_FORBIDDEN","Use the application origin.").into());}
-        let key=unique_request_header(&headers,"idempotency-key").and_then(|v|v.map(str::to_owned).ok_or_else(||BusinessError::invalid("COMMAND_KEY_REQUIRED","Idempotency-Key is required.")));
-        let scope=state.scopes.slugs(&headers);let (branch,department)=scope.as_ref().cloned().unwrap_or_default();
-        let captured=CapturedHoldingMutation::capture(&headers,branch,department);
-        target.service.collaboration_command(host,inbound.into_proof(),move||{scope?;captured.resolve()},key,body).await
-    }.await;posting_response(result)
+async fn write_collaboration<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let (parts, body) = request.into_parts();
+    let headers = parts.headers;
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")? != Some(inbound.expected_origin()) {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let key = unique_request_header(&headers, "idempotency-key").and_then(|v| {
+            v.map(str::to_owned).ok_or_else(|| {
+                BusinessError::invalid("COMMAND_KEY_REQUIRED", "Idempotency-Key is required.")
+            })
+        });
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        target
+            .service
+            .collaboration_command(
+                host,
+                inbound.into_proof(),
+                move || {
+                    scope?;
+                    captured.resolve()
+                },
+                key,
+                body,
+            )
+            .await
+    }
+    .await;
+    posting_response(result)
 }
 
-async fn read_field_support<C:Clock+Send+Sync+'static>(State(state):State<Arc<ReadState<C>>>,Path((slug,ticket_id)):Path<(String,String)>,headers:HeaderMap)->Response {
-    let result=async{
-        let host=unique_request_header(&headers,"host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
-        let inbound=parse_inbound_account_request(&state.policy,&headers)?;
-        if !matches!(inbound.audience(),RequestAudience::Holding{..}) {return Err(missing().into());}
-        if unique_request_header(&headers,"origin")?.is_some_and(|v|v!=inbound.expected_origin()){return Err(BusinessError::new(FailureKind::Forbidden,"ORIGIN_FORBIDDEN","Use the application origin.").into());}
-        let scope=state.scopes.slugs(&headers);let (branch,department)=scope.as_ref().cloned().unwrap_or_default();
-        let captured=CapturedHoldingMutation::capture(&headers,branch,department);let company=target.service.company_id().clone();
-        target.service.support_read(host,inbound.into_proof(),move||{scope?;captured.resolve_read(company)},ticket_id).await
-    }.await;posting_response(result)
+async fn read_field_support<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, ticket_id)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|v| v != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let company = target.service.company_id().clone();
+        target
+            .service
+            .support_read(
+                host,
+                inbound.into_proof(),
+                move || {
+                    scope?;
+                    captured.resolve_read(company)
+                },
+                ticket_id,
+            )
+            .await
+    }
+    .await;
+    posting_response(result)
 }
 
-async fn read_field_operations<C:Clock+Send+Sync+'static>(State(state):State<Arc<ReadState<C>>>,Path((slug,ticket_id)):Path<(String,String)>,headers:HeaderMap)->Response {
-    let result=async{
-        let host=unique_request_header(&headers,"host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
-        let inbound=parse_inbound_account_request(&state.policy,&headers)?;
-        if !matches!(inbound.audience(),RequestAudience::Holding{..}) {return Err(missing().into());}
-        if unique_request_header(&headers,"origin")?.is_some_and(|v|v!=inbound.expected_origin()){return Err(BusinessError::new(FailureKind::Forbidden,"ORIGIN_FORBIDDEN","Use the application origin.").into());}
-        let scope=state.scopes.slugs(&headers);let (branch,department)=scope.as_ref().cloned().unwrap_or_default();
-        let captured=CapturedHoldingMutation::capture(&headers,branch,department);let company=target.service.company_id().clone();
-        target.service.operations_read(host,inbound.into_proof(),move||{scope?;captured.resolve_read(company)},ticket_id).await
-    }.await;posting_response(result)
+async fn read_field_operations<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, ticket_id)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|v| v != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let company = target.service.company_id().clone();
+        target
+            .service
+            .operations_read(
+                host,
+                inbound.into_proof(),
+                move || {
+                    scope?;
+                    captured.resolve_read(company)
+                },
+                ticket_id,
+            )
+            .await
+    }
+    .await;
+    posting_response(result)
 }
 
-async fn write_field_operations<C:Clock+Send+Sync+'static>(State(state):State<Arc<ReadState<C>>>,Path((slug,id)):Path<(String,String)>,request:Request)->Response {
-    let (parts,body)=request.into_parts();let headers=parts.headers;
-    let result=async{
-        let host=unique_request_header(&headers,"host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
-        let inbound=parse_inbound_account_request(&state.policy,&headers)?;
-        if !matches!(inbound.audience(),RequestAudience::Holding{..}) {return Err(missing().into());}
-        if unique_request_header(&headers,"origin")?!=Some(inbound.expected_origin()){return Err(BusinessError::new(FailureKind::Forbidden,"ORIGIN_FORBIDDEN","Use the application origin.").into());}
-        let key=unique_request_header(&headers,"idempotency-key").and_then(|v|v.map(str::to_owned).ok_or_else(||BusinessError::invalid("COMMAND_KEY_REQUIRED","Idempotency-Key is required.")));
-        let scope=state.scopes.slugs(&headers);let (branch,department)=scope.as_ref().cloned().unwrap_or_default();
-        let captured=CapturedHoldingMutation::capture(&headers,branch,department);
-        target.service.operations_command(host,inbound.into_proof(),move||{scope?;captured.resolve()},id,key,body).await
-    }.await;posting_response(result)
+async fn write_field_operations<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let (parts, body) = request.into_parts();
+    let headers = parts.headers;
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")? != Some(inbound.expected_origin()) {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let key = unique_request_header(&headers, "idempotency-key").and_then(|v| {
+            v.map(str::to_owned).ok_or_else(|| {
+                BusinessError::invalid("COMMAND_KEY_REQUIRED", "Idempotency-Key is required.")
+            })
+        });
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        target
+            .service
+            .operations_command(
+                host,
+                inbound.into_proof(),
+                move || {
+                    scope?;
+                    captured.resolve()
+                },
+                id,
+                key,
+                body,
+            )
+            .await
+    }
+    .await;
+    posting_response(result)
 }
 
-async fn read_operations_workspace<C:Clock+Send+Sync+'static>(State(state):State<Arc<ReadState<C>>>,Path(slug):Path<String>,headers:HeaderMap)->Response {
-    let result=async{
-        let host=unique_request_header(&headers,"host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
-        let inbound=parse_inbound_account_request(&state.policy,&headers)?;
-        if !matches!(inbound.audience(),RequestAudience::Holding{..}) {return Err(missing().into());}
-        if unique_request_header(&headers,"origin")?.is_some_and(|v|v!=inbound.expected_origin()){return Err(BusinessError::new(FailureKind::Forbidden,"ORIGIN_FORBIDDEN","Use the application origin.").into());}
-        let scope=state.scopes.slugs(&headers);let (branch,department)=scope.as_ref().cloned().unwrap_or_default();
-        let captured=CapturedHoldingMutation::capture(&headers,branch,department);let company=target.service.company_id().clone();
-        target.service.operations_workspace(host,inbound.into_proof(),move||{scope?;captured.resolve_read(company)}).await
-    }.await;posting_response(result)
+async fn read_operations_workspace<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|v| v != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let company = target.service.company_id().clone();
+        target
+            .service
+            .operations_workspace(host, inbound.into_proof(), move || {
+                scope?;
+                captured.resolve_read(company)
+            })
+            .await
+    }
+    .await;
+    posting_response(result)
 }
 
-async fn write_operations_root<C:Clock+Send+Sync+'static>(State(state):State<Arc<ReadState<C>>>,Path(slug):Path<String>,request:Request)->Response {
-    let (parts,body)=request.into_parts();let headers=parts.headers;
-    let result=async{
-        let host=unique_request_header(&headers,"host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
-        let inbound=parse_inbound_account_request(&state.policy,&headers)?;
-        if !matches!(inbound.audience(),RequestAudience::Holding{..}) {return Err(missing().into());}
-        if unique_request_header(&headers,"origin")?!=Some(inbound.expected_origin()){return Err(BusinessError::new(FailureKind::Forbidden,"ORIGIN_FORBIDDEN","Use the application origin.").into());}
-        let key=unique_request_header(&headers,"idempotency-key").and_then(|v|v.map(str::to_owned).ok_or_else(||BusinessError::invalid("COMMAND_KEY_REQUIRED","Idempotency-Key is required.")));
-        let scope=state.scopes.slugs(&headers);let (branch,department)=scope.as_ref().cloned().unwrap_or_default();
-        let captured=CapturedHoldingMutation::capture(&headers,branch,department);
-        target.service.operations_root_command(host,inbound.into_proof(),move||{scope?;captured.resolve()},key,body).await
-    }.await;posting_response(result)
+async fn write_operations_root<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let (parts, body) = request.into_parts();
+    let headers = parts.headers;
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")? != Some(inbound.expected_origin()) {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let key = unique_request_header(&headers, "idempotency-key").and_then(|v| {
+            v.map(str::to_owned).ok_or_else(|| {
+                BusinessError::invalid("COMMAND_KEY_REQUIRED", "Idempotency-Key is required.")
+            })
+        });
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        target
+            .service
+            .operations_root_command(
+                host,
+                inbound.into_proof(),
+                move || {
+                    scope?;
+                    captured.resolve()
+                },
+                key,
+                body,
+            )
+            .await
+    }
+    .await;
+    posting_response(result)
 }
 
 #[derive(serde::Deserialize)]
-#[serde(rename_all="camelCase",deny_unknown_fields)]
-struct InboxQuery{
- #[serde(default)]projection:erpx_server_collaboration::public::field_inbox::FieldInboxProjection,
- #[serde(default)]reverse:bool,
- #[serde(default)]before_key:Option<String>,
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct InboxQuery {
+    #[serde(default)]
+    projection: erpx_server_collaboration::public::field_inbox::FieldInboxProjection,
+    #[serde(default)]
+    reverse: bool,
+    #[serde(default)]
+    before_key: Option<String>,
 
- #[serde(default)]all:bool,
- category:Option<String>,
- #[serde(default)]search:String,
- before_at:Option<i64>,before_id:Option<String>,
- #[serde(default="inbox_limit")]limit:usize,
+    #[serde(default)]
+    all: bool,
+    category: Option<String>,
+    #[serde(default)]
+    search: String,
+    before_at: Option<i64>,
+    before_id: Option<String>,
+    #[serde(default = "inbox_limit")]
+    limit: usize,
 }
-fn inbox_limit()->usize{100}
-async fn read_inbox_candidates<C:Clock+Send+Sync+'static>(State(state):State<Arc<ReadState<C>>>,Path(slug):Path<String>,Query(query):Query<InboxQuery>,headers:HeaderMap)->Response{
- let result=async{
-  let host=unique_request_header(&headers,"host")?.ok_or_else(missing)?;
-  let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
-  let inbound=parse_inbound_account_request(&state.policy,&headers)?;
-  if !matches!(inbound.audience(),RequestAudience::Holding{..}){return Err(missing().into());}
-  if unique_request_header(&headers,"origin")?.is_some_and(|v|v!=inbound.expected_origin()){return Err(BusinessError::new(FailureKind::Forbidden,"ORIGIN_FORBIDDEN","Use the application origin.").into());}
-  if query.before_key.is_some()&&(query.before_at.is_none()||query.before_id.is_none()){return Err(BusinessError::invalid("INVALID_INBOX_QUERY","Restart the Inbox search.").into());}
-  let before=match(query.before_at,query.before_id){(None,None)=>None,(Some(at),Some(id))=>Some(erpx_server_collaboration::public::field_inbox::FieldInboxCursor{at,id,key:query.before_key}),_=>return Err(BusinessError::invalid("INVALID_INBOX_QUERY","Restart the Inbox search.").into())};
-  let query=erpx_server_collaboration::public::field_inbox::FieldInboxQuery{projection:query.projection,reverse:query.reverse,all:query.all,category:query.category,search:query.search,before,limit:query.limit};
-  let scope=state.scopes.slugs(&headers);let(branch,department)=scope.as_ref().cloned().unwrap_or_default();
-  let captured=CapturedHoldingMutation::capture(&headers,branch,department);let company=target.service.company_id().clone();
-  target.service.inbox_candidates(host,inbound.into_proof(),move||{scope?;captured.resolve_read(company)},query).await
- }.await;posting_response(result)
+fn inbox_limit() -> usize {
+    100
+}
+async fn read_inbox_candidates<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    Query(query): Query<InboxQuery>,
+    headers: HeaderMap,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|v| v != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        if query.before_key.is_some() && (query.before_at.is_none() || query.before_id.is_none()) {
+            return Err(
+                BusinessError::invalid("INVALID_INBOX_QUERY", "Restart the Inbox search.").into(),
+            );
+        }
+        let before = match (query.before_at, query.before_id) {
+            (None, None) => None,
+            (Some(at), Some(id)) => Some(
+                erpx_server_collaboration::public::field_inbox::FieldInboxCursor {
+                    at,
+                    id,
+                    key: query.before_key,
+                },
+            ),
+            _ => {
+                return Err(BusinessError::invalid(
+                    "INVALID_INBOX_QUERY",
+                    "Restart the Inbox search.",
+                )
+                .into());
+            }
+        };
+        let query = erpx_server_collaboration::public::field_inbox::FieldInboxQuery {
+            projection: query.projection,
+            reverse: query.reverse,
+            all: query.all,
+            category: query.category,
+            search: query.search,
+            before,
+            limit: query.limit,
+        };
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let company = target.service.company_id().clone();
+        target
+            .service
+            .inbox_candidates(
+                host,
+                inbound.into_proof(),
+                move || {
+                    scope?;
+                    captured.resolve_read(company)
+                },
+                query,
+            )
+            .await
+    }
+    .await;
+    posting_response(result)
 }
 
-async fn write_inbox_state<C:Clock+Send+Sync+'static>(State(state):State<Arc<ReadState<C>>>,Path((slug,id)):Path<(String,String)>,request:Request)->Response{
- let(parts,body)=request.into_parts();let headers=parts.headers;
- let result=async{
-  let host=unique_request_header(&headers,"host")?.ok_or_else(missing)?;
-  let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
-  let inbound=parse_inbound_account_request(&state.policy,&headers)?;
-  if !matches!(inbound.audience(),RequestAudience::Holding{..}){return Err(missing().into());}
-  if unique_request_header(&headers,"origin")?!=Some(inbound.expected_origin()){return Err(BusinessError::new(FailureKind::Forbidden,"ORIGIN_FORBIDDEN","Use the application origin.").into());}
-  let key=unique_request_header(&headers,"idempotency-key").and_then(|v|v.map(str::to_owned).ok_or_else(||BusinessError::invalid("COMMAND_KEY_REQUIRED","Idempotency-Key is required.")));
-  let scope=state.scopes.slugs(&headers);let(branch,department)=scope.as_ref().cloned().unwrap_or_default();let captured=CapturedHoldingMutation::capture(&headers,branch,department);
-  target.service.inbox_state(host,inbound.into_proof(),move||{scope?;captured.resolve()},id,key,body).await
- }.await;posting_response(result)
+async fn write_inbox_state<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let (parts, body) = request.into_parts();
+    let headers = parts.headers;
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")? != Some(inbound.expected_origin()) {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let key = unique_request_header(&headers, "idempotency-key").and_then(|v| {
+            v.map(str::to_owned).ok_or_else(|| {
+                BusinessError::invalid("COMMAND_KEY_REQUIRED", "Idempotency-Key is required.")
+            })
+        });
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        target
+            .service
+            .inbox_state(
+                host,
+                inbound.into_proof(),
+                move || {
+                    scope?;
+                    captured.resolve()
+                },
+                id,
+                key,
+                body,
+            )
+            .await
+    }
+    .await;
+    posting_response(result)
 }
 
-async fn read_executive<C:Clock+Send+Sync+'static>(State(state):State<Arc<ReadState<C>>>,Path(slug):Path<String>,query:Result<Query<erpx_server_field_service::public::executive::FieldExecutiveQuery>,axum::extract::rejection::QueryRejection>,headers:HeaderMap)->Response {
- let result=async{
-  let host=unique_request_header(&headers,"host")?.ok_or_else(missing)?;
-  let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
-  let inbound=parse_inbound_account_request(&state.policy,&headers)?;
-  if !matches!(inbound.audience(),RequestAudience::Holding{..}){return Err(missing().into());}
-  if unique_request_header(&headers,"origin")?.is_some_and(|v|v!=inbound.expected_origin()){return Err(BusinessError::new(FailureKind::Forbidden,"ORIGIN_FORBIDDEN","Use the application origin.").into());}
-  let Query(query)=query.map_err(|_|BusinessError::invalid("INVALID_FIELD_REPORT_QUERY","Use a registered Field report and date interval."))?;
-  let scope=state.scopes.slugs(&headers);let(branch,department)=scope.as_ref().cloned().unwrap_or_default();
-  let captured=CapturedHoldingMutation::capture(&headers,branch,department);let company=target.service.company_id().clone();
-  target.service.executive_read(host,inbound.into_proof(),move||{scope?;captured.resolve_read(company)},query).await
- }.await;posting_response(result.map_err(|error|match error{PgTransactionError::Persistence(_)=>BusinessError::new(FailureKind::Unavailable,"FIELD_REPORT_UNAVAILABLE","The native Field report is unavailable.").into(),other=>other}))
+async fn read_executive<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    query: Result<
+        Query<erpx_server_field_service::public::executive::FieldExecutiveQuery>,
+        axum::extract::rejection::QueryRejection,
+    >,
+    headers: HeaderMap,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|v| v != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let Query(query) = query.map_err(|_| {
+            BusinessError::invalid(
+                "INVALID_FIELD_REPORT_QUERY",
+                "Use a registered Field report and date interval.",
+            )
+        })?;
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let company = target.service.company_id().clone();
+        target
+            .service
+            .executive_read(
+                host,
+                inbound.into_proof(),
+                move || {
+                    scope?;
+                    captured.resolve_read(company)
+                },
+                query,
+            )
+            .await
+    }
+    .await;
+    posting_response(result.map_err(|error| {
+        match error {
+            PgTransactionError::Persistence(_) => BusinessError::new(
+                FailureKind::Unavailable,
+                "FIELD_REPORT_UNAVAILABLE",
+                "The native Field report is unavailable.",
+            )
+            .into(),
+            other => other,
+        }
+    }))
 }
 
-async fn read_executive_evidence<C:Clock+Send+Sync+'static>(State(state):State<Arc<ReadState<C>>>,Path((slug,action)):Path<(String,String)>,headers:HeaderMap,body:axum::body::Body)->Response {
- let result=async{
-  let host=unique_request_header(&headers,"host")?.ok_or_else(missing)?;
-  let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
-  let inbound=parse_inbound_account_request(&state.policy,&headers)?;
-  if !matches!(inbound.audience(),RequestAudience::Holding{..}){return Err(missing().into());}
-  if unique_request_header(&headers,"origin")?.is_some_and(|v|v!=inbound.expected_origin()){return Err(BusinessError::new(FailureKind::Forbidden,"ORIGIN_FORBIDDEN","Use the application origin.").into());}
-  let action=match action.as_str(){"search"=>erpx_server_field_service::public::executive_evidence::EvidenceAction::Search,"open"=>erpx_server_field_service::public::executive_evidence::EvidenceAction::Open,_=>return Err(missing().into())};
-  let bytes=axum::body::to_bytes(body,65536).await.map_err(|_|BusinessError::invalid("VALIDATION_FAILED","Review the Field evidence request."))?;
-  let request=serde_json::from_slice(&bytes).map_err(|_|BusinessError::invalid("VALIDATION_FAILED","Review the Field evidence request."))?;
-  let scope=state.scopes.slugs(&headers);let(branch,department)=scope.as_ref().cloned().unwrap_or_default();
-  let captured=CapturedHoldingMutation::capture(&headers,branch,department);let company=target.service.company_id().clone();
-  target.service.executive_evidence(host,inbound.into_proof(),move||{scope?;captured.resolve_read(company)},request,action).await
- }.await;posting_response(result.map_err(|error|match error{PgTransactionError::Persistence(_)=>BusinessError::new(FailureKind::Unavailable,"FIELD_REPORT_UNAVAILABLE","The native Field report is unavailable.").into(),other=>other}))
+async fn read_executive_evidence<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path((slug, action)): Path<(String, String)>,
+    headers: HeaderMap,
+    body: axum::body::Body,
+) -> Response {
+    let result = async {
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|v| v != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let action = match action.as_str() {
+            "search" => {
+                erpx_server_field_service::public::executive_evidence::EvidenceAction::Search
+            }
+            "open" => erpx_server_field_service::public::executive_evidence::EvidenceAction::Open,
+            _ => return Err(missing().into()),
+        };
+        let bytes = axum::body::to_bytes(body, 65536).await.map_err(|_| {
+            BusinessError::invalid("VALIDATION_FAILED", "Review the Field evidence request.")
+        })?;
+        let request = serde_json::from_slice(&bytes).map_err(|_| {
+            BusinessError::invalid("VALIDATION_FAILED", "Review the Field evidence request.")
+        })?;
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let company = target.service.company_id().clone();
+        target
+            .service
+            .executive_evidence(
+                host,
+                inbound.into_proof(),
+                move || {
+                    scope?;
+                    captured.resolve_read(company)
+                },
+                request,
+                action,
+            )
+            .await
+    }
+    .await;
+    posting_response(result.map_err(|error| {
+        match error {
+            PgTransactionError::Persistence(_) => BusinessError::new(
+                FailureKind::Unavailable,
+                "FIELD_REPORT_UNAVAILABLE",
+                "The native Field report is unavailable.",
+            )
+            .into(),
+            other => other,
+        }
+    }))
 }

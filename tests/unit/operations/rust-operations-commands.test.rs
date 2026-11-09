@@ -810,3 +810,18 @@ async fn policy_commands_require_company_wide_review_authority_and_independent_c
     );
     assert!(stale.calls.is_empty());
 }
+
+#[test]
+fn operations_open_and_policy_commands_count_unicode_codepoints() {
+    let mut open=open_input();
+    open.source.id="😀".repeat(180);open.policy_id="😀".repeat(180);open.owner_id="😀".repeat(180);
+    open.title="😀".repeat(160);open.issue="😀".repeat(4000);assert!(open.validate().is_ok());
+    open.source.id="😀".repeat(181);assert!(open.validate().is_err());
+    open.source.id="source\0id".into();assert!(open.validate().is_err());
+    open.source.id="source".into();open.title="😀".repeat(161);assert!(open.validate().is_err());
+    open.title="valid title".into();open.issue="😀".repeat(4001);assert!(open.validate().is_err());
+    let mut draft=draft_input();draft.name="😀".repeat(160);assert!(draft.validate().is_ok());
+    draft.name="😀".repeat(161);assert!(draft.validate().is_err());
+    let mut change=change_input("resolve",1);change.reason="😀".repeat(4000);change.resolution=Some("😀".repeat(4000));assert!(change.validate().is_ok());
+    change.resolution=Some("😀".repeat(4001));assert!(change.validate().is_err());
+}

@@ -4,13 +4,12 @@
 use crate::http_scope::{BusinessScopeSlugs, selected_company_target};
 use crate::support_evidence_command::SupportEvidenceCommand;
 use axum::{
-    Router,
+    Json, Router,
     body::Bytes,
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::post,
-    Json,
 };
 use erpx_server_identity_access::public::{
     AccountPolicy,
@@ -23,10 +22,7 @@ use erpx_server_shared::public::{BusinessError, Clock, CommandKey, FailureKind};
 use erpx_server_support::public::support_evidence::{EvidenceBind, EvidenceRevoke};
 use erpx_server_workflow::public::commands::CommandJson;
 use serde_json::{Value, json};
-use std::{
-    collections::BTreeMap,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Clone)]
 pub struct SupportEvidenceHttpTarget<C> {
@@ -128,7 +124,10 @@ async fn post_evidence<C: Clock + Clone + Send + Sync + 'static>(
             BusinessError::invalid("SUPPORT_EVIDENCE_INPUT_INVALID", "Provide the ticket id.")
         })?;
         let action = value["action"].as_str().ok_or_else(|| {
-            BusinessError::invalid("SUPPORT_EVIDENCE_INPUT_INVALID", "Provide the evidence action.")
+            BusinessError::invalid(
+                "SUPPORT_EVIDENCE_INPUT_INVALID",
+                "Provide the evidence action.",
+            )
         })?;
         let mut body = value.clone();
         if let Some(object) = body.as_object_mut() {
@@ -145,7 +144,15 @@ async fn post_evidence<C: Clock + Clone + Send + Sync + 'static>(
                 })?;
                 let id = id.to_owned();
                 target
-                    .bind(host, proof, move || captured.resolve(), id, input, wire, key)
+                    .bind(
+                        host,
+                        proof,
+                        move || captured.resolve(),
+                        id,
+                        input,
+                        wire,
+                        key,
+                    )
                     .await
             }
             "revoke-evidence" => {
@@ -157,7 +164,15 @@ async fn post_evidence<C: Clock + Clone + Send + Sync + 'static>(
                 })?;
                 let id = id.to_owned();
                 target
-                    .revoke(host, proof, move || captured.resolve(), id, input, wire, key)
+                    .revoke(
+                        host,
+                        proof,
+                        move || captured.resolve(),
+                        id,
+                        input,
+                        wire,
+                        key,
+                    )
                     .await
             }
             _ => {

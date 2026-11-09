@@ -79,10 +79,10 @@ async fn execute_with_provider(
         Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap());
     p.review
         .authorizer
-        .execute_with_sources(
+        .execute_with_typed_sources_deferred(
             "acme.example.test",
             device,
-            selection,
+            move || Ok(selection),
             WorkAuthorizationRequest {
                 permission: "records.read".into(),
                 module: Some("field_service".into()),
@@ -90,7 +90,7 @@ async fn execute_with_provider(
                 api: true,
             },
             FieldAttachmentIntakeCommandSources,
-            move |c, actor| {
+            move |c, actor, fence| {
                 let key = key.clone();
                 let purpose = purpose.clone();
                 let clock = clock.clone();
@@ -115,6 +115,7 @@ async fn execute_with_provider(
                     };
                     let command = FieldAttachmentIntakeCommand {
                         actor,
+                        fence,
                         holding: &holding,
                         company: &company,
                         catalogue: &catalogue,
@@ -384,4 +385,39 @@ async fn native_field_dead_letter_recovery_requires_current_source_and_preserves
   let authority:serde_json::Value=serde_json::from_str(&audit.3).unwrap();assert_eq!(authority["kind"],"runtime_service");assert_eq!(authority["holdingId"],"h001");assert_eq!(authority["companyId"],"company");assert!(authority.get("sessionId").is_none());assert!(authority.get("personId").is_none());
   let next=claim(&mut c,q,"after-native-recovery",at+2).await.unwrap().unwrap();assert_eq!(next.id,event.id);assert_eq!(next.attempts,1);assert!(eligible(&mut c,&evidence,&next).await.unwrap());assert!(complete(&mut c,&next,at+3).await.unwrap());
  }).await;
+}
+
+#[tokio::test]
+async fn intake_create_and_replay_fail_closed_while_grant_writer_holds_fence() {
+    use std::sync::atomic::Ordering;
+    facts::account::with_system(|system| async move {
+        let p=facts::setup_workspace(system).await;
+        let db=p.pool().raw();
+        let key="intake-fence-contention";
+        let ledger=erpx_server_files::public::field_visit_intake::field_set_command_id("company","fixture-a",key);
+        let provider=Arc::new(BrokenProvider(std::sync::atomic::AtomicUsize::new(0)));
+        let mut writer=db.begin().await.unwrap();
+        let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();
+        assert_eq!(sqlx::query("UPDATE company_package_grants SET reason=reason WHERE company_id='company' AND package_id='service'").execute(&mut *writer).await.unwrap().rows_affected(),1);
+        let held:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND relation='company_package_grants'::regclass AND mode='RowExclusiveLock' AND granted)").bind(pid).fetch_one(db).await.unwrap();assert!(held);
+        let blocked=tokio::time::timeout(std::time::Duration::from_secs(5),execute_with_provider(&p,key,"site_photo",p.review.maker.clone(),p.selection.clone(),"company",Some(provider.clone()))).await.unwrap();
+        assert!(matches!(blocked,Err(PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));
+        assert_eq!(provider.0.load(Ordering::SeqCst),0);
+        let none:(i64,i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM attachment_sets WHERE target_id='issue-order'),(SELECT count(*) FROM attachment_events WHERE action IN ('set.created','set.native-origin')),(SELECT count(*) FROM command_receipts WHERE command_id=$1),(SELECT count(*) FROM audit_events WHERE command_id=$1),(SELECT count(*) FROM outbox_events WHERE command_id=$1)").bind(&ledger).fetch_one(db).await.unwrap();
+        assert_eq!(none,(0,0,0,0,0));writer.rollback().await.unwrap();
+        let first=execute(&p,key,"site_photo").await.unwrap();assert!(!first.replayed);
+        let persisted:(i64,i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM attachment_sets WHERE target_id='issue-order'),(SELECT count(*) FROM attachment_events WHERE action IN ('set.created','set.native-origin')),(SELECT count(*) FROM command_receipts WHERE command_id=$1),(SELECT count(*) FROM audit_events WHERE command_id=$1),(SELECT count(*) FROM outbox_events WHERE command_id=$1)").bind(&ledger).fetch_one(db).await.unwrap();
+        assert_eq!(persisted,(1,2,1,1,1));
+        let mut writer=db.begin().await.unwrap();
+        let replay_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();
+        assert_eq!(sqlx::query("UPDATE company_package_grants SET reason=reason WHERE company_id='company' AND package_id='service'").execute(&mut *writer).await.unwrap().rows_affected(),1);
+        let replay_held:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND relation='company_package_grants'::regclass AND mode='RowExclusiveLock' AND granted)").bind(replay_pid).fetch_one(db).await.unwrap();assert!(replay_held);
+        let blocked_replay=tokio::time::timeout(std::time::Duration::from_secs(5),execute_with_provider(&p,key,"site_photo",p.review.maker.clone(),p.selection.clone(),"company",Some(provider.clone()))).await.unwrap();
+        assert!(matches!(blocked_replay,Err(PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));
+        assert_eq!(provider.0.load(Ordering::SeqCst),0);
+        let during:(i64,i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM attachment_sets WHERE target_id='issue-order'),(SELECT count(*) FROM attachment_events WHERE action IN ('set.created','set.native-origin')),(SELECT count(*) FROM command_receipts WHERE command_id=$1),(SELECT count(*) FROM audit_events WHERE command_id=$1),(SELECT count(*) FROM outbox_events WHERE command_id=$1)").bind(&ledger).fetch_one(db).await.unwrap();assert_eq!(during,persisted);
+        writer.rollback().await.unwrap();
+        let replay=execute_with_provider(&p,key,"site_photo",p.review.maker.clone(),p.selection.clone(),"company",Some(provider.clone())).await.unwrap();assert!(replay.replayed);assert_eq!(replay.data,first.data);assert_eq!(provider.0.load(Ordering::SeqCst),0);
+        let after:(i64,i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM attachment_sets WHERE target_id='issue-order'),(SELECT count(*) FROM attachment_events WHERE action IN ('set.created','set.native-origin')),(SELECT count(*) FROM command_receipts WHERE command_id=$1),(SELECT count(*) FROM audit_events WHERE command_id=$1),(SELECT count(*) FROM outbox_events WHERE command_id=$1)").bind(&ledger).fetch_one(db).await.unwrap();assert_eq!(after,persisted);
+    }).await;
 }

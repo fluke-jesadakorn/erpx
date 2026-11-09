@@ -75,7 +75,9 @@ impl<W: Clock + Send + Sync + 'static, G: Clock + Send + Sync + 'static>
             guard,
         }
     }
-    pub fn company_id(&self) -> &CompanyId { &self.configuration.company_id }
+    pub fn company_id(&self) -> &CompanyId {
+        &self.configuration.company_id
+    }
     pub async fn execute(
         &self,
         host: &str,

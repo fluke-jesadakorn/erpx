@@ -3,5 +3,5 @@ pub use crate::adapters::field_service::{
     CurrentSupportServiceTicket, PreparedSupportServicePartsProjection,
     SupportCompletionProjection, SupportServicePartsAction, SupportServicePartsProjection,
     SupportServiceTicketFacts, SupportServiceTicketRequest, lock_service_ticket_sources,
-    read_current_service_ticket,
+    read_current_service_ticket, require_service_ticket_sources_held,
 };

@@ -220,8 +220,8 @@ impl<C: Clock + Send + Sync + 'static> LearningService<C> {
                         current.require_permission("records.read")?;
                         let actor = learning_actor(current)?;
                         let mut repository = PgLearning::new(connection);
-                        let data =
-                            learning_workspace(&mut repository, &actor, personal, now.get()).await?;
+                        let data = learning_workspace(&mut repository, &actor, personal, now.get())
+                            .await?;
                         Ok(LearningHttpResponse {
                             data,
                             context: context(current),
@@ -313,13 +313,9 @@ impl<C: Clock + Send + Sync + 'static> LearningService<C> {
                         current.require_permission("records.read")?;
                         let actor = learning_actor(current)?;
                         let mut repository = PgLearning::new(connection);
-                        let data = learning_eligibility_facts(
-                            &mut repository,
-                            &actor,
-                            &query,
-                            now.get(),
-                        )
-                        .await?;
+                        let data =
+                            learning_eligibility_facts(&mut repository, &actor, &query, now.get())
+                                .await?;
                         Ok(LearningHttpResponse {
                             data,
                             context: context(current),
@@ -380,24 +376,21 @@ impl<C: Clock + Send + Sync + 'static> LearningHttpBackend for LearningBackend<C
         Box::pin(async move {
             let (proof, selection) = self.context(request.headers)?;
             match request.command {
-                LearningHttpCommand::Workspace { personal } => {
-                    self.service
-                        .workspace(request.host, proof, move || Ok(selection), personal)
-                        .await
-                        .map_err(business)
-                }
-                LearningHttpCommand::Detail { assignment_id } => {
-                    self.service
-                        .detail(request.host, proof, move || Ok(selection), assignment_id)
-                        .await
-                        .map_err(business)
-                }
-                LearningHttpCommand::EligibilityFacts { query } => {
-                    self.service
-                        .eligibility(request.host, proof, move || Ok(selection), query)
-                        .await
-                        .map_err(business)
-                }
+                LearningHttpCommand::Workspace { personal } => self
+                    .service
+                    .workspace(request.host, proof, move || Ok(selection), personal)
+                    .await
+                    .map_err(business),
+                LearningHttpCommand::Detail { assignment_id } => self
+                    .service
+                    .detail(request.host, proof, move || Ok(selection), assignment_id)
+                    .await
+                    .map_err(business),
+                LearningHttpCommand::EligibilityFacts { query } => self
+                    .service
+                    .eligibility(request.host, proof, move || Ok(selection), query)
+                    .await
+                    .map_err(business),
                 _ => Err(command_unavailable()),
             }
         })

@@ -13,9 +13,11 @@ use erpx_server_identity_access::public::{
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId};
+use erpx_server_shared::public::{
+    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
+};
 use erpx_server_talent::public::requisition::{
-    TalentActor, RequisitionChange, RequisitionRequest, change_requisition, create_requisition,
+    RequisitionChange, RequisitionRequest, TalentActor, change_requisition, create_requisition,
     requisition_detail, requisition_workspace,
 };
 use erpx_server_talent::public::requisition_http::{
@@ -226,7 +228,9 @@ impl<C: Clock + Send + Sync + 'static> TalentService<C> {
                         current.require_permission("records.read")?;
                         let actor = talent_actor(current)?;
                         let mut repository =
-                            erpx_server_talent::public::requisition::PgTalentRequisitions::new(connection);
+                            erpx_server_talent::public::requisition::PgTalentRequisitions::new(
+                                connection,
+                            );
                         let data = requisition_workspace(&mut repository, &actor, now).await?;
                         Ok(TalentRequisitionHttpResponse {
                             data,
@@ -272,7 +276,9 @@ impl<C: Clock + Send + Sync + 'static> TalentService<C> {
                         current.require_permission("records.read")?;
                         let actor = talent_actor(current)?;
                         let mut repository =
-                            erpx_server_talent::public::requisition::PgTalentRequisitions::new(connection);
+                            erpx_server_talent::public::requisition::PgTalentRequisitions::new(
+                                connection,
+                            );
                         let data = requisition_detail(&mut repository, &actor, &id, now).await?;
                         Ok(TalentRequisitionHttpResponse {
                             data,
@@ -320,14 +326,25 @@ impl<C: Clock + Send + Sync + 'static> TalentService<C> {
                         current.require_permission("records.read")?;
                         current.require_permission("records.write")?;
                         let actor = talent_actor(current)?;
-                        let request: RequisitionRequest = serde_json::from_value(body)
-                            .map_err(|_| erpx_server_talent::public::requisition::request_invalid())?;
-                        let command_key = CommandKey::new(key)
-                            .map_err(|_| erpx_server_talent::public::requisition::request_invalid())?;
+                        let request: RequisitionRequest =
+                            serde_json::from_value(body).map_err(|_| {
+                                erpx_server_talent::public::requisition::request_invalid()
+                            })?;
+                        let command_key = CommandKey::new(key).map_err(|_| {
+                            erpx_server_talent::public::requisition::request_invalid()
+                        })?;
                         let mut repository =
-                            erpx_server_talent::public::requisition::PgTalentRequisitions::new(connection);
-                        let data = create_requisition(&mut repository, &actor, &command_key, &request, now)
-                            .await?;
+                            erpx_server_talent::public::requisition::PgTalentRequisitions::new(
+                                connection,
+                            );
+                        let data = create_requisition(
+                            &mut repository,
+                            &actor,
+                            &command_key,
+                            &request,
+                            now,
+                        )
+                        .await?;
                         Ok(TalentRequisitionHttpResponse {
                             data,
                             context: context(current),
@@ -376,14 +393,26 @@ impl<C: Clock + Send + Sync + 'static> TalentService<C> {
                         current.require_permission("records.read")?;
                         current.require_permission("records.write")?;
                         let actor = talent_actor(current)?;
-                        let request: RequisitionChange = serde_json::from_value(body)
-                            .map_err(|_| erpx_server_talent::public::requisition::request_invalid())?;
-                        let command_key = CommandKey::new(key)
-                            .map_err(|_| erpx_server_talent::public::requisition::request_invalid())?;
+                        let request: RequisitionChange =
+                            serde_json::from_value(body).map_err(|_| {
+                                erpx_server_talent::public::requisition::request_invalid()
+                            })?;
+                        let command_key = CommandKey::new(key).map_err(|_| {
+                            erpx_server_talent::public::requisition::request_invalid()
+                        })?;
                         let mut repository =
-                            erpx_server_talent::public::requisition::PgTalentRequisitions::new(connection);
-                        let data = change_requisition(&mut repository, &actor, &command_key, &id, &request, now)
-                            .await?;
+                            erpx_server_talent::public::requisition::PgTalentRequisitions::new(
+                                connection,
+                            );
+                        let data = change_requisition(
+                            &mut repository,
+                            &actor,
+                            &command_key,
+                            &id,
+                            &request,
+                            now,
+                        )
+                        .await?;
                         Ok(TalentRequisitionHttpResponse {
                             data,
                             context: context(current),
@@ -459,7 +488,13 @@ impl<C: Clock + Send + Sync + 'static> TalentRequisitionHttpBackend for TalentBa
                     idempotency_key,
                 } => self
                     .service
-                    .create(request.host, proof, move || Ok(selection), body, idempotency_key)
+                    .create(
+                        request.host,
+                        proof,
+                        move || Ok(selection),
+                        body,
+                        idempotency_key,
+                    )
                     .await
                     .map_err(business),
                 TalentRequisitionHttpCommand::Change {
@@ -468,7 +503,14 @@ impl<C: Clock + Send + Sync + 'static> TalentRequisitionHttpBackend for TalentBa
                     idempotency_key,
                 } => self
                     .service
-                    .change(request.host, proof, move || Ok(selection), requisition_id, body, idempotency_key)
+                    .change(
+                        request.host,
+                        proof,
+                        move || Ok(selection),
+                        requisition_id,
+                        body,
+                        idempotency_key,
+                    )
                     .await
                     .map_err(business),
             }
@@ -477,6 +519,8 @@ impl<C: Clock + Send + Sync + 'static> TalentRequisitionHttpBackend for TalentBa
 }
 
 #[allow(dead_code)]
-fn _router(targets: Vec<erpx_server_talent::public::requisition_http::TalentRequisitionHttpTarget>) -> Result<axum::Router, BusinessError> {
+fn _router(
+    targets: Vec<erpx_server_talent::public::requisition_http::TalentRequisitionHttpTarget>,
+) -> Result<axum::Router, BusinessError> {
     erpx_server_talent::public::requisition_http::talent_requisition_http_router(targets)
 }

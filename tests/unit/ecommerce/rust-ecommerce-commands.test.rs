@@ -866,6 +866,9 @@ fn channel_name_uses_js_trim_and_code_point_length_parity() {
     // 160 astral scalars: 160 code points; 161 exceed the maximum.
     assert!(validate("😀".repeat(160)).is_ok());
     assert!(validate("😀".repeat(161)).is_err());
+    assert_eq!(validate("A\nB".to_owned()), Ok("A\nB".to_owned()));
+    assert_eq!(validate("A\tB".to_owned()), Ok("A\tB".to_owned()));
+    assert!(validate("A\0B".to_owned()).is_err()); // PostgreSQL TEXT cannot store NUL.
     // JS trim strips ZWNBSP (U+FEFF); Rust trim does not.
     assert_eq!(
         validate("\u{FEFF}ab\u{FEFF}".to_owned()),
@@ -899,6 +902,8 @@ fn review_reason_uses_js_trim_and_code_point_length_parity() {
     assert_eq!(validate("😀😀😀".to_owned()), Ok("😀😀😀".to_owned()));
     assert!(validate("😀".repeat(2000)).is_ok());
     assert!(validate("😀".repeat(2001)).is_err());
+    assert_eq!(validate("A\nB".to_owned()), Ok("A\nB".to_owned()));
+    assert_eq!(validate("A\tB".to_owned()), Ok("A\tB".to_owned()));
     // JS trim strips ZWNBSP padding before the length check.
     assert_eq!(
         validate("\u{FEFF}abc\u{FEFF}".to_owned()),
@@ -947,6 +952,12 @@ fn catalog_text_uses_utf16_length_and_js_trim_for_stored_rows() {
         calls: vec![],
     };
     assert!(run_catalog(&mut astral_channel, &actor()).is_ok());
+
+    let mut created_astral_and_multiline = CatalogProbe {
+        channels: vec![EcommerceChannelRow { name: format!("{}\n{}", "😀".repeat(79), "😀".repeat(80)), ..channel() }],
+        listings: vec![listing()], calls: vec![],
+    };
+    assert!(run_catalog(&mut created_astral_and_multiline, &actor()).is_ok());
 
     let mut thai_listing = CatalogProbe {
         channels: vec![channel()],

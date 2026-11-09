@@ -271,3 +271,17 @@ fn javascript_trim_normalizes_feff_and_preserves_nel_for_tracking_and_reason() {
         .is_ok()
     );
 }
+
+#[test]
+fn initial_count_tracking_and_decision_match_zod_unicode_limits() {
+    let lot_value=value_initial_count(TrackingMode::Lot,1000,None,vec![lot(&format!("\u{feff}{}\u{feff}","😀".repeat(100)),1000,100)]).unwrap();
+    assert_eq!(lot_value.lots[0].0.lot_code.as_deref(),Some("😀".repeat(100).as_str()));
+    assert!(value_initial_count(TrackingMode::Lot,1000,None,vec![lot(&"😀".repeat(101),1000,100)]).is_err());
+    let mut serial=lot("unused",1000,100);serial.serial_number=Some("😀".repeat(160));
+    assert!(value_initial_count(TrackingMode::Serial,1000,None,vec![serial.clone()]).is_ok());
+    serial.serial_number=Some("😀".repeat(161));assert!(value_initial_count(TrackingMode::Serial,1000,None,vec![serial]).is_err());
+    for (count,valid) in [(2,false),(3,true),(2000,true),(2001,false)] {
+        let reason="😀".repeat(count);
+        assert_eq!(transition_count(CountStatus::Draft,1,1,CountAction::Cancel,&actor(),Some(&reason),0).is_ok(),valid,"{count}");
+    }
+}

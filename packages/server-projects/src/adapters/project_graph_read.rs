@@ -97,10 +97,11 @@ impl<'a> PgProjectGraphRead<'a> {
             Option<String>,
             Option<String>,
             bool,
+            i64,
         );
         let rows: Vec<Row> = sqlx::query_as(
             "SELECT a.id,a.milestone_id,a.source_kind,a.source_id,a.source_version,\
-             CASE WHEN a.source_kind='work_log' THEN l.minutes END minutes,\
+             a.minutes,\
              CASE WHEN a.source_kind='cost_allocation' THEN a.amount_minor END amount_minor,\
              CASE WHEN a.source_kind='cost_allocation' THEN a.currency END currency,\
              CASE WHEN a.source_kind='work_log' THEN l.user_id END user_id,\
@@ -109,21 +110,35 @@ impl<'a> PgProjectGraphRead<'a> {
              CASE WHEN a.source_kind='cost_allocation' THEN j.status END journal_status,\
              CASE WHEN a.source_kind='cost_allocation' THEN j.id END journal_id,\
              CASE WHEN a.source_kind='work_log' \
-               THEN iam_same_person(l.user_id,$3,a.company_id) ELSE false END is_actor \
+               THEN iam_same_person(l.user_id,$3,a.company_id) ELSE false END is_actor,a.linked_at \
              FROM staff_project_package_actuals a \
              LEFT JOIN staff_project_work_logs l ON a.source_kind='work_log' \
                AND l.id=a.source_id AND l.company_id=a.company_id AND l.project_id=a.project_id \
              LEFT JOIN staff_project_cost_allocations c ON a.source_kind='cost_allocation' \
                AND c.id=a.source_id AND c.company_id=a.company_id AND c.project_id=a.project_id \
              LEFT JOIN finance_journal_lines line ON line.id=c.journal_line_id \
-             LEFT JOIN finance_journals j ON j.id=line.journal_id \
-             WHERE a.company_id=$1 AND a.project_id=$2 ORDER BY a.id LIMIT 5001",
+             LEFT JOIN finance_journals j ON j.id=line.journal_id AND j.company_id=a.company_id \
+             WHERE a.company_id=$1 AND a.project_id=$2 AND (\
+               (a.source_kind='work_log' AND l.id IS NOT NULL) OR \
+               (a.source_kind='cost_allocation' AND c.id IS NOT NULL AND line.id IS NOT NULL AND j.id IS NOT NULL)\
+             ) ORDER BY a.id LIMIT 5001",
         )
         .bind(company.as_str())
         .bind(project_id)
         .bind(actor_user_id)
         .fetch_all(&mut *self.connection)
         .await?;
+        // Node's PostgreSQL parser validates every raw BIGINT before the
+        // graph applies visibility/current-source filters. The existing 5001
+        // row guard remains a separate, explicit history limitation.
+        const MAX_SAFE: i64 = 9_007_199_254_740_991;
+        let safe = |value: i64| (-MAX_SAFE..=MAX_SAFE).contains(&value);
+        if rows.iter().any(|row| !safe(row.4) || row.5.is_some_and(|v| !safe(v))
+            || row.6.is_some_and(|v| !safe(v)) || row.9.is_some_and(|v| !safe(v)) || !safe(row.14)) {
+            return Err(PersistenceError::new("DATABASE_NUMBER_OUT_OF_RANGE").into());
+        }
+        // Missing and out-of-scope source IDs are indistinguishable: only
+        // scoped joined rows are returned and no other Company's facts leak.
         Ok(rows
             .into_iter()
             .map(
@@ -142,6 +157,7 @@ impl<'a> PgProjectGraphRead<'a> {
                     journal_status,
                     journal_id,
                     is_actor,
+                    _linked_at,
                 )| GraphActual {
                     id,
                     milestone_id,

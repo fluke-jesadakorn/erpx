@@ -15,8 +15,8 @@ use erpx_server_identity_access::public::{
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{
-    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, IdentifierSource, RecordId,
-    TimestampMillis,
+    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, IdentifierSource,
+    RecordId, TimestampMillis,
 };
 use erpx_server_support::public::session::{
     SessionAction, SessionActor, SessionChangePlan, SessionPermissions, SessionPlan,
@@ -87,8 +87,17 @@ impl<C: Clock + Send + Sync + 'static> SupportSessionCommand<C> {
     where
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
-        self.run(host, proof, workspace, Some(id), None, Some(input), wire, key)
-            .await
+        self.run(
+            host,
+            proof,
+            workspace,
+            Some(id),
+            None,
+            Some(input),
+            wire,
+            key,
+        )
+        .await
     }
     #[allow(clippy::too_many_arguments)]
     async fn run<Input>(
@@ -160,7 +169,10 @@ impl<C: Clock + Send + Sync + 'static> SupportSessionCommand<C> {
                             (None, Some(id)) => (
                                 format!(
                                     "support.session.{}",
-                                    action.as_ref().map(|value| value.action()).unwrap_or("change")
+                                    action
+                                        .as_ref()
+                                        .map(|value| value.action())
+                                        .unwrap_or("change")
                                 ),
                                 id.clone(),
                             ),
@@ -299,9 +311,8 @@ impl<C: Clock + Sync> PgCommandAuthority for Authority<'_, C> {
         match &self.purchases {
             Some(p) => p.check(c, self.current, self.clock.now()).await?,
             None => {
-                self.purchases = Some(
-                    Purchases::read(c, self.current, disposition, self.clock.now()).await?,
-                )
+                self.purchases =
+                    Some(Purchases::read(c, self.current, disposition, self.clock.now()).await?)
             }
         }
         Ok(())
@@ -366,7 +377,10 @@ impl Purchases {
             c,
             &self.catalogue,
         );
-        reader.revalidate(&self.history, now).await?.require_allowed()?;
+        reader
+            .revalidate(&self.history, now)
+            .await?
+            .require_allowed()?;
         if let Some(witness) = &self.new_work {
             reader.revalidate(witness, now).await?.require_allowed()?;
         }
@@ -567,7 +581,10 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
             status: plan.status.as_str().to_owned(),
             version: plan.version,
         };
-        self.prepared = Some(Prepared::Change { snapshot: Box::new(snapshot), plan: Box::new(plan) });
+        self.prepared = Some(Prepared::Change {
+            snapshot: Box::new(snapshot),
+            plan: Box::new(plan),
+        });
         Ok(WorkflowOutput {
             version: result.version,
             result: CommandJson::from_serializable(&result)?,

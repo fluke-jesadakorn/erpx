@@ -7,4 +7,4 @@
 //! serializable `PgUnitOfWork` transaction. The adapter fences and re-reads
 //! the current receipt source itself; callers cannot supply a second
 //! connection, Company, branch, warehouse or stock value.
-pub use crate::adapters::commerce_receipt::InventoryStockReceipt;
+pub use crate::adapters::commerce_receipt::{InventoryReceiptApplied, InventoryStockReceipt};

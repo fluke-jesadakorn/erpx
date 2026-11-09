@@ -36,15 +36,52 @@ fn missing() -> Error {
     .into()
 }
 
+fn empty() -> Error {
+    BusinessError::new(
+        FailureKind::InvalidInput,
+        "ATTACHMENT_SET_EMPTY",
+        "Bind at least one available file.",
+    )
+    .into()
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PreparedEvidenceLink {
+    pub set_id: String,
+    pub link_id: String,
+    pub source_id: String,
+    pub purpose_key: String,
+    pub component_kind: String,
+    pub component_ref: Option<String>,
+    pub checksum_sha256: String,
+    pub media_type: String,
+    pub bytes: i64,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PreparedBusinessEvidence {
     pub set_ids: Vec<String>,
     pub link_ids: Vec<String>,
+    pub manifest: Vec<PreparedEvidenceLink>,
+    pub target_type: String,
     pub target_id: String,
     pub expected_target_version: i64,
     pub binding_type: String,
     pub binding_id: String,
     pub command_id: String,
+}
+
+/// Acquire the Files owner bundle lock before the first protected read or bind.
+/// The enclosing owner unit supplies the transaction and its earlier source
+/// locks; this helper performs no transaction check of its own.
+pub async fn lock_business_evidence_sources(c: &mut PgConnection) -> Result<(), Error> {
+    sqlx::query(
+        "LOCK TABLE attachments,upload_intents,attachment_sets,attachment_links,attachment_events \
+         IN SHARE ROW EXCLUSIVE MODE",
+    )
+    .execute(&mut *c)
+    .await?;
+    Ok(())
 }
 
 pub struct PgBusinessEvidenceFiles<'c> {
@@ -87,6 +124,108 @@ impl<'c> PgBusinessEvidenceFiles<'c> {
             .await?;
         if level != "serializable" {
             return Err(PersistenceError::new("FILES_SERIALIZABLE_REQUIRED").into());
+        }
+        // Files owner bundle lock, acquired before the first Files read/bind.
+        // The enclosing owner unit must already hold its own source locks.
+        lock_business_evidence_sources(&mut *self.connection).await?;
+        Ok(())
+    }
+
+    /// Re-read the exact bound sets and links after every owner effect in the
+    /// same serializable unit. Any drift, missing row, extra link or foreign
+    /// Company row is a binding conflict.
+    pub async fn require_current(
+        &mut self,
+        prepared: &PreparedBusinessEvidence,
+    ) -> Result<(), Error> {
+        self.unit().await?;
+        let sets = sqlx::query(
+            "SELECT id,company_id,target_type,target_id,expected_target_version,state,bound_command_id,\
+             component_kind,component_ref,purpose_key \
+             FROM attachment_sets WHERE id = ANY($1)",
+        )
+        .bind(&prepared.set_ids)
+        .fetch_all(&mut *self.connection)
+        .await?;
+        if sets.len() != prepared.set_ids.len() {
+            return Err(changed());
+        }
+        for row in &sets {
+            let id: String = row.try_get("id")?;
+            let company: String = row.try_get("company_id")?;
+            let target_type: String = row.try_get("target_type")?;
+            let target_id: String = row.try_get("target_id")?;
+            let version: i64 = row.try_get("expected_target_version")?;
+            let state: String = row.try_get("state")?;
+            let command: Option<String> = row.try_get("bound_command_id")?;
+            let component_kind: String = row.try_get("component_kind")?;
+            let component_ref: Option<String> = row.try_get("component_ref")?;
+            let purpose: String = row.try_get("purpose_key")?;
+            let manifest_matches = prepared
+                .manifest
+                .iter()
+                .filter(|item| item.set_id == id)
+                .all(|item| {
+                    item.component_kind == component_kind
+                        && item.component_ref == component_ref
+                        && item.purpose_key == purpose
+                });
+            if !prepared.set_ids.iter().any(|selected| selected == &id)
+                || company != self.company.as_str()
+                || target_type != prepared.target_type
+                || target_id != prepared.target_id
+                || version != prepared.expected_target_version
+                || state != "bound"
+                || command.as_deref() != Some(prepared.command_id.as_str())
+                || !manifest_matches
+            {
+                return Err(changed());
+            }
+        }
+        let links = sqlx::query(
+            "SELECT l.id,l.set_id,l.state,l.binding_type,l.binding_id,l.attachment_id,\
+             a.company_id,a.checksum_sha256,a.media_type,a.bytes \
+             FROM attachment_links l \
+             LEFT JOIN attachments a ON a.id=l.attachment_id \
+             WHERE l.set_id = ANY($1)",
+        )
+        .bind(&prepared.set_ids)
+        .fetch_all(&mut *self.connection)
+        .await?;
+        if links.len() != prepared.link_ids.len() || links.len() != prepared.manifest.len() {
+            return Err(changed());
+        }
+        for row in &links {
+            let id: String = row.try_get("id")?;
+            let set_id: String = row.try_get("set_id")?;
+            let state: String = row.try_get("state")?;
+            let binding_type: Option<String> = row.try_get("binding_type")?;
+            let binding_id: Option<String> = row.try_get("binding_id")?;
+            let attachment_id: Option<String> = row.try_get("attachment_id")?;
+            let company: Option<String> = row.try_get("company_id")?;
+            let checksum: Option<String> = row.try_get("checksum_sha256")?;
+            let media_type: Option<String> = row.try_get("media_type")?;
+            let bytes: Option<i64> = row.try_get("bytes")?;
+            let manifest = prepared
+                .manifest
+                .iter()
+                .find(|item| item.link_id == id && item.set_id == set_id);
+            if !prepared.link_ids.iter().any(|selected| selected == &id)
+                || !prepared.set_ids.iter().any(|selected| selected == &set_id)
+                || state != "bound"
+                || binding_type.as_deref() != Some(prepared.binding_type.as_str())
+                || binding_id.as_deref() != Some(prepared.binding_id.as_str())
+                || attachment_id.is_none()
+                || company.as_deref() != Some(self.company.as_str())
+                || manifest.is_none_or(|item| {
+                    Some(item.source_id.as_str()) != attachment_id.as_deref()
+                        || Some(item.checksum_sha256.as_str()) != checksum.as_deref()
+                        || Some(item.media_type.as_str()) != media_type.as_deref()
+                        || Some(item.bytes) != bytes
+                })
+            {
+                return Err(changed());
+            }
         }
         Ok(())
     }
@@ -161,6 +300,7 @@ impl BusinessEvidenceFilesPort for PgBusinessEvidenceFiles<'_> {
             return Err(missing());
         }
         let mut link_ids = Vec::new();
+        let mut manifest = Vec::new();
         for row in &rows {
             let id: String = row.try_get("id")?;
             let target_type: String = row.try_get("target_type")?;
@@ -184,7 +324,8 @@ impl BusinessEvidenceFilesPort for PgBusinessEvidenceFiles<'_> {
                 return Err(changed());
             }
             let links = sqlx::query(
-                "SELECT l.id,l.state,l.attachment_id,a.source_state \
+                "SELECT l.id,l.state,l.attachment_id,a.source_state,a.checksum_sha256,\
+                 a.media_type,a.bytes \
                  FROM attachment_links l \
                  LEFT JOIN attachments a ON a.id=l.attachment_id AND a.company_id=$2 \
                  WHERE l.set_id=$1 ORDER BY l.created_at,l.id",
@@ -193,7 +334,8 @@ impl BusinessEvidenceFilesPort for PgBusinessEvidenceFiles<'_> {
             .bind(self.company.as_str())
             .fetch_all(&mut *self.connection)
             .await?;
-            if (links.len() as i64) > maximum
+            if links.is_empty()
+                || (links.len() as i64) > maximum
                 || (links.len() as i64) < required
                 || links.iter().any(|link| {
                     link.try_get::<String, _>("state")
@@ -210,12 +352,39 @@ impl BusinessEvidenceFilesPort for PgBusinessEvidenceFiles<'_> {
                             .flatten()
                             .as_deref()
                             != Some("available")
+                        || link
+                            .try_get::<Option<String>, _>("checksum_sha256")
+                            .ok()
+                            .flatten()
+                            .is_none()
+                        || link
+                            .try_get::<Option<String>, _>("media_type")
+                            .ok()
+                            .flatten()
+                            .is_none()
+                        || link
+                            .try_get::<Option<i64>, _>("bytes")
+                            .ok()
+                            .flatten()
+                            .is_none()
                 })
             {
-                return Err(changed());
+                return Err(if links.is_empty() { empty() } else { changed() });
             }
             for link in &links {
                 let link_id: String = link.try_get("id")?;
+                let source_id: String = link
+                    .try_get::<Option<String>, _>("attachment_id")?
+                    .ok_or_else(changed)?;
+                let checksum: String = link
+                    .try_get::<Option<String>, _>("checksum_sha256")?
+                    .ok_or_else(changed)?;
+                let media_type: String = link
+                    .try_get::<Option<String>, _>("media_type")?
+                    .ok_or_else(changed)?;
+                let bytes: i64 = link
+                    .try_get::<Option<i64>, _>("bytes")?
+                    .ok_or_else(changed)?;
                 let updated = sqlx::query(
                     "UPDATE attachment_links SET state='bound',bound_at=$1,\
                      binding_type=$2,binding_id=$3 \
@@ -232,7 +401,18 @@ impl BusinessEvidenceFilesPort for PgBusinessEvidenceFiles<'_> {
                 if updated != 1 {
                     return Err(changed());
                 }
-                link_ids.push(link_id);
+                link_ids.push(link_id.clone());
+                manifest.push(PreparedEvidenceLink {
+                    set_id: id.clone(),
+                    link_id,
+                    source_id,
+                    purpose_key: purpose.clone(),
+                    component_kind: component_kind.clone(),
+                    component_ref: component_ref.clone(),
+                    checksum_sha256: checksum,
+                    media_type,
+                    bytes,
+                });
             }
             let updated = sqlx::query(
                 "UPDATE attachment_sets SET state='bound',bound_at=$1,\
@@ -264,6 +444,18 @@ impl BusinessEvidenceFilesPort for PgBusinessEvidenceFiles<'_> {
                     "bindingId": input.binding_id,
                     "targetId": input.target_id,
                     "expectedTargetVersion": input.expected_target_version,
+                    "manifest": manifest
+                        .iter()
+                        .filter(|item| item.set_id == id)
+                        .map(|item| serde_json::json!({
+                            "linkId": item.link_id,
+                            "sourceId": item.source_id,
+                            "purposeKey": item.purpose_key,
+                            "checksumSha256": item.checksum_sha256,
+                            "mediaType": item.media_type,
+                            "bytes": item.bytes,
+                        }))
+                        .collect::<Vec<_>>(),
                 })
                 .to_string(),
             )
@@ -288,6 +480,8 @@ impl BusinessEvidenceFilesPort for PgBusinessEvidenceFiles<'_> {
         Ok(PreparedBusinessEvidence {
             set_ids: input.selection.set_ids,
             link_ids,
+            manifest,
+            target_type: input.selection.target_type,
             target_id: input.target_id,
             expected_target_version: input.expected_target_version,
             binding_type: input.binding_type,

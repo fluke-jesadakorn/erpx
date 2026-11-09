@@ -289,9 +289,9 @@ fn add_minutes(total: &mut i64, minutes: i64) -> Result<(), BusinessError> {
 }
 
 fn add_cost(
-    costs: &mut BTreeMap<String, i64>,
+    costs: &mut BTreeMap<String, i128>,
     currency: &str,
-    amount: i64,
+    amount: i128,
 ) -> Result<(), BusinessError> {
     let entry = costs.entry(currency.to_owned()).or_insert(0);
     *entry = entry.checked_add(amount).ok_or_else(value_invalid)?;
@@ -374,7 +374,7 @@ pub fn build_project_graph(
     let mut packages = Vec::with_capacity(milestones.len());
     let mut edges = Vec::new();
     let mut total_minutes = 0_i64;
-    let mut total_costs: BTreeMap<String, i64> = BTreeMap::new();
+    let mut total_costs: BTreeMap<String, i128> = BTreeMap::new();
     walk_packages(
         None,
         "",
@@ -430,7 +430,7 @@ fn walk_packages(
     packages: &mut Vec<GraphPackage>,
     edges: &mut Vec<GraphEdge>,
     total_minutes: &mut i64,
-    total_costs: &mut BTreeMap<String, i64>,
+    total_costs: &mut BTreeMap<String, i128>,
 ) -> Result<(), BusinessError> {
     if depth > MAX_DEPTH {
         return Err(BusinessError::new(
@@ -462,7 +462,7 @@ fn walk_packages(
             .cloned()
             .unwrap_or_default();
         let mut minutes = 0_i64;
-        let mut costs: BTreeMap<String, i64> = BTreeMap::new();
+        let mut costs: BTreeMap<String, i128> = BTreeMap::new();
         for actual in actuals.iter().filter(|row| {
             row.milestone_id == milestone.id && row.current()
         }) {
@@ -471,7 +471,7 @@ fn walk_packages(
                 "cost_allocation" => add_cost(
                     &mut costs,
                     actual.currency.as_deref().unwrap_or_default(),
-                    actual.amount_minor.unwrap_or(0),
+                    i128::from(actual.amount_minor.unwrap_or(0)),
                 )?,
                 _ => return Err(source_invalid()),
             }

@@ -17,7 +17,7 @@ pub fn positive(v: i64) -> Result<(), BusinessError> {
     Ok(())
 }
 pub fn identifier(v: &str) -> Result<(), BusinessError> {
-    if v.is_empty() || v.encode_utf16().count() > 180 {
+    if v.is_empty() || v.chars().count() > 180 {
         return Err(invalid());
     }
     Ok(())

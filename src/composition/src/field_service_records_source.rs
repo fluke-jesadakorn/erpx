@@ -27,24 +27,39 @@ impl HoldingWorkSourcePreparation for FieldCollaborationSources {
             )
             .await?;
             erpx_server_commercial::public::purchases::lock_commercial_authority_sources(c).await?;
-            erpx_server_workflow::public::record_origin::lock_record_origin_sources(c).await?;
-            erpx_server_collaboration::public::collaboration_work::lock_collaboration_work_sources(
-                c,
-            )
-            .await?;
-            erpx_server_support::public::field_service_workspace::lock_service_workspace_tickets(c)
-                .await?;
-            erpx_server_assets::public::field_service_workspace::lock_service_workspace_assets(c)
-                .await?;
-            erpx_server_pms::public::record_source::lock_record_sources(c).await?;
-            erpx_server_pos::public::record_source::lock_record_sources(c).await?;
-            erpx_server_organization::public::field_service_workspace::lock_service_workspace_locations(c).await?;
-            erpx_server_people_payroll::public::field_service_worker::lock_people_authority_sources(c).await?;
-            erpx_server_identity_access::public::field_service_workspace::lock_service_workspace_authority(c).await?;
-            erpx_server_field_service::public::source_record::lock_source_record(c).await?;
-            Ok(())
+            lock_field_collaboration_remaining_sources(c).await
         })
     }
+}
+
+/// For callers that already hold the guarded Commercial read fence before the
+/// first snapshot. This does not acquire or upgrade the Commercial lock.
+pub(crate) async fn lock_field_collaboration_sources_without_commercial(
+    c: &mut PgConnection,
+) -> Result<(), Error> {
+    erpx_server_finance::public::field_service_workspace::lock_service_workspace_customers(c)
+        .await?;
+    lock_field_collaboration_remaining_sources(c).await
+}
+
+async fn lock_field_collaboration_remaining_sources(c: &mut PgConnection) -> Result<(), Error> {
+    erpx_server_workflow::public::record_origin::lock_record_origin_sources(c).await?;
+    erpx_server_collaboration::public::collaboration_work::lock_collaboration_work_sources(c)
+        .await?;
+    erpx_server_support::public::field_service_workspace::lock_service_workspace_tickets(c).await?;
+    erpx_server_assets::public::field_service_workspace::lock_service_workspace_assets(c).await?;
+    erpx_server_pms::public::record_source::lock_record_sources(c).await?;
+    erpx_server_pos::public::record_source::lock_record_sources(c).await?;
+    erpx_server_organization::public::field_service_workspace::lock_service_workspace_locations(c)
+        .await?;
+    erpx_server_people_payroll::public::field_service_worker::lock_people_authority_sources(c)
+        .await?;
+    erpx_server_identity_access::public::field_service_workspace::lock_service_workspace_authority(
+        c,
+    )
+    .await?;
+    erpx_server_field_service::public::source_record::lock_source_record(c).await?;
+    Ok(())
 }
 /// Every retained owner proof belongs to the caller's serializable unit.
 /// Field-managed Support cases have no recursive source_record_json by schema;
@@ -82,8 +97,8 @@ impl PreparedRecordsSource {
                 }
                 ticket.require_current(c).await?;
                 ctx.purchase_reader(c)
-                .revalidate(purchase, ctx.clock.now())
-                .await?;
+                    .revalidate(purchase, ctx.clock.now())
+                    .await?;
                 if ctx.clock.now().get() >= ctx.actor.expires_at() {
                     return Err(BusinessError::new(
                         FailureKind::NotFound,
@@ -198,16 +213,18 @@ impl<C: Clock + Sync + Send> SourceRecordPort for FieldRecordsSourcePort<'_, C> 
             } else {
                 None
             };
-            let purchase = self.context.purchase_reader(self.connection)
-            .inspect(
-                &PurchaseRequest {
-                    capabilities: vec!["support.tickets".into()],
-                    purpose: CapabilityPurpose::History,
-                    mode: PackageEnforcementMode::Enforced,
-                },
-                self.context.clock.now(),
-            )
-            .await?;
+            let purchase = self
+                .context
+                .purchase_reader(self.connection)
+                .inspect(
+                    &PurchaseRequest {
+                        capabilities: vec!["support.tickets".into()],
+                        purpose: CapabilityPurpose::History,
+                        mode: PackageEnforcementMode::Enforced,
+                    },
+                    self.context.clock.now(),
+                )
+                .await?;
             purchase.require_allowed()?;
             return Ok((
                 record,

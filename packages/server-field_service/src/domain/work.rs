@@ -72,7 +72,7 @@ pub fn field_service_work_items(
         let id = text(g, "id")?;
         let creator = text(g, "created_by")?;
         let asset =
-            optional_text(g, "asset_id")?.is_some() || num(g, "requires_asset_capability")? > 0;
+            optional_text(g, "asset_id")?.is_some_and(|id| !id.is_empty()) || num(g, "requires_asset_capability")? > 0;
         let act = can_write
             && can_review
             && num(g, "can_review")? != 0
@@ -119,7 +119,7 @@ pub fn field_service_work_items(
         let own = tech == actor && eligible;
         let terminal = status == "cancelled" || status == "billed";
         let asset =
-            optional_text(o, "asset_id")?.is_some() || num(o, "requires_asset_capability")? > 0;
+            optional_text(o, "asset_id")?.is_some_and(|id| !id.is_empty()) || num(o, "requires_asset_capability")? > 0;
         let act = can_write
             && !terminal
             && (own || manage)

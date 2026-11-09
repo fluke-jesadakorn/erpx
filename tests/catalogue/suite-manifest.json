@@ -37,404 +37,6 @@
   ],
   "suites": [
     {
-      "id": "records.rust-record-write-postgres.integration",
-      "lane": "integration",
-      "owner": "shared.records",
-      "modules": [
-        "manage_erpx"
-      ],
-      "files": [
-        "tests/integration/shared.records/rust-record-write-postgres.test.rs"
-      ],
-      "fixture": "postgres",
-      "requires": {
-        "jobs": false,
-        "scanner": false
-      },
-      "ci": {
-        "critical": true,
-        "reason": "Native generic Records create retains current IAM/module scope, command receipt replay, version CAS, audit/outbox and Company isolation through the Workflow ledger."
-      },
-      "apps": [
-        "admin"
-      ],
-      "framework": "cargo",
-      "cargo": {
-        "package": "erpx-service",
-        "targets": [
-          "records_write_postgres"
-        ],
-        "features": [
-          "existing-business"
-        ]
-      },
-      "verificationInputs": [
-        "Cargo.toml",
-        "Cargo.lock",
-        "rust-toolchain.toml",
-        "src/composition/Cargo.toml",
-        "packages/server-records/Cargo.toml",
-        "tests/support/rust-postgres.rs",
-        "tests/support/finance/review-composition.rs",
-        "src/composition/src/records_command.rs",
-        "packages/server-records/src/domain/record_write.rs",
-        "packages/server-records/src/public/record_write.rs"
-      ],
-      "packages": [
-        "@erpx/server-records",
-        "@erpx/server-workflow",
-        "@erpx/server-identity_access",
-        "@erpx/server-runtime",
-        "@erpx/server-shared"
-      ],
-      "postgres": {
-        "mode": "raw",
-        "slots": [
-          "CONTROL_DB",
-          "CONTROL_READ_DB",
-          "H001_DB",
-          "H001_READ_DB",
-          "H002_DB",
-          "H002_READ_DB",
-          "H003_DB",
-          "H003_READ_DB"
-        ],
-        "migratedSlots": []
-      }
-    },
-    {
-      "id": "assets.rust-asset-cost-composition-postgres.integration",
-      "lane": "integration",
-      "owner": "assets",
-      "modules": [
-        "assets",
-        "finance",
-        "maintenance",
-        "identity_access",
-        "people_payroll",
-        "organization",
-        "manage_erpx"
-      ],
-      "files": [
-        "tests/integration/assets/rust-asset-cost-composition-postgres.test.rs"
-      ],
-      "fixture": "postgres",
-      "requires": {
-        "jobs": false,
-        "scanner": false
-      },
-      "ci": {
-        "critical": true,
-        "reason": "Checks Finance acquisition-cost rollback and the composed Maintenance purchase source against TypeScript."
-      },
-      "framework": "cargo",
-      "cargo": {
-        "package": "erpx-service",
-        "targets": [
-          "asset_cost_composition_postgres"
-        ],
-        "features": [
-          "existing-business"
-        ]
-      },
-      "verificationInputs": [
-        "Cargo.toml",
-        "Cargo.lock",
-        "rust-toolchain.toml",
-        "src/composition/Cargo.toml",
-        "packages/server-assets/Cargo.toml",
-        "packages/server-finance/Cargo.toml",
-        "packages/server-maintenance/src/adapters/purchase-sources.ts"
-      ],
-      "apps": [
-        "assets"
-      ],
-      "packages": [
-        "@erpx/server-assets",
-        "@erpx/server-finance",
-        "@erpx/server-maintenance",
-        "@erpx/server-identity_access",
-        "@erpx/server-people_payroll",
-        "@erpx/server-organization",
-        "@erpx/server-manage_erpx",
-        "@erpx/server-runtime"
-      ]
-    },
-    {
-      "id": "files.rust-business-evidence-postgres.integration",
-      "lane": "integration",
-      "owner": "files",
-      "modules": [
-        "agent",
-        "assets",
-        "benefits",
-        "brand",
-        "collaboration",
-        "commercial",
-        "crm",
-        "customer_360",
-        "customer_authority",
-        "ecommerce",
-        "field_service",
-        "finance",
-        "identity_access",
-        "inventory",
-        "learning",
-        "legal",
-        "maintenance",
-        "manage_erpx",
-        "manufacturing",
-        "marketing",
-        "operations",
-        "organization",
-        "people_payroll",
-        "planning",
-        "platform_administration",
-        "pms",
-        "pos",
-        "procurement",
-        "projects",
-        "quality",
-        "sales",
-        "support",
-        "talent"
-      ],
-      "fixture": "postgres",
-      "requires": {
-        "jobs": false,
-        "scanner": false
-      },
-      "ci": {
-        "critical": true,
-        "reason": "The shared business-evidence binding port must preserve exact Company/branch/department scope, draft target/version/context, registered policy facts, scanned available sources, link bounds, transactional set/link writes and audit events."
-      },
-      "files": [
-        "tests/integration/files/rust-business-evidence-postgres.test.rs"
-      ],
-      "framework": "cargo",
-      "cargo": {
-        "package": "erpx-server-files",
-        "targets": [
-          "business_evidence_postgres"
-        ]
-      },
-      "verificationInputs": [
-        "Cargo.toml",
-        "Cargo.lock",
-        "rust-toolchain.toml",
-        "packages/server-files/Cargo.toml",
-        "tests/support/rust-postgres.rs",
-        "packages/server-files/src/adapters/business_evidence.rs",
-        "packages/server-files/src/public/business_evidence.rs",
-        "packages/server-records/src/public/business_evidence.rs"
-      ],
-      "apps": [
-        "apps",
-        "pos",
-        "pms",
-        "finance",
-        "people",
-        "sales",
-        "supply",
-        "assets",
-        "projects",
-        "recruit",
-        "learn",
-        "support",
-        "service",
-        "legal",
-        "manufacturing",
-        "account",
-        "admin",
-        "booking",
-        "portal",
-        "legal-portal",
-        "forms"
-      ],
-      "packages": [
-        "@erpx/catalogue",
-        "@erpx/contracts",
-        "@erpx/feature-billing",
-        "@erpx/feature-collaboration",
-        "@erpx/feature-commerce",
-        "@erpx/feature-finance",
-        "@erpx/feature-identity_access",
-        "@erpx/feature-legal",
-        "@erpx/feature-organization",
-        "@erpx/feature-people_payroll",
-        "@erpx/feature-records",
-        "@erpx/feature-runtime",
-        "@erpx/feature-sales",
-        "@erpx/feature-shared",
-        "@erpx/feature-work_projection",
-        "@erpx/native-sdk",
-        "@erpx/server-agent",
-        "@erpx/server-assets",
-        "@erpx/server-benefits",
-        "@erpx/server-brand",
-        "@erpx/server-collaboration",
-        "@erpx/server-commerce",
-        "@erpx/server-commercial",
-        "@erpx/server-crm",
-        "@erpx/server-customer_360",
-        "@erpx/server-customer_authority",
-        "@erpx/server-ecommerce",
-        "@erpx/server-field_service",
-        "@erpx/server-files",
-        "@erpx/server-finance",
-        "@erpx/server-identity_access",
-        "@erpx/server-inventory",
-        "@erpx/server-learning",
-        "@erpx/server-legal",
-        "@erpx/server-maintenance",
-        "@erpx/server-manage_erpx",
-        "@erpx/server-manufacturing",
-        "@erpx/server-marketing",
-        "@erpx/server-operations",
-        "@erpx/server-organization",
-        "@erpx/server-people_payroll",
-        "@erpx/server-planning",
-        "@erpx/server-platform_administration",
-        "@erpx/server-pms",
-        "@erpx/server-pos",
-        "@erpx/server-procurement",
-        "@erpx/server-projects",
-        "@erpx/server-quality",
-        "@erpx/server-records",
-        "@erpx/server-runtime",
-        "@erpx/server-sales",
-        "@erpx/server-shared",
-        "@erpx/server-support",
-        "@erpx/server-talent",
-        "@erpx/server-work_projection",
-        "@erpx/server-workflow"
-      ],
-      "postgres": {
-        "mode": "raw",
-        "slots": [
-          "CONTROL_DB",
-          "CONTROL_READ_DB",
-          "H001_DB",
-          "H001_READ_DB",
-          "H002_DB",
-          "H002_READ_DB",
-          "H003_DB",
-          "H003_READ_DB"
-        ],
-        "migratedSlots": []
-      }
-    },
-    {
-      "id": "shared.persistence.rust-outbox-jobs-postgres.integration",
-      "lane": "integration",
-      "owner": "shared.persistence",
-      "modules": [
-        "agent",
-        "assets",
-        "benefits",
-        "brand",
-        "collaboration",
-        "commercial",
-        "crm",
-        "customer_360",
-        "customer_authority",
-        "ecommerce",
-        "field_service",
-        "finance",
-        "identity_access",
-        "inventory",
-        "learning",
-        "legal",
-        "maintenance",
-        "manage_erpx",
-        "manufacturing",
-        "marketing",
-        "operations",
-        "organization",
-        "people_payroll",
-        "planning",
-        "platform_administration",
-        "pms",
-        "pos",
-        "procurement",
-        "projects",
-        "quality",
-        "sales",
-        "support",
-        "talent"
-      ],
-      "files": [
-        "tests/integration/shared.persistence/rust-outbox-jobs-postgres.test.rs"
-      ],
-      "fixture": "postgres",
-      "requires": {
-        "jobs": false,
-        "scanner": false
-      },
-      "ci": {
-        "critical": true,
-        "reason": "Native Runtime outbox queuing retains exact lease ownership, retry backoff, dead-letter placement and the native-runtime writer fence."
-      },
-      "apps": [
-        "apps",
-        "pos",
-        "pms",
-        "finance",
-        "people",
-        "sales",
-        "supply",
-        "assets",
-        "projects",
-        "recruit",
-        "learn",
-        "support",
-        "service",
-        "legal",
-        "manufacturing",
-        "account",
-        "admin",
-        "booking",
-        "portal",
-        "legal-portal",
-        "forms"
-      ],
-      "packages": [
-        "@erpx/server-runtime",
-        "@erpx/server-shared"
-      ],
-      "framework": "cargo",
-      "cargo": {
-        "package": "erpx-server-runtime",
-        "targets": [
-          "outbox_jobs_postgres"
-        ]
-      },
-      "verificationInputs": [
-        "packages/server-runtime/Cargo.toml",
-        "Cargo.toml",
-        "Cargo.lock",
-        "rust-toolchain.toml",
-        "tests/support/rust-postgres.rs",
-        "packages/server-runtime/src/domain/jobs.rs",
-        "packages/server-runtime/src/adapters/postgres/jobs.rs",
-        "packages/server-runtime/src/public/postgres/mod.rs"
-      ],
-      "postgres": {
-        "mode": "raw",
-        "slots": [
-          "CONTROL_DB",
-          "CONTROL_READ_DB",
-          "H001_DB",
-          "H001_READ_DB",
-          "H002_DB",
-          "H002_READ_DB",
-          "H003_DB",
-          "H003_READ_DB"
-        ],
-        "migratedSlots": []
-      }
-    },
-    {
       "id": "shared.work.rust-quick-access-preferences-postgres.integration",
       "lane": "integration",
       "owner": "shared.work",
@@ -485,6 +87,29 @@
         "critical": true,
         "reason": "Native Work Projection quick-access preferences retain Control scope, current catalogue availability, exact replay, CAS/version conflicts and one concurrent winner."
       },
+      "applications": [
+        "apps",
+        "pos",
+        "pms",
+        "finance",
+        "people",
+        "sales",
+        "supply",
+        "assets",
+        "projects",
+        "recruit",
+        "learn",
+        "support",
+        "service",
+        "legal",
+        "manufacturing",
+        "account",
+        "admin",
+        "booking",
+        "portal",
+        "legal-portal",
+        "forms"
+      ],
       "apps": [
         "workplace"
       ],
@@ -54260,6 +53885,22 @@
       "packages": ["@erpx/server-commerce", "@erpx/server-identity_access", "@erpx/server-organization", "@erpx/server-runtime"]
     },
     {
+      "id": "crm.rust-crm-recipient-composition-postgres.integration",
+      "lane": "integration",
+      "owner": "crm",
+      "modules": ["crm", "sales", "identity_access", "people_payroll", "organization", "manage_erpx"],
+      "files": ["tests/integration/crm/rust-crm-recipient-composition-postgres.test.rs"],
+      "fixture": "postgres",
+      "requires": {"jobs": false, "scanner": false},
+      "ci": {"critical": true, "reason": "CRM recipient eligibility retains the original joined owner sources and selected scope."},
+      "framework": "cargo",
+      "cargo": {"package": "erpx-service", "targets": ["crm_recipient_composition_postgres"], "features": ["existing-business"]},
+      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "src/composition/Cargo.toml"],
+      "apps": ["sales"],
+      "packages": ["@erpx/server-crm", "@erpx/server-sales", "@erpx/server-identity_access", "@erpx/server-people_payroll", "@erpx/server-organization", "@erpx/server-manage_erpx", "@erpx/server-runtime", "@erpx/server-shared"],
+      "postgres": {"mode": "raw", "slots": ["CONTROL_DB", "CONTROL_READ_DB", "H001_DB", "H001_READ_DB", "H002_DB", "H002_READ_DB", "H003_DB", "H003_READ_DB"], "migratedSlots": []}
+    },
+    {
       "id": "crm.rust-crm-pipeline-postgres.integration",
       "lane": "integration",
       "owner": "crm",
@@ -57398,7 +57039,23 @@
         "migratedSlots": []
       }
     },
-    {
+        {
+      "id": "shared.persistence.rust-outbox-jobs-postgres.integration",
+      "lane": "integration",
+      "owner": "shared.persistence",
+      "modules": ["agent","assets","benefits","brand","collaboration","commercial","crm","customer_360","customer_authority","ecommerce","field_service","finance","identity_access","inventory","learning","legal","maintenance","manage_erpx","manufacturing","marketing","operations","organization","people_payroll","planning","platform_administration","pms","pos","procurement","projects","quality","sales","support","talent"],
+      "files": ["tests/integration/shared.persistence/rust-outbox-jobs-postgres.test.rs"],
+      "fixture": "postgres",
+      "requires": {"jobs": false, "scanner": false},
+      "ci": {"critical": true, "reason": "Native Runtime durable outbox must retain exact lease ownership, bounded retry backoff, dead-letter placement and the native-runtime transaction fence."},
+      "framework": "cargo",
+      "cargo": {"package": "erpx-server-runtime", "targets": ["outbox_jobs_postgres"]},
+      "verificationInputs": ["Cargo.toml","Cargo.lock","rust-toolchain.toml","packages/server-runtime/Cargo.toml","tests/support/rust-postgres.rs"],
+      "apps": ["apps","pos","pms","finance","people","sales","supply","assets","projects","recruit","learn","support","service","legal","manufacturing","account","admin","booking","portal","legal-portal","forms"],
+      "packages": ["@erpx/server-runtime","@erpx/server-shared"],
+      "postgres": {"mode": "raw", "slots": ["CONTROL_DB","CONTROL_READ_DB","H001_DB","H001_READ_DB","H002_DB","H002_READ_DB","H003_DB","H003_READ_DB"], "migratedSlots": []}
+    },
+{
       "lane": "integration",
       "owner": "shared.persistence",
       "modules": [
@@ -59952,6 +59609,170 @@
       "apps": [
         "account",
         "admin"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
+      "id": "files.rust-business-evidence-postgres.integration",
+      "lane": "integration",
+      "owner": "files",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "The shared business-evidence binding port must preserve exact Company/branch/department scope, draft target/version/context, registered policy facts, scanned available sources, link bounds, transactional set/link writes and audit events."
+      },
+      "files": [
+        "tests/integration/files/rust-business-evidence-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-files",
+        "targets": [
+          "business_evidence_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-files/Cargo.toml",
+        "tests/support/rust-postgres.rs",
+        "packages/server-files/src/adapters/business_evidence.rs",
+        "packages/server-files/src/public/business_evidence.rs",
+        "packages/server-records/src/public/business_evidence.rs"
+      ],
+      "apps": [
+        "apps",
+        "pos",
+        "pms",
+        "finance",
+        "people",
+        "sales",
+        "supply",
+        "assets",
+        "projects",
+        "recruit",
+        "learn",
+        "support",
+        "service",
+        "legal",
+        "manufacturing",
+        "account",
+        "admin",
+        "booking",
+        "portal",
+        "legal-portal",
+        "forms"
       ],
       "packages": [
         "@erpx/catalogue",
@@ -72997,7 +72818,23 @@
         "@erpx/native-sdk"
       ]
     },
-    {
+        {
+      "id": "shared.records.rust-record-write-postgres.integration",
+      "lane": "integration",
+      "owner": "shared.records",
+      "modules": ["support"],
+      "files": ["tests/integration/shared.records/rust-record-write-postgres.test.rs"],
+      "fixture": "postgres",
+      "requires": {"jobs": false, "scanner": false},
+      "ci": {"critical": true, "reason": "Native generic Records create must retain current Account/IAM authority, Company/workspace scope, bounded section/field validation, Workflow receipt/idempotency, audit and outbox in one serializable unit."},
+      "framework": "cargo",
+      "cargo": {"package": "erpx-service", "targets": ["records_write_postgres"], "features": ["existing-business"]},
+      "verificationInputs": ["Cargo.toml","Cargo.lock","rust-toolchain.toml","src/composition/Cargo.toml","packages/server-records/Cargo.toml","packages/server-workflow/Cargo.toml","tests/support/finance/review-composition.rs"],
+      "apps": ["apps"],
+      "packages": ["@erpx/server-records","@erpx/server-workflow","@erpx/server-runtime","@erpx/server-shared"],
+      "postgres": {"mode": "raw", "slots": ["CONTROL_DB","CONTROL_READ_DB","H001_DB","H001_READ_DB","H002_DB","H002_READ_DB","H003_DB","H003_READ_DB"], "migratedSlots": []}
+    },
+{
       "id": "shared.records.rust-business-evidence.unit",
       "lane": "unit",
       "owner": "shared.records",
@@ -81664,6 +81501,21 @@
       "packages": [
         "@erpx/feature-assets"
       ]
+    },
+    {
+      "id": "assets.rust-asset-cost-composition-postgres.integration",
+      "lane": "integration",
+      "owner": "assets",
+      "modules": ["assets", "finance", "maintenance", "identity_access", "people_payroll", "organization", "manage_erpx"],
+      "files": ["tests/integration/assets/rust-asset-cost-composition-postgres.test.rs"],
+      "fixture": "postgres",
+      "requires": {"jobs": false, "scanner": false},
+      "ci": {"critical": true, "reason": "Checks Finance acquisition-cost rollback and the composed Maintenance purchase source against TypeScript."},
+      "framework": "cargo",
+      "cargo": {"package": "erpx-service", "targets": ["asset_cost_composition_postgres"], "features": ["existing-business"]},
+      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "src/composition/Cargo.toml", "packages/server-assets/Cargo.toml", "packages/server-finance/Cargo.toml", "packages/server-maintenance/src/adapters/purchase-sources.ts"],
+      "apps": ["assets"],
+      "packages": ["@erpx/server-assets", "@erpx/server-finance", "@erpx/server-maintenance", "@erpx/server-identity_access", "@erpx/server-people_payroll", "@erpx/server-organization", "@erpx/server-manage_erpx", "@erpx/server-runtime"]
     },
     {
       "id": "assets.rust-asset-http-postgres.integration",

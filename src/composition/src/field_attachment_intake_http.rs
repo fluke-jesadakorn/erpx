@@ -220,9 +220,7 @@ mod tests {
     }
 }
 
-use crate::field_attachment_intake::{
-    FieldAttachmentIntakeAuthority, FieldAttachmentIntakeSources,
-};
+use crate::field_attachment_intake::FieldAttachmentIntakeAuthority;
 use crate::field_attachment_intake_command::{
     FieldAttachmentIntakeCommand, FieldAttachmentIntakeCommandSources,
     execute_field_attachment_intake_with_live_readiness,
@@ -246,8 +244,7 @@ use erpx_server_identity_access::public::{
         CapturedHoldingMutation, parse_inbound_account_request, unique_request_header,
     },
     effective_authority::{
-        HoldingWorkAuthorizer, SelectedIngressFuture, SelectedTransportCallbacks,
-        SelectedWorkIngress, WorkAuthorizationRequest,
+        HoldingWorkAuthorizer, SelectedIngressFuture, SelectedWorkIngress, WorkAuthorizationRequest,
     },
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
@@ -587,7 +584,7 @@ async fn http_list<C: Clock + Send + Sync + 'static>(
     let result=async {
         let (target,host,proof,selection)=ingress(&state,&headers,slug,false)?;
         let action_target=target.clone();
-        let callbacks=SelectedTransportCallbacks::<_,ListIngress,BusinessError,_>::new::<serde_json::Value>(move|_:&SelectedWorkIngress<'_>|->SelectedIngressFuture<ListIngress,BusinessError>{let raw=raw.clone();Box::pin(async move{query(raw.as_deref())})},|_,e|Err(e),move|c,actor,input:ListIngress|{let target=action_target.clone();Box::pin(async move{
+        target.authorizer.execute_with_selected_typed_transport_ingress_deferred(&host,proof,selection,access(),crate::field_attachment::FieldAttachmentReadSources,move|_:&SelectedWorkIngress<'_>|->SelectedIngressFuture<ListIngress,BusinessError>{let raw=raw.clone();Box::pin(async move{query(raw.as_deref())})},|_,e|Err(e),move|c,actor,input:ListIngress,_fence|{let target=action_target.clone();Box::pin(async move{
             target.require_company(actor)?;let company=actor.selection().workspace().company_id.clone();
             let read_only=target.policy.require_read()?;
             if input.never_matches {return Err(erpx_server_runtime::public::postgres::PersistenceError::new("FILES_VERSION_BIND_INVALID").into());}
@@ -597,8 +594,7 @@ async fn http_list<C: Clock + Send + Sync + 'static>(
             let data=list_field_sets(c,&guard,&input.request,read_only,target.clock.now().get()).await?;
             let data = data.into_iter().map(|v| crate::field_attachment_intake_contracts::checked_field_intake_set(v).map_err(|_|wire_error())).collect::<Result<Vec<_>,_>>()?;
             Ok(Ok(serde_json::Value::Array(data)))
-        })});
-        target.authorizer.execute_with_selected_transport_ingress_deferred(&host,proof,selection,(access(),FieldAttachmentIntakeSources),callbacks).await?.map_err(Into::into)
+        })}).await?.map_err(Into::into)
     }.await;
     response(result, false)
 }
@@ -613,18 +609,17 @@ async fn http_create<C: Clock + Send + Sync + 'static>(
         let key=unique_request_header(&parts.headers,"idempotency-key").map_err(|_|BusinessError::invalid("COMMAND_KEY_REQUIRED","A valid Idempotency-Key is required.")).and_then(|v|v.map(str::to_owned).ok_or_else(||BusinessError::invalid("COMMAND_KEY_REQUIRED","A valid Idempotency-Key is required.")));
         let body=Arc::new(tokio::sync::Mutex::new(Some(body)));let cache=Arc::new(tokio::sync::OnceCell::<Option<Vec<u8>>>::new());
         let action_target=target.clone();let ingress_target=target.clone();
-        let callbacks=SelectedTransportCallbacks::<_,(FieldSetRequest,String),BusinessError,_>::new::<serde_json::Value>(move|selected:&SelectedWorkIngress<'_>|->SelectedIngressFuture<(FieldSetRequest,String),BusinessError>{let valid=selected.holding_id()==&ingress_target.holding&&match &ingress_target.company { crate::service_company_ownership::ServiceCompanyOwnership::Fixed(company)=>selected.company_id()==company, crate::service_company_ownership::ServiceCompanyOwnership::RegisteredHolding=>true };let body=body.clone();let cache=cache.clone();let key=key.clone();let policy=ingress_target.policy;Box::pin(async move{
+        target.authorizer.execute_with_selected_typed_transport_ingress_deferred(&host,proof,selection,access(),FieldAttachmentIntakeCommandSources,move|selected:&SelectedWorkIngress<'_>|->SelectedIngressFuture<(FieldSetRequest,String),BusinessError>{let valid=selected.holding_id()==&ingress_target.holding&&match &ingress_target.company { crate::service_company_ownership::ServiceCompanyOwnership::Fixed(company)=>selected.company_id()==company, crate::service_company_ownership::ServiceCompanyOwnership::RegisteredHolding=>true };let body=body.clone();let cache=cache.clone();let key=key.clone();let policy=ingress_target.policy;Box::pin(async move{
             if !valid{return Err(missing());}
             let bytes=cache.get_or_init(||async{let body=body.lock().await.take()?;axum::body::to_bytes(body,2*1024*1024).await.ok().map(|v|v.to_vec())}).await.as_ref().ok_or_else(invalid)?;
             let input=parse_create(bytes)?;let key=key?;erpx_server_workflow::public::commands::validate_key(&key)?;policy.require_create()?;Ok((input,key))
-        })},|_,e|Err(e),move|c,actor,(input,key):(FieldSetRequest,String)|{let target=action_target.clone();Box::pin(async move{
+        })},|_,e|Err(e),move|c,actor,(input,key):(FieldSetRequest,String),fence|{let target=action_target.clone();Box::pin(async move{
             target.require_company(actor)?;let company=actor.selection().workspace().company_id.clone();
             let availability=FieldIntakeAvailability {uploads_frozen:target.policy.uploads_frozen,scanner_ready:false,preview_ready:false};
-            let value=execute_field_attachment_intake_with_live_readiness(c,FieldAttachmentIntakeCommand {actor,holding:&target.holding,company:&company,catalogue:&target.catalogue,clock:target.clock.as_ref(),input:&input,key:&key,availability:&availability},target.readiness.as_ref()).await?;
+            let value=execute_field_attachment_intake_with_live_readiness(c,FieldAttachmentIntakeCommand {actor,fence,holding:&target.holding,company:&company,catalogue:&target.catalogue,clock:target.clock.as_ref(),input:&input,key:&key,availability:&availability},target.readiness.as_ref()).await?;
             let data = crate::field_attachment_intake_contracts::checked_field_intake_set(value.data).map_err(|_|wire_error())?;
             Ok(Ok(data))
-        })});
-        target.authorizer.execute_with_selected_transport_ingress_deferred(&host,proof,selection,(access(),FieldAttachmentIntakeCommandSources),callbacks).await?.map_err(Into::into)
+        })}).await?.map_err(Into::into)
     }.await;
     response(result, true)
 }

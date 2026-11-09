@@ -253,3 +253,31 @@ async fn real_browser_identity_and_attestation_admit_only_current_enabled_engine
     tx.rollback().await.unwrap();
  }).await);
 }
+
+#[tokio::test]
+async fn scheduled_inventory_rollout_source_matches_actual_ts_predicate() {
+ use erpx_server_pms::public::scheduled_inventory_rollouts::*;
+ fixture::with_database(2,|p|async move {
+  setup(&p).await;
+  let mut unlocked=p.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unlocked).await.unwrap();assert!(inspect_scheduled_inventory_rollouts(&mut unlocked).await.is_err());unlocked.rollback().await.unwrap();
+  let mut tx=p.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_scheduled_inventory_rollouts(&mut tx).await.unwrap();let source=inspect_scheduled_inventory_rollouts(&mut tx).await.unwrap();
+  let projected:String=sqlx::query_scalar(sqlx::AssertSqlSafe(format!("WITH {} SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY to_jsonb(r)::text),'[]'::jsonb)::text FROM scheduled_inventory_rollouts r",source.cte_sql()))).fetch_one(&mut *tx).await.unwrap();
+  let raw_rows:String=sqlx::query_scalar("SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY to_jsonb(r)::text),'[]'::jsonb)::text FROM (SELECT company_id,module_id,rollout_state FROM public.company_feature_rollouts) r").fetch_one(&mut *tx).await.unwrap();assert_eq!(projected,raw_rows);
+  let script=r#"const m=await import(process.argv[1]);process.stdout.write(JSON.stringify({production:m.scheduledFeaturePredicate('subject.company_id','inventory')}));"#;
+  let path=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/adapters/feature-availability.ts");let output=std::process::Command::new(std::env::var("ERPX_BUN_BIN").unwrap_or_else(|_|"bun".into())).arg("--conditions=react-server").arg("-e").arg(script).arg(path).env("NODE_ENV","production").output().unwrap();assert!(output.status.success(),"actual TS: {}",String::from_utf8_lossy(&output.stderr));let result:serde_json::Value=serde_json::from_slice(&output.stdout).unwrap();let actual=result["production"].as_str().unwrap();let replaced=actual.replace("FROM company_feature_rollouts f","FROM scheduled_inventory_rollouts f");assert_ne!(actual,replaced);assert_eq!(actual.matches("FROM company_feature_rollouts f").count(),1);assert_eq!(replaced.matches("FROM company_feature_rollouts f").count(),0);
+  let raw=format!("SELECT ({actual}) FROM (SELECT $1::text company_id) subject");let candidate=format!("WITH {} SELECT ({replaced}) FROM (SELECT $1::text company_id) subject",source.cte_sql());
+  async fn compare(c:&mut sqlx::PgConnection,a:&str,b:&str,id:&str)->bool{let raw:bool=sqlx::query_scalar(sqlx::AssertSqlSafe(a)).bind(id).fetch_one(&mut *c).await.unwrap();let projected:bool=sqlx::query_scalar(sqlx::AssertSqlSafe(b)).bind(id).fetch_one(&mut *c).await.unwrap();assert_eq!(raw,projected);raw}
+  assert!(compare(&mut tx,&raw,&candidate,"company").await);assert!(!compare(&mut tx,&raw,&candidate,"foreign").await);source.require_current(&mut tx).await.unwrap();
+  sqlx::query("SAVEPOINT rollout_drift").execute(&mut *tx).await.unwrap();sqlx::query("UPDATE public.company_feature_rollouts SET rollout_state='off' WHERE company_id='company' AND module_id='inventory'").execute(&mut *tx).await.unwrap();assert!(!compare(&mut tx,&raw,&candidate,"company").await);assert!(source.require_current(&mut tx).await.is_err());sqlx::query("ROLLBACK TO SAVEPOINT rollout_drift").execute(&mut *tx).await.unwrap();assert!(compare(&mut tx,&raw,&candidate,"company").await);source.require_current(&mut tx).await.unwrap();
+  // The current catalogue artifact is `unbuilt`, so both accepted-release and
+  // engineering branches are FALSE; this compares the real rollout expression
+  // only and does not fabricate either external owner fact.
+  sqlx::query("SAVEPOINT available_rollout").execute(&mut *tx).await.unwrap();sqlx::query("UPDATE public.company_feature_rollouts SET rollout_state='available' WHERE company_id='company' AND module_id='inventory'").execute(&mut *tx).await.unwrap();assert!(!compare(&mut tx,&raw,&candidate,"company").await);sqlx::query("ROLLBACK TO SAVEPOINT available_rollout").execute(&mut *tx).await.unwrap();
+  // The retained TS predicate resolves the unqualified rollout table through
+  // search_path. The native CTE pins public. A hostile temp shadow therefore
+  // cannot inject a rollout; this is a documented stricter bound, not TS parity.
+  sqlx::query("SAVEPOINT rollout_shadow").execute(&mut *tx).await.unwrap();sqlx::query("CREATE TEMP TABLE company_feature_rollouts(company_id text,module_id text,rollout_state text) ON COMMIT DROP").execute(&mut *tx).await.unwrap();sqlx::query("INSERT INTO pg_temp.company_feature_rollouts VALUES('shadow','inventory','pilot')").execute(&mut *tx).await.unwrap();sqlx::query("SET LOCAL search_path=pg_temp,public").execute(&mut *tx).await.unwrap();let shadow_raw:bool=sqlx::query_scalar(sqlx::AssertSqlSafe(raw.as_str())).bind("shadow").fetch_one(&mut *tx).await.unwrap();let shadow_native:bool=sqlx::query_scalar(sqlx::AssertSqlSafe(candidate.as_str())).bind("shadow").fetch_one(&mut *tx).await.unwrap();assert!(shadow_raw);assert!(!shadow_native);sqlx::query("ROLLBACK TO SAVEPOINT rollout_shadow").execute(&mut *tx).await.unwrap();source.require_current(&mut tx).await.unwrap();
+  tx.rollback().await.unwrap();
+  let mut saved=p.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *saved).await.unwrap();sqlx::query("SAVEPOINT scheduled_lock").execute(&mut *saved).await.unwrap();lock_scheduled_inventory_rollouts(&mut saved).await.unwrap();let witness=inspect_scheduled_inventory_rollouts(&mut saved).await.unwrap();sqlx::query("ROLLBACK TO SAVEPOINT scheduled_lock").execute(&mut *saved).await.unwrap();assert!(witness.require_current(&mut saved).await.is_err());saved.rollback().await.unwrap();
+ }).await;
+}

@@ -5,7 +5,9 @@ use crate::field_service_records_source::FieldRecordsSourcePort;
 use crate::field_service_source_record::SourceRecordContext;
 use erpx_server_identity_access::public::{
     DeviceProof,
-    effective_authority::{HoldingWorkAuthorizer, WorkAuthorizationRequest, WorkPermissionRequirement},
+    effective_authority::{
+        HoldingWorkAuthorizer, WorkAuthorizationRequest, WorkPermissionRequirement,
+    },
     selected_command_authority::require_selected_actor_current,
     work_context::HoldingWorkspaceRequest,
 };

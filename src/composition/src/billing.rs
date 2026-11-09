@@ -6,10 +6,10 @@ use erpx_server_billing::public::billing_http::{
     BillingCommandHttpRequest, BillingHttpBackend, BillingHttpFuture, BillingHttpResponse,
     BillingWorkspaceHttpRequest,
 };
-use erpx_server_billing::public::cost::{BillingCostCommand, execute_cost_command};
-use erpx_server_billing::public::workspace::{BillingActor, BillingWorkspace, billing_workspace};
 use erpx_server_billing::public::cost::PgBillingCostCommand;
+use erpx_server_billing::public::cost::{BillingCostCommand, execute_cost_command};
 use erpx_server_billing::public::workspace::PgBillingWorkspace;
+use erpx_server_billing::public::workspace::{BillingActor, BillingWorkspace, billing_workspace};
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
     account_inbound_http::parse_inbound_account_request,
@@ -21,7 +21,9 @@ use erpx_server_identity_access::public::{
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{AssignmentId, BusinessError, Clock, CompanyId, FailureKind, HoldingId, TimestampMillis};
+use erpx_server_shared::public::{
+    AssignmentId, BusinessError, Clock, CompanyId, FailureKind, HoldingId, TimestampMillis,
+};
 use serde_json::Value;
 use sqlx::{PgConnection, Row};
 use std::sync::Arc;
@@ -101,8 +103,7 @@ async fn billing_actor(
         let role: String = row.try_get("role").map_err(|_| unavailable())?;
         Ok(BillingActor {
             user_id: current.user_id().clone(),
-            assignment_id: AssignmentId::new(assignment_id)
-                .map_err(|_| unavailable())?,
+            assignment_id: AssignmentId::new(assignment_id).map_err(|_| unavailable())?,
             holding_id: None,
             platform: true,
             role,
@@ -232,7 +233,8 @@ impl<C: Clock + Send + Sync + 'static> BillingService<C> {
                         let now = clock.now();
                         let actor = billing_actor(current, connection, now).await?;
                         let mut repository = PgBillingWorkspace::new(connection);
-                        let data = billing_workspace(&actor, &holding, &mut repository, now).await?;
+                        let data =
+                            billing_workspace(&actor, &holding, &mut repository, now).await?;
                         Ok(BillingHttpResponse {
                             data: serde_json::to_value(data).map_err(|_| unavailable())?,
                             context: context(current),
@@ -278,12 +280,13 @@ impl<C: Clock + Send + Sync + 'static> BillingService<C> {
                         let now = clock.now();
                         let actor = billing_actor(current, connection, now).await?;
                         let mut repository = PgBillingCostCommand::new(connection);
-                        let _receipt = execute_cost_command(&actor, &holding, &command, &mut repository, now)
-                            .await
-                            .map_err(|error| match error {
-                                PgTransactionError::Business(error) => error,
-                                PgTransactionError::Persistence(_) => unavailable(),
-                            })?;
+                        let _receipt =
+                            execute_cost_command(&actor, &holding, &command, &mut repository, now)
+                                .await
+                                .map_err(|error| match error {
+                                    PgTransactionError::Business(error) => error,
+                                    PgTransactionError::Persistence(_) => unavailable(),
+                                })?;
                         Ok(BillingHttpResponse {
                             data: serde_json::json!({"ok": true}),
                             context: context(current),

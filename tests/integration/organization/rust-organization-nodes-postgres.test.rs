@@ -1248,3 +1248,53 @@ async fn page_read_returns_owned_catalog_facts_with_company_and_placement_isolat
     })
     .await;
 }
+
+#[tokio::test]
+async fn organization_authority_held_locks_cover_all_three_sources() {
+    use erpx_server_organization::public::{lock_organization_authority_sources,require_organization_authority_sources_held};
+    fixture::with_database(2, |pool| async move {
+        seed(&pool).await;
+        let mut outside=pool.raw().acquire().await.unwrap();assert!(require_organization_authority_sources_held(&mut outside).await.is_err());drop(outside);
+        let mut partial=pool.raw().begin().await.unwrap();sqlx::query("LOCK TABLE organization_nodes,authority_seats IN SHARE MODE").execute(&mut *partial).await.unwrap();
+        assert!(matches!(require_organization_authority_sources_held(&mut partial).await,Err(PgTransactionError::Persistence(ref e)) if e.code=="ORGANIZATION_AUTHORITY_LOCKS_REQUIRED"));partial.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();sqlx::query("SELECT pg_current_xact_id()").execute(&mut *tx).await.unwrap();sqlx::query("SAVEPOINT before_org_authority_locks").execute(&mut *tx).await.unwrap();
+        lock_organization_authority_sources(&mut tx).await.unwrap();require_organization_authority_sources_held(&mut tx).await.unwrap();
+        let count:i64=sqlx::query_scalar("SELECT count(DISTINCT relation) FROM pg_locks WHERE pid=pg_backend_pid() AND granted AND mode='ShareLock' AND relation IN ('organization_nodes'::regclass,'authority_seats'::regclass,'organization_positions'::regclass)").fetch_one(&mut *tx).await.unwrap();assert_eq!(count,3);
+        sqlx::query("ROLLBACK TO SAVEPOINT before_org_authority_locks").execute(&mut *tx).await.unwrap();assert!(matches!(require_organization_authority_sources_held(&mut tx).await,Err(PgTransactionError::Persistence(ref e)) if e.code=="ORGANIZATION_AUTHORITY_LOCKS_REQUIRED"));
+        sqlx::query("LOCK TABLE organization_nodes,authority_seats,organization_positions IN SHARE ROW EXCLUSIVE MODE").execute(&mut *tx).await.unwrap();require_organization_authority_sources_held(&mut tx).await.unwrap();tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn organization_sales_authority_boundary_checks_canonical_sources_and_unit() {
+    use erpx_server_organization::public::{lock_organization_authority_sources,inspect_organization_sales_authority_boundary};
+    fixture::with_database(2,|pool|async move {
+        seed(&pool).await;
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        sqlx::query("SET LOCAL search_path TO pg_catalog, public, pg_temp").execute(&mut *tx).await.unwrap();
+        assert!(inspect_organization_sales_authority_boundary(&mut tx).await.is_err());
+        sqlx::query("SAVEPOINT org_sources").execute(&mut *tx).await.unwrap();
+        lock_organization_authority_sources(&mut tx).await.unwrap();
+        let released=inspect_organization_sales_authority_boundary(&mut tx).await.unwrap();
+        released.require_current(&mut tx).await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT org_sources").execute(&mut *tx).await.unwrap();
+        assert!(released.require_current(&mut tx).await.is_err());
+        tx.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        sqlx::query("CREATE TEMP TABLE organization_nodes(id text)").execute(&mut *tx).await.unwrap();
+        sqlx::query("SET LOCAL search_path TO pg_catalog, public, pg_temp").execute(&mut *tx).await.unwrap();
+        lock_organization_authority_sources(&mut tx).await.unwrap();
+        let source=inspect_organization_sales_authority_boundary(&mut tx).await.unwrap();
+        source.require_current(&mut tx).await.unwrap();
+        sqlx::query("SET LOCAL search_path TO pg_catalog, pg_temp, public").execute(&mut *tx).await.unwrap();
+        assert!(source.require_current(&mut tx).await.is_err());
+        sqlx::query("SET LOCAL search_path TO pg_catalog, public, pg_temp").execute(&mut *tx).await.unwrap();
+        source.require_current(&mut tx).await.unwrap();
+        let mut other=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+        assert!(source.require_current(&mut other).await.is_err());
+        other.rollback().await.unwrap();tx.rollback().await.unwrap();
+    }).await;
+}

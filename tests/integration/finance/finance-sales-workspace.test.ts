@@ -590,3 +590,48 @@ it('Sales service catalogue concurrent actual read and original creation retain 
  expect({deadlockFailures:measured.metrics.deadlockFailures??0,serializationFailures:measured.metrics.serializationFailures??0,transactionRetries:measured.metrics.transactionRetries??0}).toEqual({deadlockFailures:0,serializationFailures:0,transactionRetries:0});
  const before=await zeroSalesCommandImage(command);expect(await api.createSalesServiceProduct(z.owner,input,command)).toEqual(created);expect(await zeroSalesCommandImage(command)).toEqual(before);expect((await api.salesServiceProducts(z.owner)).products).toEqual([{id:created.id,sku:input.sku,name:input.name,unit:'each',priceMinor:1250,taxBps:0,status:'active',version:1}]);expect(await db.prepare("SELECT count(*) n FROM money_transaction_snapshots WHERE company_id=? AND source_type='commerce_product_revision' AND source_id=? AND amount_kind='unit_price'").bind(z.company,`${created.id}:1`).first('n')).toBe(1);
 });
+
+it('resolves current Commerce settings before exact order replay including approved Finance fallback',async()=>{
+  const customer=String((await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Replay settings customer'},key())).id);
+  const product=String((await saveMaster(f.owner,'products',null,{sku:key(),name:'Replay settings service',itemType:'service',price:'100',taxBps:700},key())).id);
+  const command=key(),input=orderSchema.parse({kind:'quote',partyId:customer,orderDate:'2026-09-02',dueDate:'2026-09-10',lines:[{productId:product,quantity:'1',price:'100',taxBps:700}]}),receipt=await saveOrder(f.owner,null,input,command),id=String(receipt.id);
+  const {commerceFinanceJoinedFacts}=await import('@erpx/server-finance/public/commerce-joined-facts');
+  type Database=import('@erpx/server-runtime/public/runtime/types').SqlDatabase;
+  const images=async(database:Database)=>({
+   order:await database.prepare('SELECT to_jsonb(o)::text image FROM commerce_orders o WHERE id=?').bind(id).first(),
+   lines:(await database.prepare('SELECT to_jsonb(l)::text image FROM commerce_order_lines l WHERE order_id=? ORDER BY id').bind(id).all()).results,
+   money:(await database.prepare("SELECT to_jsonb(m)::text image FROM money_transaction_snapshots m WHERE company_id=? AND (source_id LIKE ? OR source_id LIKE ?) ORDER BY source_type,source_id,amount_kind").bind(f.company,`${id}:%`,`${id}-line-%`).all()).results,
+   receipts:await Promise.all(['command_receipts','audit_events','outbox_events'].map(async table=>(await database.prepare(`SELECT to_jsonb(r)::text image FROM ${table} r WHERE command_id=? ORDER BY image`).bind(command).all()).results)),
+  });
+  const before=await images(db);expect(before.order).not.toBeNull();expect(before.lines).toHaveLength(1);expect(before.money).toHaveLength(4);for(const rows of before.receipts)expect(rows).toHaveLength(1);
+  const archivedChart=`archived-chart-${key()}`;
+  async function withoutCurrentSettings(tx:Database){
+   await tx.prepare("INSERT INTO finance_charts(id,company_id,name,base_currency,status,created_by,created_at,updated_at) VALUES(?,?,?,'THB','archived',?,1,1)").bind(archivedChart,f.company,archivedChart,f.owner.userId).run();
+   await tx.prepare('UPDATE commerce_settings SET chart_id=? WHERE company_id=?').bind(archivedChart,f.company).run();
+  }
+  await expect(db.transaction(async tx=>{
+   await withoutCurrentSettings(tx);
+   expect(await commerceFinanceJoinedFacts(tx).readCommerceSettings1({companyId:f.company})).toBeNull();
+   await expect(saveOrder(f.owner,null,input,command,tx)).rejects.toMatchObject({status:409,code:'COMMERCE_SETUP_REQUIRED'});
+   expect(await images(tx)).toEqual(before);
+   throw new Error('ROLLBACK_SETTINGS_ORACLE');
+  })).rejects.toThrow('ROLLBACK_SETTINGS_ORACLE');
+  expect(await images(db)).toEqual(before);
+  await defaults();
+  await expect(db.transaction(async tx=>{
+   await withoutCurrentSettings(tx);
+   const fallback=await commerceFinanceJoinedFacts(tx).readCommerceSettings1({companyId:f.company});
+   expect(fallback).toMatchObject({company_id:f.company,chart_id:f.chart,currency:'THB'});expect(fallback?.approved_sales_defaults_id).toBeTruthy();
+   expect(await saveOrder(f.owner,null,input,command,tx)).toEqual(receipt);
+   expect(await images(tx)).toEqual(before);
+   throw new Error('ROLLBACK_SETTINGS_ORACLE');
+  })).rejects.toThrow('ROLLBACK_SETTINGS_ORACLE');
+  await expect(db.transaction(async tx=>{
+   await tx.prepare("UPDATE commerce_settings SET currency='USD' WHERE company_id=?").bind(f.company).run();
+   const settings=await commerceFinanceJoinedFacts(tx).readCommerceSettings1({companyId:f.company});expect(settings?.currency).toBe('USD');
+   expect(await saveOrder(f.owner,null,input,command,tx)).toEqual(receipt);
+   expect(await images(tx)).toEqual(before);
+   throw new Error('ROLLBACK_SETTINGS_ORACLE');
+  })).rejects.toThrow('ROLLBACK_SETTINGS_ORACLE');
+  expect(await images(db)).toEqual(before);
+});

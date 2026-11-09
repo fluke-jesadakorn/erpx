@@ -10,7 +10,7 @@ use crate::{
 use axum::{
     Json, Router,
     body::to_bytes,
-    extract::{Path, State, RawQuery, Request},
+    extract::{Path, RawQuery, Request, State},
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -65,7 +65,7 @@ pub struct FinanceJournalReadTarget<C> {
 struct ReadState<C> {
     policy: Arc<AccountPolicy>,
     scopes: Arc<dyn BusinessScopeSlugs>,
-    targets: BTreeMap<(String, String,String), FinanceJournalReadTarget<C>>,
+    targets: BTreeMap<(String, String, String), FinanceJournalReadTarget<C>>,
 }
 pub fn finance_journal_read_router<C: Clock + Send + Sync + 'static>(
     policy: Arc<AccountPolicy>,
@@ -82,7 +82,14 @@ pub fn finance_journal_read_router<C: Clock + Send + Sync + 'static>(
             .is_some_and(|h| h.slug == target.holding_slug);
         if !valid
             || configured
-                .insert((target.host.clone(), target.holding_slug.clone(),target.service.company_id().as_str().to_owned()), target)
+                .insert(
+                    (
+                        target.host.clone(),
+                        target.holding_slug.clone(),
+                        target.service.company_id().as_str().to_owned(),
+                    ),
+                    target,
+                )
                 .is_some()
         {
             return Err(BusinessError::invalid(
@@ -91,10 +98,14 @@ pub fn finance_journal_read_router<C: Clock + Send + Sync + 'static>(
             ));
         }
     }
-    let field_work_routes=Router::new();
+    let field_work_routes = Router::new();
     #[cfg(feature = "finance-field-write")]
-    let field_work_routes=field_work_routes.route("/api/v1/holdings/{holding_slug}/finance/field-work",get(financial_work::<C>));
-    Ok(Router::new().merge(field_work_routes)
+    let field_work_routes = field_work_routes.route(
+        "/api/v1/holdings/{holding_slug}/finance/field-work",
+        get(financial_work::<C>),
+    );
+    Ok(Router::new()
+        .merge(field_work_routes)
         .route(
             "/api/v1/holdings/{holding_slug}/finance/journals",
             get(list::<C>),
@@ -226,24 +237,64 @@ pub fn finance_journal_read_router<C: Clock + Send + Sync + 'static>(
         })))
 }
 #[cfg(feature = "finance-field-write")]
-async fn financial_work<C:Clock+Send+Sync+'static>(State(state):State<Arc<ReadState<C>>>,Path(slug):Path<String>,headers:HeaderMap,RawQuery(query):RawQuery)->Response{
-    let result=async{
-        if query.is_some(){return Err(BusinessError::invalid("VALIDATION_FAILED","This Work query accepts only the captured workspace context.").into());}
-        let host=unique_request_header(&headers,"host")?.ok_or_else(missing)?;
-        let target=crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
-        let inbound=parse_inbound_account_request(&state.policy,&headers)?;
-        if !matches!(inbound.audience(),RequestAudience::Holding{..}){return Err(missing().into());}
-        if unique_request_header(&headers,"origin")?.is_some_and(|v|v!=inbound.expected_origin()){return Err(BusinessError::new(FailureKind::Forbidden,"ORIGIN_FORBIDDEN","Use the application origin.").into());}
-        let scope=state.scopes.slugs(&headers);let(branch,department)=scope.as_ref().cloned().unwrap_or_default();
-        let captured=CapturedHoldingMutation::capture(&headers,branch,department);let company=target.service.company_id().clone();
-        target.service.read_field_work(host,inbound.into_proof(),move||{scope?;captured.resolve_read(company)}).await
-    }.await;
+async fn financial_work<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<ReadState<C>>>,
+    Path(slug): Path<String>,
+    headers: HeaderMap,
+    RawQuery(query): RawQuery,
+) -> Response {
+    let result = async {
+        if query.is_some() {
+            return Err(BusinessError::invalid(
+                "VALIDATION_FAILED",
+                "This Work query accepts only the captured workspace context.",
+            )
+            .into());
+        }
+        let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let inbound = parse_inbound_account_request(&state.policy, &headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|v| v != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
+        }
+        let scope = state.scopes.slugs(&headers);
+        let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
+        let captured = CapturedHoldingMutation::capture(&headers, branch, department);
+        let company = target.service.company_id().clone();
+        target
+            .service
+            .read_field_work(host, inbound.into_proof(), move || {
+                scope?;
+                captured.resolve_read(company)
+            })
+            .await
+    }
+    .await;
     let mut response=match result{
         Ok(reply)=>Json(reply).into_response(),
         Err(PgTransactionError::Business(e))=>{let status=match e.kind{FailureKind::InvalidInput=>StatusCode::UNPROCESSABLE_ENTITY,FailureKind::Unauthenticated=>StatusCode::UNAUTHORIZED,FailureKind::Forbidden=>StatusCode::FORBIDDEN,FailureKind::NotFound=>StatusCode::NOT_FOUND,FailureKind::Conflict=>StatusCode::CONFLICT,FailureKind::Unavailable=>StatusCode::SERVICE_UNAVAILABLE};(status,Json(serde_json::json!({"error":{"code":e.code,"message":e.message}}))).into_response()},
         Err(PgTransactionError::Persistence(_))=>(StatusCode::INTERNAL_SERVER_ERROR,Json(serde_json::json!({"error":{"code":"FINANCE_WORK_UNAVAILABLE","message":"The financial Work contribution could not be read."}}))).into_response(),
     };
-    for(name,value)in[(header::CACHE_CONTROL,"private, no-store"),(header::REFERRER_POLICY,"no-referrer"),(header::X_CONTENT_TYPE_OPTIONS,"nosniff")]{response.headers_mut().insert(name,HeaderValue::from_static(value));}
+    for (name, value) in [
+        (header::CACHE_CONTROL, "private, no-store"),
+        (header::REFERRER_POLICY, "no-referrer"),
+        (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+    ] {
+        response
+            .headers_mut()
+            .insert(name, HeaderValue::from_static(value));
+    }
     response
 }
 async fn invoice_workspace<C: Clock + Send + Sync + 'static>(
@@ -254,7 +305,8 @@ async fn invoice_workspace<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target = crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -272,10 +324,23 @@ async fn invoice_workspace<C: Clock + Send + Sync + 'static>(
         if id.is_empty() || id.len() > 2 * 1024 * 1024 || id.chars().any(char::is_control) {
             return Err(missing().into());
         }
-        let payment_evidence=match query.as_deref(){None=>false,Some(raw)=>{
-            let values=url::form_urlencoded::parse(raw.as_bytes()).collect::<Vec<_>>();
-            if values.len()!=1||values[0].0!="purpose"||values[0].1!="payment-evidence"{return Err(BusinessError::invalid("VALIDATION_FAILED","Invalid invoice read purpose.").into());}true
-        }};
+        let payment_evidence = match query.as_deref() {
+            None => false,
+            Some(raw) => {
+                let values = url::form_urlencoded::parse(raw.as_bytes()).collect::<Vec<_>>();
+                if values.len() != 1
+                    || values[0].0 != "purpose"
+                    || values[0].1 != "payment-evidence"
+                {
+                    return Err(BusinessError::invalid(
+                        "VALIDATION_FAILED",
+                        "Invalid invoice read purpose.",
+                    )
+                    .into());
+                }
+                true
+            }
+        };
         let scope = state.scopes.slugs(&headers);
         let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
         let captured = CapturedHoldingMutation::capture(&headers, branch, department);
@@ -329,7 +394,8 @@ async fn finance_invoices_page<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target = crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -352,7 +418,10 @@ async fn finance_invoices_page<C: Clock + Send + Sync + 'static>(
         let mut cursor = None;
         let mut seen = std::collections::BTreeSet::new();
         for (key, value) in url::form_urlencoded::parse(raw.as_deref().unwrap_or("").as_bytes()) {
-            if value.len() > 2000 || value.chars().any(char::is_control) || !seen.insert(key.to_string()) {
+            if value.len() > 2000
+                || value.chars().any(char::is_control)
+                || !seen.insert(key.to_string())
+            {
                 return Err(BusinessError::invalid(
                     "FINANCE_INVOICE_QUERY_INVALID",
                     "Use the invoice list filters.",
@@ -371,7 +440,7 @@ async fn finance_invoices_page<C: Clock + Send + Sync + 'static>(
                         "FINANCE_INVOICE_QUERY_INVALID",
                         "Use the invoice list filters.",
                     )
-                    .into())
+                    .into());
                 }
             }
         }
@@ -409,7 +478,8 @@ async fn finance_invoice_aging<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target = crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -429,7 +499,10 @@ async fn finance_invoice_aging<C: Clock + Send + Sync + 'static>(
         let mut chart_id = None;
         let mut seen = std::collections::BTreeSet::new();
         for (key, value) in url::form_urlencoded::parse(raw.as_deref().unwrap_or("").as_bytes()) {
-            if value.len() > 2000 || value.chars().any(char::is_control) || !seen.insert(key.to_string()) {
+            if value.len() > 2000
+                || value.chars().any(char::is_control)
+                || !seen.insert(key.to_string())
+            {
                 return Err(BusinessError::invalid(
                     "FINANCE_INVOICE_AGING_QUERY_INVALID",
                     "Use a valid aging kind, cutoff date and ledger.",
@@ -445,7 +518,7 @@ async fn finance_invoice_aging<C: Clock + Send + Sync + 'static>(
                         "FINANCE_INVOICE_AGING_QUERY_INVALID",
                         "Use a valid aging kind, cutoff date and ledger.",
                     )
-                    .into())
+                    .into());
                 }
             }
         }
@@ -522,17 +595,30 @@ async fn opening_balance_preview<C: Clock + Send + Sync + 'static>(
         if unique_request_header(request.headers(), "origin")?
             .is_some_and(|value| value != inbound.expected_origin())
         {
-            return Err(BusinessError::new(FailureKind::Forbidden, "ORIGIN_FORBIDDEN", "Use the application origin.").into());
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
         }
         let scope = state.scopes.slugs(request.headers());
         let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
         let captured = CapturedHoldingMutation::capture(request.headers(), branch, department);
-        let body: erpx_server_finance::public::finance_opening::OpeningInput = setup_body(request).await?;
+        let body: erpx_server_finance::public::finance_opening::OpeningInput =
+            setup_body(request).await?;
         let company = target.service.company_id().clone();
         let proof = inbound.into_proof();
-        let input = move || { scope?; captured.resolve_read(company) };
-        target.service.opening_balance_preview(&host, proof, input, body).await
-    }.await;
+        let input = move || {
+            scope?;
+            captured.resolve_read(company)
+        };
+        target
+            .service
+            .opening_balance_preview(&host, proof, input, body)
+            .await
+    }
+    .await;
     write_json_response(result, StatusCode::OK)
 }
 
@@ -550,16 +636,35 @@ async fn import_opening_balance<C: Clock + Send + Sync + 'static>(
         if unique_request_header(request.headers(), "origin")?
             .is_some_and(|value| value != inbound.expected_origin())
         {
-            return Err(BusinessError::new(FailureKind::Forbidden, "ORIGIN_FORBIDDEN", "Use the application origin.").into());
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
         }
         let command = setup_key(request.headers())?;
         let scope = state.scopes.slugs(request.headers());
         let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
         let captured = CapturedHoldingMutation::capture(request.headers(), branch, department);
-        let body: erpx_server_finance::public::finance_opening::OpeningImportInput = setup_body(request).await?;
+        let body: erpx_server_finance::public::finance_opening::OpeningImportInput =
+            setup_body(request).await?;
         let proof = inbound.into_proof();
-        target.service.import_opening_balance(&host, proof, move || { scope?; captured.resolve() }, command, body).await
-    }.await;
+        target
+            .service
+            .import_opening_balance(
+                &host,
+                proof,
+                move || {
+                    scope?;
+                    captured.resolve()
+                },
+                command,
+                body,
+            )
+            .await
+    }
+    .await;
     write_json_response(result, StatusCode::CREATED)
 }
 
@@ -571,11 +676,21 @@ async fn finance_report<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target = crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
-        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) { return Err(missing().into()); }
-        if unique_request_header(&headers, "origin")?.is_some_and(|value| value != inbound.expected_origin()) {
-            return Err(BusinessError::new(FailureKind::Forbidden, "ORIGIN_FORBIDDEN", "Use the application origin.").into());
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(&headers, "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
         }
         let mut chart_id = None;
         let mut period_id = None;
@@ -583,15 +698,28 @@ async fn finance_report<C: Clock + Send + Sync + 'static>(
         let mut end_date = None;
         let mut seen = std::collections::BTreeSet::new();
         for (key, value) in url::form_urlencoded::parse(raw.as_deref().unwrap_or("").as_bytes()) {
-            if value.len() > 2000 || value.chars().any(char::is_control) || !seen.insert(key.to_string()) {
-                return Err(BusinessError::invalid("FINANCE_REPORT_QUERY_INVALID", "Use a valid ledger, period and date range.").into());
+            if value.len() > 2000
+                || value.chars().any(char::is_control)
+                || !seen.insert(key.to_string())
+            {
+                return Err(BusinessError::invalid(
+                    "FINANCE_REPORT_QUERY_INVALID",
+                    "Use a valid ledger, period and date range.",
+                )
+                .into());
             }
             match key.as_ref() {
                 "chart" if !value.is_empty() => chart_id = Some(value.into_owned()),
                 "periodId" if !value.is_empty() => period_id = Some(value.into_owned()),
                 "startDate" if !value.is_empty() => start_date = Some(value.into_owned()),
                 "endDate" if !value.is_empty() => end_date = Some(value.into_owned()),
-                _ => return Err(BusinessError::invalid("FINANCE_REPORT_QUERY_INVALID", "Use a valid ledger, period and date range.").into()),
+                _ => {
+                    return Err(BusinessError::invalid(
+                        "FINANCE_REPORT_QUERY_INVALID",
+                        "Use a valid ledger, period and date range.",
+                    )
+                    .into());
+                }
             }
         }
         let scope = state.scopes.slugs(&headers);
@@ -599,9 +727,18 @@ async fn finance_report<C: Clock + Send + Sync + 'static>(
         let captured = CapturedHoldingMutation::capture(&headers, branch, department);
         let company = target.service.company_id().clone();
         let proof = inbound.into_proof();
-        let input = move || { scope?; captured.resolve_read(company) };
-        target.service.finance_report(host, proof, input, chart_id, period_id, start_date, end_date).await
-    }.await;
+        let input = move || {
+            scope?;
+            captured.resolve_read(company)
+        };
+        target
+            .service
+            .finance_report(
+                host, proof, input, chart_id, period_id, start_date, end_date,
+            )
+            .await
+    }
+    .await;
     read_json_response(result)
 }
 
@@ -621,14 +758,22 @@ async fn finance_chart_accounts<C: Clock + Send + Sync + 'static>(
         if unique_request_header(&headers, "origin")?
             .is_some_and(|value| value != inbound.expected_origin())
         {
-            return Err(BusinessError::new(FailureKind::Forbidden, "ORIGIN_FORBIDDEN", "Use the application origin.").into());
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
         }
         let scope = state.scopes.slugs(&headers);
         let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
         let captured = CapturedHoldingMutation::capture(&headers, branch, department);
         let company = target.service.company_id().clone();
         let proof = inbound.into_proof();
-        let input = move || { scope?; captured.resolve_read(company) };
+        let input = move || {
+            scope?;
+            captured.resolve_read(company)
+        };
         if setup_view {
             return target
                 .service
@@ -641,7 +786,8 @@ async fn finance_chart_accounts<C: Clock + Send + Sync + 'static>(
             .finance_chart_accounts(&host, proof, input, chart_id)
             .await
             .map(SetupReadReply::ChartAccounts)
-    }.await;
+    }
+    .await;
     read_json_response(result)
 }
 
@@ -660,18 +806,41 @@ async fn create_chart<C: Clock + Send + Sync + 'static>(
     let result = async {
         let (host, target) = setup_target(&state, request.headers(), &slug)?;
         let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
-        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) { return Err(missing().into()); }
-        if unique_request_header(request.headers(), "origin")?.is_some_and(|value| value != inbound.expected_origin()) {
-            return Err(BusinessError::new(FailureKind::Forbidden, "ORIGIN_FORBIDDEN", "Use the application origin.").into());
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(request.headers(), "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
         }
         let command = setup_key(request.headers())?;
         let scope = state.scopes.slugs(request.headers());
         let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
         let captured = CapturedHoldingMutation::capture(request.headers(), branch, department);
-        let body: erpx_server_finance::public::finance_setup::CreateChartInput = setup_body(request).await?;
+        let body: erpx_server_finance::public::finance_setup::CreateChartInput =
+            setup_body(request).await?;
         let proof = inbound.into_proof();
-        target.service.create_chart(&host, proof, move || { scope?; captured.resolve() }, command, body).await
-    }.await;
+        target
+            .service
+            .create_chart(
+                &host,
+                proof,
+                move || {
+                    scope?;
+                    captured.resolve()
+                },
+                command,
+                body,
+            )
+            .await
+    }
+    .await;
     write_json_response(result, StatusCode::CREATED)
 }
 
@@ -683,18 +852,41 @@ async fn import_accounts<C: Clock + Send + Sync + 'static>(
     let result = async {
         let (host, target) = setup_target(&state, request.headers(), &slug)?;
         let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
-        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) { return Err(missing().into()); }
-        if unique_request_header(request.headers(), "origin")?.is_some_and(|value| value != inbound.expected_origin()) {
-            return Err(BusinessError::new(FailureKind::Forbidden, "ORIGIN_FORBIDDEN", "Use the application origin.").into());
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(request.headers(), "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
         }
         let command = setup_key(request.headers())?;
         let scope = state.scopes.slugs(request.headers());
         let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
         let captured = CapturedHoldingMutation::capture(request.headers(), branch, department);
-        let body: erpx_server_finance::public::finance_setup::ImportAccountsInput = setup_body(request).await?;
+        let body: erpx_server_finance::public::finance_setup::ImportAccountsInput =
+            setup_body(request).await?;
         let proof = inbound.into_proof();
-        target.service.import_accounts(&host, proof, move || { scope?; captured.resolve() }, command, body).await
-    }.await;
+        target
+            .service
+            .import_accounts(
+                &host,
+                proof,
+                move || {
+                    scope?;
+                    captured.resolve()
+                },
+                command,
+                body,
+            )
+            .await
+    }
+    .await;
     write_json_response(result, StatusCode::CREATED)
 }
 
@@ -706,18 +898,42 @@ async fn create_account<C: Clock + Send + Sync + 'static>(
     let result = async {
         let (host, target) = setup_target(&state, request.headers(), &slug)?;
         let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
-        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) { return Err(missing().into()); }
-        if unique_request_header(request.headers(), "origin")?.is_some_and(|value| value != inbound.expected_origin()) {
-            return Err(BusinessError::new(FailureKind::Forbidden, "ORIGIN_FORBIDDEN", "Use the application origin.").into());
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(request.headers(), "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
         }
         let command = setup_key(request.headers())?;
         let scope = state.scopes.slugs(request.headers());
         let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
         let captured = CapturedHoldingMutation::capture(request.headers(), branch, department);
-        let body: erpx_server_finance::public::finance_setup::CreateAccountInput = setup_body(request).await?;
+        let body: erpx_server_finance::public::finance_setup::CreateAccountInput =
+            setup_body(request).await?;
         let proof = inbound.into_proof();
-        target.service.create_account(&host, proof, move || { scope?; captured.resolve() }, command, chart_id, body).await
-    }.await;
+        target
+            .service
+            .create_account(
+                &host,
+                proof,
+                move || {
+                    scope?;
+                    captured.resolve()
+                },
+                command,
+                chart_id,
+                body,
+            )
+            .await
+    }
+    .await;
     write_json_response(result, StatusCode::CREATED)
 }
 
@@ -729,18 +945,43 @@ async fn change_account_status<C: Clock + Send + Sync + 'static>(
     let result = async {
         let (host, target) = setup_target(&state, request.headers(), &slug)?;
         let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
-        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) { return Err(missing().into()); }
-        if unique_request_header(request.headers(), "origin")?.is_some_and(|value| value != inbound.expected_origin()) {
-            return Err(BusinessError::new(FailureKind::Forbidden, "ORIGIN_FORBIDDEN", "Use the application origin.").into());
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(request.headers(), "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
         }
         let command = setup_key(request.headers())?;
         let scope = state.scopes.slugs(request.headers());
         let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
         let captured = CapturedHoldingMutation::capture(request.headers(), branch, department);
-        let body: erpx_server_finance::public::finance_setup::ChangeAccountStatusInput = setup_body(request).await?;
+        let body: erpx_server_finance::public::finance_setup::ChangeAccountStatusInput =
+            setup_body(request).await?;
         let proof = inbound.into_proof();
-        target.service.change_account_status(&host, proof, move || { scope?; captured.resolve() }, command, chart_id, account_id, body).await
-    }.await;
+        target
+            .service
+            .change_account_status(
+                &host,
+                proof,
+                move || {
+                    scope?;
+                    captured.resolve()
+                },
+                command,
+                chart_id,
+                account_id,
+                body,
+            )
+            .await
+    }
+    .await;
     write_json_response(result, StatusCode::OK)
 }
 
@@ -752,18 +993,41 @@ async fn create_period<C: Clock + Send + Sync + 'static>(
     let result = async {
         let (host, target) = setup_target(&state, request.headers(), &slug)?;
         let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
-        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) { return Err(missing().into()); }
-        if unique_request_header(request.headers(), "origin")?.is_some_and(|value| value != inbound.expected_origin()) {
-            return Err(BusinessError::new(FailureKind::Forbidden, "ORIGIN_FORBIDDEN", "Use the application origin.").into());
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(missing().into());
+        }
+        if unique_request_header(request.headers(), "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
         }
         let command = setup_key(request.headers())?;
         let scope = state.scopes.slugs(request.headers());
         let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
         let captured = CapturedHoldingMutation::capture(request.headers(), branch, department);
-        let body: erpx_server_finance::public::finance_setup::CreatePeriodInput = setup_body(request).await?;
+        let body: erpx_server_finance::public::finance_setup::CreatePeriodInput =
+            setup_body(request).await?;
         let proof = inbound.into_proof();
-        target.service.create_period(&host, proof, move || { scope?; captured.resolve() }, command, body).await
-    }.await;
+        target
+            .service
+            .create_period(
+                &host,
+                proof,
+                move || {
+                    scope?;
+                    captured.resolve()
+                },
+                command,
+                body,
+            )
+            .await
+    }
+    .await;
     write_json_response(result, StatusCode::CREATED)
 }
 
@@ -797,7 +1061,12 @@ async fn edit_sales_invoice<C: Clock + Send + Sync + 'static>(
         let host = unique_request_header(request.headers(), "host")?
             .ok_or_else(missing)?
             .to_owned();
-        let target = crate::http_scope::selected_company_target(&state.targets, &host, &slug, request.headers())?;
+        let target = crate::http_scope::selected_company_target(
+            &state.targets,
+            &host,
+            &slug,
+            request.headers(),
+        )?;
         let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -826,7 +1095,10 @@ async fn edit_sales_invoice<C: Clock + Send + Sync + 'static>(
             .map_err(|_| BusinessError::invalid("BODY_TOO_LARGE", "Use a smaller request."))?;
         let input: erpx_server_finance::public::sales_invoice_edit::SalesInvoiceEditInput =
             serde_json::from_slice(&body).map_err(|_| {
-                BusinessError::invalid("INVALID_SALES_INVOICE", "Use a valid sales invoice request.")
+                BusinessError::invalid(
+                    "INVALID_SALES_INVOICE",
+                    "Use a valid sales invoice request.",
+                )
             })?;
         let proof = inbound.into_proof();
         target
@@ -864,7 +1136,12 @@ async fn void_sales_invoice<C: Clock + Send + Sync + 'static>(
         let host = unique_request_header(request.headers(), "host")?
             .ok_or_else(missing)?
             .to_owned();
-        let target = crate::http_scope::selected_company_target(&state.targets, &host, &slug, request.headers())?;
+        let target = crate::http_scope::selected_company_target(
+            &state.targets,
+            &host,
+            &slug,
+            request.headers(),
+        )?;
         let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -893,7 +1170,10 @@ async fn void_sales_invoice<C: Clock + Send + Sync + 'static>(
             .map_err(|_| BusinessError::invalid("BODY_TOO_LARGE", "Use a smaller request."))?;
         let input: erpx_server_finance::public::sales_invoice_edit::SalesInvoiceVoidInput =
             serde_json::from_slice(&body).map_err(|_| {
-                BusinessError::invalid("INVALID_SALES_INVOICE", "Use a valid sales invoice request.")
+                BusinessError::invalid(
+                    "INVALID_SALES_INVOICE",
+                    "Use a valid sales invoice request.",
+                )
             })?;
         let proof = inbound.into_proof();
         target
@@ -929,7 +1209,8 @@ async fn sales_receipt<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target = crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -953,10 +1234,7 @@ async fn sales_receipt<C: Clock + Send + Sync + 'static>(
             scope?;
             captured.resolve_read(company)
         };
-        target
-            .service
-            .sales_receipt(host, proof, input, id)
-            .await
+        target.service.sales_receipt(host, proof, input, id).await
     }
     .await;
     match result {
@@ -994,7 +1272,8 @@ async fn export_sales_receipt<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target = crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1036,9 +1315,7 @@ async fn export_sales_receipt<C: Clock + Send + Sync + 'static>(
                 HeaderValue::from_static("default-src 'none'; style-src 'unsafe-inline'"),
             );
             if let Ok(value) = HeaderValue::from_str(&reply.data.sha256) {
-                response
-                    .headers_mut()
-                    .insert("x-document-sha256", value);
+                response.headers_mut().insert("x-document-sha256", value);
             }
             no_store(&mut response);
             response
@@ -1074,7 +1351,8 @@ async fn issue_sales_receipt<C: Clock + Send + Sync + 'static>(
         let host = unique_request_header(&headers, "host")?
             .ok_or_else(missing)?
             .to_owned();
-        let target = crate::http_scope::selected_company_target(&state.targets, &host, &slug, &headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, &host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1130,7 +1408,8 @@ async fn sales_defaults_workspace<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target = crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1172,7 +1451,12 @@ async fn prepare_sales_defaults<C: Clock + Send + Sync + 'static>(
         let host = unique_request_header(request.headers(), "host")?
             .ok_or_else(missing)?
             .to_owned();
-        let target = crate::http_scope::selected_company_target(&state.targets, &host, &slug, request.headers())?;
+        let target = crate::http_scope::selected_company_target(
+            &state.targets,
+            &host,
+            &slug,
+            request.headers(),
+        )?;
         let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1231,7 +1515,12 @@ async fn decide_sales_defaults<C: Clock + Send + Sync + 'static>(
         let host = unique_request_header(request.headers(), "host")?
             .ok_or_else(missing)?
             .to_owned();
-        let target = crate::http_scope::selected_company_target(&state.targets, &host, &slug, request.headers())?;
+        let target = crate::http_scope::selected_company_target(
+            &state.targets,
+            &host,
+            &slug,
+            request.headers(),
+        )?;
         let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1260,7 +1549,10 @@ async fn decide_sales_defaults<C: Clock + Send + Sync + 'static>(
             .map_err(|_| BusinessError::invalid("BODY_TOO_LARGE", "Use a smaller request."))?;
         let input: erpx_server_finance::public::sales_defaults::SalesDefaultsDecisionInput =
             serde_json::from_slice(&body).map_err(|_| {
-                BusinessError::invalid("SALES_DEFAULTS_DECISION_INVALID", "Review the sales defaults.")
+                BusinessError::invalid(
+                    "SALES_DEFAULTS_DECISION_INVALID",
+                    "Review the sales defaults.",
+                )
             })?;
         let proof = inbound.into_proof();
         target
@@ -1346,7 +1638,12 @@ async fn create_sales_invoice<C: Clock + Send + Sync + 'static>(
         let host = unique_request_header(request.headers(), "host")?
             .ok_or_else(missing)?
             .to_owned();
-        let target = crate::http_scope::selected_company_target(&state.targets, &host, &slug, request.headers())?;
+        let target = crate::http_scope::selected_company_target(
+            &state.targets,
+            &host,
+            &slug,
+            request.headers(),
+        )?;
         let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1375,7 +1672,10 @@ async fn create_sales_invoice<C: Clock + Send + Sync + 'static>(
             .map_err(|_| BusinessError::invalid("BODY_TOO_LARGE", "Use a smaller request."))?;
         let input: erpx_server_finance::public::sales_invoice_create::SalesInvoiceCreateInput =
             serde_json::from_slice(&body).map_err(|_| {
-                BusinessError::invalid("INVALID_SALES_INVOICE", "Use a valid sales invoice request.")
+                BusinessError::invalid(
+                    "INVALID_SALES_INVOICE",
+                    "Use a valid sales invoice request.",
+                )
             })?;
         let proof = inbound.into_proof();
         target
@@ -1435,7 +1735,12 @@ async fn create_supplier_bill<C: Clock + Send + Sync + 'static>(
         let host = unique_request_header(request.headers(), "host")?
             .ok_or_else(missing)?
             .to_owned();
-        let target = crate::http_scope::selected_company_target(&state.targets, &host, &slug, request.headers())?;
+        let target = crate::http_scope::selected_company_target(
+            &state.targets,
+            &host,
+            &slug,
+            request.headers(),
+        )?;
         let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1503,7 +1808,12 @@ async fn edit_supplier_bill<C: Clock + Send + Sync + 'static>(
         let host = unique_request_header(request.headers(), "host")?
             .ok_or_else(missing)?
             .to_owned();
-        let target = crate::http_scope::selected_company_target(&state.targets, &host, &slug, request.headers())?;
+        let target = crate::http_scope::selected_company_target(
+            &state.targets,
+            &host,
+            &slug,
+            request.headers(),
+        )?;
         let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1573,7 +1883,12 @@ async fn post_supplier_bill<C: Clock + Send + Sync + 'static>(
         let host = unique_request_header(request.headers(), "host")?
             .ok_or_else(missing)?
             .to_owned();
-        let target = crate::http_scope::selected_company_target(&state.targets, &host, &slug, request.headers())?;
+        let target = crate::http_scope::selected_company_target(
+            &state.targets,
+            &host,
+            &slug,
+            request.headers(),
+        )?;
         let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1642,7 +1957,12 @@ async fn void_supplier_bill<C: Clock + Send + Sync + 'static>(
         let host = unique_request_header(request.headers(), "host")?
             .ok_or_else(missing)?
             .to_owned();
-        let target = crate::http_scope::selected_company_target(&state.targets, &host, &slug, request.headers())?;
+        let target = crate::http_scope::selected_company_target(
+            &state.targets,
+            &host,
+            &slug,
+            request.headers(),
+        )?;
         let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1711,7 +2031,8 @@ async fn supplier_bill_detail<C: Clock + Send + Sync + 'static>(
         let host = unique_request_header(&headers, "host")?
             .ok_or_else(missing)?
             .to_owned();
-        let target = crate::http_scope::selected_company_target(&state.targets, &host, &slug, &headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, &host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1762,7 +2083,8 @@ async fn period_close_workspace<C: Clock + Send + Sync + 'static>(
         let host = unique_request_header(&headers, "host")?
             .ok_or_else(missing)?
             .to_owned();
-        let target = crate::http_scope::selected_company_target(&state.targets, &host, &slug, &headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, &host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1813,7 +2135,12 @@ async fn begin_period_close<C: Clock + Send + Sync + 'static>(
         let host = unique_request_header(request.headers(), "host")?
             .ok_or_else(missing)?
             .to_owned();
-        let target = crate::http_scope::selected_company_target(&state.targets, &host, &slug, request.headers())?;
+        let target = crate::http_scope::selected_company_target(
+            &state.targets,
+            &host,
+            &slug,
+            request.headers(),
+        )?;
         let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1881,7 +2208,12 @@ async fn cancel_period_close<C: Clock + Send + Sync + 'static>(
         let host = unique_request_header(request.headers(), "host")?
             .ok_or_else(missing)?
             .to_owned();
-        let target = crate::http_scope::selected_company_target(&state.targets, &host, &slug, request.headers())?;
+        let target = crate::http_scope::selected_company_target(
+            &state.targets,
+            &host,
+            &slug,
+            request.headers(),
+        )?;
         let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1950,7 +2282,12 @@ async fn close_period<C: Clock + Send + Sync + 'static>(
         let host = unique_request_header(request.headers(), "host")?
             .ok_or_else(missing)?
             .to_owned();
-        let target = crate::http_scope::selected_company_target(&state.targets, &host, &slug, request.headers())?;
+        let target = crate::http_scope::selected_company_target(
+            &state.targets,
+            &host,
+            &slug,
+            request.headers(),
+        )?;
         let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -1979,10 +2316,7 @@ async fn close_period<C: Clock + Send + Sync + 'static>(
             .map_err(|_| BusinessError::invalid("BODY_TOO_LARGE", "Use a smaller request."))?;
         let input: erpx_server_finance::public::period_close::PeriodCloseProofInput =
             serde_json::from_slice(&body).map_err(|_| {
-                BusinessError::invalid(
-                    "INVALID_PERIOD_CLOSE",
-                    "Use valid close evidence.",
-                )
+                BusinessError::invalid("INVALID_PERIOD_CLOSE", "Use valid close evidence.")
             })?;
         let proof = inbound.into_proof();
         target
@@ -2019,7 +2353,12 @@ async fn reopen_period<C: Clock + Send + Sync + 'static>(
         let host = unique_request_header(request.headers(), "host")?
             .ok_or_else(missing)?
             .to_owned();
-        let target = crate::http_scope::selected_company_target(&state.targets, &host, &slug, request.headers())?;
+        let target = crate::http_scope::selected_company_target(
+            &state.targets,
+            &host,
+            &slug,
+            request.headers(),
+        )?;
         let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -2048,10 +2387,7 @@ async fn reopen_period<C: Clock + Send + Sync + 'static>(
             .map_err(|_| BusinessError::invalid("BODY_TOO_LARGE", "Use a smaller request."))?;
         let input: erpx_server_finance::public::period_close::PeriodCloseProofInput =
             serde_json::from_slice(&body).map_err(|_| {
-                BusinessError::invalid(
-                    "INVALID_PERIOD_CLOSE",
-                    "Use valid reopen evidence.",
-                )
+                BusinessError::invalid("INVALID_PERIOD_CLOSE", "Use valid reopen evidence.")
             })?;
         let proof = inbound.into_proof();
         target
@@ -2087,7 +2423,8 @@ async fn sales_invoice_list<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target = crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -2112,7 +2449,10 @@ async fn sales_invoice_list<C: Clock + Send + Sync + 'static>(
         let mut cursor = None;
         let mut seen = std::collections::BTreeSet::new();
         for (key, value) in url::form_urlencoded::parse(raw.as_deref().unwrap_or("").as_bytes()) {
-            if value.len() > 2000 || value.chars().any(char::is_control) || !seen.insert(key.to_string()) {
+            if value.len() > 2000
+                || value.chars().any(char::is_control)
+                || !seen.insert(key.to_string())
+            {
                 return Err(BusinessError::invalid(
                     "FINANCE_SALES_QUERY_INVALID",
                     "Use the sales invoice list filters.",
@@ -2133,7 +2473,7 @@ async fn sales_invoice_list<C: Clock + Send + Sync + 'static>(
                         "FINANCE_SALES_QUERY_INVALID",
                         "Use the sales invoice list filters.",
                     )
-                    .into())
+                    .into());
                 }
             }
         }
@@ -2203,7 +2543,8 @@ async fn list<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target = crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -2232,13 +2573,15 @@ async fn list<C: Clock + Send + Sync + 'static>(
             match key.as_ref() {
                 "chart" if chart.is_none() && !value.is_empty() => chart = Some(value.into_owned()),
                 "status" if !value.is_empty() => status = value.into_owned(),
-                "cursor" if cursor.is_none() && !value.is_empty() => cursor = Some(value.into_owned()),
+                "cursor" if cursor.is_none() && !value.is_empty() => {
+                    cursor = Some(value.into_owned())
+                }
                 _ => {
                     return Err(BusinessError::invalid(
                         "FINANCE_JOURNAL_QUERY_INVALID",
                         "Use the journal list filters.",
                     )
-                    .into())
+                    .into());
                 }
             }
         }
@@ -2309,7 +2652,8 @@ async fn read<C: Clock + Send + Sync + 'static>(
 ) -> Response {
     let result = async {
         let host = unique_request_header(&headers, "host")?.ok_or_else(missing)?;
-        let target = crate::http_scope::selected_company_target(&state.targets,host,&slug,&headers)?;
+        let target =
+            crate::http_scope::selected_company_target(&state.targets, host, &slug, &headers)?;
         let inbound = parse_inbound_account_request(&state.policy, &headers)?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());

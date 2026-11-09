@@ -856,3 +856,27 @@ it('settles only reviewed Helpdesk Portal access through normal Commercial batch
  expect(await ticketImage()).toEqual(beforeTicket);expect(await s.identityImage()).toEqual(beforeIdentity);expect(await s.support.getSupportTicket(s.manager,s.ticketId)).toMatchObject({source_kind:'general',status:'in_progress',version:3});
  expect((await observe()).total).toBe(0);expect((await observe(baseScope)).total).toBe(1);await s.assertOnlyHelpdeskPurchases();
 });
+
+it('persists schema-normalized Unicode and newline reasons and exposes the NUL storage boundary',async()=>{
+ const {customerAccessRequestSchema}=await import('@erpx/server-customer_authority/domain/access');
+ const emoji='😀'.repeat(700),reason=`  ${emoji}\nreview  `,normalized=`${emoji}\nreview`;
+ expect(Buffer.byteLength(normalized,'utf8')).toBeGreaterThan(2000);
+ const command=key(),body={...input(),reason},created=await requestCustomerAccess(requester,body,command),id=String(created.id);
+ expect(await requestCustomerAccess(requester,body,command)).toEqual(created);
+ expect(await db.prepare('SELECT reason FROM customer_access_bindings WHERE id=?').bind(id).first()).toEqual({reason:normalized});
+ expect(await db.prepare('SELECT reason FROM customer_access_events WHERE binding_id=?').bind(id).first()).toEqual({reason:normalized});
+ for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT count(*)::int AS count FROM ${table} WHERE command_id=?`).bind(command).first()).toEqual({count:1});
+ const invalidEmailKey=key(),invalidEmail={...input(),email:` ${input().email} `};
+ expect(customerAccessRequestSchema.safeParse(invalidEmail).success).toBe(false);
+ await expect(requestCustomerAccess(requester,invalidEmail,invalidEmailKey)).rejects.toMatchObject({name:"ZodError"});
+ const nulKey=key(),nulBody={...input(),reason:'abc\u0000def'};
+ expect(customerAccessRequestSchema.parse(nulBody).reason).toBe('abc\u0000def');
+ let failure:unknown;
+ try{await requestCustomerAccess(requester,nulBody,nulKey);}catch(error){failure=error;}
+ expect(failure).toMatchObject({name:'error',code:'22021'});
+ for(const denied of [invalidEmailKey,nulKey]){
+  expect(await db.prepare('SELECT 1 FROM customer_access_bindings WHERE id=?').bind(`customer-access-${denied}`).first()).toBeNull();
+  expect(await db.prepare('SELECT 1 FROM customer_access_events WHERE binding_id=?').bind(`customer-access-${denied}`).first()).toBeNull();
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(denied).first()).toBeNull();
+ }
+});

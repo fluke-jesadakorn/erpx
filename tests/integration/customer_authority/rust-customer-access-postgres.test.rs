@@ -1088,3 +1088,61 @@ async fn adapter_requires_an_existing_serializable_holding_transaction() {
     })
     .await;
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn request_replays_after_expiry_and_source_retirement_without_new_effects() {
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        let command_key = "customer-access-expiry-replay-0001";
+        let created = PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+            Box::pin(async move {
+                request_access(&mut PgCustomerAccess::new(connection), &requester(), &key(command_key), &input(), NOW).await
+            })
+        }).await.unwrap();
+        sqlx::query("UPDATE commerce_orders SET state='cancelled',version=version+1 WHERE id='order-main'")
+            .execute(pool.raw()).await.unwrap();
+        let snapshot = |pool: DatabasePool| async move {
+            sqlx::query_scalar::<_, serde_json::Value>(
+                "SELECT jsonb_build_object(\
+                 'bindings',(SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY t.id),'[]'::jsonb) FROM customer_access_bindings t),\
+                 'events',(SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY t.id),'[]'::jsonb) FROM customer_access_events t),\
+                 'receipts',(SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY t.command_id),'[]'::jsonb) FROM command_receipts t WHERE t.command_id LIKE 'customer-access-expiry-%'),\
+                 'audit',(SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY t.id),'[]'::jsonb) FROM audit_events t WHERE t.command_id LIKE 'customer-access-expiry-%'),\
+                 'outbox',(SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY t.id),'[]'::jsonb) FROM outbox_events t WHERE t.command_id LIKE 'customer-access-expiry-%'))"
+            ).fetch_one(pool.raw()).await.unwrap()
+        };
+        let before = snapshot(pool.clone()).await;
+        for table in ["bindings", "events", "receipts", "audit", "outbox"] {
+            assert_eq!(before[table].as_array().unwrap().len(), 1, "{table}");
+        }
+        let later = NOW + 86_400_001;
+        let mut current = requester();
+        current.expires_at = later + 60_000;
+        let replay = PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+            let current = current.clone();
+            Box::pin(async move {
+                request_access(&mut PgCustomerAccess::new(connection), &current, &key(command_key), &input(), later).await
+            })
+        }).await.unwrap();
+        assert_eq!(replay, created);
+        assert_eq!(snapshot(pool.clone()).await, before);
+        for (new_key, now, expected) in [
+            ("customer-access-expiry-stale-0001", NOW, "CUSTOMER_ACCESS_SOURCE_CHANGED"),
+            ("customer-access-expiry-new-0001", later, "CUSTOMER_ACCESS_EXPIRY"),
+        ] {
+            let mut current = requester();
+            current.expires_at = now + 60_000;
+            let failure = PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let current = current.clone();
+                Box::pin(async move {
+                    request_access(&mut PgCustomerAccess::new(connection), &current, &key(new_key), &input(), now).await
+                })
+            }).await.unwrap_err();
+            match failure {
+                PgTransactionError::Business(error) => assert_eq!(error.code, expected),
+                other => panic!("unexpected failure: {other:?}"),
+            }
+            assert_eq!(snapshot(pool.clone()).await, before);
+        }
+    }).await;
+}

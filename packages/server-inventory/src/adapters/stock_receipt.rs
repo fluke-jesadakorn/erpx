@@ -820,6 +820,7 @@ pub async fn apply_stock_receipt<Q: StockReceiptQualityPort>(
                     line,
                     allocation,
                     allocation_id.clone(),
+                    format!("{fulfillment_id}-{index}-{}", allocation.allocation_index),
                     lot_id.clone(),
                 )
                 .expect("quarantine allocation has a quality request");
@@ -1178,7 +1179,7 @@ pub async fn require_stock_receipt_applied(
                 .bind(&hold_id)
                 .bind(&lot_id)
                 .bind(&plan.warehouse_id)
-                .bind(&allocation_id)
+                .bind(format!("{}-{index}-{}", applied.fulfillment_id, allocation.allocation_index))
                 .bind(allocation.quantity_milli)
                 .fetch_one(&mut *c)
                 .await?;

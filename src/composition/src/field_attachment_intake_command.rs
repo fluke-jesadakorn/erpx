@@ -1,8 +1,6 @@
 //! Source-ordered Workflow composition for native Field visit set intake.
 use crate::field_attachment::{AttachmentContext, Proof, proof};
-use crate::field_attachment_intake::{
-    FieldAttachmentIntakeAuthority, FieldAttachmentIntakeSources,
-};
+use crate::field_attachment_intake::FieldAttachmentIntakeAuthority;
 use erpx_server_commercial::public::purchases::CommercialCatalogue;
 use erpx_server_files::public::field_visit_intake::{
     FieldIntakeAvailability, FieldSetCreationPlan, FieldSetRequest, RecordedFieldSetKind,
@@ -10,7 +8,9 @@ use erpx_server_files::public::field_visit_intake::{
 };
 use erpx_server_identity_access::public::{
     command_metadata::project_command_iam,
-    effective_authority::{AuthorizedWorkContext, HoldingWorkSourcePreparation},
+    effective_authority::{
+        AuthorizedWorkContext, HoldingPreparedSource, TypedHoldingWorkSourcePreparation,
+    },
     work_context::WorkScopeKind,
 };
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
@@ -49,12 +49,56 @@ fn changed() -> BusinessError {
 }
 #[derive(Clone)]
 pub struct FieldAttachmentIntakeCommandSources;
-impl HoldingWorkSourcePreparation for FieldAttachmentIntakeCommandSources {
-    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+pub struct FieldIntakeFence(erpx_server_commercial::public::purchases::PurchaseWriteSourceLocks);
+impl HoldingPreparedSource for FieldIntakeFence {
+    fn require_current<'c>(
+        &'c self,
+        c: &'c mut PgConnection,
+    ) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
-            FieldAttachmentIntakeSources.prepare(c).await?;
-            erpx_server_workflow::public::record_origin::lock_record_origin_sources(c).await?;
+            self.0.require_current(c).await?;
+            erpx_server_finance::public::field_service_workspace::require_service_workspace_customers_held(c).await?;
+            erpx_server_support::public::field_service_workspace::require_service_workspace_tickets_held(c).await?;
+            erpx_server_assets::public::field_service_workspace::require_service_workspace_assets_held(c).await?;
+            erpx_server_people_payroll::public::field_service_workspace::require_service_workspace_people_held(c).await?;
+            erpx_server_identity_access::public::field_service_workspace::require_service_workspace_authority_fenced_held(c).await?;
+            erpx_server_field_service::public::file_source::require_field_file_sources_held(
+                c,
+                erpx_server_field_service::public::file_source::FieldFileSourceLockMode::Read,
+            )
+            .await?;
+            erpx_server_files::public::field_visit_link::require_field_visit_link_sources_held(c)
+                .await?;
+            erpx_server_workflow::public::record_origin::require_record_origin_sources_held(c)
+                .await?;
             Ok(())
+        })
+    }
+}
+impl TypedHoldingWorkSourcePreparation for FieldAttachmentIntakeCommandSources {
+    type Token = FieldIntakeFence;
+    fn prepare_typed<'c>(
+        &'c self,
+        c: &'c mut PgConnection,
+    ) -> PgWorkFuture<'c, FieldIntakeFence, BusinessError> {
+        Box::pin(async move {
+            let mut commercial =
+                erpx_server_commercial::public::purchases::lock_purchase_write_sources(c).await?;
+            let c = commercial.connection();
+            erpx_server_finance::public::field_service_workspace::lock_service_workspace_customers(
+                c,
+            )
+            .await?;
+            erpx_server_support::public::field_service_workspace::lock_service_workspace_tickets(c)
+                .await?;
+            erpx_server_assets::public::field_service_workspace::lock_service_workspace_assets(c)
+                .await?;
+            erpx_server_people_payroll::public::field_service_workspace::lock_service_workspace_people(c).await?;
+            erpx_server_identity_access::public::field_service_workspace::lock_service_workspace_authority_fenced(c).await?;
+            erpx_server_field_service::public::file_source::lock_field_file_sources(c).await?;
+            erpx_server_files::public::field_visit_link::lock_field_visit_link_sources(c).await?;
+            erpx_server_workflow::public::record_origin::lock_record_origin_sources(c).await?;
+            Ok(FieldIntakeFence(commercial.bind().await?))
         })
     }
 }
@@ -102,6 +146,7 @@ fn command_actor(current: &AuthorizedWorkContext, now: i64) -> Result<CommandAct
 
 struct Authority<'a, C> {
     ctx: &'a AttachmentContext<'a, C>,
+    fence: &'a FieldIntakeFence,
     request: &'a WorkflowRequest,
     proof: Option<Proof>,
     replay: bool,
@@ -112,7 +157,7 @@ impl<C: Clock + Sync> PgCommandAuthority for Authority<'_, C> {
         c: &mut PgConnection,
         _: &WorkflowRequest,
     ) -> Result<(), Error> {
-        FieldAttachmentIntakeCommandSources.prepare(c).await
+        self.fence.require_current(c).await
     }
     async fn authorize(
         &mut self,
@@ -169,6 +214,7 @@ struct ResultMetadata {
 }
 struct Effects<'a, C> {
     ctx: &'a AttachmentContext<'a, C>,
+    fence: &'a FieldIntakeFence,
     input: &'a FieldSetRequest,
     key: &'a str,
     availability: FieldIntakeAvailability,
@@ -188,7 +234,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
         c: &mut PgConnection,
         _: &WorkflowRequest,
     ) -> Result<(), Error> {
-        FieldAttachmentIntakeCommandSources.prepare(c).await
+        self.fence.require_current(c).await
     }
     async fn prepare(
         &mut self,
@@ -433,6 +479,7 @@ pub struct FieldSetCommandResponse {
 /// Authorization, Files origin and Workflow evidence remain in the caller's serializable unit.
 pub struct FieldAttachmentIntakeCommand<'a, C> {
     pub actor: &'a AuthorizedWorkContext,
+    pub fence: &'a FieldIntakeFence,
     pub holding: &'a HoldingId,
     pub company: &'a CompanyId,
     pub catalogue: &'a CommercialCatalogue,
@@ -461,6 +508,7 @@ async fn execute_inner<C: Clock + Sync>(
 ) -> Result<FieldSetCommandResponse, Error> {
     let FieldAttachmentIntakeCommand {
         actor,
+        fence,
         holding,
         company,
         catalogue,
@@ -470,7 +518,7 @@ async fn execute_inner<C: Clock + Sync>(
         availability,
     } = command;
     validate_key(key)?;
-    FieldAttachmentIntakeCommandSources.prepare(c).await?;
+    fence.require_current(c).await?;
     let ctx = AttachmentContext {
         actor,
         holding,
@@ -525,12 +573,14 @@ async fn execute_inner<C: Clock + Sync>(
     let mut wrapped = generated.wrap(&mut ids);
     let mut authority = Authority {
         ctx: &ctx,
+        fence,
         request: &request,
         proof: None,
         replay: false,
     };
     let mut effects = Effects {
         ctx: &ctx,
+        fence,
         input,
         key,
         availability: availability.clone(),

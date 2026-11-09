@@ -122,8 +122,14 @@ pub async fn read_service_invoice_flow<C: Clock>(
     })
 }
 impl CurrentServiceInvoiceFlow {
-    pub fn plan_no_charge(self,input:erpx_server_workflow::public::service_invoice_flow::ServiceInvoiceNoChargeFlowInput<'_>)->Result<erpx_server_workflow::public::service_invoice_flow::ServiceInvoiceNoChargeFlow,Error>{
-        self.basis.plan_no_charge(&self.view,input)
+    pub fn plan_no_charge(
+        self,
+        input: erpx_server_workflow::public::service_invoice_flow::ServiceInvoiceNoChargeFlowInput<
+            '_,
+        >,
+    ) -> Result<erpx_server_workflow::public::service_invoice_flow::ServiceInvoiceNoChargeFlow, Error>
+    {
+        self.basis.plan_no_charge(&self.view, input)
     }
     pub fn plan_assignment(
         self,

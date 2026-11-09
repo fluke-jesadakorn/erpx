@@ -7,7 +7,9 @@
 use crate::domain::order::{
     CommerceOrderActor, OrderCommandReceipt, cp_len, idempotency_conflict, js_trim, valid_date,
 };
-use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind, RecordId, TimestampMillis};
+use erpx_server_shared::public::{
+    BusinessError, CommandKey, FailureKind, RecordId, TimestampMillis,
+};
 use serde_json::{Value, json};
 
 pub const MAX_LINES: usize = 200;
@@ -86,19 +88,32 @@ pub struct ReceiptCommand {
 /// not a receipt, source witness or authorization.
 pub fn legacy_goods_receipt_number(key: &CommandKey) -> String {
     use sha2::{Digest, Sha256};
-    let digest=Sha256::digest(key.as_str().as_bytes());
-    let mut suffix=String::with_capacity(24);
-    for byte in &digest[..12] { use std::fmt::Write; let _=write!(suffix,"{byte:02X}"); }
+    let digest = Sha256::digest(key.as_str().as_bytes());
+    let mut suffix = String::with_capacity(24);
+    for byte in &digest[..12] {
+        use std::fmt::Write;
+        let _ = write!(suffix, "{byte:02X}");
+    }
     format!("GR-{suffix}")
 }
 
 /// Legacy Workflow result serialization for an already admitted receipt.
 /// This only formats data; it does not write or validate any receipt.
-pub fn legacy_goods_receipt_result(order: &RecordId, key: &CommandKey, expected_version: i64) -> Result<String, BusinessError> {
-    if !(1..=MAX_SAFE).contains(&expected_version) { return Err(request_invalid()); }
-    let id=serde_json::to_string(order.as_str()).map_err(|_|request_invalid())?;
-    let fulfillment=serde_json::to_string(&format!("delivery-{}",key.as_str())).map_err(|_|request_invalid())?;
-    Ok(format!("{{\"id\":{id},\"fulfillmentId\":{fulfillment},\"version\":{}}}",expected_version+1))
+pub fn legacy_goods_receipt_result(
+    order: &RecordId,
+    key: &CommandKey,
+    expected_version: i64,
+) -> Result<String, BusinessError> {
+    if !(1..=MAX_SAFE).contains(&expected_version) {
+        return Err(request_invalid());
+    }
+    let id = serde_json::to_string(order.as_str()).map_err(|_| request_invalid())?;
+    let fulfillment = serde_json::to_string(&format!("delivery-{}", key.as_str()))
+        .map_err(|_| request_invalid())?;
+    Ok(format!(
+        "{{\"id\":{id},\"fulfillmentId\":{fulfillment},\"version\":{}}}",
+        expected_version + 1
+    ))
 }
 
 impl ReceiptCommand {
@@ -144,7 +159,10 @@ impl ReceiptCommand {
                 if !(1..=MAX_SAFE).contains(&allocation.quantity_milli)
                     || !valid_optional_date(&allocation.manufactured_date)
                     || !valid_optional_date(&allocation.expiry_date)
-                    || allocation.quarantine_reason.as_deref().is_some_and(|value|cp_len(js_trim(value))>MAX_REASON)
+                    || allocation
+                        .quarantine_reason
+                        .as_deref()
+                        .is_some_and(|value| cp_len(js_trim(value)) > MAX_REASON)
                 {
                     return Err(request_invalid());
                 }
@@ -554,32 +572,87 @@ pub struct LegacyReceiptCalculation {
 /// Calculate only the currently supported same-currency goods valuation. The
 /// future coordinator must supply and retain the real order/source and actor.
 pub fn calculate_legacy_goods_receipt(
-    actor: &CommerceOrderActor, command: &ReceiptCommand, order: &ReceiptOrder, now: TimestampMillis,
+    actor: &CommerceOrderActor,
+    command: &ReceiptCommand,
+    order: &ReceiptOrder,
+    now: TimestampMillis,
 ) -> Result<LegacyReceiptCalculation, BusinessError> {
     command.validate()?;
     order.validate(actor)?;
-    if order.id!=command.order_id.as_str() || order.version!=command.expected_version { return Err(source_changed()); }
-    if order.currency!=order.base_currency { return Err(fx_guard_required()); }
-    let mut values=Vec::with_capacity(command.lines.len());
-    for line in &command.lines {
-        let source=order.lines.iter().find(|item|item.id==line.line_id).ok_or_else(source_changed)?;
-        if source.item_type!="stock" { return Err(service_line_forbidden()); }
-        values.push(line_value(order,source,line.quantity_milli)?);
+    if order.id != command.order_id.as_str() || order.version != command.expected_version {
+        return Err(source_changed());
     }
-    let fulfillment_id=format!("delivery-{}",command.key.as_str());
-    let fulfillment=ReceiptFulfillmentPlan {
-        id:fulfillment_id.clone(), number:legacy_goods_receipt_number(&command.key), order_id:order.id.clone(), date:command.date.clone(), actor_id:actor.user_id.as_str().into(), now:now.get(),
-        lines:values.iter().enumerate().map(|(index,value)|ReceiptFulfillmentLinePlan {index,order_line_id:value.line_id.clone(),quantity_milli:value.quantity_milli,value_minor:value.stock_value_minor,subtotal_minor:value.subtotal_minor,tax_minor:value.tax_minor,stock_currency:order.base_currency.clone()}).collect(),
+    if order.currency != order.base_currency {
+        return Err(fx_guard_required());
+    }
+    let mut values = Vec::with_capacity(command.lines.len());
+    for line in &command.lines {
+        let source = order
+            .lines
+            .iter()
+            .find(|item| item.id == line.line_id)
+            .ok_or_else(source_changed)?;
+        if source.item_type != "stock" {
+            return Err(service_line_forbidden());
+        }
+        values.push(line_value(order, source, line.quantity_milli)?);
+    }
+    let fulfillment_id = format!("delivery-{}", command.key.as_str());
+    let fulfillment = ReceiptFulfillmentPlan {
+        id: fulfillment_id.clone(),
+        number: legacy_goods_receipt_number(&command.key),
+        order_id: order.id.clone(),
+        date: command.date.clone(),
+        actor_id: actor.user_id.as_str().into(),
+        now: now.get(),
+        lines: values
+            .iter()
+            .enumerate()
+            .map(|(index, value)| ReceiptFulfillmentLinePlan {
+                index,
+                order_line_id: value.line_id.clone(),
+                quantity_milli: value.quantity_milli,
+                value_minor: value.stock_value_minor,
+                subtotal_minor: value.subtotal_minor,
+                tax_minor: value.tax_minor,
+                stock_currency: order.base_currency.clone(),
+            })
+            .collect(),
     };
-    let mut receipt=CommerceReceipt {
-        order_id:order.id.clone(), fulfillment_id, state:String::new(),
-        version:command.expected_version.checked_add(1).ok_or_else(request_invalid)?,
-        total_value_minor:values.iter().try_fold(0_i64,|sum,line|sum.checked_add(line.stock_value_minor).filter(|total|*total<=MAX_SAFE)).ok_or_else(money_overflow)?,
-        lines:values.iter().map(|v|CommerceReceiptLine {line_id:v.line_id.clone(),quantity_milli:v.quantity_milli,value_minor:v.stock_value_minor}).collect(),
+    let mut receipt = CommerceReceipt {
+        order_id: order.id.clone(),
+        fulfillment_id,
+        state: String::new(),
+        version: command
+            .expected_version
+            .checked_add(1)
+            .ok_or_else(request_invalid)?,
+        total_value_minor: values
+            .iter()
+            .try_fold(0_i64, |sum, line| {
+                sum.checked_add(line.stock_value_minor)
+                    .filter(|total| *total <= MAX_SAFE)
+            })
+            .ok_or_else(money_overflow)?,
+        lines: values
+            .iter()
+            .map(|v| CommerceReceiptLine {
+                line_id: v.line_id.clone(),
+                quantity_milli: v.quantity_milli,
+                value_minor: v.stock_value_minor,
+            })
+            .collect(),
     };
-    receipt.state=expected_order_state(order,&receipt);
-    let workflow_result_json=legacy_goods_receipt_result(&command.order_id,&command.key,command.expected_version)?;
-    Ok(LegacyReceiptCalculation {order:order.clone(),values,fulfillment,receipt,workflow_result_json})
+    receipt.state = expected_order_state(order, &receipt);
+    let workflow_result_json =
+        legacy_goods_receipt_result(&command.order_id, &command.key, command.expected_version)?;
+    Ok(LegacyReceiptCalculation {
+        order: order.clone(),
+        values,
+        fulfillment,
+        receipt,
+        workflow_result_json,
+    })
 }
 
 impl CommerceReceipt {

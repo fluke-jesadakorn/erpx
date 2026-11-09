@@ -5,8 +5,7 @@
 use crate::{
     finance_journal_create::FinanceJournalCreateConfiguration,
     finance_service_receipt_create::{
-        ServiceReceiptCreateWire, execute_service_receipt_create,
-        normalize_service_receipt_create,
+        ServiceReceiptCreateWire, execute_service_receipt_create, normalize_service_receipt_create,
     },
 };
 use axum::{
@@ -39,7 +38,7 @@ pub struct GenericPaymentTarget<C> {
 struct PostState<C> {
     policy: Arc<AccountPolicy>,
     scopes: Arc<dyn crate::business_http::BusinessScopeSlugs>,
-    targets: BTreeMap<(String, String), GenericPaymentTarget<C>>,
+    targets: BTreeMap<(String, String, String), GenericPaymentTarget<C>>,
 }
 pub fn finance_generic_payment_router<C: Clock + Send + Sync + 'static>(
     policy: Arc<AccountPolicy>,
@@ -53,10 +52,20 @@ pub fn finance_generic_payment_router<C: Clock + Send + Sync + 'static>(
         let valid = policy
             .audience(&target.host)
             .and_then(|audience| registry.expected_for_audience(&audience).ok())
-            .is_some_and(|holding| holding.slug == target.holding_slug);
+            .is_some_and(|holding| {
+                holding.slug == target.holding_slug
+                    && holding.holding_id == target.configuration.holding
+            });
         if !valid
             || configured
-                .insert((target.host.clone(), target.holding_slug.clone()), target)
+                .insert(
+                    (
+                        target.host.clone(),
+                        target.holding_slug.clone(),
+                        target.configuration.company.as_str().to_owned(),
+                    ),
+                    target,
+                )
                 .is_some()
         {
             return Err(BusinessError::invalid(
@@ -121,8 +130,15 @@ async fn create<C: Clock + Send + Sync + 'static>(
     request: Request,
 ) -> Response {
     let result = async {
-        let host = unique_request_header(request.headers(), "host")?.ok_or_else(missing)?.to_owned();
-        let target = state.targets.get(&(host.clone(), slug)).ok_or_else(missing)?;
+        let host = unique_request_header(request.headers(), "host")?
+            .ok_or_else(missing)?
+            .to_owned();
+        let (target, target_selection) = crate::http_scope::deferred_company_target(
+            &state.targets,
+            &host,
+            &slug,
+            request.headers(),
+        )?;
         let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
@@ -130,7 +146,12 @@ async fn create<C: Clock + Send + Sync + 'static>(
         if unique_request_header(request.headers(), "origin")?
             .is_some_and(|value| value != inbound.expected_origin())
         {
-            return Err(BusinessError::new(FailureKind::Forbidden, "ORIGIN_FORBIDDEN", "Use the application origin.").into());
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
         }
         let scope = state.scopes.slugs(request.headers());
         let (branch, department) = scope.as_ref().cloned().unwrap_or_default();
@@ -152,6 +173,7 @@ async fn create<C: Clock + Send + Sync + 'static>(
             proof,
             move || {
                 scope?;
+                target_selection?;
                 captured.resolve()
             },
             config,
@@ -175,8 +197,15 @@ async fn create<C: Clock + Send + Sync + 'static>(
     .await;
     match result {
         Ok(value) => {
-            let value: serde_json::Value = serde_json::from_str(value.as_str()).unwrap_or(serde_json::Value::Null);
-            private((StatusCode::CREATED, Json(serde_json::json!({"data": value}))).into_response())
+            let value: serde_json::Value =
+                serde_json::from_str(value.as_str()).unwrap_or(serde_json::Value::Null);
+            private(
+                (
+                    StatusCode::CREATED,
+                    Json(serde_json::json!({"data": value})),
+                )
+                    .into_response(),
+            )
         }
         Err(error) => private(response(error)),
     }

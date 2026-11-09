@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
     assignmentId: 'assignment-actor',
     role: 'operations_manager',
     assignmentScope: 'holding',
+    scope: { kind: 'holding', holdingSlug: 'acme' },
     modules: ['operations'],
     authority: { revision: 9, assignmentVersion: 3 },
     iam: { permissions: ['records.read'] },
@@ -123,7 +124,6 @@ it('retains the existing owner path only when native configuration is absent', a
 });
 
 it('uses native create with the current authority then reads back the created record', async () => {
-  state.create.mockResolvedValue({ id: 'rec-support-records:http-1' });
   const record = {
     moduleId: 'support',
     id: 'rec-support-records:http-1',
@@ -136,7 +136,7 @@ it('uses native create with the current authority then reads back the created re
     createdBy: 'actor',
     updatedAt: 1,
   };
-  state.list.mockResolvedValue([record]);
+  state.create.mockResolvedValue(record);
   const input = {
     sectionId: 'tickets',
     title: 'Native record',
@@ -158,14 +158,10 @@ it('uses native create with the current authority then reads back the created re
   expect(response.status).toBe(201);
   expect(state.create).toHaveBeenCalledWith(
     expect.any(Headers),
-    expect.objectContaining({ userId: 'actor', holdingId: 'h001', holdingSlug: 'acme' }),
+    expect.objectContaining({ userId: 'actor', holdingId: 'h001', holdingSlug: 'acme', branchSlug: null, departmentSlug: null }),
     { holdingSlug: 'acme', moduleId: 'support', ...input },
     'records:http-1',
   );
-  expect(state.list).toHaveBeenCalledWith(
-    expect.any(Headers),
-    expect.objectContaining({ holdingId: 'h001' }),
-    { holdingSlug: 'acme', moduleId: 'support', sectionId: 'tickets' },
-  );
+  expect(state.list).not.toHaveBeenCalled();
   expect((await response.json()).data).toEqual(record);
 });

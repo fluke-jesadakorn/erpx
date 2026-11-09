@@ -20,6 +20,8 @@ pub struct QualifiedCrmLeadFacts {
     pub company_id: String,
     pub lead_id: String,
     pub owner_id: String,
+    pub branch_id: String,
+    pub department_id: Option<String>,
     pub version: i64,
     pub updated_at: i64,
     pub opportunity_id: String,
@@ -46,14 +48,14 @@ impl RetainedCrmQualification<'_> {
 }
 
 async fn qualification_image(c: &mut PgConnection, f: &QualifiedCrmLeadFacts) -> Result<Option<String>, Error> {
-    Ok(sqlx::query_scalar("SELECT encode(sha256(convert_to(jsonb_build_array(to_jsonb(l),to_jsonb(o),to_jsonb(deal),to_jsonb(lead_event))::text,'UTF8')),'hex') FROM crm_leads l JOIN crm_opportunities o ON o.id=$3 AND o.lead_id=l.id JOIN crm_case_events deal ON deal.id=$4 AND deal.lead_id=l.id AND deal.opportunity_id=o.id JOIN crm_case_events lead_event ON lead_event.id=$5 AND lead_event.lead_id=l.id AND lead_event.opportunity_id IS NULL WHERE l.company_id=$1 AND l.id=$2 AND l.owner_id=$6 AND l.status='qualified' AND l.version=$7 AND l.updated_at=$8")
+    Ok(sqlx::query_scalar("SELECT encode(sha256(convert_to(jsonb_build_array(to_jsonb(l),to_jsonb(o),to_jsonb(deal),to_jsonb(lead_event))::text,'UTF8')),'hex') FROM public.crm_leads l JOIN public.crm_opportunities o ON o.id=$3 AND o.lead_id=l.id JOIN public.crm_case_events deal ON deal.id=$4 AND deal.lead_id=l.id AND deal.opportunity_id=o.id JOIN public.crm_case_events lead_event ON lead_event.id=$5 AND lead_event.lead_id=l.id AND lead_event.opportunity_id IS NULL WHERE l.company_id=$1 AND l.id=$2 AND l.owner_id=$6 AND l.status='qualified' AND l.version=$7 AND l.updated_at=$8")
         .bind(&f.company_id).bind(&f.lead_id).bind(&f.opportunity_id).bind(format!("crm-event-{}-deal",f.command_key)).bind(format!("crm-event-{}-lead",f.command_key)).bind(&f.owner_id).bind(f.version).bind(f.updated_at).fetch_optional(c).await?)
 }
 
 async fn qualification_lead_preimage(c: &mut PgConnection, company: &str, lead: &str) -> Result<Option<String>, Error> {
     // Qualify may change only these three fields on the lead. Bind every other
     // persisted field, including future schema fields, across the effect.
-    Ok(sqlx::query_scalar("SELECT encode(sha256(convert_to((to_jsonb(l)-'status'-'version'-'updated_at')::text,'UTF8')),'hex') FROM crm_leads l WHERE l.company_id=$1 AND l.id=$2")
+    Ok(sqlx::query_scalar("SELECT encode(sha256(convert_to((to_jsonb(l)-'status'-'version'-'updated_at')::text,'UTF8')),'hex') FROM public.crm_leads l WHERE l.company_id=$1 AND l.id=$2")
         .bind(company).bind(lead).fetch_optional(c).await?)
 }
 
@@ -70,6 +72,13 @@ pub async fn apply_crm_qualification_retained<'a>(
         let preimage = qualification_lead_preimage(&mut savepoint, &actor.company_id, lead_id).await?
             .ok_or_else(|| BusinessError::new(erpx_server_shared::public::FailureKind::Conflict,"CRM_SOURCE_CHANGED","The original CRM source changed."))?;
         let opportunity_id = apply_crm_qualification_inner(&mut savepoint, actor, lead_id, command_key, input, currency, link, now).await?;
+        let (branch_id, department_id): (String, Option<String>) = sqlx::query_as(
+            "SELECT branch_id,department_id FROM public.crm_leads WHERE id=$1 AND company_id=$2",
+        )
+        .bind(lead_id)
+        .bind(&actor.company_id)
+        .fetch_one(&mut *savepoint)
+        .await?;
         if qualification_lead_preimage(&mut savepoint, &actor.company_id, lead_id).await?.as_deref() != Some(preimage.as_str()) {
             return Err(BusinessError::new(erpx_server_shared::public::FailureKind::Conflict,"CRM_QUALIFICATION_CHANGED","The original qualification changed.").into());
         }
@@ -82,10 +91,10 @@ pub async fn apply_crm_qualification_retained<'a>(
         let amount=whole.checked_mul(100).and_then(|v|v.checked_add(fraction)).ok_or_else(|| BusinessError::invalid("CRM_LEAD_INPUT_INVALID", "Expected value is too large."))?;
         let version = input.expected_version.checked_add(1).ok_or_else(|| BusinessError::invalid("CRM_LEAD_INPUT_INVALID", "Lead version is too large."))?;
         let snapshot = serde_json::json!({"action":"qualify","expectedVersion":input.expected_version,"customerId":party,"expectedValue":expected,"closeDate":plan.close_date,"reason":plan.reason});
-        let exact: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM crm_leads l JOIN crm_opportunities o ON o.lead_id=l.id JOIN crm_case_events deal ON deal.lead_id=l.id AND deal.opportunity_id=o.id JOIN crm_case_events le ON le.lead_id=l.id AND le.opportunity_id IS NULL WHERE l.id=$1 AND l.company_id=$2 AND l.owner_id=$3 AND l.status='qualified' AND l.version=$4 AND l.updated_at=$5 AND o.id=$6 AND o.customer_id=$7 AND o.expected_minor=$8 AND o.currency=$9 AND o.close_date=$10 AND o.stage='discovery' AND o.version=1 AND o.quote_id IS NULL AND o.quote_version IS NULL AND o.sales_id IS NULL AND o.reservation_id IS NULL AND o.win_source IS NULL AND o.won_at IS NULL AND o.created_by=$3 AND o.created_at=$5 AND o.updated_at=$5 AND deal.id=$11 AND deal.version=1 AND deal.action='qualify' AND deal.actor_id=$3 AND deal.reason=$12 AND deal.snapshot_json=$13 AND deal.created_at=$5 AND le.id=$14 AND le.version=$4 AND le.action='qualify' AND le.actor_id=$3 AND le.reason=$12 AND le.snapshot_json=$13 AND le.created_at=$5)")
+        let exact: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM public.crm_leads l JOIN public.crm_opportunities o ON o.lead_id=l.id JOIN public.crm_case_events deal ON deal.lead_id=l.id AND deal.opportunity_id=o.id JOIN public.crm_case_events le ON le.lead_id=l.id AND le.opportunity_id IS NULL WHERE l.id=$1 AND l.company_id=$2 AND l.owner_id=$3 AND l.status='qualified' AND l.version=$4 AND l.updated_at=$5 AND o.id=$6 AND o.customer_id=$7 AND o.expected_minor=$8 AND o.currency=$9 AND o.close_date=$10 AND o.stage='discovery' AND o.version=1 AND o.quote_id IS NULL AND o.quote_version IS NULL AND o.sales_id IS NULL AND o.reservation_id IS NULL AND o.win_source IS NULL AND o.won_at IS NULL AND o.created_by=$3 AND o.created_at=$5 AND o.updated_at=$5 AND deal.id=$11 AND deal.version=1 AND deal.action='qualify' AND deal.actor_id=$3 AND deal.reason=$12 AND deal.snapshot_json=$13 AND deal.created_at=$5 AND le.id=$14 AND le.version=$4 AND le.action='qualify' AND le.actor_id=$3 AND le.reason=$12 AND le.snapshot_json=$13 AND le.created_at=$5)")
             .bind(lead_id).bind(&actor.company_id).bind(&actor.user_id).bind(version).bind(now).bind(&opportunity_id).bind(party).bind(amount).bind(currency).bind(plan.close_date.as_deref()).bind(format!("crm-event-{command_key}-deal")).bind(&plan.reason).bind(&snapshot).bind(format!("crm-event-{command_key}-lead")).fetch_one(&mut *savepoint).await?;
         if !exact { return Err(BusinessError::new(erpx_server_shared::public::FailureKind::Conflict,"CRM_QUALIFICATION_CHANGED","The original qualification changed.").into()); }
-        let facts = QualifiedCrmLeadFacts { company_id: actor.company_id.clone(), lead_id: lead_id.into(), owner_id: actor.user_id.clone(), version, updated_at: now, opportunity_id, command_key: command_key.into() };
+        let facts = QualifiedCrmLeadFacts { company_id: actor.company_id.clone(), lead_id: lead_id.into(), owner_id: actor.user_id.clone(), branch_id, department_id, version, updated_at: now, opportunity_id, command_key: command_key.into() };
         let image = qualification_image(&mut savepoint, &facts).await?.ok_or_else(|| BusinessError::new(erpx_server_shared::public::FailureKind::Conflict,"CRM_QUALIFICATION_CHANGED","The original qualification changed."))?;
         Ok(RetainedCrmQualification { link, facts, image })
     }.await;
@@ -124,7 +133,7 @@ async fn apply_crm_qualification_inner(
     let whole: i64 = whole.parse().map_err(|_| BusinessError::invalid("CRM_LEAD_INPUT_INVALID", "Use a valid expected value."))?;
     let fractional: i64 = if fraction.is_empty() { 0 } else { fraction.parse::<i64>().map_err(|_| BusinessError::invalid("CRM_LEAD_INPUT_INVALID", "Use a valid expected value."))? * if fraction.len() == 1 { 10 } else { 1 } };
     let amount = whole.checked_mul(100).and_then(|v| v.checked_add(fractional)).filter(|v| *v <= 9_007_199_254_740_991).ok_or_else(|| BusinessError::invalid("CRM_LEAD_INPUT_INVALID", "Expected value is too large."))?;
-    let row = sqlx::query("SELECT owner_id,status,version FROM crm_leads WHERE id=$1 AND company_id=$2 FOR UPDATE").bind(lead_id).bind(&actor.company_id).fetch_optional(&mut *c).await?.ok_or_else(|| BusinessError::new(erpx_server_shared::public::FailureKind::NotFound, "CRM_LEAD_NOT_FOUND", "Lead not found in this scope."))?;
+    let row = sqlx::query("SELECT owner_id,status,version FROM public.crm_leads WHERE id=$1 AND company_id=$2 FOR UPDATE").bind(lead_id).bind(&actor.company_id).fetch_optional(&mut *c).await?.ok_or_else(|| BusinessError::new(erpx_server_shared::public::FailureKind::NotFound, "CRM_LEAD_NOT_FOUND", "Lead not found in this scope."))?;
     let version: i64 = row.try_get("version")?;
     let owner: String = row.try_get("owner_id")?;
     let status: String = row.try_get("status")?;
@@ -133,12 +142,12 @@ async fn apply_crm_qualification_inner(
     if status != "open" { return Err(BusinessError::new(erpx_server_shared::public::FailureKind::Conflict, "CRM_STATE_CHANGED", "Review the current lead or opportunity state.").into()); }
     let next_version = version.checked_add(1).ok_or_else(|| BusinessError::invalid("CRM_LEAD_INPUT_INVALID", "Lead version is too large."))?;
     let opportunity_id = format!("opportunity-{command_key}");
-    sqlx::query("INSERT INTO crm_opportunities(id,lead_id,customer_id,expected_minor,currency,close_date,created_by,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$8)").bind(&opportunity_id).bind(lead_id).bind(party).bind(amount).bind(currency).bind(plan.close_date.as_deref()).bind(&actor.user_id).bind(now).execute(&mut *c).await?;
-    let updated = sqlx::query("UPDATE crm_leads SET status='qualified',version=version+1,updated_at=$1 WHERE id=$2 AND company_id=$3 AND owner_id=$4 AND status='open' AND version=$5").bind(now).bind(lead_id).bind(&actor.company_id).bind(&actor.user_id).bind(version).execute(&mut *c).await?.rows_affected();
+    sqlx::query("INSERT INTO public.crm_opportunities(id,lead_id,customer_id,expected_minor,currency,close_date,created_by,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$8)").bind(&opportunity_id).bind(lead_id).bind(party).bind(amount).bind(currency).bind(plan.close_date.as_deref()).bind(&actor.user_id).bind(now).execute(&mut *c).await?;
+    let updated = sqlx::query("UPDATE public.crm_leads SET status='qualified',version=version+1,updated_at=$1 WHERE id=$2 AND company_id=$3 AND owner_id=$4 AND status='open' AND version=$5").bind(now).bind(lead_id).bind(&actor.company_id).bind(&actor.user_id).bind(version).execute(&mut *c).await?.rows_affected();
     if updated != 1 { return Err(BusinessError::new(erpx_server_shared::public::FailureKind::Conflict, "CRM_SOURCE_CHANGED", "The original CRM source changed.").into()); }
     let snapshot = serde_json::json!({"action":"qualify","expectedVersion":input.expected_version,"customerId":party,"expectedValue":expected,"closeDate":plan.close_date,"reason":plan.reason});
     for (suffix, opportunity, event_version) in [("deal", Some(opportunity_id.as_str()), 1_i64), ("lead", None, next_version)] {
-        sqlx::query("INSERT INTO crm_case_events(id,lead_id,opportunity_id,version,action,actor_id,reason,snapshot_json,created_at) VALUES($1,$2,$3,$4,'qualify',$5,$6,$7,$8)").bind(format!("crm-event-{command_key}-{suffix}")).bind(lead_id).bind(opportunity).bind(event_version).bind(&actor.user_id).bind(&plan.reason).bind(&snapshot).bind(now).execute(&mut *c).await?;
+        sqlx::query("INSERT INTO public.crm_case_events(id,lead_id,opportunity_id,version,action,actor_id,reason,snapshot_json,created_at) VALUES($1,$2,$3,$4,'qualify',$5,$6,$7,$8)").bind(format!("crm-event-{command_key}-{suffix}")).bind(lead_id).bind(opportunity).bind(event_version).bind(&actor.user_id).bind(&plan.reason).bind(&snapshot).bind(now).execute(&mut *c).await?;
     }
     link.require_current(c).await?;
     Ok(opportunity_id)
@@ -166,6 +175,14 @@ pub struct PreparedLeadChange {
     pub record: LeadFacts,
     pub owner_is_actor: bool,
     pub snapshot: serde_json::Value,
+}
+
+/// Read-only qualification preparation for the Workflow `prepare` phase. The
+/// caller must inspect the reviewed account link and Finance/Commerce
+/// witnesses, then call `apply_crm_qualification_retained` in `apply`.
+pub struct PreparedCrmQualification {
+    pub plan: LeadChangePlan,
+    pub record: LeadFacts,
 }
 
 /// Validated, locked opportunity command input.
@@ -379,6 +396,48 @@ fn snapshot<T: serde::Serialize>(value: &T) -> Result<serde_json::Value, Error> 
     })
 }
 
+fn create_conflict() -> BusinessError {
+    BusinessError::new(
+        erpx_server_shared::public::FailureKind::Conflict,
+        "CONFLICT",
+        "The record changed, a reference is unavailable, or this value already exists. Refresh and review again.",
+    )
+}
+
+/// Canonical trimmed create payload for the owner event. Optional keys are
+/// omitted exactly as the Zod object output omits them; serializing
+/// `LeadCreateInput` directly would emit nulls. The coordinator must encode
+/// the same fields in the retained TypeScript property order for a Workflow
+/// request/fingerprint when historical receipt replay is required.
+pub fn canonical_lead_create_input(
+    plan: &crate::domain::leads_native::LeadCreatePlan,
+) -> serde_json::Value {
+    let mut snapshot = serde_json::json!({
+        "branchId": &plan.branch_id,
+        "title": &plan.title,
+        "contactName": &plan.contact_name,
+        "contactDetail": &plan.contact_detail,
+        "source": &plan.source,
+        "brief": &plan.brief,
+        "dueDate": &plan.due_date,
+    });
+    if let Some(object) = snapshot.as_object_mut() {
+        for (key, value) in [
+            ("sourceEvidence", plan.source_evidence.as_deref()),
+            ("sourceKind", plan.source_kind.as_deref()),
+            ("sourceId", plan.source_id.as_deref()),
+            ("campaignId", plan.campaign_id.as_deref()),
+            ("accountId", plan.account_id.as_deref()),
+            ("contactId", plan.contact_id.as_deref()),
+        ] {
+            if let Some(value) = value {
+                object.insert(key.into(), serde_json::Value::String(value.into()));
+            }
+        }
+    }
+    snapshot
+}
+
 pub struct PgCrmLeadCommands<'a> {
     connection: &'a mut PgConnection,
 }
@@ -396,7 +455,7 @@ impl<'a> PgCrmLeadCommands<'a> {
         serializable(&mut *self.connection).await?;
         let row = sqlx::query(
             "SELECT l.owner_id,l.status,l.version,l.branch_id,l.department_id,v.stage \
-             FROM crm_leads l LEFT JOIN crm_opportunities v ON v.lead_id=l.id \
+             FROM public.crm_leads l LEFT JOIN public.crm_opportunities v ON v.lead_id=l.id \
              WHERE l.id=$1 AND l.company_id=$2 FOR UPDATE OF l",
         )
         .bind(lead_id)
@@ -423,7 +482,7 @@ impl<'a> PgCrmLeadCommands<'a> {
     ) -> Result<Option<OpportunityFacts>, Error> {
         serializable(&mut *self.connection).await?;
         let row = sqlx::query(
-            "SELECT o.id,o.lead_id,o.stage,o.version,o.customer_id,o.currency,o.quote_id,o.quote_version,o.sales_id FROM crm_opportunities o JOIN crm_leads l ON l.id=o.lead_id WHERE o.id=$1 AND l.company_id=$2 FOR UPDATE OF o",
+            "SELECT o.id,o.lead_id,o.stage,o.version,o.customer_id,o.currency,o.quote_id,o.quote_version,o.sales_id FROM public.crm_opportunities o JOIN public.crm_leads l ON l.id=o.lead_id WHERE o.id=$1 AND l.company_id=$2 FOR UPDATE OF o",
         )
         .bind(opportunity_id)
         .bind(company_id)
@@ -445,25 +504,79 @@ impl<'a> PgCrmLeadCommands<'a> {
         .transpose()
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn insert_lead(
         &mut self,
         company_id: &str,
         record_id: &str,
+        command_key: &str,
         created_by: &str,
         plan: &crate::domain::leads_native::LeadCreatePlan,
         _input: &LeadCreateInput,
         account_id: &str,
         contact_id: &str,
+        department_id: Option<&str>,
         now: i64,
     ) -> Result<(), Error> {
         serializable(&mut *self.connection).await?;
+        // The retained TypeScript writer creates the CRM identity and contact
+        // for an unnamed prospect, or verifies caller-selected references.
+        if plan.account_id.is_some() {
+            let exists: bool = sqlx::query_scalar(
+                "SELECT EXISTS(SELECT 1 FROM public.crm_accounts WHERE id=$1 AND company_id=$2)",
+            )
+            .bind(account_id)
+            .bind(company_id)
+            .fetch_one(&mut *self.connection)
+            .await?;
+            if !exists {
+                return Err(create_conflict().into());
+            }
+        } else {
+            sqlx::query(
+                "INSERT INTO public.crm_accounts(id,company_id,kind,name,created_by,created_at,updated_at) VALUES($1,$2,'individual',$3,$4,$5,$5)",
+            )
+            .bind(account_id)
+            .bind(company_id)
+            .bind(&plan.contact_name)
+            .bind(created_by)
+            .bind(now)
+            .execute(&mut *self.connection)
+            .await?;
+        }
+        if plan.contact_id.is_some() {
+            let exists: bool = sqlx::query_scalar(
+                "SELECT EXISTS(SELECT 1 FROM public.crm_contacts WHERE id=$1 AND company_id=$2 AND account_id=$3)",
+            )
+            .bind(contact_id)
+            .bind(company_id)
+            .bind(account_id)
+            .fetch_one(&mut *self.connection)
+            .await?;
+            if !exists {
+                return Err(create_conflict().into());
+            }
+        } else {
+            sqlx::query(
+                "INSERT INTO public.crm_contacts(id,company_id,account_id,name,detail,created_by,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$7)",
+            )
+            .bind(contact_id)
+            .bind(company_id)
+            .bind(account_id)
+            .bind(&plan.contact_name)
+            .bind(&plan.contact_detail)
+            .bind(created_by)
+            .bind(now)
+            .execute(&mut *self.connection)
+            .await?;
+        }
         sqlx::query(
-            "INSERT INTO crm_leads(id,company_id,branch_id,department_id,title,contact_name,contact_detail,source,brief,owner_id,due_date,created_by,created_at,updated_at,account_id,contact_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)",
+            "INSERT INTO public.crm_leads(id,company_id,branch_id,department_id,title,contact_name,contact_detail,source,brief,owner_id,due_date,created_by,created_at,updated_at,account_id,contact_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)",
         )
         .bind(record_id)
         .bind(company_id)
         .bind(&plan.branch_id)
-        .bind::<Option<&str>>(None)
+        .bind(department_id)
         .bind(&plan.title)
         .bind(&plan.contact_name)
         .bind(&plan.contact_detail)
@@ -476,6 +589,17 @@ impl<'a> PgCrmLeadCommands<'a> {
         .bind(now)
         .bind(account_id)
         .bind(contact_id)
+        .execute(&mut *self.connection)
+        .await?;
+        sqlx::query(
+            "INSERT INTO public.crm_case_events(id,lead_id,opportunity_id,version,action,actor_id,reason,snapshot_json,created_at) VALUES($1,$2,NULL,1,'create',$3,$4,$5,$6)",
+        )
+        .bind(lead_event_id(command_key))
+        .bind(record_id)
+        .bind(created_by)
+        .bind(&plan.brief)
+        .bind(canonical_lead_create_input(plan))
+        .bind(now)
         .execute(&mut *self.connection)
         .await?;
         Ok(())
@@ -607,6 +731,46 @@ impl<'a> PgCrmLeadCommands<'a> {
         Ok(())
     }
 
+    /// Read-only qualification preparation. Qualification writes only through
+    /// `apply_crm_qualification_retained`; this method validates the owner,
+    /// state, version and selected scope without mutating an owner row.
+    pub async fn prepare_crm_qualification(
+        &mut self,
+        actor: &LeadActor,
+        lead_id: &str,
+        input: &LeadChangeInput,
+    ) -> Result<PreparedCrmQualification, Error> {
+        let plan = crate::domain::leads_native::validate_lead_change(actor, input)?;
+        if plan.action != "qualify" {
+            return Err(BusinessError::invalid(
+                "CRM_LEAD_INPUT_INVALID",
+                "Use a qualification command.",
+            )
+            .into());
+        }
+        let record = self
+            .lead(&actor.company_id, lead_id)
+            .await?
+            .ok_or_else(not_found)?;
+        if record.version != plan.expected_version {
+            return Err(BusinessError::new(
+                erpx_server_shared::public::FailureKind::Conflict,
+                "CRM_LEAD_VERSION_CHANGED",
+                "The lead changed. Reload and retry.",
+            )
+            .into());
+        }
+        let owner_is_actor = actor.user_id == record.owner_id;
+        crate::domain::leads_native::require_lead_state_for_change(
+            &plan.action,
+            &record.status,
+            record.stage.as_deref(),
+            owner_is_actor,
+            actor.can_manage,
+        )?;
+        Ok(PreparedCrmQualification { plan, record })
+    }
+
     /// Read-only owner preparation for a native lead change. The row is locked
     /// FOR UPDATE in this retained unit so the later CAS update cannot race.
     pub async fn prepare_lead_change(
@@ -632,7 +796,7 @@ impl<'a> PgCrmLeadCommands<'a> {
             .into());
         }
         let owner_is_actor =
-            actor.user_id == record.owner_id || actor.is_same_person(&record.owner_id);
+            actor.user_id == record.owner_id;
         crate::domain::leads_native::require_lead_state_for_change(
             &plan.action,
             &record.status,
@@ -819,7 +983,7 @@ impl<'a> PgCrmLeadCommands<'a> {
             .into());
         }
         let owner_is_actor =
-            actor.user_id == lead.owner_id || actor.is_same_person(&lead.owner_id);
+            actor.user_id == lead.owner_id;
         crate::domain::leads_native::require_opportunity_state(
             &plan.action,
             &opportunity.stage,
@@ -1030,7 +1194,7 @@ impl<'a> PgCrmLeadCommands<'a> {
     ) -> Result<Option<OpportunityFacts>, Error> {
         serializable(&mut *self.connection).await?;
         let row = sqlx::query(
-            "SELECT o.id,o.lead_id,o.stage,o.version,o.customer_id,o.currency,o.quote_id,o.quote_version,o.sales_id FROM crm_opportunities o JOIN crm_leads l ON l.id=o.lead_id WHERE o.lead_id=$1 AND l.company_id=$2 FOR UPDATE OF o",
+            "SELECT o.id,o.lead_id,o.stage,o.version,o.customer_id,o.currency,o.quote_id,o.quote_version,o.sales_id FROM public.crm_opportunities o JOIN public.crm_leads l ON l.id=o.lead_id WHERE o.lead_id=$1 AND l.company_id=$2 FOR UPDATE OF o",
         )
         .bind(lead_id)
         .bind(company_id)
@@ -1074,20 +1238,33 @@ impl LeadRepository for PgCrmLeadCommands<'_> {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn insert_lead<'a>(
         &'a mut self,
         company_id: &'a str,
         record_id: &'a str,
+        command_key: &'a str,
         created_by: &'a str,
         plan: &'a crate::domain::leads_native::LeadCreatePlan,
         _input: &'a LeadCreateInput,
         account_id: &'a str,
         contact_id: &'a str,
+        department_id: Option<&'a str>,
         now: i64,
     ) -> LeadsFuture<'a, (), Self::Error> {
         Box::pin(async move {
             PgCrmLeadCommands::insert_lead(
-                self, company_id, record_id, created_by, plan, _input, account_id, contact_id, now,
+                self,
+                company_id,
+                record_id,
+                command_key,
+                created_by,
+                plan,
+                _input,
+                account_id,
+                contact_id,
+                department_id,
+                now,
             )
             .await
         })

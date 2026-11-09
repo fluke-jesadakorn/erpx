@@ -70,6 +70,9 @@ struct Repo {
     seen_view: Option<CustomerTimelineView>,
     seen_cursor: Option<CustomerTimelineCursor>,
     seen_limit: Option<usize>,
+    corrupt_order: bool,
+    ignore_cursor: bool,
+    verify_calls: u32,
 }
 
 impl Repo {
@@ -101,6 +104,18 @@ impl CustomerTimelineRepository for Repo {
         })
     }
 
+    fn verify_order<'a>(
+        &'a mut self,
+        rows: &'a [CustomerTimelineItem],
+        cursor: Option<&'a CustomerTimelineCursor>,
+    ) -> CustomerTimelineFuture<'a, bool, Self::Error> {
+        Box::pin(async move {
+            self.verify_calls += 1;
+            Ok(rows.windows(2).all(|pair| (pair[0].at, pair[0].id.as_str()) >= (pair[1].at, pair[1].id.as_str()))
+                && rows.iter().all(|row| cursor.is_none_or(|cursor| (row.at, row.id.as_str()) < (cursor.at, cursor.id.as_str()))))
+        })
+    }
+
     fn events<'a>(
         &'a mut self,
         _actor: &'a CustomerTimelineActor,
@@ -126,14 +141,15 @@ impl CustomerTimelineRepository for Repo {
                         _ => true,
                     };
                     enabled
-                        && cursor.is_none_or(|cursor| {
+                        && (self.ignore_cursor || cursor.is_none_or(|cursor| {
                             (row.at, row.id.as_str()) < (cursor.at, cursor.id.as_str())
-                        })
+                        }))
                 })
                 .cloned()
                 .collect::<Vec<_>>();
             rows.sort_by(|left, right| right.at.cmp(&left.at).then_with(|| right.id.cmp(&left.id)));
             rows.truncate(limit);
+            if self.corrupt_order { rows.reverse(); }
             Ok(rows)
         })
     }
@@ -369,6 +385,27 @@ async fn pages_are_ordered_unique_and_cursor_continuation_matches_the_full_set()
     unique.sort();
     unique.dedup();
     assert_eq!(unique.len(), 40);
+}
+
+#[tokio::test]
+async fn rejects_repository_rows_in_wrong_cursor_order() {
+    let mut repo = Repo::with(vec![event("order", "order", "a", 10, 1), event("order", "order", "z", 10, 1)]);
+    repo.corrupt_order = true;
+    let mut entitlement = Entitlement::new(true);
+    let error = run(&full_actor(), &CustomerTimelineQuery::default(), &mut repo, &mut entitlement).await.unwrap_err();
+    assert_eq!(error.code, "CUSTOMER_TIMELINE_SOURCE_INVALID");
+    assert_eq!(repo.verify_calls, 1);
+}
+
+#[tokio::test]
+async fn rejects_repository_rows_at_or_before_exclusive_cursor() {
+    let mut repo = Repo::with(vec![event("order", "order", "a", 10, 1), event("order", "order", "z", 10, 1)]);
+    let mut entitlement = Entitlement::new(true);
+    let first = run(&full_actor(), &CustomerTimelineQuery { cursor: None, limit: Some(1) }, &mut repo, &mut entitlement).await.unwrap();
+    repo.ignore_cursor = true;
+    let error = run(&full_actor(), &CustomerTimelineQuery { cursor: first.next_cursor, limit: Some(1) }, &mut repo, &mut entitlement).await.unwrap_err();
+    assert_eq!(error.code, "CUSTOMER_TIMELINE_SOURCE_INVALID");
+    assert_eq!(repo.verify_calls, 2);
 }
 
 #[tokio::test]

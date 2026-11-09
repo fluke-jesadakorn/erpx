@@ -207,8 +207,9 @@ impl<C: Clock + Send + Sync + 'static> PeoplePayrollService<C> {
                         let actor = payroll_actor(current)?;
                         let now = clock.now();
                         let mut repository = PgPayrollRead::new(connection);
-                        let rows = payroll_summary(&actor, &mut repository, pay_month.as_deref(), now)
-                            .await?;
+                        let rows =
+                            payroll_summary(&actor, &mut repository, pay_month.as_deref(), now)
+                                .await?;
                         let data = serde_json::to_value(rows).map_err(|_| unavailable())?;
                         Ok(PayrollReadHttpResponse {
                             data,

@@ -1,11 +1,13 @@
 //! Native CRM activity create / complete / cancel use case.
 //!
-//!mirrors the TS application gates (lead-open state, owner/manager rules)
-//! without SQL. `reassign` is rejected here; it remains TS-owned because it
-//! needs the `sales_recipient_eligibility` cross-owner join.
+//! Mirrors the TS application gates (lead-open state, owner/manager rules)
+//! without SQL. `change_activity` keeps rejecting `reassign` because that
+//! action needs the `sales_recipient_eligibility` cross-owner join; the
+//! PostgreSQL adapter exposes a separate staged reassign path for the
+//! composition to bind to that join, notification and Workflow ledger.
 use crate::domain::activities_native::{
     ActivityActor, ActivityChangeInput, ActivityChangePlan, ActivityCreateInput,
-    ActivityCreatePlan, require_lead_open, validate_change, validate_create,
+    ActivityCreatePlan, require_lead_open, validate_change, validate_change_access, validate_create,
 };
 use erpx_server_shared::public::BusinessError;
 use std::future::Future;
@@ -33,13 +35,13 @@ pub trait ActivityRepository: Send {
 
     fn lead<'a>(
         &'a mut self,
-        company_id: &'a str,
+        actor: &'a ActivityActor,
         lead_id: &'a str,
     ) -> ActivitiesFuture<'a, Option<LeadFacts>, Self::Error>;
 
     fn activity<'a>(
         &'a mut self,
-        company_id: &'a str,
+        actor: &'a ActivityActor,
         activity_id: &'a str,
     ) -> ActivitiesFuture<'a, Option<ActivityFacts>, Self::Error>;
 
@@ -86,7 +88,7 @@ where
     }
     let plan = validate_create(actor, input)?;
     let lead = repository
-        .lead(&actor.company_id, &plan.lead_id)
+        .lead(actor, &plan.lead_id)
         .await?
         .ok_or_else(|| {
             BusinessError::new(
@@ -95,15 +97,15 @@ where
                 "Lead not found in this scope.",
             )
         })?;
+    require_lead_open(&lead.status, lead.stage.as_deref())?;
     if lead.version != plan.expected_lead_version {
         return Err(BusinessError::new(
             erpx_server_shared::public::FailureKind::Conflict,
-            "CRM_LEAD_VERSION_CHANGED",
-            "The lead changed. Reload and retry.",
+            "CONFLICT",
+            "The record changed, a reference is unavailable, or this value already exists. Refresh and review again.",
         )
         .into());
     }
-    require_lead_open(&lead.status, lead.stage.as_deref())?;
     let record_id = crate::domain::activities_native::create_record_id(command_key);
     repository
         .insert_activity(
@@ -137,8 +139,9 @@ where
         )
         .into());
     }
+    validate_change_access(actor, input)?;
     let record = repository
-        .activity(&actor.company_id, record_id)
+        .activity(actor, record_id)
         .await?
         .ok_or_else(|| {
             BusinessError::new(
@@ -147,15 +150,15 @@ where
                 "CRM activity not found in this scope.",
             )
         })?;
+    let plan = validate_change(actor, input, &record.owner_id, &record.status)?;
     if record.version != input.expected_version {
         return Err(BusinessError::new(
             erpx_server_shared::public::FailureKind::Conflict,
-            "CRM_ACTIVITY_VERSION_CHANGED",
-            "This activity changed. Reload and retry.",
+            "CONFLICT",
+            "The record changed, a reference is unavailable, or this value already exists. Refresh and review again.",
         )
         .into());
     }
-    let plan = validate_change(actor, input, &record.owner_id, &record.status)?;
     repository
         .update_activity(
             &actor.company_id,

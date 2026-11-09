@@ -22,7 +22,12 @@ use erpx_server_identity_access::public::{
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{BusinessError, Clock, FailureKind};
 use erpx_server_workflow::public::commands::CommandJson;
-use std::{collections::{BTreeMap,BTreeSet}, future::Future, pin::Pin, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    future::Future,
+    pin::Pin,
+    sync::Arc,
+};
 type WorkspaceInput = Box<dyn FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send>;
 type NativeResult =
     Result<Result<CommandJson, HttpIngressError>, PgTransactionError<BusinessError>>;
@@ -42,7 +47,9 @@ trait NativeAdministration: Send + Sync {
 impl<W: Clock + Send + Sync + 'static, G: Clock + Send + Sync + 'static> NativeAdministration
     for FieldServicePartsAdministration<W, G>
 {
-    fn company_id(&self) -> &str { FieldServicePartsAdministration::company_id(self).as_str() }
+    fn company_id(&self) -> &str {
+        FieldServicePartsAdministration::company_id(self).as_str()
+    }
     fn execute<'a>(
         &'a self,
         host: String,
@@ -177,15 +184,23 @@ pub fn field_service_http_router(
                 "Configure distinct actual Holding hosts and slugs.",
             ));
         };
-        let identity = (target.host.clone(), target.holding_slug.clone(), target.service.company_id().to_owned());
+        let identity = (
+            target.host.clone(),
+            target.holding_slug.clone(),
+            target.service.company_id().to_owned(),
+        );
         if !matching || registered.insert(identity.clone(), target).is_some() {
             return Err(BusinessError::invalid(
                 "FIELD_SERVICE_HTTP_CONFIGURATION_INVALID",
                 "Configure distinct actual Holding hosts and slugs.",
             ));
         }
-        if trusted_holdings.insert((identity.0.clone(),identity.1.clone())) {
-            trusted.push(TrustedTarget { host:identity.0,slug:identity.1,origin });
+        if trusted_holdings.insert((identity.0.clone(), identity.1.clone())) {
+            trusted.push(TrustedTarget {
+                host: identity.0,
+                slug: identity.1,
+                origin,
+            });
         }
     }
     let executor = SealedNativeExecutor {
@@ -209,8 +224,14 @@ impl PostExecutor for SealedNativeExecutor {
         ingress: Arc<PendingIngress>,
     ) -> Pin<Box<dyn Future<Output = PostResponse> + Send + 'a>> {
         Box::pin(async move {
-            let target=match crate::http_scope::selected_company_target(&self.targets,&host,&slug,&headers) {
-                Ok(target)=>target,Err(error)=>return PostResponse::business(error),
+            let target = match crate::http_scope::selected_company_target(
+                &self.targets,
+                &host,
+                &slug,
+                &headers,
+            ) {
+                Ok(target) => target,
+                Err(error) => return PostResponse::business(error),
             };
             let inbound = match parse_inbound_account_request(&self.policy, &headers) {
                 Ok(value) => value,

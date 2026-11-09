@@ -277,19 +277,10 @@ pub fn normalize_email(value: &str) -> Result<String, BusinessError> {
 }
 
 impl AccessRequest {
-    pub fn validate(&self, now: i64) -> Result<ValidatedRequest, BusinessError> {
+    pub fn validate_schema(&self) -> Result<ValidatedRequest, BusinessError> {
         if RecordId::new(self.order_id.clone()).is_err()
-            || self.source_version < 1
-            || self.expires_at <= now
-            || self.expires_at > now.saturating_add(ACCESS_WINDOW_MILLIS)
+            || self.source_version < 1 || self.expires_at < 1
         {
-            if self.expires_at <= now || self.expires_at > now.saturating_add(ACCESS_WINDOW_MILLIS)
-            {
-                return Err(BusinessError::invalid(
-                    "CUSTOMER_ACCESS_EXPIRY",
-                    "Choose an expiry within the next 90 days.",
-                ));
-            }
             return Err(request_invalid());
         }
         Ok(ValidatedRequest {
@@ -299,6 +290,24 @@ impl AccessRequest {
             expires_at: self.expires_at,
             reason: normalize_reason(&self.reason)?,
         })
+    }
+
+    pub fn validate(&self, now: i64) -> Result<ValidatedRequest, BusinessError> {
+        let input = self.validate_schema()?;
+        input.validate_expiry(now)?;
+        Ok(input)
+    }
+}
+
+impl ValidatedRequest {
+    pub fn validate_expiry(&self, now: i64) -> Result<(), BusinessError> {
+        if self.expires_at <= now || self.expires_at > now.saturating_add(ACCESS_WINDOW_MILLIS) {
+            return Err(BusinessError::invalid(
+                "CUSTOMER_ACCESS_EXPIRY",
+                "Choose an expiry within the next 90 days.",
+            ));
+        }
+        Ok(())
     }
 }
 

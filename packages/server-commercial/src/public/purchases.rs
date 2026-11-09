@@ -8,7 +8,7 @@ pub use crate::adapters::postgres_grant_commands::{
     PgPackageBatchReview, PgPackageGrantCommands, PgPackageGrantPolicy,
 };
 pub use crate::adapters::postgres_purchases::{
-    PgCompanyPurchaseReader, PgReadOnlyCompanyPurchaseReader, PurchaseInspection, PurchaseReadLockPreparation, PurchaseReadSourceLocks, PurchaseWitness, bind_purchase_read_sources, lock_commercial_authority_sources, lock_purchase_read_sources,
+    PgCompanyPurchaseReader, PgReadOnlyCompanyPurchaseReader, PurchaseWriteLockPreparation, PurchaseWriteSourceLocks, bind_purchase_write_sources, lock_purchase_write_sources, PurchaseInspection, PurchasePresentationInspection, PurchaseReadLockPreparation, PurchaseReadSourceLocks, PurchaseWitness, bind_purchase_read_sources, lock_commercial_authority_sources, lock_purchase_read_sources, require_commercial_authority_sources_held,
 };
 pub use crate::application::grant_batches::{
     BatchChange, BatchReceipt, GrantBatch, GrantBatchPreview, NormalizedGrantBatch,
@@ -24,6 +24,7 @@ pub use crate::application::purchases::{
     CapabilityAccess, CompanyPurchaseAdmissionPort, CompanyPurchaseFacts, CompanyPurchaseReadPort,
     PurchaseRequest, company_package_overview, validate_purchase_request,
 };
+pub use crate::domain::purchase_wire_revision::purchase_wire_revision;
 pub use crate::domain::company_access::{
     CompanyCapabilityAdmission, CompanyPackageOverview, CompanyPurchaseAdmission,
 };

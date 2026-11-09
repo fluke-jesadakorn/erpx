@@ -11,6 +11,8 @@ use erpx_server_identity_access::public::{
     },
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
+use erpx_server_runtime::public::http_support::HeaderMap;
+use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_sales::public::sales_documents::{
     PgSalesDocumentRead, SalesDocumentKind, SalesDocumentReadActor, sales_documents,
 };
@@ -25,8 +27,6 @@ use erpx_server_sales::public::sales_price_lists_http::{
     PriceListHttpBackend, PriceListHttpCommand, PriceListHttpFuture, PriceListHttpRequest,
     PriceListHttpResponse,
 };
-use erpx_server_runtime::public::http_support::HeaderMap;
-use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
     BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
 };
@@ -92,7 +92,9 @@ impl SalesConfiguration {
     }
 }
 
-fn sales_document_actor(current: &AuthorizedWorkContext) -> Result<SalesDocumentReadActor, BusinessError> {
+fn sales_document_actor(
+    current: &AuthorizedWorkContext,
+) -> Result<SalesDocumentReadActor, BusinessError> {
     let selected = current.selection();
     let workspace = selected.workspace();
     Ok(SalesDocumentReadActor {

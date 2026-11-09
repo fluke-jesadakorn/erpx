@@ -98,10 +98,22 @@ impl FieldServicePartsSource {
     pub(crate) async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
         self.target.require_current(c).await?;
         self.consumption.require_current(c).await?;
-        self.lineage.require_current(c).await.map_err(|error|match error {
-            PgTransactionError::Business(e) if e.code=="FIELD_SERVICE_FINANCE_LINEAGE_CHANGED" => BusinessError::new(FailureKind::Conflict,"FINANCE_DOCUMENT_SOURCE_CHANGED","The original Service cost source changed before posting committed.").into(),
-            other=>other,
-        })?;
+        self.lineage
+            .require_current(c)
+            .await
+            .map_err(|error| match error {
+                PgTransactionError::Business(e)
+                    if e.code == "FIELD_SERVICE_FINANCE_LINEAGE_CHANGED" =>
+                {
+                    BusinessError::new(
+                        FailureKind::Conflict,
+                        "FINANCE_DOCUMENT_SOURCE_CHANGED",
+                        "The original Service cost source changed before posting committed.",
+                    )
+                    .into()
+                }
+                other => other,
+            })?;
         verify_raw_record_origin(c, &self.origin).await
     }
 }

@@ -15,14 +15,14 @@ use erpx_server_identity_access::public::{
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{
-    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, IdentifierSource, RecordId,
-    TimestampMillis,
+    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, IdentifierSource,
+    RecordId, TimestampMillis,
 };
 use erpx_server_support::public::sla::{
-    AlertAcknowledge, AlertAcknowledgePlan, AlertSnapshot, ClockAttach, ClockAttachPlan, PolicyChange,
-    PolicyChangePlan, PolicyCreate, PolicyCreatePlan, PolicySnapshot, PolicyStatus, SlaActor,
-    SlaPermissions, SlaPolicy, TicketSnapshot, parse_clock, plan_alert_acknowledge, plan_attach,
-    plan_policy_change, plan_policy_create,
+    AlertAcknowledge, AlertAcknowledgePlan, AlertSnapshot, ClockAttach, ClockAttachPlan,
+    PolicyChange, PolicyChangePlan, PolicyCreate, PolicyCreatePlan, PolicySnapshot, PolicyStatus,
+    SlaActor, SlaPermissions, SlaPolicy, TicketSnapshot, parse_clock, plan_alert_acknowledge,
+    plan_attach, plan_policy_change, plan_policy_create,
 };
 use erpx_server_workflow::public::commands::{
     CommandActor, CommandDisposition, CommandField, CommandJson, PgCommandAuthority,
@@ -43,7 +43,6 @@ const POLICY_REVIEWERS_NOTIFICATION: &str = "INSERT INTO staff_notifications(id,
 const POLICY_UPDATED_NOTIFICATION: &str = "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT $1,company_id,created_by,'support_policy',id,version,'SLA policy reviewed: check its current availability',updated_at FROM support_sla_policies WHERE id=$2 ON CONFLICT DO NOTHING";
 
 const TICKET_CLOCK_NOTIFICATION: &str = "INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT $1,company_id,owner_id,'support_ticket',id,version,'Approved working-time target attached: review the deadline',updated_at FROM support_tickets WHERE id=$2 AND owner_id IS NOT NULL ON CONFLICT DO NOTHING";
-
 
 #[derive(Clone, Debug)]
 enum SlaWrite {
@@ -82,8 +81,15 @@ impl<C: Clock + Send + Sync + 'static> SupportSlaCommand<C> {
     where
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
-        self.run(host, proof, workspace, SlaWrite::CreatePolicy(input), wire, key)
-            .await
+        self.run(
+            host,
+            proof,
+            workspace,
+            SlaWrite::CreatePolicy(input),
+            wire,
+            key,
+        )
+        .await
     }
     #[allow(clippy::too_many_arguments)]
     pub async fn change_policy<Input>(
@@ -178,10 +184,9 @@ impl<C: Clock + Send + Sync + 'static> SupportSlaCommand<C> {
                 "support.sla.create".to_owned(),
                 format!("support-policy-{}", expected.as_str()),
             ),
-            SlaWrite::ChangePolicy { id, input } => (
-                format!("support.sla.{}", input.action()),
-                id.clone(),
-            ),
+            SlaWrite::ChangePolicy { id, input } => {
+                (format!("support.sla.{}", input.action()), id.clone())
+            }
             SlaWrite::Attach { id, .. } => ("support.sla.attach".to_owned(), id.clone()),
             SlaWrite::Acknowledge { id, .. } => ("support.sla.acknowledge".to_owned(), id.clone()),
         };
@@ -349,9 +354,8 @@ impl<C: Clock + Sync> PgCommandAuthority for Authority<'_, C> {
         match &self.purchases {
             Some(p) => p.check(c, self.current, self.clock.now()).await?,
             None => {
-                self.purchases = Some(
-                    Purchases::read(c, self.current, disposition, self.clock.now()).await?,
-                )
+                self.purchases =
+                    Some(Purchases::read(c, self.current, disposition, self.clock.now()).await?)
             }
         }
         Ok(())
@@ -416,7 +420,10 @@ impl Purchases {
             c,
             &self.catalogue,
         );
-        reader.revalidate(&self.history, now).await?.require_allowed()?;
+        reader
+            .revalidate(&self.history, now)
+            .await?
+            .require_allowed()?;
         if let Some(witness) = &self.new_work {
             reader.revalidate(witness, now).await?.require_allowed()?;
         }
@@ -440,23 +447,8 @@ enum Prepared {
     Acknowledge(AlertAcknowledgePlan),
 }
 
-type PolicyRow = (
-    String,
-    String,
-    String,
-    String,
-    Option<String>,
-    i64,
-    String,
-);
-type TicketRow = (
-    String,
-    String,
-    String,
-    i64,
-    Option<String>,
-    Option<String>,
-);
+type PolicyRow = (String, String, String, String, Option<String>, i64, String);
+type TicketRow = (String, String, String, i64, Option<String>, Option<String>);
 type AlertRow = (
     String,
     String,
@@ -503,12 +495,8 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
             }
             SlaWrite::ChangePolicy { id, input } => {
                 let (snapshot, _) = load_policy(c, self.company, id).await?;
-                let plan = plan_policy_change(
-                    &self.actor,
-                    &snapshot,
-                    input,
-                    self.clock.now().get(),
-                )?;
+                let plan =
+                    plan_policy_change(&self.actor, &snapshot, input, self.clock.now().get())?;
                 let result = SlaResult {
                     id: plan.id.clone(),
                     version: plan.version,
@@ -559,12 +547,8 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
                     )
                     .into());
                 }
-                let plan = plan_alert_acknowledge(
-                    &self.actor,
-                    &alert,
-                    input,
-                    self.clock.now().get(),
-                )?;
+                let plan =
+                    plan_alert_acknowledge(&self.actor, &alert, input, self.clock.now().get())?;
                 let result = SlaResult {
                     id: plan.id.clone(),
                     version: plan.version,
@@ -743,8 +727,7 @@ async fn load_alert(
     .bind(company.as_str())
     .fetch_optional(&mut *c)
     .await?;
-    let Some((id, ticket_id, company_id, branch_id, department_id, version, acknowledged_by)) =
-        row
+    let Some((id, ticket_id, company_id, branch_id, department_id, version, acknowledged_by)) = row
     else {
         return Err(BusinessError::new(
             FailureKind::NotFound,
@@ -874,10 +857,7 @@ async fn apply_attach(
     Ok(())
 }
 
-async fn apply_acknowledge(
-    c: &mut PgConnection,
-    plan: &AlertAcknowledgePlan,
-) -> Result<(), Error> {
+async fn apply_acknowledge(c: &mut PgConnection, plan: &AlertAcknowledgePlan) -> Result<(), Error> {
     let updated = sqlx::query("UPDATE support_sla_alerts SET acknowledged_by=$1,acknowledged_at=$2,reason=$3,version=version+1 WHERE id=$4 AND version=$5 AND acknowledged_by IS NULL")
         .bind(&plan.actor_id)
         .bind(plan.event_at)

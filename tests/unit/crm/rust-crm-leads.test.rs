@@ -1,7 +1,8 @@
 //! Native CRM lead / opportunity command validation facts.
 use erpx_server_crm::public::leads_native::{
-    LeadActor, LeadChangeInput, LeadCreateInput, OpportunityChangeInput, validate_lead_change,
-    validate_lead_create, validate_opportunity_change,
+    LeadActor, LeadChangeInput, LeadCreateInput, LeadCreateReceipt, OpportunityChangeInput,
+    canonical_lead_create_input, canonical_lead_qualify_input, lead_record_id,
+    validate_lead_change, validate_lead_create, validate_opportunity_change,
 };
 use serde_json::json;
 
@@ -32,6 +33,77 @@ fn lead_create_trims_and_accepts() {
     let plan = validate_lead_create(&actor(), &create_input()).unwrap();
     assert_eq!(plan.title, "New lead");
     assert_eq!(plan.branch_id, "branch");
+}
+
+#[test]
+fn lead_create_receipt_and_record_id_match_the_retained_wire() {
+    assert_eq!(lead_record_id("create-1"), "lead-create-1");
+    assert_eq!(
+        serde_json::to_value(LeadCreateReceipt {
+            id: lead_record_id("create-1"),
+            version: 1,
+        })
+        .unwrap(),
+        json!({"id": "lead-create-1", "version": 1})
+    );
+}
+
+#[test]
+fn qualify_command_input_matches_the_retained_property_order() {
+    let input = LeadChangeInput {
+        action: "qualify".into(),
+        expected_version: 1,
+        owner_id: None,
+        due_date: None,
+        reason: "  Confirmed customer  ".into(),
+        customer_id: Some("customer".into()),
+        expected_value: Some("100.00".into()),
+        close_date: Some("2026-12-01".into()),
+    };
+    let plan = validate_lead_change(&actor(), &input).unwrap();
+    let canonical = canonical_lead_qualify_input(&plan).unwrap();
+    assert_eq!(
+        serde_json::to_string(&canonical).unwrap(),
+        r#"{"action":"qualify","expectedVersion":1,"customerId":"customer","expectedValue":"100.00","closeDate":"2026-12-01","reason":"Confirmed customer"}"#
+    );
+    let mut other = plan.clone();
+    other.action = "disqualify".into();
+    assert!(canonical_lead_qualify_input(&other).is_err());
+}
+
+#[test]
+fn lead_create_canonical_input_omits_absent_optional_keys() {
+    let plan = validate_lead_create(&actor(), &create_input()).unwrap();
+    assert_eq!(
+        canonical_lead_create_input(&plan),
+        json!({
+            "branchId": "branch", "title": "New lead", "contactName": "Contact",
+            "contactDetail": "Detail", "source": "staff inquiry", "brief": "Brief",
+            "dueDate": "2026-11-20"
+        })
+    );
+    assert_eq!(
+        serde_json::to_string(&plan).unwrap(),
+        r#"{"branchId":"branch","title":"New lead","contactName":"Contact","contactDetail":"Detail","source":"staff inquiry","brief":"Brief","dueDate":"2026-11-20"}"#
+    );
+    let mut input = create_input();
+    input.source_evidence = Some("  Evidence  ".into());
+    input.source_kind = Some("form".into());
+    input.source_id = Some("source-1".into());
+    input.campaign_id = Some("campaign-1".into());
+    input.account_id = Some("account-1".into());
+    input.contact_id = Some("contact-1".into());
+    let plan = validate_lead_create(&actor(), &input).unwrap();
+    assert_eq!(
+        canonical_lead_create_input(&plan),
+        json!({
+            "branchId": "branch", "title": "New lead", "contactName": "Contact",
+            "contactDetail": "Detail", "source": "staff inquiry",
+            "sourceEvidence": "Evidence", "sourceKind": "form", "sourceId": "source-1",
+            "campaignId": "campaign-1", "accountId": "account-1", "contactId": "contact-1",
+            "brief": "Brief", "dueDate": "2026-11-20"
+        })
+    );
 }
 
 #[test]

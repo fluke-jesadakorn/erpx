@@ -484,3 +484,52 @@ fn link_caption_and_component_ref_use_byte_bounds() {
     over_component.component_ref = Some("ก".repeat(181));
     assert!(validate_set(&reader(), &filter("asset"), over_component, 5_000).is_err());
 }
+
+#[test]
+fn asset_descriptor_scope_matches_actual_typescript_policy() {
+    use erpx_server_files::public::attachment_read::{AssetReadDescriptor,asset_descriptor_read_scope};
+    // Invoke the actual TS application policy and registry. The mock is only
+    // the already-retained assignment/Asset descriptor; purchase is separate.
+    let script=r#"
+import {createAttachmentPolicy} from '@erpx/server-files/application/attachments/policy';
+import {createOperationalAttachmentPolicy} from '@erpx/server-files/application/attachments/remaining-operational-policy';
+const api=createAttachmentPolicy({clock:{now:()=>1},error:(status,code,message)=>Object.assign(new Error(message),{status,code})});
+const policy=api.attachmentPolicy('asset','manual','record');
+const operational=createOperationalAttachmentPolicy({clock:{now:()=>1},error:(status,code,message)=>Object.assign(new Error(message),{status,code})});
+const cases=[
+ [true,null,null,{company_id:'company',branch_id:'branch',department_id:null,version:1}],
+ [false,null,null,null], [true,null,null,null],
+ [true,'other',null,{company_id:'company',branch_id:'branch',department_id:'department',version:1}],
+ [true,'branch','other',{company_id:'company',branch_id:'branch',department_id:'department',version:1}],
+ [true,'branch','other',{company_id:'company',branch_id:'branch',department_id:null,version:1}],
+ [true,'',null,{company_id:'company',branch_id:'branch',department_id:null,version:9007199254740993}],
+ [true,null,null,{company_id:'company',branch_id:'branch',department_id:null,version:1},false],
+];
+const output=[];for(const [allowed,branch,department,row,hasModule=true] of cases){
+ const permissions=allowed?['records.read']:[];
+ const actor={userId:'user',assignmentId:'assignment',role:'custom_test',companyId:'company',branchId:branch,departmentId:department,scope:{kind:'holding'},modules:hasModule?['assets']:[],iam:{permissions}};
+ const db={readCurrentAssignment:async()=>({role:'custom_test',modules_json:'[]',role_permissions:'[\"module.assets.read\"]',permissions:JSON.stringify(permissions)}),authorizePortalCollaborationAttachmentTarget:async()=>null,authorizeSensitiveAttachmentTarget:async()=>null,authorizeFinanceOperationsAttachmentTarget:async()=>null,authorizeRemainingOperationalAttachmentTarget:(actor,policy,id,op)=>operational.authorizeRemainingOperationalAttachmentTarget({readModuleScoped:async()=>row},actor,policy,id,op),readDescriptor:async()=>row};
+ try {output.push({ok:await api.authorizeAttachmentTarget(db,actor,policy,'asset-id','read')});}catch(e){output.push({code:e.code,status:e.status});}
+}process.stdout.write(JSON.stringify(output));
+"#;
+    let node=std::env::var("ERPX_NODE_BIN").expect("pinned Node required");
+    let output=std::process::Command::new(node).current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
+        .args(["--conditions=react-server","--import","tsx","--input-type=module","--eval",script]).output().unwrap();
+    assert!(output.status.success(),"actual TypeScript Asset policy oracle unavailable");let oracle:Vec<serde_json::Value>=serde_json::from_slice(&output.stdout).unwrap();
+    let cases=[
+        (true,true,None,None,Some(("branch",None,1_i64))),
+        (false,true,None,None,None), (true,true,None,None,None),
+        (true,true,Some("other"),None,Some(("branch",Some("department"),1))),
+        (true,true,Some("branch"),Some("other"),Some(("branch",Some("department"),1))),
+        (true,true,Some("branch"),Some("other"),Some(("branch",None,1))),
+        (true,true,Some(""),None,Some(("branch",None,9_007_199_254_740_993))),
+        (true,false,None,None,Some(("branch",None,1))),
+    ];
+    for (index,(allowed,has_module,branch,department,row)) in cases.into_iter().enumerate(){
+        let descriptor=row.map(|(branch,department,version)|AssetReadDescriptor{company_id:"company",branch_id:Some(branch),department_id:department,version});
+        match asset_descriptor_read_scope(allowed,has_module,branch,department,descriptor){
+            Ok(actual)=>{let expected=&oracle[index]["ok"];assert_eq!(expected["companyId"],actual.company_id);assert_eq!(expected["branchId"].as_str(),actual.branch_id);assert_eq!(expected["departmentId"].as_str(),actual.department_id);assert_eq!(expected["version"].as_f64(),Some(actual.version));assert_eq!(expected["editable"],actual.editable);}
+            Err(error)=>assert_eq!(oracle[index]["code"],error.code,"case {index}"),
+        }
+    }
+}

@@ -9,8 +9,8 @@ type Unit = (String, i32, String, String);
 pub struct ServiceTicketDisplay {
     pub id: String,
     pub title: String,
-    pub customer_id: String,
-    pub branch_id: String,
+    pub customer_id: Option<String>,
+    pub branch_id: Option<String>,
     pub department_id: Option<String>,
     pub source_kind: String,
     pub order_id: Option<String>,
@@ -48,7 +48,19 @@ async fn unit(c: &mut PgConnection) -> Result<Unit, Error> {
     {
         return Err(PersistenceError::new("SUPPORT_SERIALIZABLE_REQUIRED").into());
     }
+    require_service_workspace_tickets_held(&mut *c).await?;
     Ok(sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text").fetch_one(c).await?)
+}
+/// Check the workspace Support read fence without acquiring a lock or
+/// implying selected authority or pre-snapshot timing.
+pub async fn require_service_workspace_tickets_held(c:&mut PgConnection)->Result<(),Error>{
+    if !c.is_in_transaction(){return Err(PersistenceError::new("SUPPORT_TRANSACTION_REQUIRED").into());}
+    let held:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND relation='support_tickets'::regclass AND granted AND mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock'))").fetch_one(c).await?;
+    if !held{return Err(PersistenceError::new("SUPPORT_WORKSPACE_TICKET_LOCK_REQUIRED").into());}Ok(())
+}
+async fn require_settlement_locks(c:&mut PgConnection)->Result<(),Error>{
+    let held:bool=sqlx::query_scalar("SELECT count(DISTINCT relation)=2 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND relation IN ('support_ticket_events'::regclass,'support_sla_alerts'::regclass) AND granted AND mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock')").fetch_one(c).await?;
+    if !held{return Err(PersistenceError::new("SUPPORT_SETTLEMENT_LOCKS_REQUIRED").into());}Ok(())
 }
 pub async fn lock_service_workspace_tickets(c: &mut PgConnection) -> Result<(), Error> {
     if !c.is_in_transaction() {
@@ -162,13 +174,15 @@ async fn capture_service_support_settlement(c:&mut PgConnection,company:&Company
 impl CurrentServiceSupportSettlement {
     pub fn data(&self)->&ServiceSupportSettlementRows{&self.data}
     pub async fn require_current(&self,c:&mut PgConnection)->Result<(),Error>{
-        if unit(c).await?!=self.unit||capture_service_support_settlement(c,&self.company,&self.known_tickets).await?!=self.data{
+        if unit(c).await?!=self.unit{return Err(BusinessError::new(FailureKind::Conflict,"SERVICE_SUPPORT_PACKAGE_SOURCE_CHANGED","The original Support settlement source changed.").into());}
+        require_settlement_locks(c).await?;
+        if capture_service_support_settlement(c,&self.company,&self.known_tickets).await?!=self.data{
             return Err(BusinessError::new(FailureKind::Conflict,"SERVICE_SUPPORT_PACKAGE_SOURCE_CHANGED","The original Support settlement source changed.").into());
         }
         Ok(())
     }
 }
 pub async fn read_service_support_settlement(c:&mut PgConnection,company:&CompanyId,known_tickets:&[String])->Result<CurrentServiceSupportSettlement,Error>{
-    let unit=unit(c).await?;let data=capture_service_support_settlement(c,company,known_tickets).await?;
+    let unit=unit(c).await?;require_settlement_locks(c).await?;let data=capture_service_support_settlement(c,company,known_tickets).await?;
     Ok(CurrentServiceSupportSettlement{company:company.clone(),known_tickets:known_tickets.to_vec(),unit,data})
 }

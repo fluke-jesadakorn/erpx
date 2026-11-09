@@ -1,7 +1,5 @@
 //! Private inbound routes; no bootstrap/main/live mount is included here.
-use crate::{
-    finance_journal_review::FinanceJournalReviewAdministration,
-};
+use crate::finance_journal_review::FinanceJournalReviewAdministration;
 #[cfg(feature = "business-http")]
 use crate::legal_queue_administration::{LegalQueueAdministration, LegalQueueRequest};
 use axum::{
@@ -41,9 +39,9 @@ pub use crate::http_scope::BusinessScopeSlugs;
 struct BusinessHttpState<C> {
     policy: Arc<AccountPolicy>,
     scopes: Arc<dyn BusinessScopeSlugs>,
-    finance_targets: BTreeMap<(String, String,String), BusinessHttpTarget<C>>,
+    finance_targets: BTreeMap<(String, String, String), BusinessHttpTarget<C>>,
     #[cfg(feature = "business-http")]
-    targets: BTreeMap<(String,String),BusinessHttpTarget<C>>,
+    targets: BTreeMap<(String, String), BusinessHttpTarget<C>>,
 }
 pub fn business_router<C: Clock + Send + Sync + 'static>(
     policy: Arc<AccountPolicy>,
@@ -54,15 +52,15 @@ pub fn business_router<C: Clock + Send + Sync + 'static>(
     policy.validate()?;
     let mut registered = BTreeMap::new();
     #[cfg(feature = "business-http")]
-    let mut legal_registered=BTreeMap::new();
+    let mut legal_registered = BTreeMap::new();
     for target in targets {
         let matching = policy
             .audience(&target.host)
             .and_then(|audience| holdings.expected_for_audience(&audience).ok())
             .is_some_and(|entry| entry.slug == target.holding_slug);
-        let configured=target.finance.is_some();
+        let configured = target.finance.is_some();
         #[cfg(feature = "business-http")]
-        let configured=configured||target.legal.is_some();
+        let configured = configured || target.legal.is_some();
         if !matching
             || target.holding_slug.is_empty()
             || !policy.holdings.iter().any(|h| h.host == target.host)
@@ -76,20 +74,38 @@ pub fn business_router<C: Clock + Send + Sync + 'static>(
         // Legal retains its existing one-target Holding contract. Finance
         // selects distinct Company services, then runs original native CAS.
         #[cfg(feature = "business-http")]
-        if target.legal.is_some(){
-            let copy=BusinessHttpTarget{host:target.host.clone(),holding_slug:target.holding_slug.clone(),finance:target.finance.clone(),legal:target.legal.clone()};
-            if legal_registered.insert((copy.host.clone(),copy.holding_slug.clone()),copy).is_some(){
-                return Err(BusinessError::invalid("BUSINESS_HTTP_CONFIGURATION_INVALID","Configure distinct actual Legal Holding targets."));
+        if target.legal.is_some() {
+            let copy = BusinessHttpTarget {
+                host: target.host.clone(),
+                holding_slug: target.holding_slug.clone(),
+                finance: target.finance.clone(),
+                legal: target.legal.clone(),
+            };
+            if legal_registered
+                .insert((copy.host.clone(), copy.holding_slug.clone()), copy)
+                .is_some()
+            {
+                return Err(BusinessError::invalid(
+                    "BUSINESS_HTTP_CONFIGURATION_INVALID",
+                    "Configure distinct actual Legal Holding targets.",
+                ));
             }
         }
-        if let Some(finance)=&target.finance{
-            let key=(target.host.clone(),target.holding_slug.clone(),finance.company_id().as_str().to_owned());
-            if registered.insert(key,target).is_some(){
-                return Err(BusinessError::invalid("BUSINESS_HTTP_CONFIGURATION_INVALID","Configure distinct actual Finance Company targets."));
+        if let Some(finance) = &target.finance {
+            let key = (
+                target.host.clone(),
+                target.holding_slug.clone(),
+                finance.company_id().as_str().to_owned(),
+            );
+            if registered.insert(key, target).is_some() {
+                return Err(BusinessError::invalid(
+                    "BUSINESS_HTTP_CONFIGURATION_INVALID",
+                    "Configure distinct actual Finance Company targets.",
+                ));
             }
         }
     }
-    let router=Router::new()
+    let router = Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/finance/journals/{record_id}/post",
             post(finance_post::<C>),
@@ -97,25 +113,24 @@ pub fn business_router<C: Clock + Send + Sync + 'static>(
         .route(
             "/api/v1/holdings/{holding_slug}/finance/journals/{record_id}/reverse",
             post(finance_reverse::<C>),
-        )
-        ;
+        );
     #[cfg(feature = "business-http")]
-    let router=router.route(
+    let router = router
+        .route(
             "/api/v1/holdings/{holding_slug}/legal/documents/{record_id}/ocr",
             post(legal_ocr::<C>),
         )
         .route(
             "/api/v1/holdings/{holding_slug}/legal/documents/{record_id}/verify",
             post(legal_verify::<C>),
-        )
-        ;
+        );
     Ok(router.with_state(Arc::new(BusinessHttpState {
-            policy,
-            scopes,
-            finance_targets:registered,
-            #[cfg(feature = "business-http")]
-            targets: legal_registered,
-        })))
+        policy,
+        scopes,
+        finance_targets: registered,
+        #[cfg(feature = "business-http")]
+        targets: legal_registered,
+    })))
 }
 #[cfg(feature = "business-http")]
 fn target<'a, C>(
@@ -174,8 +189,13 @@ async fn finance<C: Clock + Send + Sync + 'static>(
     reverse: bool,
 ) -> Response {
     let result = async {
-        let host=unique_request_header(request.headers(),"host")?.ok_or_else(not_found)?;
-        let target=crate::http_scope::selected_company_target(&state.finance_targets,host,&slug,request.headers())?;
+        let host = unique_request_header(request.headers(), "host")?.ok_or_else(not_found)?;
+        let target = crate::http_scope::selected_company_target(
+            &state.finance_targets,
+            host,
+            &slug,
+            request.headers(),
+        )?;
         let administration = target.finance.clone().ok_or_else(not_found)?;
         check_origin(request.headers(), target_origin(&state, target)?, false)?;
         let inbound = parse_inbound_account_request(&state.policy, request.headers())?;

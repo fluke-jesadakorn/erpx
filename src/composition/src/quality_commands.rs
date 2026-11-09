@@ -49,8 +49,8 @@ use erpx_server_quality::public::quality_commands::{
     HoldStatus, PreparedQualityCancellation, PreparedQualityInspection, PreparedQualityRelease,
     PreparedQualitySpecSave, PreparedQualitySpecTransition, QualityCancellationCommand,
     QualityDispositionCommand, QualityDispositionReceipt, QualityInspectionCommand,
-    QualityReleaseCommand, QualityScrapLot, QualityScrapStock,
-    QualitySpecAction, QualitySpecActionCommand, QualitySpecCommand, RetainedQualityCancellation,
+    QualityReleaseCommand, QualityScrapLot, QualityScrapStock, QualitySpecAction,
+    QualitySpecActionCommand, QualitySpecCommand, RetainedQualityCancellation,
     lock_quality_command_sources, lock_quality_scrap_writes, plan_quality_scrap,
     prepare_quality_cancellation, prepare_quality_inspection, prepare_quality_release,
     prepare_quality_spec_save, prepare_quality_spec_transition, read_quality_hold_for_command,
@@ -731,7 +731,6 @@ fn inspection_notification_facts(
     }
 }
 
-
 /// All real owner witnesses retained by one scrap preparation. The files
 /// evidence witness is optional because a disposition may have no file set.
 struct PreparedScrap {
@@ -768,10 +767,15 @@ impl PreparedScrap {
     async fn require_hold(&self, c: &mut PgConnection, expected: bool) -> Result<(), Error> {
         let company = CompanyId::new(self.expected_hold.company_id.clone())?;
         let branch = RecordId::new(self.expected_hold.branch_id.clone())?;
-        let current = read_quality_hold_for_command(c, &company, Some(&branch), &self.expected_hold.id)
-            .await?
-            .ok_or_else(changed)?;
-        let image = if expected { &self.expected_hold } else { &self.source_hold };
+        let current =
+            read_quality_hold_for_command(c, &company, Some(&branch), &self.expected_hold.id)
+                .await?
+                .ok_or_else(changed)?;
+        let image = if expected {
+            &self.expected_hold
+        } else {
+            &self.source_hold
+        };
         if &current != image {
             return Err(changed().into());
         }
@@ -899,7 +903,6 @@ async fn stage_scrap_notifications(
     Ok(retained)
 }
 
-
 async fn prepare_scrap(
     c: &mut PgConnection,
     current: &AuthorizedWorkContext,
@@ -912,20 +915,16 @@ async fn prepare_scrap(
     let command = erpx_server_quality::public::quality_commands::normalize_quality_disposition(
         command.clone(),
     )?;
-    let source_hold = read_quality_hold_for_command(
-        c,
-        company,
-        branch.as_ref(),
-        command.hold_id.as_str(),
-    )
-    .await?
-    .ok_or_else(|| {
-        BusinessError::new(
-            FailureKind::NotFound,
-            "QUALITY_HOLD_NOT_FOUND",
-            "Quality hold not found.",
-        )
-    })?;
+    let source_hold =
+        read_quality_hold_for_command(c, company, branch.as_ref(), command.hold_id.as_str())
+            .await?
+            .ok_or_else(|| {
+                BusinessError::new(
+                    FailureKind::NotFound,
+                    "QUALITY_HOLD_NOT_FOUND",
+                    "Quality hold not found.",
+                )
+            })?;
     let self_created = erpx_server_quality::public::quality_commands::quality_same_person(
         c,
         actor.as_str(),
@@ -954,7 +953,8 @@ async fn prepare_scrap(
         .into());
     }
     if source_hold.status != HoldStatus::Held
-        || source_hold.last_result != Some(erpx_server_quality::public::quality_commands::InspectionResult::Fail)
+        || source_hold.last_result
+            != Some(erpx_server_quality::public::quality_commands::InspectionResult::Fail)
     {
         return Err(BusinessError::new(
             FailureKind::Conflict,
@@ -964,7 +964,11 @@ async fn prepare_scrap(
         .into());
     }
     if source_hold.version != command.expected_version {
-        return Err(changed_for("CONFLICT", "The Quality hold changed. Reload and review before submitting.").into());
+        return Err(changed_for(
+            "CONFLICT",
+            "The Quality hold changed. Reload and review before submitting.",
+        )
+        .into());
     }
     let stock = inspect_quality_scrap_stock(
         c,
@@ -994,9 +998,13 @@ async fn prepare_scrap(
         unit: stock_facts.unit.clone(),
         tracking_mode: stock_facts.tracking_mode.clone(),
     };
-    let lots_witness =
-        inspect_quality_scrap_lots(c, company, &source_hold.product_id, &source_hold.warehouse_id)
-            .await?;
+    let lots_witness = inspect_quality_scrap_lots(
+        c,
+        company,
+        &source_hold.product_id,
+        &source_hold.warehouse_id,
+    )
+    .await?;
     let lots = if stock_facts.tracking_mode == "none" {
         Vec::new()
     } else {
@@ -1447,10 +1455,7 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W> {
             Prepared::Scrap(prepared) => {
                 prepared.apply(c).await?;
                 let retained = stage_scrap_notifications(c, &prepared).await?;
-                self.written = Some(Written::Scrap {
-                    prepared,
-                    retained,
-                });
+                self.written = Some(Written::Scrap { prepared, retained });
             }
         }
         Ok(())
@@ -1523,10 +1528,7 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W> {
                 };
                 retained.require_current(c, &source).await?;
             }
-            Written::Scrap {
-                prepared,
-                retained,
-            } => {
+            Written::Scrap { prepared, retained } => {
                 prepared.require_after(c).await?;
                 for notification in retained {
                     notification.require_current(c).await?;

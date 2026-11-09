@@ -126,7 +126,18 @@ async fn unit(c: &mut PgConnection) -> Result<Unit, Error> {
     {
         return Err(PersistenceError::new("FINANCE_SERIALIZABLE_REQUIRED").into());
     }
+    // A savepoint rollback can release the utility fence without changing the
+    // transaction identity or snapshot. Both workspace and settlement sources
+    // must retain the Finance-owned table lock until their enclosing unit ends.
+    require_service_workspace_customers_held(&mut *c).await?;
     Ok(sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text").fetch_one(c).await?)
+}
+/// Require the already acquired Finance customer fence on this connection;
+/// this does not acquire a lock or prove actor authority or snapshot timing.
+pub async fn require_service_workspace_customers_held(c:&mut PgConnection)->Result<(),Error>{
+    if !c.is_in_transaction(){return Err(PersistenceError::new("FINANCE_TRANSACTION_REQUIRED").into());}
+    let held:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND relation='finance_parties'::regclass AND granted AND mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock'))").fetch_one(c).await?;
+    if !held{return Err(PersistenceError::new("FIELD_SERVICE_CUSTOMERS_LOCK_REQUIRED").into());}Ok(())
 }
 fn changed() -> Error {
     BusinessError::new(

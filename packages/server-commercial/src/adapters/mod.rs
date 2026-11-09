@@ -3,3 +3,11 @@ pub mod package_catalogue;
 pub mod package_review;
 pub mod postgres_grant_commands;
 pub mod postgres_purchases;
+
+pub mod canonical_purchase_write;
+
+pub mod postgres_purchase_after;
+
+pub mod purchase_shadow_read;
+
+pub mod purchase_pre_command;

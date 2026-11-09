@@ -12,7 +12,9 @@ use erpx_server_identity_access::public::effective_authority::{
     AuthorizedWorkContext, HoldingWorkSourcePreparation,
 };
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId, TimestampMillis};
+use erpx_server_shared::public::{
+    BusinessError, Clock, CompanyId, FailureKind, HoldingId, TimestampMillis,
+};
 use erpx_server_support::public::field_service_source_record::CurrentFieldSourceTicket;
 use serde::Serialize;
 use sqlx::PgConnection;
@@ -138,14 +140,22 @@ pub(crate) enum SourcePurchaseReader<'a> {
 }
 
 impl SourcePurchaseReader<'_> {
-    pub(crate) async fn inspect(&mut self, request: &PurchaseRequest, now: TimestampMillis) -> Result<PurchaseInspection, Error> {
+    pub(crate) async fn inspect(
+        &mut self,
+        request: &PurchaseRequest,
+        now: TimestampMillis,
+    ) -> Result<PurchaseInspection, Error> {
         match self {
             Self::Existing(reader) => reader.inspect(request, now).await,
             Self::Guarded(reader) => reader.inspect(request, now).await,
         }
     }
 
-    pub(crate) async fn revalidate(&mut self, witness: &PurchaseWitness, now: TimestampMillis) -> Result<PurchaseInspection, Error> {
+    pub(crate) async fn revalidate(
+        &mut self,
+        witness: &PurchaseWitness,
+        now: TimestampMillis,
+    ) -> Result<PurchaseInspection, Error> {
         match self {
             Self::Existing(reader) => reader.revalidate(witness, now).await,
             Self::Guarded(reader) => reader.revalidate(witness, now).await,
@@ -154,13 +164,23 @@ impl SourcePurchaseReader<'_> {
 }
 
 impl<C> SourceRecordContext<'_, C> {
-    pub(crate) fn purchase_reader<'a>(&'a self, c: &'a mut PgConnection) -> SourcePurchaseReader<'a> {
+    pub(crate) fn purchase_reader<'a>(
+        &'a self,
+        c: &'a mut PgConnection,
+    ) -> SourcePurchaseReader<'a> {
         match self.purchase_locks {
             Some(locks) => SourcePurchaseReader::Guarded(PgReadOnlyCompanyPurchaseReader::new(
-                self.holding.clone(), self.company.clone(), c, self.catalogue, locks,
+                self.holding.clone(),
+                self.company.clone(),
+                c,
+                self.catalogue,
+                locks,
             )),
             None => SourcePurchaseReader::Existing(PgCompanyPurchaseReader::new(
-                self.holding.clone(), self.company.clone(), c, self.catalogue,
+                self.holding.clone(),
+                self.company.clone(),
+                c,
+                self.catalogue,
             )),
         }
     }
@@ -199,8 +219,8 @@ impl PreparedFieldSourceRecord {
         }
         for purchase in &self.purchases {
             ctx.purchase_reader(c)
-            .revalidate(purchase, ctx.clock.now())
-            .await?;
+                .revalidate(purchase, ctx.clock.now())
+                .await?;
         }
         if ctx.clock.now().get() >= ctx.actor.expires_at() {
             return Err(missing().into());
@@ -231,17 +251,17 @@ pub(crate) async fn prepare<C: Clock>(
             CapabilityPurpose::SettleExisting,
             CapabilityPurpose::History,
         ] {
-            let inspection =
-                ctx.purchase_reader(c)
-                    .inspect(
-                        &PurchaseRequest {
-                            capabilities: vec!["service.orders".into()],
-                            purpose,
-                            mode: PackageEnforcementMode::Shadow,
-                        },
-                        clock.now(),
-                    )
-                    .await?;
+            let inspection = ctx
+                .purchase_reader(c)
+                .inspect(
+                    &PurchaseRequest {
+                        capabilities: vec!["service.orders".into()],
+                        purpose,
+                        mode: PackageEnforcementMode::Shadow,
+                    },
+                    clock.now(),
+                )
+                .await?;
             observe_source_purchase(mode, company, &inspection, &mut write_observation);
             shadow_purchases.push(inspection.witness);
         }
@@ -274,7 +294,8 @@ pub(crate) async fn prepare<C: Clock>(
     let mut purchases = shadow_purchases;
     let mut owner_witnesses = None;
     if matches!(mode, SourceRecordMode::Enforced) {
-        let p = ctx.purchase_reader(c)
+        let p = ctx
+            .purchase_reader(c)
             .inspect(
                 &PurchaseRequest {
                     capabilities: vec!["service.orders".into()],
@@ -309,17 +330,17 @@ pub(crate) async fn prepare<C: Clock>(
             let has_asset = f.asset_id.is_some() || g.asset_id.is_some();
             let mut part_purchase = None;
             let parts_history = if has_asset {
-                let p =
-                    ctx.purchase_reader(c)
-                        .inspect(
-                            &PurchaseRequest {
-                                capabilities: vec!["service.parts-assets".into()],
-                                purpose: CapabilityPurpose::History,
-                                mode: PackageEnforcementMode::Enforced,
-                            },
-                            clock.now(),
-                        )
-                        .await?;
+                let p = ctx
+                    .purchase_reader(c)
+                    .inspect(
+                        &PurchaseRequest {
+                            capabilities: vec!["service.parts-assets".into()],
+                            purpose: CapabilityPurpose::History,
+                            mode: PackageEnforcementMode::Enforced,
+                        },
+                        clock.now(),
+                    )
+                    .await?;
                 let yes = p.require_allowed().is_ok();
                 part_purchase = Some(p.witness);
                 yes

@@ -1,6 +1,7 @@
 //! Finance facts for a Service first Count; they confer no authority.
 pub use crate::adapters::initial_count_finance::{
     CurrentInitialCountFinance, InitialCountFinanceBasis, lock_initial_count_finance_sources,
+    lock_initial_count_finance_sources_nowait,
     read_initial_count_finance,
 };
 pub use crate::adapters::initial_count_posting::{

@@ -325,3 +325,38 @@ async fn insertion_during_empty_list_revalidation_rolls_back() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn field_record_source_requires_public_locks_and_retains_the_unit() {
+    use erpx_server_field_service::public::source_record::{lock_source_record, read_source_record};
+    use erpx_server_shared::public::CompanyId;
+    use sqlx::Connection;
+    facts::account::with_system(|system| async move {
+        let p = facts::setup_workspace(system).await;
+        let company = CompanyId::new("company").unwrap();
+        let mut c = p.pool().raw().acquire().await.unwrap();
+        let mut tx = c.begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await.unwrap();
+        assert!(read_source_record(&mut tx, &company, None, None, "issue-order").await.is_err());
+        tx.rollback().await.unwrap();
+        let mut tx = c.begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await.unwrap();
+        sqlx::query("SAVEPOINT source_lock").execute(&mut *tx).await.unwrap();
+        lock_source_record(&mut tx).await.unwrap();
+        let source = read_source_record(&mut tx, &company, None, None, "issue-order").await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT source_lock").execute(&mut *tx).await.unwrap();
+        assert!(source.require_current(&mut tx).await.is_err());
+        tx.rollback().await.unwrap();
+        let mut tx = c.begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await.unwrap();
+        lock_source_record(&mut tx).await.unwrap();
+        let source = read_source_record(&mut tx, &company, None, None, "issue-order").await.unwrap();
+        assert_eq!(source.data().id, "issue-order");
+        sqlx::raw_sql("CREATE TEMP TABLE field_service_orders(id text) ON COMMIT DROP; CREATE TEMP TABLE field_service_agreements(id text) ON COMMIT DROP; INSERT INTO pg_temp.field_service_orders VALUES('issue-order')").execute(&mut *tx).await.unwrap();
+        source.require_current(&mut tx).await.unwrap();
+        let reread = read_source_record(&mut tx, &company, None, None, "issue-order").await.unwrap();
+        assert_eq!(reread.data(), source.data());
+        tx.rollback().await.unwrap();
+        let mut tx = c.begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await.unwrap();
+        lock_source_record(&mut tx).await.unwrap();
+        assert!(source.require_current(&mut tx).await.is_err());
+        tx.rollback().await.unwrap();
+    }).await;
+}

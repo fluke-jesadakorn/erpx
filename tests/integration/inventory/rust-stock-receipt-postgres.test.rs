@@ -654,7 +654,7 @@ impl StockReceiptQualityPort for TestQuality {
             .bind(&request.due_date)
             .bind(&request.lot_id)
             .bind(request.quantity_milli)
-            .bind(&request.allocation_id)
+            .bind(&request.source_id)
             .execute(&mut *c)
             .await?;
             Ok(id)
@@ -1613,7 +1613,7 @@ mod commerce_receipt {
             .bind(&request.due_date)
             .bind(&request.lot_id)
             .bind(request.quantity_milli)
-            .bind(&request.allocation_id)
+            .bind(&request.source_id)
             .execute(&mut *c)
             .await?;
                 Ok(id)
@@ -1624,6 +1624,7 @@ mod commerce_receipt {
     fn actor() -> CommerceOrderActor {
         CommerceOrderActor {
             user_id: UserId::new("receiver").unwrap(),
+            person_user_ids: vec![],
             holding_id: HoldingId::new("holding").unwrap(),
             company_id: CompanyId::new("company").unwrap(),
             branch_id: Some(RecordId::new("branch").unwrap()),
@@ -1914,14 +1915,14 @@ mod commerce_receipt {
                     )
                 ]
             );
-            let hold: (String, i64) = sqlx::query_as(
-                "SELECT source_type,held_quantity_milli FROM inventory_quality_holds \
+            let hold: (String, String, i64) = sqlx::query_as(
+                "SELECT source_type,source_id,held_quantity_milli FROM inventory_quality_holds \
              WHERE id='quality-lot-allocation-delivery-receipt-one-0-1'",
             )
             .fetch_one(pool.raw())
             .await
             .unwrap();
-            assert_eq!(hold, ("goods_receipt".into(), 1_000));
+            assert_eq!(hold, ("goods_receipt".into(), "delivery-receipt-one-0-1".into(), 1_000));
 
             let evidence: (i64, i64, i64, i64, i64) = sqlx::query_as(
                 "SELECT (SELECT count(*) FROM command_receipts WHERE command_id='receipt-one'),\
@@ -2161,6 +2162,83 @@ mod commerce_receipt {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    async fn receipt_rejects_stock_afterimage_trigger_drift_and_rolls_back() {
+        fixture::with_database(4, |pool| async move {
+            setup(&pool).await;
+            sqlx::raw_sql("CREATE FUNCTION drift_receipt_stock() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN NEW.quantity_milli=NEW.quantity_milli+1; RETURN NEW; END $$; CREATE TRIGGER drift_receipt_stock BEFORE UPDATE ON commerce_stock FOR EACH ROW EXECUTE FUNCTION drift_receipt_stock()").execute(pool.raw()).await.unwrap();
+            let error=run(&pool,actor(),lot_allocation()).await.unwrap_err();
+            assert_eq!(business(error).code,"STOCK_RECEIPT_SOURCE_CHANGED");
+            let after:(i64,i64,i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT quantity_milli FROM commerce_stock WHERE product_id='product'),(SELECT version FROM commerce_stock WHERE product_id='product'),(SELECT count(*) FROM commerce_fulfillments),(SELECT count(*) FROM commerce_stock_moves),(SELECT count(*) FROM inventory_quality_holds),(SELECT count(*) FROM command_receipts)").fetch_one(pool.raw()).await.unwrap();
+            assert_eq!(after,(1_000,1,0,0,0,0));
+        }).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn receipt_preserves_legacy_short_reason_and_past_due_date() {
+        fixture::with_database(4, |pool| async move {
+            setup(&pool).await;
+            let mut input=lot_allocation();
+            input.lines[0].allocations[0].quarantine_reason=Some("ignored".into());
+            input.lines[0].allocations[0].quarantine_due_date=Some("2020-01-01".into());
+            input.lines[0].allocations[1].quarantine_reason=Some(" x ".into());
+            input.lines[0].allocations[1].quarantine_due_date=Some("2020-01-01".into());
+            run(&pool,actor(),input).await.unwrap();
+            let holds:Vec<(String,String,String,i64)>=sqlx::query_as("SELECT reason,due_date,source_id,held_quantity_milli FROM inventory_quality_holds WHERE source_type='goods_receipt' ORDER BY source_id").fetch_all(pool.raw()).await.unwrap();
+            assert_eq!(holds,vec![("x".into(),"2020-01-01".into(),"delivery-receipt-one-0-1".into(),1000)]);
+            let available:i64=sqlx::query_scalar("SELECT count(*) FROM inventory_fulfillment_lot_allocations WHERE disposition='available' AND quality_hold_id IS NULL").fetch_one(pool.raw()).await.unwrap();
+            assert_eq!(available,1);
+        }).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn receipt_rejects_prefixed_quality_source_id_and_rolls_back() {
+        fixture::with_database(4, |pool| async move {
+            setup(&pool).await;
+            sqlx::raw_sql("CREATE FUNCTION drift_receipt_source_id() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN NEW.source_id='lot-allocation-'||NEW.source_id; RETURN NEW; END $$; CREATE TRIGGER drift_receipt_source_id BEFORE INSERT ON inventory_quality_holds FOR EACH ROW EXECUTE FUNCTION drift_receipt_source_id()").execute(pool.raw()).await.unwrap();
+            let error=run(&pool,actor(),lot_allocation()).await.unwrap_err();
+            assert_eq!(business(error).code,"STOCK_RECEIPT_SOURCE_CHANGED");
+            let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM inventory_quality_holds),(SELECT count(*) FROM inventory_fulfillment_lot_allocations),(SELECT count(*) FROM command_receipts)").fetch_one(pool.raw()).await.unwrap();
+            assert_eq!(counts,(0,0,0));
+        }).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn receipt_rejects_lot_afterimage_trigger_drift_and_rolls_back() {
+        fixture::with_database(4, |pool| async move {
+            setup(&pool).await;
+            sqlx::raw_sql("CREATE FUNCTION drift_receipt_lot() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN NEW.value_minor=NEW.value_minor+1; RETURN NEW; END $$; CREATE TRIGGER drift_receipt_lot BEFORE INSERT OR UPDATE ON inventory_lot_balances FOR EACH ROW EXECUTE FUNCTION drift_receipt_lot()").execute(pool.raw()).await.unwrap();
+            let error=run(&pool,actor(),lot_allocation()).await.unwrap_err();
+            assert_eq!(business(error).code,"STOCK_RECEIPT_SOURCE_CHANGED");
+            let after:(i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT quantity_milli FROM commerce_stock WHERE product_id='product'),(SELECT count(*) FROM commerce_fulfillments),(SELECT count(*) FROM inventory_lot_moves),(SELECT count(*) FROM command_receipts)").fetch_one(pool.raw()).await.unwrap();
+            assert_eq!(after,(1_000,0,0,0));
+        }).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn receipt_rejects_late_order_trigger_stock_drift_and_rolls_back() {
+        fixture::with_database(4, |pool| async move {
+            setup(&pool).await;
+            sqlx::raw_sql("CREATE FUNCTION drift_receipt_late_stock() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.id='order-1' THEN UPDATE commerce_stock SET value_minor=value_minor+1 WHERE product_id='product'; END IF; RETURN NEW; END $$; CREATE TRIGGER drift_receipt_late_stock AFTER UPDATE ON commerce_orders FOR EACH ROW EXECUTE FUNCTION drift_receipt_late_stock()").execute(pool.raw()).await.unwrap();
+            let error=run(&pool,actor(),lot_allocation()).await.unwrap_err();
+            assert_eq!(business(error).code,"STOCK_RECEIPT_SOURCE_CHANGED");
+            let after:(i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT quantity_milli FROM commerce_stock WHERE product_id='product'),(SELECT count(*) FROM commerce_fulfillments),(SELECT count(*) FROM inventory_quality_holds),(SELECT count(*) FROM command_receipts)").fetch_one(pool.raw()).await.unwrap();
+            assert_eq!(after,(1_000,0,0,0));
+        }).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn receipt_rejects_stock_drift_from_outbox_trigger_and_rolls_back() {
+        fixture::with_database(4, |pool| async move {
+            setup(&pool).await;
+            sqlx::raw_sql("CREATE FUNCTION drift_receipt_outbox_stock() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.command_id='receipt-one' THEN UPDATE commerce_stock SET value_minor=value_minor+1 WHERE product_id='product'; END IF; RETURN NEW; END $$; CREATE TRIGGER drift_receipt_outbox_stock AFTER INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION drift_receipt_outbox_stock()").execute(pool.raw()).await.unwrap();
+            let error=run(&pool,actor(),lot_allocation()).await.unwrap_err();
+            assert_eq!(business(error).code,"STOCK_RECEIPT_SOURCE_CHANGED");
+            let after:(i64,i64,i64,i64,i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT quantity_milli FROM commerce_stock WHERE product_id='product'),(SELECT value_minor FROM commerce_stock WHERE product_id='product'),(SELECT version FROM commerce_stock WHERE product_id='product'),(SELECT count(*) FROM commerce_fulfillments),(SELECT count(*) FROM inventory_quality_holds),(SELECT count(*) FROM command_receipts),(SELECT count(*) FROM audit_events WHERE command_id='receipt-one'),(SELECT count(*) FROM outbox_events WHERE command_id='receipt-one')").fetch_one(pool.raw()).await.unwrap();
+            assert_eq!(after,(1_000,1_000,1,0,0,0,0,0));
+        }).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
     async fn late_outbox_failure_rolls_back_every_receipt_rows_and_exact_retry_persists_once() {
         fixture::with_database(4, |pool| async move {
             setup(&pool).await;
@@ -2254,4 +2332,35 @@ mod commerce_receipt {
         })
         .await;
     }
+}
+
+#[tokio::test]
+async fn quality_origin_allocation_cte_matches_actual_typescript_join() {
+    use erpx_server_inventory::public::quality_origin_allocation_join::{inspect_quality_origin_allocation_join,lock_quality_origin_allocation_join};
+    let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const {commerceQualityOriginRows}=await import('./packages/server-commerce/src/adapters/quality-purchase-sources.ts');const receipt=commerceQualityOriginRows.match(/WHERE a\.quality_hold_id IS NOT NULL AND a\.disposition='quarantine'/);const tracked=commerceQualityOriginRows.match(/JOIN inventory_fulfillment_lot_allocations original ON ([^\n]+)/);if(!receipt||!tracked)throw Error('QUALITY_INVENTORY_TS_SOURCE_MISSING');process.stdout.write(JSON.stringify({receipt:receipt[0],tracked:tracked[1]}));"#;
+    let out=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).args(["--conditions=react-server","-e",script]).output().unwrap();assert!(out.status.success(),"actual Quality source unavailable");let original:serde_json::Value=serde_json::from_slice(&out.stdout).unwrap();
+    fixture::with_database(2,|pool|async move {
+        facts::setup(&pool,"lot",true).await;
+        sqlx::raw_sql("INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,created_by,created_at,updated_at,lot_id,held_quantity_milli,source_type,source_id,quantity_scope) VALUES('hold','company','branch','warehouse','product','Review','2026-11-10','maker',0,0,'lot-existing',1000,'goods_receipt','allocation','partial'); INSERT INTO inventory_lots(id,company_id,product_id,tracking_mode,lot_code,created_by,created_at) VALUES('lot-second','company','product','lot','SECOND','maker',1); INSERT INTO inventory_fulfillment_lot_allocations(id,fulfillment_line_id,lot_id,quantity_milli,value_minor,disposition,quality_hold_id) VALUES('allocation','delivery-key-0','lot-existing',1000,2500,'quarantine','hold'),('not-quarantine','delivery-key-0','lot-second',1000,2500,'available',NULL)").execute(pool.raw()).await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();assert!(inspect_quality_origin_allocation_join(&mut tx).await.is_err());tx.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_quality_origin_allocation_join(&mut tx).await.unwrap();let source=inspect_quality_origin_allocation_join(&mut tx).await.unwrap();
+        let receipt=original["receipt"].as_str().unwrap();let old=format!("SELECT a.id FROM inventory_fulfillment_lot_allocations a {receipt} ORDER BY a.id");let new=format!("WITH {} SELECT a.id FROM quality_inventory_fulfillment_allocations a {receipt} ORDER BY a.id",source.cte_sql());let expected:Vec<String>=sqlx::query_scalar(sqlx::AssertSqlSafe(old)).fetch_all(&mut *tx).await.unwrap();let actual:Vec<String>=sqlx::query_scalar(sqlx::AssertSqlSafe(new)).fetch_all(&mut *tx).await.unwrap();assert_eq!(expected,vec!["allocation"]);assert_eq!(actual,expected);
+        let tracked=original["tracked"].as_str().unwrap();let values="(VALUES ('allocation'::text,'delivery-key-0'::text,'lot-existing'::text),('allocation','wrong-line','lot-existing'),('allocation','delivery-key-0','wrong-lot')) AS allocation(fulfillment_allocation_id,fulfillment_line_id,lot_id) JOIN LATERAL (SELECT allocation.fulfillment_line_id id) fl ON true";
+        let old=format!("SELECT original.id FROM {values} JOIN inventory_fulfillment_lot_allocations original ON {tracked} ORDER BY original.id");let new=format!("WITH {} SELECT original.id FROM {values} JOIN quality_inventory_fulfillment_allocations original ON {tracked} ORDER BY original.id",source.cte_sql());let expected:Vec<String>=sqlx::query_scalar(sqlx::AssertSqlSafe(old)).fetch_all(&mut *tx).await.unwrap();let actual:Vec<String>=sqlx::query_scalar(sqlx::AssertSqlSafe(new)).fetch_all(&mut *tx).await.unwrap();assert_eq!(expected,vec!["allocation"]);assert_eq!(actual,expected);source.require_current(&mut tx).await.unwrap();
+        sqlx::query("SAVEPOINT allocation_count_limit").execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO inventory_lots(id,company_id,product_id,tracking_mode,lot_code,created_by,created_at) SELECT 'count-lot-'||n,'company','product','lot','COUNT-'||n,'maker',1 FROM generate_series(1,9998) n").execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO inventory_fulfillment_lot_allocations(id,fulfillment_line_id,lot_id,quantity_milli,value_minor,disposition) SELECT 'count-a-'||n,'delivery-key-0','count-lot-'||n,1,0,'available' FROM generate_series(1,9998) n").execute(&mut *tx).await.unwrap();
+        let (count,bytes):(i64,i64)=sqlx::query_as("SELECT count(*)::bigint,coalesce(sum(octet_length(to_jsonb(a)::text)),0)::bigint FROM public.inventory_fulfillment_lot_allocations a").fetch_one(&mut *tx).await.unwrap();assert_eq!(count,10000);assert!(bytes<=2097152,"count boundary must not also exceed byte bound");source.require_current(&mut tx).await.unwrap();
+        sqlx::query("INSERT INTO inventory_lots(id,company_id,product_id,tracking_mode,lot_code,created_by,created_at) VALUES('count-lot-last','company','product','lot','COUNT-LAST','maker',1)").execute(&mut *tx).await.unwrap();sqlx::query("INSERT INTO inventory_fulfillment_lot_allocations(id,fulfillment_line_id,lot_id,quantity_milli,value_minor,disposition) VALUES('count-a-last','delivery-key-0','count-lot-last',1,0,'available')").execute(&mut *tx).await.unwrap();
+        assert!(matches!(source.require_current(&mut tx).await,Err(PgTransactionError::Business(ref e)) if e.code=="INVENTORY_QUALITY_ORIGIN_LIMIT"));sqlx::query("ROLLBACK TO SAVEPOINT allocation_count_limit").execute(&mut *tx).await.unwrap();source.require_current(&mut tx).await.unwrap();
+        sqlx::query("SAVEPOINT allocation_byte_limit").execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO inventory_lots(id,company_id,product_id,tracking_mode,lot_code,created_by,created_at) SELECT 'byte-lot-'||n,'company','product','lot','BYTE-'||n,'maker',1 FROM generate_series(1,2000) n").execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO inventory_fulfillment_lot_allocations(id,fulfillment_line_id,lot_id,quantity_milli,value_minor,disposition) SELECT repeat('x',1000)||n,'delivery-key-0','byte-lot-'||n,1,0,'available' FROM generate_series(1,2000) n").execute(&mut *tx).await.unwrap();
+        let (count,bytes):(i64,i64)=sqlx::query_as("SELECT count(*)::bigint,coalesce(sum(octet_length(to_jsonb(a)::text)),0)::bigint FROM public.inventory_fulfillment_lot_allocations a").fetch_one(&mut *tx).await.unwrap();assert!(count<=10000);assert!(bytes>2097152);assert!(matches!(source.require_current(&mut tx).await,Err(PgTransactionError::Business(ref e)) if e.code=="INVENTORY_QUALITY_ORIGIN_LIMIT"));sqlx::query("ROLLBACK TO SAVEPOINT allocation_byte_limit").execute(&mut *tx).await.unwrap();source.require_current(&mut tx).await.unwrap();
+        sqlx::query("SAVEPOINT allocation_shadow").execute(&mut *tx).await.unwrap();sqlx::query("CREATE TEMP TABLE inventory_fulfillment_lot_allocations(id text)").execute(&mut *tx).await.unwrap();assert!(source.require_current(&mut tx).await.is_err());sqlx::query("ROLLBACK TO SAVEPOINT allocation_shadow").execute(&mut *tx).await.unwrap();source.require_current(&mut tx).await.unwrap();tx.rollback().await.unwrap();
+        let mut other=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();lock_quality_origin_allocation_join(&mut other).await.unwrap();assert!(source.require_current(&mut other).await.is_err());other.rollback().await.unwrap();
+        let mut save=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *save).await.unwrap();sqlx::query("SAVEPOINT before_allocation_lock").execute(&mut *save).await.unwrap();lock_quality_origin_allocation_join(&mut save).await.unwrap();let retained=inspect_quality_origin_allocation_join(&mut save).await.unwrap();sqlx::query("ROLLBACK TO SAVEPOINT before_allocation_lock").execute(&mut *save).await.unwrap();assert!(retained.require_current(&mut save).await.is_err());save.rollback().await.unwrap();
+        let mut writer=pool.raw().begin().await.unwrap();sqlx::query("LOCK TABLE public.inventory_fulfillment_lot_allocations IN ROW EXCLUSIVE MODE").execute(&mut *writer).await.unwrap();let mut blocked=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *blocked).await.unwrap();let error=lock_quality_origin_allocation_join(&mut blocked).await.unwrap_err();assert!(matches!(error,PgTransactionError::Persistence(ref e) if e.sql_state()==Some("55P03") && e.retryable()));blocked.rollback().await.unwrap();writer.rollback().await.unwrap();
+        let mut rls=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *rls).await.unwrap();let bypass:bool=sqlx::query_scalar("SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname=current_user").fetch_one(&mut *rls).await.unwrap();assert!(!bypass);sqlx::raw_sql("ALTER TABLE public.inventory_fulfillment_lot_allocations ENABLE ROW LEVEL SECURITY; ALTER TABLE public.inventory_fulfillment_lot_allocations FORCE ROW LEVEL SECURITY").execute(&mut *rls).await.unwrap();assert!(sqlx::query_scalar::<_,bool>("SELECT row_security_active('public.inventory_fulfillment_lot_allocations'::regclass)").fetch_one(&mut *rls).await.unwrap());lock_quality_origin_allocation_join(&mut rls).await.unwrap();assert!(inspect_quality_origin_allocation_join(&mut rls).await.is_err());rls.rollback().await.unwrap();
+    }).await;
 }

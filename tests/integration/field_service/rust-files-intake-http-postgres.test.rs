@@ -78,7 +78,16 @@ async fn private_route_enforces_account_and_replay_readiness() {
   let bad_query=Request::builder().uri("/api/v1/holdings/acme/field-service/attachment-sets?targetType=other").header("host","acme.example.test").body(Body::empty()).unwrap();assert_eq!(router.clone().oneshot(bad_query).await.unwrap().status(),StatusCode::UNAUTHORIZED);
   assert_eq!(provider.calls.load(Ordering::SeqCst),0);
 
+  let get_current=||Request::builder().uri("/api/v1/holdings/acme/field-service/attachment-sets?targetType=field_service_visit&targetId=issue-order").header("host","acme.example.test").header("cookie",&cookie).header("x-erpx-context-company","company").header("x-erpx-context-assignment","field-fixture-a").header("x-erpx-context-assignment-version","3").header("x-erpx-context-revision","8").body(Body::empty()).unwrap();
+  let empty=router.clone().oneshot(get_current()).await.unwrap();assert_eq!(empty.status(),StatusCode::OK);let empty:serde_json::Value=serde_json::from_slice(&to_bytes(empty.into_body(),65536).await.unwrap()).unwrap();assert_eq!(empty["data"],serde_json::json!([]));
+  let db=p.pool().raw();let mut writer=db.begin().await.unwrap();let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();
+  assert_eq!(sqlx::query("UPDATE company_package_grants SET reason=reason WHERE company_id='company' AND package_id='service'").execute(&mut *writer).await.unwrap().rows_affected(),1);
+  let held:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND relation='company_package_grants'::regclass AND mode='RowExclusiveLock' AND granted)").bind(pid).fetch_one(db).await.unwrap();assert!(held);
+  let blocked=tokio::time::timeout(std::time::Duration::from_secs(5),router.clone().oneshot(get_current())).await.unwrap().unwrap();assert_eq!(blocked.status(),StatusCode::INTERNAL_SERVER_ERROR);let blocked:serde_json::Value=serde_json::from_slice(&to_bytes(blocked.into_body(),65536).await.unwrap()).unwrap();assert_eq!(blocked["error"]["code"],"INTERNAL_ERROR");
+  let unchanged:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM attachment_sets WHERE target_id='issue-order'),(SELECT count(*) FROM audit_events WHERE action='attachment.set.create'),(SELECT count(*) FROM outbox_events WHERE event_type='attachment.set.create')").fetch_one(db).await.unwrap();assert_eq!(unchanged,(0,0,0));writer.rollback().await.unwrap();
+  let empty_after=router.clone().oneshot(get_current()).await.unwrap();assert_eq!(empty_after.status(),StatusCode::OK);let empty_after:serde_json::Value=serde_json::from_slice(&to_bytes(empty_after.into_body(),65536).await.unwrap()).unwrap();assert_eq!(empty_after["data"],serde_json::json!([]));
   let first=router.clone().oneshot(post("private-create",body)).await.unwrap();assert_eq!(first.status(),StatusCode::CREATED);let data:serde_json::Value=serde_json::from_slice(&to_bytes(first.into_body(),65536).await.unwrap()).unwrap();let typed:erpx_service::field_attachment_intake_contracts::FieldIntakeCreateResponse=serde_json::from_value(data.clone()).unwrap();assert_eq!(serde_json::to_value(typed).unwrap(),data);assert!(data["data"]["id"].is_string());assert_eq!(provider.calls.load(Ordering::SeqCst),1);
+  let listed=router.clone().oneshot(get_current()).await.unwrap();assert_eq!(listed.status(),StatusCode::OK);let listed:serde_json::Value=serde_json::from_slice(&to_bytes(listed.into_body(),65536).await.unwrap()).unwrap();assert_eq!(listed["data"].as_array().unwrap().len(),1);assert_eq!(listed["data"][0]["id"],data["data"]["id"]);
   provider.ready.store(false,Ordering::SeqCst);
   assert_eq!(router.clone().oneshot(post("private-create",body)).await.unwrap().status(),StatusCode::CREATED);assert_eq!(provider.calls.load(Ordering::SeqCst),1);
   assert_eq!(router.clone().oneshot(post("private-reuse",body)).await.unwrap().status(),StatusCode::SERVICE_UNAVAILABLE);assert_eq!(provider.calls.load(Ordering::SeqCst),2);
@@ -131,6 +140,17 @@ async fn field_upload_http_preserves_selected_authority_and_short_units() {
   let set:serde_json::Value=serde_json::from_slice(&to_bytes(r.into_body(),65536).await.unwrap()).unwrap();let id=set["data"]["id"].as_str().unwrap();
   let reserve_path=format!("/api/v1/holdings/acme/field-service/attachment-sets/{id}/files");
   let reservation=br#"{"filename":"photo.png","mediaType":"image/png","bytes":24}"#.to_vec();
+  // A real grant writer defeats the Visit pre-snapshot fence before body
+  // processing or provider probing; reservation leaves no Files effects.
+  {
+   let db=p.pool().raw();let mut writer=db.begin().await.unwrap();let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();
+   assert_eq!(sqlx::query("UPDATE company_package_grants SET reason=reason WHERE company_id='company' AND package_id='service'").execute(&mut *writer).await.unwrap().rows_affected(),1);
+   let held:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND relation='company_package_grants'::regclass AND mode='RowExclusiveLock' AND granted)").bind(pid).fetch_one(db).await.unwrap();assert!(held);
+   let probes=provider.calls.load(Ordering::SeqCst);
+   let blocked=tokio::time::timeout(std::time::Duration::from_secs(5),router.clone().oneshot(req("POST",&reserve_path,"upload-http-reserve",reservation.clone()))).await.unwrap().unwrap();assert_eq!(blocked.status(),StatusCode::INTERNAL_SERVER_ERROR);
+   let error:serde_json::Value=serde_json::from_slice(&to_bytes(blocked.into_body(),65536).await.unwrap()).unwrap();assert_eq!(error["error"]["code"],"INTERNAL_ERROR");assert_eq!(provider.calls.load(Ordering::SeqCst),probes);
+   let effects:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM attachment_links WHERE set_id=$1),(SELECT count(*) FROM upload_intents WHERE attachment_set_id=$1),(SELECT count(*) FROM field_upload_publication_pins)").bind(id).fetch_one(db).await.unwrap();assert_eq!(effects,(0,0,0));writer.rollback().await.unwrap();
+  }
   let r=router.clone().oneshot(req("POST",&reserve_path,"upload-http-reserve",reservation.clone())).await.unwrap();
   let status=r.status();let body=to_bytes(r.into_body(),65536).await.unwrap();assert_eq!(status,StatusCode::CREATED,"{}",String::from_utf8_lossy(&body));
   let reserved:serde_json::Value=serde_json::from_slice(&body).unwrap();let url=reserved["data"]["uploadUrl"].as_str().unwrap();let link=reserved["data"]["attachmentLinkId"].as_str().unwrap();

@@ -1,6 +1,10 @@
 //! Native Projects read assembly. Current Account/Holding authority remains
 //! with the selected coordinator; owner ports supply the bounded WBS read.
 use crate::business_http::BusinessScopeSlugs;
+use erpx_server_commercial::public::purchases::{
+    CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
+    PurchaseRequest,
+};
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
     account_inbound_http::parse_inbound_account_request,
@@ -10,24 +14,23 @@ use erpx_server_identity_access::public::{
     },
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
-use erpx_server_commercial::public::purchases::{
-    CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
-    PurchaseRequest,
-};
 use erpx_server_projects::public::project_commands::{
-    ProjectCommandActor, PgProjectMilestoneCommands, SaveMilestoneCommand, TransitionMilestoneCommand,
-    save_milestone, transition_milestone,
+    PgProjectMilestoneCommands, ProjectCommandActor, SaveMilestoneCommand,
+    TransitionMilestoneCommand, save_milestone, transition_milestone,
 };
 use erpx_server_projects::public::project_commands_http::{
-    ProjectCommandHttpResponse, ProjectMilestoneCommandHttpBackend, ProjectMilestoneSaveHttpRequest,
-    ProjectMilestoneTransitionHttpRequest, ProjectCommandHttpFuture,
+    ProjectCommandHttpFuture, ProjectCommandHttpResponse, ProjectMilestoneCommandHttpBackend,
+    ProjectMilestoneSaveHttpRequest, ProjectMilestoneTransitionHttpRequest,
 };
-use erpx_server_projects::public::project_graph::{ProjectGraphActor, project_graph, PgProjectGraphRead};
+use erpx_server_projects::public::project_graph::{
+    PgProjectGraphRead, ProjectGraphActor, project_graph,
+};
 use erpx_server_projects::public::project_graph_http::{
-    ProjectGraphHttpBackend, ProjectGraphHttpFuture, ProjectGraphHttpRequest, ProjectGraphHttpResponse,
+    ProjectGraphHttpBackend, ProjectGraphHttpFuture, ProjectGraphHttpRequest,
+    ProjectGraphHttpResponse,
 };
-use erpx_server_projects::public::project_wbs::{ProjectReadActor, project_wbs};
 use erpx_server_projects::public::project_wbs::PgProjectWbsRead;
+use erpx_server_projects::public::project_wbs::{ProjectReadActor, project_wbs};
 use erpx_server_projects::public::project_wbs_http::{
     ProjectWbsHttpBackend, ProjectWbsHttpFuture, ProjectWbsHttpRequest, ProjectWbsHttpResponse,
     ProjectWbsHttpTarget, projects_router,
@@ -370,7 +373,8 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
                         }
                         current.require_permission("records.write")?;
                         let now = clock.now();
-                        let active_staff = active_staff(connection, current.user_id().as_str(), &company).await?;
+                        let active_staff =
+                            active_staff(connection, current.user_id().as_str(), &company).await?;
                         let mut reader = PgCompanyPurchaseReader::new(
                             holding.clone(),
                             company.clone(),
@@ -461,7 +465,8 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
                         }
                         current.require_permission("records.write")?;
                         let now = clock.now();
-                        let active_staff = active_staff(connection, current.user_id().as_str(), &company).await?;
+                        let active_staff =
+                            active_staff(connection, current.user_id().as_str(), &company).await?;
                         let mut reader = PgCompanyPurchaseReader::new(
                             holding.clone(),
                             company.clone(),
@@ -519,7 +524,6 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
             )
             .await
     }
-
 }
 
 pub struct ProjectsBackend<C> {
@@ -571,7 +575,12 @@ impl<C: Clock + Send + Sync + 'static> ProjectWbsHttpBackend for ProjectsBackend
         Box::pin(async move {
             let (proof, selection) = self.context(request.headers)?;
             self.service
-                .wbs(request.host, proof, move || Ok(selection), request.project_id.to_owned())
+                .wbs(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.project_id.to_owned(),
+                )
                 .await
                 .map_err(business)
         })

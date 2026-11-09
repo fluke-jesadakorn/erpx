@@ -156,17 +156,17 @@ pub(super) async fn prepare<C: Clock>(
         ctx.company.as_str(),
         &record,
     )?;
-    let purchase =
-        ctx.purchase_reader(c)
-            .inspect(
-                &PurchaseRequest {
-                    capabilities: vec![capability.into()],
-                    purpose: CapabilityPurpose::History,
-                    mode: PackageEnforcementMode::Enforced,
-                },
-                ctx.clock.now(),
-            )
-            .await?;
+    let purchase = ctx
+        .purchase_reader(c)
+        .inspect(
+            &PurchaseRequest {
+                capabilities: vec![capability.into()],
+                purpose: CapabilityPurpose::History,
+                mode: PackageEnforcementMode::Enforced,
+            },
+            ctx.clock.now(),
+        )
+        .await?;
     purchase.require_allowed()?;
     Ok(PreparedLeafSource {
         source,

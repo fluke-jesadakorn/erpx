@@ -59,7 +59,9 @@ impl<C> Clone for NativeFilesScanWorker<C> {
 impl<C: Clock + Send + Sync + 'static> NativeFilesScanWorker<C> {
     /// Cursor advancement is operational metadata, never source authority.
     pub async fn next_field_candidate(&self) -> Result<Option<RecordId>, Error> {
-        if !self.field_only { return Err(unavailable().into()); }
+        if !self.field_only {
+            return Err(unavailable().into());
+        }
         self.transactions.next_field_candidate().await
     }
     pub async fn run_next(
@@ -85,13 +87,28 @@ impl<C: Clock + Send + Sync + 'static> NativeFilesScanWorker<C> {
         )
         .await
     }
-#[allow(dead_code)]
-    pub(crate) fn cleanup_worker(&self,writer:erpx_server_files::public::field_visit_upload::LocalFieldQuarantineWriter)->Result<crate::field_files_cleanup_worker::FieldFilesCleanupWorker<C>,BusinessError>{
-        if !self.field_only {return Err(unavailable());}
-        Ok(crate::field_files_cleanup_worker::FieldFilesCleanupWorker::new(self.transactions.clone(),writer,self.clock.clone()))
+    #[allow(dead_code)]
+    pub(crate) fn cleanup_worker(
+        &self,
+        writer: erpx_server_files::public::field_visit_upload::LocalFieldQuarantineWriter,
+    ) -> Result<crate::field_files_cleanup_worker::FieldFilesCleanupWorker<C>, BusinessError> {
+        if !self.field_only {
+            return Err(unavailable());
+        }
+        Ok(
+            crate::field_files_cleanup_worker::FieldFilesCleanupWorker::new(
+                self.transactions.clone(),
+                writer,
+                self.clock.clone(),
+            ),
+        )
     }
     #[allow(dead_code)]
-    pub(crate) fn cleanup_scope(&self)->&erpx_server_files::public::attachment_scan::AttachmentScanScope {self.transactions.scope()}
+    pub(crate) fn cleanup_scope(
+        &self,
+    ) -> &erpx_server_files::public::attachment_scan::AttachmentScanScope {
+        self.transactions.scope()
+    }
     pub fn request_shutdown(&self) {
         self.stopping.store(true, Ordering::Release);
         self.sanitizer.request_shutdown();
@@ -110,16 +127,39 @@ impl<C: Clock + Send + Sync + 'static> NativeFilesScanWorker<C> {
     }
 }
 
-impl<C: Clock + Send + Sync + 'static> crate::field_attachment_intake_command::FieldIntakeProviderReadiness for NativeFilesScanWorker<C> {
-    fn probe(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<crate::field_attachment_intake_command::FieldIntakeProviderStatus, BusinessError>> + Send + '_>> {
+impl<C: Clock + Send + Sync + 'static>
+    crate::field_attachment_intake_command::FieldIntakeProviderReadiness
+    for NativeFilesScanWorker<C>
+{
+    fn probe(
+        &self,
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<
+                    Output = Result<
+                        crate::field_attachment_intake_command::FieldIntakeProviderStatus,
+                        BusinessError,
+                    >,
+                > + Send
+                + '_,
+        >,
+    > {
         Box::pin(async move {
-            if self.stopping.load(Ordering::Acquire) { return Err(unavailable()); }
+            if self.stopping.load(Ordering::Acquire) {
+                return Err(unavailable());
+            }
             // Provider readiness is source-neutral and grants no record or job
             // authority. The transaction adapter keeps its claim partition.
             // The provider probes current ClamAV PING/VERSION and the bounded
             // preview executable/profile; these are not caller-supplied flags.
             self.sanitizer.require_ready(self.clock.as_ref()).await?;
-            Ok(crate::field_attachment_intake_command::FieldIntakeProviderStatus { scanner_enabled:true, scanner_ready:true, preview_ready:true })
+            Ok(
+                crate::field_attachment_intake_command::FieldIntakeProviderStatus {
+                    scanner_enabled: true,
+                    scanner_ready: true,
+                    preview_ready: true,
+                },
+            )
         })
     }
 }
@@ -158,7 +198,11 @@ async fn assemble_native_files_scan<C: Clock + Send + Sync + 'static>(
     // This opens only explicit exact-lease databases and verifies schema/current
     // startup registry. It returns no authority usable across later compute.
     let target = assemble_development_files_scan(databases, clock.clone()).await?;
-    let target = if field_only { target.field_only() } else { target };
+    let target = if field_only {
+        target.field_only()
+    } else {
+        target
+    };
     let result = async {
         let root = providers
             .files_roots

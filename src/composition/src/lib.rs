@@ -45,21 +45,36 @@ pub mod private_development_api;
 
 #[cfg(feature = "existing-business")]
 pub mod approval_oversight;
+mod asset_command_wire;
 pub mod asset_http;
+
 #[cfg(feature = "existing-business")]
 pub mod asset_purchase_image;
 #[cfg(feature = "existing-business")]
 pub mod asset_retirement_work;
 pub mod benefits;
+pub mod billing;
 #[cfg(feature = "existing-business")]
 pub mod brand_identity;
 #[cfg(feature = "existing-business")]
 pub mod brand_identity_http;
 #[cfg(feature = "existing-business")]
+pub mod commerce;
+#[cfg(feature = "existing-business")]
+pub mod commerce_request_linkage;
+pub mod commercial;
+#[cfg(feature = "existing-business")]
 pub mod crm;
 #[cfg(feature = "existing-business")]
-pub mod commerce;
-pub mod commercial;
+pub mod crm_reassign_wire;
+#[cfg(feature = "existing-business")]
+pub mod crm_recipient_eligibility;
+#[cfg(feature = "existing-business")]
+pub mod customer_360;
+#[cfg(feature = "existing-business")]
+pub mod customer_authority;
+#[cfg(feature = "existing-business")]
+pub mod ecommerce;
 pub mod files;
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
 pub mod finance_bank_http;
@@ -73,6 +88,7 @@ pub mod finance_generic_payment_http;
 pub mod finance_journal_detail;
 #[cfg(feature = "existing-business")]
 pub mod handbook;
+pub mod identity_access;
 #[cfg(feature = "existing-business")]
 pub mod learning;
 #[cfg(feature = "existing-business")]
@@ -82,19 +98,11 @@ pub mod maintenance;
 #[cfg(feature = "existing-business")]
 pub mod maintenance_asset_purchase_image;
 pub mod maintenance_create;
+pub mod manage_erpx;
 #[cfg(feature = "existing-business")]
 pub mod manufacturing;
 #[cfg(feature = "existing-business")]
 pub mod marketing;
-#[cfg(feature = "existing-business")]
-pub mod customer_360;
-#[cfg(feature = "existing-business")]
-pub mod customer_authority;
-#[cfg(feature = "existing-business")]
-pub mod ecommerce;
-pub mod manage_erpx;
-#[cfg(feature = "existing-business")]
-pub mod talent;
 pub mod operations;
 #[cfg(feature = "existing-business")]
 pub mod organization_nodes;
@@ -105,12 +113,10 @@ pub mod organization_setup;
 pub mod people_payroll;
 pub mod platform_administration;
 pub mod pms;
+pub mod pos;
 pub mod procurement;
 #[cfg(feature = "existing-business")]
 pub mod projects;
-pub mod billing;
-pub mod pos;
-pub mod identity_access;
 pub mod quality;
 pub mod quality_commands;
 #[cfg(any(feature = "existing-business", feature = "records-command"))]
@@ -119,6 +125,8 @@ pub mod records;
 pub mod records_command;
 #[cfg(feature = "existing-business")]
 pub mod sales;
+#[cfg(feature = "existing-business")]
+pub mod talent;
 
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
 pub mod finance_presentation;
@@ -177,6 +185,16 @@ pub mod maintenance_settlement;
 
 #[cfg(feature = "field-service")]
 pub mod field_service_parts;
+
+#[cfg(feature = "field-service")]
+pub mod field_finance_history;
+
+#[cfg(feature = "existing-business")]
+pub mod field_attachment_global_marker;
+#[cfg(feature = "existing-business")]
+pub mod field_attachment_link_routing;
+#[cfg(feature = "field-service")]
+pub mod initial_count_terminal_history;
 
 #[cfg(feature = "field-service")]
 pub mod service_parts_posting_setup;
@@ -393,13 +411,3 @@ pub mod support_ticket_command;
 pub mod support_ticket_http;
 #[cfg(any(feature = "existing-business", feature = "private-field-api"))]
 pub mod support_ticket_read;
-
-#[cfg(feature = "field-service")]
-pub mod field_finance_history;
-
-#[cfg(feature = "existing-business")]
-pub mod field_attachment_global_marker;
-#[cfg(feature = "existing-business")]
-pub mod field_attachment_link_routing;
-#[cfg(feature = "field-service")]
-pub mod initial_count_terminal_history;

@@ -454,6 +454,17 @@ fn request_commits_the_exact_source_bound_plan_and_replays() {
     .unwrap();
     assert_eq!(replay, result);
     assert_eq!(fake.calls(), vec!["request"]);
+    // The TS command parses the original input, then replays before expiry.
+    let later = NOW + 86_400_001;
+    let mut current_actor = actor(&["commerce.read", "commerce.sales"]);
+    current_actor.expires_at = later + 60_000;
+    fake.order = None;
+    let expired_replay = block_on(request_access(
+        &mut fake, &current_actor, &key(), &request("customer@example.test"), later,
+    )).unwrap();
+    assert_eq!(expired_replay, result);
+    assert_eq!(fake.calls(), vec!["request"]);
+    fake.order = Some(order());
     let error = block_on(request_access(
         &mut fake,
         &actor(&["commerce.read", "commerce.sales"]),

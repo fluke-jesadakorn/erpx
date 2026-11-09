@@ -914,44 +914,64 @@ async fn execute<C: Clock + Send + Sync + 'static>(
             })
         },
     );
-    intake
-        .authorizer
-        .execute_with_selected_transport_ingress_deferred(
-            &host,
-            proof,
-            selection,
-            (
-                WorkAuthorizationRequest {
-                    permission: if matches!(s.profile, UploadProfile::Visit) {
-                        "records.read"
-                    } else {
-                        "module.finance.read"
-                    }
-                    .into(),
-                    module: Some(
-                        if matches!(s.profile, UploadProfile::Visit) {
-                            "field_service"
-                        } else {
-                            "finance"
-                        }
-                        .into(),
-                    ),
-                    destination: if matches!(s.profile, UploadProfile::Visit) {
-                        "service/orders"
-                    } else if s.profile.owner() == IntakeOwner::FieldJournal {
-                        "finance/journals"
-                    } else {
-                        "finance/payments"
-                    }
-                    .into(),
-                    api: true,
-                },
-                Sources(s.profile.clone()),
-            ),
-            callbacks,
-        )
-        .await?
-        .map_err(Into::into)
+    let access = WorkAuthorizationRequest {
+        permission: if matches!(s.profile, UploadProfile::Visit) {
+            "records.read"
+        } else {
+            "module.finance.read"
+        }
+        .into(),
+        module: Some(
+            if matches!(s.profile, UploadProfile::Visit) {
+                "field_service"
+            } else {
+                "finance"
+            }
+            .into(),
+        ),
+        destination: if matches!(s.profile, UploadProfile::Visit) {
+            "service/orders"
+        } else if s.profile.owner() == IntakeOwner::FieldJournal {
+            "finance/journals"
+        } else {
+            "finance/payments"
+        }
+        .into(),
+        api: true,
+    };
+    if matches!(s.profile, UploadProfile::Visit) {
+        let SelectedTransportCallbacks {
+            ingress,
+            read_denied,
+            action,
+        } = callbacks;
+        intake
+            .authorizer
+            .execute_with_selected_typed_transport_ingress_deferred(
+                &host,
+                proof,
+                selection,
+                access,
+                crate::field_attachment::FieldAttachmentReadSources,
+                ingress,
+                read_denied,
+                move |c, actor, input, _fence| action(c, actor, input),
+            )
+            .await?
+            .map_err(Into::into)
+    } else {
+        intake
+            .authorizer
+            .execute_with_selected_transport_ingress_deferred(
+                &host,
+                proof,
+                selection,
+                (access, Sources(s.profile.clone())),
+                callbacks,
+            )
+            .await?
+            .map_err(Into::into)
+    }
 }
 fn json_output(value: Result<Output, Error>, created: bool) -> Response {
     response(

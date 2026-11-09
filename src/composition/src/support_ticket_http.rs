@@ -4,13 +4,12 @@
 use crate::http_scope::{BusinessScopeSlugs, selected_company_target};
 use crate::support_ticket_command::{SupportTicketCommand, SupportTicketCreate};
 use axum::{
-    Router,
+    Json, Router,
     body::Bytes,
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::post,
-    Json,
 };
 use erpx_server_identity_access::public::{
     AccountPolicy,
@@ -23,10 +22,7 @@ use erpx_server_shared::public::{BusinessError, Clock, CommandKey, FailureKind};
 use erpx_server_support::public::ticket::TicketChange;
 use erpx_server_workflow::public::commands::CommandJson;
 use serde_json::{Value, json};
-use std::{
-    collections::BTreeMap,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Clone)]
 pub struct SupportTicketHttpTarget<C> {

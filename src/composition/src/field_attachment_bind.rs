@@ -9,7 +9,9 @@ use erpx_server_files::public::field_visit_bind::{
 };
 use erpx_server_identity_access::public::{
     command_metadata::project_command_iam,
-    effective_authority::{AuthorizedWorkContext, HoldingWorkSourcePreparation},
+    effective_authority::{
+        AuthorizedWorkContext, HoldingPreparedSource, TypedHoldingWorkSourcePreparation,
+    },
     work_context::WorkScopeKind,
 };
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
@@ -26,12 +28,56 @@ fn changed() -> BusinessError {
 }
 #[derive(Clone)]
 pub(crate) struct BindSources;
-impl HoldingWorkSourcePreparation for BindSources {
-    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+pub(crate) struct BindFence(erpx_server_commercial::public::purchases::PurchaseWriteSourceLocks);
+impl HoldingPreparedSource for BindFence {
+    fn require_current<'c>(
+        &'c self,
+        c: &'c mut PgConnection,
+    ) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
-            crate::field_attachment::lock_attachment_sources(c, true).await?;
-            erpx_server_workflow::public::record_origin::lock_record_origin_sources(c).await?;
+            self.0.require_current(c).await?;
+            erpx_server_finance::public::field_service_workspace::require_service_workspace_customers_held(c).await?;
+            erpx_server_support::public::field_service::require_service_ticket_sources_held(c)
+                .await?;
+            erpx_server_assets::public::field_service_workspace::require_service_workspace_assets_held(c).await?;
+            erpx_server_people_payroll::public::field_service_workspace::require_service_workspace_people_held(c).await?;
+            erpx_server_identity_access::public::field_service_workspace::require_service_workspace_authority_fenced_held(c).await?;
+            erpx_server_field_service::public::file_source::require_field_file_sources_held(
+                c,
+                erpx_server_field_service::public::file_source::FieldFileSourceLockMode::Bind,
+            )
+            .await?;
+            erpx_server_files::public::field_visit_link::require_field_visit_link_sources_held(c)
+                .await?;
+            erpx_server_workflow::public::record_origin::require_record_origin_sources_held(c)
+                .await?;
             Ok(())
+        })
+    }
+}
+impl TypedHoldingWorkSourcePreparation for BindSources {
+    type Token = BindFence;
+    fn prepare_typed<'c>(
+        &'c self,
+        c: &'c mut PgConnection,
+    ) -> PgWorkFuture<'c, BindFence, BusinessError> {
+        Box::pin(async move {
+            let mut commercial =
+                erpx_server_commercial::public::purchases::lock_purchase_write_sources(c).await?;
+            let c = commercial.connection();
+            erpx_server_finance::public::field_service_workspace::lock_service_workspace_customers(
+                c,
+            )
+            .await?;
+            erpx_server_support::public::field_service::lock_service_ticket_sources(c).await?;
+            erpx_server_assets::public::field_service_workspace::lock_service_workspace_assets(c)
+                .await?;
+            erpx_server_people_payroll::public::field_service_workspace::lock_service_workspace_people(c).await?;
+            erpx_server_identity_access::public::field_service_workspace::lock_service_workspace_authority_fenced(c).await?;
+            erpx_server_field_service::public::file_source::lock_field_file_bind_sources(c).await?;
+            erpx_server_files::public::field_visit_link::lock_field_visit_link_sources(c).await?;
+            erpx_server_workflow::public::record_origin::lock_record_origin_sources(c).await?;
+            Ok(BindFence(commercial.bind().await?))
         })
     }
 }
@@ -77,6 +123,7 @@ fn actor(current: &AuthorizedWorkContext, now: i64) -> Result<CommandActor, Busi
 }
 struct Authority<'a, C> {
     ctx: &'a AttachmentContext<'a, C>,
+    fence: &'a BindFence,
     request: &'a WorkflowRequest,
     source: Option<crate::field_attachment::Proof>,
     replay: bool,
@@ -87,7 +134,7 @@ impl<C: Clock + Sync> PgCommandAuthority for Authority<'_, C> {
         c: &mut PgConnection,
         _: &WorkflowRequest,
     ) -> Result<(), Error> {
-        BindSources.prepare(c).await
+        self.fence.require_current(c).await
     }
     async fn authorize(
         &mut self,
@@ -143,6 +190,7 @@ struct Prepared {
 }
 struct Effects<'a, C> {
     ctx: &'a AttachmentContext<'a, C>,
+    fence: &'a BindFence,
     set_id: &'a str,
     expected: i64,
     prepared: Option<Prepared>,
@@ -167,7 +215,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for Effects<'_, C> {
         c: &mut PgConnection,
         _: &WorkflowRequest,
     ) -> Result<(), Error> {
-        BindSources.prepare(c).await
+        self.fence.require_current(c).await
     }
     async fn prepare(
         &mut self,
@@ -321,6 +369,7 @@ struct ReplayResult {
 pub(crate) async fn bind<C: Clock + Sync>(
     c: &mut PgConnection,
     ctx: &AttachmentContext<'_, C>,
+    fence: &BindFence,
     set_id: &str,
     key: &str,
     expected: i64,
@@ -354,12 +403,14 @@ pub(crate) async fn bind<C: Clock + Sync>(
     };
     let mut authority = Authority {
         ctx,
+        fence,
         request: &request,
         source: None,
         replay: false,
     };
     let mut effects = Effects {
         ctx,
+        fence,
         set_id,
         expected,
         prepared: None,

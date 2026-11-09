@@ -11,8 +11,7 @@ use erpx_server_commerce::public::order::{
 };
 use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
-    PurchaseRequest, PurchaseWitness, current_package_catalogue,
-    lock_commercial_authority_sources,
+    PurchaseRequest, PurchaseWitness, current_package_catalogue, lock_commercial_authority_sources,
 };
 use erpx_server_crm::public::activity_source::{
     CrmReviewedAccountLinkRequest, inspect_crm_reviewed_account_link,
@@ -25,9 +24,8 @@ use erpx_server_crm::public::leads_http::{
 use erpx_server_crm::public::leads_native::{
     ChangedCrmLeadFacts, ChangedCrmOpportunityFacts, LeadActor, LeadChangeInput, LeadChangeReceipt,
     OpportunityChangeInput, OpportunityChangeReceipt, PgCrmLeadCommands, PreparedLeadChange,
-    PreparedOpportunityChange, RetainedCrmLeadChange, RetainedCrmOpportunityChange,
-    lead_operation, native_lead_action, native_opportunity_action, not_native,
-    opportunity_operation,
+    PreparedOpportunityChange, RetainedCrmLeadChange, RetainedCrmOpportunityChange, lead_operation,
+    native_lead_action, native_opportunity_action, not_native, opportunity_operation,
 };
 use erpx_server_crm::public::pipeline::{
     CrmPipelineActor, CrmPipelineCustomerDirectory, CrmPipelineEntitlement,
@@ -523,7 +521,6 @@ fn require_lead_scope(
     Ok(())
 }
 
-
 fn commerce_actor(current: &AuthorizedWorkContext) -> CommerceOrderActor {
     let selection = current.selection();
     let workspace = selection.workspace();
@@ -564,17 +561,14 @@ async fn current_commerce_order(
         )
         .into());
     }
-    orders
-        .order(&actor, id)
-        .await?
-        .ok_or_else(|| {
-            BusinessError::new(
-                FailureKind::NotFound,
-                "CRM_SOURCE_NOT_FOUND",
-                "The linked customer document is unavailable in this workspace.",
-            )
-            .into()
-        })
+    orders.order(&actor, id).await?.ok_or_else(|| {
+        BusinessError::new(
+            FailureKind::NotFound,
+            "CRM_SOURCE_NOT_FOUND",
+            "The linked customer document is unavailable in this workspace.",
+        )
+        .into()
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -621,11 +615,7 @@ impl<G: Clock + Sync> Authority<'_, G> {
             self.current.require_permission(permission)?;
         }
         let expected = self.command.request()?;
-        if !self
-            .current
-            .modules()
-            .iter()
-            .any(|module| module == "crm")
+        if !self.current.modules().iter().any(|module| module == "crm")
             || self.clock.now().get() >= self.current.expires_at()
             || request.key != expected.key
             || request.operation != expected.operation
@@ -677,7 +667,10 @@ impl<G: Clock + Sync> PgCommandAuthority for Authority<'_, G> {
             CommandDisposition::Replay => CapabilityPurpose::History,
         };
         if let Some(witness) = &self.purchase {
-            purchases.revalidate(witness, now).await?.require_allowed()?;
+            purchases
+                .revalidate(witness, now)
+                .await?
+                .require_allowed()?;
         } else {
             self.purchase = Some(
                 purchases
@@ -752,9 +745,7 @@ fn lead_notification_facts(facts: &ChangedCrmLeadFacts) -> CrmLeadNotificationFa
     }
 }
 
-fn opportunity_notification_facts(
-    facts: &ChangedCrmOpportunityFacts,
-) -> CrmLeadNotificationFacts {
+fn opportunity_notification_facts(facts: &ChangedCrmOpportunityFacts) -> CrmLeadNotificationFacts {
     CrmLeadNotificationFacts {
         command_key: facts.command_key.clone(),
         company_id: facts.company_id.clone(),
@@ -979,13 +970,12 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W> {
                             )?;
                         }
                         "win" => {
-                            let sales_id =
-                                prepared.plan.sales_id.as_deref().ok_or_else(|| {
-                                    BusinessError::invalid(
-                                        "CRM_OPPORTUNITY_INPUT_INVALID",
-                                        "Use a sales order.",
-                                    )
-                                })?;
+                            let sales_id = prepared.plan.sales_id.as_deref().ok_or_else(|| {
+                                BusinessError::invalid(
+                                    "CRM_OPPORTUNITY_INPUT_INVALID",
+                                    "Use a sales order.",
+                                )
+                            })?;
                             let sale =
                                 current_commerce_order(c, self.current, sales_id, now).await?;
                             require_commerce_order(
@@ -998,8 +988,7 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W> {
                                 &prepared.opportunity.currency,
                                 prepared.plan.sales_version,
                             )?;
-                            if sale.source_id.as_deref()
-                                != prepared.opportunity.quote_id.as_deref()
+                            if sale.source_id.as_deref() != prepared.opportunity.quote_id.as_deref()
                             {
                                 return Err(BusinessError::new(
                                     FailureKind::Conflict,
@@ -1145,7 +1134,6 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W> {
         Ok(())
     }
 }
-
 
 /// Execute one native CRM owner command in the caller's retained unit.
 pub async fn execute_crm_command<W: Clock + Sync, G: Clock + Sync, I: IdentifierSource>(
@@ -1433,10 +1421,7 @@ impl<C: Clock + Send + Sync + 'static> CrmCommandBackend<C> {
         let revision = field("x-erpx-context-revision")?
             .parse::<i64>()
             .map_err(|_| {
-                BusinessError::invalid(
-                    "CRM_CONTEXT_REQUIRED",
-                    "Use the current work revision.",
-                )
+                BusinessError::invalid("CRM_CONTEXT_REQUIRED", "Use the current work revision.")
             })?;
         if revision < 0 {
             return Err(BusinessError::invalid(
@@ -1508,9 +1493,8 @@ impl<C: Clock + Send + Sync + 'static> CrmLeadCommandHttpBackend for CrmCommandB
     ) -> CrmLeadCommandHttpFuture<'a> {
         Box::pin(async move {
             let (proof, selection) = self.command_context(request.headers)?;
-            let input: OpportunityChangeInput =
-                serde_json::from_value(request.body.clone())
-                    .map_err(|_| crate::crm::command_request_invalid())?;
+            let input: OpportunityChangeInput = serde_json::from_value(request.body.clone())
+                .map_err(|_| crate::crm::command_request_invalid())?;
             if !native_opportunity_action(&input.action) {
                 return Err(not_native(&input.action));
             }
@@ -1537,8 +1521,6 @@ fn command_request_invalid() -> BusinessError {
 }
 
 #[allow(dead_code)]
-fn _command_router(
-    targets: Vec<CrmLeadCommandHttpTarget>,
-) -> Result<axum::Router, BusinessError> {
+fn _command_router(targets: Vec<CrmLeadCommandHttpTarget>) -> Result<axum::Router, BusinessError> {
     crm_lead_command_http_router(targets)
 }

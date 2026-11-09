@@ -228,3 +228,17 @@ it("financial Inbox and legacy notifications filter source access before limits 
  await financePackage();const visible=await listStaffNotifications(db,f.manager);expect(visible.find(row=>row.id===delivery)).toMatchObject({record_version:1,source:{kind:"invoice",id:invoice.id,version:2}});expect((await notificationsPage(db,f.manager,{view:"all"})).items.some(row=>row.id===delivery)).toBe(true);expect((await inboxPage(db,f.manager,{view:"all",limit:10})).items.some(item=>item.sourceType==="invoice"||item.sourceType==="journal")).toBe(true);
  await db.prepare("UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?").bind(f.manager.assignmentId).run();expect((await visibleNotifications(db,f.manager,visible)).filter(row=>row.record_type==="invoice"||row.record_type==="journal")).toEqual([]);expect((await inboxPage(db,f.manager,{view:"all"})).items.some(item=>item.sourceType==="invoice"||item.sourceType==="journal")).toBe(false);expect(await db.prepare("SELECT record_id,record_version,read_at FROM staff_notifications WHERE id=?").bind(delivery).first()).toEqual({record_id:invoice.id,record_version:1,read_at:null});
 });
+
+it('rejects a real foreign Company invoice on the original generic payment path',async()=>{
+ const other=await expenseFixture();
+ await db.prepare("UPDATE finance_accounts SET is_control=1,control_kind='bank' WHERE id=?").bind(other.accounts.cash).run();
+ const supplier=await createParty(other.reviewer,{kind:'supplier',code:`FOREIGN-${key()}`,name:'Foreign Company supplier',currency:'THB',paymentTermsDays:30,creditLimit:'0'},key());
+ const invoice=await createInvoice(other.reviewer,{partyId:String(supplier.id),kind:'payable',invoiceNumber:`FOREIGN-BILL-${key()}`,invoiceDate:'2026-09-10',dueDate:'2026-10-10',currency:'THB',subtotal:'100',tax:'0',debitAccountId:other.accounts.expense,creditAccountId:other.accounts.payable},key());
+ const flow=await resolveFlow(db,other.owner,'invoice',String(invoice.id));
+ await assignFlowPrimary(db,other.owner,'invoice',String(invoice.id),{stepKey:'draft',userId:other.manager.userId,reason:'Independent foreign invoice reviewer',saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());
+ await postInvoice(other.manager,String(invoice.id),{periodId:other.period,entryDate:'2026-09-10',expectedVersion:1},key());
+ const input={partyId:String(supplier.id),kind:'payment' as const,paymentNumber:`FOREIGN-PAY-${key()}`,paymentDate:'2026-09-12',currency:'THB',amount:'100',bankAccount:other.accounts.cash,settlementInvoiceId:String(invoice.id)},command=key(),before=await financialRows();
+ await expect(createPayment(f.reviewer,input,command)).rejects.toMatchObject({status:422,code:'PAYMENT_SETTLEMENT_SOURCE_INVALID'});
+ expect(await financialRows()).toEqual(before);
+ for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(command).first()).toBeNull();
+});

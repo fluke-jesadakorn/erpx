@@ -4,7 +4,7 @@ use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind};
 use serde::Deserialize;
 use sqlx::{Connection, PgConnection, Row};
 type Error = PgTransactionError<BusinessError>;
-type Unit = (String, i32, String, String);
+type Unit = (String, i32, String, String, String, String, String, i64, i64);
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct FieldRecordAgreement {
     pub branch_id: String,
@@ -52,13 +52,15 @@ async fn unit(c: &mut PgConnection) -> Result<Unit, Error> {
     {
         return Err(PersistenceError::new("FIELD_SERVICE_SERIALIZABLE_REQUIRED").into());
     }
-    Ok(sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text").fetch_one(c).await?)
+    let (held, visible): (bool, bool) = sqlx::query_as("SELECT (SELECT count(*)=2 AND bool_and(c.relnamespace='public'::regnamespace AND c.relkind IN ('r','p') AND c.relpersistence='p' AND EXISTS(SELECT 1 FROM pg_locks l WHERE l.pid=pg_backend_pid() AND l.locktype='relation' AND l.relation=c.oid AND l.granted AND l.mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock'))) FROM pg_class c WHERE c.oid IN ('public.field_service_orders'::regclass,'public.field_service_agreements'::regclass)), NOT (row_security_active('public.field_service_orders'::regclass) OR row_security_active('public.field_service_agreements'::regclass))").fetch_one(&mut *c).await?;
+    if !held || !visible { return Err(PersistenceError::new("FIELD_SERVICE_SOURCE_RECORD_FENCE_REQUIRED").into()); }
+    Ok(sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text,current_user::text,session_user::text,current_setting('search_path'),'public.field_service_orders'::regclass::oid::bigint,'public.field_service_agreements'::regclass::oid::bigint").fetch_one(c).await?)
 }
 pub async fn lock_source_record(c: &mut PgConnection) -> Result<(), Error> {
     if !c.is_in_transaction() {
         return Err(PersistenceError::new("FIELD_SERVICE_TRANSACTION_REQUIRED").into());
     }
-    sqlx::query("LOCK TABLE field_service_orders,field_service_agreements IN SHARE MODE")
+    sqlx::query("LOCK TABLE public.field_service_orders,public.field_service_agreements IN SHARE MODE")
         .execute(c)
         .await?;
     Ok(())
@@ -70,7 +72,7 @@ async fn image(
     department: Option<&str>,
     id: &str,
 ) -> Result<(FieldRecordSource, String), Error> {
-    let r=sqlx::query("WITH source AS MATERIALIZED (SELECT o.*,to_jsonb(g) agreement FROM field_service_orders o LEFT JOIN field_service_agreements g ON g.id=o.agreement_id AND g.company_id=o.company_id WHERE o.id=$1 AND o.company_id=$2 AND ($3::text IS NULL OR o.branch_id=$3) AND ($4::text IS NULL OR o.department_id=$4)), valueset AS (SELECT jsonb_build_object('id',id,'company_id',company_id,'branch_id',branch_id,'department_id',department_id,'version',version,'title',issue,'status',status,'scheduled_at',scheduled_at,'visit_completed_at',visit_completed_at,'ticket_id',ticket_id,'asset_id',asset_id,'agreement',CASE WHEN agreement IS NULL THEN NULL ELSE jsonb_build_object('branch_id',agreement->>'branch_id','department_id',agreement->>'department_id','customer_id',agreement->>'customer_id','asset_id',agreement->>'asset_id') END) payload,to_jsonb(source) full_image FROM source) SELECT CASE WHEN octet_length(payload::text)+octet_length(full_image::text)<=2097152 THEN payload::text END payload,encode(sha256(convert_to(full_image::text,'UTF8')),'hex') digest FROM valueset").bind(id).bind(company.as_str()).bind(branch).bind(department).fetch_optional(c).await?.ok_or_else(missing)?;
+    let r=sqlx::query("WITH source AS MATERIALIZED (SELECT o.*,to_jsonb(g) agreement FROM public.field_service_orders o LEFT JOIN public.field_service_agreements g ON g.id=o.agreement_id AND g.company_id=o.company_id WHERE o.id=$1 AND o.company_id=$2 AND ($3::text IS NULL OR o.branch_id=$3) AND ($4::text IS NULL OR o.department_id=$4)), valueset AS (SELECT jsonb_build_object('id',id,'company_id',company_id,'branch_id',branch_id,'department_id',department_id,'version',version,'title',issue,'status',status,'scheduled_at',scheduled_at,'visit_completed_at',visit_completed_at,'ticket_id',ticket_id,'asset_id',asset_id,'agreement',CASE WHEN agreement IS NULL THEN NULL ELSE jsonb_build_object('branch_id',agreement->>'branch_id','department_id',agreement->>'department_id','customer_id',agreement->>'customer_id','asset_id',agreement->>'asset_id') END) payload,to_jsonb(source) full_image FROM source) SELECT CASE WHEN octet_length(payload::text)+octet_length(full_image::text)<=2097152 THEN payload::text END payload,encode(sha256(convert_to(full_image::text,'UTF8')),'hex') digest FROM valueset").bind(id).bind(company.as_str()).bind(branch).bind(department).fetch_optional(c).await?.ok_or_else(missing)?;
     let value: Option<String> = r.try_get("payload")?;
     let data = serde_json::from_str(&value.ok_or_else(changed)?).map_err(|_| changed())?;
     Ok((data, r.try_get("digest")?))

@@ -29,6 +29,29 @@ fn history_now() -> TimestampMillis {
     now(4_000_000_000_000)
 }
 
+// Existing leased database only. Node executes the real ordered presentation
+// source and runtime PG parser; credentials remain in the inherited env.
+fn node_presentation_revision(database: &str, company: &str, timestamp: i64) -> String {
+    let node = std::env::var("ERPX_NODE_BIN").expect("pinned Node required");
+    let script = r#"
+import { PostgresDatabase } from '@erpx/server-runtime/adapters/runtime/postgres';
+import { readCompanyPurchaseFacts } from '@erpx/server-commercial/adapters/package-grants';
+import { capabilityRevisionSource } from '@erpx/server-commercial/domain/capability-decision';
+import { createHash } from 'node:crypto';
+const url = new URL(process.env.ERPX_TEST_ADMIN_URL); url.pathname = '/' + process.argv[1];
+const db = new PostgresDatabase({ connectionString: url.toString() });
+try { const company=process.argv[2], facts=await readCompanyPurchaseFacts(db,company);
+  process.stdout.write(createHash('sha256').update(capabilityRevisionSource(company,facts.grants,Number(process.argv[3]),facts.history)).digest('hex'));
+} finally { await db.close(); }
+"#;
+    let output = std::process::Command::new(node)
+        .current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
+        .args(["--conditions=react-server", "--import", "tsx", "--input-type=module", "--eval", script, database, company, &timestamp.to_string()])
+        .output().expect("Node presentation oracle unavailable");
+    assert!(output.status.success(), "Node presentation oracle failed");
+    String::from_utf8(output.stdout).unwrap()
+}
+
 struct CommandClock;
 impl Clock for CommandClock {
     fn now(&self) -> TimestampMillis {
@@ -132,6 +155,122 @@ async fn setup(pool: &DatabasePool) {
         audit(&mut tx, company, None).await;
     }
     tx.commit().await.unwrap();
+}
+
+#[tokio::test]
+async fn presentation_wire_revision_matches_persisted_node_runtime_snapshot() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        // Equal under Node localeCompare but byte-distinct. Persist raw unsafe
+        // BIGINT values so the runtime's JSONB/JSON.parse path is exercised.
+        let mut tx = pool.raw().begin().await.unwrap();
+        for (index, package, start, end) in [
+            (0, "é", 0_i64, Some(3000_i64)),
+            (1, "e\u{301}", 0, Some(3000)),
+            (2, "quote\"key", 1000, Some(3000)),
+            (3, "unsafe", 9_007_199_254_740_993, Some(9_007_199_254_740_995)),
+        ] {
+            sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at) VALUES('company',$1,1,'active',$2,$3,1,'Synthetic approval','synthetic evidence',1000)")
+                .bind(package).bind(start).bind(end).execute(&mut *tx).await.unwrap();
+            sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) SELECT $1,company_id,package_id,'synthetic-actor','synthetic-hash',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),1000 FROM company_package_grants WHERE company_id='company' AND package_id=$2")
+                .bind(format!("wire-revision-event-{index}")).bind(package).execute(&mut *tx).await.unwrap();
+        }
+        tx.commit().await.unwrap();
+        let database: String = sqlx::query_scalar("SELECT current_database()").fetch_one(pool.raw()).await.unwrap();
+        let node = std::env::var("ERPX_NODE_BIN").expect("pinned Node required");
+        let version = std::process::Command::new(&node).arg("--version").output().expect("Node unavailable");
+        assert!(version.status.success());
+        assert_eq!(String::from_utf8(version.stdout).unwrap().trim(), "v26.11.1");
+        let script = r#"
+import { PostgresDatabase } from '@erpx/server-runtime/adapters/runtime/postgres';
+import { readCompanyPurchaseFacts } from '@erpx/server-commercial/adapters/package-grants';
+import { capabilityRevisionSource } from '@erpx/server-commercial/domain/capability-decision';
+import { createHash } from 'node:crypto';
+const url = new URL(process.env.ERPX_TEST_ADMIN_URL);
+url.pathname = '/' + process.argv[1];
+const db = new PostgresDatabase({ connectionString: url.toString() });
+try {
+  const result = {};
+  for (const company of ['company', 'foreign']) {
+    const facts = await readCompanyPurchaseFacts(db, company);
+    if (!facts.history.length) throw new Error('EXPECTED_RETAINED_HISTORY');
+    const first = facts.history[0];
+    const boundary = first.retainedAt;
+    if (!Number.isSafeInteger(boundary) || boundary < 1) throw new Error('INVALID_RETAINED_BOUNDARY');
+    const times = [0, 1000, 3000, 9007199254740993, boundary - 1, boundary];
+    const revisions = times.map(now =>
+      createHash('sha256').update(capabilityRevisionSource(company, facts.grants, now, facts.history)).digest('hex'));
+    const phase = now => JSON.parse(capabilityRevisionSource(company, facts.grants, now, facts.history)).history.find(h => h[3] === first.sourceEventId)?.[5];
+    result[company] = { revisions, boundary, phaseBefore: phase(boundary - 1), phaseAt: phase(boundary), grants: facts.grants.map(g => g.packageId), history: facts.history.map(h => [h.packageId,h.packageVersion,h.sourceEventId,h.retainedAt]) };
+  }
+  result.collationEqual = JSON.stringify(['é',1,1,'active',0,3000,'current']).localeCompare(JSON.stringify(['e\u0301',1,1,'active',0,3000,'current'])) === 0;
+  process.stdout.write(JSON.stringify(result));
+} finally { await db.close(); }
+"#;
+        let output = std::process::Command::new(&node)
+            .current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
+            .args(["--conditions=react-server", "--import", "tsx", "--input-type=module", "--eval", script, &database])
+            .output().expect("Node oracle unavailable");
+        // Never emit child stderr: it can contain connection configuration.
+        assert!(output.status.success(), "Node presentation oracle failed");
+        let oracle: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(oracle["collationEqual"], true);
+        for selected in ["company", "foreign"] {
+            let company = CompanyId::new(selected).unwrap();
+            let mut tx = pool.raw().begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+            let catalogue = current_package_catalogue().unwrap();
+            let mut reader = PgCompanyPurchaseReader::new(holding(), company.clone(), &mut tx, &catalogue);
+            let inspection = reader.inspect(&request(CapabilityPurpose::History, PackageEnforcementMode::Shadow), now(1000)).await.unwrap();
+            let facts = reader.read(&company).await.unwrap();
+            let grants: Vec<_> = facts.grants.iter().map(|g| g.package_id.as_str()).collect();
+            assert!(!facts.history.is_empty(), "the oracle must exercise persisted retained history");
+            if selected == "company" {
+                assert!(facts.history.iter().any(|h| h.package_id == "é" && h.source_event_id == "wire-revision-event-0"));
+                assert!(facts.history.iter().any(|h| h.package_id == "e\u{301}" && h.source_event_id == "wire-revision-event-1"));
+                assert!(!facts.history.iter().any(|h| h.source_event_id == "wire-revision-event-3"));
+            }
+            let history: Vec<_> = facts.history.iter().map(|h| (h.package_id.as_str(), h.package_version, h.source_event_id.as_str(), h.retained_at)).collect();
+            assert_eq!(serde_json::to_value(grants).unwrap(), oracle[selected]["grants"]);
+            assert_eq!(serde_json::to_value(history).unwrap(), oracle[selected]["history"]);
+            let boundary = oracle[selected]["boundary"].as_i64().unwrap();
+            assert_eq!(boundary, facts.history[0].retained_at);
+            assert_eq!(oracle[selected]["phaseBefore"], "future");
+            assert_eq!(oracle[selected]["phaseAt"], "retained");
+            for (index, timestamp) in [0_i64, 1000, 3000, 9_007_199_254_740_993, boundary - 1, boundary].into_iter().enumerate() {
+                let revision = purchase_wire_revision(selected, &facts.grants, &facts.history, now(timestamp)).unwrap();
+                assert_eq!(revision, oracle[selected]["revisions"][index].as_str().unwrap());
+            }
+            // The separate presentation revision must not alter the native
+            // transaction-bound witness or its internal revision.
+            let retained = reader.revalidate(&inspection.witness, now(1000)).await.unwrap();
+            assert_eq!(retained.revision, inspection.revision);
+            assert_eq!(retained.witness.as_str(), inspection.witness.as_str());
+            tx.rollback().await.unwrap();
+
+            // Exercise the guarded API in a fresh transaction: its SHARE
+            // fence is acquired before the first MVCC snapshot. Both wire and
+            // native proof must be derived from this same retained fact set.
+            let mut guarded = pool.raw().begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *guarded).await.unwrap();
+            let locks = lock_purchase_read_sources(&mut guarded).await.unwrap().bind().await.unwrap();
+            let mut reader = PgReadOnlyCompanyPurchaseReader::new(holding(), company.clone(), &mut guarded, &catalogue, &locks);
+            let shadow = request(CapabilityPurpose::History, PackageEnforcementMode::Shadow);
+            for (index, timestamp) in [0_i64, 1000, 3000, 9_007_199_254_740_993, boundary - 1, boundary].into_iter().enumerate() {
+                let observation = reader.inspect_presentation(&shadow, now(timestamp)).await.unwrap();
+                assert_eq!(observation.wire_revision(), oracle[selected]["revisions"][index].as_str().unwrap());
+                let retained = reader.revalidate_presentation(&observation, now(timestamp)).await.unwrap();
+                assert_eq!(retained.inspection().revision, observation.inspection().revision);
+                assert_eq!(retained.inspection().witness.as_str(), observation.inspection().witness.as_str());
+                assert_eq!(retained.wire_revision(), observation.wire_revision());
+            }
+            let before = reader.inspect_presentation(&shadow, now(boundary - 1)).await.unwrap();
+            assert!(reader.revalidate_presentation(&before, now(boundary)).await.is_err());
+            assert!(reader.inspect_presentation(&request(CapabilityPurpose::History, PackageEnforcementMode::Disabled), now(1000)).await.is_err());
+            drop(reader);
+            guarded.rollback().await.unwrap();
+        }
+    }).await;
 }
 async fn revoke(pool: &DatabasePool) {
     let mut tx = pool.raw().begin().await.unwrap();
@@ -844,23 +983,30 @@ async fn guarded_purchase_read_retries_before_snapshot_and_sees_real_new_grant_a
     use std::time::Duration;
     fixture::with_database(3,|pool|async move {
         setup_commands(&pool).await;
+        let database: String=sqlx::query_scalar("SELECT current_database()").fetch_one(pool.raw()).await.unwrap();
         sqlx::raw_sql("INSERT INTO fixture_grant_authority VALUES('guarded-company',true,'synthetic-actor'); INSERT INTO fixture_package_obligations VALUES('guarded-company','legal',0)").execute(pool.raw()).await.unwrap();
         let mut writer=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *writer).await.unwrap();
         let mut grant=command("active",1,"guarded-native-grant-001");grant.grant.company_id="guarded-company".into();let catalogue=current_package_catalogue().unwrap();let mut policy=GrantPolicy;
         PgPackageGrantCommands::new(holding(),CompanyId::new("guarded-company").unwrap(),&mut writer,&catalogue,&mut policy,&CommandClock).apply(&grant).await.unwrap();
         let contended=Arc::new(tokio::sync::Notify::new());let attempts=Arc::new(AtomicUsize::new(0));let other_pool=pool.clone();let signal=contended.clone();let counted=attempts.clone();
         let reader=tokio::spawn(async move {
-            PgUnitOfWork::new(other_pool).run::<(),BusinessError,_>(TransactionOptions::default(),move|c|{let signal=signal.clone();let counted=counted.clone();Box::pin(async move {
+            PgUnitOfWork::new(other_pool).run::<String,BusinessError,_>(TransactionOptions::default(),move|c|{let signal=signal.clone();let counted=counted.clone();Box::pin(async move {
                 counted.fetch_add(1,Ordering::SeqCst);
                 let prep=match lock_purchase_read_sources(c).await { Ok(prep)=>prep,Err(error)=>{signal.notify_one();return Err(error)} };
                 let locks=prep.bind().await?;let catalogue=current_package_catalogue()?;
                 let mut reader=PgReadOnlyCompanyPurchaseReader::new(holding(),CompanyId::new("guarded-company")?,c,&catalogue,&locks);
                 let history=reader.inspect(&request(CapabilityPurpose::History,PackageEnforcementMode::Enforced),history_now()).await?;assert!(history.access.iter().all(|entry|entry.allowed_by_mode));reader.revalidate(&history.witness,history_now()).await?;
-                let active=reader.inspect(&request(CapabilityPurpose::SettleExisting,PackageEnforcementMode::Enforced),now(1000)).await?;assert!(active.access.iter().all(|entry|entry.allowed_by_mode));Ok(())
+                let active=reader.inspect(&request(CapabilityPurpose::SettleExisting,PackageEnforcementMode::Enforced),now(1000)).await?;assert!(active.access.iter().all(|entry|entry.allowed_by_mode));
+                let presentation=reader.inspect_presentation(&request(CapabilityPurpose::History,PackageEnforcementMode::Enforced),history_now()).await?;
+                presentation.inspection().require_allowed()?;
+                let retained=reader.revalidate_presentation(&presentation,history_now()).await?;
+                assert_eq!(retained.wire_revision(),presentation.wire_revision());
+                Ok(presentation.wire_revision().to_owned())
             })}).await
         });
         tokio::time::timeout(Duration::from_secs(5),contended.notified()).await.expect("reader did not fail its NOWAIT fence against the writer");writer.commit().await.unwrap();
-        tokio::time::timeout(Duration::from_secs(10),reader).await.unwrap().unwrap().unwrap();assert!(attempts.load(Ordering::SeqCst)>=2);
+        let wire=tokio::time::timeout(Duration::from_secs(10),reader).await.unwrap().unwrap().unwrap();assert!(attempts.load(Ordering::SeqCst)>=2);
+        assert_eq!(wire,node_presentation_revision(&database,"guarded-company",history_now().get()));
         let rows:(i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM company_package_grants WHERE company_id='guarded-company'),(SELECT count(*) FROM company_package_history_rights WHERE company_id='guarded-company')").fetch_one(pool.raw()).await.unwrap();assert_eq!(rows,(1,1));
     }).await;
 }
@@ -886,15 +1032,21 @@ async fn guarded_purchase_readers_share_fence_across_companies_without_upgrade()
     use std::time::Duration;
     fixture::with_database(4,|pool|async move {
         setup_commands(&pool).await;let catalogue=current_package_catalogue().unwrap();
+        let database: String=sqlx::query_scalar("SELECT current_database()").fetch_one(pool.raw()).await.unwrap();
         let mut first=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *first).await.unwrap();
         let first_locks=lock_purchase_read_sources(&mut first).await.unwrap().bind().await.unwrap();
         let mut second=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *second).await.unwrap();
         let second_locks=lock_purchase_read_sources(&mut second).await.unwrap().bind().await.unwrap();
         let mut first_reader=PgReadOnlyCompanyPurchaseReader::new(holding(),company(),&mut first,&catalogue,&first_locks);
         let proof=first_reader.inspect(&request(CapabilityPurpose::NewWork,PackageEnforcementMode::Enforced),now(1000)).await.unwrap();assert!(proof.access.iter().all(|a|a.allowed_by_mode));
+        let presentation=first_reader.inspect_presentation(&request(CapabilityPurpose::History,PackageEnforcementMode::Enforced),now(1000)).await.unwrap();
+        assert_eq!(presentation.wire_revision(),node_presentation_revision(&database,"company",1000));
         assert!(first_reader.revalidate(&proof.witness,now(3000)).await.is_err());first_reader.revalidate(&proof.witness,now(1000)).await.unwrap();drop(first_reader);
         let mut second_reader=PgReadOnlyCompanyPurchaseReader::new(holding(),CompanyId::new("foreign").unwrap(),&mut second,&catalogue,&second_locks);
         assert!(second_reader.inspect(&request(CapabilityPurpose::NewWork,PackageEnforcementMode::Enforced),now(1000)).await.unwrap().access.iter().all(|a|a.allowed_by_mode));
+        let foreign=second_reader.inspect_presentation(&request(CapabilityPurpose::History,PackageEnforcementMode::Shadow),now(1000)).await.unwrap();
+        assert_eq!(foreign.wire_revision(),node_presentation_revision(&database,"foreign",1000));
+        assert!(second_reader.revalidate_presentation(&presentation,now(1000)).await.is_err());
         assert!(second_reader.revalidate(&proof.witness,now(1000)).await.is_err());drop(second_reader);
         let first_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *first).await.unwrap();
         let writer_pool=pool.clone();let (send,receive)=tokio::sync::oneshot::channel();
@@ -906,8 +1058,21 @@ async fn guarded_purchase_readers_share_fence_across_companies_without_upgrade()
         let writer_pid=receive.await.unwrap();let mut blocked=false;
         for _ in 0..500 {blocked=sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(first_pid).bind(writer_pid).fetch_one(pool.raw()).await.unwrap();if blocked {break;}tokio::time::sleep(Duration::from_millis(10)).await;}
         assert!(blocked,"writer must wait for guarded read-only fence");
+        let mut retained_reader=PgReadOnlyCompanyPurchaseReader::new(holding(),company(),&mut first,&catalogue,&first_locks);
+        assert_eq!(retained_reader.revalidate_presentation(&presentation,now(1000)).await.unwrap().wire_revision(),node_presentation_revision(&database,"company",1000));
+        drop(retained_reader);
         first.commit().await.unwrap();second.commit().await.unwrap();tokio::time::timeout(Duration::from_secs(10),writer).await.unwrap().unwrap();
         let state:String=sqlx::query_scalar("SELECT state FROM company_package_grants WHERE company_id='company' AND package_id='legal'").fetch_one(pool.raw()).await.unwrap();assert_eq!(state,"draining");
+        let after_node=node_presentation_revision(&database,"company",1000);
+        assert_ne!(after_node,presentation.wire_revision());
+        assert_eq!(foreign.wire_revision(),node_presentation_revision(&database,"foreign",1000));
+        let mut fresh=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *fresh).await.unwrap();
+        let locks=lock_purchase_read_sources(&mut fresh).await.unwrap().bind().await.unwrap();
+        let mut fresh_reader=PgReadOnlyCompanyPurchaseReader::new(holding(),company(),&mut fresh,&catalogue,&locks);
+        let after=fresh_reader.inspect_presentation(&request(CapabilityPurpose::History,PackageEnforcementMode::Enforced),now(1000)).await.unwrap();
+        assert_eq!(after.wire_revision(),after_node);
+        assert!(fresh_reader.revalidate_presentation(&presentation,now(1000)).await.is_err());
+        drop(fresh_reader);fresh.rollback().await.unwrap();
     }).await;
 }
 
@@ -922,5 +1087,437 @@ async fn guarded_purchase_read_accepts_stronger_locks_and_rejects_cross_unit() {
         let mut other=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();assert!(bind_purchase_read_sources(&mut other).await.is_err());
         let mut wrong=PgReadOnlyCompanyPurchaseReader::new(holding(),company(),&mut other,&catalogue,&locks);assert!(wrong.inspect(&request(CapabilityPurpose::NewWork,PackageEnforcementMode::Enforced),now(1000)).await.is_err());assert!(wrong.revalidate(&proof.witness,now(1000)).await.is_err());drop(wrong);other.rollback().await.unwrap();tx.rollback().await.unwrap();
         let mut plain=pool.raw().acquire().await.unwrap();assert!(lock_purchase_read_sources(&mut plain).await.is_err());
+    }).await;
+}
+
+#[tokio::test]
+async fn guarded_presentation_retains_same_denial_across_shadow_and_enforced_modes() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        let database: String = sqlx::query_scalar("SELECT current_database()").fetch_one(pool.raw()).await.unwrap();
+        let absent_company = CompanyId::new("company-without-grant").unwrap();
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        let locks = lock_purchase_read_sources(&mut tx).await.unwrap().bind().await.unwrap();
+        let catalogue = current_package_catalogue().unwrap();
+        let mut reader = PgReadOnlyCompanyPurchaseReader::new(holding(), absent_company.clone(), &mut tx, &catalogue, &locks);
+        let shadow = reader.inspect_presentation(&request(CapabilityPurpose::NewWork, PackageEnforcementMode::Shadow), now(1000)).await.unwrap();
+        let enforced = reader.inspect_presentation(&request(CapabilityPurpose::NewWork, PackageEnforcementMode::Enforced), now(1000)).await.unwrap();
+        assert_eq!(shadow.wire_revision(), enforced.wire_revision());
+        assert_eq!(shadow.wire_revision(), node_presentation_revision(&database, absent_company.as_str(), 1000));
+        assert_eq!(shadow.inspection().revision, enforced.inspection().revision);
+        assert_ne!(shadow.inspection().witness.as_str(), enforced.inspection().witness.as_str(), "the existing token remains bound to mode");
+        assert_eq!(shadow.inspection().access.len(), enforced.inspection().access.len());
+        assert!(!shadow.inspection().access.is_empty());
+        for (observed, denied) in shadow.inspection().access.iter().zip(&enforced.inspection().access) {
+            assert_eq!(observed.capability, denied.capability);
+            assert_eq!(observed.purpose, denied.purpose);
+            assert_eq!(observed.decision, denied.decision);
+            assert!(!observed.decision.allowed);
+            assert!(observed.allowed_by_mode);
+            assert!(!denied.allowed_by_mode);
+        }
+        assert!(shadow.inspection().require_allowed().is_ok());
+        let denial = enforced.inspection().require_allowed().err().expect("enforced denial required");
+        assert_eq!(denial.code, enforced.inspection().access[0].decision.code.as_code());
+        let retained_shadow = reader.revalidate_presentation(&shadow, now(1000)).await.unwrap();
+        let retained_enforced = reader.revalidate_presentation(&enforced, now(1000)).await.unwrap();
+        assert_eq!(retained_shadow.inspection().access, shadow.inspection().access);
+        assert_eq!(retained_enforced.inspection().access, enforced.inspection().access);
+        assert_eq!(retained_shadow.wire_revision(), shadow.wire_revision());
+        assert_eq!(retained_enforced.inspection().witness.as_str(), enforced.inspection().witness.as_str());
+        drop(reader);
+
+        // Commercial proves Company purchase facts only, never a user identity.
+        let mut other = PgReadOnlyCompanyPurchaseReader::new(holding(), company(), &mut tx, &catalogue, &locks);
+        assert!(other.revalidate_presentation(&shadow, now(1000)).await.is_err());
+        assert!(other.revalidate_presentation(&enforced, now(1000)).await.is_err());
+        drop(other);
+        tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn commercial_authority_require_checks_writer_fence_compatibility() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let mut outside=pool.raw().acquire().await.unwrap();assert!(require_commercial_authority_sources_held(&mut outside).await.is_err());drop(outside);
+        for sql in [
+            "LOCK TABLE company_package_grants IN ROW EXCLUSIVE MODE",
+            "LOCK TABLE company_package_history_rights IN ROW EXCLUSIVE MODE",
+            "LOCK TABLE company_package_grants,company_package_history_rights IN SHARE MODE",
+            "LOCK TABLE company_package_grants IN ROW EXCLUSIVE MODE; LOCK TABLE company_package_history_rights IN SHARE MODE",
+            "LOCK TABLE company_package_grants IN SHARE MODE; LOCK TABLE company_package_history_rights IN ROW EXCLUSIVE MODE",
+        ] {
+            let mut tx=pool.raw().begin().await.unwrap();sqlx::raw_sql(sql).execute(&mut *tx).await.unwrap();
+            assert!(matches!(require_commercial_authority_sources_held(&mut tx).await,Err(PgTransactionError::Persistence(ref e)) if e.code=="COMMERCIAL_AUTHORITY_LOCKS_REQUIRED"),"insufficient: {sql}");tx.rollback().await.unwrap();
+        }
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();sqlx::query("SELECT pg_current_xact_id()").execute(&mut *tx).await.unwrap();sqlx::query("SAVEPOINT before_commercial_fence").execute(&mut *tx).await.unwrap();
+        lock_commercial_authority_sources(&mut tx).await.unwrap();require_commercial_authority_sources_held(&mut tx).await.unwrap();
+        let count:i64=sqlx::query_scalar("SELECT count(DISTINCT relation) FROM pg_locks WHERE pid=pg_backend_pid() AND granted AND mode='RowExclusiveLock' AND relation IN ('company_package_grants'::regclass,'company_package_history_rights'::regclass)").fetch_one(&mut *tx).await.unwrap();assert_eq!(count,2);
+        sqlx::query("ROLLBACK TO SAVEPOINT before_commercial_fence").execute(&mut *tx).await.unwrap();assert!(require_commercial_authority_sources_held(&mut tx).await.is_err());
+        sqlx::query("LOCK TABLE company_package_grants,company_package_history_rights IN SHARE UPDATE EXCLUSIVE MODE").execute(&mut *tx).await.unwrap();require_commercial_authority_sources_held(&mut tx).await.unwrap();tx.rollback().await.unwrap();
+        let mut strong=pool.raw().begin().await.unwrap();sqlx::query("LOCK TABLE company_package_grants,company_package_history_rights IN SHARE ROW EXCLUSIVE MODE").execute(&mut *strong).await.unwrap();require_commercial_authority_sources_held(&mut strong).await.unwrap();strong.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn writer_capable_purchase_fence_serializes_real_grants_and_is_unit_bound() {
+    use std::time::Duration;
+    fixture::with_database(3, |pool| async move {
+        setup_commands(&pool).await;
+        let catalogue=current_package_catalogue().unwrap();
+        // A real owner writer arrives first. The fence returns a retryable
+        // NOWAIT conflict without establishing a purchase snapshot.
+        let mut writer=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *writer).await.unwrap();
+        let mut policy=GrantPolicy;
+        PgPackageGrantCommands::new(holding(),company(),&mut writer,&catalogue,&mut policy,&CommandClock).apply(&command("draining",2,"write-fence-writer-first")).await.unwrap();
+        let mut contender=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *contender).await.unwrap();
+        assert!(matches!(lock_purchase_write_sources(&mut contender).await,Err(PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));
+        contender.rollback().await.unwrap();writer.commit().await.unwrap();
+        let mut first=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *first).await.unwrap();
+        let locks=lock_purchase_write_sources(&mut first).await.unwrap().bind().await.unwrap();
+        locks.require_current(&mut first).await.unwrap();
+        let state:String=sqlx::query_scalar("SELECT state FROM company_package_grants WHERE company_id='company' AND package_id='legal'").fetch_one(&mut *first).await.unwrap();
+        assert_eq!(state,"draining");
+        // General purchase reader's nested ROW EXCLUSIVE does not upgrade
+        // the retained SRE fence and remains usable in the writer unit.
+        let mut reader=PgCompanyPurchaseReader::new(holding(),company(),&mut first,&catalogue);
+        let _=reader.inspect(&request(CapabilityPurpose::History,PackageEnforcementMode::Enforced),now(1000)).await.unwrap();
+        drop(reader);locks.require_current(&mut first).await.unwrap();
+        let first_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *first).await.unwrap();
+        let (send,receive)=tokio::sync::oneshot::channel();let other=pool.clone();
+        let mut writer=tokio::spawn(async move {
+            let mut tx=other.raw().begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+            sqlx::query("SET LOCAL statement_timeout='15s'").execute(&mut *tx).await.unwrap();
+            let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *tx).await.unwrap();let _=send.send(pid);
+            let catalogue=current_package_catalogue().unwrap();let mut policy=GrantPolicy;
+            PgPackageGrantCommands::new(holding(),company(),&mut tx,&catalogue,&mut policy,&CommandClock).apply(&command("active",3,"write-fence-reader-first")).await.unwrap();
+            tx.commit().await.unwrap();
+        });
+        let writer_pid=tokio::time::timeout(Duration::from_secs(5),receive).await.ok().and_then(Result::ok);
+        let blocked=if let Some(pid)=writer_pid {tokio::time::timeout(Duration::from_secs(5),async {loop {
+            let blocked:bool=sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(first_pid).bind(pid).fetch_one(&mut *first).await.unwrap();
+            if blocked {break;}tokio::time::sleep(Duration::from_millis(10)).await;
+        }}).await.is_ok()} else {false};
+        let release=first.commit().await;
+        let result=match tokio::time::timeout(Duration::from_secs(20),&mut writer).await {Ok(result)=>Some(result),Err(_)=>{writer.abort();let _=writer.await;None}};
+        release.unwrap();assert!(blocked,"real writer must wait on the exact fence holder");result.expect("writer timed out").expect("writer failed");
+        let state:String=sqlx::query_scalar("SELECT state FROM company_package_grants WHERE company_id='company' AND package_id='legal'").fetch_one(pool.raw()).await.unwrap();assert_eq!(state,"active");
+        let mut other=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+        let other_locks=lock_purchase_write_sources(&mut other).await.unwrap().bind().await.unwrap();
+        assert!(locks.require_current(&mut other).await.is_err());other_locks.require_current(&mut other).await.unwrap();other.rollback().await.unwrap();
+        let mut save=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *save).await.unwrap();sqlx::query("SELECT pg_current_xact_id()").execute(&mut *save).await.unwrap();
+        sqlx::query("SAVEPOINT before_write_fence").execute(&mut *save).await.unwrap();let retained=lock_purchase_write_sources(&mut save).await.unwrap().bind().await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT before_write_fence").execute(&mut *save).await.unwrap();
+        assert!(matches!(retained.require_current(&mut save).await,Err(PgTransactionError::Persistence(ref e)) if e.code=="COMMERCIAL_WRITE_LOCKS_REQUIRED"));save.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn writer_purchase_fence_retries_whole_unit_after_real_grant_commit() {
+    use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+    use std::time::Duration;
+    fixture::with_database(3, |pool| async move {
+        setup_commands(&pool).await;
+        sqlx::query("CREATE TABLE fixture_write_fence_effects(id text PRIMARY KEY)").execute(pool.raw()).await.unwrap();
+        let mut writer=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *writer).await.unwrap();
+        let catalogue=current_package_catalogue().unwrap();let mut policy=GrantPolicy;
+        PgPackageGrantCommands::new(holding(),company(),&mut writer,&catalogue,&mut policy,&CommandClock).apply(&command("draining",2,"sre-retry-writer")).await.unwrap();
+        let notified=Arc::new(tokio::sync::Notify::new());let committed=Arc::new(tokio::sync::Notify::new());let attempts=Arc::new(AtomicUsize::new(0));
+        let signal=notified.clone();let released=committed.clone();let count=attempts.clone();let retry_pool=pool.clone();
+        let mut task=tokio::spawn(async move {
+            PgUnitOfWork::new(retry_pool).run::<String,BusinessError,_>(TransactionOptions::default(),move|c|{
+                let signal=signal.clone();let released=released.clone();let count=count.clone();Box::pin(async move {
+                    let attempt=count.fetch_add(1,Ordering::SeqCst);
+                    let prep=match lock_purchase_write_sources(c).await {Ok(prep)=>prep,Err(error)=>{
+                        if attempt==0 { signal.notify_one(); released.notified().await; }
+                        return Err(error)
+                    }};
+                    let locks=prep.bind().await?;
+                    let state:String=sqlx::query_scalar("SELECT state FROM company_package_grants WHERE company_id='company' AND package_id='legal'").fetch_one(&mut *c).await?;
+                    sqlx::query("INSERT INTO fixture_write_fence_effects VALUES('successful-unit')").execute(&mut *c).await?;
+                    locks.require_current(c).await?;Ok(state)
+                })
+            }).await
+        });
+        let conflict=tokio::time::timeout(Duration::from_secs(5),notified.notified()).await;
+        let commit=writer.commit().await;
+        committed.notify_one();
+        let result=match tokio::time::timeout(Duration::from_secs(10),&mut task).await {Ok(result)=>Some(result),Err(_)=>{task.abort();let _=task.await;None}};
+        commit.unwrap();assert!(conflict.is_ok(),"expected real grant writer to trigger 55P03");
+        assert_eq!(result.expect("retry task timed out").expect("retry task failed").unwrap(),"draining");
+        assert!(attempts.load(Ordering::SeqCst)>=2);
+        let (effects,events):(i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM fixture_write_fence_effects),(SELECT count(*) FROM company_package_grant_events WHERE company_id='company' AND package_id='legal')").fetch_one(pool.raw()).await.unwrap();
+        assert_eq!((effects,events),(1,2));
+    }).await;
+}
+
+#[tokio::test]
+async fn writer_purchase_fence_retry_exhaustion_leaves_no_partial_effects() {
+    use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+    fixture::with_database(3, |pool| async move {
+        setup_commands(&pool).await;
+        sqlx::query("CREATE TABLE fixture_write_fence_effects(id text PRIMARY KEY)").execute(pool.raw()).await.unwrap();
+        let mut writer=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *writer).await.unwrap();
+        let catalogue=current_package_catalogue().unwrap();let mut policy=GrantPolicy;
+        PgPackageGrantCommands::new(holding(),company(),&mut writer,&catalogue,&mut policy,&CommandClock).apply(&command("draining",2,"sre-exhaust-writer")).await.unwrap();
+        let attempts=Arc::new(AtomicUsize::new(0));let count=attempts.clone();
+        let result=PgUnitOfWork::new(pool.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),move|c|{let count=count.clone();Box::pin(async move {
+            count.fetch_add(1,Ordering::SeqCst);
+            let locks=lock_purchase_write_sources(c).await?.bind().await?;
+            sqlx::query("INSERT INTO fixture_write_fence_effects VALUES('must-not-exist')").execute(&mut *c).await?;
+            locks.require_current(c).await?;Ok(())
+        })}).await;
+        let rollback=writer.rollback().await;
+        assert!(matches!(result,Err(Error::Persistence(ref error)) if error.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && error.sql_state()==Some("55P03")));
+        assert_eq!(attempts.load(Ordering::SeqCst),4);rollback.unwrap();
+        let (effects,state,events):(i64,String,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM fixture_write_fence_effects),(SELECT state FROM company_package_grants WHERE company_id='company' AND package_id='legal'),(SELECT count(*) FROM company_package_grant_events WHERE company_id='company' AND package_id='legal')").fetch_one(pool.raw()).await.unwrap();
+        assert_eq!((effects,state.as_str(),events),(0,"active",1));
+    }).await;
+}
+
+#[tokio::test]
+async fn purchase_write_fence_can_bind_only_current_strong_transaction_locks() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        let mut missing=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *missing).await.unwrap();
+        assert!(matches!(bind_purchase_write_sources(&mut missing).await,Err(Error::Persistence(ref e)) if e.code=="COMMERCIAL_WRITE_LOCKS_REQUIRED"));
+        sqlx::query("LOCK TABLE company_package_grants,company_package_history_rights IN ROW EXCLUSIVE MODE").execute(&mut *missing).await.unwrap();
+        assert!(matches!(bind_purchase_write_sources(&mut missing).await,Err(Error::Persistence(ref e)) if e.code=="COMMERCIAL_WRITE_LOCKS_REQUIRED"));
+        missing.rollback().await.unwrap();
+        let mut weak=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *weak).await.unwrap();
+        sqlx::query("LOCK TABLE company_package_grants,company_package_history_rights IN SHARE MODE").execute(&mut *weak).await.unwrap();
+        assert!(matches!(bind_purchase_write_sources(&mut weak).await,Err(Error::Persistence(ref e)) if e.code=="COMMERCIAL_WRITE_LOCKS_REQUIRED"));
+        weak.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        sqlx::query("SELECT pg_current_xact_id()").execute(&mut *tx).await.unwrap();
+        sqlx::query("SAVEPOINT before_bound_fence").execute(&mut *tx).await.unwrap();
+        sqlx::query("LOCK TABLE company_package_grants,company_package_history_rights IN SHARE ROW EXCLUSIVE MODE").execute(&mut *tx).await.unwrap();
+        let proof=bind_purchase_write_sources(&mut tx).await.unwrap();proof.require_current(&mut tx).await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT before_bound_fence").execute(&mut *tx).await.unwrap();
+        assert!(matches!(proof.require_current(&mut tx).await,Err(Error::Persistence(ref e)) if e.code=="COMMERCIAL_WRITE_LOCKS_REQUIRED"));
+        tx.rollback().await.unwrap();
+        let mut other=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+        lock_purchase_write_sources(&mut other).await.unwrap().bind().await.unwrap();
+        assert!(proof.require_current(&mut other).await.is_err());
+        other.rollback().await.unwrap();
+        let mut no_transaction=pool.raw().acquire().await.unwrap();
+        assert!(bind_purchase_write_sources(&mut no_transaction).await.is_err());
+    }).await;
+}
+
+#[tokio::test]
+async fn canonical_purchase_write_boundary_retains_public_locks_and_unit() {
+    use erpx_server_commercial::public::canonical_purchase_write::inspect_canonical_purchase_write_boundary;
+    fixture::with_database(2,|pool|async move {
+        setup(&pool).await;
+        let mut weak=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *weak).await.unwrap();
+        assert!(bind_purchase_write_sources(&mut weak).await.is_err());weak.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        sqlx::query("SAVEPOINT canonical_locks").execute(&mut *tx).await.unwrap();
+        let locks=lock_purchase_write_sources(&mut tx).await.unwrap().bind().await.unwrap();
+        let source=inspect_canonical_purchase_write_boundary(&mut tx,&locks).await.unwrap();source.require_current(&mut tx).await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT canonical_locks").execute(&mut *tx).await.unwrap();assert!(source.require_current(&mut tx).await.is_err());tx.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        sqlx::raw_sql("CREATE TEMP TABLE company_package_grants(id text);CREATE TEMP TABLE company_package_history_rights(id text);SET LOCAL search_path TO pg_temp, public").execute(&mut *tx).await.unwrap();
+        let locks=lock_purchase_write_sources(&mut tx).await.unwrap().bind().await.unwrap();
+        sqlx::query("LOCK TABLE public.company_package_grants,public.company_package_history_rights IN SHARE ROW EXCLUSIVE MODE").execute(&mut *tx).await.unwrap();
+        assert!(inspect_canonical_purchase_write_boundary(&mut tx,&locks).await.is_err(),"canonical locks do not make shadow-resolved reads safe");
+        sqlx::query("SET LOCAL search_path TO pg_catalog, public, pg_temp").execute(&mut *tx).await.unwrap();
+        let source=inspect_canonical_purchase_write_boundary(&mut tx,&locks).await.unwrap();source.require_current(&mut tx).await.unwrap();
+        sqlx::query("SET LOCAL search_path TO pg_catalog, pg_temp, public").execute(&mut *tx).await.unwrap();assert!(source.require_current(&mut tx).await.is_err());
+        sqlx::query("SET LOCAL search_path TO pg_catalog, public, pg_temp").execute(&mut *tx).await.unwrap();source.require_current(&mut tx).await.unwrap();
+        let mut other=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();assert!(source.require_current(&mut other).await.is_err());other.rollback().await.unwrap();tx.rollback().await.unwrap();
+    }).await;
+}
+
+// Uses the actual TypeScript SQL generator and the Rust decision's sampled clock.
+#[tokio::test]
+async fn purchase_after_decision_matches_ts_sql_in_same_fenced_unit() {
+    use erpx_server_commercial::public::canonical_purchase_write::inspect_canonical_purchase_write_boundary;
+    use erpx_server_commercial::public::purchase_after::inspect_purchase_after;
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        // Real audited facts include ICU-equal identifiers and unsafe BIGINTs.
+        // The independently executed oracle query does not attest aggregate
+        // order from the evaluator's statement; do not treat it as that proof.
+        let mut seed=pool.raw().begin().await.unwrap();
+        for (index,package,start,end) in [(0,"é",0_i64,Some(3000_i64)),(1,"e\u{301}",0,Some(3000)),(2,"unsafe",9_007_199_254_740_993,Some(9_007_199_254_740_995))] {
+            sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at) VALUES('company',$1,1,'active',$2,$3,1,'Synthetic approval','synthetic evidence',1000)").bind(package).bind(start).bind(end).execute(&mut *seed).await.unwrap();
+            sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) SELECT $1,company_id,package_id,'synthetic-actor','synthetic-hash',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),1000 FROM company_package_grants WHERE company_id='company' AND package_id=$2").bind(format!("checked-wire-event-{index}")).bind(package).execute(&mut *seed).await.unwrap();
+        }
+        seed.commit().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        let locks=lock_purchase_write_sources(&mut tx).await.unwrap().bind().await.unwrap();
+        let boundary=inspect_canonical_purchase_write_boundary(&mut tx,&locks).await.unwrap();
+        let catalogue=current_package_catalogue().unwrap();
+        assert!(inspect_purchase_after(&mut tx,None,&catalogue,&company(),"legal.contracts",CapabilityPurpose::NewWork,PackageEnforcementMode::Disabled).await.unwrap().is_none());
+        for (purpose,name) in [(CapabilityPurpose::NewWork,"new-work"),(CapabilityPurpose::SettleExisting,"settle-existing"),(CapabilityPurpose::History,"history")] {
+            for capability in ["legal.contracts","unknown.capability"] {
+                let script="import {purchasedCapabilityPredicate as p} from '@erpx/server-commercial/adapters/purchased-capability-sql';process.stdout.write(p('s.company_id',process.argv[1],process.argv[2],'s.now_ms'))";
+                let node=std::env::var("ERPX_NODE_BIN").expect("pinned Node required");
+                let out=std::process::Command::new(node).current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
+                    .args(["--conditions=react-server","--import","tsx","--input-type=module","--eval",script,capability,name]).output().unwrap();
+                assert!(out.status.success(),"actual TS predicate unavailable");
+                let predicate=String::from_utf8(out.stdout).unwrap();
+                for mode in [PackageEnforcementMode::Shadow,PackageEnforcementMode::Enforced] {
+                    let observed=inspect_purchase_after(&mut tx,Some(&boundary),&catalogue,&company(),capability,purpose,mode).await.unwrap().unwrap();
+                    let sql=format!("WITH s AS MATERIALIZED (SELECT $1::text company_id,$2::bigint now_ms) SELECT ({predicate}) FROM s");
+                    let actual:bool=sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).bind(company().as_str()).bind(observed.sampled_at).fetch_one(&mut *tx).await.unwrap();
+                    assert_eq!(observed.allowed,actual,"{name} {capability}");
+                    if mode==PackageEnforcementMode::Shadow && capability=="legal.contracts" {
+                        let grants:serde_json::Value=sqlx::query_scalar("SELECT COALESCE(jsonb_agg(jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version)),'[]'::jsonb) FROM public.company_package_grants WHERE company_id='company'").fetch_one(&mut *tx).await.unwrap();
+                        let history:serde_json::Value=sqlx::query_scalar("SELECT COALESCE(jsonb_agg(jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'sourceGrantVersion',source_grant_version,'sourceEventId',source_event_id,'retainedAt',retained_at)),'[]'::jsonb) FROM public.company_package_history_rights WHERE company_id='company'").fetch_one(&mut *tx).await.unwrap();
+                        assert!(history.as_array().is_some_and(|rows| !rows.is_empty()),"real retained history required");
+                        assert!(grants.as_array().is_some_and(|rows| rows.iter().any(|g| g["packageId"]=="é") && rows.iter().any(|g| g["packageId"]=="e\u{301}") && rows.iter().any(|g| g["startsAt"]==9_007_199_254_740_993_i64)));
+                        let script=r#"import {purchasedCapability as p} from '@erpx/server-commercial/domain/packages';import {capabilityRevisionSource as r} from '@erpx/server-commercial/domain/capability-decision';import {createHash} from 'node:crypto';const grants=JSON.parse(process.argv[1]),history=JSON.parse(process.argv[2]),now=Number(process.argv[3]),purpose=process.argv[4];process.stdout.write(JSON.stringify({collationEqual:JSON.stringify(['é',1,1,'active',0,3000,'expired']).localeCompare(JSON.stringify(['e\u0301',1,1,'active',0,3000,'expired']))===0,code:p(grants,'company','legal.contracts',purpose,now,history).code,purchaseRevision:createHash('sha256').update(r('company',grants,now,history)).digest('hex')}));"#;
+                        let node=std::env::var("ERPX_NODE_BIN").expect("pinned Node required");let oracle=std::process::Command::new(node).current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).args(["--conditions=react-server","--import","tsx","--input-type=module","--eval",script,&grants.to_string(),&history.to_string(),&observed.sampled_at.to_string(),name]).output().unwrap();assert!(oracle.status.success(),"actual TS checked decision unavailable");let expected:serde_json::Value=serde_json::from_slice(&oracle.stdout).unwrap();assert_eq!(expected["collationEqual"],true);let actual=serde_json::to_value(observed.shadow.as_ref().expect("checked shadow observation")).unwrap();assert_eq!(actual["phase"],"checked");assert_eq!(actual["code"],expected["code"]);assert_eq!(actual["purchaseRevision"],expected["purchaseRevision"]);
+                    }
+                    match (mode,actual) { (PackageEnforcementMode::Enforced,false)=>assert_eq!(observed.require_allowed().unwrap_err().code,"PACKAGE_CAPABILITY_CHANGED"), _=>assert!(observed.require_allowed().is_ok()) }
+                }
+            }
+        }
+        // Same unit, same accepted capability despite a different unrelated fact.
+        sqlx::query("UPDATE public.company_package_grants SET ends_at=NULL WHERE company_id='company' AND package_id='legal'").execute(&mut *tx).await.unwrap();
+        let allowed=inspect_purchase_after(&mut tx,Some(&boundary),&catalogue,&company(),"legal.contracts",CapabilityPurpose::NewWork,PackageEnforcementMode::Enforced).await.unwrap().unwrap();
+        assert!(allowed.allowed);allowed.require_allowed().unwrap();
+        sqlx::query("UPDATE public.company_package_grants SET reason='unrelated changed reason' WHERE company_id='company' AND package_id='legal'").execute(&mut *tx).await.unwrap();
+        let still_allowed=inspect_purchase_after(&mut tx,Some(&boundary),&catalogue,&company(),"legal.contracts",CapabilityPurpose::NewWork,PackageEnforcementMode::Enforced).await.unwrap().unwrap();
+        assert!(still_allowed.allowed);still_allowed.require_allowed().unwrap();
+        tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn writer_shadow_read_matches_actual_typescript_observation() {
+    use erpx_server_commercial::public::canonical_purchase_write::inspect_canonical_purchase_write_boundary;
+    use erpx_server_commercial::public::purchase_shadow_read::{inspect_purchase_shadow_read, write_purchase_shadow_read_observation};
+    use erpx_server_commercial::public::purchase_pre_command::inspect_purchase_pre_command;
+    struct CaseClock(i64);
+    impl Clock for CaseClock {fn now(&self)->TimestampMillis{now(self.0)}}
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        let database: String = sqlx::query_scalar("SELECT current_database()").fetch_one(pool.raw()).await.unwrap();
+        let node = std::env::var("ERPX_NODE_BIN").expect("pinned Node required");
+        let script = r#"
+import { PostgresDatabase } from '@erpx/server-runtime/adapters/runtime/postgres';
+import { readCompanyPurchaseFacts } from '@erpx/server-commercial/adapters/package-grants';
+import { purchasedCapability } from '@erpx/server-commercial/domain/packages';
+import { capabilityRevisionSource } from '@erpx/server-commercial/domain/capability-decision';
+import { createHash } from 'node:crypto';
+const url=new URL(process.env.ERPX_TEST_ADMIN_URL); url.pathname='/'+process.argv[1];
+const db=new PostgresDatabase({connectionString:url.toString()});
+try { const facts=await readCompanyPurchaseFacts(db,'company');
+const cases=[['legal.contracts','new-work',1000],['legal.contracts','new-work',3000],['legal.contracts','history',3000],['unknown.capability','settle-existing',1000]];
+process.stdout.write(JSON.stringify(cases.map(([capability,purpose,now])=>({event:'commercial.purchase.shadow',phase:'read',companyId:'company',capability,purpose,code:purchasedCapability(facts.grants,'company',capability,purpose,now,facts.history).code,purchaseRevision:createHash('sha256').update(capabilityRevisionSource('company',facts.grants,now,facts.history)).digest('hex')}))));
+} finally { await db.close(); }
+"#;
+        let output=std::process::Command::new(node).current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
+            .args(["--conditions=react-server","--import","tsx","--input-type=module","--eval",script,&database]).output().expect("Node oracle unavailable");
+        assert!(output.status.success(), "actual TypeScript oracle failed");
+        let expected: Vec<serde_json::Value>=serde_json::from_slice(&output.stdout).unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        let locks=lock_purchase_write_sources(&mut tx).await.unwrap().bind().await.unwrap();
+        let boundary=inspect_canonical_purchase_write_boundary(&mut tx,&locks).await.unwrap();
+        let catalogue=current_package_catalogue().unwrap();
+        for (index,(capability,purpose,time)) in [("legal.contracts",CapabilityPurpose::NewWork,1000),("legal.contracts",CapabilityPurpose::NewWork,3000),("legal.contracts",CapabilityPurpose::History,3000),("unknown.capability",CapabilityPurpose::SettleExisting,1000)].into_iter().enumerate() {
+            let observation=inspect_purchase_shadow_read(&mut tx,&boundary,&holding(),&company(),&catalogue,capability,purpose,PackageEnforcementMode::Shadow,now(time)).await.unwrap().unwrap();
+            assert_eq!(serde_json::to_value(&observation).unwrap(),expected[index]);
+            let pre=inspect_purchase_pre_command(&mut tx,Some(&boundary),&holding(),&company(),&catalogue,capability,purpose,PackageEnforcementMode::Shadow,&CaseClock(time)).await.unwrap().unwrap();
+            assert_eq!(serde_json::to_value(pre.shadow.as_ref().unwrap()).unwrap(),expected[index]);assert!(pre.require_allowed().is_ok());
+            let enforced=inspect_purchase_pre_command(&mut tx,Some(&boundary),&holding(),&company(),&catalogue,capability,purpose,PackageEnforcementMode::Enforced,&CaseClock(time)).await.unwrap().unwrap();
+            assert!(enforced.shadow.is_none());assert_eq!(enforced.decision.code.as_code(),expected[index]["code"].as_str().unwrap());
+            if enforced.decision.allowed {assert!(enforced.require_allowed().is_ok());} else {let err=enforced.require_allowed().unwrap_err();assert_eq!(err.kind,FailureKind::Forbidden);assert_eq!(err.code,expected[index]["code"].as_str().unwrap());assert_eq!(err.message,"This package does not permit the requested work.");}
+            let mut buffer=Vec::new();write_purchase_shadow_read_observation(&mut buffer,&observation);
+            assert_eq!(buffer.last(),Some(&b'\n'));
+            assert_eq!(serde_json::from_slice::<serde_json::Value>(&buffer).unwrap(),expected[index]);
+            struct BrokenSink;
+            impl std::io::Write for BrokenSink {
+                fn write(&mut self, _: &[u8]) -> std::io::Result<usize> { Err(std::io::Error::other("sink unavailable")) }
+                fn flush(&mut self) -> std::io::Result<()> { Ok(()) }
+            }
+            write_purchase_shadow_read_observation(&mut BrokenSink,&observation);
+        }
+        assert!(inspect_purchase_pre_command(&mut tx,None,&holding(),&company(),&catalogue,"legal.contracts",CapabilityPurpose::NewWork,PackageEnforcementMode::Disabled,&CaseClock(0)).await.unwrap().is_none());
+        let mut other=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+        assert!(inspect_purchase_pre_command(&mut other,Some(&boundary),&holding(),&company(),&catalogue,"legal.contracts",CapabilityPurpose::NewWork,PackageEnforcementMode::Enforced,&CaseClock(1000)).await.is_err());
+        assert!(inspect_purchase_shadow_read(&mut other,&boundary,&holding(),&company(),&catalogue,"legal.contracts",CapabilityPurpose::NewWork,PackageEnforcementMode::Shadow,now(1000)).await.is_err());
+        other.rollback().await.unwrap();
+        for mode in [PackageEnforcementMode::Disabled,PackageEnforcementMode::Enforced] {
+            assert!(inspect_purchase_shadow_read(&mut tx,&boundary,&holding(),&company(),&catalogue,"legal.contracts",CapabilityPurpose::NewWork,mode,now(1000)).await.unwrap().is_none());
+        }
+        tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn writer_shadow_read_matches_typescript_bigint_number_boundaries() {
+    use erpx_server_commercial::public::canonical_purchase_write::inspect_canonical_purchase_write_boundary;
+    use erpx_server_commercial::public::purchase_shadow_read::inspect_purchase_shadow_read;
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        // Each case is a legal persisted grant with the normal deferred audit
+        // guard intact. JS JSON.parse rounds the unsafe bigint values.
+        let cases = [
+            ("unsafe-start", 9_007_199_254_740_993_i64, None, 9_007_199_254_740_992_i64),
+            ("unsafe-end", 0, Some(9_007_199_254_740_993), 9_007_199_254_740_992),
+            ("max-start", i64::MAX - 1, None, i64::MAX),
+            ("max-end", 0, Some(i64::MAX), i64::MAX - 1),
+        ];
+        let mut seed=pool.raw().begin().await.unwrap();
+        for (id,start,end,_) in cases {
+            sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at) VALUES($1,'legal',1,'active',$2,$3,1,'Synthetic approval','synthetic evidence',1000)")
+                .bind(id).bind(start).bind(end).execute(&mut *seed).await.unwrap();
+            audit(&mut seed,id,None).await;
+        }
+        seed.commit().await.unwrap();
+        let database:String=sqlx::query_scalar("SELECT current_database()").fetch_one(pool.raw()).await.unwrap();
+        let node=std::env::var("ERPX_NODE_BIN").expect("pinned Node required");
+        let script=r#"
+import {PostgresDatabase} from '@erpx/server-runtime/adapters/runtime/postgres';
+import {readCompanyPurchaseFacts} from '@erpx/server-commercial/adapters/package-grants';
+import {purchasedCapability} from '@erpx/server-commercial/domain/packages';
+import {capabilityRevisionSource} from '@erpx/server-commercial/domain/capability-decision';
+import {createHash} from 'node:crypto';
+const url=new URL(process.env.ERPX_TEST_ADMIN_URL); url.pathname='/'+process.argv[1];
+const db=new PostgresDatabase({connectionString:url.toString()});
+try { const out=[]; for (const [company,time] of [['unsafe-start','9007199254740992'],['unsafe-end','9007199254740992'],['max-start','9223372036854775807'],['max-end','9223372036854775806']]) {
+const facts=await readCompanyPurchaseFacts(db,company), now=Number(time), capability='legal.contracts', purpose='new-work';
+out.push({event:'commercial.purchase.shadow',phase:'read',companyId:company,capability,purpose,code:purchasedCapability(facts.grants,company,capability,purpose,now,facts.history).code,purchaseRevision:createHash('sha256').update(capabilityRevisionSource(company,facts.grants,now,facts.history)).digest('hex')});
+} process.stdout.write(JSON.stringify(out)); } finally { await db.close(); }
+"#;
+        let output=std::process::Command::new(node).current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
+            .args(["--conditions=react-server","--import","tsx","--input-type=module","--eval",script,&database]).output().expect("Node oracle unavailable");
+        assert!(output.status.success(),"actual TypeScript bigint oracle failed");
+        let expected:Vec<serde_json::Value>=serde_json::from_slice(&output.stdout).unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        let locks=lock_purchase_write_sources(&mut tx).await.unwrap().bind().await.unwrap();
+        let boundary=inspect_canonical_purchase_write_boundary(&mut tx,&locks).await.unwrap();
+        let catalogue=current_package_catalogue().unwrap();
+        for (index,(id,_,_,time)) in cases.into_iter().enumerate() {
+            let observed=inspect_purchase_shadow_read(&mut tx,&boundary,&holding(),&CompanyId::new(id).unwrap(),&catalogue,"legal.contracts",CapabilityPurpose::NewWork,PackageEnforcementMode::Shadow,now(time)).await.unwrap().unwrap();
+            assert_eq!(serde_json::to_value(observed).unwrap(),expected[index],"{id}");
+        }
+        // The rounding cases exercise opposite start and expiry outcomes.
+        assert_eq!(expected[0]["code"],"GRANTED");
+        assert_eq!(expected[1]["code"],"PACKAGE_DRAINING");
+        assert_eq!(expected[2]["code"],"GRANTED");
+        assert_eq!(expected[3]["code"],"PACKAGE_DRAINING");
+        tx.rollback().await.unwrap();
     }).await;
 }

@@ -109,9 +109,12 @@ impl<C: Clock + Send + Sync> PgOwnerCommandEffects for Effects<'_, C> {
         self.source = Some(source);
         Ok(WorkflowOutput {
             version,
-            result: CommandJson::from_serializable(
-                &ServiceNoChargeResult{id:r.record_id.clone(),status:ServiceNoChargeStatus::NoChargeConfirmed,version,confirmation_id:format!("service-no-charge-{}",r.key)},
-            )?,
+            result: CommandJson::from_serializable(&ServiceNoChargeResult {
+                id: r.record_id.clone(),
+                status: ServiceNoChargeStatus::NoChargeConfirmed,
+                version,
+                confirmation_id: format!("service-no-charge-{}", r.key),
+            })?,
             event_scope: None,
         })
     }
@@ -125,7 +128,12 @@ impl<C: Clock + Send + Sync> PgOwnerCommandEffects for Effects<'_, C> {
             self.source
                 .take()
                 .ok_or_else(changed)?
-                .apply(c, &r.key, &self.input.input().reason, self.clock.now().get())
+                .apply(
+                    c,
+                    &r.key,
+                    &self.input.input().reason,
+                    self.clock.now().get(),
+                )
                 .await?,
         );
         self.flow.as_mut().ok_or_else(changed)?.apply(c).await
@@ -145,7 +153,8 @@ impl<C: Clock + Send + Sync> PgOwnerCommandEffects for Effects<'_, C> {
             .as_ref()
             .ok_or_else(changed)?
             .require_current(c)
-            .await.map_err(no_charge_flow_error)?;
+            .await
+            .map_err(no_charge_flow_error)?;
         let after =
             read_service_invoice_flow(c, self.current, &self.record, true, self.clock).await?;
         if after.view["canAct"] != true
@@ -236,7 +245,9 @@ where
                             .execute(&mut *c)
                             .await
                             .map_err(no_charge_deferred_error)?;
-                        require_selected_actor_current(c,current,clock.now().get()).await.map_err(no_charge_current_authority_error)?;
+                        require_selected_actor_current(c, current, clock.now().get())
+                            .await
+                            .map_err(no_charge_current_authority_error)?;
                         effects
                             .retain(c, &command_actor(current)?, &request)
                             .await?;
@@ -272,14 +283,23 @@ fn no_charge_deferred_error(error: sqlx::Error) -> Error {
     service_no_charge_persistence_error(error)
 }
 
-fn no_charge_current_authority_error(error:Error)->Error{
+fn no_charge_current_authority_error(error: Error) -> Error {
     match error {
-        PgTransactionError::Business(e) if matches!(e.code,"WORK_ROLE_UNAVAILABLE"|"QUEUED_AUTHORITY_CHANGED") => BusinessError::new(FailureKind::Forbidden,"FINANCE_ACCESS_CHANGED","The current Finance authority changed before confirmation committed.").into(),
-        other=>other,
+        PgTransactionError::Business(e)
+            if matches!(e.code, "WORK_ROLE_UNAVAILABLE" | "QUEUED_AUTHORITY_CHANGED") =>
+        {
+            BusinessError::new(
+                FailureKind::Forbidden,
+                "FINANCE_ACCESS_CHANGED",
+                "The current Finance authority changed before confirmation committed.",
+            )
+            .into()
+        }
+        other => other,
     }
 }
 
-fn no_charge_flow_error(error:Error)->Error{
+fn no_charge_flow_error(error: Error) -> Error {
     match error {
         PgTransactionError::Business(e) if e.code=="FLOW_SOURCE_CHANGED" => BusinessError::new(FailureKind::Conflict,"FLOW_ROUTING_CHANGED","The original invoice responsibility or captured default changed before confirmation committed.").into(),
         other=>other,

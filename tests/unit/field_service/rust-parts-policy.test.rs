@@ -546,3 +546,79 @@ fn field_outbox_projection_covers_every_retained_field_operation() {
     }
     assert!(QUARANTINE.starts_with('(') && QUARANTINE.trim_end().ends_with(')'));
 }
+
+#[test]
+fn field_work_empty_asset_reference_matches_original_typescript_truthiness() {
+    use serde_json::json;
+    use erpx_server_field_service::public::work::{field_service_work_items,WorkRights};
+    // Invoke the actual retired TS function from the immutable native Files
+    // cutover parent; no substitute predicate or hand-authored oracle.
+    let script=r#"
+if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');
+const {execFileSync}=await import('node:child_process');
+const source=execFileSync('git',['show','e4be8bddb^:packages/server-field_service/src/domain/service.ts'],{encoding:'utf8'});
+const found=source.match(/export function fieldServiceWorkItems\([\s\S]*?\n\}/);if(!found)throw Error('ORIGINAL_FIELD_WORK_SOURCE_MISSING');
+const js=new Bun.Transpiler({loader:'ts'}).transformSync(found[0].replace(/^export /,''));
+const work=Function(js+'\nreturn fieldServiceWorkItems;')();
+const agreement={id:'agreement',status:'draft',created_by:'other',asset_id:null,requires_asset_capability:0,can_review:1,title:'Plan',customer_name:'Customer',start_date:'2026-01-01',end_date:'2026-12-31',updated_at:1};
+const order={id:'order',status:'open',technician_id:'actor',created_by:'other',completed_by:null,technician_eligible:1,can_review:0,asset_id:null,requires_asset_capability:0,independent_billing:1,scheduled_at:null,exception_reason:null,ticket_title:'Ticket',site:'Site',customer_name:'Customer',updated_at:2};
+const out=[];for(const [asset,required] of [['',0],[null,0],['actual-asset',0],['',1]]){
+ const data={agreements:[{...agreement,asset_id:asset,requires_asset_capability:required}],orders:[{...order,asset_id:asset,requires_asset_capability:required}],canWrite:true,canUseParts:false};
+ out.push(work(data,'actor',true,[]).map(({queue,canAct})=>({queue,canAct})));
+}process.stdout.write(JSON.stringify(out));
+"#;
+    let output=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
+        .current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
+        .arg("--conditions=react-server").arg("-e").arg(script).output().unwrap();
+    assert!(output.status.success(),"actual historical Field Work oracle unavailable");
+    let oracle:Vec<serde_json::Value>=serde_json::from_slice(&output.stdout).unwrap();
+    for (index,(asset,required)) in [(Some(""),0),(None,0),(Some("actual-asset"),0),(Some(""),1)].into_iter().enumerate(){
+        let agreement=json!({"id":"agreement","status":"draft","created_by":"other","asset_id":asset,"requires_asset_capability":required,"can_review":1,"title":"Plan","customer_name":"Customer","start_date":"2026-01-01","end_date":"2026-12-31","updated_at":1});
+        let order=json!({"id":"order","status":"open","technician_id":"actor","created_by":"other","completed_by":null,"technician_eligible":1,"can_review":0,"asset_id":asset,"requires_asset_capability":required,"independent_billing":1,"scheduled_at":null,"exception_reason":null,"ticket_title":"Ticket","site":"Site","customer_name":"Customer","updated_at":2});
+        let items=field_service_work_items(&[agreement],&[order],"actor",&[],WorkRights{can_write:true,can_review:true,can_parts:false,settle:true}).unwrap();
+        let actual:Vec<_>=items.iter().map(|item|json!({"queue":item.queue,"canAct":item.can_act})).collect();assert_eq!(json!(actual),oracle[index],"case {index}");
+    }
+}
+
+#[test]
+fn field_detail_visit_file_policy_matches_original_typescript() {
+    use erpx_server_field_service::public::detail::can_edit_visit_files;
+    // Extract the actual historical expression, including its JS truthiness.
+    let script = r#"
+if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');
+const {execFileSync}=await import('node:child_process');
+const source=execFileSync('git',['show','e4be8bddb^:packages/server-field_service/src/adapters/service.ts'],{encoding:'utf8'});
+const found=source.match(/canEditVisitFiles:(.*),\s*\n/);if(!found)throw Error('ORIGINAL_FIELD_DETAIL_SOURCE_MISSING');
+const predicate=Function('a','order','visitAccess','partsAccess','hasPermission','return ('+found[1]+');');
+const cases=[];
+for(const asset of ['',null,'actual-asset'])for(const required of [0,1])
+ for(const write of [false,true])for(const visits of [false,true])for(const parts of [false,true])
+  for(const status of ['open','billed','cancelled']) {
+   const order={asset_id:asset,requires_asset_capability:required,status};
+   cases.push(predicate({},order,{settleExisting:visits},{settleExisting:parts},(_a,p)=>p==='records.write'&&write));
+  }
+process.stdout.write(JSON.stringify(cases));
+"#;
+    let output = std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
+        .current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
+        .arg("--conditions=react-server").arg("-e").arg(script).output().unwrap();
+    assert!(output.status.success(), "actual historical Field detail oracle unavailable");
+    let oracle: Vec<bool> = serde_json::from_slice(&output.stdout).unwrap();
+    let mut index = 0;
+    for asset in [Some(""), None, Some("actual-asset")] {
+        for required in [0, 1] {
+            for write in [false, true] {
+                for visits in [false, true] {
+                    for parts in [false, true] {
+                        for status in ["open", "billed", "cancelled"] {
+                            let has_asset = asset.is_some_and(|id| !id.is_empty()) || required > 0;
+                            assert_eq!(can_edit_visit_files(write, visits, parts, has_asset, status), oracle[index], "case {index}: asset={asset:?}, required={required}, write={write}, visits={visits}, parts={parts}, status={status}");
+                            index += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(index, oracle.len());
+}

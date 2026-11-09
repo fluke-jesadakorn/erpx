@@ -1,7 +1,8 @@
 //! Exact Service Count purchase purposes; no Supply package is substituted.
 use erpx_server_commercial::public::purchases::{
-    CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgReadOnlyCompanyPurchaseReader,
-    PurchaseRequest, PurchaseWitness, bind_purchase_read_sources, current_package_catalogue,
+    CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode,
+    PgReadOnlyCompanyPurchaseReader, PurchaseRequest, PurchaseWitness, bind_purchase_read_sources,
+    current_package_catalogue,
 };
 use erpx_server_identity_access::public::effective_authority::AuthorizedWorkContext;
 use erpx_server_runtime::public::postgres::PgTransactionError;
@@ -30,7 +31,11 @@ impl ServiceCountPurchases {
         let catalogue = current_package_catalogue()?;
         let locks = bind_purchase_read_sources(c).await?;
         let mut reader = PgReadOnlyCompanyPurchaseReader::new(
-            holding.clone(), company.clone(), c, &catalogue, &locks,
+            holding.clone(),
+            company.clone(),
+            c,
+            &catalogue,
+            &locks,
         );
         let request = |purpose| PurchaseRequest {
             capabilities: vec![

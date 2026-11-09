@@ -725,3 +725,182 @@ async fn apply_template_requires_active_placement_and_the_six_levels() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn records_department_head_preserves_actual_typescript_seat_and_legacy_precedence() {
+    use erpx_server_organization::public::records_request_department_head::{
+        lock_records_request_department_head, observe_records_request_department_head,
+    };
+    fixture::with_database(2, |pool| async move {
+        seed(&pool).await;
+        let source = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("src/adapters/department-authority-reads.ts"),
+        ).unwrap();
+        let seat_prefix = "seat:(kind,scope)=>db.prepare('";
+        let legacy_prefix = "legacyHead:async(id)=>(await db.prepare('";
+        assert_eq!(source.matches(seat_prefix).count(), 1);
+        assert_eq!(source.matches(legacy_prefix).count(), 1);
+        let seat_sql = source.split_once(seat_prefix).unwrap().1.split_once('\'').unwrap().0;
+        let legacy_sql = source.split_once(legacy_prefix).unwrap().1.split_once('\'').unwrap().0;
+        assert_eq!(seat_sql.matches('?').count(), 3);
+        assert_eq!(legacy_sql.matches('?').count(), 2);
+        let mut seat_index = 0;
+        let seat_sql = seat_sql.replace('?', "\u{1}").chars().map(|c| {
+            if c == '\u{1}' { seat_index += 1; format!("${seat_index}") } else { c.to_string() }
+        }).collect::<String>();
+        let mut legacy_index = 0;
+        let legacy_sql = legacy_sql.replace('?', "\u{1}").chars().map(|c| {
+            if c == '\u{1}' { legacy_index += 1; format!("${legacy_index}") } else { c.to_string() }
+        }).collect::<String>();
+        let company = CompanyId::new("company").unwrap();
+        let mut unlocked = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unlocked).await.unwrap();
+        assert!(observe_records_request_department_head(&mut unlocked, &company, "department").await.is_err());
+        unlocked.rollback().await.unwrap();
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_records_request_department_head(&mut tx).await.unwrap();
+        for phase in 0..4 {
+            match phase {
+                1 => { sqlx::query("INSERT INTO department_heads(department_id,company_id,person_id,version,updated_by,updated_at) VALUES('department','company','person-owner',1,'fixture',0)").execute(&mut *tx).await.unwrap(); },
+                2 => { sqlx::query("INSERT INTO authority_seats(company_id,kind,scope_id,version,person_id,effective_at) VALUES('company','head','department',1,NULL,9999999999999)").execute(&mut *tx).await.unwrap(); },
+                3 => { sqlx::query("UPDATE authority_seats SET person_id='person-limited',version=version+1 WHERE company_id='company' AND kind='head' AND scope_id='department'").execute(&mut *tx).await.unwrap(); },
+                _ => {}
+            }
+            let seat: Option<sqlx::postgres::PgRow> = sqlx::query(sqlx::AssertSqlSafe(seat_sql.as_str()))
+                .bind("company").bind("head").bind("department").fetch_optional(&mut *tx).await.unwrap();
+            use sqlx::Row;
+            let (seat_exists, expected): (bool, Option<String>) = if let Some(row) = seat {
+                (true, row.try_get("person_id").unwrap())
+            } else {
+                let value = sqlx::query_scalar::<_, String>(sqlx::AssertSqlSafe(legacy_sql.as_str()))
+                    .bind("company").bind("department").fetch_optional(&mut *tx).await.unwrap();
+                (false, value)
+            };
+            assert_eq!(expected.as_deref(), [None, Some("person-owner"), None, Some("person-limited")][phase]);
+            let witness = observe_records_request_department_head(&mut tx, &company, "department").await.unwrap();
+            assert_eq!(witness.seat_exists(), seat_exists);
+            assert_eq!(witness.person_id(), expected.as_deref());
+            witness.require_current(&mut tx).await.unwrap();
+            if phase == 3 {
+                sqlx::query("SAVEPOINT head_drift").execute(&mut *tx).await.unwrap();
+                sqlx::query("UPDATE authority_seats SET person_id=NULL WHERE company_id='company' AND kind='head' AND scope_id='department'").execute(&mut *tx).await.unwrap();
+                assert!(witness.require_current(&mut tx).await.is_err());
+                sqlx::query("ROLLBACK TO SAVEPOINT head_drift").execute(&mut *tx).await.unwrap();
+                witness.require_current(&mut tx).await.unwrap();
+            }
+        }
+        let foreign = CompanyId::new("foreign").unwrap();
+        let absent = observe_records_request_department_head(&mut tx, &foreign, "department").await.unwrap();
+        assert!(!absent.seat_exists());
+        assert_eq!(absent.person_id(), None);
+        assert!(observe_records_request_department_head(&mut tx, &company, &"x".repeat(8193)).await.is_err());
+        tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn records_department_head_fences_shadow_rls_cross_unit_and_writer() {
+    use erpx_server_organization::public::records_request_department_head::{lock_records_request_department_head, observe_records_request_department_head};
+    fixture::with_database(2, |pool| async move {
+        seed(&pool).await;
+        let company = CompanyId::new("company").unwrap();
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_records_request_department_head(&mut tx).await.unwrap();
+        let source = observe_records_request_department_head(&mut tx, &company, "department").await.unwrap();
+        assert!(observe_records_request_department_head(&mut tx, &company, &"x".repeat(8192)).await.is_ok());
+        assert!(observe_records_request_department_head(&mut tx, &company, &"x".repeat(8193)).await.is_err());
+        sqlx::query("SAVEPOINT head_shadow").execute(&mut *tx).await.unwrap();
+        sqlx::query("CREATE TEMP TABLE authority_seats(company_id text,kind text,scope_id text,person_id text)").execute(&mut *tx).await.unwrap();
+        assert!(observe_records_request_department_head(&mut tx, &company, "department").await.is_err());
+        assert!(source.require_current(&mut tx).await.is_err());
+        sqlx::query("ROLLBACK TO SAVEPOINT head_shadow").execute(&mut *tx).await.unwrap();
+        source.require_current(&mut tx).await.unwrap();
+        sqlx::query("SAVEPOINT head_rls").execute(&mut *tx).await.unwrap();
+        let bypass: bool = sqlx::query_scalar("SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname=current_user").fetch_one(&mut *tx).await.unwrap();
+        assert!(!bypass, "leased owner must not bypass RLS");
+        sqlx::raw_sql("ALTER TABLE public.authority_seats ENABLE ROW LEVEL SECURITY; ALTER TABLE public.authority_seats FORCE ROW LEVEL SECURITY").execute(&mut *tx).await.unwrap();
+        assert!(sqlx::query_scalar::<_, bool>("SELECT row_security_active('public.authority_seats'::regclass)").fetch_one(&mut *tx).await.unwrap());
+        assert!(observe_records_request_department_head(&mut tx, &company, "department").await.is_err());
+        assert!(source.require_current(&mut tx).await.is_err());
+        sqlx::query("ROLLBACK TO SAVEPOINT head_rls").execute(&mut *tx).await.unwrap();
+        source.require_current(&mut tx).await.unwrap();
+        tx.rollback().await.unwrap();
+        let mut other = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+        lock_records_request_department_head(&mut other).await.unwrap();
+        assert!(source.require_current(&mut other).await.is_err());
+        other.rollback().await.unwrap();
+        let mut save = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *save).await.unwrap();
+        sqlx::query("SAVEPOINT head_locks").execute(&mut *save).await.unwrap();
+        lock_records_request_department_head(&mut save).await.unwrap();
+        let retained = observe_records_request_department_head(&mut save, &company, "department").await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT head_locks").execute(&mut *save).await.unwrap();
+        assert!(retained.require_current(&mut save).await.is_err());
+        save.rollback().await.unwrap();
+        let mut writer = pool.raw().begin().await.unwrap();
+        let writer_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();
+        sqlx::query("INSERT INTO department_heads(department_id,company_id,person_id,version,updated_by,updated_at) VALUES('department','company','person-owner',1,'fixture',0)").execute(&mut *writer).await.unwrap();
+        let mut blocked = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *blocked).await.unwrap();
+        let writer_holds: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND relation='public.department_heads'::regclass AND mode='RowExclusiveLock' AND granted)").bind(writer_pid).fetch_one(&mut *blocked).await.unwrap();
+        assert!(writer_holds, "the identified writer must hold the conflicting relation lock");
+        let error = lock_records_request_department_head(&mut blocked).await.unwrap_err();
+        assert!(matches!(error, PgTransactionError::Persistence(ref e) if e.sql_state()==Some("55P03") && e.retryable()));
+        blocked.rollback().await.unwrap();
+        writer.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn records_department_head_writer_first_and_legacy_source_fences() {
+    use erpx_server_organization::public::records_request_department_head::{lock_records_request_department_head, observe_records_request_department_head};
+    fixture::with_database(2, |pool| async move {
+        seed(&pool).await;
+        let company = CompanyId::new("company").unwrap();
+        let mut writer = pool.raw().begin().await.unwrap();
+        let pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *writer).await.unwrap();
+        sqlx::query("INSERT INTO public.department_heads(department_id,company_id,person_id,version,updated_by,updated_at) VALUES('department','company','person-owner',1,'fixture',0)").execute(&mut *writer).await.unwrap();
+        let held: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND relation='public.department_heads'::regclass AND mode='RowExclusiveLock' AND granted)").bind(pid).fetch_one(&mut *writer).await.unwrap();
+        assert!(held);
+        let mut blocked = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *blocked).await.unwrap();
+        // No SELECT or source observation occurs in this transaction before the lock.
+        let error = lock_records_request_department_head(&mut blocked).await.unwrap_err();
+        assert!(matches!(error, PgTransactionError::Persistence(ref e) if e.sql_state()==Some("55P03") && e.retryable()));
+        blocked.rollback().await.unwrap();
+        writer.commit().await.unwrap();
+        let mut retry = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *retry).await.unwrap();
+        lock_records_request_department_head(&mut retry).await.unwrap();
+        let source = observe_records_request_department_head(&mut retry, &company, "department").await.unwrap();
+        assert!(!source.seat_exists());
+        assert_eq!(source.person_id(), Some("person-owner"));
+        sqlx::query("SAVEPOINT legacy_shadow").execute(&mut *retry).await.unwrap();
+        sqlx::query("CREATE TEMP TABLE department_heads(department_id text,company_id text,person_id text)").execute(&mut *retry).await.unwrap();
+        assert!(observe_records_request_department_head(&mut retry, &company, "department").await.is_err());
+        assert!(source.require_current(&mut retry).await.is_err());
+        sqlx::query("ROLLBACK TO SAVEPOINT legacy_shadow").execute(&mut *retry).await.unwrap();
+        source.require_current(&mut retry).await.unwrap();
+        sqlx::query("SAVEPOINT legacy_rls").execute(&mut *retry).await.unwrap();
+        let bypass: bool = sqlx::query_scalar("SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname=current_user").fetch_one(&mut *retry).await.unwrap();
+        assert!(!bypass);
+        sqlx::raw_sql("ALTER TABLE public.department_heads ENABLE ROW LEVEL SECURITY; ALTER TABLE public.department_heads FORCE ROW LEVEL SECURITY").execute(&mut *retry).await.unwrap();
+        assert!(sqlx::query_scalar::<_, bool>("SELECT row_security_active('public.department_heads'::regclass)").fetch_one(&mut *retry).await.unwrap());
+        assert!(observe_records_request_department_head(&mut retry, &company, "department").await.is_err());
+        assert!(source.require_current(&mut retry).await.is_err());
+        sqlx::query("ROLLBACK TO SAVEPOINT legacy_rls").execute(&mut *retry).await.unwrap();
+        source.require_current(&mut retry).await.unwrap();
+        sqlx::query("UPDATE public.department_heads SET updated_by=repeat('x',2097152) WHERE department_id='department'").execute(&mut *retry).await.unwrap();
+        let image_bytes: i64 = sqlx::query_scalar("SELECT octet_length(to_jsonb(h)::text)::bigint FROM public.department_heads h WHERE department_id='department'").fetch_one(&mut *retry).await.unwrap();
+        assert!(image_bytes > 2097152);
+        let limit = observe_records_request_department_head(&mut retry, &company, "department").await;
+        assert!(matches!(limit, Err(PgTransactionError::Business(ref e)) if e.code == "RECORDS_HEAD_SOURCE_LIMIT"));
+        let retained_limit = source.require_current(&mut retry).await;
+        assert!(matches!(retained_limit, Err(PgTransactionError::Business(ref e)) if e.code == "RECORDS_HEAD_SOURCE_LIMIT"));
+        retry.rollback().await.unwrap();
+    }).await;
+}

@@ -88,6 +88,8 @@ struct Attestation {
     source_fingerprint: String,
     software_version: String,
     file_manifest_sha256: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    native_lease_sha256: Option<String>,
 }
 fn hexadecimal(value: &str, n: usize) -> bool {
     value.len() == n
@@ -129,6 +131,9 @@ fn validate_engineering_buffers(
     (a.scope == "isolated-engineering"
         && a.run == configuration.run
         && hexadecimal(&a.source_fingerprint, 64)
+        && a.native_lease_sha256
+            .as_deref()
+            .is_none_or(|value| hexadecimal(value, 64))
         && a.software_version == format!("release-{}", a.source_fingerprint)
         && a.software_version == artifact
         && info["sourceFingerprint"] == a.source_fingerprint
@@ -136,6 +141,25 @@ fn validate_engineering_buffers(
         && digest == a.file_manifest_sha256
         && info["fileManifestSha256"] == digest)
         .then_some(a)
+}
+fn validate_declared_roster(
+    configuration: &EngineeringReadConfiguration,
+    attestation: &Attestation,
+) -> Option<()> {
+    if let Some(seal) = attestation.native_lease_sha256.as_deref() {
+        let directory = fs::canonicalize(&configuration.data_directory).ok()?;
+        if !crate::adapters::native_roster_snapshot::private_attestation(&directory) {
+            return None;
+        }
+        crate::adapters::native_roster_snapshot::capture_native_roster_snapshot(
+            &directory,
+            seal,
+            &attestation.run,
+            &attestation.source_fingerprint,
+            &attestation.file_manifest_sha256,
+        )?;
+    }
+    Some(())
 }
 fn attestation(
     configuration: &EngineeringReadConfiguration,
@@ -147,7 +171,9 @@ fn attestation(
         fs::read(&paths[1]).ok()?,
         fs::read(&paths[2]).ok()?,
     ];
-    validate_engineering_buffers(configuration, artifact, &files)
+    let attestation = validate_engineering_buffers(configuration, artifact, &files)?;
+    validate_declared_roster(configuration, &attestation)?;
+    Some(attestation)
 }
 /// Original owner-validated bytes; the identity fields cannot be constructed
 /// independently of the exact filesystem snapshot and sealed content checks.
@@ -157,6 +183,7 @@ pub struct BoundedEngineeringAttestation {
     source_fingerprint: String,
     software_version: String,
     file_manifest_sha256: String,
+    native_lease_sha256: Option<String>,
     files: [Vec<u8>; 3],
 }
 impl BoundedEngineeringAttestation {
@@ -171,6 +198,11 @@ impl BoundedEngineeringAttestation {
     }
     pub fn file_manifest_sha256(&self) -> &str {
         &self.file_manifest_sha256
+    }
+    /// Declared private roster seal re-read from the same bounded attestation.
+    /// Presence requires a current roster snapshot; this is still not authority.
+    pub fn native_lease_sha256(&self) -> Option<&str> {
+        self.native_lease_sha256.as_deref()
     }
 }
 #[cfg(any(unix, test))]
@@ -255,11 +287,16 @@ pub fn capture_bounded_engineering_attestation(
         open_bounded_regular(&paths[2], maximum_file_bytes)?,
     ];
     let a = validate_engineering_buffers(configuration, artifact, &files)?;
+    // A declared native lease is only meaningful with the exact private roster
+    // bound by that seal. Re-observe it here so no caller can retain the
+    // attestation while dropping the trusted worker profile requirement.
+    validate_declared_roster(configuration, &a)?;
     Some(BoundedEngineeringAttestation {
         run: a.run,
         source_fingerprint: a.source_fingerprint,
         software_version: a.software_version,
         file_manifest_sha256: a.file_manifest_sha256,
+        native_lease_sha256: a.native_lease_sha256,
         files,
     })
 }

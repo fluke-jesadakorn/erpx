@@ -4,13 +4,12 @@
 use crate::http_scope::{BusinessScopeSlugs, selected_company_target};
 use crate::support_session_command::SupportSessionCommand;
 use axum::{
-    Router,
+    Json, Router,
     body::Bytes,
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::post,
-    Json,
 };
 use erpx_server_identity_access::public::{
     AccountPolicy,
@@ -23,10 +22,7 @@ use erpx_server_shared::public::{BusinessError, Clock, CommandKey, FailureKind};
 use erpx_server_support::public::session::{SessionAction, SessionRequest};
 use erpx_server_workflow::public::commands::CommandJson;
 use serde_json::{Value, json};
-use std::{
-    collections::BTreeMap,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Clone)]
 pub struct SupportSessionHttpTarget<C> {
@@ -136,20 +132,14 @@ async fn post_session<C: Clock + Clone + Send + Sync + 'static>(
                 .await
         } else {
             let id = value["id"].as_str().ok_or_else(|| {
-                BusinessError::invalid(
-                    "SUPPORT_SESSION_INPUT_INVALID",
-                    "Provide the session id.",
-                )
+                BusinessError::invalid("SUPPORT_SESSION_INPUT_INVALID", "Provide the session id.")
             })?;
             let mut change = value.clone();
             if let Some(object) = change.as_object_mut() {
                 object.remove("id");
             }
             let input: SessionAction = serde_json::from_value(change).map_err(|_| {
-                BusinessError::invalid(
-                    "SUPPORT_SESSION_INPUT_INVALID",
-                    "Provide a valid action.",
-                )
+                BusinessError::invalid("SUPPORT_SESSION_INPUT_INVALID", "Provide a valid action.")
             })?;
             let id = id.to_owned();
             target

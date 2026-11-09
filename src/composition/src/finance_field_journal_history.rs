@@ -20,6 +20,11 @@ fn changed() -> BusinessError {
 }
 pub(crate) async fn lock_field_journal_history_sources(c: &mut PgConnection) -> Result<(), Error> {
     lock_commercial_authority_sources(c).await?;
+    lock_field_journal_history_sources_without_commercial(c).await
+}
+pub(crate) async fn lock_field_journal_history_sources_without_commercial(
+    c: &mut PgConnection,
+) -> Result<(), Error> {
     lock_journal_review_sources(c).await?;
     erpx_server_inventory::public::field_service_consumption_finance::lock_consumption_finance_sources(c).await?;
     erpx_server_workflow::public::record_origin::lock_record_origin_sources(c).await?;
@@ -154,8 +159,7 @@ pub(crate) async fn read_field_journal_history<C: Clock>(
     .ok_or_else(changed)?;
     let finance = Box::pin(read_field_service_journal_detail(c, &actor, &id, &target)).await?;
     let lineage = Box::pin(FieldServicePartsSource::retain(c, target)).await?;
-    let mut reader =
-        ctx.purchase_reader(c);
+    let mut reader = ctx.purchase_reader(c);
     let req = |cap: &str| PurchaseRequest {
         capabilities: vec![cap.into()],
         purpose: CapabilityPurpose::History,

@@ -6,13 +6,13 @@
 mod fixture;
 
 use erpx_server_files::public::business_evidence::{
-    PgBusinessEvidenceFiles, evidence_context, policy_fact,
+    PgBusinessEvidenceFiles, PreparedBusinessEvidence, evidence_context, policy_fact,
 };
 use erpx_server_records::public::business_evidence::{
     BusinessEvidenceRequest, prepare_business_evidence,
 };
 use erpx_server_runtime::public::postgres::{
-    DatabasePool, MigrationTrack, load_migrations, migrate_database,
+    DatabasePool, MigrationTrack, PgTransactionError, load_migrations, migrate_database,
 };
 use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
 use sqlx::PgConnection;
@@ -220,6 +220,201 @@ async fn rejects_foreign_scope_wrong_target_missing_context_and_short_sets() {
                 assert_eq!(error.code, "ATTACHMENT_BINDING_CHANGED")
             }
             _ => panic!("expected insufficient-link conflict"),
+        }
+        tx.rollback().await.unwrap();
+    })
+    .await;
+}
+
+async fn assert_binding_changed(
+    pool: &DatabasePool,
+    prepared: &PreparedBusinessEvidence,
+) {
+    let mut tx = pool.raw().begin().await.unwrap();
+    serial(&mut tx).await;
+    let mut port = PgBusinessEvidenceFiles::new(
+        &mut tx,
+        company(),
+        "fixture".into(),
+        None,
+        None,
+        policies(),
+        TimestampMillis::new(NOW),
+    );
+    match port.require_current(prepared).await {
+        Err(PgTransactionError::Business(error)) => {
+            assert_eq!(error.code, "ATTACHMENT_BINDING_CHANGED");
+        }
+        other => panic!("expected ATTACHMENT_BINDING_CHANGED, got {other:?}"),
+    }
+    tx.rollback().await.unwrap();
+}
+
+#[tokio::test]
+async fn require_current_rejects_binding_drift_and_keeps_unit_guards() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let prepared = {
+            let mut tx = pool.raw().begin().await.unwrap();
+            serial(&mut tx).await;
+            let mut port = PgBusinessEvidenceFiles::new(
+                &mut tx,
+                company(),
+                "fixture".into(),
+                None,
+                None,
+                policies(),
+                TimestampMillis::new(NOW),
+            );
+            let prepared =
+                prepare_business_evidence(&mut port, request("delivery-1", 1, &["set-1", "set-2"]))
+                    .await
+                    .unwrap()
+                    .unwrap();
+            port.require_current(&prepared).await.unwrap();
+            tx.commit().await.unwrap();
+            prepared
+        };
+
+        // The exact committed binding stays current in a fresh serializable unit.
+        let mut tx = pool.raw().begin().await.unwrap();
+        serial(&mut tx).await;
+        let mut port = PgBusinessEvidenceFiles::new(
+            &mut tx,
+            company(),
+            "fixture".into(),
+            None,
+            None,
+            policies(),
+            TimestampMillis::new(NOW),
+        );
+        port.require_current(&prepared).await.unwrap();
+        tx.rollback().await.unwrap();
+
+        // Bound sets and links are trigger-immutable, so the reachable drift is
+        // an extra link added after the binding. Files rejects it.
+        {
+            let mut tx = pool.raw().begin().await.unwrap();
+            serial(&mut tx).await;
+            sqlx::query(
+                "INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) \
+                 VALUES('link-extra','set-1','attachment-2','draft','fixture',0,4102444800000)",
+            )
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+            let mut port = PgBusinessEvidenceFiles::new(
+                &mut tx,
+                company(),
+                "fixture".into(),
+                None,
+                None,
+                policies(),
+                TimestampMillis::new(NOW),
+            );
+            match port.require_current(&prepared).await {
+                Err(PgTransactionError::Business(error)) => {
+                    assert_eq!(error.code, "ATTACHMENT_BINDING_CHANGED");
+                }
+                other => panic!("expected ATTACHMENT_BINDING_CHANGED, got {other:?}"),
+            }
+            tx.rollback().await.unwrap();
+        }
+
+        // The retained witness must keep matching every re-read fact.
+        for stale in [
+            PreparedBusinessEvidence {
+                command_id: "other-command".into(),
+                ..prepared.clone()
+            },
+            PreparedBusinessEvidence {
+                binding_type: "other_binding".into(),
+                ..prepared.clone()
+            },
+            PreparedBusinessEvidence {
+                binding_id: "delivery-other".into(),
+                ..prepared.clone()
+            },
+            PreparedBusinessEvidence {
+                target_type: "other_target".into(),
+                ..prepared.clone()
+            },
+            PreparedBusinessEvidence {
+                target_id: "other-delivery".into(),
+                ..prepared.clone()
+            },
+            PreparedBusinessEvidence {
+                expected_target_version: 2,
+                ..prepared.clone()
+            },
+            PreparedBusinessEvidence {
+                set_ids: vec!["set-1".into()],
+                ..prepared.clone()
+            },
+            PreparedBusinessEvidence {
+                link_ids: vec!["link-1".into()],
+                ..prepared.clone()
+            },
+        ] {
+            assert_binding_changed(&pool, &stale).await;
+        }
+
+        // A foreign Company cannot revalidate the retained binding.
+        {
+            let mut tx = pool.raw().begin().await.unwrap();
+            serial(&mut tx).await;
+            let mut foreign = PgBusinessEvidenceFiles::new(
+                &mut tx,
+                CompanyId::new("foreign").unwrap(),
+                "fixture".into(),
+                None,
+                None,
+                policies(),
+                TimestampMillis::new(NOW),
+            );
+            match foreign.require_current(&prepared).await {
+                Err(PgTransactionError::Business(error)) => {
+                    assert_eq!(error.code, "ATTACHMENT_BINDING_CHANGED");
+                }
+                other => panic!("expected ATTACHMENT_BINDING_CHANGED, got {other:?}"),
+            }
+            tx.rollback().await.unwrap();
+        }
+
+        let mut connection = pool.raw().acquire().await.unwrap();
+        let mut port = PgBusinessEvidenceFiles::new(
+            &mut connection,
+            company(),
+            "fixture".into(),
+            None,
+            None,
+            policies(),
+            TimestampMillis::new(NOW),
+        );
+        match port.require_current(&prepared).await {
+            Err(PgTransactionError::Persistence(error)) => {
+                assert_eq!(error.code, "FILES_TRANSACTION_REQUIRED")
+            }
+            other => panic!("expected FILES_TRANSACTION_REQUIRED, got {other:?}"),
+        }
+        drop(port);
+        drop(connection);
+
+        let mut tx = pool.raw().begin().await.unwrap();
+        let mut port = PgBusinessEvidenceFiles::new(
+            &mut tx,
+            company(),
+            "fixture".into(),
+            None,
+            None,
+            policies(),
+            TimestampMillis::new(NOW),
+        );
+        match port.require_current(&prepared).await {
+            Err(PgTransactionError::Persistence(error)) => {
+                assert_eq!(error.code, "FILES_SERIALIZABLE_REQUIRED")
+            }
+            other => panic!("expected FILES_SERIALIZABLE_REQUIRED, got {other:?}"),
         }
         tx.rollback().await.unwrap();
     })

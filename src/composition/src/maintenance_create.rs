@@ -15,8 +15,8 @@ use erpx_server_commercial::public::purchases::{
 use erpx_server_identity_access::public::{
     effective_authority::{AuthorizedWorkContext, HoldingWorkSourcePreparation},
     operational_worker::{
-        OperationalWorkerPermission, OperationalWorkerRequest, lock_operational_worker_sources,
-        inspect_operational_worker,
+        OperationalWorkerPermission, OperationalWorkerRequest, inspect_operational_worker,
+        lock_operational_worker_sources,
     },
 };
 use erpx_server_maintenance::public::{
@@ -87,12 +87,11 @@ impl PgMaintenanceNotificationSource for CreateFacts {
         unreachable!("create notification facts are supplied by CreateNotificationSource")
     }
     async fn require_before(&self, c: &mut PgConnection, _: TimestampMillis) -> Result<(), Error> {
-        let exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM maintenance_work_orders WHERE id=$1)",
-        )
-        .bind(self.work_id.as_str())
-        .fetch_one(&mut *c)
-        .await?;
+        let exists: bool =
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM maintenance_work_orders WHERE id=$1)")
+                .bind(self.work_id.as_str())
+                .fetch_one(&mut *c)
+                .await?;
         if exists {
             return Err(changed().into());
         }
@@ -116,12 +115,15 @@ impl PgMaintenanceNotificationSource for CreateFacts {
         .bind(self.work_id.as_str())
         .fetch_one(c)
         .await?;
-        if row.as_ref().is_none_or(|(company, version, status, owner, _, _)| {
-            company != self.company.as_str()
-                || *version != 1
-                || status != self.status
-                || owner != &self.owner_id
-        }) || !event
+        if row
+            .as_ref()
+            .is_none_or(|(company, version, status, owner, _, _)| {
+                company != self.company.as_str()
+                    || *version != 1
+                    || status != self.status
+                    || owner != &self.owner_id
+            })
+            || !event
         {
             return Err(changed().into());
         }
@@ -137,7 +139,11 @@ impl PgMaintenanceNotificationSource for CreateNotificationSource {
     fn facts(&self) -> &MaintenanceNotificationFacts {
         &self.facts
     }
-    async fn require_before(&self, c: &mut PgConnection, now: TimestampMillis) -> Result<(), Error> {
+    async fn require_before(
+        &self,
+        c: &mut PgConnection,
+        now: TimestampMillis,
+    ) -> Result<(), Error> {
         self.image.require_before(c, now).await
     }
     async fn require_after(&self, c: &mut PgConnection, now: TimestampMillis) -> Result<(), Error> {
@@ -174,7 +180,11 @@ impl<G: Clock + Sync> Authority<'_, G> {
     }
 }
 impl<G: Clock + Sync> PgCommandAuthority for Authority<'_, G> {
-    async fn lock_sources(&mut self, c: &mut PgConnection, _: &WorkflowRequest) -> Result<(), Error> {
+    async fn lock_sources(
+        &mut self,
+        c: &mut PgConnection,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
         lock_commercial_authority_sources(c).await
     }
     async fn authorize(
@@ -202,7 +212,10 @@ impl<G: Clock + Sync> PgCommandAuthority for Authority<'_, G> {
             &self.catalogue,
         );
         if let Some(witness) = &self.purchase {
-            purchases.revalidate(witness, now).await?.require_allowed()?;
+            purchases
+                .revalidate(witness, now)
+                .await?
+                .require_allowed()?;
         } else {
             self.purchase = Some(
                 purchases
@@ -253,7 +266,11 @@ struct CreateResult<'a> {
 }
 
 impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, G> {
-    async fn lock_sources(&mut self, c: &mut PgConnection, _: &WorkflowRequest) -> Result<(), Error> {
+    async fn lock_sources(
+        &mut self,
+        c: &mut PgConnection,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
         MaintenanceCreationPreparation.prepare(c).await
     }
     async fn prepare(
@@ -304,7 +321,11 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
             )
             .into());
         }
-        let status = if input.scheduled_at.is_some() { "scheduled" } else { "open" };
+        let status = if input.scheduled_at.is_some() {
+            "scheduled"
+        } else {
+            "open"
+        };
         let key = self.key.clone();
         let work_id = RecordId::new(format!("maintenance-{}", key.as_str()))?;
         let source = CreateFacts {
@@ -354,7 +375,11 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
             version: 1,
             status,
         })?;
-        self.prepared = Some(Prepare { source, facts, notification });
+        self.prepared = Some(Prepare {
+            source,
+            facts,
+            notification,
+        });
         Ok(WorkflowOutput {
             version: 1,
             result,
@@ -367,7 +392,11 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
         _: &CommandActor,
         _: &WorkflowRequest,
     ) -> Result<(), Error> {
-        let Prepare { source, facts, notification } = self.prepared.take().ok_or_else(changed)?;
+        let Prepare {
+            source,
+            facts,
+            notification,
+        } = self.prepared.take().ok_or_else(changed)?;
         insert_maintenance_creation(
             c,
             &MaintenanceCreationPlan {
@@ -389,11 +418,17 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
             },
         )
         .await?;
-        let actual = CreateNotificationSource { facts, image: source.clone() };
+        let actual = CreateNotificationSource {
+            facts,
+            image: source.clone(),
+        };
         let notification = notification
             .persist(c, &actual, self.guard_clock.now())
             .await?;
-        self.written = Some(Written { source, notification });
+        self.written = Some(Written {
+            source,
+            notification,
+        });
         Ok(())
     }
     async fn retain(
@@ -402,9 +437,14 @@ impl<W: Clock + Sync, G: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W, 
         _: &CommandActor,
         _: &WorkflowRequest,
     ) -> Result<(), Error> {
-        sqlx::query("SET CONSTRAINTS ALL IMMEDIATE").execute(&mut *c).await?;
+        sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
+            .execute(&mut *c)
+            .await?;
         let written = self.written.as_ref().ok_or_else(changed)?;
-        written.source.require_after(c, self.guard_clock.now()).await?;
+        written
+            .source
+            .require_after(c, self.guard_clock.now())
+            .await?;
         written.notification.require_current(c).await
     }
 }

@@ -255,3 +255,42 @@ fn my_actions_uses_live_independence_and_preserves_queue_relationships() {
         assert_eq!(w.queue, "completed");
     }
 }
+
+#[test]
+fn zod_text_and_owner_id_unicode_boundaries() {
+    assert!(text(&"😀".repeat(2),3,4000).is_err());
+    assert!(text(&"😀".repeat(3),3,4000).is_ok());
+    assert!(text(&format!("\u{feff}{}\u{feff}","😀".repeat(4000)),3,4000).is_ok());
+    assert!(text(&"😀".repeat(4001),3,4000).is_err());
+    let mut command=input(Action::Assign);
+    command.owner_id=Some("😀".repeat(180));
+    let result=transition(&actor("reviewer",true),&row(),&command).unwrap();
+    assert_eq!(result.owner,"😀".repeat(180));
+    command.owner_id=Some("😀".repeat(181));
+    assert!(transition(&actor("reviewer",true),&row(),&command).is_err());
+}
+
+#[test]
+fn policy_and_exception_inputs_use_zod_unicode_boundaries() {
+    use erpx_server_operations::public::field_policy::{DraftPolicy,OpenException,identifier,review_policy,PolicyAction};
+    let mut policy=DraftPolicy{area:"service".into(),name:"😀".repeat(160),target_minutes:60,source_kinds:vec!["field_service_order".into()]};
+    assert!(policy.validate().is_ok());policy.name="😀".repeat(161);assert!(policy.validate().is_err());
+    policy.name="valid name".into();let mut published=policy.draft("policy","company","maker",1,0).unwrap();
+    assert!(review_policy(&published,PolicyAction::Publish,1,false,&"😀".repeat(4000)).is_ok());
+    assert!(review_policy(&published,PolicyAction::Publish,1,false,&"😀".repeat(4001)).is_err());
+    published.status="published".into();published.version=2;
+    let mut request=OpenException{source_id:"order".into(),source_version:1,policy_id:"policy".into(),policy_version:2,title:"😀".repeat(160),issue:"😀".repeat(4000),priority:"normal".into(),owner_id:"owner".into()};
+    assert!(request.due_at(&published,0).is_ok());request.title="😀".repeat(161);assert!(request.due_at(&published,0).is_err());
+    request.title="valid title".into();request.issue="😀".repeat(4001);assert!(request.due_at(&published,0).is_err());
+    assert!(identifier(&"😀".repeat(180)).is_ok());assert!(identifier(&"😀".repeat(181)).is_err());
+}
+
+#[test]
+fn escalate_and_resolve_use_zod_unicode_boundaries() {
+    let mut escalate=input(Action::Escalate);escalate.escalation_owner_id=Some("😀".repeat(180));
+    assert_eq!(transition(&actor("owner",false),&row(),&escalate).unwrap().escalation_owner,Some("😀".repeat(180)));
+    escalate.escalation_owner_id=Some("😀".repeat(181));assert!(transition(&actor("owner",false),&row(),&escalate).is_err());
+    let mut current=row();current.status="in_progress".into();let mut resolve=input(Action::Resolve);
+    resolve.resolution=Some("😀".repeat(4000));assert!(transition(&actor("owner",false),&current,&resolve).is_ok());
+    resolve.resolution=Some("😀".repeat(4001));assert!(transition(&actor("owner",false),&current,&resolve).is_err());
+}

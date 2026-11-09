@@ -45,6 +45,7 @@ async fn unit(c: &mut PgConnection) -> Result<(String, i32, String, String), Err
     if level != "serializable" {
         return Err(PersistenceError::new("FIELD_SERVICE_SERIALIZABLE_REQUIRED").into());
     }
+    require_field_file_sources_held(&mut *c,FieldFileSourceLockMode::Read).await?;
     Ok(sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text").fetch_one(c).await?)
 }
 pub async fn lock_field_file_sources(c: &mut PgConnection) -> Result<(), Error> {
@@ -60,6 +61,17 @@ pub async fn lock_field_file_bind_sources(c: &mut PgConnection) -> Result<(), Er
     }
     sqlx::query("LOCK TABLE field_service_orders,field_service_agreements,field_service_part_reservations,field_service_billing_releases IN SHARE ROW EXCLUSIVE MODE").execute(c).await?;
     Ok(())
+}
+/// Required utility-lock strength for a selected Field file operation.
+#[derive(Clone,Copy,Debug,Eq,PartialEq)]
+pub enum FieldFileSourceLockMode { Read, Bind }
+/// Check already-held locks only; this does not establish snapshot timing or
+/// selected actor, purchase, or target authority.
+pub async fn require_field_file_sources_held(c:&mut PgConnection,required:FieldFileSourceLockMode)->Result<(),Error>{
+    if !c.is_in_transaction(){return Err(PersistenceError::new("FIELD_SERVICE_TRANSACTION_REQUIRED").into());}
+    let bind=required==FieldFileSourceLockMode::Bind;
+    let held:bool=sqlx::query_scalar("SELECT count(DISTINCT relation)=4 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND granted AND relation IN ('field_service_orders'::regclass,'field_service_agreements'::regclass,'field_service_part_reservations'::regclass,'field_service_billing_releases'::regclass) AND ((NOT $1 AND mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock')) OR ($1 AND mode IN ('ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock')))").bind(bind).fetch_one(c).await?;
+    if !held{return Err(PersistenceError::new("FIELD_FILE_SOURCE_LOCKS_REQUIRED").into());}Ok(())
 }
 async fn image(
     c: &mut PgConnection,
@@ -86,9 +98,9 @@ impl CurrentFieldFileSource {
         c: &mut PgConnection,
         current: &AuthorizedWorkContext,
     ) -> Result<(), Error> {
+        if unit(c).await? != self.unit { return Err(changed()); }
         let (actual, digest) = image(c, current, &self.facts.order_id).await?;
-        if unit(c).await? != self.unit
-            || digest != self.digest
+        if digest != self.digest
             || actual.order_id != self.facts.order_id
         {
             return Err(changed());
@@ -118,6 +130,7 @@ pub async fn bind_field_file_evidence(
     expected: i64,
     now: i64,
 ) -> Result<(), Error> {
+    require_field_file_sources_held(c,FieldFileSourceLockMode::Bind).await?;
     source.require_current(c, current).await?;
     let f = source.facts();
     if f.version != expected || matches!(f.state.as_str(), "cancelled" | "billed") {

@@ -4,6 +4,8 @@
 //! serializable caller transaction and persisted readback. It does not prove a
 //! browser render or the onboarding command.
 #![allow(dead_code)]
+#[path = "../../support/rust-postgres.rs"]
+mod holding_fixture;
 use erpx_server_manage_erpx::public::onboarding::{
     OnboardingActor, OnboardingView, read_onboarding_view,
 };
@@ -272,4 +274,54 @@ fn onboarding_view_is_owner_scoped_strictly_validated_and_persisted() {
             _ => panic!("unverified owner must be denied"),
         }
     }));
+}
+
+#[tokio::test]
+async fn beta_policy_held_lock_rejects_weak_and_released_fences() {
+    use erpx_server_manage_erpx::public::{lock_beta_policy_sources,require_beta_policy_sources_held};
+    holding_fixture::with_database(2, |pool| async move {
+        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
+        let mut outside=pool.raw().acquire().await.unwrap();assert!(require_beta_policy_sources_held(&mut outside).await.is_err());drop(outside);
+        let mut weak=pool.raw().begin().await.unwrap();sqlx::query("LOCK TABLE beta_policy IN ROW SHARE MODE").execute(&mut *weak).await.unwrap();assert!(matches!(require_beta_policy_sources_held(&mut weak).await,Err(PgTransactionError::Persistence(ref e)) if e.code=="BETA_POLICY_LOCK_REQUIRED"));weak.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();sqlx::query("SELECT pg_current_xact_id()").execute(&mut *tx).await.unwrap();sqlx::query("SAVEPOINT before_beta_lock").execute(&mut *tx).await.unwrap();
+        lock_beta_policy_sources(&mut tx).await.unwrap();require_beta_policy_sources_held(&mut tx).await.unwrap();let held:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=pg_backend_pid() AND relation='beta_policy'::regclass AND mode='ShareLock' AND granted)").fetch_one(&mut *tx).await.unwrap();assert!(held);
+        sqlx::query("ROLLBACK TO SAVEPOINT before_beta_lock").execute(&mut *tx).await.unwrap();assert!(matches!(require_beta_policy_sources_held(&mut tx).await,Err(PgTransactionError::Persistence(ref e)) if e.code=="BETA_POLICY_LOCK_REQUIRED"));
+        sqlx::query("LOCK TABLE beta_policy IN SHARE ROW EXCLUSIVE MODE").execute(&mut *tx).await.unwrap();require_beta_policy_sources_held(&mut tx).await.unwrap();tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn beta_policy_authority_boundary_checks_canonical_source_and_unit() {
+    use erpx_server_manage_erpx::public::{lock_beta_policy_sources,inspect_beta_policy_authority_boundary};
+    holding_fixture::with_database(2,|pool|async move {
+        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();
+        migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        sqlx::query("SET LOCAL search_path TO pg_catalog, public, pg_temp").execute(&mut *tx).await.unwrap();
+        assert!(inspect_beta_policy_authority_boundary(&mut tx).await.is_err());
+        sqlx::query("SAVEPOINT beta_authority").execute(&mut *tx).await.unwrap();
+        lock_beta_policy_sources(&mut tx).await.unwrap();
+        let released=inspect_beta_policy_authority_boundary(&mut tx).await.unwrap();
+        released.require_current(&mut tx).await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT beta_authority").execute(&mut *tx).await.unwrap();
+        assert!(released.require_current(&mut tx).await.is_err());tx.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        sqlx::query("CREATE TEMP TABLE beta_policy(company_id text)").execute(&mut *tx).await.unwrap();
+        sqlx::query("SET LOCAL search_path TO pg_catalog, public, pg_temp").execute(&mut *tx).await.unwrap();
+        lock_beta_policy_sources(&mut tx).await.unwrap();
+        let source=inspect_beta_policy_authority_boundary(&mut tx).await.unwrap();
+        source.require_current(&mut tx).await.unwrap();
+        sqlx::query("SET LOCAL search_path TO pg_catalog, pg_temp, public").execute(&mut *tx).await.unwrap();
+        assert!(source.require_current(&mut tx).await.is_err());
+        sqlx::query("SET LOCAL search_path TO pg_catalog, public, pg_temp").execute(&mut *tx).await.unwrap();
+        source.require_current(&mut tx).await.unwrap();
+        let mut other=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+        assert!(source.require_current(&mut other).await.is_err());
+        other.rollback().await.unwrap();tx.rollback().await.unwrap();
+    }).await;
 }

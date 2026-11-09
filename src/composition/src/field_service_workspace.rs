@@ -256,7 +256,9 @@ pub(crate) async fn prepare_workspace<C: Clock>(
         )
         .await?;
     for t in &support.data().display {
-        customer_ids.insert(t.customer_id.clone());
+        if let Some(customer_id) = &t.customer_id {
+            customer_ids.insert(customer_id.clone());
+        }
     }
     let customers =
         erpx_server_finance::public::field_service_workspace::read_service_workspace_customers(
@@ -426,7 +428,7 @@ pub(crate) async fn prepare_workspace<C: Clock>(
                 reviewer_eligible: assigned(actor, b, d, true),
                 same_person_db: same_db(string(row, "created_by")?),
                 same_person_actor: same_actor(string(row, "created_by")?),
-                has_asset: asset.is_some(),
+                has_asset: asset.is_some_and(|id| !id.is_empty()),
                 status: string(row, "status")?,
                 start_date: string(row, "start_date")?,
                 end_date: string(row, "end_date")?,
@@ -447,7 +449,7 @@ pub(crate) async fn prepare_workspace<C: Clock>(
         put(
             &mut g,
             "requires_asset_capability",
-            i64::from(asset.is_some()),
+            i64::from(asset.is_some_and(|id| !id.is_empty())),
         );
         put(&mut g, "can_review", flags.can_review);
         put(&mut g, "can_activate", flags.can_activate);
@@ -460,12 +462,16 @@ pub(crate) async fn prepare_workspace<C: Clock>(
     for row in &field.data().orders {
         let mut o = row.clone();
         let id = string(row, "id")?;
-        let ticket = ticket_map
-            .get(string(row, "ticket_id")?)
-            .ok_or_else(invalid)?;
-        let customer = customer_names
-            .get(ticket.customer_id.as_str())
-            .ok_or_else(invalid)?;
+        let Some(ticket) = ticket_map.get(string(row, "ticket_id")?) else {
+            continue;
+        };
+        let Some(customer) = ticket
+            .customer_id
+            .as_deref()
+            .and_then(|id| customer_names.get(id))
+        else {
+            continue;
+        };
         let agreement = titles
             .get(string(row, "agreement_id")?)
             .ok_or_else(invalid)?;
@@ -505,7 +511,7 @@ pub(crate) async fn prepare_workspace<C: Clock>(
                 reviewer_eligible: reviewer,
                 independent_billing: independent,
                 actor_same_person_as_technician: same_actor(tech),
-                has_asset: asset.is_some(),
+                has_asset: asset.is_some_and(|id| !id.is_empty()),
             },
         );
         put(&mut o, "ticket_title", ticket.title.as_str());
@@ -524,7 +530,7 @@ pub(crate) async fn prepare_workspace<C: Clock>(
         put(
             &mut o,
             "requires_asset_capability",
-            i64::from(asset.is_some()),
+            i64::from(asset.is_some_and(|id| !id.is_empty())),
         );
         put(&mut o, "technician_name", name);
         put(&mut o, "technician_eligible", i64::from(tech_eligible));
@@ -672,8 +678,8 @@ impl PreparedWorkspace {
                 .iter()
                 .find(|t| t.id == string(o, "ticket_id").unwrap_or_default());
             let valid_ticket = ticket.is_some_and(|t| {
-                t.customer_id == g.customer_id
-                    && t.branch_id == branch
+                t.customer_id.as_deref() == Some(g.customer_id.as_str())
+                    && t.branch_id.as_deref() == Some(branch)
                     && t.department_id.as_deref() == dept
             });
             if g.branch_id == branch

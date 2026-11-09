@@ -135,3 +135,35 @@ async fn release_requires_the_serializable_owner_unit() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn release_statement_matches_actual_typescript_for_order_kinds_and_states() {
+    // Capture the actual legacy owner's prepared statement; both executions
+    // below use real migrated PostgreSQL rows inside the same transaction.
+    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let module=root.join("packages/server-inventory/src/adapters/commerce-facts.ts");
+    let script=r#"if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const m=await import(process.argv[1]);const db={prepare(sql){return {bind(...values){return {sql,values}}}}};const q=m.CommerceInventoryFacts(db).prepareInventoryOrderReservations3({id:'sales-1'});process.stdout.write(JSON.stringify(q));"#;
+    let output=std::process::Command::new(std::env::var("ERPX_NODE_BIN").expect("pinned Node required")).current_dir(root).args(["--conditions=react-server","--input-type=module","-e",script]).arg(module).output().unwrap();
+    assert!(output.status.success(),"actual Inventory TS statement: {}",String::from_utf8_lossy(&output.stderr));
+    let query:serde_json::Value=serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(query["values"],serde_json::json!(["sales-1"]));
+    let statement=query["sql"].as_str().unwrap();assert_eq!(statement.matches('?').count(),1);
+    let statement=statement.replacen('?',"$1",1);
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let mut tx=pool.raw().begin().await.unwrap();serial(&mut tx).await;
+        for (kind,state) in [("sales","draft"),("sales","confirmed"),("quote","draft"),("purchase","confirmed"),("sales","partially_fulfilled"),("sales","fulfilled")] {
+            sqlx::query("UPDATE commerce_orders SET kind=$1,state=$2 WHERE id='sales-1'").bind(kind).bind(state).execute(&mut *tx).await.unwrap();
+            sqlx::query("SAVEPOINT legacy_release").execute(&mut *tx).await.unwrap();
+            let legacy=sqlx::query(sqlx::AssertSqlSafe(statement.as_str())).bind("sales-1").execute(&mut *tx).await.unwrap().rows_affected();
+            let legacy_rows:Vec<(String,i64,Option<String>)>=sqlx::query_as("SELECT id,released_milli,release_reason FROM inventory_order_reservations ORDER BY id").fetch_all(&mut *tx).await.unwrap();
+            sqlx::query("ROLLBACK TO SAVEPOINT legacy_release").execute(&mut *tx).await.unwrap();
+            let native=release_confirmed_sales_order_reservations(&mut tx,&company(),"sales-1").await.unwrap();
+            let native_rows:Vec<(String,i64,Option<String>)>=sqlx::query_as("SELECT id,released_milli,release_reason FROM inventory_order_reservations ORDER BY id").fetch_all(&mut *tx).await.unwrap();
+            assert_eq!((native,native_rows),(legacy,legacy_rows),"{kind}/{state}");
+            assert_eq!(native,1,"the release SQL itself does not inspect order kind or state");
+            sqlx::query("ROLLBACK TO SAVEPOINT legacy_release").execute(&mut *tx).await.unwrap();
+        }
+        tx.rollback().await.unwrap();
+    }).await;
+}

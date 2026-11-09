@@ -236,6 +236,11 @@ path = "../../tests/integration/maintenance/rust-work-source-postgres.test.rs"
 required-features = ["existing-business"]
 
 [[test]]
+name = "crm_recipient_composition_postgres"
+path = "../../tests/integration/crm/rust-crm-recipient-composition-postgres.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
 name = "issue_part_command"
 path = "../../tests/integration/maintenance/rust-issue-part-command-postgres.test.rs"
 required-features = ["existing-business"]
@@ -558,3 +563,4 @@ required-features = ["existing-business"]
 name = "commerce_selected_http_postgres"
 path = "../../tests/integration/commerce/rust-commerce-selected-http-postgres.test.rs"
 required-features = ["existing-business", "private-field-api"]
+

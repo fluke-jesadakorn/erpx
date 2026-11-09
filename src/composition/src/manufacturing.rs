@@ -10,14 +10,14 @@ use erpx_server_identity_access::public::{
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
 use erpx_server_manufacturing::public::bom::{
-    BomActor, BomReadRepository, BomRegister, bom_register, PgBomRead,
+    BomActor, BomReadRepository, BomRegister, PgBomRead, bom_register,
 };
 use erpx_server_manufacturing::public::bom_http::{
     BomHttpBackend, BomHttpFuture, BomHttpRequest, BomHttpResponse,
 };
 use erpx_server_manufacturing::public::planning::{
-    PlanningActor, PlanningWorkspace, PlanningWorkspaceRepository, planning_workspace,
-    PgPlanningWorkspaceRead,
+    PgPlanningWorkspaceRead, PlanningActor, PlanningWorkspace, PlanningWorkspaceRepository,
+    planning_workspace,
 };
 use erpx_server_manufacturing::public::planning_http::{
     PlanningHttpBackend, PlanningHttpFuture, PlanningHttpRequest, PlanningHttpResponse,
@@ -328,10 +328,7 @@ impl<C: Clock + Send + Sync + 'static> ManufacturingBackend<C> {
 }
 
 impl<C: Clock + Send + Sync + 'static> BomHttpBackend for ManufacturingBackend<C> {
-    fn read<'a>(
-        &'a self,
-        request: BomHttpRequest<'a>,
-    ) -> BomHttpFuture<'a, BomHttpResponse> {
+    fn read<'a>(&'a self, request: BomHttpRequest<'a>) -> BomHttpFuture<'a, BomHttpResponse> {
         Box::pin(async move {
             let (proof, selection) = self.context(request.headers)?;
             self.service

@@ -21,7 +21,10 @@ fn text(
         let b = u.iter().rposition(|c| !white(c)).map_or(a, |i| i + 1);
         u = u[a..b].to_vec();
     }
-    if !(min..=max).contains(&u.len()) {
+    // Match Zod's code-point bounds while preserving the original command
+    // UTF-16 units, including any unpaired surrogate, for its identity.
+    let length = char::decode_utf16(u.iter().copied()).count();
+    if !(min..=max).contains(&length) {
         return Err(invalid());
     }
     Ok((
@@ -122,8 +125,7 @@ pub fn normalize_service_count_update(raw: &str) -> Result<ServiceCountUpdateInp
     if !(1..=50).contains(&lines.len()) {
         return Err(invalid());
     }
-    let mut contains_unpaired_surrogate =
-        unpaired(&root, "warehouseId")? || unpaired(&root, "reason")?;
+    let mut contains_unpaired_surrogate = unpaired(&root, "warehouseId")?;
     let mut encoded = Vec::new();
     let mut output = Vec::new();
     for line in lines {
@@ -242,8 +244,8 @@ use erpx_server_commerce::public::service_initial_count_masters::{
     CurrentServiceCountRecordMasters, read_service_count_record_masters,
 };
 use erpx_server_commercial::public::purchases::{
-    CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgReadOnlyCompanyPurchaseReader,
-    PurchaseRequest, PurchaseWitness, current_package_catalogue,
+    CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode,
+    PgReadOnlyCompanyPurchaseReader, PurchaseRequest, PurchaseWitness, current_package_catalogue,
 };
 use erpx_server_identity_access::public::{
     effective_authority::AuthorizedWorkContext,
@@ -323,7 +325,8 @@ impl<C: Clock + Sync> UpdateSource<'_, C> {
         self.purchases
             .require_for(c, purpose, self.clock.now())
             .await?;
-        let locks = erpx_server_commercial::public::purchases::bind_purchase_read_sources(c).await?;
+        let locks =
+            erpx_server_commercial::public::purchases::bind_purchase_read_sources(c).await?;
         PgReadOnlyCompanyPurchaseReader::new(
             self.current.holding_id().clone(),
             self.current.selection().workspace().company_id.clone(),
@@ -361,7 +364,8 @@ async fn update_source<'a, C: Clock + Sync>(
         .await?;
     let catalogue = current_package_catalogue()?;
     let supply = {
-        let locks = erpx_server_commercial::public::purchases::bind_purchase_read_sources(c).await?;
+        let locks =
+            erpx_server_commercial::public::purchases::bind_purchase_read_sources(c).await?;
         let mut reader = PgReadOnlyCompanyPurchaseReader::new(
             current.holding_id().clone(),
             current.selection().workspace().company_id.clone(),
@@ -649,6 +653,11 @@ pub async fn execute_service_initial_count_update<C: Clock + Sync, I: Identifier
     .await?;
     if let Some(result) = replay {
         return serde_json::from_str(result.result.as_str()).map_err(|_| changed().into());
+    }
+    // Keep the original UTF-16 for replay identity, but never use a lossy
+    // replacement string for a fresh owner lookup or write.
+    if input.contains_unpaired_surrogate {
+        return Err(invalid().into());
     }
     source
         .purchases

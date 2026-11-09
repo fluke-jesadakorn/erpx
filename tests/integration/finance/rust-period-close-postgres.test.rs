@@ -4,13 +4,98 @@
 #![allow(dead_code)]
 #[path = "../../support/finance/review-composition.rs"]
 mod facts;
+use erpx_server_files::public::business_evidence::{
+    PgBusinessEvidenceFiles, PreparedBusinessEvidence, evidence_context, policy_fact,
+};
 use erpx_server_finance::public::period_close::*;
 use erpx_server_finance::public::sales_invoice_create::SalesInvoiceCommandActor;
+use erpx_server_records::public::business_evidence::{
+    BusinessEvidenceRequest, prepare_business_evidence,
+};
 use erpx_server_runtime::public::postgres::{DatabasePool, PgTransactionError};
-use erpx_server_shared::public::{BusinessError, CommandKey};
+use erpx_server_shared::public::{BusinessError, CommandKey, CompanyId, TimestampMillis};
 use facts::{account, setup};
+use serde_json::Value;
+use sqlx::PgConnection;
 
 const NOW: i64 = 1_800_000_000_000;
+
+struct CloseWorkpapers {
+    company: CompanyId,
+    actor_id: String,
+    now: i64,
+}
+
+impl CloseWorkpapers {
+    fn new(actor: &SalesInvoiceCommandActor) -> Self {
+        Self {
+            company: CompanyId::new(actor.company_id.clone()).unwrap(),
+            actor_id: actor.user_id.clone(),
+            now: NOW,
+        }
+    }
+}
+
+impl PgPeriodCloseEvidence for CloseWorkpapers {
+    type Prepared = PreparedBusinessEvidence;
+
+    async fn prepare(
+        &mut self,
+        c: &mut PgConnection,
+        request: PeriodCloseEvidenceRequest,
+    ) -> Result<Self::Prepared, PgTransactionError<BusinessError>> {
+        let mut port = PgBusinessEvidenceFiles::new(
+            c,
+            self.company.clone(),
+            self.actor_id.clone(),
+            None,
+            None,
+            vec![policy_fact(
+                PERIOD_CLOSE_WORKPAPER_TARGET_TYPE,
+                PERIOD_CLOSE_WORKPAPER_PURPOSE_KEY,
+                &[PERIOD_CLOSE_WORKPAPER_COMPONENT_KIND],
+            )],
+            TimestampMillis::new(self.now),
+        );
+        Ok(prepare_business_evidence(
+            &mut port,
+            BusinessEvidenceRequest {
+                attachment_set_ids: request.set_ids,
+                target_types: vec![PERIOD_CLOSE_WORKPAPER_TARGET_TYPE.into()],
+                contexts: vec![evidence_context(
+                    PERIOD_CLOSE_WORKPAPER_PURPOSE_KEY,
+                    PERIOD_CLOSE_WORKPAPER_COMPONENT_KIND,
+                    Some(PERIOD_CLOSE_WORKPAPER_COMPONENT_REF),
+                )],
+                target_id: request.target_id,
+                expected_target_version: request.expected_target_version,
+                command_id: request.command_id,
+                binding_type: request.binding_type,
+                binding_id: request.binding_id,
+            },
+        )
+        .await?
+        .expect("nonempty close workpapers"))
+    }
+
+    async fn require_current(
+        &mut self,
+        c: &mut PgConnection,
+        prepared: &Self::Prepared,
+    ) -> Result<(), PgTransactionError<BusinessError>> {
+        PgBusinessEvidenceFiles::new(
+            c,
+            self.company.clone(),
+            self.actor_id.clone(),
+            None,
+            None,
+            Vec::new(),
+            TimestampMillis::new(self.now),
+        )
+        .require_current(prepared)
+        .await
+    }
+}
 
 fn actor(user: &str, assignment: &str) -> SalesInvoiceCommandActor {
     SalesInvoiceCommandActor {
@@ -42,7 +127,24 @@ async fn seed(pool: &DatabasePool) {
          ('close-ap','company','chart','2100','Trade payables','liability','THB',1,'payable','active',1,0,0),\
          ('close-bank','company','chart','1000','Bank','asset','THB',1,'bank','active',1,0,0) ON CONFLICT DO NOTHING;\
          INSERT INTO finance_bank_statements(id,company_id,bank_account,statement_number,statement_date,opening_minor,closing_minor,closing_fx_rate_micros,base_closing_minor,source_hash,status,version,imported_by,created_at)VALUES\
-         ('close-statement','company','close-bank','ST-CLOSE','2026-01-31',0,0,1000000,0,'close-hash','imported',1,'fixture-a',0) ON CONFLICT DO NOTHING;",
+         ('close-statement','company','close-bank','ST-CLOSE','2026-01-31',0,0,1000000,0,'close-hash','imported',1,'fixture-a',0) ON CONFLICT DO NOTHING;\
+         INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,staging_key,status,created_by,expires_at,created_at,updated_at)VALUES\
+         ('close-upload-1','holding','company','delivery','workpaper.png','image/png',10,'close-staging-1','ready','fixture-a',4102444800000,0,0),\
+         ('close-upload-2','holding','company','delivery','workpaper-2.png','image/png',10,'close-staging-2','ready','fixture-a',4102444800000,0,0),\
+         ('close-upload-3','holding','company','delivery','workpaper-3.png','image/png',10,'close-staging-3','ready','fixture-a',4102444800000,0,0);\
+         INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at,company_id,detected_media_type,source_state,scanned_at,scanner_definition_at)VALUES\
+         ('close-attachment-1','close-upload-1','holding','company','delivery','close-original-1',1,'workpaper.png','image/png',10,repeat('c',64),'fixture-a',0,'company','image/png','available',1,1),\
+         ('close-attachment-2','close-upload-2','holding','company','delivery','close-original-2',1,'workpaper-2.png','image/png',10,repeat('d',64),'fixture-a',0,'company','image/png','available',1,1),\
+         ('close-attachment-3','close-upload-3','holding','company','delivery','close-original-3',1,'workpaper-3.png','image/png',10,repeat('e',64),'fixture-a',0,'company','image/png','available',1,1);\
+         INSERT INTO attachment_sets(id,company_id,branch_id,department_id,target_type,target_id,component_kind,component_ref,purpose_key,expected_target_version,policy_version,classification,audience_json,required_count,max_files,state,created_by,created_at,updated_at)VALUES\
+         ('close-set','company',NULL,NULL,'finance_period','period','action','close-approval','close_workpaper',1,1,'confidential','[]',1,50,'draft','fixture-a',0,0),\
+         ('close-set-target','company',NULL,NULL,'finance_period','other-period','action','close-approval','close_workpaper',1,1,'confidential','[]',1,50,'draft','fixture-a',0,0),\
+         ('close-set-version','company',NULL,NULL,'finance_period','period','action','close-approval','close_workpaper',2,1,'confidential','[]',1,50,'draft','fixture-a',0,0),\
+         ('close-set-short','company',NULL,NULL,'finance_period','period','action','close-approval','close_workpaper',1,1,'confidential','[]',2,50,'draft','fixture-short',0,0),\
+         ('close-set-foreign','company-2',NULL,NULL,'finance_period','period','action','close-approval','close_workpaper',1,1,'confidential','[]',1,50,'draft','fixture-a',0,0);\
+         INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at)VALUES\
+         ('close-link','close-set','close-attachment-1','draft','fixture-a',0,4102444800000),\
+         ('close-link-short','close-set-short','close-attachment-2','draft','fixture-a',0,4102444800000);",
     )
     .execute(pool.raw())
     .await
@@ -113,7 +215,8 @@ async fn close(
     can_approve: bool,
 ) -> Result<PeriodCloseResult, PgTransactionError<BusinessError>> {
     let mut tx = pool.raw().begin().await.unwrap();
-    let result = close_period(
+    let mut evidence = CloseWorkpapers::new(actor);
+    let result = close_period_with_evidence(
         &mut tx,
         actor,
         &CommandKey::new(key).unwrap(),
@@ -121,6 +224,7 @@ async fn close(
         input,
         can_approve,
         NOW,
+        &mut evidence,
     )
     .await;
     match result {
@@ -381,6 +485,215 @@ async fn period_close_replays_command_and_isolates_company() {
         );
         let other = actor_for("company-2");
         assert_business(begin(pool, &other, "close-other-company").await, "PERIOD_NOT_FOUND");
+    })
+    .await;
+}
+
+fn workpapers(sets: &[&str], version: i64) -> PeriodCloseProofInput {
+    PeriodCloseProofInput {
+        proof: "Reviewed close workpapers".into(),
+        expected_version: Some(version),
+        attachment_set_ids: sets.iter().map(|value| (*value).to_string()).collect(),
+    }
+}
+
+#[tokio::test]
+async fn period_close_binds_close_workpapers_and_replays_without_rebinding() {
+    account::with_system(|system| async move {
+        let p = setup(system).await;
+        let pool = &p.system.holdings[0];
+        seed(pool).await;
+        let maker = actor("fixture-a", "finance-fixture-a");
+        let reviewer = actor("fixture-b", "finance-fixture-b");
+        begin(pool, &maker, "close-begin-workpapers").await.unwrap();
+
+        let input = workpapers(&["close-set"], 1);
+        let closed = close(pool, &reviewer, "close-workpapers-1", &input, true)
+            .await
+            .unwrap();
+        assert_eq!(closed.state, "closed");
+        assert_eq!(closed.version, 2);
+
+        let set: (String, Option<String>, Option<i64>) = sqlx::query_as(
+            "SELECT state,bound_command_id,bound_at FROM attachment_sets WHERE id='close-set'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(set.0, "bound");
+        assert_eq!(set.1.as_deref(), Some("close-workpapers-1"));
+        assert_eq!(set.2, Some(NOW));
+        let link: (String, Option<String>, Option<String>, Option<i64>) = sqlx::query_as(
+            "SELECT state,binding_type,binding_id,bound_at FROM attachment_links WHERE id='close-link'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(link.0, "bound");
+        assert_eq!(link.1.as_deref(), Some("finance_period_close"));
+        assert_eq!(link.2.as_deref(), Some("period:2"));
+        assert_eq!(link.3, Some(NOW));
+        let (events, details): (i64, String) = sqlx::query_as(
+            "SELECT COUNT(*),COALESCE(MAX(details_json),'') FROM attachment_events WHERE action='set.bound' AND set_id='close-set'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(events, 1);
+        let details: Value = serde_json::from_str(&details).unwrap();
+        assert_eq!(details["bindingType"], "finance_period_close");
+        assert_eq!(details["bindingId"], "period:2");
+        assert_eq!(details["targetId"], "period");
+        assert_eq!(details["expectedTargetVersion"], 1);
+        let (receipts, saved): (i64, String) = sqlx::query_as(
+            "SELECT COUNT(*),COALESCE(MAX(result_json),'') FROM command_receipts WHERE command_id='close-workpapers-1'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(receipts, 1);
+        let saved: PeriodCloseResult = serde_json::from_str(&saved).unwrap();
+        assert_eq!(saved.state, "closed");
+        assert_eq!(saved.version, 2);
+        assert_eq!(saved.reconciliation_hash, closed.reconciliation_hash);
+
+        let replay = close(pool, &reviewer, "close-workpapers-1", &input, true)
+            .await
+            .unwrap();
+        assert_eq!(replay.state, closed.state);
+        assert_eq!(replay.version, closed.version);
+        assert_eq!(replay.reconciliation_hash, closed.reconciliation_hash);
+        let (receipts, events, version): (i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT COUNT(*) FROM command_receipts WHERE command_id='close-workpapers-1'),\
+             (SELECT COUNT(*) FROM attachment_events WHERE action='set.bound' AND set_id='close-set'),\
+             (SELECT close_version FROM finance_periods WHERE id='period')",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!((receipts, events, version), (1, 1, 2));
+
+        // A changed body under the same key conflicts before any new binding.
+        let changed = workpapers(&["close-set-version"], 1);
+        assert_business(
+            close(pool, &reviewer, "close-workpapers-1", &changed, true).await,
+            "IDEMPOTENCY_CONFLICT",
+        );
+        let draft: (String, Option<String>) = sqlx::query_as(
+            "SELECT state,bound_command_id FROM attachment_sets WHERE id='close-set-version'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(draft, ("draft".into(), None));
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn period_close_rejects_invalid_workpapers_without_effects_and_rolls_back() {
+    account::with_system(|system| async move {
+        let p = setup(system).await;
+        let pool = &p.system.holdings[0];
+        seed(pool).await;
+        let maker = actor("fixture-a", "finance-fixture-a");
+        let reviewer = actor("fixture-b", "finance-fixture-b");
+        begin(pool, &maker, "close-begin-reject-workpapers").await.unwrap();
+
+        for (index, (set, code)) in [
+            ("close-set-foreign", "ATTACHMENT_BINDING_CONTEXT"),
+            ("close-set-target", "ATTACHMENT_BINDING_CHANGED"),
+            ("close-set-version", "ATTACHMENT_BINDING_CHANGED"),
+            ("close-set-short", "ATTACHMENT_BINDING_CHANGED"),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            assert_business(
+                close(
+                    pool,
+                    &reviewer,
+                    &format!("close-reject-{index}"),
+                    &workpapers(&[set], 1),
+                    true,
+                )
+                .await,
+                code,
+            );
+            let state: (String, i64) = sqlx::query_as(
+                "SELECT state,close_version FROM finance_periods WHERE id='period'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(state, ("closing".into(), 1));
+            let effects: (i64, i64, i64) = sqlx::query_as(
+                "SELECT (SELECT COUNT(*) FROM command_receipts WHERE command_id LIKE 'close-reject-%'),\
+                 (SELECT COUNT(*) FROM attachment_events WHERE action='set.bound'),\
+                 (SELECT COUNT(*) FROM attachment_sets WHERE state='bound')",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+            assert_eq!(effects, (0, 0, 0));
+        }
+        let bound_links: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM attachment_links WHERE state<>'draft'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(bound_links, 0);
+
+        // A close that reaches every effect rolls back the period, set, link,
+        // event and receipt together.
+        {
+            let mut tx = pool.raw().begin().await.unwrap();
+            let mut evidence = CloseWorkpapers::new(&reviewer);
+            let closed = close_period_with_evidence(
+                &mut tx,
+                &reviewer,
+                &CommandKey::new("close-workpapers-rollback").unwrap(),
+                "period",
+                &workpapers(&["close-set"], 1),
+                true,
+                NOW,
+                &mut evidence,
+            )
+            .await
+            .unwrap();
+            assert_eq!(closed.version, 2);
+            tx.rollback().await.unwrap();
+        }
+        let state: (String, i64) = sqlx::query_as(
+            "SELECT state,close_version FROM finance_periods WHERE id='period'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(state, ("closing".into(), 1));
+        let effects: (i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT COUNT(*) FROM command_receipts WHERE command_id='close-workpapers-rollback'),\
+             (SELECT COUNT(*) FROM attachment_events WHERE action='set.bound'),\
+             (SELECT COUNT(*) FROM attachment_sets WHERE state='bound'),\
+             (SELECT COUNT(*) FROM attachment_links WHERE state='bound')",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(effects, (0, 0, 0, 0));
+
+        let closed = close(
+            pool,
+            &reviewer,
+            "close-workpapers-final",
+            &workpapers(&["close-set"], 1),
+            true,
+        )
+        .await
+        .unwrap();
+        assert_eq!(closed.state, "closed");
+        assert_eq!(closed.version, 2);
     })
     .await;
 }

@@ -149,6 +149,157 @@ async fn quality_notifications_preserve_conflicts_bridge_and_rollback() {
 struct SyntheticSource(CountFlowNotificationFacts);
 
 struct ActualCrmSource(CrmActivityNotificationFacts);
+struct SwitchingCrmActivitySource {
+    sources:[ActualCrmSource;2],
+    selected:std::sync::atomic::AtomicUsize,
+    switch_after:bool,
+}
+impl PgCrmActivityNotificationSource for SwitchingCrmActivitySource {
+    fn facts(&self)->&CrmActivityNotificationFacts {self.sources[self.selected.load(std::sync::atomic::Ordering::SeqCst)].facts()}
+    async fn require_before(&self,c:&mut PgConnection)->Result<(),Error> {self.sources[self.selected.load(std::sync::atomic::Ordering::SeqCst)].require_before(c).await}
+    async fn require_after(&self,c:&mut PgConnection)->Result<(),Error> {
+        self.require_before(c).await?;
+        if self.switch_after {self.selected.store(1,std::sync::atomic::Ordering::SeqCst);}
+        Ok(())
+    }
+}
+struct ActualCrmLeadSource(CrmLeadNotificationFacts);
+struct JoinedCrmQualificationSource<'a> {
+    facts: CrmLeadNotificationFacts,
+    qualification: &'a erpx_server_crm::public::leads_native::RetainedCrmQualification<'a>,
+}
+impl PgCrmLeadNotificationSource for JoinedCrmQualificationSource<'_> {
+    fn facts(&self) -> &CrmLeadNotificationFacts { &self.facts }
+    async fn require_before(&self, c: &mut PgConnection) -> Result<(), Error> {
+        let actual=self.qualification.facts();
+        if self.facts.command_key!=actual.command_key || self.facts.company_id!=actual.company_id || self.facts.recipient!=actual.owner_id || self.facts.lead_id!=actual.lead_id || self.facts.version!=actual.version || self.facts.updated_at!=actual.updated_at {
+            return Err(BusinessError::invalid("CRM_SOURCE_CHANGED","CRM qualification source changed.").into());
+        }
+        self.qualification.require_current(c).await
+    }
+    async fn require_after(&self, c: &mut PgConnection) -> Result<(), Error> { self.require_before(c).await }
+}
+
+#[tokio::test]
+async fn qualified_crm_owner_effect_supplies_actual_lead_notification_source() {
+    use erpx_server_crm::public::activity_source::{CrmReviewedAccountLinkRequest,inspect_crm_reviewed_account_link,lock_crm_reviewed_account_link_sources};
+    use erpx_server_crm::public::leads_native::{LeadActor,LeadChangeInput,apply_crm_qualification_retained};
+    use erpx_server_shared::public::CompanyId;
+    fixture::with_database(2, |pool| async move {
+        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();
+        migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
+        sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES('co','company','co','Co',NULL,'co',NULL,'active'),('branch','branch','branch','Branch','co','co',NULL,'active'); INSERT INTO finance_parties(id,company_id,kind,code,name,currency,status,version,created_at,updated_at) VALUES('customer','co','customer','C1','Customer','THB','active',1,1,1); INSERT INTO crm_accounts(id,company_id,kind,name,finance_party_id,reviewed_by,created_by,created_at,updated_at) VALUES('account','co','business','Account','customer','reviewer','owner',1,1); INSERT INTO crm_leads(id,company_id,branch_id,title,contact_name,contact_detail,source,brief,owner_id,due_date,status,version,created_by,created_at,updated_at,account_id) VALUES('lead','co','branch','Lead','Customer','Contact','Staff','Brief','owner','2026-12-01','open',1,'owner',1,1,'account')").execute(pool.raw()).await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_crm_reviewed_account_link_sources(&mut tx).await.unwrap();
+        lock_crm_activity_notifications(&mut tx).await.unwrap();
+        let link=inspect_crm_reviewed_account_link(&mut tx,CrmReviewedAccountLinkRequest {company_id:CompanyId::new("co").unwrap(),branch_id:Some("branch".into()),department_id:None,lead_id:"lead".into(),finance_party_id:"customer".into()}).await.unwrap();
+        let actor=LeadActor {user_id:"owner".into(),company_id:"co".into(),can_read:true,can_sales:true,can_manage:false,can_pms:false,can_support:false,same_person_ids:vec![]};
+        let input=LeadChangeInput {action:"qualify".into(),expected_version:1,owner_id:None,due_date:None,reason:"  Confirmed customer  ".into(),customer_id:Some("customer".into()),expected_value:Some("10.01".into()),close_date:Some("0000-02-29".into())};
+        let qualification=apply_crm_qualification_retained(&mut tx,&actor,"lead","joined",&input,"THB",&link,7).await.unwrap();
+        let actual=qualification.facts();
+        let source=JoinedCrmQualificationSource {facts:CrmLeadNotificationFacts {command_key:actual.command_key.clone(),company_id:actual.company_id.clone(),recipient:actual.owner_id.clone(),lead_id:actual.lead_id.clone(),version:actual.version,updated_at:actual.updated_at},qualification:&qualification};
+        let mut forged_facts=source.facts.clone();forged_facts.recipient="forged".into();
+        let forged=JoinedCrmQualificationSource {facts:forged_facts,qualification:&qualification};
+        assert!(matches!(prepare_crm_lead_notification(&mut tx,&forged).await,Err(PgTransactionError::Business(error)) if error.code=="CRM_SOURCE_CHANGED"));
+        let notice=prepare_crm_lead_notification(&mut tx,&source).await.unwrap().persist(&mut tx).await.unwrap();
+        notice.require_current(&mut tx,&source).await.unwrap();
+        let row:(String,String,i64,String,i64)=sqlx::query_as("SELECT company_id,user_id,record_version,message,created_at FROM staff_notifications WHERE id='crm-notice-joined'").fetch_one(&mut *tx).await.unwrap();
+        assert_eq!(row,("co".into(),"owner".into(),2,"CRM handoff changed: review the source and next action".into(),7));
+        let inbox:(i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM inbox_events WHERE id='legacy:crm-notice-joined'),(SELECT count(*) FROM inbox_deliveries WHERE id='crm-notice-joined')").fetch_one(&mut *tx).await.unwrap();assert_eq!(inbox,(1,1));
+        sqlx::query("UPDATE crm_opportunities SET close_date='0000-01-01' WHERE id='opportunity-joined'").execute(&mut *tx).await.unwrap();
+        assert!(notice.require_current(&mut tx,&source).await.is_err());
+        tx.rollback().await.unwrap();
+        let absent:(i64,i64,i64,i64,i64,String,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM crm_opportunities WHERE id='opportunity-joined'),(SELECT count(*) FROM crm_case_events WHERE id IN ('crm-event-joined-deal','crm-event-joined-lead')),(SELECT count(*) FROM staff_notifications WHERE id='crm-notice-joined'),(SELECT count(*) FROM inbox_events WHERE id='legacy:crm-notice-joined'),(SELECT count(*) FROM inbox_deliveries WHERE id='crm-notice-joined'),status,version FROM crm_leads WHERE id='lead'").fetch_one(pool.raw()).await.unwrap();assert_eq!(absent,(0,0,0,0,0,"open".into(),1));
+    }).await;
+}
+struct SwitchingCrmLeadSource {
+    sources: [ActualCrmLeadSource; 2],
+    selected: std::sync::atomic::AtomicUsize,
+}
+impl PgCrmLeadNotificationSource for SwitchingCrmLeadSource {
+    fn facts(&self) -> &CrmLeadNotificationFacts { self.sources[self.selected.load(std::sync::atomic::Ordering::SeqCst)].facts() }
+    async fn require_before(&self, c: &mut PgConnection) -> Result<(), Error> { self.sources[self.selected.load(std::sync::atomic::Ordering::SeqCst)].require_before(c).await }
+    async fn require_after(&self, c: &mut PgConnection) -> Result<(), Error> { self.require_before(c).await }
+}
+impl PgCrmLeadNotificationSource for ActualCrmLeadSource {
+    fn facts(&self) -> &CrmLeadNotificationFacts { &self.0 }
+    async fn require_before(&self, c: &mut PgConnection) -> Result<(), Error> {
+        let f = &self.0;
+        let actual: Option<(String,String,i64,i64)> = sqlx::query_as("SELECT company_id,owner_id,version,updated_at FROM crm_leads WHERE id=$1").bind(&f.lead_id).fetch_optional(c).await?;
+        if actual != Some((f.company_id.clone(),f.recipient.clone(),f.version,f.updated_at)) { return Err(BusinessError::invalid("CRM_SOURCE_CHANGED", "CRM source changed.").into()); }
+        Ok(())
+    }
+    async fn require_after(&self, c: &mut PgConnection) -> Result<(), Error> { self.require_before(c).await }
+}
+
+#[tokio::test]
+async fn crm_lead_notice_preserves_original_conflicts_and_inbox_effects() {
+    fixture::with_database(2, |pool| async move {
+        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres");
+        let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();
+        migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
+        sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES('co','company','co','Co',NULL,'co',NULL,'active'),('branch','branch','branch','Branch','co','co',NULL,'active'); INSERT INTO crm_leads(id,company_id,branch_id,title,contact_name,contact_detail,source,brief,owner_id,due_date,status,version,created_by,created_at,updated_at) VALUES('lead','co','branch','Lead','Customer','Contact','Staff','Brief','owner','2026-12-01','qualified',2,'owner',1,7)").execute(pool.raw()).await.unwrap();
+        for key in ["one", "two"] {
+            PgUnitOfWork::new(pool.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),move|c|Box::pin(async move {
+                lock_crm_activity_notifications(c).await?;
+                let source=ActualCrmLeadSource(CrmLeadNotificationFacts {command_key:key.into(),company_id:"co".into(),recipient:"owner".into(),lead_id:"lead".into(),version:2,updated_at:7});
+                prepare_crm_lead_notification(c,&source).await?.persist(c).await?.require_current(c,&source).await?;
+                Ok(())
+            })).await.unwrap();
+        }
+        let actual:(String,String,String,String,i64,String,i64)=sqlx::query_as("SELECT company_id,user_id,record_type,record_id,record_version,message,created_at FROM staff_notifications WHERE id='crm-notice-one'").fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(actual,("co".into(),"owner".into(),"crm_lead".into(),"lead".into(),2,"CRM handoff changed: review the source and next action".into(),7));
+        let counts:(i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM staff_notifications WHERE id='crm-notice-two'),(SELECT count(*) FROM inbox_events WHERE id='legacy:crm-notice-one'),(SELECT count(*) FROM inbox_deliveries WHERE id='crm-notice-one'),(SELECT count(*) FROM inbox_events WHERE id='legacy:crm-notice-two')").fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(counts,(0,1,1,0));
+        let switched=PgUnitOfWork::new(pool.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),move|c|Box::pin(async move {
+            lock_crm_activity_notifications(c).await?;
+            let facts=CrmLeadNotificationFacts {command_key:"before-switch".into(),company_id:"co".into(),recipient:"owner".into(),lead_id:"lead".into(),version:2,updated_at:7};
+            let mut other=facts.clone();other.command_key="after-switch".into();
+            let source=SwitchingCrmLeadSource {sources:[ActualCrmLeadSource(facts),ActualCrmLeadSource(other)],selected:std::sync::atomic::AtomicUsize::new(0)};
+            let prepared=prepare_crm_lead_notification(c,&source).await?;
+            source.selected.store(1,std::sync::atomic::Ordering::SeqCst);
+            prepared.persist(c).await?; Ok(())
+        })).await;
+        assert!(matches!(switched,Err(PgTransactionError::Business(error)) if error.code=="CRM_ACTIVITY_NOTIFICATION_CHANGED"));
+        let switched_rows:i64=sqlx::query_scalar("SELECT count(*) FROM staff_notifications WHERE id IN ('crm-notice-before-switch','crm-notice-after-switch')").fetch_one(pool.raw()).await.unwrap();assert_eq!(switched_rows,0);
+        let switched_retained=PgUnitOfWork::new(pool.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),move|c|Box::pin(async move {
+            lock_crm_activity_notifications(c).await?;
+            let facts=CrmLeadNotificationFacts {command_key:"retained-before".into(),company_id:"co".into(),recipient:"owner".into(),lead_id:"lead".into(),version:2,updated_at:7};
+            let mut other=facts.clone();other.command_key="retained-after".into();
+            let source=SwitchingCrmLeadSource {sources:[ActualCrmLeadSource(facts),ActualCrmLeadSource(other)],selected:std::sync::atomic::AtomicUsize::new(0)};
+            let retained=prepare_crm_lead_notification(c,&source).await?.persist(c).await?;
+            source.selected.store(1,std::sync::atomic::Ordering::SeqCst);
+            retained.require_current(c,&source).await?; Ok(())
+        })).await;
+        assert!(matches!(switched_retained,Err(PgTransactionError::Business(error)) if error.code=="CRM_ACTIVITY_NOTIFICATION_CHANGED"));
+        sqlx::query("INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) VALUES('crm-notice-collision','co','other','other','other',1,'other',1)").execute(pool.raw()).await.unwrap();
+        PgUnitOfWork::new(pool.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),move|c|Box::pin(async move {
+            lock_crm_activity_notifications(c).await?;
+            let source=ActualCrmLeadSource(CrmLeadNotificationFacts {command_key:"collision".into(),company_id:"co".into(),recipient:"owner".into(),lead_id:"lead".into(),version:2,updated_at:7});
+            prepare_crm_lead_notification(c,&source).await?.persist(c).await?.require_current(c,&source).await?; Ok(())
+        })).await.unwrap();
+        let collision:i64=sqlx::query_scalar("SELECT count(*) FROM staff_notifications WHERE id='crm-notice-collision' AND record_type='other'").fetch_one(pool.raw()).await.unwrap();assert_eq!(collision,1);
+        let stale=PgUnitOfWork::new(pool.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),move|c|Box::pin(async move {
+            lock_crm_activity_notifications(c).await?;
+            let source=ActualCrmLeadSource(CrmLeadNotificationFacts {command_key:"stale".into(),company_id:"co".into(),recipient:"owner".into(),lead_id:"lead".into(),version:1,updated_at:7});
+            prepare_crm_lead_notification(c,&source).await?.persist(c).await?; Ok(())
+        })).await;
+        assert!(matches!(stale,Err(PgTransactionError::Business(error)) if error.code=="CRM_SOURCE_CHANGED"));
+        let none:i64=sqlx::query_scalar("SELECT count(*) FROM staff_notifications WHERE id='crm-notice-stale'").fetch_one(pool.raw()).await.unwrap();assert_eq!(none,0);
+        let rollback=PgUnitOfWork::new(pool.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),move|c|Box::pin(async move {
+            lock_crm_activity_notifications(c).await?;
+            sqlx::query("DELETE FROM staff_notifications WHERE id='crm-notice-one'").execute(&mut *c).await?;
+            let source=ActualCrmLeadSource(CrmLeadNotificationFacts {command_key:"rollback".into(),company_id:"co".into(),recipient:"owner".into(),lead_id:"lead".into(),version:2,updated_at:7});
+            prepare_crm_lead_notification(c,&source).await?.persist(c).await?.require_current(c,&source).await?;
+            Err(BusinessError::invalid("TEST_ROLLBACK", "Force rollback.").into())
+        })).await;
+        assert!(matches!(rollback,Err(PgTransactionError::Business(error)) if error.code=="TEST_ROLLBACK"));
+        let rollback_counts:(i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM staff_notifications WHERE id='crm-notice-rollback'),(SELECT count(*) FROM inbox_events WHERE id='legacy:crm-notice-rollback'),(SELECT count(*) FROM inbox_deliveries WHERE id='crm-notice-rollback'),(SELECT count(*) FROM staff_notifications WHERE id='crm-notice-one')").fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(rollback_counts,(0,0,0,1));
+    }).await;
+}
 impl PgCrmActivityNotificationSource for ActualCrmSource {
     fn facts(&self) -> &CrmActivityNotificationFacts { &self.0 }
     async fn require_before(&self, c: &mut PgConnection) -> Result<(), Error> {
@@ -170,6 +321,41 @@ async fn crm_activity_notification_retains_source_and_both_conflict_types() {
         let migrations=load_migrations(root,MigrationTrack::HoldingWrite).await.unwrap();
         migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
         sqlx::raw_sql("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES('co','company','co','Co',NULL,'co',NULL,'active'),('branch','branch','branch','Branch','co','co',NULL,'active'); INSERT INTO crm_leads(id,company_id,branch_id,title,contact_name,contact_detail,source,brief,owner_id,due_date,status,version,created_by,created_at,updated_at) VALUES('lead','co','branch','Lead','Customer','Contact','Staff','Brief','owner','2026-12-01','open',1,'owner',0,0); INSERT INTO crm_lead_activities(id,company_id,lead_id,activity_type,subject,details,owner_id,due_date,created_by,created_at,updated_at) VALUES('activity','co','lead','call','Call customer','Discuss scope','owner','2026-12-01','owner',7,7)").execute(pool.raw()).await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        let facts=CrmActivityNotificationFacts {command_key:"switch-a".into(),company_id:"co".into(),recipient:"owner".into(),activity_id:"activity".into(),version:1,status:"open".into(),updated_at:7};
+        let mut other=facts.clone();other.command_key="switch-b".into();
+        let switching=SwitchingCrmActivitySource {sources:[ActualCrmSource(facts.clone()),ActualCrmSource(other.clone())],selected:std::sync::atomic::AtomicUsize::new(0),switch_after:false};
+        assert!(prepare_crm_activity_notification(&mut tx,&switching).await.is_err());
+        sqlx::query("SAVEPOINT notice_lock").execute(&mut *tx).await.unwrap();
+        lock_crm_activity_notifications(&mut tx).await.unwrap();
+        let prepared=prepare_crm_activity_notification(&mut tx,&switching).await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT notice_lock").execute(&mut *tx).await.unwrap();
+        assert!(prepared.persist(&mut tx).await.is_err());
+        lock_crm_activity_notifications(&mut tx).await.unwrap();
+        let prepared=prepare_crm_activity_notification(&mut tx,&switching).await.unwrap();
+        switching.selected.store(1,std::sync::atomic::Ordering::SeqCst);
+        assert!(prepared.persist(&mut tx).await.is_err());
+        tx.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        let switching=SwitchingCrmActivitySource {sources:[ActualCrmSource(facts.clone()),ActualCrmSource(other)],selected:std::sync::atomic::AtomicUsize::new(0),switch_after:true};
+        lock_crm_activity_notifications(&mut tx).await.unwrap();
+        assert!(prepare_crm_activity_notification(&mut tx,&switching).await.unwrap().persist(&mut tx).await.is_err());
+        tx.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        sqlx::query("CREATE TEMP TABLE staff_notifications (LIKE public.staff_notifications INCLUDING ALL)").execute(&mut *tx).await.unwrap();
+        sqlx::query("SET LOCAL search_path TO pg_temp, public").execute(&mut *tx).await.unwrap();
+        let shadowed:bool=sqlx::query_scalar("SELECT to_regclass('staff_notifications')=to_regclass('pg_temp.staff_notifications')").fetch_one(&mut *tx).await.unwrap();assert!(shadowed);
+        lock_crm_activity_notifications(&mut tx).await.unwrap();
+        let source=ActualCrmSource(facts);
+        let retained=prepare_crm_activity_notification(&mut tx,&source).await.unwrap().persist(&mut tx).await.unwrap();
+        retained.require_current_with_source(&mut tx,&source).await.unwrap();
+        let counts:(i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM public.staff_notifications WHERE id='crm-activity-notice-switch-a'),(SELECT count(*) FROM pg_temp.staff_notifications)").fetch_one(&mut *tx).await.unwrap();assert_eq!(counts,(1,0));
+        sqlx::query("SET LOCAL search_path TO public, pg_temp").execute(&mut *tx).await.unwrap();
+        assert!(retained.require_current_with_source(&mut tx,&source).await.is_err());
+        tx.rollback().await.unwrap();
         for key in ["one", "two"] {
             PgUnitOfWork::new(pool.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),move|c|Box::pin(async move {
                 lock_crm_activity_notifications(c).await?;

@@ -2,6 +2,7 @@
 //! authority remains with the selected coordinator; owner ports supply the
 //! customer access workspace, detail, request and change facts.
 use crate::business_http::BusinessScopeSlugs;
+use erpx_server_customer_authority::public::access::PgCustomerAccess;
 use erpx_server_customer_authority::public::access::{
     AccessActor, AccessChange, AccessRequest, access_detail, access_workspace, change_access,
     request_access,
@@ -24,7 +25,6 @@ use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
     BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
 };
-use erpx_server_customer_authority::public::access::PgCustomerAccess;
 use serde_json::Value;
 use sqlx::PgConnection;
 use std::sync::Arc;
@@ -308,11 +308,13 @@ impl<C: Clock + Send + Sync + 'static> CustomerAuthorityService<C> {
                         }
                         current.require_permission("commerce.read")?;
                         let actor = access_actor(current)?;
-                        let key = CommandKey::new(idempotency_key).map_err(PgTransactionError::Business)?;
+                        let key = CommandKey::new(idempotency_key)
+                            .map_err(PgTransactionError::Business)?;
                         let now = clock.now().get();
                         let mut repository = PgCustomerAccess::new(connection);
-                        let data = request_access(&mut repository, &actor, &key, &command_input, now)
-                            .await?;
+                        let data =
+                            request_access(&mut repository, &actor, &key, &command_input, now)
+                                .await?;
                         Ok(CustomerAccessHttpResponse {
                             data,
                             context: context(current),
@@ -360,7 +362,8 @@ impl<C: Clock + Send + Sync + 'static> CustomerAuthorityService<C> {
                         }
                         current.require_permission("commerce.read")?;
                         let actor = access_actor(current)?;
-                        let key = CommandKey::new(idempotency_key).map_err(PgTransactionError::Business)?;
+                        let key = CommandKey::new(idempotency_key)
+                            .map_err(PgTransactionError::Business)?;
                         let now = clock.now().get();
                         let mut repository = PgCustomerAccess::new(connection);
                         let data = change_access(

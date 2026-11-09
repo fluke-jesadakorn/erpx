@@ -2,41 +2,7 @@
 //! remains with the selected coordinator; owner ports supply the POS cash
 //! movement command facts.
 use crate::business_http::BusinessScopeSlugs;
-use erpx_server_identity_access::public::{
-    AccountPolicy, DeviceProof, RequestAudience,
-    account_inbound_http::{parse_inbound_account_request, unique_request_header},
-    effective_authority::{
-        AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
-        WorkAuthorizationRequest,
-    },
-    work_context::{ExpectedWorkSelection, HoldingWorkspaceRequest, WorkScopeKind},
-};
-use erpx_server_pos::public::cash_movement::{
-    CashMovementActor, CreateCashMovement, create_cash_movement, PgCashMovementCommand,
-};
-use erpx_server_pos::public::cash_movement_http::{
-    CashMovementHttpBackend, CashMovementHttpFuture, CashMovementHttpRequest,
-    CashMovementHttpResponse, CashMovementHttpTarget,
-};
-use erpx_server_pos::public::commands::{
-    PgPosCommandRepository, PosActor, PosCommand, PosCommandInput, PosCommandRepository,
-    PosBankTransaction as PosDomainBankTransaction, PosCatalogProduct as PosCatalogSnapshotProduct,
-    PosCatalogSnapshot, PosConsumptionPart, PosFinancePort, PosFuture, PosHospitalityPort,
-    PosInventoryPort, PosInvoiceRequest, PosJournalRequest, PosOrganizationPort,
-    PosRefundPaymentRequest, PosReceiptRequest, PosResult, PosReturnPart, PosStockRow,
-    execute_pos_command,
-};
-use erpx_server_pos::public::commands_http::{
-    PosCommandHttpBackend, PosCommandHttpFuture, PosCommandHttpRequest, PosCommandHttpResponse,
-    PosCommandHttpTarget,
-};
 use erpx_server_commerce::public::pos_catalog::{lock_pos_catalog, read_pos_catalog_product};
-use erpx_server_inventory::public::availability_read::{
-    lock_availability_sources, read_availability,
-};
-use erpx_server_inventory::public::pos_consumption::{
-    PosConsumptionPart as InventoryConsumptionPart, consume_pos_parts, return_pos_parts,
-};
 use erpx_server_finance::public::FinanceActor;
 use erpx_server_finance::public::pos_journal::{
     PosInvoiceRecord, PosJournalLine as FinancePosJournalLine, PosJournalPosting, PosReceiptRecord,
@@ -46,8 +12,42 @@ use erpx_server_finance::public::pos_sources::{
     PosBankTransaction as PosBankSnapshot, attach_pos_bank_payment, finance_party_exists,
     lock_pos_finance_sources, read_open_period_for_date, read_pos_bank_transaction,
 };
+use erpx_server_identity_access::public::{
+    AccountPolicy, DeviceProof, RequestAudience,
+    account_inbound_http::{parse_inbound_account_request, unique_request_header},
+    effective_authority::{
+        AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
+        WorkAuthorizationRequest,
+    },
+    work_context::{ExpectedWorkSelection, HoldingWorkspaceRequest, WorkScopeKind},
+};
+use erpx_server_inventory::public::availability_read::{
+    lock_availability_sources, read_availability,
+};
+use erpx_server_inventory::public::pos_consumption::{
+    PosConsumptionPart as InventoryConsumptionPart, consume_pos_parts, return_pos_parts,
+};
 use erpx_server_organization::public::pos_issuer::{
     lock_pos_issuer_source, read_company_display_name,
+};
+use erpx_server_pos::public::cash_movement::{
+    CashMovementActor, CreateCashMovement, PgCashMovementCommand, create_cash_movement,
+};
+use erpx_server_pos::public::cash_movement_http::{
+    CashMovementHttpBackend, CashMovementHttpFuture, CashMovementHttpRequest,
+    CashMovementHttpResponse, CashMovementHttpTarget,
+};
+use erpx_server_pos::public::commands::{
+    PgPosCommandRepository, PosActor, PosBankTransaction as PosDomainBankTransaction,
+    PosCatalogProduct as PosCatalogSnapshotProduct, PosCatalogSnapshot, PosCommand,
+    PosCommandInput, PosCommandRepository, PosConsumptionPart, PosFinancePort, PosFuture,
+    PosHospitalityPort, PosInventoryPort, PosInvoiceRequest, PosJournalRequest,
+    PosOrganizationPort, PosReceiptRequest, PosRefundPaymentRequest, PosResult, PosReturnPart,
+    PosStockRow, execute_pos_command,
+};
+use erpx_server_pos::public::commands_http::{
+    PosCommandHttpBackend, PosCommandHttpFuture, PosCommandHttpRequest, PosCommandHttpResponse,
+    PosCommandHttpTarget,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
@@ -130,23 +130,14 @@ struct PosInventoryQueue {
 }
 
 impl PosInventoryPort for PosInventoryQueue {
-    fn queue_consumption<'a>(
-        &'a mut self,
-        parts: &'a [PosConsumptionPart],
-    ) -> PosFuture<'a, i64> {
+    fn queue_consumption<'a>(&'a mut self, parts: &'a [PosConsumptionPart]) -> PosFuture<'a, i64> {
         Box::pin(async move {
             self.parts.extend_from_slice(parts);
-            Ok(parts
-                .iter()
-                .map(|part| part.expected_value_minor)
-                .sum())
+            Ok(parts.iter().map(|part| part.expected_value_minor).sum())
         })
     }
 
-    fn queue_return<'a>(
-        &'a mut self,
-        parts: &'a [PosReturnPart],
-    ) -> PosFuture<'a, ()> {
+    fn queue_return<'a>(&'a mut self, parts: &'a [PosReturnPart]) -> PosFuture<'a, ()> {
         Box::pin(async move {
             self.returns.extend_from_slice(parts);
             Ok(())
@@ -192,20 +183,14 @@ impl PosFinancePort for PosFinanceQueue {
 
     /// Retain the exact receipt facts; the Finance owner writes them on the
     /// same transaction after the POS command returns.
-    fn record_receipt<'a>(
-        &'a mut self,
-        request: &'a PosReceiptRequest,
-    ) -> PosFuture<'a, ()> {
+    fn record_receipt<'a>(&'a mut self, request: &'a PosReceiptRequest) -> PosFuture<'a, ()> {
         Box::pin(async move {
             self.receipts.push(request.clone());
             Ok(())
         })
     }
 
-    fn record_invoice<'a>(
-        &'a mut self,
-        request: &'a PosInvoiceRequest,
-    ) -> PosFuture<'a, ()> {
+    fn record_invoice<'a>(&'a mut self, request: &'a PosInvoiceRequest) -> PosFuture<'a, ()> {
         Box::pin(async move {
             self.invoices.push(request.clone());
             Ok(())
@@ -218,11 +203,8 @@ impl PosFinancePort for PosFinanceQueue {
         id: &'a str,
     ) -> PosFuture<'a, Option<PosDomainBankTransaction>> {
         Box::pin(async move {
-            Ok(self
-                .bank
-                .as_ref()
-                .filter(|bank| bank.id == id)
-                .map(|bank| PosDomainBankTransaction {
+            Ok(self.bank.as_ref().filter(|bank| bank.id == id).map(|bank| {
+                PosDomainBankTransaction {
                     id: bank.id.clone(),
                     version: bank.version,
                     match_status: bank.match_status.clone(),
@@ -231,7 +213,8 @@ impl PosFinancePort for PosFinanceQueue {
                     amount_minor: bank.amount_minor,
                     external_id: bank.external_id.clone(),
                     transaction_date: bank.transaction_date.clone(),
-                }))
+                }
+            }))
         })
     }
 
@@ -241,8 +224,10 @@ impl PosFinancePort for PosFinanceQueue {
         finance_payment_id: &'a str,
     ) -> PosFuture<'a, ()> {
         Box::pin(async move {
-            self.bank_matches
-                .push((bank_transaction_id.to_owned(), finance_payment_id.to_owned()));
+            self.bank_matches.push((
+                bank_transaction_id.to_owned(),
+                finance_payment_id.to_owned(),
+            ));
             Ok(())
         })
     }
@@ -505,33 +490,26 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
                             let mut repository = PgPosCommandRepository::new(connection);
                             repository.business_date(now).await.map_err(business)?
                         };
-                        let period_open = read_open_period_for_date(
-                            connection,
-                            company.as_str(),
-                            &business_date,
-                        )
-                        .await
-                        .map_err(business)?
-                        .is_some();
+                        let period_open =
+                            read_open_period_for_date(connection, company.as_str(), &business_date)
+                                .await
+                                .map_err(business)?
+                                .is_some();
                         let party = match &command.input {
                             PosCommandInput::SaleCreate(input) => match &input.party_id {
-                                Some(party) => finance_party_exists(
-                                    connection,
-                                    company.as_str(),
-                                    party,
-                                )
-                                .await
-                                .map_err(business)?,
+                                Some(party) => {
+                                    finance_party_exists(connection, company.as_str(), party)
+                                        .await
+                                        .map_err(business)?
+                                }
                                 None => true,
                             },
                             PosCommandInput::SaleCustomer(input) => match &input.party_id {
-                                Some(party) => finance_party_exists(
-                                    connection,
-                                    company.as_str(),
-                                    party,
-                                )
-                                .await
-                                .map_err(business)?,
+                                Some(party) => {
+                                    finance_party_exists(connection, company.as_str(), party)
+                                        .await
+                                        .map_err(business)?
+                                }
                                 None => true,
                             },
                             _ => true,
@@ -556,10 +534,8 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
                         let catalog = match &command.input {
                             PosCommandInput::SaleAdd(input) => {
                                 let mut snapshot = PgPosCommandRepository::new(connection);
-                                let sale = snapshot
-                                    .sale(&company, &input.id)
-                                    .await
-                                    .map_err(business)?;
+                                let sale =
+                                    snapshot.sale(&company, &input.id).await.map_err(business)?;
                                 match sale {
                                     Some(sale) => read_pos_catalog_product(
                                         connection,
@@ -590,7 +566,8 @@ impl<C: Clock + Send + Sync + 'static> PosService<C> {
                             _ => None,
                         };
                         let stock = match &command.input {
-                            PosCommandInput::PaymentCreate(_) | PosCommandInput::SaleComplete(_) => {
+                            PosCommandInput::PaymentCreate(_)
+                            | PosCommandInput::SaleComplete(_) => {
                                 let rows = read_availability(
                                     connection,
                                     company.as_str(),
@@ -866,16 +843,33 @@ impl<C: Clock + Send + Sync + 'static> PosBackend<C> {
     ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
         let (proof, mut selection) = self.context(headers)?;
         let revision = unique_request_header(headers, "x-erpx-context-revision")?
-            .ok_or_else(|| BusinessError::invalid("POS_CONTEXT_REQUIRED", "Use the current work revision."))?
+            .ok_or_else(|| {
+                BusinessError::invalid("POS_CONTEXT_REQUIRED", "Use the current work revision.")
+            })?
             .parse()
-            .map_err(|_| BusinessError::invalid("POS_CONTEXT_REQUIRED", "Use the current work revision."))?;
+            .map_err(|_| {
+                BusinessError::invalid("POS_CONTEXT_REQUIRED", "Use the current work revision.")
+            })?;
         let assignment = unique_request_header(headers, "x-erpx-context-assignment")?
-            .ok_or_else(|| BusinessError::invalid("POS_CONTEXT_REQUIRED", "Choose the current assignment."))?
+            .ok_or_else(|| {
+                BusinessError::invalid("POS_CONTEXT_REQUIRED", "Choose the current assignment.")
+            })?
             .to_owned();
-        let assignment_version = unique_request_header(headers, "x-erpx-context-assignment-version")?
-            .ok_or_else(|| BusinessError::invalid("POS_CONTEXT_REQUIRED", "Use the current assignment version."))?
-            .parse()
-            .map_err(|_| BusinessError::invalid("POS_CONTEXT_REQUIRED", "Use the current assignment version."))?;
+        let assignment_version =
+            unique_request_header(headers, "x-erpx-context-assignment-version")?
+                .ok_or_else(|| {
+                    BusinessError::invalid(
+                        "POS_CONTEXT_REQUIRED",
+                        "Use the current assignment version.",
+                    )
+                })?
+                .parse()
+                .map_err(|_| {
+                    BusinessError::invalid(
+                        "POS_CONTEXT_REQUIRED",
+                        "Use the current assignment version.",
+                    )
+                })?;
         selection.mutation = true;
         selection.expected = Some(ExpectedWorkSelection {
             revision,
@@ -894,12 +888,7 @@ impl<C: Clock + Send + Sync + 'static> PosCommandHttpBackend for PosBackend<C> {
         Box::pin(async move {
             let (proof, selection) = self.command_context(request.headers)?;
             self.service
-                .command(
-                    request.host,
-                    proof,
-                    selection,
-                    request.command,
-                )
+                .command(request.host, proof, selection, request.command)
                 .await
                 .map_err(business)
         })

@@ -126,11 +126,7 @@ impl AttachmentTargetAuthority for CurrentAttachmentAuthority {
         let company_id = self.company_id.clone();
         let branch_id = self.branch_id.clone();
         let department_id = self.department_id.clone();
-        let version = if self.version > 0 {
-            self.version
-        } else {
-            1
-        };
+        let version = if self.version > 0 { self.version } else { 1 };
         Box::pin(async move {
             if reader.company_id() != &company_id {
                 return Err(scope().into());
@@ -231,21 +227,42 @@ impl<C: Clock + Send + Sync + 'static> FilesService<C> {
                         let reader = AttachmentReader::new(
                             current.user_id().as_str().to_owned(),
                             workspace.company_id.clone(),
-                            workspace.branch_id.as_ref().map(|value| value.as_str().to_owned()),
-                            workspace.department_id.as_ref().map(|value| value.as_str().to_owned()),
+                            workspace
+                                .branch_id
+                                .as_ref()
+                                .map(|value| value.as_str().to_owned()),
+                            workspace
+                                .department_id
+                                .as_ref()
+                                .map(|value| value.as_str().to_owned()),
                             current.expires_at(),
                         )
                         .map_err(PgTransactionError::Business)?;
                         let authority = CurrentAttachmentAuthority {
                             company_id: workspace.company_id.clone(),
-                            branch_id: workspace.branch_id.as_ref().map(|value| value.as_str().to_owned()),
-                            department_id: workspace.department_id.as_ref().map(|value| value.as_str().to_owned()),
+                            branch_id: workspace
+                                .branch_id
+                                .as_ref()
+                                .map(|value| value.as_str().to_owned()),
+                            department_id: workspace
+                                .department_id
+                                .as_ref()
+                                .map(|value| value.as_str().to_owned()),
                             version: assignment.version,
                         };
                         let mut ports = PostgresAttachmentRead::new(authority);
                         let now = clock.now();
-                        let data = list_attachment_sets(connection, &ports, &reader, &filter, read_only, now.get()).await?;
-                        let data = serde_json::to_value(data).map_err(|_| PgTransactionError::Business(unavailable()))?;
+                        let data = list_attachment_sets(
+                            connection,
+                            &ports,
+                            &reader,
+                            &filter,
+                            read_only,
+                            now.get(),
+                        )
+                        .await?;
+                        let data = serde_json::to_value(data)
+                            .map_err(|_| PgTransactionError::Business(unavailable()))?;
                         Ok(AttachmentReadHttpReply {
                             data,
                             context: context(current),
@@ -295,21 +312,42 @@ impl<C: Clock + Send + Sync + 'static> FilesService<C> {
                         let reader = AttachmentReader::new(
                             current.user_id().as_str().to_owned(),
                             workspace.company_id.clone(),
-                            workspace.branch_id.as_ref().map(|value| value.as_str().to_owned()),
-                            workspace.department_id.as_ref().map(|value| value.as_str().to_owned()),
+                            workspace
+                                .branch_id
+                                .as_ref()
+                                .map(|value| value.as_str().to_owned()),
+                            workspace
+                                .department_id
+                                .as_ref()
+                                .map(|value| value.as_str().to_owned()),
                             current.expires_at(),
                         )
                         .map_err(PgTransactionError::Business)?;
                         let authority = CurrentAttachmentAuthority {
                             company_id: workspace.company_id.clone(),
-                            branch_id: workspace.branch_id.as_ref().map(|value| value.as_str().to_owned()),
-                            department_id: workspace.department_id.as_ref().map(|value| value.as_str().to_owned()),
+                            branch_id: workspace
+                                .branch_id
+                                .as_ref()
+                                .map(|value| value.as_str().to_owned()),
+                            department_id: workspace
+                                .department_id
+                                .as_ref()
+                                .map(|value| value.as_str().to_owned()),
                             version: assignment.version,
                         };
                         let mut ports = PostgresAttachmentRead::new(authority);
                         let now = clock.now();
-                        let data = attachment_link_status(connection, &ports, &reader, &link_id, false, now.get()).await?;
-                        let data = serde_json::to_value(data).map_err(|_| PgTransactionError::Business(unavailable()))?;
+                        let data = attachment_link_status(
+                            connection,
+                            &ports,
+                            &reader,
+                            &link_id,
+                            false,
+                            now.get(),
+                        )
+                        .await?;
+                        let data = serde_json::to_value(data)
+                            .map_err(|_| PgTransactionError::Business(unavailable()))?;
                         Ok(AttachmentReadHttpReply {
                             data,
                             context: context(current),
@@ -389,7 +427,12 @@ impl<C: Clock + Send + Sync + 'static> AttachmentReadHttpBackend for FilesBacken
         Box::pin(async move {
             let (proof, selection) = self.context(request.headers)?;
             self.service
-                .status(request.host, proof, move || Ok(selection), request.link_id.to_owned())
+                .status(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.link_id.to_owned(),
+                )
                 .await
                 .map_err(business)
         })

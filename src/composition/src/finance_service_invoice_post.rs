@@ -69,6 +69,26 @@ impl HoldingWorkSourcePreparation for Sources {
         })
     }
 }
+
+/// The invoice ingress must acquire all owner locks before inspecting the
+/// production release, since that inspection establishes the unit snapshot.
+#[derive(Clone)]
+struct InvoiceIngressSources(FinanceJournalCreateConfiguration);
+impl HoldingWorkSourcePreparation for InvoiceIngressSources {
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            Sources.prepare(c).await?;
+            if matches!(
+                self.0.environment(),
+                crate::finance_journal_review::FinanceJournalEnvironment::Production
+            ) {
+                crate::finance_production_release::require_production_release(c, &self.0.company)
+                    .await?;
+            }
+            Ok(())
+        })
+    }
+}
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
 pub(crate) enum ReceiptAction {
@@ -106,9 +126,10 @@ pub(crate) struct Authority<'a, C> {
     receipt_invoice: Option<String>,
     receipt_payment: Option<String>,
     receipt_action: Option<ReceiptAction>,
-    flow_assignment:bool,
-    no_charge:bool,
-    generic_payment:bool,
+    flow_assignment: bool,
+    no_charge: bool,
+    generic_payment: bool,
+    generic_invoice_admitted: bool,
 }
 impl<C: Clock + Send + Sync> PgCommandAuthority for Authority<'_, C> {
     async fn lock_sources(
@@ -126,18 +147,36 @@ impl<C: Clock + Send + Sync> PgCommandAuthority for Authority<'_, C> {
         if self.current.holding_id() != &self.config.holding
             || self.current.selection().workspace().company_id != self.config.company
             || r.operation
-                != self
-                    .receipt_action
-                    .map_or(if self.flow_assignment{"flow.assign"}else if self.no_charge{"finance.service-no-charge.confirm"}else{"finance.invoice.post"}, ReceiptAction::operation)
+                != self.receipt_action.map_or(
+                    if self.flow_assignment {
+                        "flow.assign"
+                    } else if self.no_charge {
+                        "finance.service-no-charge.confirm"
+                    } else {
+                        "finance.invoice.post"
+                    },
+                    ReceiptAction::operation,
+                )
             || !r.record_id.starts_with(
                 self.receipt_action
                     .map_or("field-invoice-", ReceiptAction::prefix),
             )
         {
-            return Err(if self.no_charge { BusinessError::new(FailureKind::Conflict,"SERVICE_NO_CHARGE_SOURCE_CHANGED","Review the original fully covered Service billing source.") }else{changed()}.into());
+            return Err(if self.no_charge {
+                BusinessError::new(
+                    FailureKind::Conflict,
+                    "SERVICE_NO_CHARGE_SOURCE_CHANGED",
+                    "Review the original fully covered Service billing source.",
+                )
+            } else {
+                changed()
+            }
+            .into());
         }
         require_selected_actor_current(c, self.current, self.clock.now().get()).await?;
-        if self.flow_assignment {self.current.require_permission("finance.read")?;} else if self.receipt_invoice.is_some() {
+        if self.flow_assignment {
+            self.current.require_permission("finance.read")?;
+        } else if self.receipt_invoice.is_some() {
             if matches!(
                 self.receipt_action,
                 Some(ReceiptAction::Release | ReceiptAction::Confirm)
@@ -228,7 +267,9 @@ impl<C: Clock + Send + Sync> PgCommandAuthority for Authority<'_, C> {
             c,
             &self.config.catalogue,
         );
-        let base_allowed = if self.no_charge { false } else if let Some((allowed, witness)) = &self.base {
+        let base_allowed = if self.no_charge {
+            false
+        } else if let Some((allowed, witness)) = &self.base {
             let now_allowed = reader
                 .revalidate(witness, self.clock.now())
                 .await?
@@ -304,9 +345,19 @@ impl<C: Clock + Send + Sync> PgCommandAuthority for Authority<'_, C> {
                 &finance_actor(self.current),
                 self.receipt_invoice.as_deref().unwrap_or(&r.record_id),
             )
-            .await.map_err(|error|match error {
-                PgTransactionError::Business(e) if self.no_charge && matches!(e.code,"INVOICE_NOT_FOUND"|"INVOICE_SOURCE_CHANGED") => PgTransactionError::Business(BusinessError::new(FailureKind::Conflict,"SERVICE_NO_CHARGE_SOURCE_CHANGED","Review the original fully covered Service billing source.")),
-                other=>other,
+            .await
+            .map_err(|error| match error {
+                PgTransactionError::Business(e)
+                    if self.no_charge
+                        && matches!(e.code, "INVOICE_NOT_FOUND" | "INVOICE_SOURCE_CHANGED") =>
+                {
+                    PgTransactionError::Business(BusinessError::new(
+                        FailureKind::Conflict,
+                        "SERVICE_NO_CHARGE_SOURCE_CHANGED",
+                        "Review the original fully covered Service billing source.",
+                    ))
+                }
+                other => other,
             })?;
             let src = &finance.data().source;
             let row = &finance.data().invoice;
@@ -338,10 +389,15 @@ impl<C: Clock + Send + Sync> PgCommandAuthority for Authority<'_, C> {
         if self.flow_assignment && d==CommandDisposition::Execute && !erpx_server_identity_access::public::journal_flow_participants::service_invoice_flow_administrator(c,self.current,self.clock.now().get()).await? {
             return Err(BusinessError::new(FailureKind::Forbidden,"FLOW_ADMIN_REQUIRED","A company administrator must assign workflow responsibilities.").into());
         }
-        if self.no_charge && d==CommandDisposition::Replay {
-            let no_charge=erpx_server_finance::public::service_no_charge::read_service_no_charge(c,&finance_actor(self.current),&r.record_id).await?;
-            crate::finance_service_no_charge::require_scope(&no_charge,self.current)?;
-            no_charge.require_terminal(c,&r.key).await?;
+        if self.no_charge && d == CommandDisposition::Replay {
+            let no_charge = erpx_server_finance::public::service_no_charge::read_service_no_charge(
+                c,
+                &finance_actor(self.current),
+                &r.record_id,
+            )
+            .await?;
+            crate::finance_service_no_charge::require_scope(&no_charge, self.current)?;
+            no_charge.require_terminal(c, &r.key).await?;
         }
         if let Some(invoice) = &self.receipt_invoice {
             if self.generic_payment {
@@ -353,7 +409,19 @@ impl<C: Clock + Send + Sync> PgCommandAuthority for Authority<'_, C> {
                 .fetch_one(&mut *c)
                 .await?;
                 if !valid {
+                    if self.receipt_action == Some(ReceiptAction::Create)
+                        && d == CommandDisposition::Execute
+                        && !self.generic_invoice_admitted
+                    {
+                        return Err(BusinessError::invalid(
+                            "PAYMENT_SETTLEMENT_SOURCE_INVALID",
+                            "Choose an open invoice for the same party, currency and payment amount.",
+                        ).into());
+                    }
                     return Err(changed().into());
+                }
+                if d == CommandDisposition::Execute {
+                    self.generic_invoice_admitted = true;
                 }
             } else {
                 erpx_server_finance::public::service_receipt::require_service_receipt_finance_lineage(
@@ -556,7 +624,7 @@ where
                 destination: "finance/invoices".into(),
                 api: true,
             },
-            Sources,
+            InvoiceIngressSources(config.clone()),
             move |c, current| {
                 let config = config.clone();
                 let clock = clock.clone();
@@ -586,6 +654,7 @@ where
                         receipt_payment: None,
                         receipt_action: None,
                         generic_payment:false,
+                        generic_invoice_admitted:false,
                     };
                     let mut effects = Effects {
                         current,
@@ -663,7 +732,7 @@ where
                 destination: "finance/invoices".into(),
                 api: true,
             },
-            Sources,
+            InvoiceIngressSources(config.clone()),
             move |c, current| {
                 let id = id.clone();
                 let clock = clock.clone();
@@ -695,12 +764,13 @@ pub(crate) fn service_receipt_create_authority<'a, C: Clock + Send + Sync>(
         purchase: None,
         base: None,
         lineage: None,
-        flow_assignment:false,
-        no_charge:false,
+        flow_assignment: false,
+        no_charge: false,
         receipt_invoice: Some(invoice),
         receipt_payment: None,
         receipt_action: Some(ReceiptAction::Create),
-        generic_payment:false,
+        generic_payment: false,
+        generic_invoice_admitted: false,
     }
 }
 
@@ -719,12 +789,13 @@ pub(crate) fn generic_payment_authority<'a, C: Clock + Send + Sync>(
         purchase: None,
         base: None,
         lineage: None,
-        flow_assignment:false,
-        no_charge:false,
+        flow_assignment: false,
+        no_charge: false,
         receipt_invoice: Some(invoice),
         receipt_payment: payment,
         receipt_action: Some(action),
-        generic_payment:true,
+        generic_payment: true,
+        generic_invoice_admitted: false,
     }
 }
 
@@ -743,8 +814,8 @@ pub(crate) fn service_receipt_review_authority<'a, C: Clock + Send + Sync>(
         purchase: None,
         base: None,
         lineage: None,
-        flow_assignment:false,
-        no_charge:false,
+        flow_assignment: false,
+        no_charge: false,
         receipt_invoice: Some(invoice),
         receipt_payment: Some(payment),
         receipt_action: Some(if approve {
@@ -752,7 +823,8 @@ pub(crate) fn service_receipt_review_authority<'a, C: Clock + Send + Sync>(
         } else {
             ReceiptAction::Release
         }),
-        generic_payment:false,
+        generic_payment: false,
+        generic_invoice_admitted: false,
     }
 }
 
@@ -770,19 +842,56 @@ pub(crate) fn service_receipt_bank_authority<'a, C: Clock + Send + Sync>(
         purchase: None,
         base: None,
         lineage: None,
-        flow_assignment:false,
-        no_charge:false,
+        flow_assignment: false,
+        no_charge: false,
         receipt_invoice: Some(invoice),
         receipt_payment: Some(payment),
         receipt_action: Some(ReceiptAction::BankImport),
-        generic_payment:false,
+        generic_payment: false,
+        generic_invoice_admitted: false,
     }
 }
 
-pub(crate) fn service_invoice_flow_authority<'a,C:Clock+Send+Sync>(current:&'a AuthorizedWorkContext,config:&'a FinanceJournalCreateConfiguration,clock:&'a C)->impl PgCommandAuthority+'a{
- Authority{current,config,clock,purchase:None,base:None,lineage:None,receipt_invoice:None,receipt_payment:None,receipt_action:None,flow_assignment:true,no_charge:false,generic_payment:false}
+pub(crate) fn service_invoice_flow_authority<'a, C: Clock + Send + Sync>(
+    current: &'a AuthorizedWorkContext,
+    config: &'a FinanceJournalCreateConfiguration,
+    clock: &'a C,
+) -> impl PgCommandAuthority + 'a {
+    Authority {
+        current,
+        config,
+        clock,
+        purchase: None,
+        base: None,
+        lineage: None,
+        receipt_invoice: None,
+        receipt_payment: None,
+        receipt_action: None,
+        flow_assignment: true,
+        no_charge: false,
+        generic_payment: false,
+        generic_invoice_admitted: false,
+    }
 }
 
-pub(crate) fn service_no_charge_authority<'a,C:Clock+Send+Sync>(current:&'a AuthorizedWorkContext,config:&'a FinanceJournalCreateConfiguration,clock:&'a C)->impl PgCommandAuthority+'a{
-    Authority{current,config,clock,purchase:None,base:None,lineage:None,receipt_invoice:None,receipt_payment:None,receipt_action:None,flow_assignment:false,no_charge:true,generic_payment:false}
+pub(crate) fn service_no_charge_authority<'a, C: Clock + Send + Sync>(
+    current: &'a AuthorizedWorkContext,
+    config: &'a FinanceJournalCreateConfiguration,
+    clock: &'a C,
+) -> impl PgCommandAuthority + 'a {
+    Authority {
+        current,
+        config,
+        clock,
+        purchase: None,
+        base: None,
+        lineage: None,
+        receipt_invoice: None,
+        receipt_payment: None,
+        receipt_action: None,
+        flow_assignment: false,
+        no_charge: true,
+        generic_payment: false,
+        generic_invoice_admitted: false,
+    }
 }

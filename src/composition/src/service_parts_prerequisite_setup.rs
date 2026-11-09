@@ -889,9 +889,21 @@ fn retain_prerequisite_source(
     request: &WorkflowRequest,
     company: &str,
 ) -> Result<CommandJson, BusinessError> {
-    let source=prerequisite_source(&request.key,&request.operation,&request.record_id,company)?;
-    let body=result.as_str().strip_prefix('{').and_then(|v|v.strip_suffix('}')).ok_or_else(invalid)?;
-    CommandJson::parse(&format!("{{{body},\"{PREREQUISITE_SOURCE}\":{}}}",source.as_str()))
+    let source = prerequisite_source(
+        &request.key,
+        &request.operation,
+        &request.record_id,
+        company,
+    )?;
+    let body = result
+        .as_str()
+        .strip_prefix('{')
+        .and_then(|v| v.strip_suffix('}'))
+        .ok_or_else(invalid)?;
+    CommandJson::parse(&format!(
+        "{{{body},\"{PREREQUISITE_SOURCE}\":{}}}",
+        source.as_str()
+    ))
 }
 /// Provenance belongs to the immutable receipt, never the public wire result.
 /// Old unmarked receipts retain their original replay result and history.
@@ -900,18 +912,29 @@ fn public_prerequisite_result(
     request: &WorkflowRequest,
     company: &str,
 ) -> Result<CommandJson, BusinessError> {
-    let Some(source)=result.property(PREREQUISITE_SOURCE)? else{return Ok(result.clone())};
-    let actual:serde_json::Value=serde_json::from_str(source.as_str()).map_err(|_|invalid())?;
-    let expected=prerequisite_source(&request.key,&request.operation,&request.record_id,company)?;
-    let expected:serde_json::Value=serde_json::from_str(expected.as_str()).map_err(|_|invalid())?;
-    if actual!=expected{
+    let Some(source) = result.property(PREREQUISITE_SOURCE)? else {
+        return Ok(result.clone());
+    };
+    let actual: serde_json::Value = serde_json::from_str(source.as_str()).map_err(|_| invalid())?;
+    let expected = prerequisite_source(
+        &request.key,
+        &request.operation,
+        &request.record_id,
+        company,
+    )?;
+    let expected: serde_json::Value =
+        serde_json::from_str(expected.as_str()).map_err(|_| invalid())?;
+    if actual != expected {
         return Err(invalid());
     }
-    let fields=result.object_keys()?.ok_or_else(invalid)?.into_iter()
-        .filter(|key|key!=PREREQUISITE_SOURCE)
-        .map(|key|Ok(member(&key,&result.property(&key)?.ok_or_else(invalid)?)))
-        .collect::<Result<Vec<_>,BusinessError>>()?;
-    CommandJson::parse(&format!("{{{}}}",fields.join(",")))
+    let fields = result
+        .object_keys()?
+        .ok_or_else(invalid)?
+        .into_iter()
+        .filter(|key| key != PREREQUISITE_SOURCE)
+        .map(|key| Ok(member(&key, &result.property(&key)?.ok_or_else(invalid)?)))
+        .collect::<Result<Vec<_>, BusinessError>>()?;
+    CommandJson::parse(&format!("{{{}}}", fields.join(",")))
 }
 fn result_json(
     request: &WorkflowRequest,
@@ -1076,7 +1099,7 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for PrerequisiteEffects<'_, C> {
         let result = result_json(request, self.input, company.as_str(), &plan, at)?;
         // Bound the actual reply envelope before the ledger writes a receipt.
         ensure_command_reply_bound(&result, &context(self.current)?)?;
-        let result=retain_prerequisite_source(&result,request,company.as_str())?;
+        let result = retain_prerequisite_source(&result, request, company.as_str())?;
         let version = if matches!(self.input.input, ServicePrerequisiteInput::Period { .. }) {
             0
         } else {
@@ -1215,7 +1238,7 @@ pub async fn execute_service_prerequisite<C: Clock + Sync>(
     .execute(&request, &mut effects)
     .await?;
     Ok(ServicePrerequisiteOutcome {
-        result: public_prerequisite_result(&outcome.result,&request,company.as_str())?,
+        result: public_prerequisite_result(&outcome.result, &request, company.as_str())?,
         replayed: outcome.replayed,
     })
 }

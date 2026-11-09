@@ -4,7 +4,7 @@ use erpx_server_shared::public::{BusinessError, FailureKind};
 use serde::{Deserialize, Serialize};
 use sqlx::{Connection, PgConnection, Row};
 type Error = PgTransactionError<BusinessError>;
-type Unit = (String, i32, String, String);
+type Unit = (String, i32, String, String, String, String, i64, i64);
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct FieldReservationAlert {
     pub reservation_id: String,
@@ -44,7 +44,10 @@ async fn unit(c: &mut PgConnection) -> Result<Unit, Error> {
     {
         return Err(PersistenceError::new("FIELD_RESERVATION_ALERT_UNIT_REQUIRED").into());
     }
-    Ok(sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text").fetch_one(c).await?)
+    let held: bool = sqlx::query_scalar("SELECT count(*)=2 AND bool_and(c.relnamespace='public'::regnamespace AND c.relkind IN ('r','p') AND c.relpersistence='p' AND EXISTS(SELECT 1 FROM pg_locks l WHERE l.pid=pg_backend_pid() AND l.locktype='relation' AND l.relation=c.oid AND l.granted AND l.mode IN ('ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock'))) FROM pg_class c WHERE c.oid IN ('public.field_service_orders'::regclass,'public.field_service_part_reservations'::regclass)").fetch_one(&mut *c).await?;
+    let visible: bool = sqlx::query_scalar("SELECT to_regclass('field_service_orders')='public.field_service_orders'::regclass AND to_regclass('field_service_part_reservations')='public.field_service_part_reservations'::regclass AND NOT row_security_active('public.field_service_orders'::regclass) AND NOT row_security_active('public.field_service_part_reservations'::regclass)").fetch_one(&mut *c).await?;
+    if !held || !visible { return Err(PersistenceError::new("FIELD_RESERVATION_ALERT_FENCE_REQUIRED").into()); }
+    Ok(sqlx::query_as("SELECT current_database(),pg_backend_pid(),pg_current_xact_id()::text,pg_postmaster_start_time()::text,current_user::text,current_setting('search_path'),'public.field_service_orders'::regclass::oid::bigint,'public.field_service_part_reservations'::regclass::oid::bigint").fetch_one(c).await?)
 }
 pub async fn lock_field_reservation_alerts(c: &mut PgConnection) -> Result<(), Error> {
     if !c.is_in_transaction() {

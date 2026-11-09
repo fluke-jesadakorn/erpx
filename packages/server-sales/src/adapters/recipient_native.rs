@@ -55,9 +55,16 @@ pub struct CurrentSalesRecipient {
     identity: IdentityRecipient,
     people: CurrentWorkforceReference,
     transaction_time: TimestampMillis,
+    request: SalesRecipientRequest,
 }
 
 impl CurrentSalesRecipient {
+    /// Original inspected identity; this is not selected-actor authority.
+    /// A consumer must bind it to its own retained source in the same unit,
+    /// using source-owned database equality where collation matters.
+    pub fn request(&self) -> &SalesRecipientRequest {
+        &self.request
+    }
     pub fn is_eligible(&self) -> bool {
         self.identity.is_eligible() && self.people.is_eligible()
     }
@@ -87,8 +94,8 @@ pub async fn inspect_sales_recipient(
         IdentityRequest {
             company_id: request.company_id.clone(),
             user_id: request.user_id.clone(),
-            branch_id: request.branch_id,
-            department_id: request.department_id,
+            branch_id: request.branch_id.clone(),
+            department_id: request.department_id.clone(),
         },
     )
     .await?;
@@ -106,5 +113,6 @@ pub async fn inspect_sales_recipient(
         identity,
         people,
         transaction_time,
+        request,
     })
 }

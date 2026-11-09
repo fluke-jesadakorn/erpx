@@ -286,7 +286,8 @@ impl<C: Clock + Send + Sync + 'static> Customer360Service<C> {
                                 PgTransactionError::Business(unavailable())
                             }
                         })?;
-                        let data = serde_json::to_value(page).map_err(|_| PgTransactionError::Business(unavailable()))?;
+                        let data = serde_json::to_value(page)
+                            .map_err(|_| PgTransactionError::Business(unavailable()))?;
                         Ok(CustomerTimelineHttpResponse {
                             data,
                             context: context(current),
@@ -351,7 +352,13 @@ impl<C: Clock + Send + Sync + 'static> CustomerTimelineHttpBackend for Customer3
             let customer_id = request.customer_id.to_owned();
             let query = request.query.clone();
             self.service
-                .read(request.host, proof, move || Ok(selection), customer_id, query)
+                .read(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    customer_id,
+                    query,
+                )
                 .await
                 .map_err(business)
         })

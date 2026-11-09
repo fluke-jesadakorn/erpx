@@ -11,20 +11,21 @@ use erpx_server_identity_access::public::{
     },
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
-use erpx_server_platform_administration::public::platform_operations::{
-    PgPlatformAdministration, PlatformActor, PlatformHoldingIdentity,
-    PlatformHttpBackend, PlatformHttpCommand, PlatformHttpCommandRequest, PlatformHttpFuture,
-    PlatformHttpResponse, PlatformHttpTarget, PlatformResourceSlot,
-    platform_operations_snapshot, provision_holding, recover_dead_letter_job, run_holding_migration,
-};
-use erpx_server_platform_administration::public::platform_operations::PlatformHttpReadRequest;
 use erpx_server_platform_administration::public::agent_evidence::{
     AgentEvidenceActor, AgentEvidenceKind, AgentEvidenceRecord, AgentEvidenceWorkspace,
-    PgAgentEvidenceRead, agent_evidence_record, agent_evidence_workspace, lock_agent_evidence_sources,
+    PgAgentEvidenceRead, agent_evidence_record, agent_evidence_workspace,
+    lock_agent_evidence_sources,
 };
 use erpx_server_platform_administration::public::agent_evidence_http::{
     AgentEvidenceHttpBackend, AgentEvidenceHttpFuture, AgentEvidenceHttpQuery,
     AgentEvidenceHttpReadRequest, AgentEvidenceHttpResponse,
+};
+use erpx_server_platform_administration::public::platform_operations::PlatformHttpReadRequest;
+use erpx_server_platform_administration::public::platform_operations::{
+    PgPlatformAdministration, PlatformActor, PlatformHoldingIdentity, PlatformHttpBackend,
+    PlatformHttpCommand, PlatformHttpCommandRequest, PlatformHttpFuture, PlatformHttpResponse,
+    PlatformHttpTarget, PlatformResourceSlot, platform_operations_snapshot, provision_holding,
+    recover_dead_letter_job, run_holding_migration,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{DatabasePool, PgTransactionError, PgWorkFuture};
@@ -425,10 +426,7 @@ impl<C: Clock + Send + Sync + 'static> PlatformAdministrationService<C> {
                                     )
                                 })?
                             }
-                            PlatformHttpCommand::Recover {
-                                holding_id,
-                                input,
-                            } => {
+                            PlatformHttpCommand::Recover { holding_id, input } => {
                                 let target = holdings
                                     .iter()
                                     .find(|holding| holding.id == holding_id)
@@ -519,15 +517,18 @@ impl<C: Clock + Send + Sync + 'static> PlatformAdministrationBackend<C> {
             return Err(not_found());
         }
         let (branch, department) = self.scopes.slugs(headers)?;
-        let platform_assignment_id = unique_header(headers, HeaderName::from_static("x-erpx-platform-assignment"))?
-            .ok_or_else(|| {
-                BusinessError::new(
-                    FailureKind::Forbidden,
-                    "PLATFORM_AUTHORITY_REQUIRED",
-                    "Your selected Platform assignment is unavailable.",
-                )
-            })?
-            .to_owned();
+        let platform_assignment_id = unique_header(
+            headers,
+            HeaderName::from_static("x-erpx-platform-assignment"),
+        )?
+        .ok_or_else(|| {
+            BusinessError::new(
+                FailureKind::Forbidden,
+                "PLATFORM_AUTHORITY_REQUIRED",
+                "Your selected Platform assignment is unavailable.",
+            )
+        })?
+        .to_owned();
         Ok((
             inbound.into_proof(),
             HoldingWorkspaceRequest {
@@ -552,7 +553,12 @@ impl<C: Clock + Send + Sync + 'static> PlatformHttpBackend for PlatformAdministr
         Box::pin(async move {
             let (proof, selection, platform_assignment_id) = self.context(request.headers)?;
             self.service
-                .read_operations(request.host, proof, move || Ok(selection), platform_assignment_id)
+                .read_operations(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    platform_assignment_id,
+                )
                 .await
                 .map_err(business)
         })
@@ -598,15 +604,13 @@ fn unique_header(headers: &HeaderMap, name: HeaderName) -> Result<Option<&str>, 
     }
     first
         .map(|value| {
-            value
-                .to_str()
-                .map_err(|_| {
-                    BusinessError::new(
-                        FailureKind::InvalidInput,
-                        "PLATFORM_REQUEST_INVALID",
-                        "Use a valid request header.",
-                    )
-                })
+            value.to_str().map_err(|_| {
+                BusinessError::new(
+                    FailureKind::InvalidInput,
+                    "PLATFORM_REQUEST_INVALID",
+                    "Use a valid request header.",
+                )
+            })
         })
         .transpose()
 }

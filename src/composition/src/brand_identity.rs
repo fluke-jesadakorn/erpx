@@ -12,7 +12,9 @@ use erpx_server_identity_access::public::{
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId};
+use erpx_server_shared::public::{
+    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId,
+};
 use erpx_server_workflow::public::commands::{
     CommandActor, CommandField, CommandJson, WorkAuthority,
 };
@@ -112,7 +114,10 @@ fn rendered(current: &AuthorizedWorkContext) -> Result<BrandRenderedWorkContext,
         user_id: current.user_id().as_str().into(),
         holding_id: current.holding_id().as_str().into(),
         company_id: workspace.company_id.as_str().into(),
-        branch_id: workspace.branch_id.as_ref().map(|value| value.as_str().into()),
+        branch_id: workspace
+            .branch_id
+            .as_ref()
+            .map(|value| value.as_str().into()),
         department_id: workspace
             .department_id
             .as_ref()
@@ -259,7 +264,8 @@ impl<C: Clock + Send + Sync + 'static> BrandIdentityService<C> {
                             return Err(scope().into());
                         }
                         let actor = brand_actor(current)?;
-                        let mut ports = PgBrandIdentityRead::new(connection, &actor, clock.now().get());
+                        let mut ports =
+                            PgBrandIdentityRead::new(connection, &actor, clock.now().get());
                         let data = read_brand_identity_workspace(&mut ports).await?;
                         Ok(BrandIdentityWorkspaceResponse {
                             data,
@@ -302,9 +308,7 @@ impl<C: Clock + Send + Sync + 'static> BrandIdentityService<C> {
     {
         self.command(host, proof, input, prepare, move |ports, input, key| {
             let draft_id = draft_id.clone();
-            Box::pin(async move {
-                publish_brand_identity(ports, &draft_id, &input, key).await
-            })
+            Box::pin(async move { publish_brand_identity(ports, &draft_id, &input, key).await })
         })
         .await
     }

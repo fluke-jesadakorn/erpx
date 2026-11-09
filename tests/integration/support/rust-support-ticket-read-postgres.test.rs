@@ -1251,3 +1251,32 @@ async fn evidence_reads_mask_unbound_rows_and_keep_revoked_metadata_visible() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn service_ticket_sources_retain_their_distinct_owner_locks() {
+    use erpx_server_support::public::field_service_workspace::*;
+    use erpx_server_support::public::field_service::{lock_service_ticket_sources,require_service_ticket_sources_held};
+    review::account::with_system(|system| async move {
+        let p=review::setup_with_finance(system,false).await;let pool=&p.system.holdings[0];
+        configure(pool,p.system.scenario.clock.now().get()).await;
+        // General cases legitimately have neither a customer nor a branch.
+        sqlx::query("INSERT INTO support_tickets(id,company_id,branch_id,customer_id,title,issue,owner_id,due_date,status,version,created_by,created_at,updated_at,source_kind) VALUES('service-null-ticket','company',NULL,NULL,'General request','Synthetic general issue','fixture-a','2026-11-10','open',1,'fixture-a',0,0,'general')").execute(pool.raw()).await.unwrap();
+        let company=CompanyId::new("company").unwrap();
+        let scope=ServiceWorkspaceTicketScope{company_id:company.clone(),branch:None,department:None,assignment_kind:"holding".into(),assignment_node:None,include_picker:false,ids:vec!["ticket-session".into(),"service-null-ticket".into()]};
+        let ids=vec!["ticket-session".to_owned()];
+        let mut unlocked=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unlocked).await.unwrap();
+        assert!(read_service_workspace_tickets(&mut unlocked,scope.clone()).await.is_err());assert!(read_service_support_settlement(&mut unlocked,&company,&ids).await.is_err());assert!(require_service_workspace_tickets_held(&mut unlocked).await.is_err());assert!(require_service_ticket_sources_held(&mut unlocked).await.is_err());unlocked.rollback().await.unwrap();
+        let mut insufficient=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *insufficient).await.unwrap();lock_service_workspace_tickets(&mut insufficient).await.unwrap();
+        require_service_workspace_tickets_held(&mut insufficient).await.unwrap();assert!(require_service_ticket_sources_held(&mut insufficient).await.is_err());let workspace=read_service_workspace_tickets(&mut insufficient,scope.clone()).await.unwrap();workspace.require_current(&mut insufficient).await.unwrap();
+        assert!(read_service_support_settlement(&mut insufficient,&company,&ids).await.is_err());insufficient.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();sqlx::query("SELECT pg_current_xact_id()").execute(&mut *tx).await.unwrap();sqlx::query("SAVEPOINT before_support_locks").execute(&mut *tx).await.unwrap();
+        lock_service_support_settlement(&mut tx).await.unwrap();
+        let count:i64=sqlx::query_scalar("SELECT count(DISTINCT relation) FROM pg_locks WHERE pid=pg_backend_pid() AND granted AND mode='ShareLock' AND relation IN ('support_tickets'::regclass,'support_ticket_events'::regclass,'support_sla_alerts'::regclass)").fetch_one(&mut *tx).await.unwrap();assert_eq!(count,3);
+        let workspace=read_service_workspace_tickets(&mut tx,scope).await.unwrap();let settlement=read_service_support_settlement(&mut tx,&company,&ids).await.unwrap();
+        assert!(workspace.data().display.iter().any(|t|t.id==ids[0]));assert!(settlement.data().tickets.iter().any(|t|t.id==ids[0]));workspace.require_current(&mut tx).await.unwrap();settlement.require_current(&mut tx).await.unwrap();
+        let general=workspace.data().display.iter().find(|t|t.id=="service-null-ticket").unwrap();assert_eq!(general.source_kind,"general");assert_eq!(general.customer_id,None);assert_eq!(general.branch_id,None);
+        sqlx::query("ROLLBACK TO SAVEPOINT before_support_locks").execute(&mut *tx).await.unwrap();assert!(workspace.require_current(&mut tx).await.is_err());assert!(settlement.require_current(&mut tx).await.is_err());assert!(require_service_workspace_tickets_held(&mut tx).await.is_err());assert!(require_service_ticket_sources_held(&mut tx).await.is_err());
+        lock_service_ticket_sources(&mut tx).await.unwrap();require_service_workspace_tickets_held(&mut tx).await.unwrap();require_service_ticket_sources_held(&mut tx).await.unwrap();tx.rollback().await.unwrap();
+        let mut strong=pool.raw().begin().await.unwrap();sqlx::query("LOCK TABLE support_tickets,support_ticket_events IN EXCLUSIVE MODE").execute(&mut *strong).await.unwrap();require_service_workspace_tickets_held(&mut strong).await.unwrap();require_service_ticket_sources_held(&mut strong).await.unwrap();strong.rollback().await.unwrap();
+    }).await;
+}

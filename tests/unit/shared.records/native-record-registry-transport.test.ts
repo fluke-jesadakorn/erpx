@@ -329,9 +329,10 @@ describe('native Records registry transport', () => {
   });
   it('posts a bounded create with origin and idempotency and returns the created id', async () => {
     const calls: { method: string; url: URL; headers: Headers; body: string | undefined }[] = [];
+    const createdView = view('rec-support-records:http-1', 1, 'support', 'tickets');
     const transport: NativeRecordRegistryTransport = async (method, url, headers, body) => {
       calls.push({ method, url, headers, body });
-      return new Response(JSON.stringify({ data: { id: 'rec-support-records:http-1' }, context }), {
+      return new Response(JSON.stringify({ data: createdView, context }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       });
@@ -351,7 +352,7 @@ describe('native Records registry transport', () => {
       input,
       'records:http-1',
     );
-    expect(created).toEqual({ id: 'rec-support-records:http-1' });
+    expect(created).toEqual(view('rec-support-records:http-1', 1, 'support', 'tickets'));
     expect(calls).toHaveLength(1);
     expect(calls[0]!.method).toBe('POST');
     expect(calls[0]!.url.toString()).toBe(
@@ -360,6 +361,12 @@ describe('native Records registry transport', () => {
     expect(calls[0]!.headers.get('origin')).toBe('https://acme.example.com');
     expect(calls[0]!.headers.get('idempotency-key')).toBe('records:http-1');
     expect(calls[0]!.headers.get('content-type')).toBe('application/json');
+    expect(calls[0]!.headers.get('x-erpx-context-company')).toBe('company');
+    expect(calls[0]!.headers.get('x-erpx-context-assignment')).toBe('assignment-actor');
+    expect(calls[0]!.headers.get('x-erpx-context-revision')).toBe('9');
+    expect(calls[0]!.headers.get('x-erpx-context-assignment-version')).toBe('3');
+    expect(calls[0]!.headers.get('x-erpx-workspace-branch')).toBeNull();
+    expect(calls[0]!.headers.get('x-erpx-workspace-department')).toBeNull();
     expect(calls[0]!.headers.get('cookie')).toBe('__Host-erpx-product=session');
     expect(JSON.parse(calls[0]!.body!)).toEqual({
       sectionId: 'tickets',

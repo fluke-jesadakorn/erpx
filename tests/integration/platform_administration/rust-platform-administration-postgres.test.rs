@@ -1272,3 +1272,367 @@ async fn synthetic_production_release_reader_requires_all_current_independent_ga
         let mut fresh=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *fresh).await.unwrap();lock_production_release_sources(&mut fresh).await.unwrap();assert!(!synthetic_release_accepted(&mut fresh,SYNTHETIC_RELEASE_ARTIFACT).await);fresh.rollback().await.unwrap();
     }).await;
 }
+
+// The release and engineering raw sources below are owner inputs, not accepted
+// release/engineering facts. The synthetic release fixture proves projection,
+// locking and same-unit drift only; it does not certify any Company.
+#[tokio::test]
+async fn scheduled_release_sources_preserve_all_owner_rows_and_same_unit_drift() {
+    use erpx_server_platform_administration::public::scheduled_release_sources::{
+        inspect_scheduled_release_sources, lock_scheduled_release_sources,
+    };
+    use sqlx::AssertSqlSafe;
+    fixture::with_database(3, |pool| async move {
+        migrate(&pool, MigrationTrack::HoldingWrite).await;
+        seed_synthetic_production_release(&pool).await;
+        let mut unlocked = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+            .execute(&mut *unlocked)
+            .await
+            .unwrap();
+        assert!(inspect_scheduled_release_sources(&mut unlocked).await.is_err());
+        unlocked.rollback().await.unwrap();
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        lock_scheduled_release_sources(&mut tx).await.unwrap();
+        let source = inspect_scheduled_release_sources(&mut tx).await.unwrap();
+        let counts_sql = format!("WITH {} SELECT (SELECT count(*)::bigint FROM scheduled_release_acceptances),(SELECT count(*)::bigint FROM scheduled_release_revisions),(SELECT count(*)::bigint FROM scheduled_legal_release_revisions),(SELECT count(*)::bigint FROM scheduled_release_gate_reviews)", source.cte_sql());
+        let counts: (i64, i64, i64, i64) = sqlx::query_as(AssertSqlSafe(counts_sql))
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap();
+        assert_eq!(counts, (1, 1, 1, 15));
+        for (base, cte) in [
+            (
+                "SELECT id,company_id,scope_version,software_version,configuration_revision,setup_version,requested_by,revoked_at,created_at FROM public.company_release_acceptances",
+                "scheduled_release_acceptances",
+            ),
+            (
+                "SELECT company_id,revision FROM public.company_release_revisions",
+                "scheduled_release_revisions",
+            ),
+            (
+                "SELECT company_id,revision FROM public.company_legal_release_revisions",
+                "scheduled_legal_release_revisions",
+            ),
+            (
+                "SELECT company_id,release_id,criterion_id,state,permission,assignment_id,reviewer_id FROM public.company_release_gate_reviews",
+                "scheduled_release_gate_reviews",
+            ),
+        ] {
+            let projected_sql = format!("WITH {} SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY to_jsonb(r)::text),'[]'::jsonb)::text FROM {} r", source.cte_sql(), cte);
+            let raw_sql = format!("SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY to_jsonb(r)::text),'[]'::jsonb)::text FROM ({base}) r");
+            let projected: String = sqlx::query_scalar(AssertSqlSafe(projected_sql))
+                .fetch_one(&mut *tx)
+                .await
+                .unwrap();
+            let raw: String = sqlx::query_scalar(AssertSqlSafe(raw_sql))
+                .fetch_one(&mut *tx)
+                .await
+                .unwrap();
+            assert_eq!(projected, raw, "{cte}");
+        }
+        source.require_current(&mut tx).await.unwrap();
+        for drift in [
+            "UPDATE company_release_acceptances SET revoked_at=2 WHERE id='synthetic-release'",
+            "UPDATE company_release_revisions SET revision=revision+1 WHERE company_id='release-company'",
+            "UPDATE company_legal_release_revisions SET revision=revision+1 WHERE company_id='release-company'",
+            "UPDATE company_release_gate_reviews SET state='pending' WHERE release_id='synthetic-release' AND criterion_id=(SELECT min(criterion_id) FROM company_release_gate_reviews WHERE release_id='synthetic-release')",
+        ] {
+            sqlx::query("SAVEPOINT scheduled_source_drift")
+                .execute(&mut *tx)
+                .await
+                .unwrap();
+            sqlx::query(drift).execute(&mut *tx).await.unwrap();
+            assert!(source.require_current(&mut tx).await.is_err(), "{drift}");
+            sqlx::query("ROLLBACK TO SAVEPOINT scheduled_source_drift")
+                .execute(&mut *tx)
+                .await
+                .unwrap();
+            source.require_current(&mut tx).await.unwrap();
+        }
+        sqlx::query("SAVEPOINT scheduled_path_drift")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query("SET LOCAL search_path=public,pg_catalog")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        assert!(source.require_current(&mut tx).await.is_err());
+        sqlx::query("ROLLBACK TO SAVEPOINT scheduled_path_drift")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        source.require_current(&mut tx).await.unwrap();
+        tx.rollback().await.unwrap();
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn scheduled_engineering_rows_match_persisted_context_and_exact_clock() {
+    use erpx_server_platform_administration::public::scheduled_engineering_sources::{
+        inspect_scheduled_engineering_sources, lock_scheduled_engineering_sources,
+    };
+    use sqlx::AssertSqlSafe;
+    fixture::with_database(2, |pool| async move {
+        migrate(&pool, MigrationTrack::HoldingWrite).await;
+        seed_synthetic_production_release(&pool).await;
+        let run = "0123456789ab";
+        let source = "a".repeat(64);
+        let manifest = "b".repeat(64);
+        let artifact = format!("release-{source}");
+        sqlx::query("INSERT INTO engineering_verification_contexts(company_id,run_id,source_fingerprint,software_version,release_manifest_sha256,enabled,expires_at,reason,created_at) VALUES('release-company',$1,$2,$3,$4,true,floor(extract(epoch FROM clock_timestamp())*1000)::bigint+60000,'synthetic engineering fixture',1)")
+            .bind(run)
+            .bind(&source)
+            .bind(&artifact)
+            .bind(&manifest)
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        let mut unlocked = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+            .execute(&mut *unlocked)
+            .await
+            .unwrap();
+        assert!(inspect_scheduled_engineering_sources(&mut unlocked)
+            .await
+            .is_err());
+        unlocked.rollback().await.unwrap();
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        lock_scheduled_engineering_sources(&mut tx).await.unwrap();
+        let witness = inspect_scheduled_engineering_sources(&mut tx).await.unwrap();
+        let projected_sql = format!(
+            "WITH {} SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY to_jsonb(r)::text),'[]'::jsonb)::text FROM scheduled_engineering_contexts r",
+            witness.cte_sql()
+        );
+        let projected: String = sqlx::query_scalar(AssertSqlSafe(projected_sql))
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap();
+        let raw: String = sqlx::query_scalar(
+            "SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY to_jsonb(r)::text),'[]'::jsonb)::text FROM (SELECT company_id,run_id,source_fingerprint,software_version,release_manifest_sha256,enabled,expires_at FROM public.engineering_verification_contexts) r",
+        )
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+        assert_eq!(projected, raw);
+        let enabled: bool = sqlx::query_scalar(
+            "WITH scheduled_engineering_contexts AS (SELECT company_id,run_id,source_fingerprint,software_version,release_manifest_sha256,enabled,expires_at FROM public.engineering_verification_contexts) SELECT EXISTS(SELECT 1 FROM scheduled_engineering_contexts engineering WHERE engineering.company_id='release-company' AND engineering.run_id=$1 AND engineering.source_fingerprint=$2 AND engineering.software_version=$3 AND engineering.release_manifest_sha256=$4 AND engineering.enabled AND engineering.expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint)",
+        )
+        .bind(run)
+        .bind(&source)
+        .bind(&artifact)
+        .bind(&manifest)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+        assert!(enabled);
+        witness.require_current(&mut tx).await.unwrap();
+        for drift in [
+            "UPDATE engineering_verification_contexts SET enabled=false WHERE company_id='release-company' AND run_id='0123456789ab'",
+            "UPDATE engineering_verification_contexts SET expires_at=floor(extract(epoch FROM clock_timestamp())*1000)::bigint-1 WHERE company_id='release-company' AND run_id='0123456789ab'",
+        ] {
+            sqlx::query("SAVEPOINT scheduled_engineering_drift")
+                .execute(&mut *tx)
+                .await
+                .unwrap();
+            sqlx::query(drift).execute(&mut *tx).await.unwrap();
+            assert!(witness.require_current(&mut tx).await.is_err(), "{drift}");
+            sqlx::query("ROLLBACK TO SAVEPOINT scheduled_engineering_drift")
+                .execute(&mut *tx)
+                .await
+                .unwrap();
+            witness.require_current(&mut tx).await.unwrap();
+        }
+        sqlx::query("SAVEPOINT scheduled_engineering_path")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query("SET LOCAL search_path=public,pg_catalog")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        assert!(witness.require_current(&mut tx).await.is_err());
+        sqlx::query("ROLLBACK TO SAVEPOINT scheduled_engineering_path")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        witness.require_current(&mut tx).await.unwrap();
+        tx.rollback().await.unwrap();
+    })
+    .await;
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn native_engineering_identity_requires_current_roster_or_legacy_database_and_attested_file() {
+    use erpx_server_platform_administration::public::legal_release::EngineeringReadConfiguration;
+    use erpx_server_platform_administration::public::native_engineering_database_identity::inspect_native_engineering_identity;
+    use erpx_server_platform_administration::public::native_roster_snapshot::capture_attested_native_roster_snapshot;
+    use erpx_server_runtime::public::native_engineering_roster::validate_native_engineering_roster;
+    use sha2::Digest;
+    use std::os::unix::fs::PermissionsExt;
+    fixture::with_database(2, |pool| async move {
+        let database: String = sqlx::query_scalar("SELECT current_database()")
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+        let token = database
+            .strip_prefix("erpx_dev_rust_")
+            .expect("leased native database")
+            .to_owned();
+        assert_eq!(token.len(), 32);
+        let run = token[..12].to_owned();
+        let oid: i64 = sqlx::query_scalar(
+            "SELECT oid::bigint FROM pg_database WHERE datname=current_database()",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        let postmaster: i64 = sqlx::query_scalar(
+            "SELECT floor(extract(epoch FROM pg_postmaster_start_time())*1000)::bigint",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        let source = "a".repeat(64);
+        let manifest = "b".repeat(64);
+        let bindings = [
+            "CONTROL_DB",
+            "CONTROL_READ_DB",
+            "H001_DB",
+            "H001_READ_DB",
+            "H002_DB",
+            "H002_READ_DB",
+            "H003_DB",
+            "H003_READ_DB",
+        ];
+        let roster_value = |postmaster: i64, h001_token: &str, h001_oid: i64| {
+            serde_json::json!({"version":1,"run":run,"sourceFingerprint":source,"fileManifestSha256":manifest,"postmasterStartedMs":postmaster,"entries":bindings.iter().enumerate().map(|(i,binding)| if *binding=="H001_DB" { serde_json::json!({"binding":binding,"token":h001_token,"oid":h001_oid}) } else { serde_json::json!({"binding":binding,"token":format!("{:032x}",i+1),"oid":4_000_000_000i64+i as i64}) }).collect::<Vec<_>>()})
+        };
+        let roster = validate_native_engineering_roster(
+            &roster_value(postmaster, &token, oid),
+            &run,
+            &source,
+            &manifest,
+        )
+        .unwrap();
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        let identity =
+            inspect_native_engineering_identity(&mut tx, &run, Some(&roster)).await.unwrap();
+        assert!(identity.matches());
+        identity.require_current(&mut tx).await.unwrap();
+        // The non-roster branch never adopts an installed or unrelated database.
+        assert!(
+            !inspect_native_engineering_identity(&mut tx, &run, None)
+                .await
+                .unwrap()
+                .matches()
+        );
+        for (postmaster, token, oid) in [
+            (postmaster, format!("{:032x}", 100), oid),
+            (postmaster, token.clone(), oid + 1),
+            (postmaster + 1, token.clone(), oid),
+        ] {
+            let wrong = validate_native_engineering_roster(
+                &roster_value(postmaster, &token, oid),
+                &run,
+                &source,
+                &manifest,
+            )
+            .unwrap();
+            assert!(
+                !inspect_native_engineering_identity(&mut tx, &run, Some(&wrong))
+                    .await
+                    .unwrap()
+                    .matches()
+            );
+        }
+        sqlx::query("SAVEPOINT native_identity_path")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query("SET LOCAL search_path=public,pg_catalog")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        assert!(identity.require_current(&mut tx).await.is_err());
+        sqlx::query("ROLLBACK TO SAVEPOINT native_identity_path")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        identity.require_current(&mut tx).await.unwrap();
+        tx.rollback().await.unwrap();
+        // Bind the exact sealed attestation and private roster to the actual
+        // leased database identity. No accepted release or enrollment is made.
+        let _temporary = tempfile::tempdir().unwrap();let root = _temporary.path().canonicalize().unwrap();
+        let directory = root.join(".runtime/browser").join(&run);
+        let release = directory.join("release");
+        std::fs::create_dir_all(&release).unwrap();
+        std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let artifact = format!("release-{source}");
+        let manifest_bytes = b"[]";
+        let manifest = hex::encode(sha2::Sha256::digest(manifest_bytes));
+        std::fs::write(release.join("release-files.json"), manifest_bytes).unwrap();
+        std::fs::write(
+            release.join("release.json"),
+            serde_json::to_vec(&serde_json::json!({"sourceFingerprint":source,"softwareVersion":artifact,"fileManifestSha256":manifest})).unwrap(),
+        )
+        .unwrap();
+        let roster = serde_json::json!({"version":1,"run":run,"sourceFingerprint":source,"fileManifestSha256":manifest,"postmasterStartedMs":postmaster,"entries":bindings.iter().enumerate().map(|(i,binding)| if *binding=="H001_DB" { serde_json::json!({"binding":binding,"token":token,"oid":oid}) } else { serde_json::json!({"binding":binding,"token":format!("{:032x}",i+1),"oid":4_000_000_000i64+i as i64}) }).collect::<Vec<_>>()});
+        let roster_bytes = serde_json::to_vec(&roster).unwrap();
+        let seal = hex::encode(sha2::Sha256::digest(&roster_bytes));
+        let roster_path = directory.join("native-engineering-leases.json");
+        std::fs::write(&roster_path, &roster_bytes).unwrap();
+        std::fs::set_permissions(&roster_path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        let attestation_path = directory.join("engineering-attestation.json");
+        std::fs::write(
+            &attestation_path,
+            serde_json::to_vec(&serde_json::json!({"scope":"isolated-engineering","run":run,"sourceFingerprint":source,"softwareVersion":artifact,"fileManifestSha256":manifest,"nativeLeaseSha256":seal})).unwrap(),
+        )
+        .unwrap();
+        std::fs::set_permissions(&attestation_path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        let configuration = EngineeringReadConfiguration {
+            run: run.clone(),
+            environment: "local".into(),
+            port: "3104".into(),
+            browser_simulation_port: "3104".into(),
+            data_directory: directory.clone(),
+        };
+        let (attestation, roster) =
+            capture_attested_native_roster_snapshot(&configuration, &artifact, 4096).unwrap();
+        assert_eq!(attestation.native_lease_sha256(), Some(seal.as_str()));
+        let roster = roster.unwrap();
+        assert!(roster.require_current());
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        assert!(
+            inspect_native_engineering_identity(&mut tx, &run, Some(roster.roster()))
+                .await
+                .unwrap()
+                .matches()
+        );
+        tx.rollback().await.unwrap();
+        std::fs::write(&roster_path, b"{}").unwrap();
+        std::fs::set_permissions(&roster_path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        assert!(!roster.require_current());
+        assert!(capture_attested_native_roster_snapshot(&configuration, &artifact, 4096).is_none());
+    })
+    .await;
+}

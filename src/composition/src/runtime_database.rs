@@ -22,7 +22,10 @@ impl fmt::Debug for RuntimeDatabase {
     }
 }
 impl RuntimeDatabase {
-    pub(crate) async fn connect(&self, limits: PoolLimits) -> Result<DatabasePool, PersistenceError> {
+    pub(crate) async fn connect(
+        &self,
+        limits: PoolLimits,
+    ) -> Result<DatabasePool, PersistenceError> {
         match self {
             Self::Leased(database) => database.connect(limits).await,
             Self::Durable { configuration, .. } => connect_pool(configuration, limits).await,

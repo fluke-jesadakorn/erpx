@@ -14,7 +14,9 @@ use axum::{
 };
 use erpx_server_identity_access::public::{
     AccountPolicy, RequestAudience,
-    account_inbound_http::{CapturedHoldingMutation, parse_inbound_account_request, unique_request_header},
+    account_inbound_http::{
+        CapturedHoldingMutation, parse_inbound_account_request, unique_request_header,
+    },
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{BusinessError, Clock, FailureKind};
@@ -87,11 +89,9 @@ async fn read_movements<C: Clock + Send + Sync + 'static>(
     headers: HeaderMap,
 ) -> Response {
     let result = async {
-        if query
-            .cursor
-            .as_deref()
-            .is_some_and(|value| value.is_empty() || value.len() > 400 || value.chars().any(char::is_control))
-        {
+        if query.cursor.as_deref().is_some_and(|value| {
+            value.is_empty() || value.len() > 400 || value.chars().any(char::is_control)
+        }) {
             return Err(BusinessError::invalid(
                 "INVENTORY_MOVEMENT_CURSOR_INVALID",
                 "Use the cursor from the current movement page.",
@@ -188,11 +188,9 @@ async fn read<C: Clock + Send + Sync + 'static>(
         let company = target.service.company_id().clone();
         target
             .service
-            .read(
-                host,
-                inbound.into_proof(),
-                move || captured.resolve_read(company),
-            )
+            .read(host, inbound.into_proof(), move || {
+                captured.resolve_read(company)
+            })
             .await
     }
     .await;

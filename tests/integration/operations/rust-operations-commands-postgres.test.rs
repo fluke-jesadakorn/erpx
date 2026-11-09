@@ -391,3 +391,32 @@ async fn generic_open_rejects_policies_without_the_canonical_source_kind() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn unicode_exception_owner_writes_readback_and_invalid_rollback() {
+    // SourceRecord and Actor are owner-test fixtures; selected Identity and
+    // cross-owner source authorization remain composition responsibilities.
+    fixture::with_database(2, |holding| async move {
+        migrate(&holding).await;seed(&holding).await;
+        let mut tx=serializable(&holding).await;lock_field_exception_sources(&mut tx).await.unwrap();
+        let area=read_policy(&mut tx,&company(),"policy-service").await.unwrap().unwrap();let policy=area.policy("policy-service").unwrap().clone();
+        for (key,title,issue) in [("unicode-invalid-title","😀".repeat(161),"valid issue".to_owned()),("unicode-invalid-issue","valid title".to_owned(),"😀".repeat(4001))] {
+            let mut invalid=open_input();invalid.title=title;invalid.issue=issue;
+            let result=open_operations_exception(&mut tx,&company(),&CommandKey::new(key).unwrap(),"maker",&invalid,&source(SourceKind::StaffTask,"company",1),&source_json(),&policy,10).await;
+            assert!(matches!(result,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e)) if e.code=="OPERATIONS_INPUT_INVALID"));
+            let count:(i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM operations_exceptions WHERE id=$1),(SELECT count(*) FROM operations_exception_events WHERE exception_id=$1)").bind(format!("operations-exception-{key}")).fetch_one(&mut *tx).await.unwrap();assert_eq!(count,(0,0));
+        }
+        tx.rollback().await.unwrap();
+        let absent:(i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM operations_exceptions WHERE id IN ('operations-exception-unicode-invalid-title','operations-exception-unicode-invalid-issue')),(SELECT count(*) FROM operations_exception_events WHERE exception_id IN ('operations-exception-unicode-invalid-title','operations-exception-unicode-invalid-issue'))").fetch_one(holding.raw()).await.unwrap();assert_eq!(absent,(0,0));
+        let mut tx=serializable(&holding).await;lock_field_exception_sources(&mut tx).await.unwrap();
+        let area=read_policy(&mut tx,&company(),"policy-service").await.unwrap().unwrap();let policy=area.policy("policy-service").unwrap().clone();
+        let title="😀".repeat(160);let issue="😀".repeat(4000);let reason="🧭".repeat(4000);let mut input=open_input();input.title=format!("\u{feff}{title}\u{feff}");input.issue=issue.clone();
+        let key=CommandKey::new("unicode-owner-create").unwrap();let opened=open_operations_exception(&mut tx,&company(),&key,"maker",&input,&source(SourceKind::StaffTask,"company",1),&source_json(),&policy,10).await.unwrap();opened.require_current(&mut tx).await.unwrap();assert_eq!(opened.data().title,title);assert_eq!(opened.data().issue,issue);
+        let id="operations-exception-unicode-owner-create";let current=read_operations_exception(&mut tx,&company(),id,Some("branch"),None).await.unwrap().unwrap();
+        let mut action=transition_input(Action::Acknowledge,1);action.reason=reason.clone();let plan=transition(&actor(),current.data(),&action).unwrap();
+        let changed=apply_operations_exception_transition(&mut tx,&current,&actor(),&action,&plan,&CommandKey::new("unicode-owner-ack").unwrap(),20).await.unwrap();changed.require_current(&mut tx).await.unwrap();
+        let events:Vec<(i64,String,String)>=sqlx::query_as("SELECT version,action,reason FROM operations_exception_events WHERE exception_id=$1 ORDER BY version").bind(id).fetch_all(&mut *tx).await.unwrap();assert_eq!(events,vec![(1,"open".into(),issue.clone()),(2,"acknowledge".into(),reason.clone())]);tx.commit().await.unwrap();
+        let mut read=serializable(&holding).await;lock_field_exception_sources(&mut read).await.unwrap();let persisted=read_operations_exception(&mut read,&company(),id,Some("branch"),None).await.unwrap().unwrap();assert_eq!(persisted.data().title,title);assert_eq!(persisted.data().issue,issue);assert_eq!((persisted.data().status.as_str(),persisted.data().version),("acknowledged",2));
+        let actual_reason:String=sqlx::query_scalar("SELECT reason FROM operations_exception_events WHERE exception_id=$1 AND version=2").bind(id).fetch_one(&mut *read).await.unwrap();assert_eq!(actual_reason,reason);read.rollback().await.unwrap();
+    }).await;
+}

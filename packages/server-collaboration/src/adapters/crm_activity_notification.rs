@@ -34,7 +34,7 @@ pub async fn lock_crm_activity_notifications(c: &mut PgConnection) -> Result<(),
     if !c.is_in_transaction() {
         return Err(invalid());
     }
-    sqlx::query("LOCK TABLE staff_notifications IN ROW EXCLUSIVE MODE")
+    sqlx::query("LOCK TABLE public.staff_notifications IN ROW EXCLUSIVE MODE")
         .execute(c)
         .await?;
     Ok(())
@@ -75,7 +75,9 @@ pub trait PgCrmActivityNotificationSource: Sync {
 }
 pub struct PreparedCrmActivityNotification<'a, S: PgCrmActivityNotificationSource> {
     source: &'a S,
+    facts: CrmActivityNotificationFacts,
     unit: Unit,
+    boundary: ActivityNotificationBoundary,
     expected: serde_json::Value,
     prior: Vec<serde_json::Value>,
 }
@@ -83,8 +85,12 @@ pub async fn prepare_crm_activity_notification<'a, S: PgCrmActivityNotificationS
     c: &mut PgConnection,
     source: &'a S,
 ) -> Result<PreparedCrmActivityNotification<'a, S>, Error> {
+    let unit = unit(c).await?;
+    let boundary = activity_notification_boundary(c).await?;
+    let facts = source.facts().clone();
     source.require_before(c).await?;
-    let f = source.facts();
+    if source.facts() != &facts { return Err(changed()); }
+    let f = &facts;
     if f.command_key.is_empty()
         || f.company_id.is_empty()
         || f.recipient.is_empty()
@@ -95,11 +101,13 @@ pub async fn prepare_crm_activity_notification<'a, S: PgCrmActivityNotificationS
         return Err(invalid());
     }
     let expected = serde_json::json!({"id":f.id(),"company_id":f.company_id,"user_id":f.recipient,"record_type":"crm_activity","record_id":f.activity_id,"record_version":f.version,"message":f.message(),"created_at":f.updated_at,"read_at":null});
-    let unit = unit(c).await?;
     let prior = conflicts(c, f).await?;
+    if source.facts() != &facts || activity_notification_boundary(c).await? != boundary { return Err(changed()); }
     Ok(PreparedCrmActivityNotification {
         source,
+        facts,
         unit,
+        boundary,
         expected,
         prior,
     })
@@ -109,22 +117,25 @@ impl<S: PgCrmActivityNotificationSource> PreparedCrmActivityNotification<'_, S> 
         self,
         c: &mut PgConnection,
     ) -> Result<RetainedCrmActivityNotification, Error> {
-        if unit(c).await? != self.unit {
+        if unit(c).await? != self.unit || activity_notification_boundary(c).await? != self.boundary || self.source.facts() != &self.facts {
             return Err(changed());
         }
         self.source.require_before(c).await?;
-        let f = self.source.facts();
+        if self.source.facts() != &self.facts { return Err(changed()); }
+        let f = &self.facts;
         if conflicts(c, f).await? != self.prior {
             return Err(changed());
         }
-        let inserted = sqlx::query("INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) VALUES($1,$2,$3,'crm_activity',$4,$5,$6,$7) ON CONFLICT DO NOTHING")
+        let inserted = sqlx::query("INSERT INTO public.staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) VALUES($1,$2,$3,'crm_activity',$4,$5,$6,$7) ON CONFLICT DO NOTHING")
             .bind(f.id()).bind(&f.company_id).bind(&f.recipient).bind(&f.activity_id).bind(f.version).bind(f.message()).bind(f.updated_at).execute(&mut *c).await?.rows_affected();
         if inserted != u64::from(self.prior.is_empty()) {
             return Err(changed());
         }
         self.source.require_after(c).await?;
+        if self.source.facts() != &self.facts || activity_notification_boundary(c).await? != self.boundary { return Err(changed()); }
         let retained = RetainedCrmActivityNotification {
             unit: self.unit,
+            boundary: self.boundary,
             facts: f.clone(),
             expected: if self.prior.is_empty() {
                 vec![self.expected]
@@ -138,22 +149,36 @@ impl<S: PgCrmActivityNotificationSource> PreparedCrmActivityNotification<'_, S> 
 }
 pub struct RetainedCrmActivityNotification {
     unit: Unit,
+    boundary: ActivityNotificationBoundary,
     facts: CrmActivityNotificationFacts,
     expected: Vec<serde_json::Value>,
 }
 impl RetainedCrmActivityNotification {
     pub async fn require_current(&self, c: &mut PgConnection) -> Result<(), Error> {
-        if unit(c).await? != self.unit || conflicts(c, &self.facts).await? != self.expected {
+        if unit(c).await? != self.unit || activity_notification_boundary(c).await? != self.boundary || conflicts(c, &self.facts).await? != self.expected {
             return Err(changed());
         }
         Ok(())
     }
+    /// Revalidate the retained CRM/authority source after later unit effects.
+    pub async fn require_current_with_source<S: PgCrmActivityNotificationSource>(&self, c:&mut PgConnection, source:&S)->Result<(),Error> {
+        if source.facts() != &self.facts { return Err(changed()); }
+        source.require_after(c).await?;
+        if source.facts() != &self.facts { return Err(changed()); }
+        self.require_current(c).await
+    }
+}
+type ActivityNotificationBoundary = (String,String,String,i64);
+async fn activity_notification_boundary(c:&mut PgConnection)->Result<ActivityNotificationBoundary,Error> {
+    let (held,visible,role,session,path,oid):(bool,bool,String,String,String,i64)=sqlx::query_as("SELECT c.relnamespace='public'::regnamespace AND c.relkind IN ('r','p') AND c.relpersistence='p' AND EXISTS(SELECT 1 FROM pg_locks l WHERE l.pid=pg_backend_pid() AND l.locktype='relation' AND l.relation=c.oid AND l.granted AND l.mode IN ('RowExclusiveLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock')),NOT row_security_active(c.oid),current_user::text,session_user::text,current_setting('search_path'),c.oid::bigint FROM pg_class c WHERE c.oid='public.staff_notifications'::regclass").fetch_one(c).await?;
+    if !held || !visible {return Err(invalid());}
+    Ok((role,session,path,oid))
 }
 async fn conflicts(
     c: &mut PgConnection,
     f: &CrmActivityNotificationFacts,
 ) -> Result<Vec<serde_json::Value>, Error> {
-    let rows: Vec<Option<serde_json::Value>> = sqlx::query_scalar("SELECT CASE WHEN octet_length(to_jsonb(n)::text)<=2097152 THEN to_jsonb(n) END FROM staff_notifications n WHERE id=$1 OR (user_id=$2 AND record_type='crm_activity' AND record_id=$3 AND record_version=$4 AND message=$5) ORDER BY id LIMIT 3")
+    let rows: Vec<Option<serde_json::Value>> = sqlx::query_scalar("SELECT CASE WHEN octet_length(to_jsonb(n)::text)<=2097152 THEN to_jsonb(n) END FROM public.staff_notifications n WHERE id=$1 OR (user_id=$2 AND record_type='crm_activity' AND record_id=$3 AND record_version=$4 AND message=$5) ORDER BY id LIMIT 3")
         .bind(f.id()).bind(&f.recipient).bind(&f.activity_id).bind(f.version).bind(f.message()).fetch_all(c).await?;
     if rows.len() > 2 {
         return Err(invalid());

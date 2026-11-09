@@ -1,4 +1,5 @@
 use crate::business_http::BusinessScopeSlugs;
+use erpx_server_identity_access::public::release_reviewers::PgSamePersonReader;
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
     account_inbound_http::parse_inbound_account_request,
@@ -11,18 +12,17 @@ use erpx_server_identity_access::public::{
 use erpx_server_legal::public::legal_records::{
     LegalCommandReply, LegalDetailReply, LegalExportReply, LegalHoldNotice, LegalHoldNotifier,
     LegalHttpBackend, LegalHttpCommandRequest, LegalHttpFuture, LegalHttpRead, LegalHttpReadReply,
-    LegalHttpReadRequest, LegalIdentity, LegalRegisterQuery, LegalRegisterReply,
-    LegalRenderedContext, LegalRecordsActor, PgLegalFuture, PgLegalRecords, legal_command,
-    legal_detail, legal_export, legal_register,
+    LegalHttpReadRequest, LegalIdentity, LegalRecordsActor, LegalRegisterQuery, LegalRegisterReply,
+    LegalRenderedContext, PgLegalFuture, PgLegalRecords, legal_command, legal_detail, legal_export,
+    legal_register,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
     BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, UserId,
 };
-use sqlx::PgConnection;
-use erpx_server_identity_access::public::release_reviewers::PgSamePersonReader;
 use serde_json::Value;
+use sqlx::PgConnection;
 use std::sync::Arc;
 
 type Error = PgTransactionError<BusinessError>;
@@ -107,7 +107,12 @@ fn legal_actor(
         branch_id: workspace.branch_id.clone(),
         department_id: workspace.department_id.clone(),
         role: selected.assignment().role.clone(),
-        permissions: current.command_iam_metadata().permissions.iter().cloned().collect(),
+        permissions: current
+            .command_iam_metadata()
+            .permissions
+            .iter()
+            .cloned()
+            .collect(),
         actor_json: {
             let workspace = selected.workspace();
             let assignment = selected.assignment();
@@ -159,8 +164,14 @@ fn rendered_context(current: &AuthorizedWorkContext) -> LegalRenderedContext {
         user_id: current.user_id().as_str().to_owned(),
         holding_id: current.holding_id().as_str().to_owned(),
         company_id: workspace.company_id.as_str().to_owned(),
-        branch_id: workspace.branch_id.as_ref().map(|value| value.as_str().to_owned()),
-        department_id: workspace.department_id.as_ref().map(|value| value.as_str().to_owned()),
+        branch_id: workspace
+            .branch_id
+            .as_ref()
+            .map(|value| value.as_str().to_owned()),
+        department_id: workspace
+            .department_id
+            .as_ref()
+            .map(|value| value.as_str().to_owned()),
         assignment_id: assignment.id.as_str().to_owned(),
         assignment_version: assignment.version,
         revision: selected.revision(),
@@ -452,14 +463,9 @@ impl<C: Clock + Send + Sync + 'static> LegalService<C> {
                             Some(Arc::new(LegalSamePerson)),
                             Some(Arc::new(LegalHoldNotifierImpl)),
                         );
-                        let data = legal_command(
-                            &mut ports,
-                            &actor,
-                            &command_key,
-                            &request_hash,
-                            &body,
-                        )
-                        .await?;
+                        let data =
+                            legal_command(&mut ports, &actor, &command_key, &request_hash, &body)
+                                .await?;
                         Ok(LegalCommandReply {
                             data,
                             context: rendered_context(current),

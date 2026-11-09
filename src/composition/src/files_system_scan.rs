@@ -1,10 +1,12 @@
 //! Unmounted Files/system assembly. Trusted reviewed binding-key configuration
 //! selects physical leased development databases; request labels/pools do not.
 //! No Person, saved parent or created_by permission is invented for scanning.
+use crate::runtime_database::RuntimeDatabase;
 use erpx_server_files::public::attachment_scan::{
     AttachmentScanEvidence, AttachmentScanFailure, AttachmentScanScope, AttachmentScanSettlement,
-    AttachmentScanTransactions, PreparedAttachmentScan, claim_attachment_scan, claim_field_attachment_scan,
-    fail_current_attachment_scan, prepare_current_attachment_scan, retain_current_attachment_scan,
+    AttachmentScanTransactions, PreparedAttachmentScan, claim_attachment_scan,
+    claim_field_attachment_scan, fail_current_attachment_scan, prepare_current_attachment_scan,
+    retain_current_attachment_scan,
 };
 use erpx_server_identity_access::public::{
     RequestAudience,
@@ -14,7 +16,6 @@ use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, PgRequestLease, PgTransactionError, PgUnitOfWork, PgWorkFuture,
     PoolLimits, TransactionOptions, load_migrations, verify_current_migration_inventory,
 };
-use crate::runtime_database::RuntimeDatabase;
 use erpx_server_shared::public::{BusinessError, Clock, FailureKind, IdentifierSource, RecordId};
 use sqlx::{Connection, PgConnection};
 use std::{
@@ -40,7 +41,9 @@ pub struct DevelopmentFilesScanConfiguration {
 }
 impl DevelopmentFilesScanConfiguration {
     /// Trusted scope data for duplicate configuration checks; not authority.
-    pub fn scope(&self) -> &AttachmentScanScope { &self.scope }
+    pub fn scope(&self) -> &AttachmentScanScope {
+        &self.scope
+    }
     /// Disposable development constructor retained for the existing Files
     /// scan tests and fixtures.
     pub fn new(
@@ -189,12 +192,15 @@ impl<C> Clone for DevelopmentFilesScanTransactions<C> {
     }
 }
 impl<C: Clock + Send + Sync + 'static> DevelopmentFilesScanTransactions<C> {
-    pub fn field_only(mut self) -> Self { self.field_only = true; self }
+    pub fn field_only(mut self) -> Self {
+        self.field_only = true;
+        self
+    }
     /// Persist a bounded fairness cursor before attempting an untrusted source.
     /// This returns data only; the subsequent claim reacquires every witness.
     pub async fn next_field_candidate(&self) -> Result<Option<RecordId>, Error> {
-        let company=self.state.scope.company_id.as_str().to_owned();
-        let now=self.state.clock.now().get();
+        let company = self.state.scope.company_id.as_str().to_owned();
+        let now = self.state.clock.now().get();
         self.phase(move |c| {
             let company=company.clone();
             Box::pin(async move {
@@ -218,8 +224,14 @@ impl<C: Clock + Send + Sync + 'static> DevelopmentFilesScanTransactions<C> {
     pub async fn run_field_cleanup_phase<T, F>(&self, work: F) -> Result<T, Error>
     where
         T: Send + 'static,
-        F: for<'a> Fn(&'a mut PgConnection, &'a AttachmentScanScope) -> PgWorkFuture<'a, T, BusinessError>
-            + Clone + Send + Sync + 'static,
+        F: for<'a> Fn(
+                &'a mut PgConnection,
+                &'a AttachmentScanScope,
+            ) -> PgWorkFuture<'a, T, BusinessError>
+            + Clone
+            + Send
+            + Sync
+            + 'static,
     {
         let scope = self.state.scope.clone();
         self.phase(move |connection| {
@@ -229,7 +241,8 @@ impl<C: Clock + Send + Sync + 'static> DevelopmentFilesScanTransactions<C> {
                 require_field_cleanup_company(connection, &scope.company_id).await?;
                 work(connection, &scope).await
             })
-        }).await
+        })
+        .await
     }
 
     /// Holds the verified Control binding and all reference tables through one
@@ -238,7 +251,12 @@ impl<C: Clock + Send + Sync + 'static> DevelopmentFilesScanTransactions<C> {
     async fn field_cleanup_physical<T, F>(&self, work: F) -> Result<T, Error>
     where
         T: Send + 'static,
-        F: for<'a> FnOnce(&'a mut PgConnection, &'a erpx_server_shared::public::CompanyId) -> PgWorkFuture<'a, T, BusinessError> + Send + 'static,
+        F: for<'a> FnOnce(
+                &'a mut PgConnection,
+                &'a erpx_server_shared::public::CompanyId,
+            ) -> PgWorkFuture<'a, T, BusinessError>
+            + Send
+            + 'static,
     {
         let state = self.state.clone();
         self.state.control.run(move |control| Box::pin(async move {
@@ -421,16 +439,34 @@ pub async fn assemble_development_files_scan<C: Clock + Send + Sync + 'static>(
     }
 }
 
-impl<C: Clock + Send + Sync + 'static> erpx_server_files::public::field_visit_upload::FieldCleanupTransactions for DevelopmentFilesScanTransactions<C> {
+impl<C: Clock + Send + Sync + 'static>
+    erpx_server_files::public::field_visit_upload::FieldCleanupTransactions
+    for DevelopmentFilesScanTransactions<C>
+{
     async fn metadata<T, F>(&self, work: F) -> Result<T, Error>
-    where T: Send + 'static,
-          F: for<'a> Fn(&'a mut PgConnection, &'a erpx_server_shared::public::CompanyId) -> PgWorkFuture<'a, T, BusinessError> + Clone + Send + Sync + 'static,
+    where
+        T: Send + 'static,
+        F: for<'a> Fn(
+                &'a mut PgConnection,
+                &'a erpx_server_shared::public::CompanyId,
+            ) -> PgWorkFuture<'a, T, BusinessError>
+            + Clone
+            + Send
+            + Sync
+            + 'static,
     {
-        self.run_field_cleanup_phase(move |c, scope| work(c, &scope.company_id)).await
+        self.run_field_cleanup_phase(move |c, scope| work(c, &scope.company_id))
+            .await
     }
     async fn physical<T, F>(&self, work: F) -> Result<T, Error>
-    where T: Send + 'static,
-          F: for<'a> FnOnce(&'a mut PgConnection, &'a erpx_server_shared::public::CompanyId) -> PgWorkFuture<'a, T, BusinessError> + Send + 'static,
+    where
+        T: Send + 'static,
+        F: for<'a> FnOnce(
+                &'a mut PgConnection,
+                &'a erpx_server_shared::public::CompanyId,
+            ) -> PgWorkFuture<'a, T, BusinessError>
+            + Send
+            + 'static,
     {
         self.field_cleanup_physical(work).await
     }
@@ -453,13 +489,25 @@ impl<C: Clock + Send + Sync + 'static> AttachmentScanTransactions
             let scope = scope.clone();
             let clock = clock.clone();
             Box::pin(async move {
-                let claim = if field_only { claim_field_attachment_scan(
-                    c,
-                    &scope,
-                    filter.as_ref(),
-                    clock.as_ref(),
-                    &mut Identifiers,
-                ).await? } else { claim_attachment_scan(c,&scope,filter.as_ref(),clock.as_ref(),&mut Identifiers).await? };
+                let claim = if field_only {
+                    claim_field_attachment_scan(
+                        c,
+                        &scope,
+                        filter.as_ref(),
+                        clock.as_ref(),
+                        &mut Identifiers,
+                    )
+                    .await?
+                } else {
+                    claim_attachment_scan(
+                        c,
+                        &scope,
+                        filter.as_ref(),
+                        clock.as_ref(),
+                        &mut Identifiers,
+                    )
+                    .await?
+                };
                 let Some(claim) = claim else {
                     return Ok(None);
                 };
@@ -543,10 +591,15 @@ impl IdentifierSource for Identifiers {
         RecordId::new(uuid::Uuid::new_v4().to_string()).expect("generated UUID")
     }
 }
-async fn require_field_cleanup_company(c: &mut PgConnection, company: &erpx_server_shared::public::CompanyId) -> Result<(), Error> {
+async fn require_field_cleanup_company(
+    c: &mut PgConnection,
+    company: &erpx_server_shared::public::CompanyId,
+) -> Result<(), Error> {
     let current: Option<String> = sqlx::query_scalar("SELECT id FROM organization_nodes WHERE id=$1 AND company_id=$1 AND kind='company' AND status='active' FOR SHARE")
         .bind(company.as_str()).fetch_optional(&mut *c).await?;
-    if current.is_none() { return Err(unavailable().into()) }
+    if current.is_none() {
+        return Err(unavailable().into());
+    }
     Ok(())
 }
 

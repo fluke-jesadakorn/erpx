@@ -26,11 +26,14 @@ use erpx_server_maintenance::public::read::{
     read_maintenance_workspace,
 };
 use erpx_server_maintenance::public::{
-    work_commands::{MaintenanceWorkCommand, NormalizedMaintenanceCreate}, work_wire::MaintenanceChangeAction,
+    work_commands::{MaintenanceWorkCommand, NormalizedMaintenanceCreate},
+    work_wire::MaintenanceChangeAction,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{AssignmentId, BusinessError, Clock, CompanyId, FailureKind, HoldingId};
+use erpx_server_shared::public::{
+    AssignmentId, BusinessError, Clock, CompanyId, FailureKind, HoldingId,
+};
 use erpx_server_shared::public::{IdentifierSource, RecordId};
 use serde_json::Value;
 use sqlx::PgConnection;
@@ -599,16 +602,42 @@ impl<C: Clock + Send + Sync + 'static> MaintenanceBackend<C> {
     ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
         let (proof, mut selection) = self.context(headers)?;
         let revision = unique_request_header(headers, "x-erpx-context-revision")?
-            .ok_or_else(|| BusinessError::invalid("MAINTENANCE_CONTEXT_REQUIRED", "Use the current work revision."))?
+            .ok_or_else(|| {
+                BusinessError::invalid(
+                    "MAINTENANCE_CONTEXT_REQUIRED",
+                    "Use the current work revision.",
+                )
+            })?
             .parse()
-            .map_err(|_| BusinessError::invalid("MAINTENANCE_CONTEXT_REQUIRED", "Use the current work revision."))?;
+            .map_err(|_| {
+                BusinessError::invalid(
+                    "MAINTENANCE_CONTEXT_REQUIRED",
+                    "Use the current work revision.",
+                )
+            })?;
         let assignment = unique_request_header(headers, "x-erpx-context-assignment")?
-            .ok_or_else(|| BusinessError::invalid("MAINTENANCE_CONTEXT_REQUIRED", "Choose the current assignment."))?
+            .ok_or_else(|| {
+                BusinessError::invalid(
+                    "MAINTENANCE_CONTEXT_REQUIRED",
+                    "Choose the current assignment.",
+                )
+            })?
             .to_owned();
-        let assignment_version = unique_request_header(headers, "x-erpx-context-assignment-version")?
-            .ok_or_else(|| BusinessError::invalid("MAINTENANCE_CONTEXT_REQUIRED", "Use the current assignment version."))?
-            .parse()
-            .map_err(|_| BusinessError::invalid("MAINTENANCE_CONTEXT_REQUIRED", "Use the current assignment version."))?;
+        let assignment_version =
+            unique_request_header(headers, "x-erpx-context-assignment-version")?
+                .ok_or_else(|| {
+                    BusinessError::invalid(
+                        "MAINTENANCE_CONTEXT_REQUIRED",
+                        "Use the current assignment version.",
+                    )
+                })?
+                .parse()
+                .map_err(|_| {
+                    BusinessError::invalid(
+                        "MAINTENANCE_CONTEXT_REQUIRED",
+                        "Use the current assignment version.",
+                    )
+                })?;
         selection.expected = Some(ExpectedWorkSelection {
             revision,
             assignment_id: AssignmentId::new(assignment)?,

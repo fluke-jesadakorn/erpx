@@ -12,7 +12,9 @@ pub fn initial_work_role(
     if has_current_row {
         return InitialWorkRole::PreserveCurrent;
     }
-    if let Some(assignment) = preference.and_then(|preference| assignments.iter().find(|a| *a == preference)) {
+    if let Some(assignment) =
+        preference.and_then(|preference| assignments.iter().find(|a| *a == preference))
+    {
         return InitialWorkRole::Select {
             assignment: assignment.clone(),
             restoring: true,

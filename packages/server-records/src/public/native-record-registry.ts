@@ -465,7 +465,13 @@ function writeCall(
     'content-type': 'application/json',
     origin,
     'idempotency-key': key,
+    'x-erpx-context-company': actor.companyId,
+    'x-erpx-context-assignment': actor.assignmentId,
+    'x-erpx-context-revision': String(actor.authority.revision),
+    'x-erpx-context-assignment-version': String(actor.authority.assignmentVersion),
   });
+  if (actor.branchSlug) headers.set('x-erpx-workspace-branch', actor.branchSlug);
+  if (actor.departmentSlug) headers.set('x-erpx-workspace-department', actor.departmentSlug);
   const cookie = incoming.get('cookie');
   if (cookie) {
     if (new TextEncoder().encode(cookie).length > 8192)
@@ -692,14 +698,14 @@ export function createNativeRecordRegistryClient(
       input: NativeRecordWriteInput,
       key: string = crypto.randomUUID(),
       signal?: AbortSignal,
-    ): Promise<Readonly<{ id: string }>> => {
+    ): Promise<NativeRecordView> => {
       const value = await write(incoming, actor, input, key, signal);
       if (!exact(value, ['data', 'context']))
         return failure('NATIVE_RECORD_REGISTRY_RESPONSE_INVALID');
       context(value.context, actor);
-      if (!record(value.data) || !exact(value.data, ['id']) || !boundedId(value.data.id))
+      if (!view(value.data, input.moduleId, input.sectionId))
         return failure('NATIVE_RECORD_REGISTRY_RESPONSE_INVALID');
-      return { id: value.data.id };
+      return value.data;
     },
     page: async (
       incoming: Pick<Headers, 'get'>,

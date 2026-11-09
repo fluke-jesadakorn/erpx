@@ -246,3 +246,45 @@ async fn ordered_decision_detail_detects_changed_pre_action_values_and_rolls_bac
         let n:i64=sqlx::query_scalar("SELECT count(*) FROM inventory_counts WHERE id='detail-count'").fetch_one(pool.raw()).await.unwrap();assert_eq!(n,0);
     }).await;
 }
+
+#[tokio::test]
+async fn unicode_initial_count_owner_draft_lots_and_decision_rollback() {
+    // Synthetic same-unit receipts exercise Inventory effects only; they do
+    // not establish current Identity, Finance, Flow or Workflow provenance.
+    for (tracking,mode,max) in [(TrackingMode::Lot,"lot",100),(TrackingMode::Serial,"serial",160)] {
+        fixture::with_database(2,move |pool| async move {
+            facts::setup(&pool,"none").await;
+            sqlx::query("DELETE FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='product'").execute(pool.raw()).await.unwrap();
+            sqlx::query("INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,currency,created_at,updated_at) VALUES('variance','company','chart','5400','Variance','expense','THB',0,0)").execute(pool.raw()).await.unwrap();
+            sqlx::query("UPDATE commerce_products SET tracking_mode=$1 WHERE id='product'").bind(mode).execute(pool.raw()).await.unwrap();
+            let result=PgUnitOfWork::new(pool.clone()).run::<(),BusinessError,_>(TransactionOptions::default(),move |c|Box::pin(async move {
+                lock_initial_count_inventory_sources(c).await?;
+                sqlx::query("INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) VALUES('setup','fixture.setup','maker','hash','company','{}',0,'{\"companyId\":\"company\"}'),('cmd','inventory.count.create','maker','hash','count-cmd','{\"id\":\"count-cmd\",\"status\":\"draft\",\"version\":1,\"_serviceInitialPhysicalStockCount\":{}}',0,'{\"companyId\":\"company\"}')").execute(&mut *c).await?;
+                let history=read_initial_count_inventory_history(c,"warehouse","product",None).await?;
+                let identity="😀".repeat(max);
+                let allocation=InitialCountLot{lot_code:(tracking==TrackingMode::Lot).then(||identity.clone()),serial_number:(tracking==TrackingMode::Serial).then(||identity.clone()),manufactured_date:None,expiry_date:None,quantity_milli:1000,unit_cost_minor:100};
+                let value=value_initial_count(tracking,1000,None,vec![allocation]).unwrap();
+                let mut draft=InitialCountDraft{proof:InitialCountSourceProof{count_id:"count-cmd".into(),selection:InitialCountSelection{company_id:"company".into(),branch_id:"branch".into(),warehouse_id:"warehouse".into(),product_id:"product".into(),count_date:"2026-01-10".into()},count_command_id:"cmd".into(),service_setup_command_id:"setup".into(),service_setup_request_hash:"hash".into(),finance:InitialCountFinanceBasis{chart_id:"chart".into(),inventory_account_id:"inventory".into(),variance_account_id:"variance".into(),currency:"THB".into()}},product:InitialCountProductSnapshot{version:1,description:"Product".into(),unit:"piece".into(),tracking},reason:String::new(),actor_id:"maker".into(),value,created_at:1};
+                for (n,valid) in [(4,false),(5,true),(2000,true),(2001,false)] {
+                    sqlx::query("SAVEPOINT unicode_candidate").execute(&mut *c).await?;draft.reason="😀".repeat(n);
+                    let staged=insert_initial_count_draft(c,&draft,&history).await;
+                    if valid {
+                        let staged=staged.expect("valid Zod count reason");staged.require_current(c).await?;
+                        let (reason,lot,serial):(String,Option<String>,Option<String>)=sqlx::query_as("SELECT c.reason,l.lot_code,l.serial_number FROM inventory_counts c JOIN inventory_count_lines cl ON cl.count_id=c.id JOIN inventory_count_lot_lines l ON l.count_line_id=cl.id WHERE c.id='count-cmd'").fetch_one(&mut *c).await?;
+                        assert_eq!(reason,draft.reason);assert_eq!(lot.as_deref(),(tracking==TrackingMode::Lot).then_some(identity.as_str()));assert_eq!(serial.as_deref(),(tracking==TrackingMode::Serial).then_some(identity.as_str()));
+                    } else {assert!(staged.is_err());let rows:i64=sqlx::query_scalar("SELECT count(*) FROM inventory_counts WHERE id='count-cmd'").fetch_one(&mut *c).await?;assert_eq!(rows,0);}
+                    sqlx::query("ROLLBACK TO SAVEPOINT unicode_candidate").execute(&mut *c).await?;
+                }
+                draft.reason="😀".repeat(5);let staged=insert_initial_count_draft(c,&draft,&history).await?;staged.require_current(c).await?;
+                sqlx::query("INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) VALUES('unicode-action','inventory.count.action','maker','hash','count-cmd','{}',0,'{\"companyId\":\"company\"}')").execute(&mut *c).await?;
+                let before=read_initial_count_record(c,"company",None,"count-cmd").await?.unwrap();let reason="😀".repeat(2000);
+                let action=InitialCountTransition{count_id:"count-cmd".into(),company_id:"company".into(),tracking,expected_version:1,action:CountAction::Cancel,actor_id:"maker".into(),reason:Some(reason.clone()),command_id:"unicode-action".into(),decision_id:"unicode-decision".into(),journal_id:None,now:2};
+                let retained=apply_initial_count_transition(c,&action,&before).await?;retained.require_current(c).await?;
+                let actual:(String,i64,String)=sqlx::query_as("SELECT c.status,c.version,d.reason FROM inventory_counts c JOIN inventory_count_decisions d ON d.count_id=c.id WHERE c.id='count-cmd' AND d.id='unicode-decision'").fetch_one(&mut *c).await?;assert_eq!(actual,("cancelled".into(),2,reason));
+                Err(BusinessError::invalid("ROLLBACK_FIXTURE","Roll back synthetic sources.").into())
+            })).await;
+            assert!(matches!(result,Err(erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e)) if e.code=="ROLLBACK_FIXTURE"));
+            let counts:(i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM inventory_counts WHERE id='count-cmd'),(SELECT count(*) FROM command_receipts WHERE command_id IN ('cmd','setup'))").fetch_one(pool.raw()).await.unwrap();assert_eq!(counts,(0,0));
+        }).await;
+    }
+}

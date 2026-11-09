@@ -385,9 +385,8 @@ pub struct CustomerTimelinePageData {
     pub has_more: bool,
 }
 
-/// Validate, order and bound the merged source rows. Duplicate IDs and rows at
-/// or newer than the request cursor fail closed rather than silently dropping
-/// source evidence.
+/// Validate and bound rows ordered and cursor-checked by the source repository.
+/// Text ordering must use the source database collation, not Rust byte ordering.
 pub(crate) fn validate_page(
     cursor: Option<&CustomerTimelineCursor>,
     mut source: Vec<CustomerTimelineItem>,
@@ -409,12 +408,13 @@ pub(crate) fn validate_page(
         if !enabled {
             return Err(source_invalid());
         }
-        if cursor.is_some_and(|cursor| (row.at, row.id.as_str()) >= (cursor.at, cursor.id.as_str()))
-        {
+        if cursor.is_some_and(|cursor| row.at > cursor.at) {
             return Err(source_invalid());
         }
     }
-    source.sort_by(|left, right| right.at.cmp(&left.at).then_with(|| right.id.cmp(&left.id)));
+    if source.windows(2).any(|pair| pair[0].at < pair[1].at) {
+        return Err(source_invalid());
+    }
     let mut seen = BTreeSet::new();
     for row in &source {
         if !seen.insert(row.id.clone()) {

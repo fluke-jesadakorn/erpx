@@ -14,7 +14,7 @@ use std::collections::{BTreeMap, BTreeSet};
 type Error = PgTransactionError<BusinessError>;
 
 #[derive(Serialize)]
-#[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub struct NativeServicePackagePreview {
     pub comparison: erpx_server_commercial::public::purchases::GrantBatchPreview,
     pub request: erpx_server_commercial::public::purchases::GrantBatch,
@@ -22,7 +22,7 @@ pub struct NativeServicePackagePreview {
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-#[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub struct NativeServicePackageOverview {
     pub company_id: String,
     #[serde(flatten)]

@@ -349,3 +349,40 @@ async fn utility_source_lease_waits_for_revocation_before_the_first_fresh_snapsh
         assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM attachment_access_events").fetch_one(pool.raw()).await.unwrap(),0);
     }).await;
 }
+
+#[tokio::test]
+async fn count_history_attachment_sources_match_actual_files_version_steps() {
+    use erpx_server_files::public::count_history_attachment_sources::*;
+    use erpx_server_workflow::public::record_origin::*;
+    fixture::with_database(2,|pool|async move {
+        setup(&pool).await;
+        let mut unlocked=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unlocked).await.unwrap();assert!(inspect_count_history_attachment_sources(&mut unlocked).await.is_err());unlocked.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_count_history_attachment_sources(&mut tx).await.unwrap();lock_initial_count_history_receipt_sources(&mut tx).await.unwrap();
+        let files=inspect_count_history_attachment_sources(&mut tx).await.unwrap();let workflow=inspect_initial_count_history_receipt_join(&mut tx).await.unwrap();
+        let target=format!("count-{}","x".repeat(240));
+        for (n,operation,kind) in [(1,"attachment.record.bind","record_document"),(2,"attachment.compatibility.bind","legacy_upload_adapter")] {
+            let set=format!("count-history-set-{n}");let command=format!("count-history-command-{n}");
+            sqlx::query("INSERT INTO public.attachment_sets(id,company_id,target_type,target_id,component_kind,purpose_key,expected_target_version,policy_version,classification,audience_json,state,created_by,created_at,updated_at,bound_at,bound_command_id) VALUES($1,'company','stock_count',$2,'record','count_sheet',$3,1,'internal','{}','bound','user',0,0,1,$4)").bind(&set).bind(&target).bind(n as i64).bind(&command).execute(&mut *tx).await.unwrap();
+            let details=serde_json::json!({"bindingId":target,"bindingType":kind}).to_string();
+            sqlx::query("INSERT INTO public.attachment_events(id,company_id,set_id,actor_id,action,details_json,created_at) VALUES($1,'company',$2,'user','set.bound',$3,1)").bind(format!("count-history-event-{n}")).bind(&set).bind(details).execute(&mut *tx).await.unwrap();
+            let result=if n==1 {serde_json::json!({"setId":set,"version":n+1})}else{serde_json::json!({"attachmentSetId":set,"ownerVersion":n+1})}.to_string();
+            sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES($1,$2,'user','fixture',$3,$4,'{\"companyId\":\"company\"}',1)").bind(&command).bind(operation).bind(&target).bind(result).execute(&mut *tx).await.unwrap();
+        }
+        let node=std::env::var("ERPX_NODE_BIN").unwrap_or_else(|_|"node".into());let dir=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/adapters/record-version-receipts.ts");
+        let script=r#"if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const m=await import(process.argv[1]);process.stdout.write(JSON.stringify(m.recordAttachmentVersionSteps));"#;
+        let output=std::process::Command::new(node).arg("--conditions=react-server").arg("--input-type=module").arg("-e").arg(script).arg(dir).output().unwrap();assert!(output.status.success(),"actual TS: {}",String::from_utf8_lossy(&output.stderr));let actual:String=serde_json::from_slice(&output.stdout).unwrap();
+        let replaced=actual.replace("FROM attachment_sets source","FROM count_history_attachment_sets source").replace("JOIN attachment_events event","JOIN count_history_attachment_events event").replace("JOIN command_receipts command","JOIN initial_count_history_support_receipts command");assert_ne!(actual,replaced);
+        let legacy=format!("SELECT COALESCE(jsonb_agg(to_jsonb(step) ORDER BY step.command_id),'[]'::jsonb)::text FROM ({actual}) step WHERE step.company_id=$1 AND step.target_id=$2");
+        let projected=format!("WITH {}, {} SELECT COALESCE(jsonb_agg(to_jsonb(step) ORDER BY step.command_id),'[]'::jsonb)::text FROM ({replaced}) step WHERE step.company_id=$1 AND step.target_id=$2",files.cte_sql(),workflow.cte_sql());
+        async fn compare(c:&mut PgConnection,a:&str,b:&str,company:&str,target:&str)->serde_json::Value{let expected:String=sqlx::query_scalar(sqlx::AssertSqlSafe(a)).bind(company).bind(target).fetch_one(&mut *c).await.unwrap();let got:String=sqlx::query_scalar(sqlx::AssertSqlSafe(b)).bind(company).bind(target).fetch_one(&mut *c).await.unwrap();let expected:serde_json::Value=serde_json::from_str(&expected).unwrap();let got:serde_json::Value=serde_json::from_str(&got).unwrap();assert_eq!(expected,got);got}
+        assert_eq!(compare(&mut tx,&legacy,&projected,"company",&target).await.as_array().unwrap().len(),2);assert_eq!(compare(&mut tx,&legacy,&projected,"foreign",&target).await.as_array().unwrap().len(),0);
+        files.require_current(&mut tx).await.unwrap();workflow.require_current(&mut tx).await.unwrap();sqlx::query("SAVEPOINT event_drift").execute(&mut *tx).await.unwrap();sqlx::query("INSERT INTO public.attachment_events(id,company_id,set_id,actor_id,action,details_json,created_at) SELECT 'count-history-event-extra',company_id,set_id,actor_id,action,details_json,created_at FROM public.attachment_events WHERE id='count-history-event-2'").execute(&mut *tx).await.unwrap();assert_eq!(compare(&mut tx,&legacy,&projected,"company",&target).await.as_array().unwrap().len(),3);files.require_current(&mut tx).await.unwrap();workflow.require_current(&mut tx).await.unwrap();sqlx::query("ROLLBACK TO SAVEPOINT event_drift").execute(&mut *tx).await.unwrap();assert_eq!(compare(&mut tx,&legacy,&projected,"company",&target).await.as_array().unwrap().len(),2);
+        sqlx::query("SAVEPOINT wrong_actor").execute(&mut *tx).await.unwrap();sqlx::query("INSERT INTO public.attachment_events(id,company_id,set_id,actor_id,action,details_json,created_at) SELECT 'count-history-event-wrong',company_id,set_id,'other',action,details_json,created_at FROM public.attachment_events WHERE id='count-history-event-2'").execute(&mut *tx).await.unwrap();assert_eq!(compare(&mut tx,&legacy,&projected,"company",&target).await.as_array().unwrap().len(),2);sqlx::query("ROLLBACK TO SAVEPOINT wrong_actor").execute(&mut *tx).await.unwrap();
+        sqlx::query("SAVEPOINT wrong_result").execute(&mut *tx).await.unwrap();sqlx::query("UPDATE public.command_receipts SET result_json='{}' WHERE command_id='count-history-command-2'").execute(&mut *tx).await.unwrap();assert_eq!(compare(&mut tx,&legacy,&projected,"company",&target).await.as_array().unwrap().len(),1);sqlx::query("ROLLBACK TO SAVEPOINT wrong_result").execute(&mut *tx).await.unwrap();
+        // Synthetic joins only; all owner guards remain enabled and no data commits.
+        tx.rollback().await.unwrap();
+        let mut saved=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *saved).await.unwrap();sqlx::query("SAVEPOINT files_lock").execute(&mut *saved).await.unwrap();lock_count_history_attachment_sources(&mut saved).await.unwrap();let retained=inspect_count_history_attachment_sources(&mut saved).await.unwrap();sqlx::query("ROLLBACK TO SAVEPOINT files_lock").execute(&mut *saved).await.unwrap();assert!(retained.require_current(&mut saved).await.is_err());saved.rollback().await.unwrap();
+    }).await;
+}

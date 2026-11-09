@@ -18,21 +18,19 @@ use erpx_server_identity_access::public::{
 use erpx_server_pms::public::record_source::read_record_source as read_pms_source;
 use erpx_server_pos::public::record_source::read_record_source as read_pos_source;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{
-    BusinessError, Clock, CompanyId, FailureKind, HoldingId, UserId,
-};
+use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId, UserId};
 use erpx_server_support::public::support_ticket_read::{
     SupportReadScope, SupportRecipient, SupportSourceReference, parse_source_link,
     read_customer_contact_notes, read_evidence_items, read_evidence_ticket,
     read_incident_candidates, read_incident_detail, read_incident_history, read_incident_links,
     read_incident_workspace, read_incident_workspace_tickets, read_order_recipients,
-    read_order_sources, read_sla_alerts, read_sla_policies, read_sla_policy_records,
-    read_sla_tickets, read_session_capabilities, read_session_capability_history,
+    read_order_sources, read_session_capabilities, read_session_capability_history,
     read_session_context, read_session_context_evidence, read_session_history,
-    read_session_tickets, read_session_workspace, read_ticket_actor_eligible, read_ticket_detail,
+    read_session_tickets, read_session_workspace, read_sla_alerts, read_sla_policies,
+    read_sla_policy_records, read_sla_tickets, read_ticket_actor_eligible, read_ticket_detail,
     read_ticket_history, read_ticket_incidents, read_ticket_recipients, read_ticket_workspace,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use sqlx::PgConnection;
 use std::sync::Arc;
 
@@ -542,7 +540,8 @@ impl<C: Clock + Send + Sync + 'static> SupportTicketReadService<C> {
                         };
                         let links = read_incident_links(c, &id).await?;
                         let mut recipients = Vec::new();
-                        if let Some(ticket_id) = links.first().and_then(|link| link["id"].as_str()) {
+                        if let Some(ticket_id) = links.first().and_then(|link| link["id"].as_str())
+                        {
                             require_purchase(
                                 c,
                                 current,
@@ -552,7 +551,8 @@ impl<C: Clock + Send + Sync + 'static> SupportTicketReadService<C> {
                                 CapabilityPurpose::History,
                             )
                             .await?;
-                            let Some(ticket) = read_ticket_detail(c, &scope, ticket_id).await? else {
+                            let Some(ticket) = read_ticket_detail(c, &scope, ticket_id).await?
+                            else {
                                 return Err(ticket_not_found().into());
                             };
                             if !source_visible(
@@ -567,9 +567,7 @@ impl<C: Clock + Send + Sync + 'static> SupportTicketReadService<C> {
                             {
                                 return Err(ticket_not_found().into());
                             }
-                            if settle
-                                && let Some(order_id) = ticket["order_id"].as_str()
-                            {
+                            if settle && let Some(order_id) = ticket["order_id"].as_str() {
                                 require_purchase(
                                     c,
                                     current,
@@ -687,9 +685,7 @@ impl<C: Clock + Send + Sync + 'static> SupportTicketReadService<C> {
                             && scope.branch_id.is_none()
                             && scope.department_id.is_none();
                         let mut policies = Vec::new();
-                        for policy in
-                            read_sla_policy_records(c, &company, &scope.user_id).await?
-                        {
+                        for policy in read_sla_policy_records(c, &company, &scope.user_id).await? {
                             let parsed: Value = serde_json::from_str(&policy.policy_json)
                                 .map_err(|_| invalid_read())?;
                             let can_approve = manage_company
@@ -836,15 +832,16 @@ impl<C: Clock + Send + Sync + 'static> SupportTicketReadService<C> {
                         let scope = support_scope(current);
                         let (rows, _) =
                             session_read(c, current, &catalogue, clock.as_ref(), &scope).await?;
-                        let Some(row) =
-                            rows.iter().find(|row| row["id"].as_str() == Some(id.as_str())).cloned()
+                        let Some(row) = rows
+                            .iter()
+                            .find(|row| row["id"].as_str() == Some(id.as_str()))
+                            .cloned()
                         else {
                             return Err(session_not_found().into());
                         };
                         let capabilities = read_session_capabilities(c, &id).await?;
                         let history = read_session_history(c, &id).await?;
-                        let capability_history =
-                            read_session_capability_history(c, &id).await?;
+                        let capability_history = read_session_capability_history(c, &id).await?;
                         let has_context = capabilities.iter().any(|capability| {
                             capability["code"].as_str() == Some("customer_order_context")
                                 && capability["status"].as_str() == Some("active")
@@ -871,10 +868,8 @@ impl<C: Clock + Send + Sync + 'static> SupportTicketReadService<C> {
                             else {
                                 return Err(capability_required().into());
                             };
-                            let ticket_id = context["ticket_id"]
-                                .as_str()
-                                .unwrap_or_default()
-                                .to_owned();
+                            let ticket_id =
+                                context["ticket_id"].as_str().unwrap_or_default().to_owned();
                             let evidence =
                                 read_session_context_evidence(c, &ticket_id, &id).await?;
                             context["evidence"] = json!(evidence);
@@ -996,16 +991,12 @@ impl<C: Clock + Send + Sync + 'static> SupportTicketReadService<C> {
                         let mutable = source_kind != "field_service"
                             && !attachments_read_only()
                             && actor_eligible
-                            && matches!(
-                                status,
-                                "open" | "in_progress" | "waiting_customer"
-                            );
+                            && matches!(status, "open" | "in_progress" | "waiting_customer");
                         let manage = current.has_permission("support.manage");
                         let can_change = mutable
                             && (manage
                                 || (current.has_permission("support.work")
-                                    && row["owner_id"].as_str()
-                                        == Some(scope.user_id.as_str())
+                                    && row["owner_id"].as_str() == Some(scope.user_id.as_str())
                                     && row["owner_eligible"].as_i64().unwrap_or(0) > 0));
                         let can_share = mutable && manage;
                         Ok(json!({
@@ -1122,7 +1113,10 @@ fn support_scope(current: &AuthorizedWorkContext) -> SupportReadScope {
     let assignment = selection.assignment();
     SupportReadScope {
         company_id: workspace.company_id.clone(),
-        branch_id: workspace.branch_id.as_ref().map(|value| value.as_str().into()),
+        branch_id: workspace
+            .branch_id
+            .as_ref()
+            .map(|value| value.as_str().into()),
         department_id: workspace
             .department_id
             .as_ref()
@@ -1168,10 +1162,7 @@ async fn require_purchase<C: Clock>(
             clock.now(),
         )
         .await?;
-    inspection
-        .require_allowed()
-        .map(|_| ())
-        .map_err(Into::into)
+    inspection.require_allowed().map(|_| ()).map_err(Into::into)
 }
 
 async fn purchase_allowed<C: Clock>(
@@ -1267,15 +1258,7 @@ async fn source_visible<C: Clock>(
             {
                 return Ok(false);
             }
-            if !source_purchase_allowed(
-                c,
-                current,
-                catalogue,
-                clock,
-                "pos.sales",
-            )
-            .await?
-            {
+            if !source_purchase_allowed(c, current, catalogue, clock, "pos.sales").await? {
                 return Ok(false);
             }
             let Some(source) = read_pos_source(c, company, &id).await? else {
@@ -1290,22 +1273,11 @@ async fn source_visible<C: Clock>(
         }
         "asset" => {
             if !current.has_permission("records.read")
-                || !current
-                    .modules()
-                    .iter()
-                    .any(|module| module == "assets")
+                || !current.modules().iter().any(|module| module == "assets")
             {
                 return Ok(false);
             }
-            if !source_purchase_allowed(
-                c,
-                current,
-                catalogue,
-                clock,
-                "assets.register",
-            )
-            .await?
-            {
+            if !source_purchase_allowed(c, current, catalogue, clock, "assets.register").await? {
                 return Ok(false);
             }
             let Some(source) = read_asset_source(c, company, &id).await? else {
@@ -1324,15 +1296,7 @@ async fn source_visible<C: Clock>(
             {
                 return Ok(false);
             }
-            if !source_purchase_allowed(
-                c,
-                current,
-                catalogue,
-                clock,
-                "pms.front-desk",
-            )
-            .await?
-            {
+            if !source_purchase_allowed(c, current, catalogue, clock, "pms.front-desk").await? {
                 return Ok(false);
             }
             let Some(source) = read_pms_source(c, company, &id).await? else {

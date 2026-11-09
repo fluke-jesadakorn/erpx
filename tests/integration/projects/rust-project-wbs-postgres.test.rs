@@ -315,3 +315,59 @@ async fn policy_and_selected_context_fail_closed_before_source_reads() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn project_graph_reads_captured_minutes_and_rejects_unsafe_raw_actual_fields() {
+    use erpx_server_projects::public::project_graph::PgProjectGraphRead;
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        sqlx::raw_sql("INSERT INTO staff_project_work_logs(id,company_id,project_id,user_id,work_date,minutes,state,version,reviewed_by,reviewed_at,created_at,updated_at) VALUES('graph-source','company','project-owned','other','2026-01-01',10,'approved',1,'owner',1,1,1); INSERT INTO staff_project_package_actuals(id,company_id,project_id,milestone_id,source_kind,source_id,source_version,minutes,amount_minor,currency,linked_by,linked_at) VALUES('graph-actual','company','project-owned','m-child','work_log','graph-source',1,10,NULL,NULL,'owner',1); UPDATE staff_project_work_logs SET minutes=20,version=2 WHERE id='graph-source'").execute(&mut *tx).await.unwrap();
+        let actuals=PgProjectGraphRead::new(&mut tx).actuals(&CompanyId::new("company").unwrap(),"project-owned","owner").await.unwrap();
+        let stale=actuals.iter().find(|row|row.id=="graph-actual").unwrap();
+        assert_eq!((stale.minutes,stale.source_version,stale.current_source_version),(Some(10),1,2));
+        assert!(!stale.current());
+        // linked_at is not displayed but is part of legacy SELECT a.* and
+        // node-pg rejects unsafe BIGINT before applying visibility filters.
+        sqlx::raw_sql("INSERT INTO staff_project_work_logs(id,company_id,project_id,user_id,work_date,minutes,state,version,reviewed_by,reviewed_at,created_at,updated_at) VALUES('unsafe-source','company','project-owned','other','2026-01-02',10,'approved',1,'owner',1,1,1); INSERT INTO staff_project_package_actuals(id,company_id,project_id,milestone_id,source_kind,source_id,source_version,minutes,amount_minor,currency,linked_by,linked_at) VALUES('unsafe-actual','company','project-owned','m-child','work_log','unsafe-source',1,10,NULL,NULL,'owner',9007199254740992)").execute(&mut *tx).await.unwrap();
+        let result=PgProjectGraphRead::new(&mut tx).actuals(&CompanyId::new("company").unwrap(),"project-owned","unrelated").await;
+        assert!(matches!(result,Err(PgTransactionError::Persistence(ref e)) if e.code=="DATABASE_NUMBER_OUT_OF_RANGE"));
+        tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn graph_omits_deleted_and_foreign_reused_actual_source() {
+    use erpx_server_projects::public::project_graph::PgProjectGraphRead;
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        sqlx::raw_sql("INSERT INTO staff_project_work_logs(id,company_id,project_id,user_id,work_date,minutes,state,version,reviewed_by,reviewed_at,created_at,updated_at) VALUES('removed-source','company','project-owned','other','2026-01-01',10,'approved',1,'owner',1,1,1); INSERT INTO staff_project_package_actuals(id,company_id,project_id,milestone_id,source_kind,source_id,source_version,minutes,amount_minor,currency,linked_by,linked_at) VALUES('orphan-actual','company','project-owned','m-child','work_log','removed-source',1,10,NULL,NULL,'owner',1)").execute(&mut *tx).await.unwrap();
+        let company=CompanyId::new("company").unwrap();
+        assert_eq!(PgProjectGraphRead::new(&mut tx).actuals(&company,"project-owned","owner").await.unwrap().len(),1);
+        sqlx::query("DELETE FROM staff_project_work_logs WHERE id='removed-source'").execute(&mut *tx).await.unwrap();
+        assert!(PgProjectGraphRead::new(&mut tx).actuals(&company,"project-owned","owner").await.unwrap().is_empty());
+        sqlx::query("INSERT INTO staff_project_work_logs(id,company_id,project_id,user_id,work_date,minutes,state,version,reviewed_by,reviewed_at,created_at,updated_at) VALUES('removed-source','foreign','project-foreign','owner','2026-01-01',10,'approved',1,'owner',1,1,1)").execute(&mut *tx).await.unwrap();
+        let foreign_reused=PgProjectGraphRead::new(&mut tx).actuals(&company,"project-owned","owner").await.unwrap();
+        assert!(foreign_reused.is_empty(), "foreign source must be indistinguishable from missing and never returned");
+        tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn graph_cost_sources_do_not_reveal_foreign_company_journals() {
+    use erpx_server_projects::public::project_graph::PgProjectGraphRead;
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let mut tx=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        sqlx::raw_sql("INSERT INTO finance_charts(id,company_id,name,base_currency,created_by,created_at,updated_at) VALUES('graph-chart-own','company','Own','THB','owner',0,0),('graph-chart-foreign','foreign','Foreign','THB','owner',0,0); INSERT INTO finance_periods(id,company_id,name,start_date,end_date,created_at) VALUES('graph-period-own','company','Own','2026-01-01','2026-12-31',0),('graph-period-foreign','foreign','Foreign','2026-01-01','2026-12-31',0); INSERT INTO finance_accounts(id,company_id,chart_id,code,name,category,created_at,updated_at) VALUES('graph-account-own','company','graph-chart-own','100','Own','asset',0,0),('graph-account-foreign','foreign','graph-chart-foreign','100','Foreign','asset',0,0); INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,status,created_by,created_at,updated_at) VALUES('graph-journal-own','company','graph-chart-own','graph-period-own','OWN','2026-01-01','THB','posted','owner',0,0),('graph-journal-foreign','foreign','graph-chart-foreign','graph-period-foreign','FOREIGN','2026-01-01','THB','posted','owner',0,0); INSERT INTO finance_journal_lines(id,journal_id,account_id,debit_minor,credit_minor,ordinal) VALUES('graph-line-own','graph-journal-own','graph-account-own',100,0,0),('graph-line-foreign','graph-journal-foreign','graph-account-foreign',100,0,0); INSERT INTO staff_project_cost_allocations(id,company_id,project_id,journal_line_id,amount_minor,state,version,created_by,approved_by,created_at,updated_at) VALUES('graph-cost-own','company','project-owned','graph-line-own',100,'approved',1,'owner','other',0,0),('graph-cost-foreign','company','project-owned','graph-line-foreign',100,'approved',1,'owner','other',0,0); INSERT INTO staff_project_package_actuals(id,company_id,project_id,milestone_id,source_kind,source_id,source_version,amount_minor,currency,linked_by,linked_at) VALUES('graph-cost-actual-own','company','project-owned','m-child','cost_allocation','graph-cost-own',1,100,'THB','owner',1),('graph-cost-actual-foreign','company','project-owned','m-child','cost_allocation','graph-cost-foreign',1,100,'THB','owner',1)").execute(&mut *tx).await.unwrap();
+        let rows=PgProjectGraphRead::new(&mut tx).actuals(&CompanyId::new("company").unwrap(),"project-owned","owner").await.unwrap();
+        assert_eq!(rows.len(),1);
+        assert_eq!((rows[0].id.as_str(),rows[0].journal_id.as_deref(),rows[0].journal_status.as_deref()),("graph-cost-actual-own",Some("graph-journal-own"),Some("posted")));
+        assert!(!rows.iter().any(|row|row.journal_id.as_deref()==Some("graph-journal-foreign")));
+        tx.rollback().await.unwrap();
+    }).await;
+}

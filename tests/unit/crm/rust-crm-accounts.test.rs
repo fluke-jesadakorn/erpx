@@ -2,8 +2,9 @@
 //! application delegation against an in-memory fake. No PostgreSQL, no
 //! purchase check, no HTTP. The TS runtime stays authoritative.
 use erpx_server_crm::public::accounts::{
-    AccountCreateInput, AccountCreatePlan, AccountCreateRepository, AccountsFuture, create_account,
-    validate_account_create,
+    AccountCreateInput, AccountCreatePlan, AccountCreateRepository, AccountLinkFinanceActor,
+    AccountLinkFinanceInput, AccountLinkFinancePlan, AccountLinkFinanceRepository, AccountsFuture,
+    create_account, link_account_finance, validate_account_create, validate_account_link_finance,
 };
 use erpx_server_crm::public::pipeline::CrmPipelineActor;
 use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, TimestampMillis};
@@ -145,4 +146,95 @@ async fn application_surfaces_validation_errors_without_repository_write() {
     .unwrap_err();
     assert_eq!(err.code, "CRM_ACCOUNT_INPUT_INVALID");
     assert!(repo.inserted.is_none());
+}
+
+fn link_input() -> AccountLinkFinanceInput {
+    serde_json::from_value(json!({
+        "action": "link-finance", "accountId": "account-1",
+        "customerId": "customer-1", "expectedVersion": 1,
+        "evidence": "  Independent customer review  "
+    }))
+    .unwrap()
+}
+
+fn reviewer() -> AccountLinkFinanceActor {
+    AccountLinkFinanceActor {
+        user_id: "reviewer".into(),
+        company_id: "company".into(),
+        branch_id: Some("branch".into()),
+        department_id: None,
+        can_review: true,
+    }
+}
+
+struct LinkFake {
+    linked: Option<(AccountLinkFinanceActor, AccountLinkFinancePlan, i64)>,
+}
+
+impl AccountLinkFinanceRepository for LinkFake {
+    type Error = BusinessError;
+
+    fn link_finance<'a>(
+        &'a mut self,
+        actor: &'a AccountLinkFinanceActor,
+        plan: &'a AccountLinkFinancePlan,
+        now: i64,
+    ) -> AccountsFuture<'a, (), Self::Error> {
+        self.linked = Some((actor.clone(), plan.clone(), now));
+        Box::pin(async { Ok(()) })
+    }
+}
+
+#[test]
+fn link_finance_trims_evidence_and_requires_independent_reviewer() {
+    let plan = validate_account_link_finance(&reviewer(), &link_input()).unwrap();
+    assert_eq!(plan.evidence, "Independent customer review");
+    let mut no_review = reviewer();
+    no_review.can_review = false;
+    assert_eq!(
+        validate_account_link_finance(&no_review, &link_input())
+            .unwrap_err()
+            .code,
+        "CRM_ACCOUNT_REVIEW_REQUIRED"
+    );
+    let long = "😀".repeat(2_001);
+    for evidence in ["  ", long.as_str()] {
+        let mut input = link_input();
+        input.evidence = evidence.into();
+        assert_eq!(
+            validate_account_link_finance(&reviewer(), &input)
+                .unwrap_err()
+                .code,
+            "CRM_ACCOUNT_INPUT_INVALID"
+        );
+    }
+    let mut wrong = link_input();
+    wrong.action = "create-account".into();
+    assert_eq!(
+        validate_account_link_finance(&reviewer(), &wrong)
+            .unwrap_err()
+            .code,
+        "CRM_ACCOUNT_ACTION_INVALID"
+    );
+    let mut version = link_input();
+    version.expected_version = 0;
+    assert_eq!(
+        validate_account_link_finance(&reviewer(), &version)
+            .unwrap_err()
+            .code,
+        "CRM_ACCOUNT_INPUT_INVALID"
+    );
+}
+
+#[tokio::test]
+async fn link_finance_application_delegates_the_retained_plan() {
+    let mut repo = LinkFake { linked: None };
+    let plan = link_account_finance(&reviewer(), &link_input(), &mut repo, NOW.get())
+        .await
+        .unwrap();
+    assert_eq!(plan.account_id, "account-1");
+    let (actor, saved, now) = repo.linked.unwrap();
+    assert_eq!(actor.user_id, "reviewer");
+    assert_eq!(saved, plan);
+    assert_eq!(now, NOW.get());
 }

@@ -1,13 +1,13 @@
 //! Native Field receipt confirmation; all effects remain on the selected unit.
 use crate::finance_service_receipt_files::PaymentProofOwner;
-use erpx_server_commercial::public::purchases::{
-    CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
-    PurchaseWitness,
-};
 use crate::{
     finance_journal_create::{FinanceJournalCreateConfiguration, Ids},
     finance_journal_review::{command_actor, finance_actor},
     finance_service_receipt_create::{ReceiptSources, field_invoice},
+};
+use erpx_server_commercial::public::purchases::{
+    CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
+    PurchaseWitness,
 };
 use erpx_server_files::public::payment_proof_binding::*;
 use erpx_server_finance::public::{service_receipt::*, *};
@@ -240,7 +240,10 @@ impl<C: Clock + Send + Sync> PgCommandAuthority for GenericConfirmAuthority<'_, 
             if *purpose != CapabilityPurpose::SettleExisting {
                 return Err(changed().into());
             }
-            reader.revalidate(witness, self.clock.now()).await?.require_allowed()?;
+            reader
+                .revalidate(witness, self.clock.now())
+                .await?
+                .require_allowed()?;
             return Ok(());
         }
         let found = reader
@@ -407,7 +410,9 @@ impl<C: Clock + Send + Sync> PgOwnerCommandEffects for Effects<'_, C> {
         })?;
         let result: serde_json::Value =
             serde_json::from_str(result.as_str()).map_err(|_| changed())?;
-        let field_import = result.get("settlementPaymentId").is_some_and(|value| !value.is_null());
+        let field_import = result
+            .get("settlementPaymentId")
+            .is_some_and(|value| !value.is_null());
         if result["id"] != statement_id
             || field_import && result["settlementPaymentId"] != r.record_id
         {
@@ -512,13 +517,12 @@ impl<C: Clock + Send + Sync> PgOwnerCommandEffects for Effects<'_, C> {
                 .await?,
         );
         self.decision.as_ref().ok_or_else(changed)?.apply(c).await?;
-        let kind: String = sqlx::query_scalar(
-            "SELECT kind FROM finance_payments WHERE id=$1 AND company_id=$2",
-        )
-        .bind(&r.record_id)
-        .bind(self.current.selection().workspace().company_id.as_str())
-        .fetch_one(&mut *c)
-        .await?;
+        let kind: String =
+            sqlx::query_scalar("SELECT kind FROM finance_payments WHERE id=$1 AND company_id=$2")
+                .bind(&r.record_id)
+                .bind(self.current.selection().workspace().company_id.as_str())
+                .fetch_one(&mut *c)
+                .await?;
         if kind == "receipt" {
             self.receipt = Some(
                 issue_customer_receipt(
@@ -728,12 +732,18 @@ where
             },
         )
         .await
-        .map_err(|error|match error {
+        .map_err(|error| match error {
             // Keep the original Finance error contract for a revoked selected
             // Treasury assignment, including exact receipt replay. The IAM
             // denial is retained; no historical command grants current access.
-            PgTransactionError::Business(e) if e.code=="WORK_ROLE_UNAVAILABLE" =>
-                BusinessError::new(FailureKind::Forbidden,"FINANCE_ACCESS_CHANGED","The selected Finance access changed. Refresh the current Company role.").into(),
-            other=>other,
+            PgTransactionError::Business(e) if e.code == "WORK_ROLE_UNAVAILABLE" => {
+                BusinessError::new(
+                    FailureKind::Forbidden,
+                    "FINANCE_ACCESS_CHANGED",
+                    "The selected Finance access changed. Refresh the current Company role.",
+                )
+                .into()
+            }
+            other => other,
         })
 }

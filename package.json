@@ -165,6 +165,7 @@
     "eslint": "10.13.0",
     "eslint-config-next": "16.4.3",
     "tailwindcss": "4.3.3",
+    "tsx": "4.23.15",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "vitest": "5.0.5",
     "wrangler": "4.152.0",

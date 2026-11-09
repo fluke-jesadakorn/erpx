@@ -75,6 +75,19 @@ pub async fn lock_initial_count_finance_sources(c: &mut PgConnection) -> Result<
     sqlx::query("LOCK TABLE finance_journals,finance_journal_lines,finance_book_postings,finance_financial_events,money_transaction_snapshots IN SHARE ROW EXCLUSIVE MODE").execute(&mut *c).await?;
     Ok(())
 }
+/// Count-specific utility fence for a retryable whole unit. Acquire before the
+/// first snapshot; a failed lock aborts the transaction and the caller must
+/// discard the entire unit, never retry a statement within its old snapshot.
+pub async fn lock_initial_count_finance_sources_nowait(c: &mut PgConnection) -> Result<(), Error> {
+    if !c.is_in_transaction() {
+        return Err(PersistenceError::new("FINANCE_OWNER_TRANSACTION_REQUIRED").into());
+    }
+    sqlx::query("LOCK TABLE finance_charts,finance_accounts,finance_periods,company_money_settings,company_currency_scales,company_fx_rates IN SHARE MODE NOWAIT")
+        .execute(&mut *c).await.map_err(PersistenceError::pre_snapshot_lock_conflict)?;
+    sqlx::query("LOCK TABLE finance_journals,finance_journal_lines,finance_book_postings,finance_financial_events,money_transaction_snapshots IN SHARE ROW EXCLUSIVE MODE NOWAIT")
+        .execute(&mut *c).await.map_err(PersistenceError::pre_snapshot_lock_conflict)?;
+    Ok(())
+}
 /// Read only after the caller has retained the actual Commerce mapping and
 /// acquired all owner locks in their agreed order. `basis` is not a grant.
 pub async fn read_initial_count_finance(

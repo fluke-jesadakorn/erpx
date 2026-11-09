@@ -32,9 +32,17 @@ async fn recipient_composes_current_identity_and_dated_people_in_one_unit() {
         let request = || SalesRecipientRequest { company_id: CompanyId::new("company").unwrap(), user_id: "sales-user".into(), branch_id: "branch".into(), department_id: None };
         let eligible = inspect_sales_recipient(&mut tx, &locks, request()).await.unwrap();
         assert!(eligible.is_eligible());
+        assert_eq!((eligible.request().company_id.as_str(), eligible.request().user_id.as_str(), eligible.request().branch_id.as_str(), eligible.request().department_id.as_deref()), ("company", "sales-user", "branch", None));
         eligible.require_current(&mut tx).await.unwrap();
+        let mut other = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+        assert!(eligible.require_current(&mut other).await.is_err());
+        other.rollback().await.unwrap();
         let wrong_company = SalesRecipientRequest { company_id: CompanyId::new("foreign").unwrap(), ..request() };
-        assert!(!inspect_sales_recipient(&mut tx, &locks, wrong_company).await.unwrap().is_eligible());
+        let foreign = inspect_sales_recipient(&mut tx, &locks, wrong_company).await.unwrap();
+        assert!(!foreign.is_eligible());
+        assert_eq!(foreign.request().company_id.as_str(), "foreign");
+        assert_ne!(foreign.request().company_id.as_str(), eligible.request().company_id.as_str());
         sqlx::query("UPDATE hr_engagements SET start_date='9999-01-01' WHERE id='sales-engagement'").execute(&mut *tx).await.unwrap();
         assert!(!inspect_sales_recipient(&mut tx, &locks, request()).await.unwrap().is_eligible());
         assert!(eligible.require_current(&mut tx).await.is_err());

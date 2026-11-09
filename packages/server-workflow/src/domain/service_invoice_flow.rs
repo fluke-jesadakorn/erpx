@@ -1,7 +1,9 @@
 //! Finite Field invoice routing, with current participants supplied by owners.
 //! These rendering decisions grant no Finance write permission.
 use serde_json::Value;
-fn string(value: &str) -> Value { Value::String(value.to_owned()) }
+fn string(value: &str) -> Value {
+    Value::String(value.to_owned())
+}
 // The renderer is the fixed public contract for the invoice/journal Flow.
 #[allow(clippy::too_many_arguments)]
 pub fn service_invoice_flow_view(
@@ -69,17 +71,27 @@ pub fn service_invoice_flow_view(
         } else {
             "upcoming"
         };
-        let team_name=primary.and_then(|p|p["teamName"].as_str()).map(str::to_owned).unwrap_or_else(||role_names[index].replace('_'," "));
-        let mut step=serde_json::Map::new();
-        step.insert("key".into(),string(keys[index]));
-        step.insert("action".into(),string(actions[index]));
-        step.insert("role".into(),string(role_names[index]));
-        step.insert("allowedRoles".into(),Value::Array(if index==0{vec![string("finance_approver"),string("holding_owner")]}else{vec![string("treasury")]}));
-        step.insert("teamName".into(),Value::String(team_name));
-        step.insert("primary".into(),primary.cloned().unwrap_or(Value::Null));
-        step.insert("candidates".into(),Value::Array(pool.clone()));
-        step.insert("status".into(),string(status));
-        step.insert("blocker".into(),blocker.map_or(Value::Null,string));
+        let team_name = primary
+            .and_then(|p| p["teamName"].as_str())
+            .map(str::to_owned)
+            .unwrap_or_else(|| role_names[index].replace('_', " "));
+        let mut step = serde_json::Map::new();
+        step.insert("key".into(), string(keys[index]));
+        step.insert("action".into(), string(actions[index]));
+        step.insert("role".into(), string(role_names[index]));
+        step.insert(
+            "allowedRoles".into(),
+            Value::Array(if index == 0 {
+                vec![string("finance_approver"), string("holding_owner")]
+            } else {
+                vec![string("treasury")]
+            }),
+        );
+        step.insert("teamName".into(), Value::String(team_name));
+        step.insert("primary".into(), primary.cloned().unwrap_or(Value::Null));
+        step.insert("candidates".into(), Value::Array(pool.clone()));
+        step.insert("status".into(), string(status));
+        step.insert("blocker".into(), blocker.map_or(Value::Null, string));
         steps.push(Value::Object(step));
     }
     let index = steps.iter().position(|s| s["status"] == "current");
@@ -94,7 +106,10 @@ pub fn service_invoice_flow_view(
     };
     let can_act = blocker.is_null()
         && index.is_some_and(|i| roles[i] && steps[i]["primary"]["userId"].as_str() == Some(actor));
-    let next = index.and_then(|i| steps.get(i + 1)).cloned().unwrap_or(Value::Null);
+    let next = index
+        .and_then(|i| steps.get(i + 1))
+        .cloned()
+        .unwrap_or(Value::Null);
     let current = step.cloned().unwrap_or(Value::Null);
     let mut view = serde_json::Map::new();
     view.insert("kind".into(), string("invoice"));

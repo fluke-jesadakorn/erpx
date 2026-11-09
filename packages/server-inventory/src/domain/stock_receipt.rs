@@ -177,7 +177,10 @@ pub struct StockReceiptPlan {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StockReceiptQualityRequest {
     pub allocation_index: usize,
+    /// Inventory allocation row ID (`lot-allocation-...`).
     pub allocation_id: String,
+    /// Legacy Quality hold source ID (without the allocation row prefix).
+    pub source_id: String,
     pub company_id: String,
     pub branch_id: String,
     pub warehouse_id: String,
@@ -234,16 +237,6 @@ fn conflict(code: &'static str, message: &'static str) -> BusinessError {
     BusinessError::new(FailureKind::Conflict, code, message)
 }
 
-fn required(value: &Option<String>, max: usize) -> Result<String, BusinessError> {
-    match value.as_ref() {
-        Some(text) if !text.is_empty() && text.len() <= max => Ok(text.clone()),
-        _ => Err(invalid(
-            "STOCK_RECEIPT_IDENTITY_REQUIRED",
-            "Enter the lot or serial identity for every allocation.",
-        )),
-    }
-}
-
 /// ECMAScript String.prototype.trim whitespace, used by retained Zod schemas.
 pub(crate) fn js_trim(value: &str) -> &str {
     value.trim_matches(|c: char| {
@@ -295,7 +288,8 @@ fn required_identity(value: &Option<String>, max: usize) -> Result<String, Busin
 fn optional(value: &Option<String>, max: usize) -> Result<Option<String>, BusinessError> {
     match value.as_ref() {
         None => Ok(None),
-        Some(text) if !text.is_empty() && text.len() <= max => Ok(Some(text.clone())),
+        Some(text) if text.is_empty() => Ok(None),
+        Some(text) if text.len() <= max && super::service_initial_physical_count::valid_date(text) => Ok(Some(text.clone())),
         _ => Err(invalid(
             "STOCK_RECEIPT_DATE_INVALID",
             "Use a bounded manufactured, expiry or review date.",
@@ -433,24 +427,17 @@ pub fn validate_stock_receipt_plan(plan: &StockReceiptPlan) -> Result<(), Busine
                     .quarantine_reason
                     .as_deref()
                     .map(js_trim)
-                    .filter(|reason| (3..=2_000).contains(&cp_len(reason)));
+                    .filter(|reason| (1..=2_000).contains(&cp_len(reason)));
                 if quarantined {
-                    let due = allocation
-                        .quarantine_due_date
-                        .as_deref()
-                        .filter(|due| !due.is_empty() && due.len() <= 40);
-                    if reason.is_none() || due.is_none_or(|due| due < plan.date.as_str()) {
+                    let due = optional(&allocation.quarantine_due_date, 40)?;
+                    if reason.is_none() || due.is_none() {
                         return Err(invalid(
                             "QUARANTINE_EVIDENCE_REQUIRED",
                             "Quarantined receipt allocations require a reason and review due date.",
                         ));
                     }
-                } else if allocation.quarantine_reason.is_some() {
-                    return Err(invalid(
-                        "QUARANTINE_EVIDENCE_REQUIRED",
-                        "Available receipt allocations cannot carry quarantine evidence.",
-                    ));
                 }
+                if allocation.quarantine_reason.as_deref().is_some_and(|value| cp_len(js_trim(value))>2_000) { return Err(invalid("QUARANTINE_EVIDENCE_REQUIRED","Use bounded quarantine evidence.")); }
                 optional(&allocation.quarantine_due_date, 40)?;
                 optional(&allocation.manufactured_date, 40)?;
                 optional(&allocation.expiry_date, 40)?;
@@ -736,25 +723,20 @@ pub fn prepare_stock_receipt(
                     "This lot is quarantined. Receive it as quarantine or complete Quality release first.",
                 ));
             }
+            if allocation.quarantine_reason.as_deref().is_some_and(|value|cp_len(js_trim(value))>2_000) { return Err(invalid("QUARANTINE_EVIDENCE_REQUIRED","Use bounded quarantine evidence.")); }
             let quarantine_reason = if allocation.disposition == ReceiptDisposition::Quarantine {
                 let reason = allocation
                     .quarantine_reason
                     .as_deref()
                     .map(js_trim)
-                    .filter(|reason| (3..=2_000).contains(&cp_len(reason)))
+                    .filter(|reason| (1..=2_000).contains(&cp_len(reason)))
                     .ok_or_else(|| {
                         invalid(
                             "QUARANTINE_EVIDENCE_REQUIRED",
                             "Quarantined receipt allocations require a reason and review due date.",
                         )
                     })?;
-                let due = required(&allocation.quarantine_due_date, 40)?;
-                if due < input.date {
-                    return Err(invalid(
-                        "QUARANTINE_EVIDENCE_REQUIRED",
-                        "The quarantine review date cannot precede the receipt.",
-                    ));
-                }
+                optional(&allocation.quarantine_due_date, 40)?.ok_or_else(|| invalid("QUARANTINE_EVIDENCE_REQUIRED","Quarantined receipt allocations require a reason and review due date."))?;
                 Some(reason.to_owned())
             } else {
                 None
@@ -813,6 +795,7 @@ pub fn quality_request(
     line: &StockReceiptLinePlan,
     allocation: &StockReceiptAllocationPlan,
     allocation_id: String,
+    source_id: String,
     lot_id: String,
 ) -> Option<StockReceiptQualityRequest> {
     if allocation.disposition != ReceiptDisposition::Quarantine {
@@ -821,6 +804,7 @@ pub fn quality_request(
     Some(StockReceiptQualityRequest {
         allocation_index: allocation.allocation_index,
         allocation_id,
+        source_id,
         company_id: plan.company_id.clone(),
         branch_id: plan.branch_id.clone(),
         warehouse_id: plan.warehouse_id.clone(),

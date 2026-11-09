@@ -5,9 +5,7 @@ use crate::finance_journal_review::finance_actor;
 use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
 };
-use erpx_server_finance::public::service_receipt::{
-    service_payment_routing_facts,
-};
+use erpx_server_finance::public::service_receipt::service_payment_routing_facts;
 use erpx_server_identity_access::public::effective_authority::AuthorizedWorkContext;
 use erpx_server_identity_access::public::selected_command_authority::require_selected_actor_current;
 use erpx_server_runtime::public::postgres::PgTransactionError;

@@ -2,9 +2,10 @@
 //! partition; no legacy source/permission decision can authorize these rows.
 use crate::{
     field_collaboration_command::FieldCollaborationTarget,
-    field_collaboration_read::{component, visible},
+    field_collaboration_read::{component, visible_with_purchase_locks},
     field_service_records_source::{
-        FieldCollaborationSources, FieldRecordsSourcePort, PreparedRecordsSource,
+        FieldRecordsSourcePort, PreparedRecordsSource,
+        lock_field_collaboration_sources_without_commercial,
     },
     field_service_reservation_read::{
         FieldServiceRenderedContext, ReplyBudget, context, selected_read_context,
@@ -39,16 +40,27 @@ impl HoldingWorkSourcePreparation for InboxSources {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
             if let Some(environment) = &self.initial_count {
-                environment.sources().prepare(c).await?;
+                let sources = environment.sources();
+                let mut preparation = sources.lock_sources(c).await?;
+                lock_inbox_remaining_sources(preparation.connection()).await?;
+                preparation.bind().await
+            } else {
+                drop(
+                    erpx_server_commercial::public::purchases::lock_purchase_read_sources(c)
+                        .await?,
+                );
+                lock_inbox_remaining_sources(c).await
             }
-            erpx_server_operations::public::field_exceptions::lock_field_exception_sources(c)
-                .await?;
-            FieldCollaborationSources.prepare(c).await?;
-            crate::finance_service_invoice_history::lock_service_invoice_history_sources(c).await?;
-            crate::finance_field_journal_history::lock_field_journal_history_sources(c).await?;
-            lock_field_inbox_sources(c).await
         })
     }
+}
+async fn lock_inbox_remaining_sources(c: &mut PgConnection) -> Result<(), Error> {
+    erpx_server_operations::public::field_exceptions::lock_field_exception_sources(c).await?;
+    lock_field_collaboration_sources_without_commercial(c).await?;
+    crate::finance_service_invoice_history::lock_service_invoice_history_sources_without_commercial(c).await?;
+    crate::finance_field_journal_history::lock_field_journal_history_sources_without_commercial(c)
+        .await?;
+    lock_field_inbox_sources(c).await
 }
 #[derive(Serialize)]
 pub struct FieldInboxReadResponse {
@@ -105,8 +117,8 @@ impl PreparedInboxSource<'_> {
         }
         match &self.source {
             InboxSourceWitness::Record(source) => source.require_current(c, ctx).await,
-            InboxSourceWitness::Invoice(source) => source.require_current(c,ctx).await,
-            InboxSourceWitness::Journal(source) => Box::pin(source.require_current(c,ctx)).await,
+            InboxSourceWitness::Invoice(source) => source.require_current(c, ctx).await,
+            InboxSourceWitness::Journal(source) => Box::pin(source.require_current(c, ctx)).await,
             InboxSourceWitness::Count { record, modules } => {
                 record.require_current(c, ctx.clock).await?;
                 record.flow.require_current(c, ctx.actor, ctx.clock).await?;
@@ -120,6 +132,7 @@ pub(crate) async fn prepare_inbox_source<'a, C: Clock + Send + Sync>(
     current: &'a AuthorizedWorkContext,
     target: &FieldCollaborationTarget<C>,
     row: &FieldInboxCandidate,
+    purchase_locks: &'a erpx_server_commercial::public::purchases::PurchaseReadSourceLocks,
     initial_count: Option<
         &crate::service_initial_physical_stock::ServiceInitialPhysicalStockEnvironment,
     >,
@@ -127,12 +140,12 @@ pub(crate) async fn prepare_inbox_source<'a, C: Clock + Send + Sync>(
     let scope = current.selection().workspace();
     let read=async{
         if row.source_type=="journal" {
-            let ctx=SourceRecordContext{purchase_locks:None,actor:current,holding:&target.holding,company:&target.company,catalogue:&target.catalogue,clock:target.clock.as_ref()};
+            let ctx=SourceRecordContext{purchase_locks:Some(purchase_locks),actor:current,holding:&target.holding,company:&target.company,catalogue:&target.catalogue,clock:target.clock.as_ref()};
             let source=Box::pin(crate::finance_field_journal_history::read_field_journal_history(c,&ctx,&row.source_id)).await?;
             return Ok(Some(PreparedInboxSource{href:format!("/finance/journals/{}",component(&row.source_id)),reference:None,owner:InboxOwnerWitness::Direct,source:InboxSourceWitness::Journal(Box::new(source))}));
         }
         if row.source_type=="invoice" {
-            let ctx=SourceRecordContext{purchase_locks:None,actor:current,holding:&target.holding,company:&target.company,catalogue:&target.catalogue,clock:target.clock.as_ref()};
+            let ctx=SourceRecordContext{purchase_locks:Some(purchase_locks),actor:current,holding:&target.holding,company:&target.company,catalogue:&target.catalogue,clock:target.clock.as_ref()};
             let source=crate::finance_service_invoice_history::read_service_invoice_history(c,&ctx,&row.source_id).await?;
             return Ok(Some(PreparedInboxSource{href:format!("/finance/invoices/{}",component(&row.source_id)),reference:None,owner:InboxOwnerWitness::Direct,source:InboxSourceWitness::Invoice(source)}));
         }
@@ -144,7 +157,7 @@ pub(crate) async fn prepare_inbox_source<'a, C: Clock + Send + Sync>(
             return Ok(Some(PreparedInboxSource{href:format!("/services/field-service/settings/initial-stock/{}",component(&row.source_id)),reference:None,owner:InboxOwnerWitness::Direct,source:InboxSourceWitness::Count{record,modules}}));
         }
         if row.source_type=="support_ticket" {
-            let mut port=FieldRecordsSourcePort{connection:c,context:SourceRecordContext{purchase_locks:None,actor:current,holding:&target.holding,company:&target.company,catalogue:&target.catalogue,clock:target.clock.as_ref()}};
+            let mut port=FieldRecordsSourcePort{connection:c,context:SourceRecordContext{purchase_locks:Some(purchase_locks),actor:current,holding:&target.holding,company:&target.company,catalogue:&target.catalogue,clock:target.clock.as_ref()}};
             let (_,source)=prepare_source(&mut port,target.company.as_str(),&SourceReference{kind:SourceKind::SupportTicket,id:row.source_id.clone(),expected_version:None}).await?.into_parts();
             if source.support_data().and_then(|d|d["row"]["source_kind"].as_str())!=Some("field_service"){return Ok(None);}
             return Ok(Some(PreparedInboxSource{href:format!("/field-service/support/{}",component(&row.source_id)),reference:None,owner:InboxOwnerWitness::Direct,source:InboxSourceWitness::Record(source)}));
@@ -165,7 +178,7 @@ pub(crate) async fn prepare_inbox_source<'a, C: Clock + Send + Sync>(
             },
             _=>return Ok(None),
         };
-        let Some((_,field))=visible(c,current,target,SourceKind::FieldServiceOrder,&source_id).await? else{return Ok(None)};
+        let Some((_,field))=visible_with_purchase_locks(c,current,target,SourceKind::FieldServiceOrder,&source_id,Some(purchase_locks)).await? else{return Ok(None)};
         let reference=if row.source_type=="field_service_order"{Some(json!({"kind":"field_service_order","id":row.source_id,"href":href,"label":"Field service order"}))}else{None};
         Ok(Some(PreparedInboxSource{href,reference,owner,source:InboxSourceWitness::Record(field)}))
     }.await;
@@ -187,6 +200,8 @@ async fn read<C: Clock + Send + Sync>(
         &crate::service_initial_physical_stock::ServiceInitialPhysicalStockEnvironment,
     >,
 ) -> Result<FieldInboxReadResponse, Error> {
+    let purchase_locks =
+        erpx_server_commercial::public::purchases::bind_purchase_read_sources(c).await?;
     let mut data = Vec::new();
     let mut prepared: BTreeMap<(String, String), Option<PreparedInboxSource<'_>>> = BTreeMap::new();
     let mut scan = query.clone();
@@ -208,7 +223,15 @@ async fn read<C: Clock + Send + Sync>(
             scan.before = Some(row.cursor());
             let source_key = (row.source_type.clone(), row.source_id.clone());
             if !prepared.contains_key(&source_key) {
-                let guard = Box::pin(prepare_inbox_source(c, current, target, &row, initial_count)).await?;
+                let guard = Box::pin(prepare_inbox_source(
+                    c,
+                    current,
+                    target,
+                    &row,
+                    &purchase_locks,
+                    initial_count,
+                ))
+                .await?;
                 prepared.insert(source_key.clone(), guard);
             }
             if let Some(Some(source)) = prepared.get(&source_key) {
@@ -227,7 +250,7 @@ async fn read<C: Clock + Send + Sync>(
         }
     }
     let source_context = SourceRecordContext {
-        purchase_locks: None,
+        purchase_locks: Some(&purchase_locks),
         actor: current,
         holding: &target.holding,
         company: &target.company,

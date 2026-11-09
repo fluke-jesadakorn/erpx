@@ -370,3 +370,52 @@ fn unknown_unicode_package_ids_keep_legacy_collation_hashes_and_stable_map_previ
         );
     }
 }
+#[test]
+fn wire_revision_matches_node_jsonb_number_and_locale_corpus() {
+    use erpx_server_commercial::public::purchases::{purchase_wire_revision, CompanyPackageGrant, CompanyPackageHistoryRight};
+    use erpx_server_shared::public::TimestampMillis;
+    let grant = |package_id: &str, version, state: &str, starts_at, ends_at| CompanyPackageGrant {
+        company_id: "company".into(), package_id: package_id.into(), package_version: 1,
+        state: state.into(), starts_at, ends_at, version, reason: "fixture".into(), evidence: "fixture".into(),
+    };
+    let grants = vec![grant("z", 2, "active", 9_007_199_254_740_993, Some(9_007_199_254_740_995)), grant("é", 1, "active", 10, None), grant("e\u{301}", 1, "active", 10, None), grant("a\"x", 1, "draining", 0, Some(5))];
+    let history = vec![
+        CompanyPackageHistoryRight { company_id: "company".into(), package_id: "é".into(), package_version: 1, source_grant_version: 1, source_event_id: "ev😀".into(), retained_at: 3 },
+        CompanyPackageHistoryRight { company_id: "company".into(), package_id: "e\u{301}".into(), package_version: 1, source_grant_version: 1, source_event_id: "ev\\n".into(), retained_at: 6 },
+    ];
+    // Pinned Node 26.11.1 JSON.stringify / localeCompare / SHA-256 oracle.
+    assert_eq!(purchase_wire_revision("company", &grants, &history, TimestampMillis::new(5)).unwrap(), "0eb960248dd90395f7ea80e0620123cd387d81f4fdc061197f6819d8e0b7442c");
+    assert_eq!(purchase_wire_revision("company", &[], &[], TimestampMillis::new(5)).unwrap(), "39ed07fbbd040d61afcab922e85fc1a9eba49b14b70593a1e4727c96cb63f8e1");
+    // Node's stable sort preserves database input order for locale-equal
+    // byte-distinct tuples. An ordinal tie-break would change these hashes.
+    let composed_first = vec![grant("é", 1, "active", 0, None), grant("e\u{301}", 1, "active", 0, None)];
+    let decomposed_first = vec![composed_first[1].clone(), composed_first[0].clone()];
+    assert_eq!(purchase_wire_revision("company", &composed_first, &[], TimestampMillis::new(5)).unwrap(), "2aa48f7e3d2d6b8b87c372f47b2ab3b95f5b5a1b7e104dec5cd5550ae13d38ff");
+    assert_eq!(purchase_wire_revision("company", &decomposed_first, &[], TimestampMillis::new(5)).unwrap(), "8253db6b44f3f8db1835814d228a8570ec3972a19e3af5376451eac6ced5ca96");
+    let mut other = grants.clone();
+    other[0].company_id = "foreign".into();
+    assert_eq!(purchase_wire_revision("company", &other, &history, TimestampMillis::new(5)).unwrap(), purchase_wire_revision("company", &grants[1..], &history, TimestampMillis::new(5)).unwrap());
+}
+
+#[test]
+fn assets_package_mode_matches_actual_typescript_switch() {
+    use erpx_server_commercial::public::asset_package_mode::{ResolvedPackageEnvironment,resolve_assets_package_mode};
+    use erpx_server_shared::public::{BusinessError,FailureKind};
+    use std::cell::Cell;
+    // Mock only the resolved runtime environment; execute the actual TS
+    // switch. The runtime's own environment derivation needs separate tests.
+    let script=r#"import {mock} from 'bun:test';let environment='local',calls=0;mock.module(process.argv[1],()=>({runtimeEnv:async()=>{calls++;return {ERPX_ENVIRONMENT:environment}}}));const m=await import(process.argv[2]);const cases=[[null,'production'],['disabled','production'],['shadow','local'],['enforced','local'],['shadow','production'],['enforced','staging'],['','local'],['SHADOW','local'],[' enforced','local']];const out=[];for(const [raw,env] of cases){environment=env;calls=0;if(raw===null)delete process.env.ERPX_ASSETS_PACKAGE_ENFORCEMENT;else process.env.ERPX_ASSETS_PACKAGE_ENFORCEMENT=raw;try{out.push({mode:await m.assetsPackageEnforcementMode(),calls})}catch(e){out.push({status:e.status,code:e.code,message:e.message,calls})}}process.stdout.write(JSON.stringify(out));"#;
+    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let runtime=root.join("packages/server-runtime/src/public/runtime.ts");
+    let switch=root.join("packages/server-commercial/src/adapters/development-package-enforcement.ts");
+    let output=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(root).args(["--conditions=react-server","-e",script]).arg(runtime).arg(switch).output().unwrap();assert!(output.status.success(),"actual TypeScript mode oracle unavailable");
+    let expected:Vec<serde_json::Value>=serde_json::from_slice(&output.stdout).unwrap();
+    let cases=[(None,"production"),(Some("disabled"),"production"),(Some("shadow"),"local"),(Some("enforced"),"local"),(Some("shadow"),"production"),(Some("enforced"),"staging"),(Some(""),"local"),(Some("SHADOW"),"local"),(Some(" enforced"),"local")];
+    for (index,(raw,environment)) in cases.into_iter().enumerate(){
+        let calls=Cell::new(0);let result=resolve_assets_package_mode(raw,||{calls.set(calls.get()+1);Ok(ResolvedPackageEnvironment::from_trusted_runtime(environment))});
+        let actual=match result {Ok(mode)=>serde_json::json!({"mode":match mode{PackageEnforcementMode::Disabled=>"disabled",PackageEnforcementMode::Shadow=>"shadow",PackageEnforcementMode::Enforced=>"enforced"},"calls":calls.get()}),Err(e)=>serde_json::json!({"status":503,"code":e.code,"message":e.message,"calls":calls.get()})};
+        assert_eq!(actual,expected[index]);
+    }
+    let result=resolve_assets_package_mode(Some("shadow"),||Err(BusinessError::new(FailureKind::Unavailable,"TRUSTED_RUNTIME_UNAVAILABLE","Unavailable")));
+    assert_eq!(result.unwrap_err().code,"TRUSTED_RUNTIME_UNAVAILABLE");
+}

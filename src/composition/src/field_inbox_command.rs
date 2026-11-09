@@ -202,10 +202,19 @@ async fn execute<C: Clock + Send + Sync>(
     }
     let patch: FieldInboxPatch = serde_json::from_value(raw.clone()).map_err(|_| invalid())?;
     let key = CommandKey::new(key)?;
+    let purchase_locks =
+        erpx_server_commercial::public::purchases::bind_purchase_read_sources(c).await?;
     let before = read_field_inbox_delivery(c, &target.company, current.user_id(), id).await?;
-    let guard = prepare_inbox_source(c, current, target, before.candidate(), initial_count)
-        .await?
-        .ok_or_else(missing)?;
+    let guard = prepare_inbox_source(
+        c,
+        current,
+        target,
+        before.candidate(),
+        &purchase_locks,
+        initial_count,
+    )
+    .await?
+    .ok_or_else(missing)?;
     let state = patch.plan(before.candidate(), target.clock.now().get())?;
     let request = WorkflowRequest {
         key: key.as_str().into(),
@@ -260,7 +269,7 @@ async fn execute<C: Clock + Send + Sync>(
         .require_current(
             c,
             &SourceRecordContext {
-                purchase_locks: None,
+                purchase_locks: Some(&purchase_locks),
                 actor: current,
                 holding: &target.holding,
                 company: &target.company,

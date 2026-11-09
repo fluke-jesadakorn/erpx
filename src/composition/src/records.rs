@@ -1,12 +1,12 @@
 use crate::business_http::BusinessScopeSlugs;
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
-    account_inbound_http::parse_inbound_account_request,
+    account_inbound_http::{parse_inbound_account_request, unique_request_header},
     effective_authority::{
         AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
         WorkAuthorizationRequest,
     },
-    work_context::{HoldingWorkspaceRequest, WorkScopeKind},
+    work_context::{ExpectedWorkSelection, HoldingWorkspaceRequest, WorkScopeKind},
 };
 use erpx_server_records::public::record_context::{
     PgRecordContext, RecordContextActor, RecordContextGuard, RecordRow, record_context,
@@ -25,7 +25,9 @@ use erpx_server_records::public::record_registry_http::{
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
-use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
+use erpx_server_shared::public::{
+    AssignmentId, BusinessError, Clock, CompanyId, FailureKind, HoldingId,
+};
 use serde_json::Value;
 use sqlx::PgConnection;
 use std::sync::Arc;
@@ -200,13 +202,11 @@ pub(crate) fn context_value(current: &AuthorizedWorkContext) -> Value {
         "companyId": workspace.company_id.as_str(),
         "branchId": workspace.branch_id.as_ref().map(|value| value.as_str()),
         "departmentId": workspace.department_id.as_ref().map(|value| value.as_str()),
-        "branchSlug": workspace.branch_slug,
-        "departmentSlug": workspace.department_slug,
         "assignmentId": assignment.id.as_str(),
         "assignmentVersion": assignment.version,
         "revision": selected.revision(),
         "role": assignment.role,
-        "assignmentScopeKind": match assignment.scope_kind {
+        "scopeKind": match assignment.scope_kind {
             WorkScopeKind::Holding => "holding",
             WorkScopeKind::Branch => "branch",
             WorkScopeKind::Department => "department",
@@ -443,6 +443,52 @@ impl<C: Clock + Send + Sync + 'static> RecordsBackend<C> {
         }
     }
 
+    fn write_request(
+        &self,
+        headers: &HeaderMap,
+    ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
+        let inbound = parse_inbound_account_request(&self.policy, headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(not_found());
+        }
+        let (branch, department) = self.scopes.slugs(headers)?;
+        let company =
+            unique_request_header(headers, "x-erpx-context-company")?.ok_or_else(scope)?;
+        if company != self.service.company().as_str() {
+            return Err(scope());
+        }
+        let assignment =
+            unique_request_header(headers, "x-erpx-context-assignment")?.ok_or_else(scope)?;
+        let revision: i64 = unique_request_header(headers, "x-erpx-context-revision")?
+            .ok_or_else(scope)?
+            .parse()
+            .map_err(|_| scope())?;
+        let assignment_version: i64 =
+            unique_request_header(headers, "x-erpx-context-assignment-version")?
+                .ok_or_else(scope)?
+                .parse()
+                .map_err(|_| scope())?;
+        if !(1..=9_007_199_254_740_991).contains(&revision)
+            || !(1..=9_007_199_254_740_991).contains(&assignment_version)
+        {
+            return Err(scope());
+        }
+        Ok((
+            inbound.into_proof(),
+            HoldingWorkspaceRequest {
+                company_id: self.service.company().clone(),
+                branch_slug: branch,
+                department_slug: department,
+                expected: Some(ExpectedWorkSelection {
+                    revision,
+                    assignment_id: AssignmentId::new(assignment)?,
+                    assignment_version,
+                }),
+                mutation: true,
+            },
+        ))
+    }
+
     fn context_request(
         &self,
         headers: &HeaderMap,
@@ -498,14 +544,19 @@ impl<C: Clock + Send + Sync + 'static> RecordsRegistryHttpBackend for RecordsBac
         request: RecordsRegistryHttpRequest<'a>,
     ) -> RecordsRegistryHttpFuture<'a, RecordsRegistryHttpResponse> {
         Box::pin(async move {
-            let (proof, selection) = self.context_request(request.headers)?;
+            let create = matches!(request.command, RecordsRegistryHttpCommand::Create { .. });
+            let (proof, selection) = if create {
+                self.write_request(request.headers)?
+            } else {
+                self.context_request(request.headers)?
+            };
             match request.command.clone() {
                 RecordsRegistryHttpCommand::Create {
                     module_id,
                     input,
                     key,
                 } => {
-                    let (result, context) = self
+                    let (_, context, view) = self
                         .command
                         .create_with_context(
                             request.host,
@@ -518,7 +569,7 @@ impl<C: Clock + Send + Sync + 'static> RecordsRegistryHttpBackend for RecordsBac
                         .await
                         .map_err(business)?;
                     Ok(RecordsRegistryHttpResponse {
-                        data: serde_json::json!({"id": result.as_str()}),
+                        data: view,
                         context,
                     })
                 }

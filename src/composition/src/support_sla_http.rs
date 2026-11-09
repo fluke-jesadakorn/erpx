@@ -4,13 +4,12 @@
 use crate::http_scope::{BusinessScopeSlugs, selected_company_target};
 use crate::support_sla_command::SupportSlaCommand;
 use axum::{
-    Router,
+    Json, Router,
     body::Bytes,
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::post,
-    Json,
 };
 use erpx_server_identity_access::public::{
     AccountPolicy,
@@ -20,15 +19,10 @@ use erpx_server_identity_access::public::{
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{BusinessError, Clock, CommandKey, FailureKind};
-use erpx_server_support::public::sla::{
-    AlertAcknowledge, ClockAttach, PolicyChange, PolicyCreate,
-};
+use erpx_server_support::public::sla::{AlertAcknowledge, ClockAttach, PolicyChange, PolicyCreate};
 use erpx_server_workflow::public::commands::CommandJson;
 use serde_json::{Value, json};
-use std::{
-    collections::BTreeMap,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Clone)]
 pub struct SupportSlaHttpTarget<C> {
@@ -136,10 +130,7 @@ async fn post_sla<C: Clock + Clone + Send + Sync + 'static>(
         let outcome = match action {
             "create-policy" => {
                 let input: PolicyCreate = serde_json::from_value(body).map_err(|_| {
-                    BusinessError::invalid(
-                        "SUPPORT_SLA_INPUT_INVALID",
-                        "Provide a valid policy.",
-                    )
+                    BusinessError::invalid("SUPPORT_SLA_INPUT_INVALID", "Provide a valid policy.")
                 })?;
                 target
                     .create_policy(host, proof, move || captured.resolve(), input, wire, key)
@@ -160,7 +151,15 @@ async fn post_sla<C: Clock + Clone + Send + Sync + 'static>(
                 })?;
                 let id = id.to_owned();
                 target
-                    .attach_clock(host, proof, move || captured.resolve(), id, input, wire, key)
+                    .attach_clock(
+                        host,
+                        proof,
+                        move || captured.resolve(),
+                        id,
+                        input,
+                        wire,
+                        key,
+                    )
                     .await
             }
             "acknowledge" => {
@@ -178,7 +177,15 @@ async fn post_sla<C: Clock + Clone + Send + Sync + 'static>(
                 })?;
                 let id = id.to_owned();
                 target
-                    .acknowledge_alert(host, proof, move || captured.resolve(), id, input, wire, key)
+                    .acknowledge_alert(
+                        host,
+                        proof,
+                        move || captured.resolve(),
+                        id,
+                        input,
+                        wire,
+                        key,
+                    )
                     .await
             }
             "approve" | "retire" => {
@@ -197,7 +204,15 @@ async fn post_sla<C: Clock + Clone + Send + Sync + 'static>(
                 })?;
                 let id = id.to_owned();
                 target
-                    .change_policy(host, proof, move || captured.resolve(), id, input, wire, key)
+                    .change_policy(
+                        host,
+                        proof,
+                        move || captured.resolve(),
+                        id,
+                        input,
+                        wire,
+                        key,
+                    )
                     .await
             }
             _ => {

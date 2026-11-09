@@ -21,6 +21,15 @@ pub(crate) async fn lock_service_invoice_history_sources(
 ) -> Result<(), Error> {
     lock_service_invoice_sources(c).await?;
     lock_commercial_authority_sources(c).await?;
+    lock_service_invoice_history_remaining_sources(c).await
+}
+pub(crate) async fn lock_service_invoice_history_sources_without_commercial(
+    c: &mut PgConnection,
+) -> Result<(), Error> {
+    lock_service_invoice_sources(c).await?;
+    lock_service_invoice_history_remaining_sources(c).await
+}
+async fn lock_service_invoice_history_remaining_sources(c: &mut PgConnection) -> Result<(), Error> {
     erpx_server_workflow::public::record_origin::lock_record_origin_sources(c).await?;
     lock_field_service_invoice_finance_sources(c).await
 }
@@ -53,7 +62,9 @@ impl CurrentServiceInvoiceHistory {
     pub fn data(&self) -> &FinanceServiceInvoiceWorkspace {
         self.finance.data()
     }
-    pub fn require_payment_evidence(&self) -> Result<(), BusinessError> { self.finance.require_payment_evidence() }
+    pub fn require_payment_evidence(&self) -> Result<(), BusinessError> {
+        self.finance.require_payment_evidence()
+    }
     pub async fn require_current<C: Clock>(
         &self,
         c: &mut PgConnection,
@@ -111,8 +122,7 @@ pub(crate) async fn read_service_invoice_history<C: Clock>(
     )
     .await?
     .ok_or_else(changed)?;
-    let mut reader =
-        ctx.purchase_reader(c);
+    let mut reader = ctx.purchase_reader(c);
     let req = |cap: &str| PurchaseRequest {
         capabilities: vec![cap.into()],
         purpose: CapabilityPurpose::History,

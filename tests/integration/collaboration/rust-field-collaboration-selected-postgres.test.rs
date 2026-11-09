@@ -1381,6 +1381,40 @@ async fn send_as(
     (status, serde_json::from_slice(&bytes).unwrap())
 }
 
+// Test-only provider paths; missing or invalid real providers fail the test.
+#[cfg(feature="files-scan-worker")]
+struct PaymentFilesProviderPaths {
+    preview: std::path::PathBuf, heif: std::path::PathBuf, pdf: std::path::PathBuf,
+    socket: std::path::PathBuf, definitions: std::path::PathBuf,
+}
+#[cfg(feature="files-scan-worker")]
+fn payment_files_provider_paths() -> PaymentFilesProviderPaths {
+    use std::os::unix::fs::{FileTypeExt, PermissionsExt};
+    use std::path::PathBuf;
+    fn path(name: &str, default: &str) -> PathBuf {
+        let value=std::env::var_os(name).unwrap_or_else(|| default.into());
+        let path=PathBuf::from(value);
+        assert!(path.is_absolute(), "{name} must be an absolute path");
+        path
+    }
+    fn executable(path: &std::path::Path, label: &str) {
+        let metadata=std::fs::metadata(path).unwrap_or_else(|_| panic!("{label} provider unavailable"));
+        assert!(metadata.is_file() && metadata.permissions().mode() & 0o111 != 0, "{label} provider is not executable");
+    }
+    let preview=std::env::var_os("ERPX_FILES_PREVIEW_BIN")
+        .or_else(|| std::env::var_os("ERPX_NATIVE_PREVIEW_BIN"))
+        .map(PathBuf::from).unwrap_or_else(|| PathBuf::from("/target/debug/erpx-render-preview"));
+    assert!(preview.is_absolute(), "preview provider path must be absolute");
+    let heif=path("ERPX_HEIF_CONVERT", "/usr/bin/heif-convert");
+    let pdf=path("ERPX_PDFTOPPM_BIN", "/usr/bin/pdftoppm");
+    let socket=path("ERPX_CLAMD_SOCKET", "/erpx-clam/clamd.sock");
+    let definitions=path("ERPX_CLAMAV_DATABASE_DIR", "/erpx-definitions");
+    executable(&preview,"preview");executable(&heif,"heif");executable(&pdf,"pdftoppm");
+    assert!(std::fs::metadata(&socket).is_ok_and(|v|v.file_type().is_socket()), "Clam socket unavailable");
+    assert!(std::fs::metadata(&definitions).is_ok_and(|v|v.is_dir()), "Clam definitions unavailable");
+    PaymentFilesProviderPaths { preview,heif,pdf,socket,definitions }
+}
+
 #[cfg(feature="files-scan-worker")]
 async fn actual_payment_proof(
     p:&Parts,device:erpx_server_identity_access::public::DeviceProof,
@@ -1393,16 +1427,17 @@ async fn actual_payment_proof(
  use erpx_service::{finance_service_receipt_files::{FinancePaymentIntakeSources,FinancePaymentIntakeAuthority},files_scan_native::*,files_system_scan::DevelopmentFilesScanConfiguration};
  use erpx_server_runtime::public::postgres::LeasedDevelopmentDatabase;
  use erpx_server_shared::public::{HoldingId,CompanyId,Clock,BusinessError};
- use std::{collections::BTreeMap,path::{Path,PathBuf},time::Duration};
+ use std::{collections::BTreeMap,time::Duration};
+ let provider=payment_files_provider_paths();
  let root=directory.path().join("objects");let temporary=directory.path().join("compute");
  let doc=private_configuration::document(&p.review.system.control,&p.review.system.holdings).await;
  let lease=|d:&serde_json::Value|LeasedDevelopmentDatabase::parse(d["url"].as_str().unwrap(),d["leaseToken"].as_str().unwrap()).unwrap();
  let db=||DevelopmentFilesScanConfiguration::new(lease(&doc["control"]),doc["holdings"].as_array().unwrap().iter().map(|h|(h["writeBinding"].as_str().unwrap().to_owned(),lease(&h["database"]))).collect(),account::fixture::account::holding_registry(),AttachmentScanScope{holding_id:HoldingId::new("h001").unwrap(),company_id:CompanyId::new("company").unwrap()}).unwrap();
  let worker=Arc::new(assemble_native_field_files_scan(db(),NativeFilesScanConfiguration {
   files_roots:BTreeMap::from([("HOLDING_H001_FILES".into(),root.clone())]),temporary_root:temporary,
-  preview_binary:PathBuf::from(std::env::var("ERPX_NATIVE_PREVIEW_BIN").expect("qualified preview CLI required")),
-  preview_tools:PreviewToolConfiguration::new(Path::new("/usr/bin/heif-convert"),Path::new("/usr/bin/pdftoppm")).unwrap(),
-  scanner:ClamAvConfig{socket:PathBuf::from("/erpx-clam/clamd.sock"),database_directory:PathBuf::from("/erpx-definitions"),maximum_definition_age:Duration::from_secs(7*86400),command_timeout:Duration::from_secs(5),scan_timeout:Duration::from_secs(30),concurrent_scans:1},
+  preview_binary:provider.preview,
+  preview_tools:PreviewToolConfiguration::new(&provider.heif,&provider.pdf).unwrap(),
+  scanner:ClamAvConfig{socket:provider.socket,database_directory:provider.definitions,maximum_definition_age:Duration::from_secs(7*86400),command_timeout:Duration::from_secs(5),scan_timeout:Duration::from_secs(30),concurrent_scans:1},
  },clock.clone()).await.expect("actual Files providers"));
  use axum::{body::{Body,to_bytes},http::{Request,StatusCode}};
  use tower::ServiceExt;
@@ -1595,6 +1630,27 @@ async fn finance_service_invoice_workspace_actual_payment_files() {
 }
 #[tokio::test]
 async fn fully_covered_field_invoice_uses_native_independent_confirmation(){Box::pin(receipt_workspace_case(false,false,false,false,true)).await;}
+
+#[tokio::test]
+async fn service_invoice_post_production_requires_current_company_release_before_source_lookup() {
+    use erpx_service::finance_journal_create::FinanceJournalCreateConfiguration;
+    use erpx_service::finance_journal_review::FinanceJournalEnvironment;
+    use erpx_service::finance_service_invoice_post::execute_service_invoice_post;
+    use erpx_server_workflow::public::commands::WorkflowRequest;
+    account::with_system(|system| async move {
+        let p=setup(system).await;
+        let db=p.pool().raw();
+        let accepted:i64=sqlx::query_scalar("SELECT count(*) FROM company_release_acceptances WHERE company_id='company'").fetch_one(db).await.unwrap();
+        assert_eq!(accepted,0);
+        let config=FinanceJournalCreateConfiguration::new(FinanceJournalEnvironment::Production,erpx_server_shared::public::HoldingId::new("h001").unwrap(),erpx_server_shared::public::CompanyId::new("company").unwrap(),Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap())).unwrap();
+        let input=erpx_server_finance::public::service_invoice_posting::normalize_service_invoice_post(br#"{"periodId":"period","entryDate":"2026-01-10","expectedVersion":1}"#).unwrap();
+        let selection=p.review.maker_selection.clone();
+        let result=execute_service_invoice_post(&p.review.authorizer,"acme.example.test",p.review.maker.clone(),move||Ok(selection),config,p.review.system.scenario.clock.clone(),move||Ok(WorkflowRequest{key:"production-release-missing".into(),operation:"finance.invoice.post".into(),record_id:"unresolved-source".into(),input:input.clone()})).await;
+        assert!(matches!(&result,Err(PgTransactionError::Business(e)) if e.code=="FINANCE_PRODUCTION_RELEASE_REQUIRED"),"{result:?}");
+        let effects:(i64,i64,i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM finance_journals WHERE id='journal-production-release-missing'),(SELECT count(*) FROM money_transaction_snapshots WHERE source_type='finance_invoice' AND source_id='unresolved-source'),(SELECT count(*) FROM command_receipts WHERE command_id='production-release-missing'),(SELECT count(*) FROM audit_events WHERE command_id='production-release-missing'),(SELECT count(*) FROM outbox_events WHERE command_id='production-release-missing')").fetch_one(db).await.unwrap();
+        assert_eq!(effects,(0,0,0,0,0));
+    }).await;
+}
 #[tokio::test]
 async fn service_only_visit_drains_and_hands_off_native_invoice_without_helpdesk(){
  for exercise_parts in [false,true]{
@@ -2575,6 +2631,57 @@ async fn native_no_charge_case(p:&Parts,runtime:&erpx_service::private_developme
 
 
 }
+/// Compare the assembled, no-TEMP classifier with the actual retained TS SQL
+/// over the committed native invoice and payment lifecycle. These witnesses
+/// prove source predicates only, not current IAM or purchase admission.
+async fn assert_committed_field_finance_history_oracle(db:&sqlx::PgPool,receipt_id:&str,secondary_book:bool){
+    use erpx_server_finance::public::attachment_target_source::*;
+    use erpx_server_finance::public::field_history_candidates::*;
+    use erpx_server_finance::public::field_history_money_lines::*;
+    use erpx_server_field_service::public::finance_lineage::*;
+    use erpx_server_inventory::public::field_history_consumption::*;
+    use erpx_server_workflow::public::record_origin::*;
+    use erpx_service::field_finance_history::{inspect_field_finance_history,FieldFinanceHistoryPhase};
+    let node=std::env::var("ERPX_NODE_BIN").unwrap_or_else(|_|"node".into());
+    let source=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/server-field_service/src/adapters/finance-record-sources.ts");
+    let output=std::process::Command::new(node).arg("--conditions=react-server").arg("--input-type=module").arg("-e").arg("if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const m=await import(process.argv[1]);process.stdout.write(JSON.stringify(m.fieldServiceFinanceRecordSources))").arg(source).output().expect("pinned Node legacy source");
+    assert!(output.status.success(),"actual TS Finance sources: {}",String::from_utf8_lossy(&output.stderr));
+    let sources:serde_json::Value=serde_json::from_slice(&output.stdout).unwrap();
+    let payment_source=sources["payment"].as_str().unwrap();let journal_source=sources["journal"].as_str().unwrap();let parts_source=sources["partsJournal"].as_str().unwrap();
+    let payment_sql=format!("SELECT EXISTS(SELECT 1 FROM public.finance_payments d JOIN ({payment_source}) owner_source ON owner_source.id=d.id AND owner_source.company_id=d.company_id WHERE d.id=$1 AND d.company_id=$2)");
+    let roots="SELECT d.id,d.company_id UNION SELECT p.id,p.company_id FROM public.finance_book_postings b JOIN public.finance_journals p ON p.id=b.primary_journal_id AND p.company_id=d.company_id WHERE b.secondary_journal_id=d.id";
+    let journal_sql=format!("SELECT EXISTS(SELECT 1 FROM public.finance_journals d WHERE d.id=$1 AND d.company_id=$2 AND EXISTS(SELECT 1 FROM ({roots}) root JOIN ({journal_source}) owner_source ON owner_source.id=root.id AND owner_source.company_id=root.company_id))");
+    let parts_sql=format!("SELECT EXISTS(SELECT 1 FROM public.finance_journals d WHERE d.id=$1 AND d.company_id=$2 AND EXISTS(SELECT 1 FROM ({roots}) root JOIN ({parts_source}) owner_source ON owner_source.id=root.id AND owner_source.company_id=root.company_id))");
+    let invoice_journal:String=sqlx::query_scalar("SELECT journal_id FROM public.finance_invoices WHERE id='field-invoice-included-billing'").fetch_one(db).await.unwrap();
+    let receipt_journal:String=sqlx::query_scalar("SELECT journal_id FROM public.finance_payments WHERE id=$1").bind(receipt_id).fetch_one(db).await.unwrap();
+    let mut cases=vec![(FinanceAttachmentTargetKind::Payment,receipt_id.to_owned(),"company",true),(FinanceAttachmentTargetKind::Journal,invoice_journal,"company",true),(FinanceAttachmentTargetKind::Journal,receipt_journal,"company",true),(FinanceAttachmentTargetKind::Payment,receipt_id.to_owned(),"foreign",false)];
+    if secondary_book {cases.push((FinanceAttachmentTargetKind::Journal,"book-receipt-book-rule-journal-native-receipt-confirm".into(),"company",true));}
+    let mut tx=db.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+    // This ordered fixture acquires all participating locks before its first
+    // data read. It does not qualify a global production lock order.
+    lock_canonical_finance_attachment_targets(&mut tx).await.unwrap();lock_canonical_finance_history_book_roots(&mut tx).await.unwrap();lock_field_history_finance_candidate_sources(&mut tx).await.unwrap();lock_field_history_money_line_sources(&mut tx).await.unwrap();lock_field_history_receipt_join_sources(&mut tx).await.unwrap();lock_field_history_consumption_join_sources(&mut tx).await.unwrap();lock_field_history_join_sources(&mut tx).await.unwrap();
+    let workflow=inspect_field_history_receipt_join(&mut tx).await.unwrap();let inventory=inspect_field_history_consumption_join(&mut tx).await.unwrap();let field=inspect_field_history_join(&mut tx).await.unwrap();
+    for (kind,id,company,expected) in cases {
+        let company=erpx_server_shared::public::CompanyId::new(company).unwrap();
+        let target=observe_canonical_finance_attachment_target(&mut tx,kind,&company,&id).await.unwrap();
+        let roots=if kind==FinanceAttachmentTargetKind::Journal {Some(inspect_canonical_finance_history_journal_roots(&mut tx,&target).await.unwrap())}else{None};
+        let finance=inspect_field_history_finance_candidates(&mut tx,&target,roots.as_ref()).await.unwrap();let money=inspect_field_history_money_lines(&mut tx,&finance).await.unwrap();
+        let source=inspect_field_finance_history(&mut tx,&finance,&money,&workflow,&inventory,&field,FieldFinanceHistoryPhase::Inclusion).await.unwrap();
+        let sql=if kind==FinanceAttachmentTargetKind::Payment{&payment_sql}else{&journal_sql};
+        let original:bool=sqlx::query_scalar(sqlx::AssertSqlSafe(sql.as_str())).bind(&id).bind(company.as_str()).fetch_one(&mut *tx).await.unwrap();
+        assert_eq!(original,expected,"legacy committed source {id}/{}",company.as_str());assert_eq!(source.decision(),original,"native/legacy source {id}/{}",company.as_str());source.require_current(&mut tx).await.unwrap();
+        if kind==FinanceAttachmentTargetKind::Journal {
+            let parts=inspect_field_finance_history(&mut tx,&finance,&money,&workflow,&inventory,&field,FieldFinanceHistoryPhase::PartsSupplement).await.unwrap();
+            let original_parts:bool=sqlx::query_scalar(sqlx::AssertSqlSafe(parts_sql.as_str())).bind(&id).bind(company.as_str()).fetch_one(&mut *tx).await.unwrap();assert_eq!(parts.decision(),original_parts,"parts source {id}");parts.require_current(&mut tx).await.unwrap();
+        }
+        let initial_path:String=sqlx::query_scalar("SELECT current_setting('search_path')").fetch_one(&mut *tx).await.unwrap();
+        sqlx::query("SAVEPOINT stale_history_path").execute(&mut *tx).await.unwrap();sqlx::query("SET LOCAL search_path TO pg_catalog,public,__erpx_history_stale__").execute(&mut *tx).await.unwrap();
+        let changed_path:String=sqlx::query_scalar("SELECT current_setting('search_path')").fetch_one(&mut *tx).await.unwrap();assert_ne!(changed_path,initial_path);
+        assert!(source.require_current(&mut tx).await.is_err());sqlx::query("ROLLBACK TO SAVEPOINT stale_history_path").execute(&mut *tx).await.unwrap();source.require_current(&mut tx).await.unwrap();
+    }
+    tx.rollback().await.unwrap();
+}
+
 async fn receipt_workspace_case(secondary_book: bool, http_confirmation: bool, foreign_billing: bool, actual_files: bool,zero_demand:bool) {
     use erpx_server_shared::public::Clock;
     account::with_system(move |system| Box::pin(async move {
@@ -2603,7 +2710,8 @@ async fn receipt_workspace_case(secondary_book: bool, http_confirmation: bool, f
         let mut native_directory=if actual_files {
             use std::os::unix::fs::DirBuilderExt;
             let directory=tempfile::tempdir().unwrap();let objects=directory.path().join("objects");let compute=directory.path().join("compute");std::fs::DirBuilder::new().mode(0o700).create(&objects).unwrap();std::fs::DirBuilder::new().mode(0o700).create(&compute).unwrap();
-            config["fieldFilesProviders"]=serde_json::json!({"targets":[{"holdingId":"h001","companyId":"company","filesBinding":"HOLDING_H001_FILES","filesRoot":objects,"temporaryRoot":compute,"previewBinary":"/target/debug/erpx-render-preview","heifConvert":"/usr/bin/heif-convert","pdftoppm":"/usr/bin/pdftoppm","clamavSocket":"/erpx-clam/clamd.sock","clamavDatabaseDirectory":"/erpx-definitions","maximumDefinitionAgeMs":604800000,"commandTimeoutMs":5000,"scanTimeoutMs":30000,"concurrentScans":1}]});
+            let provider=payment_files_provider_paths();
+            config["fieldFilesProviders"]=serde_json::json!({"targets":[{"holdingId":"h001","companyId":"company","filesBinding":"HOLDING_H001_FILES","filesRoot":objects,"temporaryRoot":compute,"previewBinary":provider.preview,"heifConvert":provider.heif,"pdftoppm":provider.pdf,"clamavSocket":provider.socket,"clamavDatabaseDirectory":provider.definitions,"maximumDefinitionAgeMs":604800000,"commandTimeoutMs":5000,"scanTimeoutMs":30000,"concurrentScans":1}]});
             config["fieldFilesPolicy"]=serde_json::json!({"mode":"enabled","uploadsFrozen":false});
             config["fieldAttachmentLinks"]=serde_json::json!([{"holdingId":"h001","mode":"enabled"}]);config["fieldAttachmentBinds"]=serde_json::json!([{"holdingId":"h001","mode":"enabled"}]);Some(directory)
         }else{None};
@@ -2716,6 +2824,16 @@ async fn receipt_workspace_case(secondary_book: bool, http_confirmation: bool, f
         let clock=system.scenario.clock.clone();
         let post_config=erpx_service::finance_journal_create::FinanceJournalCreateConfiguration::new(erpx_service::finance_journal_review::FinanceJournalEnvironment::Development,erpx_server_shared::public::HoldingId::new("h001").unwrap(),erpx_server_shared::public::CompanyId::new("company").unwrap(),Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap())).unwrap();
         let input=erpx_server_finance::public::service_invoice_posting::normalize_service_invoice_post(&serde_json::to_vec(&serde_json::json!({"periodId":"period","entryDate":body["data"]["invoice"]["invoice_date"],"expectedVersion":1})).unwrap()).unwrap();
+        // Production may not post this real Field invoice without the current
+        // Company's accepted release. The following development path remains
+        // the positive control and uses the same invoice, actor and inputs.
+        let accepted:i64=sqlx::query_scalar("SELECT count(*) FROM company_release_acceptances WHERE company_id='company'").fetch_one(db).await.unwrap();assert_eq!(accepted,0);
+        let production_config=erpx_service::finance_journal_create::FinanceJournalCreateConfiguration::new(erpx_service::finance_journal_review::FinanceJournalEnvironment::Production,erpx_server_shared::public::HoldingId::new("h001").unwrap(),erpx_server_shared::public::CompanyId::new("company").unwrap(),Arc::new(erpx_server_commercial::public::purchases::current_package_catalogue().unwrap())).unwrap();
+        let production_selection=selection.clone();let production_input=input.clone();
+        let denied=erpx_service::finance_service_invoice_post::execute_service_invoice_post(&p.review.authorizer,"acme.example.test",proof.clone(),move||Ok(production_selection),production_config,clock.clone(),move||Ok(erpx_server_workflow::public::commands::WorkflowRequest{key:"production-denied-field-invoice-post".into(),operation:"finance.invoice.post".into(),record_id:"field-invoice-included-billing".into(),input:production_input.clone()})).await;
+        assert!(matches!(&denied,Err(PgTransactionError::Business(e)) if e.code=="FINANCE_PRODUCTION_RELEASE_REQUIRED"),"{denied:?}");
+        let no_effects:(String,i64,i64,i64,i64,i64,i64)=sqlx::query_as("SELECT status,version::bigint,(SELECT count(*) FROM finance_journals WHERE id='journal-production-denied-field-invoice-post'),(SELECT count(*) FROM money_transaction_snapshots WHERE source_type='finance_invoice' AND source_id='field-invoice-included-billing' AND amount_kind='total'),(SELECT count(*) FROM command_receipts WHERE command_id='production-denied-field-invoice-post'),(SELECT count(*) FROM audit_events WHERE command_id='production-denied-field-invoice-post'),(SELECT count(*) FROM outbox_events WHERE command_id='production-denied-field-invoice-post') FROM finance_invoices WHERE id='field-invoice-included-billing' AND company_id='company'").fetch_one(db).await.unwrap();
+        assert_eq!(no_effects,("draft".into(),1,0,0,0,0,0));
         let post=||{let selection=selection.clone();let input=input.clone();erpx_service::finance_service_invoice_post::execute_service_invoice_post(&p.review.authorizer,"acme.example.test",proof.clone(),move||Ok(selection),post_config.clone(),clock.clone(),move||Ok(erpx_server_workflow::public::commands::WorkflowRequest{key:"native-field-invoice-post".into(),operation:"finance.invoice.post".into(),record_id:"field-invoice-included-billing".into(),input:input.clone()}))};
         let legacy=sqlx::query("UPDATE finance_invoices SET status='posted',version=version+1 WHERE id='field-invoice-included-billing'").execute(db).await.unwrap_err();assert_eq!(legacy.as_database_error().and_then(|e|e.constraint()),Some("native_service_invoice_post_required"));
         let alias=sqlx::query("UPDATE finance_invoices SET source_type='standalone' WHERE id='field-invoice-included-billing'").execute(db).await.unwrap_err();assert_eq!(alias.as_database_error().and_then(|e|e.constraint()),Some("native_service_invoice_post_required"));
@@ -2925,6 +3043,7 @@ async fn receipt_workspace_case(secondary_book: bool, http_confirmation: bool, f
         let files_bound:(String,String,String,String,i64)=sqlx::query_as("SELECT s.state,l.state,l.binding_type,l.binding_id,(SELECT count(*) FROM attachment_events WHERE set_id=s.id AND action='set.bound') FROM attachment_sets s JOIN attachment_links l ON l.set_id=s.id WHERE s.id=$1").bind(&proof_set_id).fetch_one(db).await.unwrap();assert_eq!(files_bound,("bound".into(),"bound".into(),"finance_payment_confirmation".into(),format!("{receipt_id}:4"),1));
         }
         let settled:(String,i64,String,i64,String,i64,i64,i64)=sqlx::query_as("SELECT p.status,p.version,i.status,i.outstanding_minor,t.match_status,(SELECT count(*) FROM money_transaction_snapshots WHERE source_type='finance_payment' AND source_id=p.id),(SELECT count(*) FROM finance_customer_receipts WHERE payment_id=p.id),(SELECT count(*) FROM decision_evidence WHERE record_id=p.id) FROM finance_payments p JOIN finance_allocations a ON a.payment_id=p.id JOIN finance_invoices i ON i.id=a.invoice_id JOIN finance_bank_transactions t ON t.matched_id=p.id WHERE p.id=$1").bind(receipt_id).fetch_one(db).await.unwrap();assert_eq!(settled,("settled".into(),4,"paid".into(),0,"matched".into(),3,1,3));
+        assert_committed_field_finance_history_oracle(db,receipt_id,secondary_book).await;
         let(workspace,source_only,purchases)=read_receipt().await.expect("native settled receipt workspace");assert_eq!(workspace["payment"]["status"],"settled");assert_eq!(workspace["payment"]["version"],4);assert_eq!(workspace["allocations"].as_array().unwrap().len(),1);assert_eq!(workspace["allocations"][0]["invoice_id"],"field-invoice-included-billing");assert_eq!(workspace["allocations"][0]["amount_minor"],10000);assert_eq!(workspace["invoices"],serde_json::json!([]));assert_eq!(workspace["bankTransactions"],serde_json::json!([]));
         let r=runtime.router().oneshot(get_receipt()).await.unwrap();let status=r.status();let bytes=to_bytes(r.into_body(),2*1024*1024).await.unwrap();assert_eq!(status,StatusCode::OK,"{}",String::from_utf8_lossy(&bytes));let readback:serde_json::Value=serde_json::from_slice(&bytes).unwrap();assert_eq!(readback["data"],workspace);assert_eq!(readback["sourceOnly"],source_only);assert_eq!(readback["purchaseControls"],serde_json::to_value(purchases).unwrap());
 
@@ -3415,4 +3534,105 @@ async fn quality_authorizer_and_ts_style_writer_lock_order_complete_both_directi
             let count:i64=sqlx::query_scalar("SELECT count(*) FROM inventory_quality_cancellations WHERE hold_id IN ('quality-lock-first','quality-lock-second')").fetch_one(holding.raw()).await.unwrap();assert_eq!(count,2);
         }).await;
     }).await;
+}
+
+#[tokio::test]
+async fn field_inbox_source_preparation_shares_purchase_fence_with_and_without_count() {
+    use erpx_server_identity_access::public::effective_authority::HoldingWorkSourcePreparation;
+    use erpx_service::field_inbox_read::InboxSources;
+    use std::time::Duration;
+    facts::account::with_system(|system| async move {
+        let p = facts::setup_workspace(system).await;
+        let db = p.pool().raw();
+        for with_count in [false, true] {
+            let count = with_count.then(|| erpx_service::service_initial_physical_stock::ServiceInitialPhysicalStockEnvironment::new(
+                erpx_server_pms::public::initial_count_modules::InitialCountModuleMode::Development,
+                "synthetic-field-inbox".into(), None,
+            ));
+            let sources = InboxSources { initial_count: count };
+            // Opposing order: an actual grant writer already holds its table
+            // lock, so preparation must fail promptly and release its unit.
+            let mut existing_writer = db.begin().await.unwrap();
+            sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,version,reason,evidence,updated_at) VALUES('fence-company','writer-first',1,'active',0,1,'Synthetic fence','Synthetic fence',0)").execute(&mut *existing_writer).await.unwrap();
+            let mut rejected = db.begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *rejected).await.unwrap();
+            let conflict=tokio::time::timeout(Duration::from_secs(5),sources.prepare(&mut rejected)).await.unwrap();
+            assert!(matches!(conflict, Err(erpx_server_runtime::public::postgres::PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03")));
+            rejected.rollback().await.unwrap();
+            existing_writer.rollback().await.unwrap();
+            let mut first = db.begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *first).await.unwrap();
+            tokio::time::timeout(Duration::from_secs(5), sources.prepare(&mut first)).await.unwrap().unwrap();
+            let pid1:i32 = sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *first).await.unwrap();
+            let package = if with_count { "synthetic-count-fence" } else { "synthetic-field-fence" };
+            let absent:bool = sqlx::query_scalar("SELECT NOT EXISTS(SELECT 1 FROM company_package_grants WHERE company_id='fence-company' AND package_id=$1)").bind(package).fetch_one(&mut *first).await.unwrap();
+            assert!(absent);
+            let (pid_send,pid_recv) = tokio::sync::oneshot::channel();
+            let (ready_send,ready_recv) = tokio::sync::oneshot::channel();
+            let (release_send,release_recv) = tokio::sync::oneshot::channel();
+            let reader_pool=db.clone(); let reader_sources=sources.clone();
+            let reader=tokio::spawn(async move {
+                let mut connection=reader_pool.acquire().await.unwrap();
+                let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *connection).await.unwrap();
+                let _=pid_send.send(pid);
+                let mut tx=sqlx::Connection::begin(&mut *connection).await.unwrap();
+                sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+                sqlx::query("SET LOCAL statement_timeout='10s'").execute(&mut *tx).await.unwrap();
+                let result=reader_sources.prepare(&mut tx).await;
+                let ok=result.is_ok(); let _=ready_send.send(ok);
+                if ok { let _=tokio::time::timeout(Duration::from_secs(10),release_recv).await; }
+                tx.rollback().await.unwrap();
+                ok
+            });
+            let pid2=tokio::time::timeout(Duration::from_secs(3),pid_recv).await.unwrap().unwrap();
+            let waiting=tokio::time::timeout(Duration::from_secs(3),async {
+                loop {
+                    let state:(bool,i64,i64)=sqlx::query_as("SELECT $1=ANY(pg_blocking_pids($2)),(SELECT count(*) FROM pg_locks WHERE pid=$2 AND granted AND mode='ShareLock' AND relation IN ('company_package_grants'::regclass,'company_package_history_rights'::regclass)),(SELECT count(*) FROM pg_locks WHERE pid=$2 AND granted AND mode IN ('ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock') AND relation IN ('company_package_grants'::regclass,'company_package_history_rights'::regclass))").bind(pid1).bind(pid2).fetch_one(&mut *first).await.unwrap();
+                    if state == (true,2,0) { break; }
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+            }).await.is_ok();
+            first.rollback().await.unwrap();
+            let ready=tokio::time::timeout(Duration::from_secs(5),ready_recv).await.unwrap().unwrap();
+            let (writer_pid_send,writer_pid_recv)=tokio::sync::oneshot::channel();
+            let pool=db.clone();
+            let writer=tokio::spawn(async move {
+                let mut tx=pool.begin().await.unwrap();
+                sqlx::query("SET LOCAL statement_timeout='8s'").execute(&mut *tx).await.unwrap();
+                let pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *tx).await.unwrap(); let _=writer_pid_send.send(pid);
+                sqlx::query("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,version,reason,evidence,updated_at) VALUES('fence-company',$1,1,'active',0,1,'Synthetic fence','Synthetic fence',0)").bind(package).execute(&mut *tx).await?;
+                sqlx::query("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) SELECT $1,company_id,package_id,'fixture-a',$1,NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),0 FROM company_package_grants WHERE company_id='fence-company' AND package_id=$1").bind(package).execute(&mut *tx).await?;
+                tx.commit().await
+            });
+            let writer_pid=tokio::time::timeout(Duration::from_secs(3),writer_pid_recv).await.unwrap().unwrap();
+            let blocked=tokio::time::timeout(Duration::from_secs(3),async { loop {
+                let found:bool=sqlx::query_scalar("SELECT $1=ANY(pg_blocking_pids($2))").bind(pid2).bind(writer_pid).fetch_one(db).await.unwrap();
+                if found { break; } tokio::time::sleep(Duration::from_millis(10)).await;
+            }}).await.is_ok();
+            let _=release_send.send(());
+            let reader_ok=tokio::time::timeout(Duration::from_secs(10),reader).await.unwrap().unwrap();
+            let committed=tokio::time::timeout(Duration::from_secs(10),writer).await.unwrap().unwrap();
+            assert!(waiting,"second Inbox preparation must retain the shared purchase fence while waiting on the first");
+            assert!(ready && reader_ok && blocked,"grant writer must wait for the exact second Inbox preparation");
+            committed.unwrap();
+            let mut fresh=db.begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *fresh).await.unwrap();
+            let preparation=erpx_server_commercial::public::purchases::lock_purchase_read_sources(&mut fresh).await.unwrap();
+            let _locks=preparation.bind().await.unwrap();
+            let visible:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM company_package_grants WHERE company_id='fence-company' AND package_id=$1 AND state='active')").bind(package).fetch_one(&mut *fresh).await.unwrap(); assert!(visible);
+            fresh.rollback().await.unwrap();
+        }
+    }).await;
+}
+
+#[tokio::test]
+async fn field_reservation_alert_source_refuses_lost_savepoint_locks() {
+ use erpx_server_field_service::public::reservation_alerts::*;
+ facts::account::with_system(|system|async move{
+  let p=facts::setup_workspace(system).await;let db=p.pool().raw();let now=p.review.system.scenario.clock.now().get();
+  let mut tx=db.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+  assert!(read_field_reservation_alerts(&mut tx,FieldReservationAlertPhase::Expiring,now,now+86_400_000,(String::new(),String::new())).await.is_err());tx.rollback().await.unwrap();
+  let mut tx=db.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();sqlx::query("SAVEPOINT alert_locks").execute(&mut *tx).await.unwrap();lock_field_reservation_alerts(&mut tx).await.unwrap();
+  let source=read_field_reservation_alerts(&mut tx,FieldReservationAlertPhase::Expiring,now,now+86_400_000,(String::new(),String::new())).await.unwrap();source.require_current(&mut tx).await.unwrap();sqlx::query("ROLLBACK TO SAVEPOINT alert_locks").execute(&mut *tx).await.unwrap();assert!(source.require_current(&mut tx).await.is_err());tx.rollback().await.unwrap();
+ }).await;
 }

@@ -66,3 +66,31 @@ ledger. TypeScript remains the authoritative runtime writer.
 The isolated activity PostgreSQL tests establish the shown source lock order and
 event persistence only. They do not prove the cross-owner ports, complete CRM
 workflow, production composition or frontend journey.
+
+## 2026-11-09 owner source additions (unmounted)
+
+- `create_lead` now creates the CRM individual account and contact when the
+  caller does not select existing identities, verifies selected references by
+  Company, persists the caller-selected department, and writes the immutable
+  `create` case event with the trimmed Zod-shaped payload.
+- `link-finance` now has an owner-local account link adapter with version,
+  independent-reviewer, branch/department lead-scope and evidence checks. The
+  composition must still supply the current Finance customer witness and
+  `commerce.approve`; the adapter is not that authority.
+- `prepare_crm_qualification` is a read-only preparation path and
+  `apply_crm_qualification_retained` remains the write path. Qualification
+  facts now retain the lead branch/department.
+- The reviewed account-link source now locks and reads `public.crm_*` and
+  retains role/session/search-path/relation-OID boundary facts.
+- `canonical_lead_create_input` and `LeadCreateReceipt` exist for exact create
+  event/receipt shape. Workflow request fingerprints still require the
+  retained TypeScript property order.
+- None of these additions is mounted, purchase-enforced, authorized by a real
+  session, browser-verified or promoted. `crm/activities` still lacks a native
+  workspace/Work/history read.
+- `LeadCreatePlan` and `LeadQualifyCommandInput` serialize in the retained TS
+  property order with absent optional keys omitted; use them for new Workflow
+  request fingerprints rather than `LeadCreateInput`/`LeadChangeInput` (the
+  latter retain null-valued optional fields for historical native receipts).
+- `link-finance` has read-only `prepare_link_finance` plus
+  `apply_link_finance`; its wire DTO already matches the TS property order.

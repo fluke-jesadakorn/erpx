@@ -2,30 +2,25 @@
 //! authority remains with the selected coordinator; owner ports supply the
 //! Benefits workspace, People worker/name and package entitlement facts.
 use crate::business_http::BusinessScopeSlugs;
-use erpx_server_benefits::public::workspace::{
-    BenefitsActor, BenefitsEntitlement, BenefitsEntitlementPort, BenefitsFuture, BenefitsPeoplePort,
-    BenefitsWorker, PgBenefitsWorkspaceRead, benefits_workspace,
-};
-use erpx_server_benefits::public::workspace_http::{
-    BenefitsWorkspaceHttpBackend, BenefitsWorkspaceHttpFuture, BenefitsWorkspaceHttpReadRequest,
-    BenefitsWorkspaceHttpResponse,
-};
 use erpx_server_benefits::public::command::{
-    BenefitsCommandActor, PgBenefitsCommand,
-    execute_benefits_command,
+    BenefitsCommandActor, PgBenefitsCommand, execute_benefits_command,
 };
 use erpx_server_benefits::public::command_http::{
     BenefitsCommandHttpBackend, BenefitsCommandHttpFuture, BenefitsCommandHttpRequest,
     BenefitsCommandHttpResponse,
 };
-use erpx_server_people_payroll::public::benefit_person::{
-    CurrentBenefitPerson, inspect_benefit_person, inspect_benefit_person_names, lock_benefit_people_sources,
+use erpx_server_benefits::public::workspace::{
+    BenefitsActor, BenefitsEntitlement, BenefitsEntitlementPort, BenefitsFuture,
+    BenefitsPeoplePort, BenefitsWorker, PgBenefitsWorkspaceRead, benefits_workspace,
+};
+use erpx_server_benefits::public::workspace_http::{
+    BenefitsWorkspaceHttpBackend, BenefitsWorkspaceHttpFuture, BenefitsWorkspaceHttpReadRequest,
+    BenefitsWorkspaceHttpResponse,
 };
 use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
     PurchaseWitness, current_package_catalogue, lock_commercial_authority_sources,
 };
-use erpx_server_shared::public::{CommandKey, TimestampMillis};
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
     account_inbound_http::parse_inbound_account_request,
@@ -35,9 +30,14 @@ use erpx_server_identity_access::public::{
     },
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
+use erpx_server_people_payroll::public::benefit_person::{
+    CurrentBenefitPerson, inspect_benefit_person, inspect_benefit_person_names,
+    lock_benefit_people_sources,
+};
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId};
+use erpx_server_shared::public::{CommandKey, TimestampMillis};
 use serde_json::Value;
 use sqlx::PgConnection;
 use std::sync::Arc;
@@ -77,7 +77,9 @@ struct BenefitsSources;
 impl HoldingWorkSourcePreparation for BenefitsSources {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
-            lock_commercial_authority_sources(c).await.map_err(business)?;
+            lock_commercial_authority_sources(c)
+                .await
+                .map_err(business)?;
             lock_benefit_people_sources(c).await.map_err(business)?;
             Ok(())
         })
@@ -90,7 +92,9 @@ struct BenefitsCommandSources;
 impl HoldingWorkSourcePreparation for BenefitsCommandSources {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
-            lock_commercial_authority_sources(c).await.map_err(business)?;
+            lock_commercial_authority_sources(c)
+                .await
+                .map_err(business)?;
             lock_benefit_people_sources(c).await.map_err(business)?;
             Ok(())
         })
@@ -102,7 +106,14 @@ async fn benefits_people(
     company: &CompanyId,
     user_id: &str,
     extra_person_ids: &[String],
-) -> Result<(Option<BenefitsWorker>, Vec<(String, String)>, CurrentBenefitPerson), Error> {
+) -> Result<
+    (
+        Option<BenefitsWorker>,
+        Vec<(String, String)>,
+        CurrentBenefitPerson,
+    ),
+    Error,
+> {
     let person = inspect_benefit_person(connection, company.as_str(), user_id)
         .await
         .map_err(business)?;
@@ -133,12 +144,8 @@ async fn benefits_entitlement(
     now: TimestampMillis,
 ) -> Result<(BenefitsEntitlement, PurchaseWitness), Error> {
     let catalogue = current_package_catalogue()?;
-    let mut reader = PgCompanyPurchaseReader::new(
-        holding.clone(),
-        company.clone(),
-        connection,
-        &catalogue,
-    );
+    let mut reader =
+        PgCompanyPurchaseReader::new(holding.clone(), company.clone(), connection, &catalogue);
     let request = |purpose| PurchaseRequest {
         capabilities: vec!["people.benefits".into()],
         purpose,
@@ -246,8 +253,16 @@ fn benefits_work_context(current: &AuthorizedWorkContext) -> String {
         current.user_id().as_str(),
         current.holding_id().as_str(),
         workspace.company_id.as_str(),
-        workspace.branch_id.as_ref().map(|v| v.as_str()).unwrap_or(""),
-        workspace.department_id.as_ref().map(|v| v.as_str()).unwrap_or(""),
+        workspace
+            .branch_id
+            .as_ref()
+            .map(|v| v.as_str())
+            .unwrap_or(""),
+        workspace
+            .department_id
+            .as_ref()
+            .map(|v| v.as_str())
+            .unwrap_or(""),
         assignment.id.as_str(),
         assignment.role.as_str(),
     ] {
@@ -483,13 +498,9 @@ impl<C: Clock + Send + Sync + 'static> BenefitsService<C> {
                         }
                         current.require_permission("records.write")?;
                         let now = clock.now();
-                        let (worker, names, person) = benefits_people(
-                            connection,
-                            &company,
-                            current.user_id().as_str(),
-                            &[],
-                        )
-                        .await?;
+                        let (worker, names, person) =
+                            benefits_people(connection, &company, current.user_id().as_str(), &[])
+                                .await?;
                         let (entitlement, witness) =
                             benefits_entitlement(connection, &holding, &company, now).await?;
                         let selected = current.selection();
@@ -509,8 +520,7 @@ impl<C: Clock + Send + Sync + 'static> BenefitsService<C> {
                         };
                         let mut repository = PgBenefitsCommand::new(connection, &actor);
                         let mut people = BenefitsPeopleSnapshot { worker, names };
-                        let mut entitlement_port =
-                            BenefitsEntitlementSnapshot(entitlement);
+                        let mut entitlement_port = BenefitsEntitlementSnapshot(entitlement);
                         let result = execute_benefits_command(
                             &actor,
                             &body,
@@ -596,26 +606,54 @@ impl<C: Clock + Send + Sync + 'static> BenefitsCommandHttpBackend for BenefitsBa
     ) -> BenefitsCommandHttpFuture<'a, BenefitsCommandHttpResponse> {
         Box::pin(async move {
             let (proof, mut selection) = self.context(request.headers)?;
-            let revision = erpx_server_identity_access::public::account_inbound_http::unique_request_header(
-                request.headers,
-                "x-erpx-context-revision",
-            )?
-            .ok_or_else(|| BusinessError::invalid("BENEFITS_CONTEXT_REQUIRED", "Use the current work revision."))?
-            .parse()
-            .map_err(|_| BusinessError::invalid("BENEFITS_CONTEXT_REQUIRED", "Use the current work revision."))?;
-            let assignment = erpx_server_identity_access::public::account_inbound_http::unique_request_header(
-                request.headers,
-                "x-erpx-context-assignment",
-            )?
-            .ok_or_else(|| BusinessError::invalid("BENEFITS_CONTEXT_REQUIRED", "Choose the current assignment."))?
-            .to_owned();
-            let assignment_version = erpx_server_identity_access::public::account_inbound_http::unique_request_header(
-                request.headers,
-                "x-erpx-context-assignment-version",
-            )?
-            .ok_or_else(|| BusinessError::invalid("BENEFITS_CONTEXT_REQUIRED", "Use the current assignment version."))?
-            .parse()
-            .map_err(|_| BusinessError::invalid("BENEFITS_CONTEXT_REQUIRED", "Use the current assignment version."))?;
+            let revision =
+                erpx_server_identity_access::public::account_inbound_http::unique_request_header(
+                    request.headers,
+                    "x-erpx-context-revision",
+                )?
+                .ok_or_else(|| {
+                    BusinessError::invalid(
+                        "BENEFITS_CONTEXT_REQUIRED",
+                        "Use the current work revision.",
+                    )
+                })?
+                .parse()
+                .map_err(|_| {
+                    BusinessError::invalid(
+                        "BENEFITS_CONTEXT_REQUIRED",
+                        "Use the current work revision.",
+                    )
+                })?;
+            let assignment =
+                erpx_server_identity_access::public::account_inbound_http::unique_request_header(
+                    request.headers,
+                    "x-erpx-context-assignment",
+                )?
+                .ok_or_else(|| {
+                    BusinessError::invalid(
+                        "BENEFITS_CONTEXT_REQUIRED",
+                        "Choose the current assignment.",
+                    )
+                })?
+                .to_owned();
+            let assignment_version =
+                erpx_server_identity_access::public::account_inbound_http::unique_request_header(
+                    request.headers,
+                    "x-erpx-context-assignment-version",
+                )?
+                .ok_or_else(|| {
+                    BusinessError::invalid(
+                        "BENEFITS_CONTEXT_REQUIRED",
+                        "Use the current assignment version.",
+                    )
+                })?
+                .parse()
+                .map_err(|_| {
+                    BusinessError::invalid(
+                        "BENEFITS_CONTEXT_REQUIRED",
+                        "Use the current assignment version.",
+                    )
+                })?;
             selection.mutation = true;
             selection.expected = Some(
                 erpx_server_identity_access::public::work_context::ExpectedWorkSelection {
@@ -625,13 +663,7 @@ impl<C: Clock + Send + Sync + 'static> BenefitsCommandHttpBackend for BenefitsBa
                 },
             );
             self.service
-                .command(
-                    request.host,
-                    proof,
-                    selection,
-                    request.body,
-                    request.key,
-                )
+                .command(request.host, proof, selection, request.body, request.key)
                 .await
                 .map_err(business)
         })

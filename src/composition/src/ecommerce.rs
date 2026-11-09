@@ -5,9 +5,7 @@ use crate::business_http::BusinessScopeSlugs;
 use erpx_server_ecommerce::public::catalog::{
     EcommerceActor, PgEcommerceCatalogRead, StorefrontCatalog, storefront_catalog,
 };
-use erpx_server_ecommerce::public::channel::{
-    CreateChannel, PgEcommerceCommand, create_channel,
-};
+use erpx_server_ecommerce::public::channel::{CreateChannel, PgEcommerceCommand, create_channel};
 use erpx_server_ecommerce::public::ecommerce_http::{
     EcommerceCatalogHttpRequest, EcommerceChannelHttpRequest, EcommerceHttpBackend,
     EcommerceHttpFuture, EcommerceHttpResponse, EcommerceReviewHttpRequest,
@@ -236,7 +234,9 @@ impl<C: Clock + Send + Sync + 'static> EcommerceService<C> {
                         let now = clock.now();
                         let mut repository = PgEcommerceCatalogRead::new(connection);
                         let catalog: StorefrontCatalog =
-                            storefront_catalog(&actor, &mut repository, now).await.map_err(business)?;
+                            storefront_catalog(&actor, &mut repository, now)
+                                .await
+                                .map_err(business)?;
                         let data = serde_json::to_value(catalog).unwrap_or(Value::Null);
                         Ok(EcommerceHttpResponse {
                             data,
@@ -297,7 +297,9 @@ impl<C: Clock + Send + Sync + 'static> EcommerceService<C> {
                             configuration,
                         };
                         let mut repository = PgEcommerceCommand::new(connection);
-                        let receipt = create_channel(&actor, &command, &mut repository, now).await.map_err(business)?;
+                        let receipt = create_channel(&actor, &command, &mut repository, now)
+                            .await
+                            .map_err(business)?;
                         let data = receipt.to_wire();
                         Ok(EcommerceHttpResponse {
                             data,
@@ -366,7 +368,10 @@ impl<C: Clock + Send + Sync + 'static> EcommerceService<C> {
                             reason,
                         };
                         let mut repository = PgEcommerceCommand::new(connection);
-                        let receipt = review_ecommerce_record(&actor, &command, &mut repository, now).await.map_err(business)?;
+                        let receipt =
+                            review_ecommerce_record(&actor, &command, &mut repository, now)
+                                .await
+                                .map_err(business)?;
                         let data = receipt.to_wire();
                         Ok(EcommerceHttpResponse {
                             data,
@@ -491,6 +496,8 @@ impl<C: Clock + Send + Sync + 'static> EcommerceHttpBackend for EcommerceBackend
 
 // Retain the router constructor in feature-specific builds.
 #[allow(dead_code)]
-fn _router(targets: Vec<erpx_server_ecommerce::public::ecommerce_http::EcommerceHttpTarget>) -> Result<axum::Router, BusinessError> {
+fn _router(
+    targets: Vec<erpx_server_ecommerce::public::ecommerce_http::EcommerceHttpTarget>,
+) -> Result<axum::Router, BusinessError> {
     erpx_server_ecommerce::public::ecommerce_http::ecommerce_router(targets)
 }

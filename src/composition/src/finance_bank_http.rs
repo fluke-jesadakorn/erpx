@@ -21,12 +21,13 @@ use erpx_server_finance::public::bank_reconciliation::*;
 use erpx_server_identity_access::public::{
     AccountPolicy, RequestAudience,
     account_holding_bindings::ConfiguredHoldingRegistry,
-    account_inbound_http::{parse_inbound_account_request, unique_request_header},
+    account_inbound_http::{
+        CapturedHoldingMutation, parse_inbound_account_request, unique_request_header,
+    },
     effective_authority::{
         AuthorizedWorkContext, HoldingWorkAuthorizer, HoldingWorkSourcePreparation,
         WorkAuthorizationRequest,
     },
-    work_context::{ExpectedWorkSelection, HoldingWorkspaceRequest},
 };
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{BusinessError, Clock, FailureKind};
@@ -44,7 +45,7 @@ pub struct FinanceBankTarget<C> {
 }
 struct StateMap<C> {
     policy: Arc<AccountPolicy>,
-    targets: BTreeMap<(String, String), FinanceBankTarget<C>>,
+    targets: BTreeMap<(String, String, String), FinanceBankTarget<C>>,
 }
 pub fn finance_bank_router<C: Clock + Send + Sync + 'static>(
     policy: Arc<AccountPolicy>,
@@ -57,10 +58,20 @@ pub fn finance_bank_router<C: Clock + Send + Sync + 'static>(
         let valid = policy
             .audience(&target.host)
             .and_then(|audience| registry.expected_for_audience(&audience).ok())
-            .is_some_and(|holding| holding.slug == target.holding_slug);
+            .is_some_and(|holding| {
+                holding.slug == target.holding_slug
+                    && holding.holding_id == target.configuration.holding
+            });
         if !valid
             || configured
-                .insert((target.host.clone(), target.holding_slug.clone()), target)
+                .insert(
+                    (
+                        target.host.clone(),
+                        target.holding_slug.clone(),
+                        target.configuration.company.as_str().to_owned(),
+                    ),
+                    target,
+                )
                 .is_some()
         {
             return Err(BusinessError::invalid(
@@ -158,7 +169,10 @@ impl<C: Clock + Send + Sync> PgCommandAuthority for BankAuthority<'_, C> {
             || scope.company_id != self.config.company
             || scope.branch_id.is_some()
             || scope.department_id.is_some()
-            || !matches!(request.operation.as_str(), "finance.bank.import" | "finance.bank.reconcile")
+            || !matches!(
+                request.operation.as_str(),
+                "finance.bank.import" | "finance.bank.reconcile"
+            )
         {
             return Err(BusinessError::new(
                 FailureKind::Forbidden,
@@ -242,9 +256,17 @@ impl<C: Clock + Send + Sync> PgOwnerCommandEffects for Effects<'_, C> {
         let value: Value = serde_json::from_str(request.input.as_str())
             .map_err(|_| BusinessError::invalid("VALIDATION_FAILED", "Invalid bank request."))?;
         let (result, plan) = if request.operation == "finance.bank.import" {
-            let input: BankImportInput = serde_json::from_value(value)
-                .map_err(|_| BusinessError::invalid("VALIDATION_FAILED", "Invalid bank statement."))?;
-            let plan = prepare_bank_import(c, &finance_actor(self.current), &request.key, &input, self.clock).await?;
+            let input: BankImportInput = serde_json::from_value(value).map_err(|_| {
+                BusinessError::invalid("VALIDATION_FAILED", "Invalid bank statement.")
+            })?;
+            let plan = prepare_bank_import(
+                c,
+                &finance_actor(self.current),
+                &request.key,
+                &input,
+                self.clock,
+            )
+            .await?;
             (
                 serde_json::json!({
                     "id": plan.statement_id(),
@@ -292,7 +314,9 @@ impl<C: Clock + Send + Sync> PgOwnerCommandEffects for Effects<'_, C> {
             Some(Plan::Import(_)) => {}
             Some(Plan::Reconcile) => {
                 let input: BankReconcileInput = serde_json::from_str(request.input.as_str())
-                    .map_err(|_| BusinessError::invalid("VALIDATION_FAILED", "Invalid bank match."))?;
+                    .map_err(|_| {
+                        BusinessError::invalid("VALIDATION_FAILED", "Invalid bank match.")
+                    })?;
                 apply_bank_reconciliation(
                     c,
                     &finance_actor(self.current),
@@ -303,7 +327,14 @@ impl<C: Clock + Send + Sync> PgOwnerCommandEffects for Effects<'_, C> {
                 )
                 .await?;
             }
-            None => return Err(BusinessError::new(FailureKind::Unavailable, "BANK_UNAVAILABLE", "The bank request could not be prepared.").into()),
+            None => {
+                return Err(BusinessError::new(
+                    FailureKind::Unavailable,
+                    "BANK_UNAVAILABLE",
+                    "The bank request could not be prepared.",
+                )
+                .into());
+            }
         }
         Ok(())
     }
@@ -319,7 +350,12 @@ impl<C: Clock + Send + Sync> PgOwnerCommandEffects for Effects<'_, C> {
                 Ok(())
             }
             Some(Plan::Reconcile) => Ok(()),
-            None => Err(BusinessError::new(FailureKind::Unavailable, "BANK_UNAVAILABLE", "The bank request was not prepared.").into()),
+            None => Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "BANK_UNAVAILABLE",
+                "The bank request was not prepared.",
+            )
+            .into()),
         }
     }
 }
@@ -330,63 +366,93 @@ async fn command<C: Clock + Send + Sync + 'static>(
     request: Request,
     import: bool,
 ) -> Response {
-    let success = if import { StatusCode::CREATED } else { StatusCode::OK };
+    let success = if import {
+        StatusCode::CREATED
+    } else {
+        StatusCode::OK
+    };
     let result = async {
-        let host = unique_request_header(request.headers(), "host")?.ok_or_else(missing)?.to_owned();
-        let target = state.targets.get(&(host.clone(), slug)).ok_or_else(missing)?;
+        let host = unique_request_header(request.headers(), "host")?
+            .ok_or_else(missing)?
+            .to_owned();
+        let (target, target_selection) = crate::http_scope::deferred_company_target(
+            &state.targets,
+            &host,
+            &slug,
+            request.headers(),
+        )?;
         let inbound = parse_inbound_account_request(&state.policy, request.headers())?;
         if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
             return Err(missing().into());
         }
-        if unique_request_header(request.headers(), "origin")?.is_some_and(|value| value != inbound.expected_origin()) {
-            return Err(BusinessError::new(FailureKind::Forbidden, "ORIGIN_FORBIDDEN", "Use the application origin.").into());
+        if unique_request_header(request.headers(), "origin")?
+            .is_some_and(|value| value != inbound.expected_origin())
+        {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            )
+            .into());
         }
-        let revision: i64 = unique_request_header(request.headers(), "x-erpx-context-revision")?
-            .ok_or_else(missing)?
-            .parse()
-            .map_err(|_| BusinessError::invalid("VALIDATION_FAILED", "Use the current work revision."))?;
-        let assignment_version: i64 = unique_request_header(request.headers(), "x-erpx-context-assignment-version")?
-            .ok_or_else(missing)?
-            .parse()
-            .map_err(|_| BusinessError::invalid("VALIDATION_FAILED", "Use the current assignment version."))?;
-        let assignment_id = erpx_server_shared::public::AssignmentId::new(
-            unique_request_header(request.headers(), "x-erpx-context-assignment")?.ok_or_else(missing)?,
-        )?;
-        let key = unique_request_header(request.headers(), "idempotency-key")?
-            .filter(|value| !value.is_empty())
-            .map(str::to_owned)
-            .ok_or_else(|| BusinessError::invalid("IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required."))?;
+        let mut selection_headers = request.headers().clone();
+        if !selection_headers.contains_key("x-erpx-context-company")
+            && state
+                .targets
+                .keys()
+                .filter(|(h, s, _)| h == &host && s == &slug)
+                .count()
+                == 1
+        {
+            selection_headers.insert(
+                "x-erpx-context-company",
+                axum::http::HeaderValue::from_str(target.configuration.company.as_str())
+                    .map_err(|_| missing())?,
+            );
+        }
+        let captured = CapturedHoldingMutation::capture(&selection_headers, None, None);
+        let key = unique_request_header(request.headers(), "idempotency-key").and_then(|value| {
+            value
+                .filter(|value| !value.is_empty())
+                .map(str::to_owned)
+                .ok_or_else(|| {
+                    BusinessError::invalid(
+                        "IDEMPOTENCY_KEY_REQUIRED",
+                        "Idempotency-Key is required.",
+                    )
+                })
+        });
         let body = to_bytes(request.into_body(), BODY_LIMIT)
             .await
-            .map_err(|_| BusinessError::invalid("BODY_TOO_LARGE", "Use a smaller bank request."))?;
-        let input: Value = serde_json::from_slice(&body)
-            .map_err(|_| BusinessError::invalid("VALIDATION_FAILED", "Invalid bank request."))?;
-        let record_id = if import { format!("statement-{key}") } else { id.ok_or_else(missing)? };
-        let operation = if import { "finance.bank.import" } else { "finance.bank.reconcile" };
+            .map_err(|_| BusinessError::invalid("BODY_TOO_LARGE", "Use a smaller bank request."));
+        let input = body.and_then(|body| {
+            serde_json::from_slice::<Value>(&body)
+                .map_err(|_| BusinessError::invalid("VALIDATION_FAILED", "Invalid bank request."))
+        });
+        let operation = if import {
+            "finance.bank.import"
+        } else {
+            "finance.bank.reconcile"
+        };
         let config = target.configuration.clone();
         let clock = target.clock.clone();
         let authorizer = target.authorizer.clone();
         let host = host.clone();
-        let selection_company = config.company.clone();
         authorizer
             .execute_with_sources_deferred(
                 &host,
                 inbound.into_proof(),
                 move || {
-                    Ok(HoldingWorkspaceRequest {
-                        company_id: selection_company.clone(),
-                        branch_slug: None,
-                        department_slug: None,
-                        expected: Some(ExpectedWorkSelection {
-                            revision,
-                            assignment_id: assignment_id.clone(),
-                            assignment_version,
-                        }),
-                        mutation: true,
-                    })
+                    target_selection?;
+                    captured.resolve()
                 },
                 WorkAuthorizationRequest {
-                    permission: if import { "finance.write" } else { "finance.approve" }.into(),
+                    permission: if import {
+                        "finance.write"
+                    } else {
+                        "finance.approve"
+                    }
+                    .into(),
                     module: Some("finance".into()),
                     destination: "finance/bank".into(),
                     api: true,
@@ -396,9 +462,16 @@ async fn command<C: Clock + Send + Sync + 'static>(
                     let clock = clock.clone();
                     let config = config.clone();
                     let input = input.clone();
-                    let record_id = record_id.clone();
                     let key = key.clone();
+                    let id = id.clone();
                     Box::pin(async move {
+                        let key = key?;
+                        let input = input?;
+                        let record_id = if import {
+                            format!("statement-{key}")
+                        } else {
+                            id.ok_or_else(missing)?
+                        };
                         let request = WorkflowRequest {
                             key: key.to_owned(),
                             operation: operation.into(),

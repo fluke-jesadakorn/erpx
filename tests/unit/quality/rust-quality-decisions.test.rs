@@ -499,3 +499,27 @@ fn all_terminal_and_pending_hold_statuses_round_trip() {
 fn _assert_error_shape(error: BusinessError) -> (FailureKind, &'static str) {
     (error.kind, error.code)
 }
+
+#[test]
+fn identity_aliases_control_all_independent_quality_decisions() {
+    use erpx_server_quality::public::quality_read::quality_decision_with_same_person;
+    let reviewer=erpx_server_quality::public::quality_read::QualityActorFacts { user_id:"reviewer".into(), ..actor(true,true,true) };
+    let creator_alias=|id:&str| id=="creator-alias";
+    let inspector_alias=|id:&str| id=="inspector-alias";
+    let requester_alias=|id:&str| id=="requester-alias";
+    let unrelated=|_:&str| false;
+    let held=hold(HoldStatus::Held,"creator-alias",None,None);
+    assert!(!quality_decision_with_same_person(&held,&reviewer,&creator_alias).can_inspect);
+    assert!(quality_decision_with_same_person(&held,&reviewer,&unrelated).can_inspect);
+    let awaiting=hold(HoldStatus::AwaitingRelease,"creator-alias",Some("inspector-alias"),Some(InspectionResult::Pass));
+    assert!(!quality_decision_with_same_person(&awaiting,&reviewer,&creator_alias).can_release);
+    assert!(!quality_decision_with_same_person(&awaiting,&reviewer,&inspector_alias).can_release);
+    assert!(quality_decision_with_same_person(&awaiting,&reviewer,&unrelated).can_release);
+    let failed=hold(HoldStatus::Held,"creator-alias",Some("inspector-alias"),Some(InspectionResult::Fail));
+    assert!(!quality_decision_with_same_person(&failed,&reviewer,&inspector_alias).can_disposition);
+    assert!(quality_decision_with_same_person(&failed,&reviewer,&unrelated).can_disposition);
+    let mut pending=hold(HoldStatus::CancelPending,"creator-alias",None,None);
+    pending.cancel_requested_by=Some("requester-alias".into());
+    assert!(!quality_decision_with_same_person(&pending,&reviewer,&requester_alias).can_review_cancellation);
+    assert!(quality_decision_with_same_person(&pending,&reviewer,&unrelated).can_review_cancellation);
+}

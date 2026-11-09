@@ -34,6 +34,37 @@ fn denied<T>(r: Result<T, PgTransactionError<BusinessError>>, code: &str) {
     }
 }
 #[tokio::test]
+async fn count_nowait_fence_retries_only_contended_units_and_releases_locks() {
+    fixture::with_database(2, |p| async move {
+        setup(&p).await;
+        // Both protected lock groups must fail fast when an actual writer
+        // already owns an incompatible relation lock. Each failed unit is
+        // rolled back before re-acquisition; no old snapshot is reused.
+        for table in ["finance_charts", "finance_journals"] {
+            let mut writer = p.raw().begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *writer).await.unwrap();
+            match table {
+                "finance_charts" => sqlx::query("LOCK TABLE finance_charts IN ROW EXCLUSIVE MODE").execute(&mut *writer).await.unwrap(),
+                "finance_journals" => sqlx::query("LOCK TABLE finance_journals IN ROW EXCLUSIVE MODE").execute(&mut *writer).await.unwrap(),
+                _ => unreachable!(),
+            };
+            let mut contender = p.raw().begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *contender).await.unwrap();
+            let error = lock_initial_count_finance_sources_nowait(&mut contender).await;
+            assert!(matches!(&error, Err(PgTransactionError::Persistence(e)) if e.code == "PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state() == Some("55P03") && e.retryable()), "{table}: {error:?}");
+            contender.rollback().await.unwrap();
+            writer.rollback().await.unwrap();
+            let mut retried = p.raw().begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *retried).await.unwrap();
+            lock_initial_count_finance_sources_nowait(&mut retried).await.unwrap();
+            let finance = read_initial_count_finance(&mut retried, &HoldingId::new("h001").unwrap(), &basis(), "2026-05-01").await.unwrap();
+            assert_eq!(finance.period_id(), "old");
+            retried.rollback().await.unwrap();
+        }
+    }).await;
+}
+
+#[tokio::test]
 async fn unique_current_period_and_full_source_witness_are_transaction_bound() {
     fixture::with_database(2, |p| async move {
         setup(&p).await;

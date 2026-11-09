@@ -32,10 +32,14 @@ fn changed() -> BusinessError {
 /// A native outbox fence can reject effect tampering before the after-image
 /// comparison. Preserve the Count conflict contract and full unit rollback;
 /// unrelated PostgreSQL check violations retain their original error.
-fn ledger_source_failure(error:Error)->Error {
+fn ledger_source_failure(error: Error) -> Error {
     match error {
-        PgTransactionError::Persistence(ref persistence) if persistence.code=="NATIVE_OUTBOX_RUNTIME_REQUIRED"=>changed().into(),
-        other=>other,
+        PgTransactionError::Persistence(ref persistence)
+            if persistence.code == "NATIVE_OUTBOX_RUNTIME_REQUIRED" =>
+        {
+            changed().into()
+        }
+        other => other,
     }
 }
 fn text<'a>(v: &'a serde_json::Value, key: &str) -> Result<&'a str, BusinessError> {
@@ -1083,6 +1087,7 @@ pub async fn execute_service_count_action<
         || checked.attachment_set_ids != input.attachment_set_ids
         || checked.reason != input.reason
         || checked.normalized != input.normalized
+        || checked.contains_unpaired_surrogate != input.contains_unpaired_surrogate
     {
         return Err(changed().into());
     }
@@ -1102,6 +1107,13 @@ pub async fn execute_service_count_action<
     {
         module.require_current(c).await?;
         return Ok(result);
+    }
+    if input.contains_unpaired_surrogate {
+        return Err(BusinessError::invalid(
+            "VALIDATION_FAILED",
+            "Use valid initial physical Count input.",
+        )
+        .into());
     }
     let preflight = prepare_service_count_action(c, current, clock, id, action, input).await?;
     let event = ids.next().as_str().to_owned();
@@ -1275,7 +1287,8 @@ pub async fn execute_service_count_action<
         &mut ledger_ids,
     )
     .execute(&request, &mut effects)
-    .await.map_err(ledger_source_failure)?;
+    .await
+    .map_err(ledger_source_failure)?;
     module.require_current(c).await?;
     serde_json::from_str(outcome.result.as_str()).map_err(|_| changed().into())
 }
@@ -1285,19 +1298,61 @@ struct GenericDefaultSupply {
     witness: erpx_server_commercial::public::purchases::PurchaseWitness,
 }
 impl GenericDefaultSupply {
-    async fn capture<C: Clock>(c: &mut PgConnection, current: &AuthorizedWorkContext, clock: &C) -> Result<Self, Error> {
-        use erpx_server_commercial::public::purchases::{current_package_catalogue, PgReadOnlyCompanyPurchaseReader, bind_purchase_read_sources, PurchaseRequest, PackageEnforcementMode};
-        let catalogue=current_package_catalogue()?;
-        let locks=bind_purchase_read_sources(c).await?;
-        let mut reader=PgReadOnlyCompanyPurchaseReader::new(current.holding_id().clone(),current.selection().workspace().company_id.clone(),c,&catalogue,&locks);
-        let observed=reader.inspect(&PurchaseRequest{capabilities:vec!["supply.counts".into()],purpose:CapabilityPurpose::NewWork,mode:PackageEnforcementMode::Enforced},clock.now()).await?;
+    async fn capture<C: Clock>(
+        c: &mut PgConnection,
+        current: &AuthorizedWorkContext,
+        clock: &C,
+    ) -> Result<Self, Error> {
+        use erpx_server_commercial::public::purchases::{
+            PackageEnforcementMode, PgReadOnlyCompanyPurchaseReader, PurchaseRequest,
+            bind_purchase_read_sources, current_package_catalogue,
+        };
+        let catalogue = current_package_catalogue()?;
+        let locks = bind_purchase_read_sources(c).await?;
+        let mut reader = PgReadOnlyCompanyPurchaseReader::new(
+            current.holding_id().clone(),
+            current.selection().workspace().company_id.clone(),
+            c,
+            &catalogue,
+            &locks,
+        );
+        let observed = reader
+            .inspect(
+                &PurchaseRequest {
+                    capabilities: vec!["supply.counts".into()],
+                    purpose: CapabilityPurpose::NewWork,
+                    mode: PackageEnforcementMode::Enforced,
+                },
+                clock.now(),
+            )
+            .await?;
         observed.require_allowed()?;
-        Ok(Self{catalogue,witness:observed.witness})
+        Ok(Self {
+            catalogue,
+            witness: observed.witness,
+        })
     }
-    async fn require<C: Clock>(&self,c:&mut PgConnection,current:&AuthorizedWorkContext,clock:&C)->Result<(),Error>{
-        let locks=erpx_server_commercial::public::purchases::bind_purchase_read_sources(c).await?;
-        let mut reader=erpx_server_commercial::public::purchases::PgReadOnlyCompanyPurchaseReader::new(current.holding_id().clone(),current.selection().workspace().company_id.clone(),c,&self.catalogue,&locks);
-        reader.revalidate(&self.witness,clock.now()).await?.require_allowed()?;Ok(())
+    async fn require<C: Clock>(
+        &self,
+        c: &mut PgConnection,
+        current: &AuthorizedWorkContext,
+        clock: &C,
+    ) -> Result<(), Error> {
+        let locks =
+            erpx_server_commercial::public::purchases::bind_purchase_read_sources(c).await?;
+        let mut reader =
+            erpx_server_commercial::public::purchases::PgReadOnlyCompanyPurchaseReader::new(
+                current.holding_id().clone(),
+                current.selection().workspace().company_id.clone(),
+                c,
+                &self.catalogue,
+                &locks,
+            );
+        reader
+            .revalidate(&self.witness, clock.now())
+            .await?
+            .require_allowed()?;
+        Ok(())
     }
 }
 struct AssignmentOwner<'a, C> {
@@ -1325,7 +1380,9 @@ impl<C: Clock> AssignmentOwner<'_, C> {
         Ok(())
     }
     async fn before(&self, c: &mut PgConnection) -> Result<(), Error> {
-        if let Some(supply)=&self.supply { supply.require(c,self.current,self.clock).await?; }
+        if let Some(supply) = &self.supply {
+            supply.require(c, self.current, self.clock).await?;
+        }
         self.name_current(c).await?;
         self.source.require_current(c, self.clock).await?;
         self.source
@@ -1338,7 +1395,9 @@ impl<C: Clock> AssignmentOwner<'_, C> {
             .await
     }
     async fn after(&self, c: &mut PgConnection) -> Result<(), Error> {
-        if let Some(supply)=&self.supply { supply.require(c,self.current,self.clock).await?; }
+        if let Some(supply) = &self.supply {
+            supply.require(c, self.current, self.clock).await?;
+        }
         self.name_current(c).await?;
         self.source.require_current(c, self.clock).await?;
         self.source
@@ -1537,17 +1596,46 @@ pub async fn assign_service_count_flow<
 }
 
 /// Generic stock_count route, with its legacy save-default semantics.
-pub async fn assign_generic_service_count_flow<C: Clock + Sync, I: erpx_server_shared::public::IdentifierSource>(c: &mut PgConnection, current: &AuthorizedWorkContext, clock: &C, ids: &mut I, command: ServiceCountAssignmentCommand<'_>, environment: &crate::service_initial_physical_stock_sources::ServiceInitialPhysicalStockEnvironment) -> Result<serde_json::Value, Error> {
+pub async fn assign_generic_service_count_flow<
+    C: Clock + Sync,
+    I: erpx_server_shared::public::IdentifierSource,
+>(
+    c: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    clock: &C,
+    ids: &mut I,
+    command: ServiceCountAssignmentCommand<'_>,
+    environment: &crate::service_initial_physical_stock_sources::ServiceInitialPhysicalStockEnvironment,
+) -> Result<serde_json::Value, Error> {
     assign_service_count_flow_inner(c, current, clock, ids, command, environment, true).await
 }
 
-async fn assign_service_count_flow_inner<C: Clock + Sync, I: erpx_server_shared::public::IdentifierSource>(c: &mut PgConnection, current: &AuthorizedWorkContext, clock: &C, ids: &mut I, command: ServiceCountAssignmentCommand<'_>, environment: &crate::service_initial_physical_stock_sources::ServiceInitialPhysicalStockEnvironment, generic: bool) -> Result<serde_json::Value, Error> {
+async fn assign_service_count_flow_inner<
+    C: Clock + Sync,
+    I: erpx_server_shared::public::IdentifierSource,
+>(
+    c: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    clock: &C,
+    ids: &mut I,
+    command: ServiceCountAssignmentCommand<'_>,
+    environment: &crate::service_initial_physical_stock_sources::ServiceInitialPhysicalStockEnvironment,
+    generic: bool,
+) -> Result<serde_json::Value, Error> {
     let ServiceCountAssignmentCommand { key, id, input } = command;
     let suffix = input
         .as_str()
         .strip_prefix("{\"kind\":\"stock_count\",")
         .ok_or_else(changed)?;
-    let checked = if generic { erpx_server_workflow::public::stock_count_flow::normalize_generic_stock_count_assignment(&format!("{{{suffix}"))? } else { erpx_server_workflow::public::stock_count_flow::normalize_stock_count_assignment(&format!("{{{suffix}"))? };
+    let checked = if generic {
+        erpx_server_workflow::public::stock_count_flow::normalize_generic_stock_count_assignment(
+            &format!("{{{suffix}"),
+        )?
+    } else {
+        erpx_server_workflow::public::stock_count_flow::normalize_stock_count_assignment(&format!(
+            "{{{suffix}"
+        ))?
+    };
     if &checked != input {
         return Err(changed().into());
     }
@@ -1571,13 +1659,22 @@ async fn assign_service_count_flow_inner<C: Clock + Sync, I: erpx_server_shared:
             clock.now(),
         )
         .await?;
-    let property = |key: &str| input.property(key).map_err(Error::from)?.ok_or_else(|| Error::from(changed()));
-    let text_value = |key: &str| -> Result<String, Error> { let units=property(key)?.string_utf16_units()?.ok_or_else(changed)?; Ok(String::from_utf16_lossy(&units)) };
-    let step_text=text_value("stepKey")?;
-    let user=text_value("userId")?;
-    let reason=text_value("reason")?;
-    let save_default = match property("saveDefault")?.as_str() { "true" => true, "false" => false, _ => return Err(changed().into()) };
-    let supply = if generic && save_default { Some(GenericDefaultSupply::capture(c,current,clock).await?) } else { None };
+    let property = |key: &str| {
+        input
+            .property(key)
+            .map_err(Error::from)?
+            .ok_or_else(|| Error::from(changed()))
+    };
+    let save_default = match property("saveDefault")?.as_str() {
+        "true" => true,
+        "false" => false,
+        _ => return Err(changed().into()),
+    };
+    let supply = if generic && save_default {
+        Some(GenericDefaultSupply::capture(c, current, clock).await?)
+    } else {
+        None
+    };
     let request = WorkflowRequest {
         key: key.into(),
         operation: "flow.assign".into(),
@@ -1607,21 +1704,50 @@ async fn assign_service_count_flow_inner<C: Clock + Sync, I: erpx_server_shared:
     )
     .await?
     {
-        if let Some(supply)=&supply { supply.require(c,current,clock).await?; }
+        if let Some(supply) = &supply {
+            supply.require(c, current, clock).await?;
+        }
         module.require_current(c).await?;
         return serde_json::from_str(outcome.result.as_str()).map_err(|_| changed().into());
     }
+    // Preserve the original UTF-16 in the replay request above. A fresh
+    // assignment must not resolve a lossy replacement as a different user.
+    let text_value = |key: &str| -> Result<String, Error> {
+        let units = property(key)?.string_utf16_units()?.ok_or_else(changed)?;
+        String::from_utf16(&units).map_err(|_| {
+            BusinessError::invalid(
+                "VALIDATION_FAILED",
+                "Use valid stock Count assignment input.",
+            )
+            .into()
+        })
+    };
+    let step_text = text_value("stepKey")?;
+    let user = text_value("userId")?;
+    // PostgreSQL's Node driver stores an unpaired surrogate in free text as
+    // U+FFFD; keep the original units in the replay fingerprint above.
+    let reason_units = property("reason")?
+        .string_utf16_units()?
+        .ok_or_else(changed)?;
+    let reason = String::from_utf16_lossy(&reason_units);
     if text_value("kind")? != "stock_count" || (!generic && save_default) {
         return Err(changed().into());
     }
     let step = StockCountStep::parse(&step_text).ok_or_else(changed)?;
-    let flow_version = property("expectedVersion")?.as_str().parse::<i64>().map_err(|_| changed())?;
-    let record_version = property("recordVersion")?.as_str().parse::<i64>().map_err(|_| changed())?;
+    let flow_version = property("expectedVersion")?
+        .as_str()
+        .parse::<i64>()
+        .map_err(|_| changed())?;
+    let record_version = property("recordVersion")?
+        .as_str()
+        .parse::<i64>()
+        .map_err(|_| changed())?;
     let source =
         read_service_count_record(c, current, clock, id, ServiceCountAuthorityPurpose::Read)
             .await?;
     let record = &source.flow.view.record;
-    let purpose = if save_default || step == StockCountStep::Draft
+    let purpose = if save_default
+        || step == StockCountStep::Draft
         || ["draft", "rejected"].contains(&record.status.as_str())
     {
         CapabilityPurpose::NewWork

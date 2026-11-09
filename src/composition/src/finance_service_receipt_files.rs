@@ -383,7 +383,14 @@ pub async fn read_finance_service_receipt_workspace<C: Clock + Send + Sync>(
     config: &FinanceJournalCreateConfiguration,
     clock: &C,
     id: &str,
-) -> Result<(serde_json::Value,bool,std::collections::BTreeMap<String,crate::finance_presentation::FinancePurchaseAccess>), Error> {
+) -> Result<
+    (
+        serde_json::Value,
+        bool,
+        std::collections::BTreeMap<String, crate::finance_presentation::FinancePurchaseAccess>,
+    ),
+    Error,
+> {
     if !crate::finance_generic_payment::payment_is_field(c, config.company.as_str(), id).await? {
         return crate::finance_generic_payment::read_finance_generic_payment_workspace(
             c, current, config, clock, id,
@@ -419,11 +426,17 @@ pub async fn read_finance_service_receipt_workspace<C: Clock + Send + Sync>(
             clock.now(),
         )
         .await?;
-    let banking_history = reader.inspect(&PurchaseRequest {
-        capabilities:vec!["finance.banking".into()],purpose:CapabilityPurpose::History,
-        mode:PackageEnforcementMode::Enforced,
-    },clock.now()).await?;
-    let banking_history_allowed=banking_history.require_allowed().is_ok();
+    let banking_history = reader
+        .inspect(
+            &PurchaseRequest {
+                capabilities: vec!["finance.banking".into()],
+                purpose: CapabilityPurpose::History,
+                mode: PackageEnforcementMode::Enforced,
+            },
+            clock.now(),
+        )
+        .await?;
+    let banking_history_allowed = banking_history.require_allowed().is_ok();
     let included = reader
         .inspect(
             &PurchaseRequest {
@@ -483,9 +496,28 @@ pub async fn read_finance_service_receipt_workspace<C: Clock + Send + Sync>(
     }
     let mut data = workspace.data().clone();
     data.as_object_mut().ok_or_else(changed)?.insert("sourcePurchase".into(),serde_json::json!({"capability":"finance.service-invoice","settleExisting":included_allowed,"history":history_allowed,"revision":history.revision}));
-    let presentation=crate::finance_presentation::read_finance_presentation(c,&config.holding,&config.company,&config.catalogue,clock).await?;
-    presentation.require_current(c,&config.holding,&config.company,&config.catalogue,clock).await?;
-    Ok((data,!banking_history_allowed,presentation.values().clone()))
+    let presentation = crate::finance_presentation::read_finance_presentation(
+        c,
+        &config.holding,
+        &config.company,
+        &config.catalogue,
+        clock,
+    )
+    .await?;
+    presentation
+        .require_current(
+            c,
+            &config.holding,
+            &config.company,
+            &config.catalogue,
+            clock,
+        )
+        .await?;
+    Ok((
+        data,
+        !banking_history_allowed,
+        presentation.values().clone(),
+    ))
 }
 
 /// Persisted-source transport observation only; never a writer or a grant.
@@ -572,24 +604,49 @@ pub async fn finance_service_receipt_runtime<C: Clock + Send + Sync>(
 
 /// Issued customer receipt shares the retained native payment authority.
 /// Runtime observation reveals only a persisted Company source classification.
-pub async fn read_finance_service_customer_receipt<C:Clock+Send+Sync>(
- c:&mut PgConnection,current:&AuthorizedWorkContext,config:&FinanceJournalCreateConfiguration,clock:&C,id:&str,runtime:bool
-)->Result<serde_json::Value,Error>{
- use erpx_server_finance::public::service_receipt::{customer_receipt_payment,read_customer_receipt};
- current.require_permission("finance.read")?;
- let payment=customer_receipt_payment(c,&finance_actor(current),id).await?;
- let owner=finance_service_receipt_runtime(c,current,config,clock,&payment).await?;
- if runtime{return Ok(serde_json::json!({"data":{"id":id,"runtime":owner["runtime"]}}));}
- if owner["runtime"]!="rust"{return Err(BusinessError::new(FailureKind::Unavailable,"RECEIPT_OWNER_CHANGED","The receipt is not a native Field receipt.").into());}
- let scope=current.selection().workspace();
- if scope.branch_id.is_some()||scope.department_id.is_some(){
-  return Err(BusinessError::new(FailureKind::NotFound,"RECEIPT_NOT_FOUND","Receipt not found in this workspace.").into());
- }
- let authority=FinancePaymentIntakeAuthority::for_read(current,config,clock);
- authority.authorize(c,current,&payment,false).await?;
- let receipt=read_customer_receipt(c,&finance_actor(current),id).await?;
- if receipt.payment_id!=payment{return Err(changed().into());}
- receipt.require_current(c).await?;
- authority.revalidate(c,current,&payment,false).await?;
- Ok(serde_json::json!({"data":receipt.detail,"export":receipt.export,"context":crate::finance_journal_detail::rendered(current)?}))
+pub async fn read_finance_service_customer_receipt<C: Clock + Send + Sync>(
+    c: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    config: &FinanceJournalCreateConfiguration,
+    clock: &C,
+    id: &str,
+    runtime: bool,
+) -> Result<serde_json::Value, Error> {
+    use erpx_server_finance::public::service_receipt::{
+        customer_receipt_payment, read_customer_receipt,
+    };
+    current.require_permission("finance.read")?;
+    let payment = customer_receipt_payment(c, &finance_actor(current), id).await?;
+    let owner = finance_service_receipt_runtime(c, current, config, clock, &payment).await?;
+    if runtime {
+        return Ok(serde_json::json!({"data":{"id":id,"runtime":owner["runtime"]}}));
+    }
+    if owner["runtime"] != "rust" {
+        return Err(BusinessError::new(
+            FailureKind::Unavailable,
+            "RECEIPT_OWNER_CHANGED",
+            "The receipt is not a native Field receipt.",
+        )
+        .into());
+    }
+    let scope = current.selection().workspace();
+    if scope.branch_id.is_some() || scope.department_id.is_some() {
+        return Err(BusinessError::new(
+            FailureKind::NotFound,
+            "RECEIPT_NOT_FOUND",
+            "Receipt not found in this workspace.",
+        )
+        .into());
+    }
+    let authority = FinancePaymentIntakeAuthority::for_read(current, config, clock);
+    authority.authorize(c, current, &payment, false).await?;
+    let receipt = read_customer_receipt(c, &finance_actor(current), id).await?;
+    if receipt.payment_id != payment {
+        return Err(changed().into());
+    }
+    receipt.require_current(c).await?;
+    authority.revalidate(c, current, &payment, false).await?;
+    Ok(
+        serde_json::json!({"data":receipt.detail,"export":receipt.export,"context":crate::finance_journal_detail::rendered(current)?}),
+    )
 }

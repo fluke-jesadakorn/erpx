@@ -15,8 +15,8 @@ use erpx_server_identity_access::public::{
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{
-    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, IdentifierSource, RecordId,
-    TimestampMillis,
+    BusinessError, Clock, CommandKey, CompanyId, FailureKind, HoldingId, IdentifierSource,
+    RecordId, TimestampMillis,
 };
 use erpx_server_support::public::incident::{
     IncidentActor, IncidentChange, IncidentChangePlan, IncidentCreate, IncidentCreatePlan,
@@ -92,8 +92,17 @@ impl<C: Clock + Send + Sync + 'static> SupportIncidentCommand<C> {
     where
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
-        self.run(host, proof, workspace, Some(id), None, Some(input), wire, key)
-            .await
+        self.run(
+            host,
+            proof,
+            workspace,
+            Some(id),
+            None,
+            Some(input),
+            wire,
+            key,
+        )
+        .await
     }
     #[allow(clippy::too_many_arguments)]
     async fn run<Input>(
@@ -171,7 +180,10 @@ impl<C: Clock + Send + Sync + 'static> SupportIncidentCommand<C> {
                             (None, Some(id)) => (
                                 format!(
                                     "support.incident.{}",
-                                    change_input.as_ref().map(|input| input.action()).unwrap_or("change")
+                                    change_input
+                                        .as_ref()
+                                        .map(|input| input.action())
+                                        .unwrap_or("change")
                                 ),
                                 id.clone(),
                             ),
@@ -215,8 +227,6 @@ impl<C: Clock + Send + Sync + 'static> SupportIncidentCommand<C> {
             .await
     }
 }
-
-
 
 fn incident_actor(
     current: &AuthorizedWorkContext,
@@ -312,9 +322,8 @@ impl<C: Clock + Sync> PgCommandAuthority for Authority<'_, C> {
         match &self.purchases {
             Some(p) => p.check(c, self.current, self.clock.now()).await?,
             None => {
-                self.purchases = Some(
-                    Purchases::read(c, self.current, disposition, self.clock.now()).await?,
-                )
+                self.purchases =
+                    Some(Purchases::read(c, self.current, disposition, self.clock.now()).await?)
             }
         }
         Ok(())
@@ -379,7 +388,10 @@ impl Purchases {
             c,
             &self.catalogue,
         );
-        reader.revalidate(&self.history, now).await?.require_allowed()?;
+        reader
+            .revalidate(&self.history, now)
+            .await?
+            .require_allowed()?;
         if let Some(witness) = &self.new_work {
             reader.revalidate(witness, now).await?.require_allowed()?;
         }
@@ -608,7 +620,19 @@ async fn load_incident(
     .bind(company.as_str())
     .fetch_optional(&mut *c)
     .await?;
-    let Some((id, company_id, branch_id, department_id, status, severity, owner_id, mitigated_by, created_by, version)) = row else {
+    let Some((
+        id,
+        company_id,
+        branch_id,
+        department_id,
+        status,
+        severity,
+        owner_id,
+        mitigated_by,
+        created_by,
+        version,
+    )) = row
+    else {
         return Err(BusinessError::new(
             FailureKind::NotFound,
             "SUPPORT_INCIDENT_NOT_FOUND",
@@ -670,7 +694,7 @@ async fn apply_create(
         .bind(plan.updated_at)
         .execute(&mut *c)
         .await?;
-    let eligible:bool=sqlx::query_scalar(OWNER_ELIGIBLE)
+    let eligible: bool = sqlx::query_scalar(OWNER_ELIGIBLE)
         .bind(&plan.id)
         .fetch_one(&mut *c)
         .await?;
@@ -715,7 +739,7 @@ async fn apply_change(
     actor_id: &str,
 ) -> Result<(), Error> {
     if plan.action == "close" {
-        let reviewer:bool=sqlx::query_scalar(REVIEWER)
+        let reviewer: bool = sqlx::query_scalar(REVIEWER)
             .bind(&plan.id)
             .bind(actor_id)
             .fetch_one(&mut *c)
@@ -810,10 +834,12 @@ async fn apply_change(
     }
     if plan.action == "unlink" {
         let ticket_id = plan.ticket_id.as_deref().ok_or_else(changed)?;
-        let count:i64=sqlx::query_scalar("SELECT COUNT(*) FROM support_incident_tickets WHERE incident_id=$1 AND active")
-            .bind(&plan.id)
-            .fetch_one(&mut *c)
-            .await?;
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM support_incident_tickets WHERE incident_id=$1 AND active",
+        )
+        .bind(&plan.id)
+        .fetch_one(&mut *c)
+        .await?;
         if count <= 1 {
             return Err(BusinessError::new(
                 FailureKind::Conflict,

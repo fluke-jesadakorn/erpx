@@ -4,13 +4,12 @@
 use crate::http_scope::{BusinessScopeSlugs, selected_company_target};
 use crate::support_incident_command::SupportIncidentCommand;
 use axum::{
-    Router,
+    Json, Router,
     body::Bytes,
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::post,
-    Json,
 };
 use erpx_server_identity_access::public::{
     AccountPolicy,
@@ -23,10 +22,7 @@ use erpx_server_shared::public::{BusinessError, Clock, CommandKey, FailureKind};
 use erpx_server_support::public::incident::{IncidentChange, IncidentCreate};
 use erpx_server_workflow::public::commands::CommandJson;
 use serde_json::{Value, json};
-use std::{
-    collections::BTreeMap,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Clone)]
 pub struct SupportIncidentHttpTarget<C> {
@@ -130,7 +126,10 @@ async fn post_incident<C: Clock + Clone + Send + Sync + 'static>(
                 object.remove("action");
             }
             let input: IncidentCreate = serde_json::from_value(create).map_err(|_| {
-                BusinessError::invalid("SUPPORT_INCIDENT_INPUT_INVALID", "Provide a valid incident.")
+                BusinessError::invalid(
+                    "SUPPORT_INCIDENT_INPUT_INVALID",
+                    "Provide a valid incident.",
+                )
             })?;
             target
                 .create(host, proof, move || captured.resolve(), input, wire, key)

@@ -226,6 +226,42 @@ async fn paged_ids(pool: &DatabasePool, actor: &CustomerTimelineActor, size: u16
 }
 
 #[tokio::test]
+async fn cursor_pages_match_database_collation_across_sources() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO commerce_orders(id,company_id,branch_id,department_id,kind,number,party_id,warehouse_id,currency,order_date,due_date,note,state,subtotal_minor,tax_minor,version,created_by,created_at,updated_at) VALUES \
+             ('é','company','branch',NULL,'sales','SO-U1','customer',NULL,'THB','2026-09-20','2026-09-23','Unicode','confirmed',1,0,1,'owner',9000,9000), \
+             ('z','company','branch',NULL,'sales','SO-U2','customer',NULL,'THB','2026-09-20','2026-09-23','Unicode','confirmed',1,0,1,'owner',9000,9000), \
+             ('ก','company','branch',NULL,'sales','SO-U3','customer',NULL,'THB','2026-09-20','2026-09-23','Unicode','confirmed',1,0,1,'owner',9000,9000); \
+             INSERT INTO customer_contact_note_history(id,note_id,version,action,body,reason,actor_id,created_at) VALUES \
+             ('é','note-main',2,'correct','Unicode','Synthetic','owner',9000), \
+             ('z','note-main',3,'correct','Unicode','Synthetic','owner',9000), \
+             ('ก','note-main',4,'correct','Unicode','Synthetic','owner',9000)"
+        ).execute(pool.raw()).await.unwrap();
+        // This oracle is the legacy union's database order, not a Rust or C
+        // collation approximation. Scope is the same selected Company/customer.
+        let expected: Vec<String> = sqlx::query_scalar(
+            "SELECT e.id FROM (\
+               SELECT 'order:'||o.id id,o.updated_at::bigint at FROM commerce_orders o \
+                WHERE o.company_id='company' AND o.party_id='customer' AND o.kind IN ('sales','quote') AND o.updated_at=9000 \
+               UNION ALL \
+               SELECT 'contact:'||h.id id,h.created_at::bigint at FROM customer_contact_note_history h \
+                JOIN customer_contact_notes n ON n.id=h.note_id \
+                JOIN commerce_orders o ON o.id=n.order_id AND o.company_id=n.company_id \
+                WHERE o.company_id='company' AND o.party_id='customer' AND o.kind IN ('sales','quote') AND h.created_at=9000\
+             ) e ORDER BY e.at DESC,e.id DESC"
+        ).fetch_all(pool.raw()).await.unwrap();
+        assert_eq!(expected.len(), 6);
+        let actual = paged_ids(&pool, &full_actor(), 2).await;
+        assert_eq!(&actual[..expected.len()], expected.as_slice());
+        for id in expected {
+            assert_eq!(actual.iter().filter(|item| *item == &id).count(), 1);
+        }
+    }).await;
+}
+
+#[tokio::test]
 async fn reads_the_full_federation_and_pages_without_duplicates() {
     fixture::with_database(2, |pool| async move {
         setup(&pool).await;

@@ -214,3 +214,143 @@ async fn reads_refuse_missing_read_permission_expired_context_and_foreign_record
     })
     .await;
 }
+
+#[tokio::test]
+async fn creation_vacancy_retains_global_absence_and_same_unit_locks() {
+    use erpx_server_maintenance::public::work_source::inspect_maintenance_asset_vacancy;
+    use erpx_server_shared::public::RecordId;
+    fixture::with_database(2, |control| async move {
+        fixture::with_database(2, move |holding| async move {
+            let _ = setup(&control, &holding).await;
+            seed_work(&holding).await;
+            sqlx::query("INSERT INTO operational_assets(id,company_id,branch_id,code,name,category,currency,created_by,created_at,updated_at) VALUES('vacant-asset','company','branch','VACANT','Synthetic','synthetic','THB','fixture',0,0)").execute(holding.raw()).await.unwrap();
+            let asset=RecordId::new("vacant-asset").unwrap();
+            let occupied=RecordId::new("asset").unwrap();
+            let mut no_lock=holding.raw().begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *no_lock).await.unwrap();
+            assert!(inspect_maintenance_asset_vacancy(&mut no_lock,&asset).await.is_err());
+            no_lock.rollback().await.unwrap();
+            let mut tx=holding.raw().begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+            sqlx::query("LOCK TABLE maintenance_work_orders IN SHARE ROW EXCLUSIVE MODE").execute(&mut *tx).await.unwrap();
+            assert!(inspect_maintenance_asset_vacancy(&mut tx,&occupied).await.unwrap().is_none());
+            let witness=inspect_maintenance_asset_vacancy(&mut tx,&asset).await.unwrap().unwrap();
+            assert_eq!(witness.asset_id(),&asset);witness.require_current(&mut tx).await.unwrap();
+            sqlx::query("INSERT INTO maintenance_work_orders(id,company_id,branch_id,asset_id,title,priority,status,owner_id,created_by,created_at,updated_at) VALUES('cancelled-work','company','branch','vacant-asset','Synthetic','normal','cancelled','user','user',0,0)").execute(&mut *tx).await.unwrap();
+            witness.require_current(&mut tx).await.unwrap();
+            // Legacy checks by globally keyed asset_id, not work company.
+            sqlx::query("INSERT INTO maintenance_work_orders(id,company_id,branch_id,asset_id,title,priority,status,owner_id,created_by,created_at,updated_at) VALUES('foreign-active-work','foreign','branch','vacant-asset','Synthetic','normal','open','user','user',0,0)").execute(&mut *tx).await.unwrap();
+            assert!(witness.require_current(&mut tx).await.is_err());
+            assert!(inspect_maintenance_asset_vacancy(&mut tx,&asset).await.unwrap().is_none());
+            tx.rollback().await.unwrap();
+            let mut other=holding.raw().begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();
+            sqlx::query("LOCK TABLE maintenance_work_orders IN SHARE ROW EXCLUSIVE MODE").execute(&mut *other).await.unwrap();
+            assert!(witness.require_current(&mut other).await.is_err());
+            other.rollback().await.unwrap();
+            let mut savepoint=holding.raw().begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *savepoint).await.unwrap();
+            sqlx::query("SELECT pg_current_xact_id()").execute(&mut *savepoint).await.unwrap();
+            sqlx::query("SAVEPOINT before_lock").execute(&mut *savepoint).await.unwrap();
+            sqlx::query("LOCK TABLE maintenance_work_orders IN SHARE ROW EXCLUSIVE MODE").execute(&mut *savepoint).await.unwrap();
+            let proof=inspect_maintenance_asset_vacancy(&mut savepoint,&asset).await.unwrap().unwrap();
+            sqlx::query("ROLLBACK TO SAVEPOINT before_lock").execute(&mut *savepoint).await.unwrap();
+            assert!(proof.require_current(&mut savepoint).await.is_err());
+            savepoint.rollback().await.unwrap();
+        }).await;
+    }).await;
+}
+
+#[tokio::test]
+async fn maintenance_asset_purchase_locks_require_same_unit_and_report_contention() {
+    use erpx_server_maintenance::public::asset_purchase_locks::*;
+    use erpx_server_runtime::public::postgres::{MigrationTrack,PgTransactionError,load_migrations,migrate_database};
+    fixture::with_database(2,|pool|async move {
+        let migrations=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),MigrationTrack::HoldingWrite).await.unwrap();migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
+        let mut unlocked=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unlocked).await.unwrap();assert!(bind_maintenance_asset_purchase_sources(&mut unlocked).await.is_err());unlocked.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_maintenance_asset_purchase_sources(&mut tx).await.unwrap();let source=bind_maintenance_asset_purchase_sources(&mut tx).await.unwrap();source.require_current(&mut tx).await.unwrap();
+        let held:i64=sqlx::query_scalar("SELECT count(DISTINCT relation) FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND granted AND mode='ShareRowExclusiveLock' AND relation IN ('public.maintenance_work_orders'::regclass,'public.maintenance_preventive_plans'::regclass,'public.maintenance_preventive_occurrences'::regclass)").fetch_one(&mut *tx).await.unwrap();assert_eq!(held,3);tx.rollback().await.unwrap();
+        let mut other=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *other).await.unwrap();lock_maintenance_asset_purchase_sources(&mut other).await.unwrap();assert!(source.require_current(&mut other).await.is_err());other.rollback().await.unwrap();
+        let mut saved=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *saved).await.unwrap();sqlx::query("SAVEPOINT before_maintenance_sources").execute(&mut *saved).await.unwrap();lock_maintenance_asset_purchase_sources(&mut saved).await.unwrap();let retained=bind_maintenance_asset_purchase_sources(&mut saved).await.unwrap();sqlx::query("ROLLBACK TO SAVEPOINT before_maintenance_sources").execute(&mut *saved).await.unwrap();assert!(retained.require_current(&mut saved).await.is_err());saved.rollback().await.unwrap();
+        let mut writer=pool.raw().begin().await.unwrap();sqlx::query("LOCK TABLE public.maintenance_preventive_plans IN ROW EXCLUSIVE MODE").execute(&mut *writer).await.unwrap();let mut blocked=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *blocked).await.unwrap();let conflict=lock_maintenance_asset_purchase_sources(&mut blocked).await;assert!(matches!(conflict,Err(PgTransactionError::Persistence(ref e)) if e.code=="PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state()==Some("55P03") && e.retryable()));blocked.rollback().await.unwrap();writer.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn maintenance_asset_purchase_record_matches_actual_ts_owner_image() {
+    use erpx_server_maintenance::public::{asset_purchase_locks::*,asset_purchase_record::*};
+    use erpx_server_shared::public::CompanyId;
+    fixture::with_database(2,|control|async move {fixture::with_database(2,move|holding|async move {
+        let (_authorizer,_clock)=setup(&control,&holding).await;seed(&holding).await;
+        // This isolated fixture keeps the existing role and permissions, but
+        // the TS predicate uses DB wall time rather than the auth fixture clock.
+        sqlx::query("UPDATE assignments SET valid_from=floor(extract(epoch FROM clock_timestamp())*1000)::bigint-60000,valid_until=floor(extract(epoch FROM clock_timestamp())*1000)::bigint+3600000 WHERE id='grant'").execute(holding.raw()).await.unwrap();
+        let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);let n=0;const sql=(kind,file)=>{n=0;return m.maintenancePurchaseSourceQuery(kind,file).replace(/\?/g,()=>'$'+(++n))};process.stdout.write(JSON.stringify([sql('work',false),sql('work',true),sql('plan',false),sql('plan',true)]));"#;
+        let path=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/adapters/purchase-sources.ts");let output=std::process::Command::new(std::env::var("ERPX_BUN_BIN").unwrap_or_else(|_|"bun".into())).arg("--conditions=react-server").arg("-e").arg(script).arg(path).output().unwrap();assert!(output.status.success(),"actual TS source: {}",String::from_utf8_lossy(&output.stderr));let sqls:Vec<String>=serde_json::from_slice(&output.stdout).unwrap();
+        let mut tx=holding.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_maintenance_asset_purchase_sources(&mut tx).await.unwrap();let locks=bind_maintenance_asset_purchase_sources(&mut tx).await.unwrap();let company=CompanyId::new("company").unwrap();
+        for (kind,id,index) in [(MaintenanceAssetPurchaseKind::Work,"work",0),(MaintenanceAssetPurchaseKind::Plan,"plan",2)] {
+            for file in [false,true]{let observed=observe_maintenance_asset_purchase_record(&mut tx,&locks,kind,&company,Some("branch"),None,id,file).await.unwrap();assert_eq!(observed.file_mode(),file);assert!(observed.exists());assert_eq!(observed.asset_id(),Some("asset"));assert_eq!(observed.owner_id(),Some("user"));assert_eq!(observed.branch_id(),Some("branch"));assert_eq!(observed.department_id(),None);
+                let legacy=format!("SELECT encode(sha256(convert_to((source.image::jsonb->'record')::text,'UTF8')),'hex') FROM ({}) source",sqls[index+usize::from(file)]);let expected:Option<String>=sqlx::query_scalar(sqlx::AssertSqlSafe(legacy.as_str())).bind(id).bind("company").bind(Some("branch")).bind(Some("branch")).bind(None::<&str>).bind(None::<&str>).fetch_optional(&mut *tx).await.unwrap();assert_eq!(observed.record_digest(),expected.as_deref());observed.require_current(&mut tx).await.unwrap();
+                // The only rewrite to the actual TS full image SQL is replacing
+                // its owner relation with this retained CTE. Keep all joins and
+                // column-to-column predicates inside PostgreSQL.
+                let direct=sqls[index+usize::from(file)].replace("$6","@department").replace("$5","@department").replace("$4","@branch").replace("@department","$4").replace("@branch","$3");
+                let relation=match kind {MaintenanceAssetPurchaseKind::Work=>"maintenance_work_orders",MaintenanceAssetPurchaseKind::Plan=>"maintenance_preventive_plans"};
+                let projected=direct.replace(&format!("FROM {relation} r JOIN"),"FROM maintenance_asset_purchase_source r JOIN");
+                assert_ne!(projected,direct,"actual TS source shape changed");
+                let projected=format!("WITH {} {}",observed.cte_sql(),projected);
+                let legacy=observed.bind_source(sqlx::query(sqlx::AssertSqlSafe(direct.as_str()))).fetch_one(&mut *tx).await.unwrap();
+                let joined=observed.bind_source(sqlx::query(sqlx::AssertSqlSafe(projected.as_str()))).fetch_one(&mut *tx).await.unwrap();
+                let expected:serde_json::Value=serde_json::from_str(sqlx::Row::try_get::<&str,_>(&legacy,"image").unwrap()).unwrap();
+                let actual:serde_json::Value=serde_json::from_str(sqlx::Row::try_get::<&str,_>(&joined,"image").unwrap()).unwrap();
+                assert_eq!(actual,expected);assert_eq!(expected["ownerEligible"],true,"fixture must establish genuine current owner eligibility");observed.require_current(&mut tx).await.unwrap();
+                sqlx::query("SAVEPOINT owner_inactive").execute(&mut *tx).await.unwrap();
+                sqlx::query("UPDATE public.hr_engagements SET status='suspended' WHERE id='engagement'").execute(&mut *tx).await.unwrap();
+                let legacy=observed.bind_source(sqlx::query(sqlx::AssertSqlSafe(direct.as_str()))).fetch_one(&mut *tx).await.unwrap();
+                let joined=observed.bind_source(sqlx::query(sqlx::AssertSqlSafe(projected.as_str()))).fetch_one(&mut *tx).await.unwrap();
+                let negative:serde_json::Value=serde_json::from_str(sqlx::Row::try_get::<&str,_>(&legacy,"image").unwrap()).unwrap();
+                let projected_negative:serde_json::Value=serde_json::from_str(sqlx::Row::try_get::<&str,_>(&joined,"image").unwrap()).unwrap();
+                assert_eq!(negative["ownerEligible"],false);assert_eq!(projected_negative,negative);
+                observed.require_current(&mut tx).await.unwrap();
+                sqlx::query("ROLLBACK TO SAVEPOINT owner_inactive").execute(&mut *tx).await.unwrap();
+                let restored=observed.bind_source(sqlx::query(sqlx::AssertSqlSafe(projected.as_str()))).fetch_one(&mut *tx).await.unwrap();
+                let restored:serde_json::Value=serde_json::from_str(sqlx::Row::try_get::<&str,_>(&restored,"image").unwrap()).unwrap();
+                assert_eq!(restored["ownerEligible"],true);observed.require_current(&mut tx).await.unwrap();}
+            let absent=observe_maintenance_asset_purchase_record(&mut tx,&locks,kind,&company,Some("foreign"),None,id,false).await.unwrap();assert!(!absent.exists());absent.require_current(&mut tx).await.unwrap();
+        }
+        let command=observe_maintenance_asset_purchase_record(&mut tx,&locks,MaintenanceAssetPurchaseKind::Work,&company,None,None,"work",false).await.unwrap();let file=observe_maintenance_asset_purchase_record(&mut tx,&locks,MaintenanceAssetPurchaseKind::Work,&company,None,None,"work",true).await.unwrap();
+        sqlx::query("SAVEPOINT record_version").execute(&mut *tx).await.unwrap();sqlx::query("UPDATE public.maintenance_work_orders SET version=version+1,updated_at=updated_at+1 WHERE id='work'").execute(&mut *tx).await.unwrap();assert!(command.require_current(&mut tx).await.is_err());file.require_current(&mut tx).await.unwrap();sqlx::query("ROLLBACK TO SAVEPOINT record_version").execute(&mut *tx).await.unwrap();command.require_current(&mut tx).await.unwrap();
+        sqlx::query("SAVEPOINT record_content").execute(&mut *tx).await.unwrap();sqlx::query("UPDATE public.maintenance_work_orders SET title='changed' WHERE id='work'").execute(&mut *tx).await.unwrap();assert!(command.require_current(&mut tx).await.is_err());assert!(file.require_current(&mut tx).await.is_err());sqlx::query("ROLLBACK TO SAVEPOINT record_content").execute(&mut *tx).await.unwrap();command.require_current(&mut tx).await.unwrap();tx.rollback().await.unwrap();
+    }).await;}).await;
+}
+
+#[tokio::test]
+async fn retirement_work_matches_real_assets_typescript_guard() {
+    use erpx_server_maintenance::public::{asset_purchase_locks::*,asset_purchase_record::*};
+    use erpx_server_runtime::public::postgres::{MigrationTrack,load_migrations,migrate_database};
+    fixture::with_database(2,|pool|async move {
+        let migrations=load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),MigrationTrack::HoldingWrite).await.unwrap();
+        migrate_database(&pool,MigrationTrack::HoldingWrite,&migrations).await.unwrap();
+        // Extract the exact guard from the Assets adapter and the actual
+        // Maintenance-owned projection; neither selector is caller SQL.
+        let script=r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const fs=await import('node:fs');const m=await import(process.argv[2]);const s=fs.readFileSync(process.argv[1],'utf8');const match=s.match(/assertion\(write,key,'no-active-work',`([^`]+)`/);if(!match)throw Error('GUARD_MISSING');const sql=match[1].replace('${maintenanceProjectionSources.maintenance_work_orders}',m.finalRootOwnerProjectionSources.maintenance_work_orders).replace('?', '$1');process.stdout.write('SELECT '+sql);"#;
+        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let output=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(&root).arg("--conditions=react-server").arg("-e").arg(script)
+            .arg(root.join("packages/server-assets/src/adapters/assets.ts")).arg(root.join("packages/server-maintenance/src/adapters/final-root-owner-projection-sources.ts")).output().unwrap();
+        assert!(output.status.success(),"actual Assets guard oracle unavailable");let sql=String::from_utf8(output.stdout).unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_maintenance_asset_purchase_sources(&mut tx).await.unwrap();let locks=bind_maintenance_asset_purchase_sources(&mut tx).await.unwrap();
+        let long_id="x".repeat(240);
+        sqlx::query("INSERT INTO operational_assets(id,company_id,branch_id,code,name,category,currency,created_by,created_at,updated_at) VALUES($1,'company','branch','RETIRE-LONG','Synthetic','synthetic','THB','user',0,0)").bind(&long_id).execute(&mut *tx).await.unwrap();
+        let vacant=observe_asset_retirement_work(&mut tx,&locks,&long_id).await.unwrap();assert!(vacant.is_clear());
+        let actual:bool=sqlx::query_scalar(sqlx::AssertSqlSafe(sql.as_str())).bind(&long_id).fetch_one(&mut *tx).await.unwrap();assert_eq!(actual,vacant.is_clear());
+        for (id,company,status) in [("done","company","completed"),("cancelled","company","cancelled"),("foreign-active","foreign","open")] {
+            sqlx::query("INSERT INTO maintenance_work_orders(id,company_id,branch_id,asset_id,title,priority,status,owner_id,completion_evidence,resulting_condition,created_by,created_at,updated_at) VALUES($1,$2,'branch',$3,'Synthetic','normal',$4,'user',CASE WHEN $4='completed' THEN 'synthetic completion' ELSE NULL END,CASE WHEN $4='completed' THEN 'good' ELSE NULL END,'user',0,0)").bind(id).bind(company).bind(&long_id).bind(status).execute(&mut *tx).await.unwrap();
+            let observed=observe_asset_retirement_work(&mut tx,&locks,&long_id).await.unwrap();
+            let actual:bool=sqlx::query_scalar(sqlx::AssertSqlSafe(sql.as_str())).bind(&long_id).fetch_one(&mut *tx).await.unwrap();assert_eq!(observed.is_clear(),actual);
+            if status=="open" {assert!(!actual);assert!(vacant.require_current(&mut tx).await.is_err());} else {assert!(actual);vacant.require_current(&mut tx).await.unwrap();}
+        }
+        let occupied=observe_asset_retirement_work(&mut tx,&locks,&long_id).await.unwrap();assert!(!occupied.is_clear());occupied.require_current(&mut tx).await.unwrap();
+        tx.rollback().await.unwrap();
+    }).await;
+}

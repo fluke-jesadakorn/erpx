@@ -30,6 +30,16 @@ pub trait CustomerTimelineRepository: Send {
         view: CustomerTimelineView,
     ) -> CustomerTimelineFuture<'a, Option<CustomerAccount>, Self::Error>;
 
+    /// Return all bounded per-source candidates in database cursor order. Every
+    /// row must be strictly after the exclusive cursor under that collation.
+    /// Verify the complete result order and exclusive cursor in the same
+    /// source transaction and collation as the event queries. Errors fail closed.
+    fn verify_order<'a>(
+        &'a mut self,
+        rows: &'a [CustomerTimelineItem],
+        cursor: Option<&'a CustomerTimelineCursor>,
+    ) -> CustomerTimelineFuture<'a, bool, Self::Error>;
+
     fn events<'a>(
         &'a mut self,
         actor: &'a CustomerTimelineActor,
@@ -109,6 +119,9 @@ where
     let source = repository
         .events(actor, customer_id, view, cursor.as_ref(), limit + 1)
         .await?;
+    if !repository.verify_order(&source, cursor.as_ref()).await? {
+        return Err(source_invalid().into());
+    }
     let CustomerTimelinePageData {
         items,
         next_cursor,

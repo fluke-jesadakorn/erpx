@@ -82,6 +82,39 @@ fn input(
 }
 
 #[test]
+fn receipt_quarantine_policy_matches_installed_legacy_schema_and_application_guard() {
+    use erpx_server_commerce::public::receipt::{ReceiptAllocationCommand,ReceiptCommand,ReceiptDisposition as CommerceDisposition,ReceiptLineCommand};
+    use erpx_server_shared::public::{CommandKey,RecordId};
+    use std::process::Command;
+    let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let node=std::env::var_os("ERPX_NODE_BIN").map(std::path::PathBuf::from).unwrap_or_else(||root.join(".runtime/node/node-v26.11.1-darwin-arm64/bin/node"));
+    let script=r#"if(process.version!=='v26.11.1')throw Error('NODE_VERSION');const fs=require('node:fs'),z=require('zod');if(require('zod/package.json').version!=='4.6.7')throw Error('ZOD_VERSION');const s=fs.readFileSync('packages/server-commerce/src/domain/commerce.ts','utf8');const q=s.slice(s.indexOf('const quantity = z'),s.indexOf('export const orderSchema'));const f=s.slice(s.indexOf('export const fulfillmentSchema'),s.indexOf('export const invoiceFromDeliverySchema')).replace('export const fulfillmentSchema','const fulfillmentSchema');const schema=new Function('z',q+f+';return fulfillmentSchema')(z);const app=fs.readFileSync('packages/server-commerce/src/application/commerce.ts','utf8');const guard="if (incoming && allocation.disposition === 'quarantine' && (!allocation.quarantineReason || !allocation.quarantineDueDate))";if(!app.includes(guard))throw Error('GUARD_CHANGED');const reject=new Function('incoming','allocation','return '+guard.slice(4,-1));const parsed=schema.safeParse(JSON.parse(process.argv[1]));process.stdout.write(parsed.success&&!reject(true,parsed.data.lines[0].allocations[0])?'accepted':'rejected');"#;
+    let cases=[(true,Some(" x "),Some("2020-01-01")),(true,Some("😀"),Some("0000-02-29")),(true,Some("  "),Some("2026-11-10")),(true,Some("x"),None),(true,Some("x"),Some("2026-02-30")),(false,Some(" ignored "),Some("2020-01-01")),(false,Some(""),Some(""))];
+    for (quarantine,reason,due) in cases {
+        let disposition=if quarantine {"quarantine"} else {"available"};
+        let mut item=serde_json::json!({"lotCode":"L-A","quantity":"1.000","disposition":disposition});
+        if let Some(reason)=reason {item["quarantineReason"]=reason.into();}
+        if let Some(due)=due {item["quarantineDueDate"]=due.into();}
+        let raw=serde_json::json!({"expectedVersion":3,"date":"2026-11-04","lines":[{"lineId":"line-1","quantity":"1.000","allocations":[item]}]}).to_string();
+        let output=Command::new(&node).current_dir(&root).arg("-e").arg(script).arg(raw).output().expect("pinned Node legacy oracle");
+        assert!(output.status.success(),"legacy schema/guard oracle failed");
+        let expected=output.stdout==b"accepted";
+        let inventory_disposition=if quarantine {ReceiptDisposition::Quarantine} else {ReceiptDisposition::Available};
+        let mut inventory=allocation(Some("L-A"),None,1000,inventory_disposition);
+        inventory.quarantine_reason=reason.map(Into::into);inventory.quarantine_due_date=due.map(Into::into);
+        let result=prepare_stock_receipt(&source("lot",vec![]),&input(1000,1000,vec![inventory]));
+        assert_eq!(result.is_ok(),expected,"inventory {disposition} {reason:?} {due:?}");
+        if let Ok(mut plan)=result { if !quarantine {
+            assert_eq!(plan.lines[0].allocations[0].quarantine_reason,None);
+            plan.lines[0].allocations[0].quarantine_reason=reason.map(Into::into);
+            assert!(validate_stock_receipt_plan(&plan).is_ok());
+        } }
+        let commerce=ReceiptCommand {key:CommandKey::new("receipt-key").unwrap(),order_id:RecordId::new("order-1").unwrap(),expected_version:3,date:"2026-11-04".into(),lines:vec![ReceiptLineCommand {line_id:"line-1".into(),quantity_milli:1000,allocations:vec![ReceiptAllocationCommand {lot_code:Some("L-A".into()),serial_number:None,quantity_milli:1000,disposition:if quarantine {CommerceDisposition::Quarantine}else{CommerceDisposition::Available},quarantine_reason:reason.map(Into::into),quarantine_due_date:due.map(Into::into),manufactured_date:None,expiry_date:None}]}]};
+        assert_eq!(commerce.validate().is_ok(),expected,"commerce {disposition} {reason:?} {due:?}");
+    }
+}
+
+#[test]
 fn prepares_a_mixed_available_and_quarantine_receipt() {
     let plan = prepare_stock_receipt(
         &source("lot", vec![]),
@@ -114,10 +147,13 @@ fn prepares_a_mixed_available_and_quarantine_receipt() {
         &plan.lines[0],
         &plan.lines[0].allocations[1],
         "lot-allocation-1".into(),
+        "1".into(),
         "lot-1".into(),
     )
     .unwrap();
     assert_eq!(request.lot_identity, "L-B");
+    assert_eq!(request.allocation_id, "lot-allocation-1");
+    assert_eq!(request.source_id, "1");
     assert_eq!(request.reason, "Packaging inspection");
     assert_eq!(request.due_date, "2026-11-10");
 }

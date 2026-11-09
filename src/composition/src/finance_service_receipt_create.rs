@@ -341,7 +341,8 @@ where
                         .facts()
                         .map(|r| r.record_id.clone())
                         .unwrap_or_else(|| format!("pay-{}", uuid::Uuid::new_v4()));
-                    let field = field_invoice(c, &config.company, &input.settlement_invoice_id).await?;
+                    let field =
+                        field_invoice(c, &config.company, &input.settlement_invoice_id).await?;
                     let mut authority = if field {
                         service_receipt_create_authority(
                             current,

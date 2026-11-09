@@ -6,6 +6,10 @@ use erpx_server_billing::public::cost::{
     BillingCostCommand, CompleteCostReview, DeleteCost, PgBillingCostCommand, RecordCost,
     execute_cost_command,
 };
+use erpx_server_billing::public::forecast_read::{
+    billing_month, next_billing_month, read_seat_forecast_baseline, target_holding,
+};
+use erpx_server_billing::public::target_assignment::read_target_assignment;
 use erpx_server_billing::public::workspace::{BillingActor, PgBillingWorkspace, billing_workspace};
 use erpx_server_runtime::public::postgres::{
     DatabaseConfig, DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, PoolLimits,
@@ -537,5 +541,502 @@ fn transaction_and_serializable_guards_are_required_by_the_adapters() {
         assert!(matches!(error, PgTransactionError::Persistence(_)));
         transaction.rollback().await.unwrap();
         drop(connection);
+    });
+}
+
+#[test]
+fn forecast_baseline_reads_control_projection_and_matches_typescript() {
+    with_database(|pool| async move {
+        migrate(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES ('h001','acme','Acme','write-h001','read-h001','files-h001','active');             INSERT INTO billing_target_prices(id,effective_month,base_monthly_satang,included_original_bytes,storage_satang_per_gb_month,ai_markup_percent,created_at,created_by,seat_terms_status,included_seats,seat_monthly_satang,storage_allowance_mode,rating_enabled) VALUES             ('forecast-current-2026-10','2026-10',0,20000000000,500,10,0,'fixture','defined',0,49900,'per_paid_seat_time',TRUE),             ('forecast-future-2026-12','2026-12',0,20000000000,500,10,0,'fixture','defined',0,59900,'per_paid_seat_time',TRUE);             INSERT INTO billing_usage_snapshots(holding_id,month,snapshot_id,refreshed_at,source_count,storage_coverage,active_seat_count,active_seat_observed_at) VALUES ('h001','2026-09','snap-1',1234,2,'partial',282,1200);             INSERT INTO billing_usage_meters(holding_id,month,source_key,company_id,company_name,meter_kind,funding_source,pricing_status,quantity,active_at_period_end,snapshot_id) VALUES             ('h001','2026-09',repeat('a',64),'company','Acme','storage','erpx','unpriced',2636112,TRUE,'snap-1'),             ('h001','2026-09',repeat('b',64),'company','Acme','ai','erpx','unpriced',999,TRUE,'snap-1');",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let now = 1_789_430_400_000_i64;
+        let holding = target_holding("h001").unwrap();
+        let mut c = pool.raw().acquire().await.unwrap();
+        let baseline = read_seat_forecast_baseline(&mut c, &holding, now)
+            .await
+            .unwrap();
+        assert_eq!(baseline.forecast_month, "2026-10");
+        assert_eq!(baseline.source_month, "2026-09");
+        assert_eq!(
+            baseline.price.as_ref().unwrap().id,
+            "forecast-current-2026-10"
+        );
+        assert!(baseline.price_effective_for_month);
+        assert_eq!(baseline.seats.count, Some(282));
+        assert_eq!(baseline.seats.observed_at, Some(1200));
+        assert_eq!(baseline.storage.original_bytes, Some(2_636_112));
+        assert_eq!(baseline.storage.observed_at, Some(1234));
+        assert_eq!(baseline.storage.coverage, "partial");
+        // Actual TypeScript application with the same projection rows.
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../");
+        let application = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../packages/server-billing/src/application/forecast.ts");
+        let script = r#"const {readSeatForecastBaseline}=await import(process.argv[1]);
+const rows={current:{rows:[{id:'forecast-current-2026-10',effective_month:'2026-10',base_monthly_satang:'0',included_original_bytes:'20000000000',storage_satang_per_gb_month:'500',ai_markup_percent:10,seat_terms_status:'defined',included_seats:0,seat_monthly_satang:'49900',storage_allowance_mode:'per_paid_seat_time',rating_enabled:true}],rowCount:1},future:{rows:[],rowCount:0},snapshot:{rows:[{snapshot_id:'snap-1',refreshed_at:'1234',source_count:2,storage_coverage:'partial',active_seat_count:282,active_seat_observed_at:'1200'}],rowCount:1},totals:{rows:[{row_count:'2',active_original_bytes:'2636112'}],rowCount:1}};
+const repository={currentPrice:async()=>rows.current,futurePrice:async()=>rows.future,usageSnapshot:async()=>rows.snapshot,retainedStorageTotals:async()=>rows.totals};
+process.stdout.write(JSON.stringify(await readSeatForecastBaseline(repository,'h001',Number(process.argv[2]))));"#;
+        let output =
+            std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
+                .current_dir(root)
+                .args(["--conditions=react-server", "-e", script])
+                .arg(application)
+                .arg(now.to_string())
+                .output()
+                .unwrap();
+        assert!(
+            output.status.success(),
+            "actual TS forecast oracle: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let ts: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(baseline.to_wire().unwrap(), ts);
+        // A source-count mismatch makes storage unavailable but keeps seats.
+        sqlx::query("UPDATE billing_usage_snapshots SET source_count=3 WHERE holding_id='h001' AND month='2026-09'").execute(pool.raw()).await.unwrap();
+        let mismatch = read_seat_forecast_baseline(&mut c, &holding, now)
+            .await
+            .unwrap();
+        assert_eq!(mismatch.seats.count, Some(282));
+        assert_eq!(mismatch.storage.original_bytes, None);
+        assert_eq!(mismatch.storage.coverage, "unavailable");
+    });
+}
+
+#[test]
+fn forecast_months_match_javascript_bangkok_boundaries() {
+    assert_eq!(billing_month(1_789_430_400_000).unwrap(), "2026-09");
+    assert_eq!(next_billing_month(1_789_430_400_000).unwrap(), "2026-10");
+    assert_eq!(billing_month(1_798_675_200_000).unwrap(), "2026-12");
+    assert_eq!(next_billing_month(1_798_675_200_000).unwrap(), "2027-01");
+    assert_eq!(billing_month(1_798_783_200_000).unwrap(), "2027-01");
+    assert_eq!(target_holding("h003").unwrap_err().code, "HOLDING_REQUIRED");
+    assert_eq!(target_holding("h001").unwrap().as_str(), "h001");
+}
+
+#[test]
+fn forecast_future_price_null_seats_and_invalid_source_fail_closed() {
+    with_database(|pool| async move {
+        migrate(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES ('h001','acme','Acme','write-h001','read-h001','files-h001','active');\
+             INSERT INTO billing_usage_snapshots(holding_id,month,snapshot_id,refreshed_at,source_count,storage_coverage,active_seat_count,active_seat_observed_at) VALUES ('h001','2026-01','snap-null',1234,0,'partial',NULL,NULL);",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let holding = target_holding("h001").unwrap();
+        let now = 1_768_435_200_000_i64;
+        let mut c = pool.raw().acquire().await.unwrap();
+        let baseline = read_seat_forecast_baseline(&mut c, &holding, now)
+            .await
+            .unwrap();
+        assert_eq!(baseline.forecast_month, "2026-02");
+        assert_eq!(
+            baseline.price.as_ref().unwrap().id,
+            "holding-usage-2026-12-v3"
+        );
+        assert!(!baseline.price_effective_for_month);
+        assert_eq!(baseline.seats.count, None);
+        assert_eq!(baseline.seats.observed_at, None);
+        assert_eq!(baseline.storage.original_bytes, Some(0));
+        sqlx::query(
+            "INSERT INTO billing_target_prices(id,effective_month,base_monthly_satang,included_original_bytes,storage_satang_per_gb_month,ai_markup_percent,created_at,created_by,seat_terms_status,included_seats,seat_monthly_satang,storage_allowance_mode,rating_enabled) VALUES ('forecast-aaa-unsafe','2026-03',0,9007199254740993,0,10,0,'fixture','defined',0,49900,'per_paid_seat_time',TRUE)",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let error = read_seat_forecast_baseline(&mut c, &holding, now)
+            .await
+            .unwrap_err();
+        assert_eq!(business(error).code, "BILLING_SOURCE_INVALID");
+    });
+}
+
+#[test]
+fn target_assignment_and_price_read_matches_actual_typescript_mapping() {
+    with_database(|pool| async move {
+        migrate(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES ('h001','acme','Acme','write-h001','read-h001','files-h001','active');\
+             INSERT INTO billing_target_prices(id,effective_month,base_monthly_satang,included_original_bytes,storage_satang_per_gb_month,ai_markup_percent,created_at,created_by,seat_terms_status,included_seats,seat_monthly_satang,storage_allowance_mode,rating_enabled) VALUES ('target-assign-price','2026-10',0,20000000000,500,10,0,'fixture','defined',0,49900,'per_paid_seat_time',TRUE);\
+             INSERT INTO billing_target_assignments(holding_id,effective_month,price_id,mode,service_started_at,assigned_by,reason,created_at) VALUES ('h001','2026-10','target-assign-price','sandbox_invoice',1790812800000,'fixture','fixture',0);",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let holding = target_holding("h001").unwrap();
+        let mut c = pool.raw().acquire().await.unwrap();
+        let read = read_target_assignment(&mut c, &holding, "2026-10")
+            .await
+            .unwrap();
+        let assignment = read.assignment.as_ref().unwrap();
+        assert_eq!(assignment.effective_month, "2026-10");
+        assert_eq!(assignment.mode, "sandbox_invoice");
+        assert_eq!(assignment.price_id, "target-assign-price");
+        assert_eq!(assignment.service_started_at, 1_790_812_800_000);
+        let price = read.price.as_ref().unwrap();
+        assert_eq!(price.id, "target-assign-price");
+        assert_eq!(price.included_seats, Some(0));
+        assert_eq!(price.seat_monthly_satang, Some(49_900));
+        assert_eq!(price.storage_allowance_mode, "per_paid_seat_time");
+        // Actual TypeScript target application mapping with the same rows.
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../");
+        let application = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../packages/server-billing/src/application/target.ts");
+        let script = r#"const {calculateTargetBillingPeriod}=await import(process.argv[1]);
+const assignment={holding_id:'h001',effective_month:'2026-10',price_id:'target-assign-price',mode:'sandbox_invoice',service_started_at:'1790812800000'};
+const price={id:'target-assign-price',effective_month:'2026-10',base_monthly_satang:'0',included_original_bytes:'20000000000',storage_satang_per_gb_month:'500',ai_markup_percent:10,seat_terms_status:'defined',included_seats:0,seat_monthly_satang:'49900',storage_allowance_mode:'per_paid_seat_time',rating_enabled:true};
+const empty={rows:[],rowCount:0};
+const repo=new Proxy({assignment:async()=>({rows:[assignment],rowCount:1}),assignedPrice:async()=>({rows:[price],rowCount:1})},{get:(target,key)=>key in target?target[key]:async()=>empty});
+const result=await calculateTargetBillingPeriod(repo,'h001','2026-10',1792022400000);
+process.stdout.write(JSON.stringify({assignment:result.assignment,price:result.price,state:result.state,missing:result.completeness.missing}));"#;
+        let output =
+            std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
+                .current_dir(root)
+                .args(["--conditions=react-server", "-e", script])
+                .arg(application)
+                .output()
+                .unwrap();
+        assert!(
+            output.status.success(),
+            "actual TS target mapping oracle: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let ts: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(
+            ts["assignment"]["effectiveMonth"],
+            assignment.effective_month
+        );
+        assert_eq!(ts["assignment"]["mode"], assignment.mode);
+        assert_eq!(ts["assignment"]["priceId"], assignment.price_id);
+        assert_eq!(
+            ts["assignment"]["serviceStartedAt"],
+            assignment.service_started_at
+        );
+        assert_eq!(ts["price"]["id"], price.id);
+        assert_eq!(ts["price"]["includedSeats"], 0);
+        assert_eq!(ts["price"]["seatMonthlySatang"], 49_900);
+        assert_eq!(ts["price"]["storageAllowanceMode"], "per_paid_seat_time");
+        assert_eq!(ts["state"], "held");
+        assert!(
+            ts["missing"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|value| value == "meter_snapshot_missing")
+        );
+    });
+}
+
+#[test]
+fn target_rollout_readiness_reads_control_evidence_and_isolates_holdings() {
+    with_database(|pool| async move {
+        migrate(&pool).await;
+        sqlx::raw_sql(
+            r#"INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES
+                 ('h001','acme','Acme','write-h001','read-h001','files-h001','active'),
+                 ('h002','northstar','Northstar','write-h002','read-h002','files-h002','active');
+               INSERT INTO billing_accounts(holding_id,version,customer_id,payment_mode,created_at) VALUES
+                 ('h001',1,'customer-1','manual',100),
+                 ('h002',1,'customer-2','manual',100);
+               INSERT INTO billing_target_prices
+                 (id,effective_month,base_monthly_satang,included_original_bytes,storage_satang_per_gb_month,ai_markup_percent,created_at,created_by,seat_terms_status,included_seats,seat_monthly_satang,storage_allowance_mode,rating_enabled) VALUES
+                 ('price-sep','2026-09',0,10000000000,500,10,0,'fixture','defined',0,49900,'per_paid_seat_time',TRUE),
+                 ('price-oct','2026-10',0,20000000000,500,10,0,'fixture','defined',0,49900,'per_paid_seat_time',TRUE);
+               INSERT INTO billing_target_assignments
+                 (holding_id,effective_month,price_id,mode,service_started_at,assigned_by,reason,created_at) VALUES
+                 ('h001','2026-10','price-oct','shadow',1788195600000,'fixture','fixture',0),
+                 ('h002','2026-10','price-oct','shadow',1788195600000,'fixture','fixture',0);
+               INSERT INTO billing_usage_snapshots
+                 (holding_id,month,snapshot_id,refreshed_at,source_count,ai_coverage,storage_coverage,unreconciled_originals) VALUES
+                 ('h001','2026-08','h1-aug',1234,1,'measured','measured',0),
+                 ('h001','2026-09','h1-sep',1234,1,'measured','measured',0),
+                 ('h002','2026-08','h2-aug',1234,1,'measured','measured',0),
+                 ('h002','2026-09','h2-sep',1234,1,'measured','measured',0);
+               INSERT INTO billing_evidence
+                 (id,holding_id,filename,mime,size,sha256,actor,created_at,object_key,detected_mime,source_state,scanned_at,scanner_definition_at) VALUES
+                 ('evidence-h1','h001','cost.pdf','application/pdf',10,repeat('a',64),'fixture',100,'h001/evidence-h1','application/pdf','available',100,100),
+                 ('evidence-h2','h002','cost.pdf','application/pdf',10,repeat('b',64),'fixture',100,'h002/evidence-h2','application/pdf','available',100,100);
+               INSERT INTO billing_target_rated_periods
+                 (holding_id,month,price_id,assignment_month,mode,meter_snapshot_id,service_start,service_end,state,missing_json,lines_json,total_satang,rated_at) VALUES
+                 ('h001','2026-08','price-oct','2026-10','shadow','h1-aug',1788195600000,1790787600000,'ready','[]',
+                  $j1$[{"kind":"ai","sourceKey":"ai-1","fundingSource":"erpx","amountSatang":22000,"verifiedProviderCostSatang":20000},{"kind":"ai","sourceKey":"ai-2","fundingSource":"erpx","amountSatang":0,"verifiedProviderCostSatang":null}]$j1$,1000000,100),
+                 ('h001','2026-09','price-oct','2026-10','shadow','h1-sep',1788195600000,1790787600000,'ready','[]',
+                  $j2$[{"kind":"ai","sourceKey":"ai-1","fundingSource":"erpx","amountSatang":22000,"verifiedProviderCostSatang":20000}]$j2$,1000000,100),
+                 ('h002','2026-08','price-oct','2026-10','shadow','h2-aug',1788195600000,1790787600000,'ready','[]',
+                  $j3$[{"kind":"ai","sourceKey":"ai-2","fundingSource":"erpx","amountSatang":999,"verifiedProviderCostSatang":777}]$j3$,9999999,100),
+                 ('h002','2026-09','price-oct','2026-10','shadow','h2-sep',1788195600000,1790787600000,'ready','[]',
+                  $j4$[{"kind":"ai","sourceKey":"ai-2","fundingSource":"erpx","amountSatang":999,"verifiedProviderCostSatang":777}]$j4$,9999999,100);
+               INSERT INTO billing_target_operating_costs
+                 (holding_id,month,category,amount_satang,evidence_id,verified_by,verified_at) VALUES
+                 ('h001','2026-08','infrastructure',25000,'evidence-h1','fixture',100),
+                 ('h001','2026-08','backup',25000,'evidence-h1','fixture',100),
+                 ('h001','2026-08','stripe',25000,'evidence-h1','fixture',100),
+                 ('h001','2026-08','support',25000,'evidence-h1','fixture',100),
+                 ('h001','2026-09','infrastructure',25000,'evidence-h1','fixture',100),
+                 ('h001','2026-09','backup',25000,'evidence-h1','fixture',100),
+                 ('h001','2026-09','stripe',25000,'evidence-h1','fixture',100),
+                 ('h001','2026-09','support',25000,'evidence-h1','fixture',100),
+                 ('h002','2026-08','infrastructure',1000000,'evidence-h2','fixture',100),
+                 ('h002','2026-08','backup',1000000,'evidence-h2','fixture',100),
+                 ('h002','2026-08','stripe',1000000,'evidence-h2','fixture',100),
+                 ('h002','2026-08','support',1000000,'evidence-h2','fixture',100),
+                 ('h002','2026-09','infrastructure',1000000,'evidence-h2','fixture',100),
+                 ('h002','2026-09','backup',1000000,'evidence-h2','fixture',100),
+                 ('h002','2026-09','stripe',1000000,'evidence-h2','fixture',100),
+                 ('h002','2026-09','support',1000000,'evidence-h2','fixture',100);
+               INSERT INTO billing_target_capacity_reviews
+                 (holding_id,effective_month,projected_original_bytes,primary_available_bytes,backup_available_bytes,reserved_bytes,company_limit_bytes,evidence_id,approved_by,reason,approved_at) VALUES
+                 ('h001','2026-10',10000000000,30000000000,30000000000,1000000000,25000000000,'evidence-h1','fixture','fixture',100),
+                 ('h002','2026-10',99000000000,200000000000,200000000000,1000000000,200000000000,'evidence-h2','fixture','fixture',100);"#,
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let now = TimestampMillis::new(1_790_787_600_000);
+        let mut c = pool.raw().acquire().await.unwrap();
+        let h001 = HoldingId::new("h001").unwrap();
+        let read = erpx_server_billing::public::target_rollout::read_target_rollout_readiness(
+            &mut c,
+            &h001,
+            "2026-10",
+            8_000,
+            now,
+            20_000_000_000,
+        )
+        .await
+        .unwrap();
+        assert!(read.ready, "{:?}", read.blockers);
+        assert!(read.blockers.is_empty());
+        assert_eq!(
+            read.shadow_months,
+            ["2026-08".to_owned(), "2026-09".to_owned()]
+        );
+        assert_eq!(read.margins.len(), 2);
+        assert_eq!(read.margins[0].rated_revenue_satang, Some(1_000_000));
+        assert_eq!(
+            read.margins[0].verified_provider_ai_cost_satang,
+            Some(20_000)
+        );
+        assert_eq!(
+            read.margins[0].verified_operating_cost_satang,
+            Some(100_000)
+        );
+        assert_eq!(read.margins[0].gross_margin_bps, Some(8_800));
+        assert!(read.margins[0].missing_costs.is_empty());
+        assert!(read.capacity.reviewed);
+        assert_eq!(read.capacity.projected_original_bytes, Some(10_000_000_000));
+        assert_eq!(read.capacity.company_limit_bytes, Some(25_000_000_000));
+
+        let h002 = HoldingId::new("h002").unwrap();
+        let foreign = erpx_server_billing::public::target_rollout::read_target_rollout_readiness(
+            &mut c,
+            &h002,
+            "2026-10",
+            8_000,
+            now,
+            20_000_000_000,
+        )
+        .await
+        .unwrap();
+        assert!(!foreign.ready);
+        assert_eq!(
+            foreign.blockers,
+            [
+                "margin_below_threshold:2026-08",
+                "margin_below_threshold:2026-09"
+            ]
+        );
+        assert_eq!(foreign.margins[0].rated_revenue_satang, Some(9_999_999));
+        assert_eq!(
+            foreign.margins[0].verified_provider_ai_cost_satang,
+            Some(777)
+        );
+        assert_eq!(
+            foreign.margins[0].verified_operating_cost_satang,
+            Some(4_000_000)
+        );
+        assert_eq!(foreign.margins[0].gross_margin_bps, Some(5_999));
+        assert_eq!(
+            foreign.capacity.projected_original_bytes,
+            Some(99_000_000_000)
+        );
+    });
+}
+
+#[test]
+fn target_billing_period_reads_control_evidence_and_isolates_holdings() {
+    with_database(|pool| async move {
+        migrate(&pool).await;
+        sqlx::raw_sql(
+            r#"INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES
+                 ('h001','acme','Acme','write-h001','read-h001','files-h001','active'),
+                 ('h002','northstar','Northstar','write-h002','read-h002','files-h002','active');
+               INSERT INTO billing_accounts(holding_id,version,customer_id,payment_mode,created_at) VALUES
+                 ('h001',1,'customer-1','manual',100),
+                 ('h002',1,'customer-2','manual',100);
+               INSERT INTO billing_target_prices
+                 (id,effective_month,base_monthly_satang,included_original_bytes,storage_satang_per_gb_month,ai_markup_percent,created_at,created_by,seat_terms_status,included_seats,seat_monthly_satang,storage_allowance_mode,rating_enabled) VALUES
+                 ('price-1','2026-10',149000,20000000000,500,10,0,'fixture','defined',0,49900,'per_paid_seat_time',TRUE);
+               INSERT INTO billing_target_assignments
+                 (holding_id,effective_month,price_id,mode,service_started_at,assigned_by,reason,created_at) VALUES
+                 ('h001','2026-10','price-1','sandbox_invoice',1790787600000,'fixture','fixture',0),
+                 ('h002','2026-10','price-1','sandbox_invoice',1790787600000,'fixture','fixture',0);
+               INSERT INTO billing_target_sandbox_holdings(holding_id,designated_by,reason,designated_at) VALUES
+                 ('h001','fixture','fixture',0);
+               INSERT INTO billing_usage_snapshots
+                 (holding_id,month,snapshot_id,refreshed_at,source_count,ai_coverage,storage_coverage,unreconciled_originals,seat_coverage,seat_source_count,active_seat_count,active_seat_observed_at) VALUES
+                 ('h001','2026-10','snap-1',1790000000000,3,'measured','measured',0,'measured',2,3,1790000000000),
+                 ('h001','2026-11','snap-now',1793595600000,0,'measured','measured',0,'measured',0,3,1793595600000),
+                 ('h002','2026-10','snap-h2',1790000000000,0,'measured','measured',0,'measured',0,NULL,NULL);
+               INSERT INTO billing_evidence
+                 (id,holding_id,filename,mime,size,sha256,actor,created_at,object_key,detected_mime,source_state,scanned_at,scanner_definition_at) VALUES
+                 ('evidence-h1','h001','cost.pdf','application/pdf',10,repeat('e',64),'fixture',100,'h001/evidence-h1','application/pdf','available',100,100),
+                 ('evidence-h2','h002','cost.pdf','application/pdf',10,repeat('f',64),'fixture',100,'h002/evidence-h2','application/pdf','available',100,100);
+               INSERT INTO billing_usage_meters
+                 (holding_id,month,source_key,company_id,company_name,branch_id,branch_name,meter_kind,funding_source,pricing_status,quantity,input_tokens,output_tokens,average_daily_bytes,active_at_period_end,snapshot_id,request_status,gateway_status,provider,model,units_json,cost_status,verified_cost_satang,cost_evidence_key,cost_reconciled_at,active_from,active_until,byte_milliseconds) VALUES
+                 ('h001','2026-10',repeat('a',64),'company-1','Acme',NULL,NULL,'ai','erpx','unpriced',1,100,50,0,FALSE,'snap-1','succeeded','succeeded','openai','gpt','{"input":100}','reconciled',1000,NULL,100,NULL,NULL,NULL),
+                 ('h001','2026-10',repeat('b',64),'company-1','Acme',NULL,NULL,'ai','byok','unpriced',1,80,20,0,FALSE,'snap-1','succeeded','succeeded',NULL,NULL,NULL,'not_applicable',NULL,NULL,NULL,NULL,NULL,NULL),
+                 ('h001','2026-10',repeat('c',64),'company-1','Acme',NULL,NULL,'storage','erpx','unpriced',20000000000,0,0,0,TRUE,'snap-1',NULL,NULL,NULL,NULL,NULL,'not_applicable',NULL,NULL,NULL,1790787600000,1793466000000,864000000000000);
+               INSERT INTO billing_seat_usage(holding_id,month,user_key,intervals_json,snapshot_id) VALUES
+                 ('h001','2026-10',repeat('1',64),'[[1790787600000,1791651600000]]','snap-1'),
+                 ('h001','2026-10',repeat('2',64),'[[1791224400000,1792088400000]]','snap-1');
+               INSERT INTO billing_target_operating_costs
+                 (holding_id,month,category,amount_satang,evidence_id,verified_by,verified_at) VALUES
+                 ('h001','2026-10','infrastructure',10000,'evidence-h1','fixture',100),
+                 ('h001','2026-10','backup',10000,'evidence-h1','fixture',100),
+                 ('h001','2026-10','stripe',10000,'evidence-h1','fixture',100),
+                 ('h001','2026-10','support',10000,'evidence-h1','fixture',100),
+                 ('h002','2026-10','infrastructure',20000,'evidence-h2','fixture',100),
+                 ('h002','2026-10','backup',20000,'evidence-h2','fixture',100),
+                 ('h002','2026-10','stripe',20000,'evidence-h2','fixture',100),
+                 ('h002','2026-10','support',20000,'evidence-h2','fixture',100);
+               INSERT INTO billing_target_provider_costs
+                 (holding_id,month,source_key,provider,statement_id,original_currency,original_minor,fx_numerator,fx_denominator,provider_cost_satang,evidence_id,verified_by,verified_at) VALUES
+                 ('h001','2026-10',repeat('a',64),'openai','statement-1','USD',1000,1,1,1000,'evidence-h1','fixture',100);
+               INSERT INTO billing_target_statements
+                 (holding_id,month,provider,statement_id,evidence_id,provider_total_minor,original_currency,reconciled_total_minor,verified_by,verified_at) VALUES
+                 ('h001','2026-10','openai','statement-1','evidence-h1',1000,'USD',1000,'fixture',100);
+               INSERT INTO billing_target_extras
+                 (id,holding_id,month,kind,description,amount_satang,service_start,service_end,evidence_id,approved_by,approval_reason,approved_at) VALUES
+                 ('extra-1','h001','2026-10','setup','Onboarding',5000,1790787600000,1793466000000,'evidence-h1','fixture','fixture',100);"#,
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let now = TimestampMillis::new(1_793_595_600_000);
+        let mut c = pool.raw().acquire().await.unwrap();
+        let h001 = HoldingId::new("h001").unwrap();
+        let read = erpx_server_billing::public::target::read_target_billing_period(
+            &mut c, &h001, "2026-10", now,
+        )
+        .await
+        .unwrap();
+        assert_eq!(read.state, "ready", "{:?}", read.completeness.missing);
+        assert!(read.completeness.ready);
+        assert!(read.completeness.missing.is_empty());
+        assert!(read.approval.eligible, "{:?}", read.approval.blockers);
+        assert!(read.approval.blockers.is_empty());
+        let assignment = read.assignment.as_ref().unwrap();
+        assert_eq!(assignment.price_id, "price-1");
+        assert_eq!(assignment.mode, "sandbox_invoice");
+        assert_eq!(
+            read.price.as_ref().unwrap().included_original_bytes,
+            20_000_000_000
+        );
+        let measured = &read.measured_evidence;
+        assert_eq!(measured.snapshot.as_ref().unwrap().id, "snap-1");
+        assert_eq!(measured.ai.requests, Some(2));
+        assert_eq!(measured.ai.platform_succeeded, 1);
+        assert_eq!(measured.ai.platform_verified, 1);
+        assert_eq!(measured.ai.byok, 1);
+        assert_eq!(measured.ai.verified_provider_cost_satang, Some(1000));
+        assert_eq!(measured.ai.total_provider_cost_satang, Some(1000));
+        assert_eq!(measured.storage.original_count, Some(1));
+        assert_eq!(
+            measured.storage.byte_milliseconds.as_deref(),
+            Some("864000000000000")
+        );
+        assert_eq!(measured.seats.distinct_users, Some(2));
+        assert_eq!(measured.seats.coverage, "measured");
+        assert_eq!(measured.seats.active_now.status, "measured");
+        assert_eq!(measured.seats.active_now.count, Some(3));
+        assert_eq!(measured.operating_costs.total_verified_satang, Some(40000));
+        let kinds = read
+            .lines
+            .iter()
+            .map(|line| line.kind.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            kinds,
+            [
+                "base", "storage", "seat", "seat", "seat", "storage", "ai", "ai", "extra"
+            ]
+        );
+        let ai_lines = read
+            .lines
+            .iter()
+            .filter(|line| line.kind == "ai")
+            .collect::<Vec<_>>();
+        assert_eq!(ai_lines[0].amount_satang, Some(1100));
+        assert_eq!(ai_lines[1].amount_satang, Some(0));
+        assert_eq!(ai_lines[0].reconciliation_status, "verified");
+        assert_eq!(ai_lines[1].reconciliation_status, "not_required");
+        assert_eq!(read.lines.last().unwrap().amount_satang, Some(5000));
+        assert_eq!(read.statement_reconciliation.len(), 1);
+        assert_eq!(read.statement_reconciliation[0].status, "verified");
+        assert_eq!(read.sources.len(), 6);
+        assert_eq!(
+            read.total_satang,
+            Some(
+                read.lines
+                    .iter()
+                    .map(|line| line.amount_satang.unwrap_or(0))
+                    .sum::<i64>()
+            )
+        );
+        assert!(read.total_satang.unwrap() > 149_000);
+
+        let h002 = HoldingId::new("h002").unwrap();
+        let foreign = erpx_server_billing::public::target::read_target_billing_period(
+            &mut c, &h002, "2026-10", now,
+        )
+        .await
+        .unwrap();
+        assert_eq!(foreign.state, "ready");
+        assert!(foreign.completeness.missing.is_empty());
+        assert_eq!(foreign.measured_evidence.ai.requests, Some(0));
+        assert_eq!(
+            foreign.measured_evidence.ai.total_provider_cost_satang,
+            Some(0)
+        );
+        assert_eq!(foreign.measured_evidence.storage.original_count, Some(0));
+        assert_eq!(foreign.measured_evidence.seats.distinct_users, Some(0));
+        assert_eq!(
+            foreign
+                .measured_evidence
+                .operating_costs
+                .total_verified_satang,
+            Some(80000)
+        );
+        assert_eq!(
+            foreign.approval.blockers,
+            ["sandbox_designation_or_rollout_approval_missing"]
+        );
+        assert!(!foreign.approval.eligible);
+        assert!(foreign.statement_reconciliation.is_empty());
+        assert_eq!(
+            foreign
+                .lines
+                .iter()
+                .filter(|line| line.kind == "ai")
+                .count(),
+            0
+        );
+        assert_eq!(foreign.sources.len(), 0);
     });
 }

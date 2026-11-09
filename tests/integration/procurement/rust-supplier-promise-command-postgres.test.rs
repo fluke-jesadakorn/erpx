@@ -14,7 +14,7 @@ use erpx_server_runtime::public::postgres::{
     load_migrations, migrate_database,
 };
 use erpx_server_shared::public::{
-    BusinessError, CommandKey, CompanyId, FailureKind, RecordId, TimestampMillis,
+    BusinessError, CompanyId, RecordId, TimestampMillis,
 };
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
@@ -384,4 +384,139 @@ async fn readback_and_audit_outbox_persisted() {
         assert!(payload.contains("company"));
     })
     .await;
+}
+
+#[tokio::test]
+async fn commerce_request_link_source_fences_absence_and_unit() {
+    use erpx_server_procurement::public::commerce_request_link::{inspect_commerce_request_links, lock_commerce_request_links};
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        sqlx::query("INSERT INTO employee_requests(id,company_id,branch_id,kind,category,requester_user_id,created_by,created_at,updated_at) VALUES('link-request','company','branch','purchase','purchase','owner','owner',10,10),('direct-request','foreign','branch-foreign','purchase','purchase','owner','owner',10,10)")
+            .execute(pool.raw()).await.unwrap();
+        sqlx::query("UPDATE employee_requests SET purchase_order_id='order-foreign' WHERE id='direct-request'").execute(pool.raw()).await.unwrap();
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let script = r#"if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');
+const fs=await import('node:fs');
+const a=await import('./packages/server-records/src/adapters/commerce-final-owner-projection-sources.ts');
+const b=await import('./packages/server-procurement/src/adapters/commerce-final-owner-projection-sources.ts');
+const text=fs.readFileSync('./packages/server-commerce/src/adapters/commerce.ts','utf8');
+const match=text.match(/readEmployeeRequests1:[\s\S]*?db\.prepare\(`([^`]+)`\)/);
+if(!match)throw Error('COMMERCE_LOOKUP_SOURCE_MISSING');
+const records=a.commerceFinalOwnerProjectionSources.employee_requests;
+const procurement=b.commerceFinalOwnerProjectionSources.procurement_request_orders;
+const sql=match[1].replace('${recordsProjectionSources.employee_requests}',records).replace('${procurementProjectionSources.procurement_request_orders}',procurement);
+if(sql.includes('${'))throw Error('UNRESOLVED_SOURCE');
+process.stdout.write(JSON.stringify({sql,procurement}));"#;
+        let output=std::process::Command::new(std::env::var("ERPX_NODE_BIN").expect("pinned Node required"))
+            .current_dir(root).args(["--conditions=react-server","--input-type=module","-e",script]).output().unwrap();
+        assert!(output.status.success(), "actual Commerce TS oracle unavailable: {}", String::from_utf8_lossy(&output.stderr));
+        let ts: serde_json::Value=serde_json::from_slice(&output.stdout).unwrap();
+        let source_sql=ts["sql"].as_str().unwrap();
+        let projection=ts["procurement"].as_str().unwrap();
+        assert_eq!(source_sql.matches('?').count(), 3, "Commerce lookup bind shape changed");
+        assert_eq!(source_sql.matches(projection).count(), 1, "Procurement projection occurrence changed");
+        let parameters = |sql: &str| { let mut n=0; sql.replace('?', "__PARAM__").split("__PARAM__").enumerate().map(|(i, part)| { if i==0 { part.to_owned() } else { n+=1; format!("{}{}", if n==1 {"$2"} else {"$1"}, part) } }).collect::<String>() };
+        let original=parameters(source_sql);
+        let substituted=parameters(&source_sql.replace(projection, "SELECT request_id,order_id FROM procurement_commerce_request_links"));
+        assert_ne!(original, substituted);
+        let mut c = pool.raw().acquire().await.unwrap();
+        let mut tx = c.begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await.unwrap();
+        assert!(inspect_commerce_request_links(&mut tx, "order-owned").await.is_err());
+        tx.rollback().await.unwrap();
+        let mut tx = c.begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await.unwrap();
+        sqlx::query("SAVEPOINT source_lock").execute(&mut *tx).await.unwrap();
+        lock_commerce_request_links(&mut tx).await.unwrap();
+        let savepoint_source = inspect_commerce_request_links(&mut tx, "order-owned").await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT source_lock").execute(&mut *tx).await.unwrap();
+        assert!(savepoint_source.require_current(&mut tx).await.is_err());
+        tx.rollback().await.unwrap();
+        let mut tx = c.begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await.unwrap();
+        lock_commerce_request_links(&mut tx).await.unwrap();
+        assert!(inspect_commerce_request_links(&mut tx, &"x".repeat(2_097_153)).await.is_err());
+        let source = inspect_commerce_request_links(&mut tx, "order-owned").await.unwrap();
+        let query = format!("WITH {} SELECT count(*) FROM procurement_commerce_request_links", source.cte_sql());
+        let count: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(query.as_str())).bind(source.order_id()).fetch_one(&mut *tx).await.unwrap();
+        assert_eq!(count, 0);
+        source.require_current(&mut tx).await.unwrap();
+        // The public source stays authoritative even with an identically named temp table.
+        sqlx::query("CREATE TEMP TABLE procurement_request_orders(request_id text, order_id text) ON COMMIT DROP")
+            .execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO pg_temp.procurement_request_orders VALUES('shadow','order-owned')").execute(&mut *tx).await.unwrap();
+        let count: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(query.as_str())).bind(source.order_id()).fetch_one(&mut *tx).await.unwrap();
+        assert_eq!(count, 0);
+        source.require_current(&mut tx).await.unwrap();
+        sqlx::query("DROP TABLE pg_temp.procurement_request_orders").execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO public.procurement_request_orders(request_id,order_id,request_version,request_evidence_version,linked_by,created_at) VALUES('link-request','order-owned',1,1,'owner',10)")
+            .execute(&mut *tx).await.unwrap();
+        assert!(source.require_current(&mut tx).await.is_err());
+        let linked = inspect_commerce_request_links(&mut tx, "order-owned").await.unwrap();
+        // Dynamic SQL consists solely of repository-owned SQL and the fixed owner CTE;
+        // all fixture and request values remain bound parameters.
+        let linked_query = format!("WITH {} SELECT request_id,order_id FROM procurement_commerce_request_links", linked.cte_sql());
+        let rows: Vec<(String,String)> = sqlx::query_as(sqlx::AssertSqlSafe(linked_query.as_str()))
+            .bind(linked.order_id()).fetch_all(&mut *tx).await.unwrap();
+        assert_eq!(rows, vec![("link-request".into(), "order-owned".into())]);
+        linked.require_current(&mut tx).await.unwrap();
+        for (company,order,expected) in [("company","order-owned",Some("link-request")),("foreign","order-foreign",Some("direct-request")),("company","order-foreign",None),("company","missing-order",None)] {
+            let witness=inspect_commerce_request_links(&mut tx, order).await.unwrap();
+            let actual: Vec<String>=sqlx::query_scalar(sqlx::AssertSqlSafe(original.as_str())).bind(order).bind(company).fetch_all(&mut *tx).await.unwrap();
+            let composed=format!("WITH {} {}", witness.cte_sql(), substituted);
+            let native: Vec<String>=sqlx::query_scalar(sqlx::AssertSqlSafe(composed.as_str())).bind(witness.order_id()).bind(company).fetch_all(&mut *tx).await.unwrap();
+            assert_eq!(actual, expected.into_iter().map(str::to_owned).collect::<Vec<_>>());
+            assert_eq!(native, actual);
+            witness.require_current(&mut tx).await.unwrap();
+        }
+        // A second connection cannot obtain the owner lock while this unit holds it.
+        let mut other = pool.raw().acquire().await.unwrap();
+        let mut competing = other.begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await.unwrap();
+        let error = lock_commerce_request_links(&mut competing).await.unwrap_err();
+        assert!(matches!(error, PgTransactionError::Persistence(ref e)
+            if e.code == "PRE_SNAPSHOT_LOCK_CONTENDED" && e.sql_state() == Some("55P03") && e.retryable()));
+        competing.rollback().await.unwrap();
+        tx.rollback().await.unwrap();
+        let mut tx = c.begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await.unwrap();
+        lock_commerce_request_links(&mut tx).await.unwrap();
+        assert!(source.require_current(&mut tx).await.is_err());
+        let after_rollback = inspect_commerce_request_links(&mut tx, "order-owned").await.unwrap();
+        let count: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(query.as_str())).bind(after_rollback.order_id()).fetch_one(&mut *tx).await.unwrap();
+        assert_eq!(count, 0);
+        tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
+async fn commerce_request_link_rejects_rls_and_deferred_drift() {
+    use erpx_server_procurement::public::commerce_request_link::{inspect_commerce_request_links, lock_commerce_request_links};
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        sqlx::query("INSERT INTO employee_requests(id,company_id,branch_id,kind,category,requester_user_id,created_by,created_at,updated_at) VALUES('deferred-source-request','company','branch','purchase','purchase','owner','owner',10,10)")
+            .execute(pool.raw()).await.unwrap();
+        let mut c = pool.raw().acquire().await.unwrap();
+        let mut tx = c.begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await.unwrap();
+        let bypass: bool = sqlx::query_scalar("SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname=current_user").fetch_one(&mut *tx).await.unwrap();
+        assert!(!bypass, "RLS test requires a non-bypass leased database role");
+        sqlx::raw_sql("ALTER TABLE public.procurement_request_orders ENABLE ROW LEVEL SECURITY; ALTER TABLE public.procurement_request_orders FORCE ROW LEVEL SECURITY")
+            .execute(&mut *tx).await.unwrap();
+        let active: bool = sqlx::query_scalar("SELECT row_security_active('public.procurement_request_orders'::regclass)").fetch_one(&mut *tx).await.unwrap();
+        assert!(active);
+        lock_commerce_request_links(&mut tx).await.unwrap();
+        assert!(inspect_commerce_request_links(&mut tx, "order-owned").await.is_err());
+        tx.rollback().await.unwrap();
+
+        let mut tx = c.begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE").await.unwrap();
+        lock_commerce_request_links(&mut tx).await.unwrap();
+        let before = inspect_commerce_request_links(&mut tx, "order-owned").await.unwrap();
+        sqlx::raw_sql("CREATE FUNCTION pg_temp.procurement_link_deferred_fixture() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN INSERT INTO public.procurement_request_orders(request_id,order_id,request_version,request_evidence_version,linked_by,created_at) VALUES('deferred-source-request','order-owned',1,1,'owner',10); RETURN NEW; END $$; CREATE CONSTRAINT TRIGGER procurement_link_deferred_fixture AFTER INSERT ON public.employee_requests DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION pg_temp.procurement_link_deferred_fixture()")
+            .execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO employee_requests(id,company_id,branch_id,kind,category,requester_user_id,created_by,created_at,updated_at) VALUES('deferred-trigger-request','company','branch','purchase','purchase','owner','owner',10,10)")
+            .execute(&mut *tx).await.unwrap();
+        before.require_current(&mut tx).await.unwrap();
+        sqlx::query("SET CONSTRAINTS procurement_link_deferred_fixture IMMEDIATE").execute(&mut *tx).await.unwrap();
+        let count: i64 = sqlx::query_scalar("SELECT count(*) FROM public.procurement_request_orders WHERE request_id='deferred-source-request' AND order_id='order-owned'").fetch_one(&mut *tx).await.unwrap();
+        assert_eq!(count, 1, "deferred trigger must have written the link");
+        assert!(before.require_current(&mut tx).await.is_err());
+        tx.rollback().await.unwrap();
+        let count: i64 = sqlx::query_scalar("SELECT count(*) FROM public.procurement_request_orders WHERE order_id='order-owned'").fetch_one(&mut *c).await.unwrap();
+        assert_eq!(count, 0, "rollback must undo the deferred link");
+    }).await;
 }

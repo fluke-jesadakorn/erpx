@@ -117,11 +117,11 @@ pub fn value_initial_count(
         if lot
             .lot_code
             .as_ref()
-            .is_some_and(|s| js_trim(s).is_empty() || js_trim(s).encode_utf16().count() > 100)
+            .is_some_and(|s| js_trim(s).is_empty() || js_trim(s).chars().count() > 100)
             || lot
                 .serial_number
                 .as_ref()
-                .is_some_and(|s| js_trim(s).is_empty() || js_trim(s).encode_utf16().count() > 160)
+                .is_some_and(|s| js_trim(s).is_empty() || js_trim(s).chars().count() > 160)
         {
             return Err(invalid(
                 "TRACKING_IDENTITY_REQUIRED",
@@ -274,7 +274,7 @@ pub fn transition_count(
         ));
     }
     if let Some(r) = reason
-        && (js_trim(r).encode_utf16().count() < 3 || js_trim(r).encode_utf16().count() > 2000)
+        && (js_trim(r).chars().count() < 3 || js_trim(r).chars().count() > 2000)
     {
         return Err(invalid(
             "REASON_REQUIRED",

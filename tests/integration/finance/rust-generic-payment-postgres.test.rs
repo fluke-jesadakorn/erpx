@@ -610,3 +610,28 @@ async fn generic_payment_workspace_lists_matching_unmatched_bank_rows() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn generic_payment_detects_invoice_drift_after_prepare_and_after_write() {
+    account::with_system(|system| async move {
+        let p=setup(system).await;let pool=&p.system.holdings[0];seed(pool).await;
+        let clock=p.system.scenario.clock.clone();let maker=actor("fixture-a");
+        // The mutation is a valid same-unit source change. It is not a trigger
+        // bypass or a simulated source, and is rolled back with the command.
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        let plan=prepare_generic_payment(&mut tx,&maker,"pay-drift-before",&payment("payment","bill-open","supplier"),clock.as_ref()).await.unwrap();
+        sqlx::query("UPDATE finance_invoices SET updated_at=updated_at+1 WHERE id='bill-open' AND company_id='company'").execute(&mut *tx).await.unwrap();
+        let error=plan.persist(&mut tx).await.err().expect("changed invoice must reject pending payment");
+        assert!(matches!(error,erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e) if e.code=="PAYMENT_SOURCE_CHANGED"));
+        tx.rollback().await.unwrap();
+        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        let retained=prepare_generic_payment(&mut tx,&maker,"pay-drift-after",&payment("payment","bill-open","supplier"),clock.as_ref()).await.unwrap().persist(&mut tx).await.unwrap();
+        retained.require_current(&mut tx).await.unwrap();
+        sqlx::query("UPDATE finance_invoices SET updated_at=updated_at+1 WHERE id='bill-open' AND company_id='company'").execute(&mut *tx).await.unwrap();
+        let error=retained.require_current(&mut tx).await.err().expect("changed invoice must invalidate retained effect");
+        assert!(matches!(error,erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e) if e.code=="PAYMENT_SOURCE_CHANGED"));
+        tx.rollback().await.unwrap();
+        let persisted:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM finance_payments WHERE id IN ('pay-drift-before','pay-drift-after')),(SELECT count(*) FROM money_transaction_snapshots WHERE source_id IN ('pay-drift-before','pay-drift-after')),(SELECT updated_at FROM finance_invoices WHERE id='bill-open')").fetch_one(pool.raw()).await.unwrap();
+        assert_eq!(persisted,(0,0,0));
+    }).await;
+}

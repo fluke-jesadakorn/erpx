@@ -325,7 +325,10 @@ pub(crate) async fn build_detail<C: Clock>(
             .entry("invoice_id")
             .or_insert(serde_json::Value::Null);
     }
-    let has_asset = order.get("asset_id").is_some_and(|v| !v.is_null())
+    let has_asset = order
+        .get("asset_id")
+        .and_then(|v| v.as_str())
+        .is_some_and(|id| !id.is_empty())
         || order
             .get("requires_asset_capability")
             .and_then(|v| v.as_i64())

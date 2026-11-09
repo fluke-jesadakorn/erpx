@@ -33,9 +33,7 @@ pub struct ServiceInitialPhysicalStockSources {
 }
 impl HoldingWorkSourcePreparation for ServiceInitialPhysicalStockSources {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
-        Box::pin(async move {
-            self.lock_sources(c).await?.bind().await
-        })
+        Box::pin(async move { self.lock_sources(c).await?.bind().await })
     }
 }
 
@@ -56,7 +54,12 @@ impl CountLockPreparation<'_> {
         // Only this environment instance can vouch for this exact unit.
         // Obtain an xid only after every owner utility lock has succeeded.
         let unit = fence_unit(self.connection).await?;
-        let mut fences = self.sources.environment.fences.lock().map_err(|_| fence_error())?;
+        let mut fences = self
+            .sources
+            .environment
+            .fences
+            .lock()
+            .map_err(|_| fence_error())?;
         if !fences.contains(&unit) {
             if fences.len() >= 4096 {
                 fences.pop_front();
@@ -87,27 +90,28 @@ impl ServiceInitialPhysicalStockSources {
         erpx_server_workflow::public::service_initial_count_receipt::lock_service_initial_count_receipts(c).await?;
         erpx_server_workflow::public::service_count_decision_evidence::lock_service_count_decision_evidence(c).await?;
         erpx_server_inventory::public::service_initial_physical_count::lock_initial_count_inventory_sources(c).await?;
-        erpx_server_quality::public::initial_count_history::lock_initial_count_quality_sources(
+        erpx_server_quality::public::initial_count_history::lock_initial_count_quality_sources(c)
+            .await?;
+        erpx_server_commerce::public::service_stock_masters::lock_service_stock_masters(c).await?;
+        erpx_server_commerce::public::service_stock_masters::lock_service_stock_mapping(c).await?;
+        erpx_server_finance::public::initial_count_finance::lock_initial_count_finance_sources_nowait(
             c,
         )
         .await?;
-        erpx_server_commerce::public::service_stock_masters::lock_service_stock_masters(c)
-            .await?;
-        erpx_server_commerce::public::service_stock_masters::lock_service_stock_mapping(c)
-            .await?;
-        erpx_server_finance::public::initial_count_finance::lock_initial_count_finance_sources(
-            c,
-        )
-        .await?;
-        erpx_server_workflow::public::stock_count_flow::lock_stock_count_flow_sources(c)
-            .await?;
+        erpx_server_workflow::public::stock_count_flow::lock_stock_count_flow_sources(c).await?;
         erpx_server_identity_access::public::journal_flow_participants::lock_journal_flow_participant_sources(c).await?;
-        erpx_server_people_payroll::public::journal_flow_people::lock_journal_flow_people_sources(c).await?;
+        erpx_server_people_payroll::public::journal_flow_people::lock_journal_flow_people_sources(
+            c,
+        )
+        .await?;
         erpx_server_organization::public::journal_flow_department::lock_journal_flow_department_sources(c).await?;
         erpx_server_organization::public::field_service_workspace::lock_service_workspace_locations(c).await?;
         erpx_server_collaboration::public::service_count_flow_notification::lock_count_flow_notifications(c).await?;
         erpx_server_files::public::count_submission::lock_count_binding_sources(c).await?;
-        Ok(CountLockPreparation { sources: self, connection: c })
+        Ok(CountLockPreparation {
+            sources: self,
+            connection: c,
+        })
     }
 }
 

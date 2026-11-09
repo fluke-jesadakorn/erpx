@@ -106,7 +106,8 @@ pub fn trimmed(v: &str) -> &str {
     v.trim_matches(|c:char|matches!(c,'\u{0009}'..='\u{000d}'|'\u{0020}'|'\u{00a0}'|'\u{1680}'|'\u{2000}'..='\u{200a}'|'\u{2028}'|'\u{2029}'|'\u{202f}'|'\u{205f}'|'\u{3000}'|'\u{feff}'))
 }
 pub fn text(v: &str, min: usize, max: usize) -> Result<(), BusinessError> {
-    let n = trimmed(v).encode_utf16().count();
+    // Zod 4 measures valid Unicode strings in code points.
+    let n = trimmed(v).chars().count();
     if n < min || n > max {
         return Err(error(
             FailureKind::InvalidInput,
@@ -124,7 +125,7 @@ fn id(v: Option<&str>) -> Result<String, BusinessError> {
             "Provide a valid Operations value.",
         )
     })?;
-    if v.is_empty() || v.encode_utf16().count() > 180 {
+    if v.is_empty() || v.chars().count() > 180 {
         return Err(error(
             FailureKind::InvalidInput,
             "OPERATIONS_INPUT_INVALID",

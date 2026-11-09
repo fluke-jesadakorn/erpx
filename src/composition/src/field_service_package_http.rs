@@ -44,13 +44,22 @@ struct PackageState<C> {
     signer: Arc<PackageLifecycleReviewSigner>,
 }
 #[derive(serde::Serialize)]
-#[serde(rename_all="camelCase")]
-#[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
-pub struct NativeServiceCompany {pub id:String,pub slug:String,pub name:String,pub holding_id:String,pub holding:String}
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct NativeServiceCompany {
+    pub id: String,
+    pub slug: String,
+    pub name: String,
+    pub holding_id: String,
+    pub holding: String,
+}
 #[derive(serde::Serialize)]
-#[serde(rename_all="camelCase")]
-#[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
-pub struct NativeServiceCompanies {pub companies:Vec<NativeServiceCompany>,pub can_apply:bool}
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
+pub struct NativeServiceCompanies {
+    pub companies: Vec<NativeServiceCompany>,
+    pub can_apply: bool,
+}
 #[allow(clippy::too_many_arguments)]
 pub fn service_package_router<C: Clock + Send + Sync + 'static>(
     control: DatabasePool,
@@ -156,14 +165,14 @@ async fn companies<C: Clock + Send + Sync + 'static>(
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-#[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub struct ServicePackagePreviewRequest {
     pub holding_id: String,
     pub request: GrantBatch,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-#[cfg_attr(feature="contracts",derive(ts_rs::TS,utoipa::ToSchema))]
+#[cfg_attr(feature = "contracts", derive(ts_rs::TS, utoipa::ToSchema))]
 pub struct ServicePackageApplyRequest {
     pub holding_id: String,
     pub request: GrantBatch,
@@ -202,7 +211,8 @@ impl InboundAction {
                 value,
                 key,
             } => {
-                let mut input: ServicePackageApplyRequest = serde_json::from_value(value).map_err(|_| invalid())?;
+                let mut input: ServicePackageApplyRequest =
+                    serde_json::from_value(value).map_err(|_| invalid())?;
                 input.request = normalize_lifecycle_batch(input.request)?;
                 if input.token.is_empty() || input.token.len() > 8192 {
                     return Err(invalid());
@@ -220,7 +230,8 @@ impl InboundAction {
                 value,
                 ..
             } => {
-                let mut input: ServicePackagePreviewRequest = serde_json::from_value(value).map_err(|_| invalid())?;
+                let mut input: ServicePackagePreviewRequest =
+                    serde_json::from_value(value).map_err(|_| invalid())?;
                 input.request = normalize_lifecycle_batch(input.request)?;
                 Ok(Action::Preview(input))
             }
@@ -363,18 +374,19 @@ fn assignment_hint(headers: &HeaderMap) -> Result<Option<String>, BusinessError>
         .split(';')
     {
         if let Some((key, value)) = item.trim().split_once('=')
-            && key == "erpx_assignment_platform" {
-                if found.is_some() {
-                    return Err(invalid());
-                }
-                let encoded = format!("v={}", value.replace('+', "%2B"));
-                found = Some(
-                    url::form_urlencoded::parse(encoded.as_bytes())
-                        .next()
-                        .ok_or_else(invalid)?
-                        .1
-                        .into_owned(),
-                );
+            && key == "erpx_assignment_platform"
+        {
+            if found.is_some() {
+                return Err(invalid());
+            }
+            let encoded = format!("v={}", value.replace('+', "%2B"));
+            found = Some(
+                url::form_urlencoded::parse(encoded.as_bytes())
+                    .next()
+                    .ok_or_else(invalid)?
+                    .1
+                    .into_owned(),
+            );
         }
     }
     Ok(found)

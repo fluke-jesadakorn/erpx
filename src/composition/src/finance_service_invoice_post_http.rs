@@ -38,7 +38,7 @@ pub struct FinanceServiceInvoicePostTarget<C> {
 struct PostState<C> {
     policy: Arc<AccountPolicy>,
     scopes: Arc<dyn BusinessScopeSlugs>,
-    targets: BTreeMap<(String, String,String), FinanceServiceInvoicePostTarget<C>>,
+    targets: BTreeMap<(String, String, String), FinanceServiceInvoicePostTarget<C>>,
 }
 pub fn finance_service_invoice_post_router<C: Clock + Send + Sync + 'static>(
     policy: Arc<AccountPolicy>,
@@ -55,7 +55,14 @@ pub fn finance_service_invoice_post_router<C: Clock + Send + Sync + 'static>(
             .is_some_and(|h| h.slug == target.holding_slug);
         if !valid
             || configured
-                .insert((target.host.clone(), target.holding_slug.clone(),target.configuration.company.as_str().to_owned()), target)
+                .insert(
+                    (
+                        target.host.clone(),
+                        target.holding_slug.clone(),
+                        target.configuration.company.as_str().to_owned(),
+                    ),
+                    target,
+                )
                 .is_some()
         {
             return Err(BusinessError::invalid(
@@ -65,9 +72,18 @@ pub fn finance_service_invoice_post_router<C: Clock + Send + Sync + 'static>(
         }
     }
     Ok(Router::new()
-        .route("/api/v1/holdings/{holding_slug}/finance/journals/{id}/flow",get(field_journal_flow::<C>).post(field_journal_flow::<C>))
-        .route("/api/v1/holdings/{holding_slug}/finance/invoices/{id}/confirm-no-charge",post(invoice_post::<C>))
-        .route("/api/v1/holdings/{holding_slug}/finance/invoices/{id}/flow",post(invoice_post::<C>))
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/journals/{id}/flow",
+            get(field_journal_flow::<C>).post(field_journal_flow::<C>),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/invoices/{id}/confirm-no-charge",
+            post(invoice_post::<C>),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/invoices/{id}/flow",
+            post(invoice_post::<C>),
+        )
         .route(
             "/api/v1/holdings/{holding_slug}/finance/invoices/{id}/post",
             post(invoice_post::<C>),
@@ -183,9 +199,11 @@ async fn invoice_post<C: Clock + Send + Sync + 'static>(
     response
 }
 
-async fn field_journal_flow<C:Clock+Send+Sync+'static>(
-    State(state):State<Arc<PostState<C>>>,Path((slug,id)):Path<(String,String)>,request:Request,
-)->Response{
+async fn field_journal_flow<C: Clock + Send + Sync + 'static>(
+    State(state): State<Arc<PostState<C>>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
     use erpx_server_identity_access::public::effective_authority::WorkAuthorizationRequest;
     let result:Result<serde_json::Value,PgTransactionError<BusinessError>>=async{
         let host=unique_request_header(request.headers(),"host")?.ok_or_else(missing)?.to_owned();
@@ -238,8 +256,14 @@ async fn field_journal_flow<C:Clock+Send+Sync+'static>(
         },
         Err(PgTransactionError::Persistence(_))=>(StatusCode::INTERNAL_SERVER_ERROR,axum::Json(serde_json::json!({"error":{"code":"FINANCE_FIELD_JOURNAL_FLOW_UNAVAILABLE","message":"The journal workflow could not be completed."}}))).into_response(),
     };
-    for(name,value)in[(axum::http::header::CACHE_CONTROL,"private, no-store"),(axum::http::header::REFERRER_POLICY,"no-referrer"),(axum::http::header::X_CONTENT_TYPE_OPTIONS,"nosniff")]{
-        response.headers_mut().insert(name,axum::http::HeaderValue::from_static(value));
+    for (name, value) in [
+        (axum::http::header::CACHE_CONTROL, "private, no-store"),
+        (axum::http::header::REFERRER_POLICY, "no-referrer"),
+        (axum::http::header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+    ] {
+        response
+            .headers_mut()
+            .insert(name, axum::http::HeaderValue::from_static(value));
     }
     response
 }
