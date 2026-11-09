@@ -231,7 +231,7 @@ export function createNativeAccountHttpTransport(configuration:NativeSessionClie
    const outgoing=new Headers(response.headers);outgoing.set('cache-control','private, no-store');
    if(loopback){
     const cookies=(response.headers as Headers & {getSetCookie?:()=>string[]}).getSetCookie?.()??[];
-    if(cookies.length){outgoing.delete('set-cookie');for(const cookie of cookies)outgoing.append('set-cookie',cookie.replace(/;\s*Domain=[^;]*/gi,'').replace(/;\s*Secure/gi,''));}
+    if(cookies.length){outgoing.delete('set-cookie');for(const cookie of cookies)outgoing.append('set-cookie',cookie.replace(/;\s*Domain=[^;]*/gi,''));}
    }
    return new Response([204,205,304].includes(response.status)?null:responseBytes,{status:response.status,headers:outgoing});
   }catch(error){controller.abort();if(error instanceof NativeSessionReadError)throw error;return fail('NATIVE_ACCOUNT_UNAVAILABLE');}
