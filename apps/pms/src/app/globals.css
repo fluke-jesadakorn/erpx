@@ -380,6 +380,7 @@
 @source "../../../../packages/feature-pms/src/routes/holdings/[holdingSlug]/pms/setup/records/pms_hotel_record/[id]/[recordSection]/page.tsx";
 @source "../../../../packages/feature-pms/src/routes/holdings/[holdingSlug]/pms/setup/records/pms_hotel_sources/[id]/[recordSection]/page.tsx";
 @source "../../../../packages/feature-pms/src/routes/holdings/[holdingSlug]/pms/setup/records/pms_record/[id]/[recordSection]/page.tsx";
+@source "../../../../packages/feature-pos/src/adapters/server/native-pos-cash.ts";
 @source "../../../../packages/feature-pos/src/components/pos-controller.ts";
 @source "../../../../packages/feature-pos/src/components/pos-front-history-reversals-screen.tsx";
 @source "../../../../packages/feature-pos/src/components/pos-front-history-screen.tsx";
@@ -400,6 +401,7 @@
 @source "../../../../packages/feature-pos/src/lib/room-charge-review-command.ts";
 @source "../../../../packages/feature-pos/src/lib/workspace-command-rejections.ts";
 @source "../../../../packages/feature-pos/src/lib/workspace-command.ts";
+@source "../../../../packages/feature-pos/src/public/native-pos-cash.ts";
 @source "../../../../packages/feature-procurement/src/lib/command.ts";
 @source "../../../../packages/feature-records/src/components/collection-record-link.tsx";
 @source "../../../../packages/feature-records/src/components/loaders/attachments--record-document-panel.tsx";
@@ -671,10 +673,8 @@
 @source "../../../../packages/server-brand/src/adapters/workspace-choice-brand.ts";
 @source "../../../../packages/server-brand/src/application/branding.ts";
 @source "../../../../packages/server-brand/src/application/identity-read.ts";
-@source "../../../../packages/server-brand/src/application/identity.ts";
 @source "../../../../packages/server-brand/src/domain/branding.ts";
 @source "../../../../packages/server-brand/src/domain/identity.ts";
-@source "../../../../packages/server-brand/src/domain/policy.ts";
 @source "../../../../packages/server-brand/src/index.ts";
 @source "../../../../packages/server-brand/src/public/attachment-read.ts";
 @source "../../../../packages/server-brand/src/public/attachments-service-facts.ts";

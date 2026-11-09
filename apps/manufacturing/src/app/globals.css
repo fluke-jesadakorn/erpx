@@ -499,10 +499,8 @@
 @source "../../../../packages/server-brand/src/adapters/workspace-choice-brand.ts";
 @source "../../../../packages/server-brand/src/application/branding.ts";
 @source "../../../../packages/server-brand/src/application/identity-read.ts";
-@source "../../../../packages/server-brand/src/application/identity.ts";
 @source "../../../../packages/server-brand/src/domain/branding.ts";
 @source "../../../../packages/server-brand/src/domain/identity.ts";
-@source "../../../../packages/server-brand/src/domain/policy.ts";
 @source "../../../../packages/server-brand/src/index.ts";
 @source "../../../../packages/server-brand/src/public/attachment-read.ts";
 @source "../../../../packages/server-brand/src/public/attachments-service-facts.ts";

@@ -1725,6 +1725,7 @@
 @source "../../../../packages/feature-pos/src/lib/startup-command.ts";
 @source "../../../../packages/feature-pos/src/lib/workspace-command-rejections.ts";
 @source "../../../../packages/feature-pos/src/lib/workspace-command.ts";
+@source "../../../../packages/feature-pos/src/public/native-pos-cash.ts";
 @source "../../../../packages/feature-pos/src/routes/api/pos/stripe/webhook/route.ts";
 @source "../../../../packages/feature-pos/src/routes/api/v1/holdings/[holdingSlug]/pos/[...path]/route.ts";
 @source "../../../../packages/feature-pos/src/routes/api/v1/holdings/[holdingSlug]/pos/initial-physical-stock/[[...path]]/route.ts";
@@ -1994,6 +1995,7 @@
 @source "../../../../packages/feature-sales/src/lib/posting-setup-command.ts";
 @source "../../../../packages/feature-sales/src/lib/service-product-command.ts";
 @source "../../../../packages/feature-sales/src/public/native-commerce-orders-page.ts";
+@source "../../../../packages/feature-sales/src/public/native-crm-command.ts";
 @source "../../../../packages/feature-sales/src/public/native-crm-pipeline-page.ts";
 @source "../../../../packages/feature-sales/src/public/native-crm-pipeline.ts";
 @source "../../../../packages/feature-sales/src/public/native-customer-access-page.ts";
@@ -2592,10 +2594,8 @@
 @source "../../../../packages/server-brand/src/application/branding.ts";
 @source "../../../../packages/server-brand/src/application/business-document.ts";
 @source "../../../../packages/server-brand/src/application/identity-read.ts";
-@source "../../../../packages/server-brand/src/application/identity.ts";
 @source "../../../../packages/server-brand/src/domain/branding.ts";
 @source "../../../../packages/server-brand/src/domain/identity.ts";
-@source "../../../../packages/server-brand/src/domain/policy.ts";
 @source "../../../../packages/server-brand/src/index.ts";
 @source "../../../../packages/server-brand/src/public/attachment-read.ts";
 @source "../../../../packages/server-brand/src/public/attachments-service-facts.ts";
@@ -4207,6 +4207,7 @@
 @source "../../../../packages/server-identity_access/src/adapters/provider-context-store.ts";
 @source "../../../../packages/server-identity_access/src/adapters/provider-context.ts";
 @source "../../../../packages/server-identity_access/src/adapters/provider-entry.ts";
+@source "../../../../packages/server-identity_access/src/adapters/provider-switcher.ts";
 @source "../../../../packages/server-identity_access/src/adapters/public-surface-entry.ts";
 @source "../../../../packages/server-identity_access/src/adapters/queued-command-authority.ts";
 @source "../../../../packages/server-identity_access/src/adapters/queued-routine-source-authority.ts";
@@ -4450,6 +4451,7 @@
 @source "../../../../packages/server-identity_access/src/public/project-worker-startup-subject.ts";
 @source "../../../../packages/server-identity_access/src/public/provider-context.ts";
 @source "../../../../packages/server-identity_access/src/public/provider-entry.ts";
+@source "../../../../packages/server-identity_access/src/public/provider-switcher.ts";
 @source "../../../../packages/server-identity_access/src/public/public-surface-entry.ts";
 @source "../../../../packages/server-identity_access/src/public/queued-command-authority.ts";
 @source "../../../../packages/server-identity_access/src/public/queued-routine-source-authority.ts";

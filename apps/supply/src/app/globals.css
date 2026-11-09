@@ -187,6 +187,7 @@
 @source "../../../../packages/feature-inventory/src/lib/transfer-command-fetch.ts";
 @source "../../../../packages/feature-inventory/src/lib/transfer-editor-draft.ts";
 @source "../../../../packages/feature-inventory/src/lib/transfer-purchase-controls.ts";
+@source "../../../../packages/feature-inventory/src/routes/holdings/[holdingSlug]/inventory-quality/stock/register/page.tsx";
 @source "../../../../packages/feature-learning/src/components/learning-console.tsx";
 @source "../../../../packages/feature-learning/src/components/use-learning-command.ts";
 @source "../../../../packages/feature-learning/src/lib/command.ts";
@@ -630,10 +631,8 @@
 @source "../../../../packages/server-brand/src/application/branding.ts";
 @source "../../../../packages/server-brand/src/application/business-document.ts";
 @source "../../../../packages/server-brand/src/application/identity-read.ts";
-@source "../../../../packages/server-brand/src/application/identity.ts";
 @source "../../../../packages/server-brand/src/domain/branding.ts";
 @source "../../../../packages/server-brand/src/domain/identity.ts";
-@source "../../../../packages/server-brand/src/domain/policy.ts";
 @source "../../../../packages/server-brand/src/index.ts";
 @source "../../../../packages/server-brand/src/public/attachment-read.ts";
 @source "../../../../packages/server-brand/src/public/attachments-service-facts.ts";
