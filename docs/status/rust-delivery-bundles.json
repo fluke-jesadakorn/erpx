@@ -8917,6 +8917,24 @@
           "merged": 65,
           "total": 206
         }
+      },
+      {
+        "at": "2026-11-09T15:05:00+07:00",
+        "commit": "2128f7e98",
+        "bundles": [
+          "Generic Field Finance History native journal detail/workspace read",
+          "Finance payment/reversal journal payload source",
+          "Native journal page bounded 404 fallback"
+        ],
+        "evidence": "Mounted field_finance_history into private /finance/journals/{id}/field-history and /field-history/workspace routes. Exact archive 2128f7e98: cargo check -p erpx-service PASS; finance_journal_detail_postgres 13/13 (64.56s) including the Field payment journal route; journal_source_postgres 22/22 (49.42s) including the imported TS phase oracle; architecture/catalogue(1005)/docs/typecheck PASS. No owner promoted: Common Files link-existing, browser/SSO and legacy retirement remain open.",
+        "counts": {
+          "owners": 0,
+          "verified": 65,
+          "partial": 57,
+          "unstarted": 84,
+          "merged": 65,
+          "total": 206
+        }
       }
     ]
   }
