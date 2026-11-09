@@ -8,3 +8,4 @@ pub mod target_evidence_command;
 pub mod target_provider_command;
 pub mod target_rollout;
 pub mod workspace;
+pub mod target_rollout_http;
