@@ -32,12 +32,20 @@ export type NativeBillingConfiguration = Readonly<{
 }>;
 
 export type NativeBillingTransport = (
-  method: "GET",
+  method: "GET" | "POST",
   url: URL,
   headers: Headers,
-  body: undefined,
+  body: string | undefined,
   signal: AbortSignal,
 ) => Promise<Response>;
+
+export type NativeBillingCommandInput = Readonly<{
+  holdingId: string;
+  holdingSlug: string;
+  action: "cost" | "delete-cost" | "complete-costs";
+  key: string;
+  body: Readonly<Record<string, unknown>>;
+}>;
 
 type UnknownRow = Record<string, unknown>;
 const failure = (code: string, status?: number, message?: string): never => {
@@ -540,12 +548,16 @@ function boundedHeader(
   return value;
 }
 
-function transportCall(
+function ownerCall(
   transport: NativeBillingTransport,
   config: ReturnType<typeof configuration>,
   incoming: Pick<Headers, "get">,
   actor: NativeBillingPageContext,
-  input: NativeBillingReadInput,
+  input: Pick<NativeBillingReadInput, "holdingId" | "holdingSlug">,
+  method: "GET" | "POST",
+  route: string,
+  body: string | undefined,
+  key: string | undefined,
   signal?: AbortSignal,
 ): Promise<Response> {
   const host = incoming.get("host");
@@ -582,8 +594,15 @@ function transportCall(
     const value = boundedHeader(incoming, name);
     if (value !== undefined) headers.set(name, value);
   }
+  if (method === "POST") {
+    if (!key || !/^[a-zA-Z0-9:_.-]{8,180}$/.test(key))
+      return Promise.reject(new NativeBillingError("NATIVE_BILLING_REQUEST_INVALID"));
+    headers.set("content-type", "application/json");
+    headers.set("idempotency-key", key);
+    headers.set("origin", holding.origin);
+  }
   const url = new URL(
-    `/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/billing`,
+    `/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/billing${route}`,
     config.base,
   );
   const controller = new AbortController();
@@ -591,10 +610,21 @@ function transportCall(
   signal?.addEventListener("abort", cancel, { once: true });
   if (signal?.aborted) controller.abort();
   const timer = setTimeout(cancel, config.timeout);
-  return transport("GET", url, headers, undefined, controller.signal).finally(() => {
+  return transport(method, url, headers, body, controller.signal).finally(() => {
     clearTimeout(timer);
     signal?.removeEventListener("abort", cancel);
   });
+}
+
+function transportCall(
+  transport: NativeBillingTransport,
+  config: ReturnType<typeof configuration>,
+  incoming: Pick<Headers, "get">,
+  actor: NativeBillingPageContext,
+  input: NativeBillingReadInput,
+  signal?: AbortSignal,
+): Promise<Response> {
+  return ownerCall(transport, config, incoming, actor, input, "GET", "", undefined, undefined, signal);
 }
 
 async function boundedBytes(response: Response, limit: number): Promise<Uint8Array> {
@@ -726,12 +756,47 @@ export function createNativeBillingClient(
     context(value.context, actor, input);
     return workspaceData(value.data, actor, input);
   };
+  const command = async (
+    incoming: Pick<Headers, "get">,
+    actor: NativeBillingPageContext,
+    input: NativeBillingCommandInput,
+    signal?: AbortSignal,
+  ): Promise<{ ok: true }> => {
+    const route =
+      input.action === "cost"
+        ? "/costs/record"
+        : input.action === "delete-cost"
+          ? "/costs/delete"
+          : "/costs/complete";
+    const response = await ownerCall(
+      transport,
+      config,
+      incoming,
+      actor,
+      input,
+      "POST",
+      route,
+      JSON.stringify(input.body),
+      input.key,
+      signal,
+    ).catch((error: unknown) => {
+      if (error instanceof NativeBillingError) throw error;
+      return failure("NATIVE_BILLING_UNAVAILABLE");
+    });
+    const value = await boundedJson(response);
+    if (!exact(value, ["data", "context"]))
+      return failure("NATIVE_BILLING_RESPONSE_INVALID");
+    context(value.context, actor, input);
+    if (!exact(value.data, ["ok"]) || value.data.ok !== true)
+      return failure("NATIVE_BILLING_RESPONSE_INVALID");
+    return { ok: true };
+  };
   const holding = (holdingId: string) => {
     return [...config.holdings.values()].find(
       (candidate) => candidate.holdingId === holdingId,
     );
   };
-  return { billing, holding };
+  return { billing, command, holding };
 }
 
 /** Bounded failure policy for the retained page/route error handling. */

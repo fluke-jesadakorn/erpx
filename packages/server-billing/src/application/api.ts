@@ -7,7 +7,7 @@ import type {WorkContext} from '@erpx/server-identity_access/public/authorizatio
 import type {BillingEvidenceSource} from '@erpx/server-billing/domain/evidence';
 import type {TargetBillingPeriodView} from '@erpx/server-billing/domain/target';
 export interface BillingApiRepository {platformAccounts():Promise<{rows:Record<string,unknown>[]}>;holdingSlug(id:string):Promise<{rows:{slug:string}[]}>;scopedEvidence(id:string,holdingId:string):Promise<{rows:BillingEvidenceSource[]}>;deniedUnavailable(id:string,evidenceId:string,holdingId:string,actorId:string,reason:string,now:number):Promise<unknown>;deniedMissingFile(id:string,evidenceId:string,holdingId:string,actorId:string,reason:string,now:number):Promise<unknown>;allowedEvidence(id:string,evidenceId:string,holdingId:string,actorId:string,now:number):Promise<unknown>;existingEvidence(id:string):Promise<{rows:BillingEvidenceSource[]}>;billingAccountExists(holdingId:string):Promise<{rowCount:number|null}>;retainQuarantine(facts:{id:string;holdingId:string;filename:string;mime:string;size:number;sha:string;actorId:string;now:number;objectKey:string;detected:string}):Promise<void>;}
-export interface BillingApiPorts {ready():Promise<void>;repository:BillingApiRepository;platformActor():Promise<{userId:string;email:string;role:string}>;workActor(slug:string):Promise<WorkContext>;companyAuthority(actor:WorkContext):Promise<unknown>;error(status:number,code:string,message:string):Error;errorResponse(error:unknown):Response;now():number;id():string;origin():string;publicOrigin(request:Request):string;readOnly():boolean;uploadsFrozen():boolean;scannerReadiness():Promise<{ready:boolean;enabled:boolean}>;object(key:string):Promise<{body:ReadableStream<Uint8Array>}|null>;objectHead(key:string):Promise<{customMetadata:Record<string,string>}|null>;putObject(key:string,bytes:Uint8Array,options:{onlyIf:{etagDoesNotMatch:string};httpMetadata:{contentType:string;cacheControl:string};customMetadata:{sha256:string;state:string}}):Promise<unknown>;hash(value:string|Uint8Array):string;detect(bytes:Uint8Array,mime:string):string|null;target(holdingId:string,month:string):Promise<TargetBillingPeriodView>;view(holdingId:string):Promise<BillingView>;body(request:Request):Promise<unknown>;command(actor:BillingActor,holdingId:string,input:BillingInput,key:string,returnUrl:string):Promise<{ok:boolean;url?:string}>;}
+export interface BillingApiPorts {ready():Promise<void>;repository:BillingApiRepository;platformActor():Promise<{userId:string;email:string;role:string;assignmentId?:string}>;workActor(slug:string):Promise<WorkContext>;companyAuthority(actor:WorkContext):Promise<unknown>;error(status:number,code:string,message:string):Error;errorResponse(error:unknown):Response;now():number;id():string;origin():string;publicOrigin(request:Request):string;readOnly():boolean;uploadsFrozen():boolean;scannerReadiness():Promise<{ready:boolean;enabled:boolean}>;object(key:string):Promise<{body:ReadableStream<Uint8Array>}|null>;objectHead(key:string):Promise<{customMetadata:Record<string,string>}|null>;putObject(key:string,bytes:Uint8Array,options:{onlyIf:{etagDoesNotMatch:string};httpMetadata:{contentType:string;cacheControl:string};customMetadata:{sha256:string;state:string}}):Promise<unknown>;hash(value:string|Uint8Array):string;detect(bytes:Uint8Array,mime:string):string|null;target(holdingId:string,month:string):Promise<TargetBillingPeriodView>;view(holdingId:string):Promise<BillingView>;body(request:Request):Promise<unknown>;command(actor:BillingActor,holdingId:string,input:BillingInput,key:string,returnUrl:string):Promise<{ok:boolean;url?:string}>;nativeCostCommand?(actor:BillingActor,holdingId:string,input:BillingInput,key:string):Promise<{ok:boolean;url?:string}>;}
 function concatBytes(chunks:Uint8Array[],size:number){const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}return bytes;}
 export function createBillingApi(ports:BillingApiPorts){
 function billingHandler(platform: boolean) {
@@ -35,7 +35,13 @@ function billingHandler(platform: boolean) {
             "FORBIDDEN",
             "Platform billing permission required.",
           );
-        actor = { userId: a.userId, email: a.email, platform: true };
+        actor = {
+          userId: a.userId,
+          email: a.email,
+          platform: true,
+          assignmentId: a.assignmentId,
+          role: a.role,
+        };
         holdingId = url.searchParams.get("holdingId") ?? undefined;
       } else {
         const a = await ports.workActor(slug!);
@@ -52,6 +58,8 @@ function billingHandler(platform: boolean) {
           email: a.email,
           platform: false,
           holdingId,
+          assignmentId: a.assignmentId,
+          role: a.role,
         };
       }
       if (platform && !holdingId && request.method === "GET" && !path.length)
@@ -216,11 +224,21 @@ function billingHandler(platform: boolean) {
           { headers: { "Cache-Control": "private, no-store" } },
         );
       const input = billingInput.parse(await ports.body(request));
+      const key = request.headers.get("Idempotency-Key") ?? "";
+      if (
+        ports.nativeCostCommand &&
+        ["cost", "delete-cost", "complete-costs"].includes(input.action)
+      ) {
+        const data = await ports.nativeCostCommand(actor, holdingId, input, key);
+        return Response.json(canonicalDestinationLinks({ data }), {
+          headers: { "Cache-Control": "private, no-store" },
+        });
+      }
       const data = await ports.command(
         actor,
         holdingId,
         input,
-        request.headers.get("Idempotency-Key") ?? "",
+        key,
         new URL(canonicalUiHref(`/holdings/${slug}/settings?section=usage`), ports.origin())
           .href,
       );

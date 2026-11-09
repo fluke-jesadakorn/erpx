@@ -6,6 +6,7 @@ export {
   NativeBillingError,
 } from "@erpx/server-billing/adapters/native-billing";
 export type {
+  NativeBillingCommandInput,
   NativeBillingConfiguration,
   NativeBillingPageContext,
   NativeBillingReadInput,

@@ -358,4 +358,49 @@ describe('native Billing transport', () => {
     });
     expect(nativeBillingFailure(new Error('other'))).toBeUndefined();
   });
+
+  it('posts exact native cost commands with the retained key and origin', async () => {
+    const calls: Parameters<NativeBillingTransport>[] = [];
+    const client = createNativeBillingClient(configuration, async (...args) => {
+      calls.push(args);
+      return response({ data: { ok: true }, context: context() });
+    });
+    const input = {
+      holdingId: 'h001',
+      holdingSlug: 'acme',
+      action: 'cost' as const,
+      key: 'billing-command-0001',
+      body: {
+        version: 4,
+        reason: 'Reviewed actual cost',
+        periodId: 'period-10',
+        category: 'hosting',
+        amountSatang: 12500,
+        serviceStart: 100,
+        serviceEnd: 200,
+        note: 'Provider hosting',
+        simulated: false,
+        evidenceId: null,
+      },
+    };
+    expect(await client.command(headers(), actor, input)).toEqual({ ok: true });
+    expect(calls).toHaveLength(1);
+    const [method, url, sent, body] = calls[0]!;
+    expect(method).toBe('POST');
+    expect(String(url)).toBe('http://127.0.0.1:3110/api/v1/holdings/acme/billing/costs/record');
+    expect(sent.get('content-type')).toBe('application/json');
+    expect(sent.get('idempotency-key')).toBe('billing-command-0001');
+    expect(sent.get('origin')).toBe('https://acme.example.test');
+    expect(JSON.parse(body!)).toEqual(input.body);
+    await expect(
+      client.command(headers({ host: 'evil.example.test' }), actor, input),
+    ).rejects.toMatchObject({ code: 'NATIVE_BILLING_AUTHORITY_INVALID' });
+    const invalid = createNativeBillingClient(configuration, async () =>
+      response({ data: { ok: false }, context: context() }),
+    );
+    await expect(invalid.command(headers(), actor, input)).rejects.toMatchObject({
+      code: 'NATIVE_BILLING_RESPONSE_INVALID',
+    });
+  });
+
 });

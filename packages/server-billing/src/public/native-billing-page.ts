@@ -1,5 +1,7 @@
 import 'server-only';
 import type { BillingView } from '@erpx/feature-billing/lib/billing';
+import type { BillingInput } from '@erpx/server-billing/domain/billing';
+import { headers } from 'next/headers';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import {
   createNativeBillingClient,
@@ -7,6 +9,7 @@ import {
   nativeBillingConfiguration,
   nativeBillingFailure,
   NativeBillingError,
+  type NativeBillingCommandInput,
   type NativeBillingPageContext,
 } from './native-billing';
 import { createNextNativeBillingReader } from '../adapters/server/next-native-billing';
@@ -66,6 +69,72 @@ export async function nativeBillingWorkspace(
         'The native Billing projection is temporarily unavailable.',
       );
     return data;
+  } catch (error) {
+    ownedFailure(error);
+  }
+}
+
+/**
+ * Native cost commands when the exact private Billing configuration exists.
+ * Other Billing actions stay on the retained command path.
+ */
+export async function nativeBillingCostCommand(
+  actor: Omit<NativeBillingPageContext, 'holdingSlug'>,
+  holdingId: string,
+  input: BillingInput,
+  key: string,
+): Promise<{ ok: boolean; url?: string } | undefined> {
+  const instance = client();
+  if (!instance) return undefined;
+  const holding = instance.holding(holdingId);
+  if (!holding)
+    throw new ApiError(
+      503,
+      'NATIVE_BILLING_UNAVAILABLE',
+      'The native Billing Holding target is not configured.',
+    );
+  let action: NativeBillingCommandInput['action'];
+  let body: Record<string, unknown>;
+  if (input.action === 'cost') {
+    action = 'cost';
+    body = {
+      version: input.version,
+      reason: input.reason,
+      periodId: input.periodId,
+      category: input.category,
+      amountSatang: input.amountSatang,
+      serviceStart: input.serviceStart,
+      serviceEnd: input.serviceEnd,
+      note: input.note ?? '',
+      simulated: input.simulated ?? false,
+      evidenceId: input.evidenceId ?? null,
+      ...(input.costId ? { costId: input.costId } : {}),
+      ...(input.originalInvoiceId ? { originalInvoiceId: input.originalInvoiceId } : {}),
+    };
+  } else if (input.action === 'delete-cost') {
+    action = 'delete-cost';
+    body = {
+      version: input.version,
+      reason: input.reason,
+      costId: input.costId,
+    };
+  } else if (input.action === 'complete-costs') {
+    action = 'complete-costs';
+    body = {
+      version: input.version,
+      reason: input.reason,
+      periodId: input.periodId,
+      complete: input.complete,
+    };
+  } else {
+    return undefined;
+  }
+  try {
+    return await instance.command(
+      await headers(),
+      { ...actor, holdingSlug: holding.holdingSlug },
+      { holdingId: holding.holdingId, holdingSlug: holding.holdingSlug, action, key, body },
+    );
   } catch (error) {
     ownedFailure(error);
   }

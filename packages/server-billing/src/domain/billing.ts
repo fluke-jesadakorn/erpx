@@ -6,6 +6,9 @@ export type BillingActor = {
   platform: boolean;
   holdingId?: string;
   email: string;
+  assignmentId?: string;
+  role?: string;
+  expiresAt?: number;
 };
 const amount = z.number().int().min(0).max(100000000);
 export const billingInput = z
