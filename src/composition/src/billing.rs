@@ -8,6 +8,13 @@ use erpx_server_billing::public::billing_http::{
 };
 use erpx_server_billing::public::cost::PgBillingCostCommand;
 use erpx_server_billing::public::cost::{BillingCostCommand, execute_cost_command};
+use erpx_server_billing::public::target_evidence_command::{
+    BillingTargetEvidenceCommand, execute_target_evidence,
+};
+use erpx_server_billing::public::target_rollout_http::{
+    BillingTargetRolloutHttpBackend, BillingTargetRolloutHttpFuture,
+    BillingTargetRolloutHttpRequest, BillingTargetRolloutHttpResponse,
+};
 use erpx_server_billing::public::workspace::PgBillingWorkspace;
 use erpx_server_billing::public::workspace::{BillingActor, BillingWorkspace, billing_workspace};
 use erpx_server_identity_access::public::{
@@ -55,6 +62,26 @@ fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
         PgTransactionError::Business(error) => error,
         PgTransactionError::Persistence(_) => unavailable(),
     }
+}
+
+/// The trusted Beta storage cap is deployment configuration, never request
+/// input. The TypeScript oracle reads the same variable for rollout readiness,
+/// so the native approval evaluates the exact same allowance.
+fn beta_storage_limit() -> Result<i64, BusinessError> {
+    parse_beta_storage_limit(std::env::var("BETA_STORAGE_BYTES").ok().as_deref())
+}
+
+fn parse_beta_storage_limit(raw: Option<&str>) -> Result<i64, BusinessError> {
+    const DEFAULT_STORAGE_BYTES: i64 = 1_073_741_824;
+    const MAX_SAFE_INTEGER: i64 = 9_007_199_254_740_991;
+    let Some(raw) = raw else {
+        return Ok(DEFAULT_STORAGE_BYTES);
+    };
+    let value = raw.trim().parse::<i64>().map_err(|_| unavailable())?;
+    if value <= 0 || value > MAX_SAFE_INTEGER {
+        return Err(unavailable());
+    }
+    Ok(value)
 }
 
 #[derive(Clone, Copy)]
@@ -296,6 +323,66 @@ impl<C: Clock + Send + Sync + 'static> BillingService<C> {
             )
             .await
     }
+
+    pub async fn target_rollout<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: BillingTargetEvidenceCommand,
+    ) -> Result<BillingHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        if !matches!(command, BillingTargetEvidenceCommand::Rollout(_)) {
+            return Err(BusinessError::invalid(
+                "BILLING_REQUEST_INVALID",
+                "Use one bounded Billing rollout request.",
+            )
+            .into());
+        }
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                BillingSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.read")?;
+                        let now = clock.now();
+                        let actor = billing_actor(current, connection, now).await?;
+                        execute_target_evidence(
+                            connection,
+                            &actor,
+                            &holding,
+                            &command,
+                            now,
+                            beta_storage_limit()?,
+                        )
+                        .await?;
+                        Ok(BillingHttpResponse {
+                            data: serde_json::json!({"ok": true}),
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
 }
 
 pub struct BillingBackend<C> {
@@ -365,5 +452,44 @@ impl<C: Clock + Send + Sync + 'static> BillingHttpBackend for BillingBackend<C> 
                 .await
                 .map_err(business)
         })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> BillingTargetRolloutHttpBackend for BillingBackend<C> {
+    fn approve<'a>(
+        &'a self,
+        request: BillingTargetRolloutHttpRequest<'a>,
+    ) -> BillingTargetRolloutHttpFuture<'a, BillingTargetRolloutHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .target_rollout(request.host, proof, move || Ok(selection), request.command)
+                .await
+                .map(|response| BillingTargetRolloutHttpResponse {
+                    data: response.data,
+                    context: response.context,
+                })
+                .map_err(business)
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn trusted_storage_limit_defaults_and_rejects_invalid_deployment_values() {
+        assert_eq!(parse_beta_storage_limit(None).unwrap(), 1_073_741_824);
+        assert_eq!(
+            parse_beta_storage_limit(Some(" 20000000000 ")).unwrap(),
+            20_000_000_000
+        );
+        for invalid in ["", "0", "-1", "abc", "1.5", "9007199254740992"] {
+            let error = parse_beta_storage_limit(Some(invalid))
+                .err()
+                .expect("invalid trusted storage caps fail closed");
+            assert_eq!(error.code, "BILLING_UNAVAILABLE");
+        }
     }
 }
