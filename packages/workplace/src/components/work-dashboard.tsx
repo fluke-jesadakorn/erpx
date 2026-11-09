@@ -185,15 +185,23 @@ export function WorkDashboard({
           if (currentType && currentType !== "all") params.set("type", currentType);
           if (currentQuery) params.set("q", currentQuery);
           return (
-            <Link
+            <a
               key={id}
               data-slot="button"
               className={`button ui-standard-control ${view === id ? "secondary" : "ghost"}`}
               href={canonicalUiHref(`${base}/work?${params}`)}
               aria-current={view === id ? "page" : undefined}
+              onClick={event => {
+                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                event.preventDefault();
+                const live = new URLSearchParams(window.location.search);
+                live.set("view", id);
+                live.delete("responsibility");
+                window.location.assign(`${base}/work?${live}`);
+              }}
             >
               {label}
-            </Link>
+            </a>
           );
         })}
       </nav>
@@ -222,18 +230,31 @@ export function WorkDashboard({
                     ["waiting", "Waiting"],
                     ["completed", "Completed"],
                   ].map(([id, label]) => (
-                    <Link
+                    <a
                       key={id}
                       data-slot="button" className={`button ui-standard-control ${tracking === id ? "secondary" : "ghost"}`}
                       href={viewHref("tracking", id)}
                       aria-current={tracking === id ? "page" : undefined}
+                      onClick={event => {
+                        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                        event.preventDefault();
+                        const live = new URLSearchParams(window.location.search);
+                        live.set("view", "tracking");
+                        if (id === "all") live.delete("tracking"); else live.set("tracking", id);
+                        window.location.assign(`${base}/work?${live}`);
+                      }}
                     >
                       {label}
-                    </Link>
+                    </a>
                   ))}
                 </nav>
               )}
-              <DestinationFilterForm className="ui-filter-bar" action={canonicalUiHref(`${base}/work`)}>
+              <DestinationFilterForm className="ui-filter-bar" action={canonicalUiHref(`${base}/work`)} onSubmit={event => {
+                event.preventDefault();
+                const form = event.currentTarget, query = new URLSearchParams();
+                for (const [key, value] of new FormData(form)) if (typeof value === "string") query.append(key, value);
+                window.location.assign(`${base}/work?${query}`);
+              }}>
                 <TextInput appearance="standard"
                   type="hidden"
                   name={view === "legacy" ? "queue" : "view"}
