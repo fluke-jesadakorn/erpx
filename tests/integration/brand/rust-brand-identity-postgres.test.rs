@@ -632,8 +632,8 @@ async fn exercise(pool: &DatabasePool, pool_people: &People) {
             "unapproved media {logo} is rejected"
         );
         let rejected: (i64, i64) = sqlx::query_as(
-            "SELECT (SELECT count(*) FROM brand_identity_drafts WHERE id=?),\
-             (SELECT count(*) FROM brand_identity_events WHERE id=?)",
+            "SELECT (SELECT count(*) FROM brand_identity_drafts WHERE id=$1),\
+             (SELECT count(*) FROM brand_identity_events WHERE id=$2)",
         )
         .bind(format!("brand-draft-{key}"))
         .bind(format!("brand-event-{key}"))

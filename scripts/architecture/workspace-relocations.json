@@ -24180,13 +24180,6 @@
       "sha256": "078a2512fde3396d83f997c33ef143faf852478b0676f4ab6412fd998b968f95"
     },
     {
-      "from": "src/server/modules/brand/application/identity.ts",
-      "to": "packages/server-brand/src/application/identity.ts",
-      "package": "@erpx/server-brand",
-      "key": "application/identity",
-      "sha256": "c47b88db2a5211ba74cd9c66b4affe5d89bbf31b311c3d1e1882e3c25b888838"
-    },
-    {
       "from": "src/server/modules/brand/application/identity-read.ts",
       "to": "packages/server-brand/src/application/identity-read.ts",
       "package": "@erpx/server-brand",
