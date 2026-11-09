@@ -68,6 +68,15 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
             .map_err(str::to_owned)
         }
         #[cfg(feature = "private-field-api")]
+        [command, option, path] if command == "private-api" && option == "--test-config" => {
+            erpx_service::private_development_api::run_test_api_file(
+                std::path::Path::new(path),
+                shutdown(),
+            )
+            .await
+            .map_err(str::to_owned)
+        }
+        #[cfg(feature = "private-field-api")]
         [command, option, path] if command == "private-api" && option == "--development-config" => {
             erpx_service::private_development_api::run_development_api_file(
                 std::path::Path::new(path),
@@ -189,7 +198,7 @@ pub async fn run_cli(arguments: impl IntoIterator<Item = String>) -> Result<(), 
             }
             if cfg!(feature = "private-field-api") {
                 usage.push_str(
-                    " | erpx-server private-api --development-config /absolute/private.json | erpx-server support-sla-drain --once --development-config /absolute/private.json",
+                    " | erpx-server private-api --development-config /absolute/private.json | erpx-server private-api --test-config /absolute/private.json | erpx-server support-sla-drain --once --development-config /absolute/private.json",
                 );
             }
             if cfg!(feature = "production-api") {

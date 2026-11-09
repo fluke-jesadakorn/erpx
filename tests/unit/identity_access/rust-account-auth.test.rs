@@ -490,6 +490,7 @@ fn production_environment_binds_exact_account_and_holding_audiences() {
             host: "acme.example.test".into(),
             audience: "holding:production:h001:acme.example.test".into(),
         }],
+        products: vec![],
     };
     assert!(policy.validate().is_ok());
     assert!(policy.audience("acme.example.test").is_some());

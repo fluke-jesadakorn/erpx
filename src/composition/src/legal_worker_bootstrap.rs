@@ -134,6 +134,7 @@ impl DevelopmentLegalWorkerConfiguration {
                     audience: format!("holding:development:{}:{}", b.holding_id, b.host),
                 })
                 .collect(),
+            products: vec![],
         };
         let configured = doc
             .holding_bindings

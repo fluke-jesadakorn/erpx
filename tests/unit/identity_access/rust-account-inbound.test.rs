@@ -13,6 +13,7 @@ fn policy() -> AccountPolicy {
             host: "acme.example.test".into(),
             audience: "holding:development:h001:acme.example.test".into(),
         }],
+        products: vec![],
     }
 }
 fn headers() -> HeaderMap {
@@ -221,6 +222,7 @@ fn contributor_profile_requires_all_exact_authorities_and_retains_port() {
                 audience: format!("holding:development:{id}:{host}"),
             })
             .collect(),
+        products: vec![],
     };
     local.validate().unwrap();
     use erpx_server_identity_access::public::account_holding_bindings::{

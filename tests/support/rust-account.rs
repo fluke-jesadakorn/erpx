@@ -20,6 +20,7 @@ pub fn policy() -> AccountPolicy {
                 audience: "holding:development:h002:northstar.example.test".into(),
             },
         ],
+        products: vec![],
     }
 }
 pub fn empty() -> PresentedSecrets {

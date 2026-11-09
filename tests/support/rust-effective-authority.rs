@@ -45,6 +45,7 @@ pub fn policy() -> AccountPolicy {
             host: "acme.example.test".into(),
             audience: "holding:development:h001:acme.example.test".into(),
         }],
+        products: vec![],
     }
 }
 pub const NOW: i64 = 1800000000000;

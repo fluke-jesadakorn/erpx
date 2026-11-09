@@ -258,6 +258,9 @@ pub struct AccountPolicy {
     pub environment: String,
     pub require_email_verification: bool,
     pub holdings: Vec<HoldingOrigin>,
+    /// Additional public product hosts that start SSO for an existing Holding.
+    /// They share the Holding ID/bindings but keep their own host-only callback.
+    pub products: Vec<HoldingOrigin>,
 }
 impl AccountPolicy {
     pub fn validate(&self) -> Result<(), BusinessError> {
@@ -295,6 +298,23 @@ impl AccountPolicy {
             ));
         }
         hosts.insert(self.account_host.clone());
+        for product in &self.products {
+            let parts = product.audience.splitn(4, ':').collect::<Vec<_>>();
+            if product.origin != format!("https://{}", product.host)
+                || !exact_host(&product.host)
+                || parts.len() != 4
+                || parts[0] != "holding"
+                || parts[1] != self.environment
+                || parts[2].is_empty()
+                || parts[3] != product.host
+                || !hosts.insert(product.host.clone())
+            {
+                return Err(BusinessError::invalid(
+                    "INVALID_HOLDING_AUTHORITY",
+                    "Configure distinct exact product origins and audiences.",
+                ));
+            }
+        }
         for holding in &self.holdings {
             let parts = holding.audience.splitn(4, ':').collect::<Vec<_>>();
             if holding.origin != format!("https://{}", holding.host)
@@ -323,6 +343,7 @@ impl AccountPolicy {
         } else {
             self.holdings
                 .iter()
+                .chain(self.products.iter())
                 .find(|holding| holding.host == host)
                 .map(|holding| RequestAudience::Holding {
                     audience: holding.audience.clone(),
@@ -331,7 +352,11 @@ impl AccountPolicy {
     }
     pub fn device_origin_allowed(&self, origin: &str) -> bool {
         origin == self.account_origin
-            || self.holdings.iter().any(|holding| holding.origin == origin)
+            || self
+                .holdings
+                .iter()
+                .chain(self.products.iter())
+                .any(|holding| holding.origin == origin)
     }
 }
 pub(crate) fn contributor_holding_host(host: &str) -> bool {

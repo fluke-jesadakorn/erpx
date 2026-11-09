@@ -128,7 +128,8 @@ for (const kind of ["unit", "integration", "provider"] as const) {
     const patternIndex = options.forwarded.findIndex(arg => ["-t", "--testNamePattern"].includes(arg) || arg.startsWith("--testNamePattern="));
     const namePattern = registeredCase?.runner === "vitest" ? exactNativeCasePattern(registeredCase.title) : patternIndex < 0 ? undefined : options.forwarded[patternIndex].split("=").slice(1).join("=") || options.forwarded[patternIndex + 1];
     const defaultReporter = options.forwarded.some(arg => arg === "--reporter" || arg.startsWith("--reporter=")) ? [] : ["--reporter", "default"];
-    const integrationEnvironment = kind === "integration" ? { ...env, ...attachmentToolEnvironment(root) } : env;
+    const nativeAccountProxy = kind === "integration" && selected.some(suite => suite.id.startsWith("legal.") || suite.id === "identity_access.product-sso.integration");
+    const integrationEnvironment = kind === "integration" ? { ...env, ...attachmentToolEnvironment(root), ...(nativeAccountProxy ? { ERPX_NATIVE_ACCOUNT_TEST_PROXY: "1" } : {}) } : env;
     const childEnv = vitestChildEnvironment({ ...integrationEnvironment, ERPX_SELECTED_TEST_FILES: JSON.stringify(selectedFiles), ERPX_SELECTED_PROVIDER: kind === "provider" ? "1" : "0", ERPX_TEST_NAME_PATTERN: namePattern }, postgres);
     const exactPatternArgs = registeredCase?.runner === "vitest" ? ["--testNamePattern", exactNativeCasePattern(registeredCase.title)] : [];
     const exit = await execute([node, resolve(root, "node_modules/vitest/vitest.mjs"), "run", "--config", postgres ? "tests/config/vitest.integration.config.mts" : "tests/config/vitest.unit.config.mts", ...options.forwarded, ...exactPatternArgs, ...defaultReporter, "--reporter", resolve(root, "scripts/testing/required-cases-reporter.ts")], childEnv);

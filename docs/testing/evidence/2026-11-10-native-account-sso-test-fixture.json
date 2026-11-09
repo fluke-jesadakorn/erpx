@@ -1,0 +1,42 @@
+{
+  "schema": "erpx.evidence/native-account-sso-test-fixture/v1",
+  "recorded_at": "2026-11-10T02:20:00+07:00",
+  "head": "db11b3dd8c9f824cf0e6c40bc7ef5511072872e6",
+  "status": "partial",
+  "scope": "Native Account SSO test fixture bound to the disposable erpx_test_* Control/Holding databases, plus native product-origin audiences and a test-only native Argon2id password hash route.",
+  "fixture": {
+    "file": "tests/support/native-account-sso.ts",
+    "wiring": "tests/support/runtime-env.ts starts the lazy loopback proxy only when ERPX_NATIVE_ACCOUNT_TEST_PROXY=1; scripts/testing/test.ts sets that flag for legal.* and identity_access.product-sso.integration.",
+    "server": "target/debug/erpx-server private-api --test-config <private.json>",
+    "profile": "private_development_api::Profile::Test accepts only erpx_test_<10 hex>_(control|h00x)(_read)?_db with erpx_test_admin on 127.0.0.1:5432.",
+    "bindings": "The fixture seeds holding_bindings for the suite's exact slots; the native registry verifies the same active rows.",
+    "password": "POST /api/v1/test/account-password-hash (Profile::Test only) hashes with the native Argon2id parameters; the route is absent from development/production profiles.",
+    "productOrigins": "AccountPolicy now carries product origins; ConfiguredHoldingRegistry maps a product audience to the same exact Holding entry; /sso/start and /sso/callback accept configured product hosts."
+  },
+  "legal_integration": {
+    "suite": "legal.legal.integration",
+    "before": "3 passed / 49 failed (the shared 3199 native Account API is bound to the clone Control database and cannot authenticate disposable-test users).",
+    "after": "43 passed / 9 failed",
+    "passing": "Native credential sign-in, SSO start/authorize/callback on the product host, Legal writer transactions, replay/stale/authority/audit/outbox cases, and the core register/detail/portal reads.",
+    "remaining_failures": [
+      "The child session binding issued by the native SSO uses a holding audience (holding:development:h001:legal-portal-dev-erpx.jesadakorn.com), while the retained TypeScript product SSO store expects the product audience key (legal-portal). The portal comment concurrency tests therefore return before reaching the writer lock.",
+      "legal.test.ts invitation continuation still returns 303 instead of the expected 403 for an unverified invited account."
+    ],
+    "remaining_count": 9
+  },
+  "no_regression": {
+    "support.package-surfaces.integration": "22/22 pass after rebuilding the Field held-provider example with the updated AccountPolicy constructors.",
+    "identity_access cargo": "erpx-server-identity-access: account_auth 8/8, session/work-context suites green; one unrelated key-migration backfill assertion remains (2 vs 1) in account_group_recovery_postgres.",
+    "typecheck": "tests/config typecheck pass",
+    "catalogue": "33 modules, 1011 suites",
+    "cargo_check": "private-field-api,existing-business; files-scan-worker/field-push-worker; legal-pdf-worker/legal-document-worker/legal-queue all pass"
+  },
+  "not_certified": {
+    "owner": "legal",
+    "reason": "9 Legal integration failures remain on the product-host child-session audience, and secondary TypeScript Legal views still keep http/ssr partial. Legal is not owner 5/41 in this record."
+  },
+  "notes": [
+    "No production, staging, deploy, release, schema deletion or destructive cleanup was performed.",
+    "The test profile and password-hash route are unreachable from the development and production parsers."
+  ]
+}

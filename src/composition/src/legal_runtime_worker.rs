@@ -273,6 +273,7 @@ impl RuntimeLegalWorkerConfiguration {
                     ),
                 })
                 .collect(),
+            products: vec![],
         };
         let holdings = Arc::new(
             ConfiguredHoldingRegistry::new(

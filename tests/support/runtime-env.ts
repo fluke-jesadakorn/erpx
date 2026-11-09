@@ -7,6 +7,7 @@ import { LocalFileStore } from "@erpx/server-runtime/adapters/runtime/filesystem
 import { migrateDatabase, refreshMigrationCoverage } from "@erpx/server-runtime/public/runtime/migrations";
 import type { SqlDatabase } from "@erpx/server-runtime/adapters/runtime/types";
 import { assertSuiteDatabaseIdentity, createSuiteDatabases, cleanupSuiteDatabases, databaseTracks, type DatabaseSlot, type NativeFixturePlan } from './postgres-templates';
+import { startNativeAccountSsoProxy, stopNativeAccountSsoProxy } from './native-account-sso';
 
 const adminUrl=process.env.ERPX_TEST_ADMIN_URL ?? 'postgresql://erpx_test_admin@127.0.0.1:5432/postgres';
 const parsedAdminUrl=new URL(adminUrl);
@@ -84,6 +85,7 @@ export async function setupDatabases(){
   for(const name of runtimeEnvironmentNames)originalRuntimeEnvironment.set(name,process.env[name]);
   for(const name of ['ERPX_MARKETING_ORIGIN','ERPX_FRONT_PMS_ORIGIN','ERPX_FRONT_POS_ORIGIN','ERPX_MINIO_ENDPOINT','ERPX_MINIO_BUCKET','ERPX_MINIO_ACCESS_KEY','ERPX_MINIO_SECRET_KEY'])delete process.env[name];
   Object.assign(process.env,{ERPX_DATABASE_MANIFEST:manifestPath,ERPX_MIGRATION_DATABASE_MANIFEST:join(directory,'databases-migrations.json'),ERPX_ENVIRONMENT:'local',ERPX_PUBLIC_ORIGIN:'https://console-dev-erpx.jesadakorn.com',ERPX_DATA_DIR:directory,ERPX_PROCESS_ROLE:'app',ERPX_PUBLIC_BETA:'false',BETTER_AUTH_URL:'http://localhost:3100',BETTER_AUTH_SECRET:'test-runtime-secret-never-used-outside-integration'});
+  if (process.env.ERPX_NATIVE_ACCOUNT_TEST_PROXY === '1') await startNativeAccountSsoProxy();
   fixtureTimings.setupMs=performance.now()-started;
 }
 export async function cleanupDatabases(){
@@ -101,6 +103,7 @@ export async function cleanupDatabases(){
       }}finally{await admin.end();}
     }
   }finally{
+    if (process.env.ERPX_NATIVE_ACCOUNT_TEST_PROXY === '1') await stopNativeAccountSsoProxy();
     await rm(directory,{recursive:true,force:true});
     for(const [name,value] of originalRuntimeEnvironment){if(value===undefined)delete process.env[name];else process.env[name]=value;}
     originalRuntimeEnvironment.clear();

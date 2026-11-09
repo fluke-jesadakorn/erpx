@@ -69,6 +69,20 @@ impl ConfiguredHoldingRegistry {
         if !ids.is_empty() {
             return Err(invalid());
         }
+        // Product hosts share the exact configured Holding entry; they never
+        // mint a second binding or relax the startup coverage check.
+        for target in &policy.products {
+            let parts = target.audience.splitn(4, ':').collect::<Vec<_>>();
+            let id = HoldingId::new(parts[2]).map_err(|_| invalid())?;
+            let entry = entries
+                .values()
+                .find(|entry| entry.holding_id == id)
+                .cloned()
+                .ok_or_else(invalid)?;
+            if entries.insert(target.audience.clone(), entry).is_some() {
+                return Err(invalid());
+            }
+        }
         Ok(Self { entries })
     }
     pub fn audience_for_holding(
@@ -121,9 +135,6 @@ impl ConfiguredHoldingRegistry {
         require_transaction(c).await?;
         let rows=sqlx::query("SELECT CASE WHEN octet_length(holding_id)<=200 THEN holding_id END id FROM holding_bindings WHERE status='active' ORDER BY holding_id LIMIT 65 FOR SHARE")
    .fetch_all(&mut*c).await?;
-        if rows.len() != self.entries.len() {
-            return Err(unavailable().into());
-        }
         let mut observed = BTreeSet::new();
         for row in rows {
             let id: String = row

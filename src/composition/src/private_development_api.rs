@@ -61,11 +61,14 @@ use axum::{
     http::{HeaderValue, StatusCode, header},
     middleware::{self, Next},
     response::{IntoResponse, Response},
+    routing::post,
+    Json,
 };
 use erpx_server_commercial::public::purchases::current_package_catalogue;
 use erpx_server_identity_access::public::{
     AccountAuthentication, AccountCredentials, AccountInvitations, AccountMailKeyring,
-    AccountPolicy, Argon2Passwords, AuthenticationSecrets, HoldingOrigin,
+    AccountPolicy, Argon2Passwords, AuthenticationSecrets, HoldingOrigin, Password,
+    PasswordHashing,
     PostgresAccountCredentials, PostgresAccountInvitations, PostgresAccountRepository,
     PostgresInvitationCredentialAuthority, SystemAccountClock, SystemAuthenticationSecrets,
     account_auth_router, account_credentials_router,
@@ -130,6 +133,12 @@ struct HoldingDocument {
     database: DatabaseDocument,
     #[serde(default)]
     read_database: Option<DatabaseDocument>,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ProductOriginDocument {
+    host: String,
+    holding_id: String,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -204,6 +213,8 @@ struct ConfigurationDocument {
     request_timeout_ms: u64,
     control: DatabaseDocument,
     holdings: Vec<HoldingDocument>,
+    #[serde(default)]
+    product_origins: Vec<ProductOriginDocument>,
     #[serde(default)]
     finance_journal_reads: Vec<FinanceReadDocument>,
     #[serde(default)]
@@ -307,6 +318,7 @@ struct ConfigurationDocument {
 enum Profile {
     Development,
     Production,
+    Test,
 }
 /// A selected database is either a disposable leased development database or a
 /// durable private production database. Both expose the same pool operations.
@@ -329,6 +341,7 @@ pub struct DevelopmentApiConfiguration {
     holdings_registry: Arc<ConfiguredHoldingRegistry>,
     control: RuntimeDatabase,
     holdings: Vec<HoldingConfiguration>,
+    products: Vec<HoldingOrigin>,
     finance_journal_reads: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     pos_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     crm_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
@@ -409,6 +422,48 @@ fn validate_private_production_address(address: &str) -> Result<SocketAddr, &'st
 }
 /// Production databases are durable loopback PostgreSQL resources. No lease
 /// token, socket, options or remote host may be selected by the document.
+/// Disposable test databases only: the exact `erpx_test_<10 hex>` names and
+/// `erpx_test_admin` role created by tests/support/runtime-env.ts. This profile
+/// is never accepted by the development or production parsers.
+fn test_database(url: &str) -> Result<RuntimeDatabase, &'static str> {
+    let endpoint = url::Url::parse(url).map_err(|_| "EXACT_TEST_DATABASE_REQUIRED")?;
+    let database = endpoint.path().trim_matches('/');
+    let exact = database
+        .strip_prefix("erpx_test_")
+        .and_then(|rest| rest.split_once('_'))
+        .is_some_and(|(token, slot)| {
+            token.len() == 10
+                && token.bytes().all(|b| b.is_ascii_hexdigit())
+                && matches!(
+                    slot,
+                    "control_db"
+                        | "control_read_db"
+                        | "h001_db"
+                        | "h001_read_db"
+                        | "h002_db"
+                        | "h002_read_db"
+                        | "h003_db"
+                        | "h003_read_db"
+                )
+        });
+    if !matches!(endpoint.scheme(), "postgres" | "postgresql")
+        || endpoint.host_str() != Some("127.0.0.1")
+        || endpoint.port() != Some(5432)
+        || endpoint.username() != "erpx_test_admin"
+        || endpoint.password().is_none_or(str::is_empty)
+        || !exact
+        || endpoint.query().is_some()
+        || endpoint.fragment().is_some()
+    {
+        return Err("EXACT_TEST_DATABASE_REQUIRED");
+    }
+    let configuration =
+        DatabaseConfig::from_url(url).map_err(|_| "EXACT_TEST_DATABASE_REQUIRED")?;
+    Ok(RuntimeDatabase::Durable {
+        configuration,
+        identity: (database.to_owned(), "erpx_test_admin".to_owned()),
+    })
+}
 fn durable_database(url: &str) -> Result<RuntimeDatabase, &'static str> {
     let endpoint =
         url::Url::parse(url).map_err(|_| "EXACT_PRIVATE_PRODUCTION_DATABASE_REQUIRED")?;
@@ -537,6 +592,12 @@ fn runtime_database(
                 .map(RuntimeDatabase::Leased)
                 .map_err(|_| development_error)
         }
+        Profile::Test => {
+            if document.lease_token.is_some() || document.direct || document.browser {
+                return Err("EXACT_TEST_DATABASE_REQUIRED");
+            }
+            test_database(&document.url)
+        }
         Profile::Production => {
             if document.lease_token.is_some() || document.direct || document.browser {
                 return Err("PRODUCTION_API_LEASE_TOKEN_FORBIDDEN");
@@ -557,6 +618,11 @@ impl DevelopmentApiConfiguration {
     pub fn parse_production(json: &str) -> Result<Self, &'static str> {
         Self::parse_profile(json, Profile::Production)
     }
+    /// Disposable integration-test configuration. It accepts only the exact
+    /// `erpx_test_<10 hex>` databases created by the local test harness.
+    pub fn parse_test(json: &str) -> Result<Self, &'static str> {
+        Self::parse_profile(json, Profile::Test)
+    }
     fn parse_profile(json: &str, profile: Profile) -> Result<Self, &'static str> {
         if json.len() > 32 * 1024 {
             return Err("PRIVATE_API_CONFIGURATION_INVALID");
@@ -575,11 +641,13 @@ impl DevelopmentApiConfiguration {
         let environment = match (profile, doc.environment.as_deref()) {
             (Profile::Development, None | Some("development")) => "development".to_owned(),
             (Profile::Production, Some("production")) => "production".to_owned(),
+            (Profile::Test, Some("development")) => "development".to_owned(),
             _ => return Err("PRIVATE_API_ENVIRONMENT_INVALID"),
         };
         let expected_mode = match profile {
             Profile::Development => "development",
             Profile::Production => "production",
+            Profile::Test => "test",
         };
         let contributor = doc.account_host == "account.erpx.localhost:3443";
         let browser_loopback = doc.account_host.ends_with(".erpxbrowser.test:3102")
@@ -587,7 +655,11 @@ impl DevelopmentApiConfiguration {
         if doc.version != 1
             || doc.mode != expected_mode
             || doc.transport != "direct-loopback"
-            || !(2..=3).contains(&doc.holdings.len())
+            || if profile == Profile::Test {
+                !(1..=3).contains(&doc.holdings.len())
+            } else {
+                !(2..=3).contains(&doc.holdings.len())
+            }
             || (contributor || browser_loopback) && doc.holdings.len() != 3
             || !(1..=8).contains(&doc.password_workers)
             || !(1..=64).contains(&doc.maximum_requests)
@@ -596,6 +668,7 @@ impl DevelopmentApiConfiguration {
             return Err(match profile {
                 Profile::Development => "EXPLICIT_LEASED_DEVELOPMENT_API_REQUIRED",
                 Profile::Production => "EXPLICIT_PRIVATE_PRODUCTION_API_REQUIRED",
+                Profile::Test => "EXPLICIT_TEST_API_REQUIRED",
             });
         }
         if profile == Profile::Production
@@ -613,6 +686,8 @@ impl DevelopmentApiConfiguration {
             Profile::Development => validate_foundation_address(&doc.listen)
                 .map_err(|_| "DISPOSABLE_PRIVATE_API_PORT_REQUIRED")?,
             Profile::Production => validate_private_production_address(&doc.listen)?,
+            Profile::Test => validate_foundation_address(&doc.listen)
+                .map_err(|_| "DISPOSABLE_TEST_API_PORT_REQUIRED")?,
         };
         let control =
             runtime_database(&doc.control, profile, "EXACT_LEASED_API_DATABASE_REQUIRED")?;
@@ -679,6 +754,11 @@ impl DevelopmentApiConfiguration {
                         return Err("DISTINCT_EXACT_API_HOLDINGS_REQUIRED");
                     }
                 }
+                Profile::Test => {
+                    if !urls.insert(h.database.url.clone()) {
+                        return Err("DISTINCT_EXACT_API_HOLDINGS_REQUIRED");
+                    }
+                }
             }
             let read_database = match h.read_database {
                 Some(read) => {
@@ -705,6 +785,11 @@ impl DevelopmentApiConfiguration {
                             }
                         }
                         Profile::Production => {
+                            if !urls.insert(read.url.clone()) {
+                                return Err("DISTINCT_EXACT_API_HOLDINGS_REQUIRED");
+                            }
+                        }
+                        Profile::Test => {
                             if !urls.insert(read.url.clone()) {
                                 return Err("DISTINCT_EXACT_API_HOLDINGS_REQUIRED");
                             }
@@ -740,6 +825,10 @@ impl DevelopmentApiConfiguration {
         ]);
         let valid_ids = if contributor || browser_loopback {
             ids == three_ids
+        } else if profile == Profile::Test {
+            ids == BTreeSet::from(["h001".to_owned()])
+                || ids == two_ids
+                || ids == three_ids
         } else {
             ids == two_ids || ids == three_ids
         };
@@ -1289,11 +1378,37 @@ impl DevelopmentApiConfiguration {
                 return Err("PRIVATE_API_FINANCE_CONFIGURATION_INVALID");
             }
         }
-        if doc.account_bootstrap
+        if profile != Profile::Test
+            && doc.account_bootstrap
             && finance_journal_reads.is_empty()
             && field_service_reads.is_empty()
         {
             return Err("PRIVATE_API_FINANCE_CONFIGURATION_INVALID");
+        }
+        let mut product_hosts = BTreeSet::new();
+        let mut products = Vec::new();
+        for product in doc.product_origins {
+            if product.host.is_empty()
+                || product.host.len() > 253
+                || product
+                    .host
+                    .bytes()
+                    .any(|b| !b.is_ascii_alphanumeric() && !matches!(b, b'.' | b'-' | b':'))
+                || !product_hosts.insert(product.host.clone())
+                || !holdings.iter().any(|holding| {
+                    holding.registration.holding_id.as_str() == product.holding_id
+                })
+            {
+                return Err("PRIVATE_API_PRODUCT_ORIGIN_INVALID");
+            }
+            products.push(HoldingOrigin {
+                origin: format!("{origin_scheme}://{}", product.host),
+                audience: format!(
+                    "holding:{environment}:{}:{}",
+                    product.holding_id, product.host
+                ),
+                host: product.host,
+            });
         }
         let policy = Arc::new(AccountPolicy {
             account_origin: format!("{origin_scheme}://{}", doc.account_host),
@@ -1301,6 +1416,7 @@ impl DevelopmentApiConfiguration {
             environment: environment.clone(),
             require_email_verification: doc.require_email_verification,
             holdings: origins,
+            products,
         });
         policy
             .validate()
@@ -1463,6 +1579,7 @@ impl DevelopmentApiConfiguration {
             }
             support_evidence_writes.push((holding, company));
         }
+        let products = policy.products.clone();
         Ok(Self {
             profile,
             environment,
@@ -1479,6 +1596,7 @@ impl DevelopmentApiConfiguration {
             holdings_registry,
             control,
             holdings,
+            products,
             finance_journal_reads,
             pos_companies,
             crm_companies,
@@ -1533,6 +1651,9 @@ impl DevelopmentApiConfiguration {
     }
     pub fn from_production_file(path: &Path) -> Result<Self, &'static str> {
         Self::read_configuration_file(path, Profile::Production)
+    }
+    pub fn from_test_file(path: &Path) -> Result<Self, &'static str> {
+        Self::read_configuration_file(path, Profile::Test)
     }
     fn read_configuration_file(path: &Path, profile: Profile) -> Result<Self, &'static str> {
         if !path.is_absolute() {
@@ -1606,6 +1727,33 @@ impl DevelopmentApiRuntime {
 /// Does not bind a port. Opens the explicitly selected databases (leased in
 /// development, durable in production) and performs read-only migration and
 /// registry checks before assembling the real owner services.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct TestPasswordHashRequest {
+    password: String,
+}
+
+/// Test-only Argon2id hash for fixtures that must sign in through the native
+/// Account API. The route exists only in `Profile::Test`.
+async fn test_account_password_hash(Json(body): Json<TestPasswordHashRequest>) -> Response {
+    let hasher = match Argon2Passwords::new(1) {
+        Ok(hasher) => hasher,
+        Err(_) => return (StatusCode::SERVICE_UNAVAILABLE, "PASSWORD_HASH_UNAVAILABLE").into_response(),
+    };
+    let password = match Password::sign_in(body.password) {
+        Ok(password) => password,
+        Err(_) => return (StatusCode::UNPROCESSABLE_ENTITY, "INVALID_PASSWORD").into_response(),
+    };
+    match hasher.hash(password).await {
+        Ok(hash) => Json(serde_json::json!({"hash": hash.as_str()})).into_response(),
+        Err(_) => (StatusCode::SERVICE_UNAVAILABLE, "PASSWORD_HASH_UNAVAILABLE").into_response(),
+    }
+}
+
+fn test_account_password_hash_router() -> Router {
+    Router::new().route("/api/v1/test/account-password-hash", post(test_account_password_hash))
+}
+
 pub async fn assemble_development_api(
     config: DevelopmentApiConfiguration,
     clock: Arc<dyn Clock + Send + Sync>,
@@ -1661,7 +1809,7 @@ fn finance_composition_environment(
     configuration: &DevelopmentApiConfiguration,
 ) -> FinanceJournalEnvironment {
     match configuration.profile {
-        Profile::Development => FinanceJournalEnvironment::Development,
+        Profile::Development | Profile::Test => FinanceJournalEnvironment::Development,
         Profile::Production => FinanceJournalEnvironment::Production,
     }
 }
@@ -1740,6 +1888,9 @@ async fn assemble_checked(
         .map_err(|_| "PRIVATE_API_ACCOUNT_UNAVAILABLE")?,
     );
     let mut router = foundation_router();
+    if config.profile == Profile::Test {
+        router = router.merge(test_account_password_hash_router());
+    }
     if let Some(keys) = &config.account_security_keys {
         use erpx_server_identity_access::public::{
             account_security::*, account_security_http::account_security_router,
@@ -4675,6 +4826,8 @@ async fn assemble_checked(
         service_package_provider_host,
         account_mfa: config.account_security_keys.is_some(),
         policy: config.policy.clone(),
+        sso_product_hosts: config.products.iter().map(|product| product.host.clone()).collect(),
+        test_profile: config.profile == Profile::Test,
         loopback: config.listen.to_string(),
         permits: Arc::new(Semaphore::new(config.maximum_requests)),
         timeout: config.request_timeout,
@@ -4940,6 +5093,8 @@ struct Boundary {
     service_package_provider_host: Option<String>,
     account_mfa: bool,
     policy: Arc<AccountPolicy>,
+    sso_product_hosts: BTreeSet<String>,
+    test_profile: bool,
     loopback: String,
     permits: Arc<Semaphore>,
     timeout: Duration,
@@ -6277,6 +6432,9 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 .contains(&(host.to_owned(), (*slug).to_owned())),
             _ => false,
         };
+    let test_password_hash = state.test_profile
+        && request.method() == axum::http::Method::POST
+        && request.uri().path() == "/api/v1/test/account-password-hash";
     let bootstrap = state.account_bootstrap
         && match (request.method(), request.uri().path()) {
             (&axum::http::Method::POST, "/api/auth/sign-in/email" | "/api/auth/sign-out")
@@ -6299,10 +6457,13 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             ) => host == state.policy.account_host,
             (&axum::http::Method::GET, "/sso/authorize") => host == state.policy.account_host,
             (&axum::http::Method::GET, "/sso/start" | "/sso/callback") => state
-                .finance_targets
-                .iter()
-                .chain(state.service_read_targets.iter())
-                .any(|(target_host, _)| target_host == host),
+                .sso_product_hosts
+                .contains(host)
+                || state
+                    .finance_targets
+                    .iter()
+                    .chain(state.service_read_targets.iter())
+                    .any(|(target_host, _)| target_host == host),
             _ => false,
         };
     let support_ticket = request.method() == axum::http::Method::POST
@@ -7750,8 +7911,10 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || field_files
         || field_attachment
         || field_attachment_bind
+        || test_password_hash
         || bootstrap)
-        || !(bootstrap
+        || !(test_password_hash
+            || bootstrap
             || account_mfa
             || service_packages
             || field_work_roles
@@ -7957,6 +8120,39 @@ pub async fn run_development_api_file(
     };
     eprintln!(
         "Private development session API listening on {}; readiness remains unavailable.",
+        runtime.listen_address()
+    );
+    let result = axum::serve(listener, runtime.router())
+        .with_graceful_shutdown(shutdown)
+        .await;
+    runtime.close().await;
+    result.map_err(|_| "PRIVATE_API_HTTP_FAILED")
+}
+
+/// Assemble the private test API from the exact disposable test databases.
+/// The same owner routers, Account authority and boundary checks used by
+/// development are mounted; only the database binding and environment label
+/// differ.
+pub async fn run_test_api_file(
+    path: &Path,
+    shutdown: impl std::future::Future<Output = ()> + Send + 'static,
+) -> Result<(), &'static str> {
+    let configuration = DevelopmentApiConfiguration::from_test_file(path)?;
+    let runtime = assemble_development_api(
+        configuration,
+        Arc::new(SystemAccountClock),
+        Arc::new(SystemAuthenticationSecrets),
+    )
+    .await?;
+    let listener = match tokio::net::TcpListener::bind(runtime.listen_address()).await {
+        Ok(listener) => listener,
+        Err(_) => {
+            runtime.close().await;
+            return Err("PRIVATE_API_LISTEN_FAILED");
+        }
+    };
+    eprintln!(
+        "Private test session API listening on {}; readiness remains unavailable.",
         runtime.listen_address()
     );
     let result = axum::serve(listener, runtime.router())

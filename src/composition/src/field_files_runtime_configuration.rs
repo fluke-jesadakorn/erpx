@@ -175,6 +175,7 @@ mod tests {
                 host: "acme.example.test".into(),
                 audience: "holding:development:h001:acme.example.test".into(),
             }],
+            products: vec![],
         };
         ConfiguredHoldingRegistry::new(
             &policy,

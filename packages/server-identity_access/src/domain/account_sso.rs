@@ -206,6 +206,7 @@ impl SsoPolicy {
         self.account
             .holdings
             .iter()
+            .chain(self.account.products.iter())
             .find(|holding| holding.audience == audience)
             .ok_or_else(rejected_sso)
     }
