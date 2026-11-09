@@ -359,6 +359,9 @@ impl<C: Clock + Send + Sync + 'static> RecordsService<C> {
             RecordsRegistryHttpCommand::Archive { .. } => {
                 return Err(unavailable().into());
             }
+            RecordsRegistryHttpCommand::Reference { .. } => {
+                return Err(unavailable().into());
+            }
         };
         self.authorizer
             .execute_with_sources_deferred(
@@ -555,6 +558,7 @@ impl<C: Clock + Send + Sync + 'static> RecordsRegistryHttpBackend for RecordsBac
                 RecordsRegistryHttpCommand::Create { .. }
                     | RecordsRegistryHttpCommand::Update { .. }
                     | RecordsRegistryHttpCommand::Archive { .. }
+                    | RecordsRegistryHttpCommand::Reference { .. }
             );
             let (proof, selection) = if create {
                 self.write_request(request.headers)?
@@ -629,6 +633,30 @@ impl<C: Clock + Send + Sync + 'static> RecordsRegistryHttpBackend for RecordsBac
                         .map_err(business)?;
                     Ok(RecordsRegistryHttpResponse {
                         data: archived,
+                        context,
+                    })
+                }
+                RecordsRegistryHttpCommand::Reference {
+                    module_id,
+                    record_id,
+                    input,
+                    key,
+                } => {
+                    let (_, context, reference) = self
+                        .command
+                        .reference_with_context(
+                            request.host,
+                            proof,
+                            move || Ok(selection),
+                            module_id,
+                            record_id,
+                            input,
+                            erpx_server_shared::public::CommandKey::new(key)?,
+                        )
+                        .await
+                        .map_err(business)?;
+                    Ok(RecordsRegistryHttpResponse {
+                        data: reference,
                         context,
                     })
                 }

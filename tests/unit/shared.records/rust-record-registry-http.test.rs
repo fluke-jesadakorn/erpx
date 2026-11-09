@@ -85,6 +85,18 @@ impl RecordsRegistryHttpBackend for Probe {
                         "archived": true
                     }),
                 ),
+                RecordsRegistryHttpCommand::Reference {
+                    module_id,
+                    record_id,
+                    input,
+                    key,
+                } => (
+                    format!(
+                        "reference|{module_id}|{record_id}|{key}|{}|{}",
+                        input.target_module, input.target_id
+                    ),
+                    serde_json::json!({"id": record_id, "moduleId": module_id}),
+                ),
             };
             self.seen.lock().unwrap().push(format!(
                 "{}|{}|{}|{cookie:?}",
@@ -621,6 +633,87 @@ async fn actual_router_forwards_archive_with_version_and_idempotency() {
             "acme.example.test",
             "https://acme.example.test",
             "records:http-archive-4",
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(
+        response["error"]["code"],
+        "RECORDS_REGISTRY_REQUEST_INVALID"
+    );
+}
+
+#[tokio::test]
+async fn actual_router_forwards_reference_with_origin_and_idempotency() {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let router = records_registry_http_router(vec![target(
+        "acme.example.test",
+        "acme",
+        seen.clone(),
+        false,
+    )])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let _server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+    let path = "/api/v1/holdings/acme/records/support/rec-support-records:http-1/references";
+    let body =
+        r#"{"targetModule":"support","targetId":"rec-support-records:target","kind":"dependsOn"}"#;
+    let (status, response, headers) = http(
+        addr,
+        post(
+            path,
+            "acme.example.test",
+            "https://acme.example.test",
+            "records:http-reference-1",
+            body,
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(response["data"]["id"], "rec-support-records:http-1");
+    assert_eq!(response["data"]["moduleId"], "support");
+    assert!(headers.contains("cache-control: private, no-store"));
+    assert_eq!(
+        seen.lock().unwrap().last().unwrap(),
+        "acme.example.test|acme|reference|support|rec-support-records:http-1|records:http-reference-1|support|rec-support-records:target|Some(\"erpx=session\")"
+    );
+    let (status, response, _) = http(
+        addr,
+        post(
+            path,
+            "acme.example.test",
+            "https://foreign.example.test",
+            "records:http-reference-2",
+            body,
+        ),
+    )
+    .await;
+    assert_eq!(status, 403);
+    assert_eq!(response["error"]["code"], "ORIGIN_FORBIDDEN");
+    let (status, response, _) = http(
+        addr,
+        post(
+            path,
+            "acme.example.test",
+            "https://acme.example.test",
+            "short",
+            body,
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(response["error"]["code"], "IDEMPOTENCY_KEY_REQUIRED");
+    let (status, response, _) = http(
+        addr,
+        post(
+            path,
+            "acme.example.test",
+            "https://acme.example.test",
+            "records:http-reference-3",
+            r#"{"targetModule":"support","targetId":"rec-support-records:target"}"#,
         ),
     )
     .await;

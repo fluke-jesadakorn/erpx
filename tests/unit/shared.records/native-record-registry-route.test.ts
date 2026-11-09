@@ -21,11 +21,14 @@ const state = vi.hoisted(() => ({
   create: vi.fn(),
   update: vi.fn(),
   archive: vi.fn(),
+  reference: vi.fn(),
+  context: vi.fn(),
   retainedList: vi.fn(),
   retainedPage: vi.fn(),
   retainedGet: vi.fn(),
   retainedUpdate: vi.fn(),
   retainedArchive: vi.fn(),
+  retainedReference: vi.fn(),
 }));
 
 vi.mock('@erpx/server-identity_access/public/authorization', () => ({
@@ -40,13 +43,15 @@ vi.mock('@erpx/server-records/adapters/records', () => ({
   updateRecord: state.retainedUpdate,
   updateRecordSchema: { safeParse: (value: unknown) => ({ success: true, data: value }) },
   archiveRecord: state.retainedArchive,
+  addReference: state.retainedReference,
+  addReferenceSchema: { safeParse: (value: unknown) => ({ success: true, data: value }) },
   recordContext: vi.fn(),
 }));
 vi.mock('@erpx/server-records/public/mention-display', () => ({
   recordMentionDisplay: vi.fn(),
 }));
 vi.mock('@erpx/server-records/public/native-record-context', () => ({
-  createNativeRecordContextClient: () => ({ context: vi.fn() }),
+  createNativeRecordContextClient: () => ({ context: state.context }),
   nativeRecordContextAvailable: () => false,
   nativeRecordContextConfiguration: () => ({}),
   nativeRecordContextFailure: () => undefined,
@@ -60,6 +65,7 @@ vi.mock('@erpx/server-records/public/native-record-registry', () => ({
     create: state.create,
     update: state.update,
     archive: state.archive,
+    reference: state.reference,
   }),
   nativeRecordRegistryFailure: (error: unknown) =>
     error instanceof Error
@@ -73,6 +79,7 @@ vi.mock('@erpx/server-records/public/native-record-registry', () => ({
 
 import { GET, POST } from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/[module]/route';
 import { PATCH, DELETE } from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/route';
+import { POST as POST_REFERENCE } from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/references/route';
 
 const params = { params: Promise.resolve({ holdingSlug: 'acme', module: 'operations' }) };
 const request = (query: string) =>
@@ -387,5 +394,127 @@ it('keeps the retained archive path outside the bounded support module', async (
     'records:http-retained-archive',
   );
   expect(state.archive).not.toHaveBeenCalled();
+  expect((await response.json()).data).toEqual(retained);
+});
+
+it('uses native reference for support then reads the updated native context', async () => {
+  const recordContext = {
+    record: { id: 'rec-support-records:host', version: 1 },
+    references: [],
+    backlinks: [],
+    mentions: [],
+    suggestions: [],
+    history: [],
+  };
+  state.reference.mockResolvedValue({
+    id: 'rec-support-records:host',
+    moduleId: 'support',
+  });
+  state.context.mockResolvedValue(recordContext);
+  const request = (key: string | null = 'records:http-reference-1') =>
+    new Request(
+      'https://acme.example.com/api/v1/holdings/acme/records/support/rec-support-records:host/references',
+      {
+        method: 'POST',
+        headers: {
+          origin: 'https://acme.example.com',
+          'content-type': 'application/json',
+          ...(key ? { 'idempotency-key': key } : {}),
+        },
+        body: JSON.stringify({
+          targetModule: 'support',
+          targetId: 'rec-support-records:target',
+          kind: 'dependsOn',
+        }),
+      },
+    );
+  const response = await POST_REFERENCE(request(), {
+    params: Promise.resolve({
+      holdingSlug: 'acme',
+      module: 'support',
+      id: 'rec-support-records:host',
+    }),
+  });
+  expect(response.status).toBe(201);
+  expect(state.reference).toHaveBeenCalledWith(
+    expect.any(Headers),
+    expect.objectContaining({
+      userId: 'actor',
+      holdingId: 'h001',
+      companyId: 'company',
+      branchSlug: null,
+      departmentSlug: null,
+    }),
+    {
+      holdingSlug: 'acme',
+      moduleId: 'support',
+      recordId: 'rec-support-records:host',
+      targetModule: 'support',
+      targetId: 'rec-support-records:target',
+      kind: 'dependsOn',
+    },
+    'records:http-reference-1',
+  );
+  expect(state.context).toHaveBeenCalledWith(
+    expect.any(Headers),
+    expect.objectContaining({ holdingId: 'h001', companyId: 'company' }),
+    {
+      holdingSlug: 'acme',
+      moduleId: 'support',
+      recordId: 'rec-support-records:host',
+    },
+  );
+  expect(state.retainedReference).not.toHaveBeenCalled();
+  expect((await response.json()).data).toEqual(recordContext);
+  const missing = await POST_REFERENCE(request(null), {
+    params: Promise.resolve({
+      holdingSlug: 'acme',
+      module: 'support',
+      id: 'rec-support-records:host',
+    }),
+  });
+  expect(missing.status).toBe(422);
+  expect((await missing.json()).error.code).toBe('IDEMPOTENCY_KEY_REQUIRED');
+  expect(state.reference).toHaveBeenCalledTimes(1);
+});
+
+it('keeps the retained reference path outside the bounded support module', async () => {
+  const retained = { record: { id: 'rec-1' }, references: [] };
+  state.retainedReference.mockResolvedValue(retained);
+  const response = await POST_REFERENCE(
+    new Request(
+      'https://acme.example.com/api/v1/holdings/acme/records/operations/rec-1/references',
+      {
+        method: 'POST',
+        headers: {
+          origin: 'https://acme.example.com',
+          'idempotency-key': 'records:http-retained-reference',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          targetModule: 'operations',
+          targetId: 'rec-2',
+          kind: 'blocks',
+        }),
+      },
+    ),
+    {
+      params: Promise.resolve({
+        holdingSlug: 'acme',
+        module: 'operations',
+        id: 'rec-1',
+      }),
+    },
+  );
+  expect(response.status).toBe(201);
+  expect(state.retainedReference).toHaveBeenCalledWith(
+    state.actor,
+    'operations',
+    'rec-1',
+    { targetModule: 'operations', targetId: 'rec-2', kind: 'blocks' },
+    'records:http-retained-reference',
+  );
+  expect(state.reference).not.toHaveBeenCalled();
+  expect(state.context).not.toHaveBeenCalled();
   expect((await response.json()).data).toEqual(retained);
 });

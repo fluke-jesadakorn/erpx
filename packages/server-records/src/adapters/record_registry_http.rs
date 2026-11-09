@@ -8,11 +8,12 @@
 use crate::domain::record_context::valid_module;
 use crate::domain::record_registry::RegistryQuery;
 use crate::domain::record_write::{
-    ArchiveRecordInput, CreateRecordInput, MAX_SAFE, UpdateRecordInput,
+    ArchiveRecordInput, CreateRecordInput, MAX_SAFE, ReferenceRecordInput, UpdateRecordInput,
 };
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
-    StatusCode, body::to_bytes, header, routing::delete, routing::get, routing::patch, serde_json,
+    StatusCode, body::to_bytes, header, routing::delete, routing::get, routing::patch,
+    routing::post, serde_json,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
 use serde_json::Value;
@@ -49,6 +50,12 @@ pub enum RecordsRegistryHttpCommand {
         module_id: String,
         record_id: String,
         input: ArchiveRecordInput,
+        key: String,
+    },
+    Reference {
+        module_id: String,
+        record_id: String,
+        input: ReferenceRecordInput,
         key: String,
     },
 }
@@ -306,6 +313,10 @@ pub fn records_registry_http_router(
             "/api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}",
             patch(update_record).delete(delete_record),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}/references",
+            post(add_reference),
+        )
         .with_state(Arc::new(RecordsRegistryHttpState {
             targets: configured,
         })))
@@ -465,6 +476,78 @@ async fn delete_record(
                     module_id,
                     record_id,
                     input: ArchiveRecordInput { expected_version },
+                    key: key.to_owned(),
+                },
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => bounded(reply.value()),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn add_reference(
+    State(state): State<Arc<RecordsRegistryHttpState>>,
+    Path((slug, module_id, record_id)): Path<(String, String, String)>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let result = async move {
+        let target = target(&state, &headers, &slug)?;
+        if unique_header(&headers, header::ORIGIN)?.is_none_or(|origin| origin != target.origin) {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            ));
+        }
+        let key = unique_header(&headers, HeaderName::from_static("idempotency-key"))?
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                BusinessError::invalid(
+                    "IDEMPOTENCY_KEY_REQUIRED",
+                    "Provide a command key to add this reference.",
+                )
+            })?;
+        CommandKey::new(key.to_owned()).map_err(|_| {
+            BusinessError::invalid(
+                "IDEMPOTENCY_KEY_REQUIRED",
+                "Provide a command key to add this reference.",
+            )
+        })?;
+        let content_type = unique_header(&headers, header::CONTENT_TYPE)?
+            .unwrap_or_default()
+            .split(';')
+            .next()
+            .unwrap_or_default()
+            .trim()
+            .to_ascii_lowercase();
+        if content_type != "application/json" {
+            return Err(BusinessError::invalid(
+                "JSON_REQUIRED",
+                "Submit the reference as JSON.",
+            ));
+        }
+        if !valid_module(&module_id) || !crate::domain::record_context::valid_id(&record_id) {
+            return Err(missing());
+        }
+        let bytes = to_bytes(request.into_body(), 64 * 1024)
+            .await
+            .map_err(|_| malformed())?;
+        let input: ReferenceRecordInput =
+            serde_json::from_slice(&bytes).map_err(|_| malformed())?;
+        target
+            .backend
+            .execute(RecordsRegistryHttpRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                command: RecordsRegistryHttpCommand::Reference {
+                    module_id,
+                    record_id,
+                    input,
                     key: key.to_owned(),
                 },
             })

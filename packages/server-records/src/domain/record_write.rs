@@ -65,6 +65,23 @@ pub struct ArchiveRecordInput {
     pub expected_version: i64,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ReferenceRecordInput {
+    pub target_module: String,
+    pub target_id: String,
+    pub kind: String,
+}
+
+pub const REFERENCE_KINDS: [&str; 5] = [
+    "dependsOn",
+    "blocks",
+    "billedBy",
+    "fulfills",
+    "authoredWith",
+];
+pub const MAX_REFERENCES: i64 = 50;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ValidatedRecord {
     pub id: String,
@@ -249,6 +266,48 @@ pub fn validate_archive(
     }
     if input.expected_version != current_version {
         return Err(version_conflict());
+    }
+    Ok(())
+}
+
+pub fn self_reference() -> BusinessError {
+    invalid("SELF_REFERENCE", "A record cannot reference itself.")
+}
+
+pub fn reference_limit() -> BusinessError {
+    BusinessError::new(
+        erpx_server_shared::public::FailureKind::Conflict,
+        "REFERENCE_LIMIT",
+        "A record can contain up to 50 references.",
+    )
+}
+
+pub fn validate_reference(
+    module_id: &str,
+    record_id: &str,
+    input: &ReferenceRecordInput,
+) -> Result<(), BusinessError> {
+    if module_id != "support" || input.target_module != "support" {
+        return Err(invalid(
+            "RECORD_MODULE_UNSUPPORTED",
+            "This record module is not available in the native workbench yet.",
+        ));
+    }
+    if record_id.is_empty()
+        || record_id.len() > 180
+        || record_id.contains('\0')
+        || input.target_id.is_empty()
+        || input.target_id.len() > 180
+        || input.target_id.contains('\0')
+        || !REFERENCE_KINDS.contains(&input.kind.as_str())
+    {
+        return Err(invalid(
+            "REFERENCE_INPUT_INVALID",
+            "Choose a valid record and reference kind.",
+        ));
+    }
+    if module_id == input.target_module && record_id == input.target_id {
+        return Err(self_reference());
     }
     Ok(())
 }

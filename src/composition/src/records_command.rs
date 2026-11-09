@@ -8,8 +8,9 @@ use erpx_server_identity_access::public::{
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
 use erpx_server_records::public::record_write::{
-    ArchiveRecordInput, CreateRecordInput, MAX_SAFE, RecordFieldInput, UpdateRecordInput,
-    ValidatedRecord, ValidatedRecordUpdate, validate_archive, validate_create, validate_update,
+    ArchiveRecordInput, CreateRecordInput, MAX_REFERENCES, MAX_SAFE, RecordFieldInput,
+    ReferenceRecordInput, UpdateRecordInput, ValidatedRecord, ValidatedRecordUpdate,
+    reference_limit, validate_archive, validate_create, validate_reference, validate_update,
     version_conflict,
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
@@ -515,6 +516,132 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for ArchiveEffects<'_, C> {
     }
 }
 
+struct ReferenceEffects<'a, C> {
+    current: &'a AuthorizedWorkContext,
+    clock: &'a C,
+    module_id: &'a str,
+    record_id: &'a str,
+    input: &'a ReferenceRecordInput,
+    prepared: Option<i64>,
+}
+
+impl<C: Clock + Sync> PgOwnerCommandEffects for ReferenceEffects<'_, C> {
+    async fn lock_sources(
+        &mut self,
+        connection: &mut PgConnection,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        sqlx::query(
+            "LOCK TABLE workspace_records,record_reference_edges \
+             IN SHARE ROW EXCLUSIVE MODE NOWAIT",
+        )
+        .execute(&mut *connection)
+        .await
+        .map_err(
+            erpx_server_runtime::public::postgres::PersistenceError::pre_snapshot_lock_conflict,
+        )?;
+        Ok(())
+    }
+
+    async fn prepare(
+        &mut self,
+        connection: &mut PgConnection,
+        _: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<WorkflowOutput, Error> {
+        let company = self.current.selection().workspace().company_id.clone();
+        let version: Option<i64> = sqlx::query_scalar(
+            "SELECT version FROM workspace_records \
+             WHERE module_id=$1 AND id=$2 AND company_id=$3 AND archived_at IS NULL FOR UPDATE",
+        )
+        .bind(self.module_id)
+        .bind(self.record_id)
+        .bind(company.as_str())
+        .fetch_optional(&mut *connection)
+        .await?;
+        let version = version.ok_or_else(record_not_found)?;
+        let target: Option<String> = sqlx::query_scalar(
+            "SELECT id FROM workspace_records \
+             WHERE module_id=$1 AND id=$2 AND company_id=$3 AND archived_at IS NULL",
+        )
+        .bind(&self.input.target_module)
+        .bind(&self.input.target_id)
+        .bind(company.as_str())
+        .fetch_optional(&mut *connection)
+        .await?;
+        if target.is_none() {
+            return Err(record_not_found().into());
+        }
+        validate_reference(self.module_id, self.record_id, self.input)?;
+        let count: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM record_reference_edges WHERE host_module=$1 AND host_id=$2",
+        )
+        .bind(self.module_id)
+        .bind(self.record_id)
+        .fetch_one(&mut *connection)
+        .await?;
+        if count >= MAX_REFERENCES {
+            return Err(reference_limit().into());
+        }
+        self.prepared = Some(version);
+        Ok(WorkflowOutput {
+            version,
+            result: CommandJson::from_serializable(&serde_json::json!({ "id": self.record_id }))?,
+            event_scope: None,
+        })
+    }
+
+    async fn apply(
+        &mut self,
+        connection: &mut PgConnection,
+        current: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        let _version = self.prepared.ok_or_else(unavailable)?;
+        let now = self.clock.now().get();
+        sqlx::query(
+            "INSERT INTO record_reference_edges(host_module,host_id,target_module,target_id,kind,\
+             ordinal,created_by,created_at) \
+             VALUES($1,$2,$3,$4,$5,COALESCE((SELECT MAX(ordinal)+1 FROM \
+             record_reference_edges WHERE host_module=$1 AND host_id=$2),0),$6,$7) \
+             ON CONFLICT DO NOTHING",
+        )
+        .bind(self.module_id)
+        .bind(self.record_id)
+        .bind(&self.input.target_module)
+        .bind(&self.input.target_id)
+        .bind(&self.input.kind)
+        .bind(current.user_id.as_str())
+        .bind(now)
+        .execute(&mut *connection)
+        .await?;
+        Ok(())
+    }
+
+    async fn retain(
+        &mut self,
+        connection: &mut PgConnection,
+        _: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        let _version = self.prepared.ok_or_else(unavailable)?;
+        let count: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM record_reference_edges \
+             WHERE host_module=$1 AND host_id=$2 AND target_module=$3 AND target_id=$4",
+        )
+        .bind(self.module_id)
+        .bind(self.record_id)
+        .bind(&self.input.target_module)
+        .bind(&self.input.target_id)
+        .fetch_one(&mut *connection)
+        .await?;
+        if count != 1 {
+            return Err(changed().into());
+        }
+        Ok(())
+    }
+}
+
 struct Ids;
 
 impl IdentifierSource for Ids {
@@ -963,6 +1090,115 @@ impl<C: Clock + Send + Sync + 'static> RecordsCommandService<C> {
                                 "id": record_id,
                                 "moduleId": module_id,
                                 "archived": true,
+                            }),
+                        ))
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn reference<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        module_id: String,
+        record_id: String,
+        reference: ReferenceRecordInput,
+        key: CommandKey,
+    ) -> Result<CommandJson, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        Ok(self
+            .reference_with_context(host, proof, input, module_id, record_id, reference, key)
+            .await?
+            .0)
+    }
+
+    pub async fn reference_with_context<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        module_id: String,
+        record_id: String,
+        reference: ReferenceRecordInput,
+        key: CommandKey,
+    ) -> Result<(CommandJson, serde_json::Value, serde_json::Value), Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        validate_reference(&module_id, &record_id, &reference)?;
+        let holding = self.configuration.holding_id().clone();
+        let company = self.configuration.company().clone();
+        let clock = self.clock.clone();
+        let wire = CommandJson::from_serializable(&serde_json::json!({
+            "moduleId": module_id,
+            "targetModule": reference.target_module,
+            "targetId": reference.target_id,
+            "kind": reference.kind,
+        }))?;
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(&module_id),
+                crate::records::RecordsSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let module_id = module_id.clone();
+                    let wire = wire.clone();
+                    let record_id = record_id.clone();
+                    let reference = reference.clone();
+                    let command_key = key.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.write")?;
+                        require_module(current, &module_id)?;
+                        let request = WorkflowRequest {
+                            key: command_key.as_str().to_owned(),
+                            operation: "record.reference".into(),
+                            record_id: record_id.clone(),
+                            input: wire,
+                        };
+                        let clock_ref = clock.as_ref();
+                        let mut authority = Authority {
+                            current,
+                            request: &request,
+                            clock: clock_ref,
+                        };
+                        let mut effects = ReferenceEffects {
+                            current,
+                            clock: clock_ref,
+                            module_id: &module_id,
+                            record_id: &record_id,
+                            input: &reference,
+                            prepared: None,
+                        };
+                        let mut ids = Ids;
+                        let mut ledger = PgCommandLedger::new(
+                            current.selection().workspace().company_id.clone(),
+                            connection,
+                            &mut authority,
+                            clock_ref,
+                            &mut ids,
+                        );
+                        let outcome = ledger.execute(&request, &mut effects).await?;
+                        Ok((
+                            outcome.result,
+                            crate::records::context_value(current),
+                            serde_json::json!({
+                                "id": record_id,
+                                "moduleId": module_id,
                             }),
                         ))
                     })

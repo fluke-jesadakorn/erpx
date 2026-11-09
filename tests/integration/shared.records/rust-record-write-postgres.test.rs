@@ -8,7 +8,8 @@ use erpx_server_records::public::record_registry_http::{
     RecordsRegistryHttpTarget, records_registry_http_router,
 };
 use erpx_server_records::public::record_write::{
-    ArchiveRecordInput, CreateRecordInput, RecordFieldInput, UpdateRecordInput,
+    ArchiveRecordInput, CreateRecordInput, RecordFieldInput, ReferenceRecordInput,
+    UpdateRecordInput,
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{BusinessError, Clock, CommandKey, CompanyId, HoldingId};
@@ -720,6 +721,245 @@ async fn archives_record_with_version_cas_receipt_audit_outbox_and_replay() {
         .await
         .unwrap();
         assert_eq!(receipts, 2); // seed create + accepted archive; failures add none
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn adds_record_reference_with_edge_receipt_audit_outbox_replay_and_limit() {
+    review::account::with_system(|system| async move {
+        let (p, service, _) = records_setup(system).await;
+        let pool = &p.system.holdings[0];
+        let host = "rec-support-records:ref-host".to_owned();
+        let target = "rec-support-records:ref-target".to_owned();
+        for (key_value, title) in [
+            ("records:ref-host", "Reference host"),
+            ("records:ref-target", "Reference target"),
+        ] {
+            service
+                .create(
+                    "acme.example.test",
+                    p.maker.clone(),
+                    {
+                        let selection = p.maker_selection.clone();
+                        move || Ok(selection)
+                    },
+                    "support".into(),
+                    input(title),
+                    key(key_value),
+                )
+                .await
+                .unwrap();
+        }
+        let reference = ReferenceRecordInput {
+            target_module: "support".into(),
+            target_id: target.clone(),
+            kind: "dependsOn".into(),
+        };
+        let result = service
+            .reference(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                host.clone(),
+                reference.clone(),
+                key("records:reference-1"),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            result.as_str(),
+            CommandJson::from_serializable(&json!({"id": host}))
+                .unwrap()
+                .as_str()
+        );
+        let edge: (String, String, String, i64, String) = sqlx::query_as(
+            "SELECT target_module,target_id,kind,ordinal,created_by FROM record_reference_edges \
+             WHERE host_module='support' AND host_id=$1",
+        )
+        .bind(&host)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(edge, ("support".into(), target.clone(), "dependsOn".into(), 0, "fixture-a".into()));
+        let receipt: (String, String) = sqlx::query_as(
+            "SELECT operation,result_json FROM command_receipts \
+             WHERE command_id='records:reference-1'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(receipt.0, "record.reference");
+        assert_eq!(receipt.1, json!({"id": host}).to_string());
+        let audit: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM audit_events WHERE command_id='records:reference-1' \
+             AND record_type='record_reference' AND record_id=$1",
+        )
+        .bind(&host)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        let outbox: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM outbox_events WHERE command_id='records:reference-1' \
+             AND event_type='record.reference' AND aggregate_id=$1",
+        )
+        .bind(&host)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!((audit, outbox), (1, 1));
+        // Exact replay returns the same receipt and keeps one edge.
+        let replay = service
+            .reference(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                host.clone(),
+                reference.clone(),
+                key("records:reference-1"),
+            )
+            .await
+            .unwrap();
+        assert_eq!(replay.as_str(), result.as_str());
+        // A different key for the same edge is accepted without duplicating it.
+        service
+            .reference(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                host.clone(),
+                reference.clone(),
+                key("records:reference-2"),
+            )
+            .await
+            .unwrap();
+        let edges: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM record_reference_edges WHERE host_module='support' AND host_id=$1",
+        )
+        .bind(&host)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(edges, 1);
+        // A record cannot reference itself.
+        let self_reference = service
+            .reference(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                host.clone(),
+                ReferenceRecordInput {
+                    target_module: "support".into(),
+                    target_id: host.clone(),
+                    kind: "dependsOn".into(),
+                },
+                key("records:reference-3"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(business(self_reference).code, "SELF_REFERENCE");
+        // A missing target is refused rather than leaving a dangling edge.
+        let missing = service
+            .reference(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                host.clone(),
+                ReferenceRecordInput {
+                    target_module: "support".into(),
+                    target_id: "rec-support-missing".into(),
+                    kind: "dependsOn".into(),
+                },
+                key("records:reference-4"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(
+            business(missing).kind,
+            erpx_server_shared::public::FailureKind::NotFound
+        );
+        // The 50-edge cap is enforced before another insert.
+        sqlx::query(
+            "INSERT INTO workspace_records(module_id,id,section_id,title,description,status,\
+             fields_json,company_id,version,created_by,updated_by,created_at,updated_at) \
+             SELECT 'support','rec-support-limit-'||g,'tickets','Limit '||g,'','draft','[]',\
+             'company',1,'fixture-a','fixture-a',1,1 FROM generate_series(1,50) g",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO record_reference_edges(host_module,host_id,target_module,target_id,kind,\
+             ordinal,created_by,created_at) SELECT 'support',$1,'support',\
+             'rec-support-limit-'||g,'dependsOn',g-1,'fixture-a',1 FROM generate_series(1,50) g",
+        )
+        .bind(&host)
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let limit = service
+            .reference(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                host.clone(),
+                reference.clone(),
+                key("records:reference-5"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(business(limit).code, "REFERENCE_LIMIT");
+        // A reviewer without records.write cannot add references.
+        let denied = service
+            .reference(
+                "acme.example.test",
+                p.reviewer.clone(),
+                {
+                    let selection = p.reviewer_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                host.clone(),
+                reference,
+                key("records:reference-6"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(
+            business(denied).kind,
+            erpx_server_shared::public::FailureKind::Forbidden
+        );
+        let receipts: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM command_receipts WHERE command_id LIKE 'records:reference-%'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(receipts, 2); // accepted reference + same-edge command; failures add none
     })
     .await;
 }
