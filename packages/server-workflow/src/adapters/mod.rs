@@ -27,3 +27,4 @@ pub(crate) mod field_journal_flow;
 
 pub mod asset_purchase_receipt;
 pub(crate) mod quality_return_receipts;
+pub(crate) mod task_decision;

@@ -65,7 +65,6 @@ pub struct TaskDecisionTaskRow {
     pub version: i64,
     pub creator_user_id: String,
     pub assignee_user_id: String,
-    pub source_post_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -278,7 +277,7 @@ pub fn plan_task_decision(
         instance_version: instance.version + 1,
         previous_approver_user_id: None,
         approver_user_id: actor.user_id.clone(),
-        decision_evidence: evidence,
+        decision_evidence,
         requester_message,
         next_approver_message: (approve && next.is_some())
             .then_some("Approval needs your decision"),

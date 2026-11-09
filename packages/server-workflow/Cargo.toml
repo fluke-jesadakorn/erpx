@@ -54,3 +54,7 @@ path = "../../tests/unit/workflow/rust-approval-oversight-http.test.rs"
 [[test]]
 name = "approval_oversight_postgres"
 path = "../../tests/integration/workflow/rust-approval-oversight-postgres.test.rs"
+
+[[test]]
+name = "task_decision_postgres"
+path = "../../tests/integration/workflow/rust-task-decision-postgres.test.rs"

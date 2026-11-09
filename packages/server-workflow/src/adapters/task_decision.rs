@@ -111,9 +111,7 @@ impl TaskDecisionEligibility for NamedTaskEligibility {
         let task = task.clone();
         let instance = instance.clone();
         let step = step.clone();
-        async move {
-            named_task_authority(&actor, &task, &instance, &step).map_err(Into::into)
-        }
+        async move { named_task_authority(&actor, &task, &instance, &step).map_err(Into::into) }
     }
 }
 
@@ -125,7 +123,7 @@ fn read_task(
     async move {
         let row = sqlx::query(
             "SELECT id,company_id,branch_id,department_id,state,version,\
-             creator_user_id,assignee_user_id,source_post_id FROM staff_tasks \
+             creator_user_id,assignee_user_id FROM staff_tasks \
              WHERE id=$1 AND company_id=$2 FOR UPDATE",
         )
         .bind(id)
@@ -144,7 +142,6 @@ fn read_task(
             version: row.try_get("version")?,
             creator_user_id: row.try_get("creator_user_id")?,
             assignee_user_id: row.try_get("assignee_user_id")?,
-            source_post_id: row.try_get("source_post_id")?,
         })
     }
 }
@@ -226,6 +223,7 @@ struct Prepared {
 }
 
 pub struct TaskDecisionEffects<'a, E: TaskDecisionEligibility, C: Clock> {
+    pub company: CompanyId,
     pub eligibility: &'a mut E,
     pub clock: &'a C,
     prepared: Option<Prepared>,
@@ -253,9 +251,8 @@ impl<E: TaskDecisionEligibility, C: Clock + Sync> PgOwnerCommandEffects
                 )
                 .into());
             }
-            let company = command_company(command);
-            let task = read_task(connection, &command.record_id, &company).await?;
-            let instance = read_instance(connection, &task.id, &company).await?;
+            let task = read_task(connection, &command.record_id, &self.company).await?;
+            let instance = read_instance(connection, &task.id, &self.company).await?;
             let _ = read_steps(connection, &instance.id).await?;
             Ok(())
         }
@@ -277,14 +274,6 @@ impl<E: TaskDecisionEligibility, C: Clock + Sync> PgOwnerCommandEffects
                 .into());
             }
             let task = read_task(connection, &command.record_id, &actor.company_id).await?;
-            if task.source_post_id.is_some() {
-                return Err(BusinessError::new(
-                    FailureKind::Unavailable,
-                    "TASK_POST_NOTIFICATION_UNSUPPORTED",
-                    "The native task decision does not yet deliver conversation-follower notifications.",
-                )
-                .into());
-            }
             let instance = read_instance(connection, &task.id, &actor.company_id).await?;
             let steps = read_steps(connection, &instance.id).await?;
             let current = steps
@@ -311,8 +300,8 @@ impl<E: TaskDecisionEligibility, C: Clock + Sync> PgOwnerCommandEffects
                 &authority,
             )?;
             let result = serde_json::json!({
-                "id": task.id,
-                "state": plan.next_task_state,
+                "id": task.id.clone(),
+                "state": plan.next_task_state.clone(),
                 "version": input.expected_version + 1,
             });
             let result = CommandJson::parse(&result.to_string())?;
@@ -381,10 +370,8 @@ impl<E: TaskDecisionEligibility, C: Clock + Sync> PgOwnerCommandEffects
             if instance.rows_affected() != 1 {
                 return Err(changed().into());
             }
-            let authority_json =
-                serde_json::to_string(&prepared.plan.decision_evidence).map_err(|_| {
-                    readback_invalid()
-                })?;
+            let authority_json = serde_json::to_string(&prepared.plan.decision_evidence)
+                .map_err(|_| readback_invalid())?;
             sqlx::query(
                 "INSERT INTO approval_decisions(id,instance_id,step_id,action,actor_user_id,\
                  previous_approver_user_id,approver_user_id,reason,reviewed_version,command_id,\
@@ -426,10 +413,8 @@ impl<E: TaskDecisionEligibility, C: Clock + Sync> PgOwnerCommandEffects
                     messages.push((user.as_str(), message));
                 }
             }
-            let assignee_message = format!(
-                "Task {}",
-                prepared.plan.next_task_state.replace('_', " ")
-            );
+            let assignee_message =
+                format!("Task {}", prepared.plan.next_task_state.replace('_', " "));
             messages.push((
                 prepared.task.assignee_user_id.as_str(),
                 assignee_message.as_str(),
@@ -477,12 +462,11 @@ impl<E: TaskDecisionEligibility, C: Clock + Sync> PgOwnerCommandEffects
                 .bind(&prepared.step.id)
                 .fetch_one(&mut *connection)
                 .await?;
-            let decision: i64 = sqlx::query_scalar(
-                "SELECT count(*) FROM approval_decisions WHERE command_id=$1",
-            )
-            .bind(&command.key)
-            .fetch_one(&mut *connection)
-            .await?;
+            let decision: i64 =
+                sqlx::query_scalar("SELECT count(*) FROM approval_decisions WHERE command_id=$1")
+                    .bind(&command.key)
+                    .fetch_one(&mut *connection)
+                    .await?;
             let notification: i64 = sqlx::query_scalar(
                 "SELECT count(*) FROM staff_notifications WHERE record_type='task' \
                  AND record_id=$1 AND record_version=$2",
@@ -505,19 +489,6 @@ impl<E: TaskDecisionEligibility, C: Clock + Sync> PgOwnerCommandEffects
             Ok(())
         }
     }
-}
-
-fn command_company(command: &WorkflowRequest) -> CompanyId {
-    CompanyId::new(
-        command
-            .input
-            .property("companyId")
-            .ok()
-            .flatten()
-            .and_then(|value| value.string_utf8_storage().ok().flatten())
-            .unwrap_or_default(),
-    )
-    .unwrap_or_else(|_| CompanyId::new("invalid").expect("static company"))
 }
 
 fn changed() -> BusinessError {
@@ -546,6 +517,7 @@ where
     E: TaskDecisionEligibility,
 {
     let mut effects = TaskDecisionEffects {
+        company: company.clone(),
         eligibility,
         clock,
         prepared: None,
