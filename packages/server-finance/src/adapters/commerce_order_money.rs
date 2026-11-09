@@ -134,7 +134,9 @@ pub async fn lock_commerce_order_money_sources(c: &mut PgConnection) -> Result<(
 
 /// Acquire only relation locks so a composition can fence other owners before
 /// any query establishes the serializable snapshot.
-pub async fn lock_commerce_order_money_sources_before_snapshot(c: &mut PgConnection) -> Result<(), Error> {
+pub async fn lock_commerce_order_money_sources_before_snapshot(
+    c: &mut PgConnection,
+) -> Result<(), Error> {
     if !c.is_in_transaction() {
         return Err(PersistenceError::new("FINANCE_OWNER_TRANSACTION_REQUIRED").into());
     }

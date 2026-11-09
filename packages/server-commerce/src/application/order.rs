@@ -551,6 +551,46 @@ pub struct SaveOrderOutcome {
     pub plan: Option<SaveOrderPlan>,
 }
 
+/// Replay-only save check used before opening the locked write unit. It reads
+/// the canonical receipt and digest without locking any owner source, so an
+/// exact retry returns even while another writer holds the Money/Sales locks.
+pub async fn save_order_replay<R: CommerceOrderSaveRepository>(
+    actor: &CommerceOrderActor,
+    command: &SaveOrderCommand,
+    repository: &mut R,
+    now: TimestampMillis,
+) -> Result<Option<SaveOrderReceipt>, R::Error> {
+    actor.require_write(now)?;
+    let identity = save_identity(actor, command);
+    let request_hash = repository.digest(&identity).await?;
+    validate_hash(&request_hash)?;
+    Ok(replay_save(
+        repository.receipt(command.key.as_str()).await?,
+        &request_hash,
+        command,
+    )?)
+}
+
+/// Replay-only transition check with the same no-lock contract.
+pub async fn transition_order_replay<R: CommerceOrderCommandRepository>(
+    actor: &CommerceOrderActor,
+    command: &TransitionCommand,
+    repository: &mut R,
+    now: TimestampMillis,
+) -> Result<Option<CommerceOrderReceipt>, R::Error> {
+    actor.require_write(now)?;
+    let identity = transition_identity(actor, command);
+    let request_hash = repository.digest(&identity).await?;
+    validate_hash(&request_hash)?;
+    Ok(replay(
+        repository.receipt(command.key.as_str()).await?,
+        &request_hash,
+        command.order_id.as_str(),
+        command.expected_version,
+        command.action,
+    )?)
+}
+
 /// Create or update one exact draft quotation/sales order and return the
 /// receipt plus the admitted owner plan. Composition uses the plan to write
 /// Finance-owned order-revision Money evidence in the same transaction.
@@ -599,7 +639,11 @@ async fn save_order_outcome_inner<R: CommerceOrderSaveRepository>(
     }
     // The original save replays before its semantic validations, so an exact
     // retry returns its receipt even if a referenced source later changed.
-    command.validate()?;
+    if defer_guards {
+        command.validate_native_shape()?;
+    } else {
+        command.validate()?;
+    }
     if !repository
         .current_authority(actor, true, false, now)
         .await?
@@ -616,6 +660,9 @@ async fn save_order_outcome_inner<R: CommerceOrderSaveRepository>(
                 .lock_order(actor, id.as_str())
                 .await?
                 .ok_or_else(not_found)?;
+            if defer_guards && row.kind() != Some(command.input.kind) {
+                return Err(crate::domain::order::order_kind_locked().into());
+            }
             if !defer_guards && row.version != command.expected_version().unwrap_or(0) {
                 return Err(version_conflict().into());
             }
@@ -623,6 +670,9 @@ async fn save_order_outcome_inner<R: CommerceOrderSaveRepository>(
         }
         None => None,
     };
+    if defer_guards {
+        command.validate_native_semantics()?;
+    }
     let party_valid = repository
         .save_party_valid(&actor.company_id, &command.input.party_id, &currency)
         .await?;
@@ -630,13 +680,8 @@ async fn save_order_outcome_inner<R: CommerceOrderSaveRepository>(
         Some(id) => repository.save_warehouse(actor, id).await?,
         None => None,
     };
-    let mut products = Vec::with_capacity(command.input.lines.len());
-    for line in &command.input.lines {
-        products.push(
-            repository
-                .save_product(&actor.company_id, &line.product_id)
-                .await?,
-        );
+    if command.input.warehouse_id.is_some() && warehouse.is_none() {
+        return Err(crate::domain::order::warehouse_invalid().into());
     }
     let price_list = repository
         .save_price_list(
@@ -648,6 +693,15 @@ async fn save_order_outcome_inner<R: CommerceOrderSaveRepository>(
         .await?;
     if command.input.price_list_id.is_some() && price_list.is_none() {
         return Err(crate::domain::order::price_list_invalid().into());
+    }
+    crate::domain::order::validate_save_pricing(command, &price_list)?;
+    let mut products = Vec::with_capacity(command.input.lines.len());
+    for line in &command.input.lines {
+        products.push(
+            repository
+                .save_product(&actor.company_id, &line.product_id)
+                .await?,
+        );
     }
     let number = if command.order_id.is_none() {
         match command.input.kind {

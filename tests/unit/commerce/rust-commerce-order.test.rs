@@ -362,6 +362,8 @@ struct CommandProbe {
     credit_calls: Vec<(String, i64)>,
     release_calls: Vec<String>,
     allow_conversion_preflight: bool,
+    save_list: Option<erpx_server_commerce::public::order::SaveOrderPriceList>,
+    missing_save_product: bool,
 }
 
 impl CommandProbe {
@@ -1569,7 +1571,10 @@ fn conversion_requires_quote_before_stale_transition_guard() {
         repository.allow_conversion_preflight = true;
         let error = run_guarded(&mut repository, &actor(), &command).unwrap_err();
         assert_eq!(error.code, code, "{kind}");
-        assert_eq!(repository.calls.contains(&"conversion-money-preflight"), kind == "quote");
+        assert_eq!(
+            repository.calls.contains(&"conversion-money-preflight"),
+            kind == "quote"
+        );
         assert!(!repository.calls.contains(&"transition"));
         assert!(!repository.calls.contains(&"insert-converted"));
     }
@@ -2107,4 +2112,472 @@ mod purchase_receipt {
             "COMMERCE_RECEIPT_SOURCE_INVALID"
         );
     }
+}
+
+// Save sequencing probe; the Finance methods intentionally use the trait's
+// fail-closed defaults, while every simulated write is recorded.
+impl erpx_server_commerce::public::order::CommerceOrderSaveRepository for CommandProbe {
+    fn setup_currency<'a>(
+        &'a mut self,
+        _: &'a CompanyId,
+    ) -> CommerceOrderFuture<'a, Option<String>, Self::Error> {
+        self.calls.push("save-settings");
+        Box::pin(async { Ok(Some("THB".into())) })
+    }
+    fn next_quote_number<'a>(
+        &'a mut self,
+        _: &'a CompanyId,
+        _: &'a str,
+    ) -> CommerceOrderFuture<'a, String, Self::Error> {
+        self.calls.push("save-number");
+        Box::pin(async { Ok("QT-1".into()) })
+    }
+    fn save_warehouse<'a>(
+        &'a mut self,
+        _: &'a CommerceOrderActor,
+        _: &'a str,
+    ) -> CommerceOrderFuture<
+        'a,
+        Option<erpx_server_commerce::public::order::SaveOrderWarehouse>,
+        Self::Error,
+    > {
+        self.calls.push("save-warehouse");
+        Box::pin(async { Ok(None) })
+    }
+    fn save_product<'a>(
+        &'a mut self,
+        _: &'a CompanyId,
+        id: &'a str,
+    ) -> CommerceOrderFuture<
+        'a,
+        Option<erpx_server_commerce::public::order::SaveOrderProduct>,
+        Self::Error,
+    > {
+        self.calls.push("save-product");
+        let missing = self.missing_save_product;
+        Box::pin(async move {
+            Ok(
+                (!missing).then(|| erpx_server_commerce::public::order::SaveOrderProduct {
+                    id: id.into(),
+                    name: "Service".into(),
+                    item_type: "service".into(),
+                    version: 1,
+                }),
+            )
+        })
+    }
+    fn save_party_valid<'a>(
+        &'a mut self,
+        _: &'a CompanyId,
+        _: &'a str,
+        _: &'a str,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error> {
+        self.calls.push("save-party");
+        Box::pin(async { Ok(true) })
+    }
+    fn save_price_list<'a>(
+        &'a mut self,
+        _: &'a CompanyId,
+        _: &'a str,
+        _: &'a str,
+        _: Option<&'a str>,
+    ) -> CommerceOrderFuture<
+        'a,
+        Option<erpx_server_commerce::public::order::SaveOrderPriceList>,
+        Self::Error,
+    > {
+        self.calls.push("save-pricing");
+        let list = self.save_list.clone();
+        Box::pin(async move { Ok(list) })
+    }
+    fn insert_order<'a>(
+        &'a mut self,
+        _: &'a erpx_server_commerce::public::order::SaveOrderPlan,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error> {
+        self.calls.push("save-insert");
+        Box::pin(async { Ok(true) })
+    }
+    fn update_order<'a>(
+        &'a mut self,
+        _: &'a erpx_server_commerce::public::order::SaveOrderPlan,
+    ) -> CommerceOrderFuture<'a, bool, Self::Error> {
+        self.calls.push("save-update");
+        Box::pin(async { Ok(true) })
+    }
+    fn delete_order_lines<'a>(
+        &'a mut self,
+        _: &'a str,
+    ) -> CommerceOrderFuture<'a, (), Self::Error> {
+        self.calls.push("save-delete-lines");
+        Box::pin(async { Ok(()) })
+    }
+    fn insert_order_line<'a>(
+        &'a mut self,
+        _: &'a erpx_server_commerce::public::order::SaveOrderLinePlan,
+    ) -> CommerceOrderFuture<'a, (), Self::Error> {
+        self.calls.push("save-insert-line");
+        Box::pin(async { Ok(()) })
+    }
+    fn readback_lines<'a>(
+        &'a mut self,
+        _: &'a CommerceOrderActor,
+        _: &'a str,
+    ) -> CommerceOrderFuture<'a, Vec<SalesOrderLineRow>, Self::Error> {
+        self.calls.push("save-readback-lines");
+        Box::pin(async { Ok(vec![]) })
+    }
+}
+
+#[test]
+fn native_save_without_money_port_fails_closed_but_replay_and_retained_modes_do_not_require_it() {
+    use erpx_server_commerce::public::order::{
+        OrderKind, SaveOrderCommand, SaveOrderInput, SaveOrderLineInput, save_order_outcome,
+        save_order_outcome_native,
+    };
+    let command = SaveOrderCommand {
+        key: CommandKey::new(KEY).unwrap(),
+        order_id: None,
+        input: SaveOrderInput {
+            kind: OrderKind::Quote,
+            party_id: "party".into(),
+            warehouse_id: None,
+            order_date: "2026-11-01".into(),
+            due_date: "2026-11-10".into(),
+            note: String::new(),
+            price_list_id: None,
+            discount_reason: None,
+            expected_version: None,
+            lines: vec![SaveOrderLineInput {
+                product_id: "product".into(),
+                quantity: "1".into(),
+                price: "100".into(),
+                tax_bps: 0,
+            }],
+        },
+    };
+    let mut fresh = CommandProbe::ready(
+        order("quote", "draft", 1, "creator"),
+        order("quote", "draft", 1, "creator"),
+    );
+    let error = sqlx::test_block_on(save_order_outcome_native(
+        &actor(),
+        &command,
+        &mut fresh,
+        NOW,
+    ))
+    .unwrap_err();
+    assert_eq!(error.code, "COMMERCE_SAVE_MONEY_REQUIRED");
+    for write in [
+        "save-insert",
+        "save-update",
+        "save-delete-lines",
+        "save-insert-line",
+        "receipt-insert",
+        "audit",
+        "outbox",
+    ] {
+        assert!(!fresh.calls.contains(&write), "{write}");
+    }
+    let mut replay = CommandProbe {
+        hash: HASH.into(),
+        receipt: Some(OrderCommandReceipt {
+            request_hash: HASH.into(),
+            result_json: json!({"id":format!("order-{KEY}"),"version":1}).to_string(),
+            operation: Some("commerce.order.create".into()),
+            actor_id: Some("user".into()),
+            record_id: Some(format!("order-{KEY}")),
+            authority_json: None,
+        }),
+        ..CommandProbe::default()
+    };
+    let outcome = sqlx::test_block_on(save_order_outcome_native(
+        &actor(),
+        &command,
+        &mut replay,
+        NOW,
+    ))
+    .unwrap();
+    assert!(outcome.plan.is_none());
+    assert_eq!(outcome.receipt.id, format!("order-{KEY}"));
+    assert_eq!(replay.calls, ["lock-command", "digest", "receipt"]);
+    let mut retained = CommandProbe::ready(
+        order("quote", "draft", 1, "creator"),
+        order("quote", "draft", 1, "creator"),
+    );
+    retained.readback = None;
+    let error = sqlx::test_block_on(save_order_outcome(&actor(), &command, &mut retained, NOW))
+        .unwrap_err();
+    assert_ne!(error.code, "COMMERCE_SAVE_MONEY_REQUIRED");
+    assert!(retained.calls.contains(&"save-insert"));
+    assert!(retained.calls.contains(&"receipt-insert"));
+}
+
+#[test]
+fn native_save_validates_warehouse_and_entire_price_list_before_product_reads() {
+    use erpx_server_commerce::public::order::{
+        OrderKind, SaveOrderCommand, SaveOrderInput, SaveOrderLineInput, SaveOrderPriceItem,
+        SaveOrderPriceList, save_order_outcome_native,
+    };
+    let mut command = SaveOrderCommand {
+        key: CommandKey::new(KEY).unwrap(),
+        order_id: None,
+        input: SaveOrderInput {
+            kind: OrderKind::Quote,
+            party_id: "party".into(),
+            warehouse_id: Some("missing-warehouse".into()),
+            order_date: "2026-11-01".into(),
+            due_date: "2026-11-10".into(),
+            note: String::new(),
+            price_list_id: Some("missing-list".into()),
+            discount_reason: None,
+            expected_version: None,
+            lines: vec![
+                SaveOrderLineInput {
+                    product_id: "first".into(),
+                    quantity: "1".into(),
+                    price: "100".into(),
+                    tax_bps: 700,
+                },
+                SaveOrderLineInput {
+                    product_id: "second".into(),
+                    quantity: "1".into(),
+                    price: "100".into(),
+                    tax_bps: 0,
+                },
+            ],
+        },
+    };
+    let mut warehouse = CommandProbe::ready(
+        order("quote", "draft", 1, "creator"),
+        order("quote", "draft", 1, "creator"),
+    );
+    let error = sqlx::test_block_on(save_order_outcome_native(
+        &actor(),
+        &command,
+        &mut warehouse,
+        NOW,
+    ))
+    .unwrap_err();
+    assert_eq!(error.code, "WAREHOUSE_INVALID");
+    assert!(!warehouse.calls.contains(&"save-pricing"));
+    assert!(!warehouse.calls.contains(&"save-product"));
+    command.input.warehouse_id = None;
+    command.input.price_list_id = Some("list".into());
+    let list = SaveOrderPriceList {
+        id: "list".into(),
+        version: 1,
+        max_auto_discount_bps: 0,
+        items: vec![
+            SaveOrderPriceItem {
+                product_id: "first".into(),
+                price_minor: 10000,
+                tax_bps: 700,
+            },
+            SaveOrderPriceItem {
+                product_id: "second".into(),
+                price_minor: 10000,
+                tax_bps: 700,
+            },
+        ],
+    };
+    let mut tax = CommandProbe::ready(
+        order("quote", "draft", 1, "creator"),
+        order("quote", "draft", 1, "creator"),
+    );
+    tax.save_list = Some(list.clone());
+    tax.missing_save_product = true;
+    let error = sqlx::test_block_on(save_order_outcome_native(&actor(), &command, &mut tax, NOW))
+        .unwrap_err();
+    assert_eq!(error.code, "PRICE_LIST_TAX_REQUIRED");
+    assert!(!tax.calls.contains(&"save-product"));
+    command.input.lines[1].product_id = "not-listed".into();
+    command.input.lines[1].tax_bps = 700;
+    let mut missing = CommandProbe::ready(
+        order("quote", "draft", 1, "creator"),
+        order("quote", "draft", 1, "creator"),
+    );
+    missing.save_list = Some(list.clone());
+    missing.missing_save_product = true;
+    let error = sqlx::test_block_on(save_order_outcome_native(
+        &actor(),
+        &command,
+        &mut missing,
+        NOW,
+    ))
+    .unwrap_err();
+    assert_eq!(error.code, "PRICE_LIST_ITEM_REQUIRED");
+    assert!(!missing.calls.contains(&"save-product"));
+    command.input.lines[1].product_id = "second".into();
+    let mut product = CommandProbe::ready(
+        order("quote", "draft", 1, "creator"),
+        order("quote", "draft", 1, "creator"),
+    );
+    product.save_list = Some(list);
+    product.missing_save_product = true;
+    let error = sqlx::test_block_on(save_order_outcome_native(
+        &actor(),
+        &command,
+        &mut product,
+        NOW,
+    ))
+    .unwrap_err();
+    assert_eq!(error.code, "PRODUCT_INVALID");
+    assert!(product.calls.contains(&"save-product"));
+    for probe in [&warehouse, &tax, &missing, &product] {
+        for write in [
+            "save-insert",
+            "save-update",
+            "save-insert-line",
+            "receipt-insert",
+            "audit",
+            "outbox",
+        ] {
+            assert!(!probe.calls.contains(&write), "{write}");
+        }
+    }
+}
+
+#[test]
+fn native_save_kind_lock_precedes_stale_warehouse_and_pricing() {
+    use erpx_server_commerce::public::order::{
+        OrderKind, SaveOrderCommand, SaveOrderInput, SaveOrderLineInput, save_order_outcome_native,
+    };
+    let command = SaveOrderCommand {
+        key: CommandKey::new(KEY).unwrap(),
+        order_id: Some(RecordId::new("order-1").unwrap()),
+        input: SaveOrderInput {
+            kind: OrderKind::Sales,
+            party_id: "party".into(),
+            warehouse_id: Some("missing-warehouse".into()),
+            order_date: "2026-11-01".into(),
+            due_date: "2026-11-10".into(),
+            note: String::new(),
+            price_list_id: Some("missing-list".into()),
+            discount_reason: None,
+            expected_version: Some(99),
+            lines: vec![SaveOrderLineInput {
+                product_id: "first".into(),
+                quantity: "1".into(),
+                price: "100".into(),
+                tax_bps: 700,
+            }],
+        },
+    };
+    let mut probe = CommandProbe::ready(
+        order("quote", "draft", 1, "creator"),
+        order("quote", "draft", 1, "creator"),
+    );
+    let error = sqlx::test_block_on(save_order_outcome_native(
+        &actor(),
+        &command,
+        &mut probe,
+        NOW,
+    ))
+    .unwrap_err();
+    assert_eq!(error.code, "ORDER_KIND_LOCKED");
+    for forbidden in [
+        "save-party",
+        "save-warehouse",
+        "save-pricing",
+        "save-product",
+        "save-insert",
+        "save-update",
+        "receipt-insert",
+        "audit",
+        "outbox",
+    ] {
+        assert!(!probe.calls.contains(&forbidden), "{forbidden}");
+    }
+}
+
+#[test]
+fn native_save_kind_precedes_date_and_duplicate_semantics_without_weakening_shape() {
+    use erpx_server_commerce::public::order::{
+        OrderKind, SaveOrderCommand, SaveOrderInput, SaveOrderLineInput, save_order_outcome_native,
+    };
+    let line = SaveOrderLineInput {
+        product_id: "first".into(),
+        quantity: "1".into(),
+        price: "100".into(),
+        tax_bps: 700,
+    };
+    let base = SaveOrderCommand {
+        key: CommandKey::new(KEY).unwrap(),
+        order_id: Some(RecordId::new("order-1").unwrap()),
+        input: SaveOrderInput {
+            kind: OrderKind::Sales,
+            party_id: "party".into(),
+            warehouse_id: None,
+            order_date: "2026-11-01".into(),
+            due_date: "2026-11-10".into(),
+            note: String::new(),
+            price_list_id: None,
+            discount_reason: None,
+            expected_version: Some(99),
+            lines: vec![line.clone()],
+        },
+    };
+    for duplicate in [false, true] {
+        let mut command = base.clone();
+        if duplicate {
+            command.input.lines.push(line.clone());
+        } else {
+            command.input.due_date = "2026-10-31".into();
+        }
+        let mut changed_kind = CommandProbe::ready(
+            order("quote", "draft", 1, "creator"),
+            order("quote", "draft", 1, "creator"),
+        );
+        assert_eq!(
+            sqlx::test_block_on(save_order_outcome_native(
+                &actor(),
+                &command,
+                &mut changed_kind,
+                NOW
+            ))
+            .unwrap_err()
+            .code,
+            "ORDER_KIND_LOCKED"
+        );
+        assert!(!changed_kind.calls.contains(&"save-warehouse"));
+        assert!(!changed_kind.calls.contains(&"save-insert"));
+        assert!(!changed_kind.calls.contains(&"receipt-insert"));
+        let mut same_kind = CommandProbe::ready(
+            order("sales", "draft", 1, "creator"),
+            order("sales", "draft", 1, "creator"),
+        );
+        let error = sqlx::test_block_on(save_order_outcome_native(
+            &actor(),
+            &command,
+            &mut same_kind,
+            NOW,
+        ))
+        .unwrap_err();
+        assert_eq!(
+            error.code,
+            if duplicate {
+                "DUPLICATE_PRODUCT"
+            } else {
+                "INVALID_DATES"
+            }
+        );
+        assert!(!same_kind.calls.contains(&"save-warehouse"));
+        assert!(!same_kind.calls.contains(&"receipt-insert"));
+    }
+    let mut zero = base.clone();
+    zero.input.lines[0].quantity = "0".into();
+    let mut invalid = CommandProbe::ready(
+        order("quote", "draft", 1, "creator"),
+        order("quote", "draft", 1, "creator"),
+    );
+    let error = sqlx::test_block_on(save_order_outcome_native(
+        &actor(),
+        &zero,
+        &mut invalid,
+        NOW,
+    ))
+    .unwrap_err();
+    assert_ne!(error.code, "ORDER_KIND_LOCKED");
+    assert!(!invalid.calls.contains(&"lock"));
+    assert!(!invalid.calls.contains(&"receipt-insert"));
 }

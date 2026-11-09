@@ -1072,14 +1072,14 @@ async fn save_price_list_and_master_guards_fail_closed() {
         unknown_product.input.lines[0].product_id = "missing-product".into();
         assert_eq!(
             run_save_error(&pool, creator(), unknown_product).await.code,
-            "PRODUCT_INVALID"
+            "PRICE_LIST_ITEM_REQUIRED"
         );
         let mut stock = base("commerce-order-guard-0005", "50", 700);
         stock.input.warehouse_id = None;
         stock.input.lines[0].product_id = "stock-1".into();
         assert_eq!(
             run_save_error(&pool, creator(), stock).await.code,
-            "WAREHOUSE_REQUIRED"
+            "PRICE_LIST_ITEM_REQUIRED"
         );
         let mut wrong_warehouse = base("commerce-order-guard-0006", "80", 700);
         wrong_warehouse.input.warehouse_id = Some("missing-warehouse".into());

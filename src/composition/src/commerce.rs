@@ -373,12 +373,12 @@ impl CommerceOrderSaveRepository for ComposedCommerceOrders<'_> {
                 self.inner.connection(),
             )
             .await?;
-            if plan.price_list_id.is_some() {
-                erpx_server_sales::public::commerce_selected_pricing::lock_commerce_selected_pricing(
-                    self.inner.connection(),
-                )
-                .await?;
-            }
+            // Absence itself is a retained observation, so the Sales pricing
+            // fence is required even when no list was selected.
+            erpx_server_sales::public::commerce_selected_pricing::lock_commerce_selected_pricing(
+                self.inner.connection(),
+            )
+            .await?;
             let input = erpx_server_finance::public::commerce_order_money::CommerceOrderMoneyInput {
                 order_id: plan.id.clone(),
                 version: plan.version,
@@ -426,20 +426,20 @@ impl CommerceOrderSaveRepository for ComposedCommerceOrders<'_> {
                 return Err(erpx_server_commerce::public::order::version_conflict().into());
             }
             self.save_party = Some(guard);
+            let pricing =
+                erpx_server_sales::public::commerce_selected_pricing::inspect_commerce_selected_pricing(
+                    self.inner.connection(),
+                    &actor.company_id,
+                    &plan.party_id,
+                    &plan.order_date,
+                    &plan.currency,
+                    command.input.price_list_id.as_deref(),
+                )
+                .await?;
             if let Some(list_id) = plan.price_list_id.as_deref() {
                 let version = plan
                     .price_list_version
                     .ok_or_else(erpx_server_commerce::public::order::version_conflict)?;
-                let pricing =
-                    erpx_server_sales::public::commerce_selected_pricing::inspect_commerce_selected_pricing(
-                        self.inner.connection(),
-                        &actor.company_id,
-                        &plan.party_id,
-                        &plan.order_date,
-                        &plan.currency,
-                        Some(list_id),
-                    )
-                    .await?;
                 let selected_id = pricing
                     .value()
                     .and_then(|value| value.list.get("id"))
@@ -449,6 +449,36 @@ impl CommerceOrderSaveRepository for ComposedCommerceOrders<'_> {
                     .and_then(|value| value.list.get("version"))
                     .and_then(serde_json::Value::as_i64);
                 if selected_id != Some(list_id) || selected_version != Some(version) {
+                    return Err(erpx_server_commerce::public::order::version_conflict().into());
+                }
+                let selected = pricing
+                    .value()
+                    .ok_or_else(erpx_server_commerce::public::order::version_conflict)?;
+                let maximum = selected
+                    .list
+                    .get("max_auto_discount_bps")
+                    .and_then(serde_json::Value::as_i64)
+                    .ok_or_else(erpx_server_commerce::public::order::version_conflict)?;
+                for line in &plan.lines {
+                    let item = selected
+                        .items
+                        .iter()
+                        .find(|item| {
+                            item.get("product_id").and_then(serde_json::Value::as_str)
+                                == Some(line.product_id.as_str())
+                        })
+                        .ok_or_else(erpx_server_commerce::public::order::version_conflict)?;
+                    if item.get("price_minor").and_then(serde_json::Value::as_i64)
+                        != Some(line.list_price_minor)
+                        || item.get("tax_bps").and_then(serde_json::Value::as_i64)
+                            != Some(line.tax_bps)
+                    {
+                        return Err(erpx_server_commerce::public::order::version_conflict().into());
+                    }
+                }
+                if i64::from(plan.lines.iter().any(|line| line.discount_bps > maximum))
+                    != plan.discount_approval_required
+                {
                     return Err(erpx_server_commerce::public::order::version_conflict().into());
                 }
                 let price_guard =
@@ -464,8 +494,10 @@ impl CommerceOrderSaveRepository for ComposedCommerceOrders<'_> {
                     return Err(erpx_server_commerce::public::order::version_conflict().into());
                 }
                 self.save_price = Some(price_guard);
-                self.save_pricing = Some(pricing);
+            } else if pricing.value().is_some() || plan.price_list_version.is_some() {
+                return Err(erpx_server_commerce::public::order::version_conflict().into());
             }
+            self.save_pricing = Some(pricing);
             Ok(())
         })
     }
@@ -486,9 +518,8 @@ impl CommerceOrderSaveRepository for ComposedCommerceOrders<'_> {
             if let Some(price) = self.save_price.take() {
                 price.require_current(self.inner.connection()).await?;
             }
-            if let Some(pricing) = self.save_pricing.take() {
-                pricing.require_current(self.inner.connection()).await?;
-            }
+            let pricing = self.save_pricing.take().ok_or_else(missing)?;
+            pricing.require_current(self.inner.connection()).await?;
             Ok(())
         })
     }
@@ -557,6 +588,10 @@ impl HoldingWorkSourcePreparation for CommerceSaveSources {
         Box::pin(async move {
             erpx_server_finance::public::commerce_order_money::lock_commerce_order_money_sources_before_snapshot(&mut *connection).await?;
             erpx_server_finance::public::commerce_order_party_guard::lock_commerce_order_party_source(&mut *connection).await?;
+            erpx_server_sales::public::commerce_selected_pricing::lock_commerce_selected_pricing(
+                &mut *connection,
+            )
+            .await?;
             erpx_server_finance::public::commerce_order_money::attest_commerce_order_money_sources(
                 connection,
             )

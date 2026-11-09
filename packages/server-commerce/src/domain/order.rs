@@ -1466,6 +1466,62 @@ impl SaveOrderCommand {
         self.input.expected_version
     }
 
+    /// Native pre-source shape checks; the HTTP decoder remains authoritative
+    /// for wire parsing. Keep zero-quantity behavior until separately verified.
+    pub(crate) fn validate_native_shape(&self) -> Result<(), BusinessError> {
+        let input = &self.input;
+        if !valid_identifier(&input.party_id)
+            || input
+                .warehouse_id
+                .as_deref()
+                .is_some_and(|v| !valid_identifier(v))
+            || !valid_date(&input.order_date)
+            || !valid_date(&input.due_date)
+            || !valid_note(&input.note, NOTE_LIMIT)
+            || input
+                .price_list_id
+                .as_deref()
+                .is_some_and(|v| !valid_identifier(v))
+            || input
+                .discount_reason
+                .as_deref()
+                .is_some_and(|v| !valid_note(js_trim(v), REASON_LIMIT))
+            || input.lines.is_empty()
+            || input.lines.len() > SAVE_LINES_LIMIT
+            || input
+                .expected_version
+                .is_some_and(|v| !(1..=MAX_SAFE_INTEGER as i64).contains(&v))
+        {
+            return Err(request_invalid());
+        }
+        for line in &input.lines {
+            if !valid_identifier(&line.product_id)
+                || !(0..=10_000).contains(&line.tax_bps)
+                || parse_decimal_units(&line.quantity, 3)?.is_none()
+                || parse_decimal_units(&line.price, 2)?.is_none()
+                || parse_decimal_units(&line.quantity, 3)? == Some(0)
+            {
+                return Err(request_invalid());
+            }
+        }
+        Ok(())
+    }
+
+    /// These are application rules in the original save path, evaluated only
+    /// after the scoped order has been read and its kind checked.
+    pub(crate) fn validate_native_semantics(&self) -> Result<(), BusinessError> {
+        if self.input.due_date < self.input.order_date {
+            return Err(invalid_dates());
+        }
+        let mut products = std::collections::BTreeSet::new();
+        for line in &self.input.lines {
+            if !products.insert(line.product_id.as_str()) {
+                return Err(duplicate_product());
+            }
+        }
+        Ok(())
+    }
+
     pub fn validate(&self) -> Result<(), BusinessError> {
         let input = &self.input;
         if !valid_identifier(&input.party_id)
@@ -1647,6 +1703,58 @@ pub(crate) struct PreparedSaveValues {
     pub(crate) lines: Vec<SaveOrderLinePlan>,
 }
 
+/// Match Sales' whole-list validation before Commerce reads any product.
+/// When no list is selected, price parsing remains in the product loop.
+pub(crate) fn validate_save_pricing(
+    command: &SaveOrderCommand,
+    price_list: &Option<SaveOrderPriceList>,
+) -> Result<(Vec<(i64, i64)>, bool), BusinessError> {
+    let Some(list) = price_list else {
+        return Ok((Vec::new(), false));
+    };
+    let items = list
+        .items
+        .iter()
+        .map(|item| (item.product_id.as_str(), item))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let mut amounts = Vec::with_capacity(command.input.lines.len());
+    let mut requires_approval = false;
+    for line in &command.input.lines {
+        let item = items
+            .get(line.product_id.as_str())
+            .ok_or_else(price_list_item_required)?;
+        if item.tax_bps != line.tax_bps {
+            return Err(price_list_tax_required());
+        }
+        let price = parse_decimal_units(&line.price, 2)?
+            .filter(|value| *value >= 0)
+            .ok_or_else(request_invalid)?;
+        let discount = if item.price_minor > 0 && price < item.price_minor {
+            ((i128::from(item.price_minor) - i128::from(price)) * 10_000
+                / i128::from(item.price_minor))
+            .try_into()
+            .map_err(|_| order_amount_invalid())?
+        } else {
+            0
+        };
+        if discount > 10_000 {
+            return Err(order_amount_invalid());
+        }
+        requires_approval |= discount > list.max_auto_discount_bps;
+        amounts.push((item.price_minor, discount));
+    }
+    let reason = command
+        .input
+        .discount_reason
+        .as_deref()
+        .map(js_trim)
+        .filter(|value| !value.is_empty());
+    if requires_approval && reason.is_none_or(|value| utf16_len(value) < DISCOUNT_REASON_MIN) {
+        return Err(pricing_discount_reason_required());
+    }
+    Ok((amounts, requires_approval))
+}
+
 /// Calculate owner facts independently of later party and version guards.
 /// This does not authorize or perform any write.
 pub(crate) fn prepare_save_values(
@@ -1662,18 +1770,9 @@ pub(crate) fn prepare_save_values(
     if products.len() != input.lines.len() {
         return Err(request_invalid());
     }
-    let price_items = price_list
-        .as_ref()
-        .map(|list| {
-            list.items
-                .iter()
-                .map(|item| (item.product_id.as_str(), item))
-                .collect::<std::collections::BTreeMap<_, _>>()
-        })
-        .unwrap_or_default();
+    let (pricing, requires_approval) = validate_save_pricing(command, price_list)?;
     let mut subtotal = 0_i128;
     let mut tax_total = 0_i128;
-    let mut requires_approval = false;
     let mut lines = Vec::with_capacity(input.lines.len());
     for (index, line) in input.lines.iter().enumerate() {
         let product = products[index].as_ref().ok_or_else(product_invalid)?;
@@ -1689,36 +1788,14 @@ pub(crate) fn prepare_save_values(
         let price_minor = parse_decimal_units(&line.price, 2)?
             .filter(|value| *value >= 0)
             .ok_or_else(request_invalid)?;
-        let (list_price, discount_bps) = match &price_list {
-            Some(list) => {
-                let item = price_items
-                    .get(line.product_id.as_str())
-                    .ok_or_else(price_list_item_required)?;
-                if item.tax_bps != line.tax_bps {
-                    return Err(price_list_tax_required());
-                }
-                let base = item.price_minor;
-                let discount = if base > 0 && price_minor < base {
-                    ((i128::from(base) - i128::from(price_minor)) * 10_000 / i128::from(base))
-                        .try_into()
-                        .map_err(|_| order_amount_invalid())?
-                } else {
-                    0
-                };
-                let _ = list;
-                (base, discount)
-            }
-            None => (price_minor, 0),
+        let (list_price, discount_bps) = if price_list.is_some() {
+            pricing[index]
+        } else {
+            (price_minor, 0)
         };
-        if discount_bps > 10_000 {
-            return Err(order_amount_invalid());
-        }
         let (line_subtotal, line_tax) = line_amounts(quantity_milli, price_minor, line.tax_bps)?;
         subtotal += i128::from(line_subtotal);
         tax_total += i128::from(line_tax);
-        requires_approval |= price_list
-            .as_ref()
-            .is_some_and(|list| discount_bps > list.max_auto_discount_bps);
         lines.push(SaveOrderLinePlan {
             id: format!("{}-line-{index}", command.record_id()),
             order_id: command.record_id(),
