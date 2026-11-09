@@ -320,6 +320,8 @@
 @source "../../../../packages/feature-apps/src/routes/holdings/[holdingSlug]/projects-routines/tasks/[id]/page.tsx";
 @source "../../../../packages/feature-apps/src/routes/holdings/[holdingSlug]/projects-routines/tasks/new/page.tsx";
 @source "../../../../packages/feature-apps/src/routes/holdings/[holdingSlug]/projects-routines/tasks/page.tsx";
+@source "../../../../packages/feature-apps/src/routes/holdings/[holdingSlug]/requests/page.tsx";
+@source "../../../../packages/feature-apps/src/routes/holdings/[holdingSlug]/staff-tasks/page.tsx";
 @source "../../../../packages/feature-apps/src/routes/holdings/[holdingSlug]/tasks/people_payroll/[id]/page.tsx";
 @source "../../../../packages/feature-apps/src/routes/holdings/[holdingSlug]/work/actions/page.tsx";
 @source "../../../../packages/feature-apps/src/routes/holdings/[holdingSlug]/work/all/page.tsx";
@@ -7745,6 +7747,7 @@
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/record-details/[kind]/[id]/screen.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/requests/[id]/screen.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/requests/new/screen.tsx";
+@source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/requests/screen.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/routine-templates/[id]/screen.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/routine-templates/screen.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/sales/screen.tsx";
@@ -7754,6 +7757,7 @@
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/settings/stripe/screen.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/staff-tasks/[id]/screen.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/staff-tasks/new/screen.tsx";
+@source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/staff-tasks/screen.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/stock-counts/[id]/screen.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/stock-counts/screen.tsx";
 @source "../../../../packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/stock-transfers/[id]/screen.tsx";
