@@ -22,6 +22,12 @@ function application(db:SqlDatabase,a:WorkContext|undefined,files?:FileStore){re
  complete:async(id,token,result)=>withLegalQueuedCompletion(db,"legal_processing_jobs",id,async owner=>{await owner.prepare("UPDATE legal_processing_jobs SET state='completed',result_json=?,error=NULL,lease_token=NULL,lease_until=NULL WHERE id=? AND lease_token=? AND state='running'").bind(JSON.stringify(result),id,token).run();}),
  failed:async(id,token,code)=>{await db.prepare("UPDATE legal_processing_jobs SET state='failed',error=?,lease_token=NULL,lease_until=NULL WHERE id=? AND lease_token=?").bind(code,id,token).run();},
  }});}
+// Used by the existing document-inspection transport until the native command
+// accepts a document ID and resolves its item inside the authoritative unit.
+// This lookup selects a candidate; it does not grant access to the document.
+export function findInspectionSource(db:SqlDatabase,companyId:string,documentId:string){
+ return db.prepare("SELECT i.id,i.version::int version FROM legal_items i JOIN legal_documents d ON d.item_id=i.id WHERE d.id=? AND i.company_id=?").bind(documentId,companyId).first<{id:string;version:number}>();
+}
 export async function queueInspection(db:SqlDatabase,a:WorkContext,documentId:string,kind:LegalProcessingKind,key:string){
  if(await legalPackageEnforcementMode()==='disabled')return inLegacyLegalOperationsUnit(db,a.companyId,tx=>application(tx,a).queueInspection(documentId,kind,key));
  return application(db,a).queueInspection(documentId,kind,key);
