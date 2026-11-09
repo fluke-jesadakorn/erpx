@@ -3561,7 +3561,7 @@
       "id": "brand-owner-certification",
       "kind": "owner-certification",
       "status": "owner-complete",
-      "scope": "Brand owner: 3/3 workflows verified, all applicable surfaces active, h003 mounted in the native Account/private API, native /branding GET/POST and /brand identity routes mounted, TypeScript identity/branding writers retired, authenticated desktop/mobile draft create-save-reload and media/storefront command browser gates, brand unit/integration/cargo suites green.",
+      "scope": "Brand owner: 3/3 identity workflows verified, all applicable surfaces active, h003 mounted in the native Account/private API, native /branding GET/POST and /brand identity routes mounted, TypeScript identity/branding writers retired, authenticated desktop/mobile draft create-save-reload and storefront command browser gates, brand unit/integration/cargo suites green. The Brand media page's generic attachment-set/media-publication reads remain a Files-owner dependency (500 for h003); no Brand writer fallback exists.",
       "sourceIdentity": "working tree on fd20896de",
       "evidenceRef": "docs/testing/evidence/2026-11-09-brand-owner-certification.json",
       "durableContractRefs": []
