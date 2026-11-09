@@ -28,7 +28,9 @@ pub struct QualityHoldPolicyError {
 /// `read` follow the TypeScript write branch. Permissions are the *current*
 /// effective intersection, not claims supplied by a client.
 pub fn quality_hold_required_permission(purpose: &str, read: bool) -> &'static str {
-    if read { "quality.read" } else {
+    if read {
+        "quality.read"
+    } else {
         match purpose {
             "quality_inspection_evidence" | "inspection_evidence" => "quality.inspect",
             "disposition_evidence" => "quality.release",
@@ -44,24 +46,44 @@ pub fn quality_hold_target<'a>(
     read: bool,
 ) -> Result<QualityHoldScope<'a>, QualityHoldPolicyError> {
     let Some(row) = row else {
-        return Err(QualityHoldPolicyError { status: 404, code: "ATTACHMENT_TARGET_NOT_FOUND", message: "Quality hold not found or unavailable." });
+        return Err(QualityHoldPolicyError {
+            status: 404,
+            code: "ATTACHMENT_TARGET_NOT_FOUND",
+            message: "Quality hold not found or unavailable.",
+        });
     };
     if !allowed {
-        return Err(QualityHoldPolicyError { status: 403, code: "ATTACHMENT_TARGET_NOT_FOUND", message: "Quality hold not found or unavailable." });
+        return Err(QualityHoldPolicyError {
+            status: 403,
+            code: "ATTACHMENT_TARGET_NOT_FOUND",
+            message: "Quality hold not found or unavailable.",
+        });
     }
     if actor_branch.is_some_and(|branch| !branch.is_empty() && Some(branch) != row.branch_id) {
-        return Err(QualityHoldPolicyError { status: 403, code: "ATTACHMENT_SCOPE_FORBIDDEN", message: "The quality hold is outside your Branch scope." });
+        return Err(QualityHoldPolicyError {
+            status: 403,
+            code: "ATTACHMENT_SCOPE_FORBIDDEN",
+            message: "The quality hold is outside your Branch scope.",
+        });
     }
-    Ok(QualityHoldScope { company_id: row.company_id, branch_id: row.branch_id, department_id: None, version: row.version as f64, editable: !read })
+    Ok(QualityHoldScope {
+        company_id: row.company_id,
+        branch_id: row.branch_id,
+        department_id: None,
+        version: row.version as f64,
+        editable: !read,
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::{json, Value};
+    use serde_json::{Value, json};
 
     #[test]
-    fn quality_target_matches_installed_typescript_policy() {
+    fn quality_target_inner_branch_matches_typescript_target_scope() {
+        // This oracle stubs assignment, target and purchase hooks. It proves the
+        // inner target-scope branch only, not installed-policy authorization.
         let cases = json!([
             {"target":"quality_hold","purpose":"defect_photo","operation":"read","permissions":["quality.read"],"branch":null,"row":{"company_id":"c","branch_id":"b","department_id":null,"version":3}},
             {"target":"quality_hold","purpose":"quality_inspection_evidence","operation":"write","permissions":["quality.inspect"],"branch":"b","row":{"company_id":"c","branch_id":"b","department_id":null,"version":7}},
@@ -77,9 +99,19 @@ mod tests {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let application = root.join("packages/server-files/src/application/attachments/policy.ts");
         let script = r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const {createAttachmentPolicy}=await import(process.argv[1]);const cases=JSON.parse(process.argv[2]);const out=[];for(const c of cases){const api=createAttachmentPolicy({clock:{now:()=>1},error:(status,code,message)=>Object.assign(new Error(message),{status,code})});const db={readCurrentAssignment:async()=>({permissions:JSON.stringify(c.permissions),modules_json:'[]',role_permissions:'[]'}),authorizePortalCollaborationAttachmentTarget:async()=>null,authorizeSensitiveAttachmentTarget:async()=>null,authorizeFinanceOperationsAttachmentTarget:async()=>null,authorizeRemainingOperationalAttachmentTarget:async()=>null,readQualityHold:async()=>c.row};const actor={userId:'u',companyId:'c',assignmentId:'a',role:'custom_test',permissions:c.permissions,modules:[],branchId:c.branch,departmentId:null};try{const policy=api.attachmentPolicy(c.target,c.purpose,'action');out.push({scope:await api.authorizeAttachmentTarget(db,actor,policy,'hold',c.operation)})}catch(e){out.push({error:{status:e.status,code:e.code,message:e.message}})}}process.stdout.write(JSON.stringify(out));"#;
-        let output = std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
-            .current_dir(root).args(["--conditions=react-server", "-e", script]).arg(application).arg(cases.to_string()).output().unwrap();
-        assert!(output.status.success(), "TS oracle: {}", String::from_utf8_lossy(&output.stderr));
+        let output =
+            std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
+                .current_dir(root)
+                .args(["--conditions=react-server", "-e", script])
+                .arg(application)
+                .arg(cases.to_string())
+                .output()
+                .unwrap();
+        assert!(
+            output.status.success(),
+            "TS oracle: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
         let mut expected: Vec<Value> = serde_json::from_slice(&output.stdout).unwrap();
         // Normalize both JSON numbers as IEEE-754 values; comparing JSON's
         // integer representation would obscure JavaScript Number rounding.

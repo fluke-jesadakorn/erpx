@@ -1112,7 +1112,10 @@ async fn asset_purchase_receipt_purpose_matches_actual_ts_without_hash_or_target
 
 #[tokio::test]
 async fn quality_return_receipts_match_actual_typescript_join_and_retain_fence() {
-    use erpx_server_workflow::public::quality_return_receipts::{lock_quality_return_receipts,inspect_quality_return_receipts};
+    use erpx_server_shared::public::{CompanyId, RecordId, UserId};
+    use erpx_server_workflow::public::quality_return_receipts::{
+        QualityReturnReceiptScope, inspect_quality_return_receipts, lock_quality_return_receipts,
+    };
     fixture::with_database(2,|pool|async move {
         setup(&pool).await;
         let script=r#"
@@ -1123,20 +1126,38 @@ if(matches.length!==2||matches[0]!==matches[1])throw Error('QUALITY_RETURN_TS_JO
 process.stdout.write(matches[0]);
 "#;
         let out=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).arg("--conditions=react-server").arg("-e").arg(script).output().unwrap();assert!(out.status.success(),"actual Commerce Quality TS join unavailable");let predicate=String::from_utf8(out.stdout).unwrap();
-        let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
-        assert!(inspect_quality_return_receipts(&mut tx).await.is_err());tx.rollback().await.unwrap();
+        let company=CompanyId::new("company").unwrap();
+        let return_id=RecordId::new("return").unwrap();
+        let reviewer=UserId::new("reviewer").unwrap();
+        let scope=QualityReturnReceiptScope{company:&company,return_id:&return_id,actor:&reviewer};
+        let mut unlocked=pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *unlocked).await.unwrap();
+        assert!(inspect_quality_return_receipts(&mut unlocked,scope).await.is_err());
+        unlocked.rollback().await.unwrap();
         let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();lock_quality_return_receipts(&mut tx).await.unwrap();
         sqlx::raw_sql("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES('return-a','commerce.return.approve','reviewer','synthetic','return','{}','{\"companyId\":\"company\"}',0),('return-b','commerce.return.approve','reviewer','synthetic','return','{}','{\"companyId\":\"company\"}',0),('return-wrong-actor','commerce.return.approve','other','synthetic','return','{}','{\"companyId\":\"company\"}',0),('return-wrong-company','commerce.return.approve','reviewer','synthetic','return','{}','{\"companyId\":\"foreign\"}',0),('return-wrong-record','commerce.return.approve','reviewer','synthetic','other','{}','{\"companyId\":\"company\"}',0),('return-other-op','other.operation','reviewer','synthetic','return','{}','{\"companyId\":\"company\"}',0)").execute(&mut *tx).await.unwrap();
-        let source=inspect_quality_return_receipts(&mut tx).await.unwrap();
+        let source=inspect_quality_return_receipts(&mut tx,scope).await.unwrap();
         let prefix="(SELECT 'return'::text id,'reviewer'::text approved_by,'company'::text company_id) r";
         let original=format!("SELECT receipt.command_id FROM {prefix} JOIN command_receipts receipt ON {predicate} ORDER BY receipt.command_id");
-        let joined=format!("WITH {} SELECT receipt.command_id FROM {prefix} JOIN quality_return_receipts receipt ON {predicate} ORDER BY receipt.command_id",source.cte_sql());
-        let expected:Vec<String>=sqlx::query_scalar(sqlx::AssertSqlSafe(original)).fetch_all(&mut *tx).await.unwrap();let actual:Vec<String>=sqlx::query_scalar(sqlx::AssertSqlSafe(joined)).fetch_all(&mut *tx).await.unwrap();assert_eq!(expected,vec!["return-a","return-b"]);assert_eq!(actual,expected);source.require_current(&mut tx).await.unwrap();
-        sqlx::query("SAVEPOINT receipt_null_authority").execute(&mut *tx).await.unwrap();
-        sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES('return-null-authority','commerce.return.approve','reviewer','synthetic',repeat('x',2097153),'{}',NULL,0)").execute(&mut *tx).await.unwrap();
-        assert!(matches!(source.require_current(&mut tx).await,Err(PgTransactionError::Business(ref e)) if e.code=="QUALITY_RETURN_RECEIPT_LIMIT"),"SQL NULL authority must not hide oversized receipt bytes");
-        sqlx::query("ROLLBACK TO SAVEPOINT receipt_null_authority").execute(&mut *tx).await.unwrap();source.require_current(&mut tx).await.unwrap();
-        sqlx::query("SAVEPOINT receipt_limit").execute(&mut *tx).await.unwrap();sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) SELECT 'quality-limit-'||n,'commerce.return.approve','reviewer','synthetic','unrelated','{}','{\"companyId\":\"company\"}',0 FROM generate_series(1,10001) n").execute(&mut *tx).await.unwrap();assert!(matches!(source.require_current(&mut tx).await,Err(PgTransactionError::Business(ref e)) if e.code=="QUALITY_RETURN_RECEIPT_LIMIT"));sqlx::query("ROLLBACK TO SAVEPOINT receipt_limit").execute(&mut *tx).await.unwrap();source.require_current(&mut tx).await.unwrap();
+        let expected:Vec<String>=sqlx::query_scalar(sqlx::AssertSqlSafe(original)).fetch_all(&mut *tx).await.unwrap();
+        let actual:Vec<String>=source.command_ids().map(str::to_owned).collect();
+        assert_eq!(expected,vec!["return-a","return-b"]);assert_eq!(actual,expected);source.require_current(&mut tx).await.unwrap();
+        // Unrelated history in the same partitioned receipt table must not consume
+        // the scoped row/byte budget or change the selected source.
+        sqlx::query("SAVEPOINT receipt_unrelated").execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) SELECT 'quality-unrelated-'||n,'commerce.return.approve','reviewer','synthetic','unrelated','{}','{\"companyId\":\"company\"}',0 FROM generate_series(1,10001) n").execute(&mut *tx).await.unwrap();
+        source.require_current(&mut tx).await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT receipt_unrelated").execute(&mut *tx).await.unwrap();
+        // A new matching receipt changes the retained source and must conflict.
+        sqlx::query("SAVEPOINT receipt_drift").execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES('return-c','commerce.return.approve','reviewer','synthetic','return','{}','{\"companyId\":\"company\"}',0)").execute(&mut *tx).await.unwrap();
+        assert!(source.require_current(&mut tx).await.is_err());
+        sqlx::query("ROLLBACK TO SAVEPOINT receipt_drift").execute(&mut *tx).await.unwrap();source.require_current(&mut tx).await.unwrap();
+        // A matching oversized authority row fails the scoped byte budget.
+        sqlx::query("SAVEPOINT receipt_limit").execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO public.command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at) VALUES('return-huge','commerce.return.approve','reviewer','synthetic','return','{}',jsonb_build_object('companyId','company','blob',repeat('x',2097153))::text,0)").execute(&mut *tx).await.unwrap();
+        assert!(matches!(source.require_current(&mut tx).await,Err(PgTransactionError::Business(ref e)) if e.code=="QUALITY_RETURN_RECEIPT_LIMIT"));
+        sqlx::query("ROLLBACK TO SAVEPOINT receipt_limit").execute(&mut *tx).await.unwrap();source.require_current(&mut tx).await.unwrap();
         sqlx::query("SAVEPOINT receipt_shadow").execute(&mut *tx).await.unwrap();sqlx::query("CREATE TEMP TABLE command_receipts(command_id text)").execute(&mut *tx).await.unwrap();assert!(source.require_current(&mut tx).await.is_err());sqlx::query("ROLLBACK TO SAVEPOINT receipt_shadow").execute(&mut *tx).await.unwrap();source.require_current(&mut tx).await.unwrap();tx.rollback().await.unwrap();
     }).await;
 }

@@ -3,9 +3,8 @@ use axum::{
     http::{Request, StatusCode},
 };
 use erpx_server_runtime::public::{
-    EmbeddedMigrationInventory, MigrationInventory, MigrationInventoryReader, MigrationPhase,
-    foundation_router, foundation_router_with_inventory, inspect_migration,
-    validate_foundation_address,
+    EmbeddedMigrationInventory, MigrationInventory, MigrationInventoryReader, foundation_router,
+    foundation_router_with_inventory, inspect_migration, validate_foundation_address,
 };
 use tower::ServiceExt;
 
@@ -87,7 +86,11 @@ fn inventory_covers_the_owner_registry_and_does_not_claim_migration() {
     assert!(!readiness.ready);
     assert!(!readiness.source_acceptance);
     assert!(readiness.registered_business_owners.is_empty());
-    let mut pending: Vec<_> = readiness.pending_owners.iter().map(String::as_str).collect();
+    let mut pending: Vec<_> = readiness
+        .pending_owners
+        .iter()
+        .map(String::as_str)
+        .collect();
     pending.sort_unstable();
     assert_eq!(pending, expected);
 }
@@ -181,19 +184,107 @@ fn foundation_refuses_reserved_installed_or_public_listeners() {
 fn native_engineering_roster_matches_actual_typescript_on_json_values() {
     use erpx_server_runtime::public::native_engineering_roster::validate_native_engineering_roster;
     use std::io::Write;
-    let bindings=["CONTROL_DB","CONTROL_READ_DB","H001_DB","H001_READ_DB","H002_DB","H002_READ_DB","H003_DB","H003_READ_DB"];
-    let mut valid=serde_json::json!({"version":1,"run":"0123456789ab","sourceFingerprint":"source","fileManifestSha256":"manifest","postmasterStartedMs":1700000000000_i64,"entries":[]});
-    valid["entries"]=serde_json::Value::Array(bindings.iter().enumerate().map(|(i,b)|serde_json::json!({"binding":b,"token":format!("{:032x}",i+1),"oid":i+1})).collect());
-    let mut cases=vec![valid.clone()];
-    for (key,value) in [("version",serde_json::json!("1")),("run",serde_json::json!("other")),("postmasterStartedMs",serde_json::json!(0)),("postmasterStartedMs",serde_json::json!(1.5)),("postmasterStartedMs",serde_json::json!(9007199254740992_u64)),("entries",serde_json::json!([]))] {let mut v=valid.clone();v[key]=value;cases.push(v);}
-    for (key,value) in [("binding",serde_json::json!("H001_DB")),("token",serde_json::json!("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")),("token",serde_json::json!(null)),("oid",serde_json::json!(0)),("oid",serde_json::json!(4294967296_u64)),("oid",serde_json::json!(1.5))] {let mut v=valid.clone();v["entries"][0][key]=value;cases.push(v);}
-    let mut dup_token=valid.clone();dup_token["entries"][1]["token"]=dup_token["entries"][0]["token"].clone();cases.push(dup_token);
-    let mut dup_oid=valid.clone();dup_oid["entries"][1]["oid"]=dup_oid["entries"][0]["oid"].clone();cases.push(dup_oid);
-    let mut array_token=valid.clone();array_token["entries"][0]["token"]=serde_json::json!(["00000000000000000000000000000001"]);cases.push(array_token.clone());
-    array_token["entries"][1]["token"]=serde_json::json!(["00000000000000000000000000000001"]);cases.push(array_token);
-    let mut extras=valid.clone();extras["extra"]=serde_json::json!(true);extras["entries"][0]["extra"]=serde_json::json!("allowed");cases.push(extras);
-    cases.extend([serde_json::Value::Null,serde_json::json!([]),serde_json::json!({})]);
-    let node=std::env::var("ERPX_NODE_BIN").unwrap_or_else(|_|"node".into());let path=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/domain/native-engineering-roster.ts");
-    let script=r#"if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const m=await import(process.argv[1]);let data='';for await(const chunk of process.stdin)data+=chunk;const cases=JSON.parse(data);process.stdout.write(JSON.stringify(cases.map(v=>m.validateNativeEngineeringRoster(v,'0123456789ab','source','manifest'))));"#;
-    let mut child=std::process::Command::new(node).arg("--input-type=module").arg("-e").arg(script).arg(path).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn().unwrap();child.stdin.take().unwrap().write_all(&serde_json::to_vec(&cases).unwrap()).unwrap();let output=child.wait_with_output().unwrap();assert!(output.status.success(),"actual TS roster oracle: {}",String::from_utf8_lossy(&output.stderr));let expected:Vec<bool>=serde_json::from_slice(&output.stdout).unwrap();let actual:Vec<bool>=cases.iter().map(|v|validate_native_engineering_roster(v,"0123456789ab","source","manifest").is_some()).collect();assert_eq!(actual,expected);
+    let bindings = [
+        "CONTROL_DB",
+        "CONTROL_READ_DB",
+        "H001_DB",
+        "H001_READ_DB",
+        "H002_DB",
+        "H002_READ_DB",
+        "H003_DB",
+        "H003_READ_DB",
+    ];
+    let mut valid = serde_json::json!({"version":1,"run":"0123456789ab","sourceFingerprint":"source","fileManifestSha256":"manifest","postmasterStartedMs":1700000000000_i64,"entries":[]});
+    valid["entries"] = serde_json::Value::Array(
+        bindings
+            .iter()
+            .enumerate()
+            .map(|(i, b)| serde_json::json!({"binding":b,"token":format!("{:032x}",i+1),"oid":i+1}))
+            .collect(),
+    );
+    let mut cases = vec![valid.clone()];
+    for (key, value) in [
+        ("version", serde_json::json!("1")),
+        ("run", serde_json::json!("other")),
+        ("postmasterStartedMs", serde_json::json!(0)),
+        ("postmasterStartedMs", serde_json::json!(1.5)),
+        (
+            "postmasterStartedMs",
+            serde_json::json!(9007199254740992_u64),
+        ),
+        ("entries", serde_json::json!([])),
+    ] {
+        let mut v = valid.clone();
+        v[key] = value;
+        cases.push(v);
+    }
+    for (key, value) in [
+        ("binding", serde_json::json!("H001_DB")),
+        (
+            "token",
+            serde_json::json!("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
+        ),
+        ("token", serde_json::json!(null)),
+        ("oid", serde_json::json!(0)),
+        ("oid", serde_json::json!(4294967296_u64)),
+        ("oid", serde_json::json!(1.5)),
+    ] {
+        let mut v = valid.clone();
+        v["entries"][0][key] = value;
+        cases.push(v);
+    }
+    let mut dup_token = valid.clone();
+    dup_token["entries"][1]["token"] = dup_token["entries"][0]["token"].clone();
+    cases.push(dup_token);
+    let mut dup_oid = valid.clone();
+    dup_oid["entries"][1]["oid"] = dup_oid["entries"][0]["oid"].clone();
+    cases.push(dup_oid);
+    let mut array_token = valid.clone();
+    array_token["entries"][0]["token"] = serde_json::json!(["00000000000000000000000000000001"]);
+    cases.push(array_token.clone());
+    array_token["entries"][1]["token"] = serde_json::json!(["00000000000000000000000000000001"]);
+    cases.push(array_token);
+    let mut extras = valid.clone();
+    extras["extra"] = serde_json::json!(true);
+    extras["entries"][0]["extra"] = serde_json::json!("allowed");
+    cases.push(extras);
+    cases.extend([
+        serde_json::Value::Null,
+        serde_json::json!([]),
+        serde_json::json!({}),
+    ]);
+    let node = std::env::var("ERPX_NODE_BIN").unwrap_or_else(|_| "node".into());
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("src/domain/native-engineering-roster.ts");
+    let script = r#"if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const m=await import(process.argv[1]);let data='';for await(const chunk of process.stdin)data+=chunk;const cases=JSON.parse(data);process.stdout.write(JSON.stringify(cases.map(v=>m.validateNativeEngineeringRoster(v,'0123456789ab','source','manifest'))));"#;
+    let mut child = std::process::Command::new(node)
+        .arg("--input-type=module")
+        .arg("-e")
+        .arg(script)
+        .arg(path)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(&serde_json::to_vec(&cases).unwrap())
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(
+        output.status.success(),
+        "actual TS roster oracle: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let expected: Vec<bool> = serde_json::from_slice(&output.stdout).unwrap();
+    let actual: Vec<bool> = cases
+        .iter()
+        .map(|v| {
+            validate_native_engineering_roster(v, "0123456789ab", "source", "manifest").is_some()
+        })
+        .collect();
+    assert_eq!(actual, expected);
 }
