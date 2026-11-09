@@ -35,7 +35,7 @@ export async function runtimeSourceFingerprint(root: string, environment: NodeJS
       }
     }
     const files = inputs
-      .filter(file => !generatedSourceEntry(relative(root, file)) && !relative(root, file).split(/[\\/]/).includes("node_modules") && workspaceCopyInput(root,file) && !file.endsWith("/next-env.d.ts") && !file.endsWith("/AGENTS.md")).sort();
+      .filter(file => !generatedSourceEntry(relative(root, file)) && !relative(root, file).split(/[\\/]/).includes("node_modules") && !relative(root, file).replaceAll("\\", "/").startsWith("public/vendor/") && workspaceCopyInput(root,file) && !file.endsWith("/next-env.d.ts") && !file.endsWith("/AGENTS.md")).sort();
     for (const file of files) {
       const name = relative(root, file);
       if (name === "packages/catalogue/src/release-artifact.json" || /^apps\/[^/]+\/turbo\.json$/.test(name)) continue;
