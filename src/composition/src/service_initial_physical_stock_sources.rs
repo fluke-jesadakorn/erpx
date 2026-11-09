@@ -108,6 +108,12 @@ impl ServiceInitialPhysicalStockSources {
         erpx_server_organization::public::field_service_workspace::lock_service_workspace_locations(c).await?;
         erpx_server_collaboration::public::service_count_flow_notification::lock_count_flow_notifications(c).await?;
         erpx_server_files::public::count_submission::lock_count_binding_sources(c).await?;
+        // Terminal History sources are read by the native Count detail; acquire
+        // their owner fences in the same pre-snapshot unit.
+        erpx_server_inventory::public::initial_count_history_source::lock_initial_count_history_sources(c).await?;
+        erpx_server_inventory::public::count_terminal_history_source::lock_count_terminal_history_source(c).await?;
+        erpx_server_workflow::public::record_origin::lock_initial_count_history_receipt_sources(c).await?;
+        erpx_server_files::public::count_history_attachment_sources::lock_count_history_attachment_sources(c).await?;
         Ok(CountLockPreparation {
             sources: self,
             connection: c,

@@ -23,7 +23,12 @@ use erpx_server_identity_access::public::{
     service_initial_count_authority::ServiceCountAuthorityPurpose,
 };
 pub use erpx_server_inventory::public::service_initial_physical_count::CountAction;
+use crate::initial_count_terminal_history::inspect_initial_count_terminal_history;
+use erpx_server_files::public::count_history_attachment_sources::inspect_count_history_attachment_sources;
+use erpx_server_inventory::public::count_terminal_history_source::inspect_count_terminal_history_source;
+use erpx_server_inventory::public::initial_count_history_source::inspect_initial_count_history_source;
 use erpx_server_runtime::public::postgres::PgTransactionError;
+use erpx_server_workflow::public::record_origin::inspect_initial_count_history_receipt_join;
 use erpx_server_shared::public::{BusinessError, Clock};
 pub use erpx_server_workflow::public::stock_count_flow::{
     normalize_generic_stock_count_assignment, normalize_stock_count_assignment,
@@ -51,7 +56,23 @@ pub async fn read_service_initial_count<C: Clock>(
         ServiceCountAuthorityPurpose::Read,
     )
     .await?;
-    let result = source.wire(current)?;
+    let mut result = source.wire(current)?;
+    let company = current.selection().workspace().company_id.clone();
+    let counts = inspect_initial_count_history_source(c).await?;
+    let decisions = inspect_count_terminal_history_source(c).await?;
+    let receipts = inspect_initial_count_history_receipt_join(c).await?;
+    let files = inspect_count_history_attachment_sources(c).await?;
+    let terminal = inspect_initial_count_terminal_history(
+        c, &counts, &decisions, &receipts, &files, &company, id,
+    )
+    .await?;
+    terminal.require_current(c).await?;
+    if let Some(object) = result.as_object_mut() {
+        object.insert(
+            "terminalHistory".into(),
+            serde_json::Value::Bool(terminal.matches()),
+        );
+    }
     source.require_current(c, clock).await?;
     source.flow.require_current(c, current, clock).await?;
     module.require_current(c).await?;
