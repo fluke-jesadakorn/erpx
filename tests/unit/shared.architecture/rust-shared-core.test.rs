@@ -85,6 +85,11 @@ fn command_key_and_id_deserialization_cannot_bypass_validation() {
     assert!(RecordId::new("").is_err());
     assert!(RecordId::new("line\nbreak").is_err());
     assert!(RecordId::new("x".repeat(201)).is_err());
+    // JavaScript string bounds count UTF-16 code units, not UTF-8 bytes.
+    assert!(RecordId::new("ก".repeat(200)).is_ok());
+    assert!(RecordId::new("ก".repeat(201)).is_err());
+    assert!(RecordId::new("😀".repeat(100)).is_ok());
+    assert!(RecordId::new("😀".repeat(101)).is_err());
     assert!(serde_json::from_str::<RecordId>("\"\"").is_err());
 }
 
@@ -92,6 +97,10 @@ fn command_key_and_id_deserialization_cannot_bypass_validation() {
 fn source_and_consumption_evidence_require_positive_current_versions() {
     let id = RecordId::new("source-1").unwrap();
     assert!(SourceRecord::new(SourceRecordKind::PmsRecord, id.clone(), Some(0)).is_err());
+    let thai = RecordId::new("ก".repeat(180)).unwrap();
+    assert!(SourceRecord::new(SourceRecordKind::PmsRecord, thai, Some(1)).is_ok());
+    let too_long = RecordId::new("ก".repeat(181)).unwrap();
+    assert!(SourceRecord::new(SourceRecordKind::PmsRecord, too_long, Some(1)).is_err());
     let source = SourceRecord::new(SourceRecordKind::PmsRecord, id.clone(), Some(7)).unwrap();
     assert_eq!(source.version(), Some(7));
     assert_eq!(source.id(), &id);

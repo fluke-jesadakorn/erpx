@@ -3,10 +3,11 @@ use serde::{Deserialize, Serialize};
 use super::error::BusinessError;
 
 fn validate_identifier(value: &str) -> Result<(), BusinessError> {
-    if value.is_empty() || value.len() > 200 || value.chars().any(char::is_control) {
+    if value.is_empty() || value.encode_utf16().count() > 200 || value.chars().any(char::is_control)
+    {
         return Err(BusinessError::invalid(
             "INVALID_IDENTIFIER",
-            "Use a nonempty identifier of at most 200 bytes without control characters.",
+            "Use a nonempty identifier of at most 200 UTF-16 code units without control characters.",
         ));
     }
     Ok(())

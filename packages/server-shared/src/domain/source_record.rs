@@ -29,7 +29,7 @@ impl SourceRecord {
         id: RecordId,
         version: Option<u64>,
     ) -> Result<Self, BusinessError> {
-        if version == Some(0) || id.as_str().len() > 180 {
+        if version == Some(0) || id.as_str().encode_utf16().count() > 180 {
             return Err(BusinessError::invalid(
                 "SOURCE_VERSION_REQUIRED",
                 "Use a positive source version.",
