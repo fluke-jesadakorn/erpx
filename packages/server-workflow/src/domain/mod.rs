@@ -12,4 +12,5 @@ pub(crate) mod service_invoice_flow;
 
 pub(crate) mod field_journal_flow;
 pub mod flow_command_target;
+pub mod task_cancel;
 pub mod task_decision;
