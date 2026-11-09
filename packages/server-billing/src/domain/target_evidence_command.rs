@@ -54,10 +54,20 @@ pub struct ApproveTargetExtra {
 }
 
 #[derive(Clone, Debug)]
+pub struct ApproveTargetRollout {
+    pub key: CommandKey,
+    pub expected_version: i64,
+    pub reason: String,
+    pub target_month: String,
+    pub minimum_margin_bps: i64,
+}
+
+#[derive(Clone, Debug)]
 pub enum BillingTargetEvidenceCommand {
     OperatingCost(RecordOperatingCost),
     Capacity(ReviewTargetCapacity),
     Extra(ApproveTargetExtra),
+    Rollout(ApproveTargetRollout),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -91,10 +101,17 @@ pub struct ValidatedTargetExtra {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ValidatedTargetRollout {
+    pub target_month: String,
+    pub minimum_margin_bps: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ValidatedTargetEvidence {
     OperatingCost(ValidatedOperatingCost),
     Capacity(ValidatedCapacity),
     Extra(ValidatedTargetExtra),
+    Rollout(ValidatedTargetRollout),
 }
 
 fn valid_reason(value: &str) -> bool {
@@ -202,12 +219,29 @@ impl ApproveTargetExtra {
     }
 }
 
+impl ApproveTargetRollout {
+    pub fn validate(&self) -> Result<ValidatedTargetRollout, BusinessError> {
+        if self.expected_version < 0
+            || !valid_reason(&self.reason)
+            || !valid_month(&self.target_month)
+            || !(0..=10_000).contains(&self.minimum_margin_bps)
+        {
+            return Err(rollout_review_required());
+        }
+        Ok(ValidatedTargetRollout {
+            target_month: self.target_month.clone(),
+            minimum_margin_bps: self.minimum_margin_bps,
+        })
+    }
+}
+
 impl BillingTargetEvidenceCommand {
     pub fn expected_version(&self) -> i64 {
         match self {
             Self::OperatingCost(command) => command.expected_version,
             Self::Capacity(command) => command.expected_version,
             Self::Extra(command) => command.expected_version,
+            Self::Rollout(command) => command.expected_version,
         }
     }
 
@@ -216,6 +250,7 @@ impl BillingTargetEvidenceCommand {
             Self::OperatingCost(command) => &command.key,
             Self::Capacity(command) => &command.key,
             Self::Extra(command) => &command.key,
+            Self::Rollout(command) => &command.key,
         }
     }
 
@@ -224,6 +259,7 @@ impl BillingTargetEvidenceCommand {
             Self::OperatingCost(command) => &command.reason,
             Self::Capacity(command) => &command.reason,
             Self::Extra(command) => &command.reason,
+            Self::Rollout(command) => &command.reason,
         }
     }
 
@@ -232,6 +268,7 @@ impl BillingTargetEvidenceCommand {
             Self::OperatingCost(_) => "record-operating-cost",
             Self::Capacity(_) => "review-target-capacity",
             Self::Extra(_) => "approve-target-extra",
+            Self::Rollout(_) => "approve-target-rollout",
         }
     }
 
@@ -242,6 +279,7 @@ impl BillingTargetEvidenceCommand {
                 .map(ValidatedTargetEvidence::OperatingCost),
             Self::Capacity(command) => command.validate().map(ValidatedTargetEvidence::Capacity),
             Self::Extra(command) => command.validate().map(ValidatedTargetEvidence::Extra),
+            Self::Rollout(command) => command.validate().map(ValidatedTargetEvidence::Rollout),
         }
     }
 
@@ -303,6 +341,12 @@ fn input_json(command: &BillingTargetEvidenceCommand) -> Value {
             "serviceEnd": command.service_end,
             "note": js_trim(&command.note),
             "evidenceId": command.evidence_id.as_str(),
+        }),
+        BillingTargetEvidenceCommand::Rollout(command) => serde_json::json!({
+            "version": command.expected_version,
+            "reason": js_trim(&command.reason),
+            "targetMonth": command.target_month,
+            "minimumMarginBps": command.minimum_margin_bps,
         }),
     }
 }
@@ -373,5 +417,28 @@ pub fn target_period_frozen() -> BusinessError {
         FailureKind::Conflict,
         "TARGET_PERIOD_FROZEN",
         "Approved target charges cannot be changed.",
+    )
+}
+
+pub fn rollout_review_required() -> BusinessError {
+    BusinessError::invalid(
+        "ROLLOUT_REVIEW_REQUIRED",
+        "Future month and required gross-margin threshold are required.",
+    )
+}
+
+pub fn rollout_already_approved() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "ROLLOUT_ALREADY_APPROVED",
+        "This rollout decision is already recorded.",
+    )
+}
+
+pub fn rollout_evidence_incomplete() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Conflict,
+        "ROLLOUT_EVIDENCE_INCOMPLETE",
+        "Migration remains held; complete every required shadow, cost, capacity and storage check.",
     )
 }

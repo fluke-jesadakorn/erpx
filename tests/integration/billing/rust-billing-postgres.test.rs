@@ -84,6 +84,17 @@ async fn run_evidence(
     command: &erpx_server_billing::public::target_evidence_command::BillingTargetEvidenceCommand,
     now: TimestampMillis,
 ) -> Result<erpx_server_billing::public::cost::CommandReceipt, PgTransactionError<BusinessError>> {
+    run_evidence_with_storage(pool, actor, target, command, now, 20_000_000_000).await
+}
+
+async fn run_evidence_with_storage(
+    pool: &DatabasePool,
+    actor: &BillingActor,
+    target: &HoldingId,
+    command: &erpx_server_billing::public::target_evidence_command::BillingTargetEvidenceCommand,
+    now: TimestampMillis,
+    storage_limit: i64,
+) -> Result<erpx_server_billing::public::cost::CommandReceipt, PgTransactionError<BusinessError>> {
     let pool = pool.clone();
     let actor = actor.clone();
     let target = target.clone();
@@ -95,7 +106,12 @@ async fn run_evidence(
             let command = command.clone();
             Box::pin(async move {
                 erpx_server_billing::public::target_evidence_command::execute_target_evidence(
-                    connection, &actor, &target, &command, now,
+                    connection,
+                    &actor,
+                    &target,
+                    &command,
+                    now,
+                    storage_limit,
                 )
                 .await
             })
@@ -2436,5 +2452,197 @@ fn rate_target_appends_runs_and_replaces_only_unapproved_periods() {
             .await
             .unwrap();
         assert_eq!(receipts, 2);
+    });
+}
+
+#[test]
+fn approve_target_rollout_uses_completed_shadow_months_storage_cap_and_records_audit() {
+    with_database(|pool| async move {
+        migrate(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES \
+             ('h001','acme','Acme','write-h001','read-h001','files-h001','active'),\
+             ('h002','northstar','Northstar','write-h002','read-h002','files-h002','active');\
+             INSERT INTO billing_accounts(holding_id,version,customer_id,payment_mode,created_at) VALUES \
+             ('h001',2,'customer-1','manual',100),\
+             ('h002',1,'customer-2','manual',100);\
+             INSERT INTO billing_evidence\
+             (id,holding_id,filename,mime,size,sha256,actor,created_at,object_key,detected_mime,source_state,scanned_at,scanner_definition_at) VALUES \
+             ('evidence-h1','h001','cost.pdf','application/pdf',10,repeat('a',64),'fixture',100,'h001/evidence-h1','application/pdf','available',100,100);\
+             INSERT INTO billing_target_assignments\
+             (holding_id,effective_month,price_id,mode,service_started_at,assigned_by,reason,created_at) VALUES \
+             ('h001','2026-12','holding-usage-2026-12-v3','shadow',1794700800000,'fixture','fixture',100);\
+             INSERT INTO billing_usage_snapshots(holding_id,month,snapshot_id,refreshed_at) VALUES \
+             ('h001','2026-09','snap-2026-09',100),('h001','2026-10','snap-2026-10',100);\
+             INSERT INTO billing_target_rated_periods\
+             (holding_id,month,price_id,assignment_month,mode,meter_snapshot_id,service_start,service_end,state,missing_json,lines_json,total_satang,rated_at) VALUES \
+             ('h001','2026-09','holding-usage-2026-12-v3','2026-12','shadow','snap-2026-09',100,200,'ready','[]','[{\"kind\":\"ai\",\"sourceKey\":\"ai-1\",\"fundingSource\":\"erpx\",\"amountSatang\":22000,\"verifiedProviderCostSatang\":20000}]',1000000,100),\
+             ('h001','2026-10','holding-usage-2026-12-v3','2026-12','shadow','snap-2026-10',100,200,'ready','[]','[{\"kind\":\"ai\",\"sourceKey\":\"ai-1\",\"fundingSource\":\"erpx\",\"amountSatang\":22000,\"verifiedProviderCostSatang\":20000}]',1000000,100);\
+             INSERT INTO billing_target_operating_costs\
+             (holding_id,month,category,amount_satang,evidence_id,verified_by,verified_at) VALUES \
+             ('h001','2026-09','infrastructure',25000,'evidence-h1','fixture',100),\
+             ('h001','2026-09','backup',25000,'evidence-h1','fixture',100),\
+             ('h001','2026-09','stripe',25000,'evidence-h1','fixture',100),\
+             ('h001','2026-09','support',25000,'evidence-h1','fixture',100),\
+             ('h001','2026-10','infrastructure',25000,'evidence-h1','fixture',100),\
+             ('h001','2026-10','backup',25000,'evidence-h1','fixture',100),\
+             ('h001','2026-10','stripe',25000,'evidence-h1','fixture',100),\
+             ('h001','2026-10','support',25000,'evidence-h1','fixture',100);\
+             INSERT INTO billing_target_capacity_reviews\
+             (holding_id,effective_month,projected_original_bytes,primary_available_bytes,backup_available_bytes,reserved_bytes,company_limit_bytes,evidence_id,approved_by,reason,approved_at) VALUES \
+             ('h001','2026-12',10000000000,30000000000,30000000000,1000000000,25000000000,'evidence-h1','fixture','fixture',100);",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        use erpx_server_billing::public::target_evidence_command::{
+            ApproveTargetRollout, BillingTargetEvidenceCommand,
+        };
+        let now = TimestampMillis::new(1_794_700_800_000);
+        let owner = |holding: &str| BillingActor {
+            user_id: UserId::new("owner").unwrap(),
+            assignment_id: AssignmentId::new("assignment").unwrap(),
+            holding_id: Some(HoldingId::new(holding).unwrap()),
+            platform: false,
+            role: "holding_owner".into(),
+            expires_at: None,
+        };
+        let rollout = |key_value: &str, version: i64, month: &str| {
+            BillingTargetEvidenceCommand::Rollout(ApproveTargetRollout {
+                key: key(key_value),
+                expected_version: version,
+                reason: "Approved rollout after two completed shadow cycles".into(),
+                target_month: month.into(),
+                minimum_margin_bps: 5_000,
+            })
+        };
+        let h001 = HoldingId::new("h001").unwrap();
+        let low_storage = run_evidence_with_storage(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &rollout("target:rollout:low", 2, "2026-12"),
+            now,
+            1_000_000_000,
+        )
+        .await
+        .err()
+        .expect("the trusted Beta storage cap must cover the included allowance");
+        assert_eq!(business(low_storage).code, "ROLLOUT_EVIDENCE_INCOMPLETE");
+        let approvals: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM billing_target_rollout_approvals")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        assert_eq!(approvals, 0);
+        let first = run_evidence(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &rollout("target:rollout:1", 2, "2026-12"),
+            now,
+        )
+        .await
+        .unwrap();
+        assert_eq!(first.result_json, "{\"ok\":true}");
+        let row: (String, String, i32, String) = sqlx::query_as(
+            "SELECT shadow_month_1,shadow_month_2,minimum_margin_bps,approved_by \
+             FROM billing_target_rollout_approvals WHERE holding_id='h001' AND effective_month='2026-12'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            row,
+            ("2026-09".into(), "2026-10".into(), 5_000, "owner".into())
+        );
+        let version: i32 =
+            sqlx::query_scalar("SELECT version FROM billing_accounts WHERE holding_id='h001'")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        assert_eq!(version, 3);
+        let replay = run_evidence(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &rollout("target:rollout:1", 2, "2026-12"),
+            now,
+        )
+        .await
+        .unwrap();
+        assert_eq!(replay, first);
+        let duplicate = run_evidence(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &rollout("target:rollout:2", 3, "2026-12"),
+            now,
+        )
+        .await
+        .err()
+        .expect("an approved rollout is immutable");
+        assert_eq!(business(duplicate).code, "ROLLOUT_ALREADY_APPROVED");
+        let h002 = HoldingId::new("h002").unwrap();
+        let incomplete = run_evidence(
+            &pool,
+            &owner("h002"),
+            &h002,
+            &rollout("target:rollout:incomplete", 1, "2026-12"),
+            now,
+        )
+        .await
+        .err()
+        .expect("two completed shadow cycles are required");
+        assert_eq!(business(incomplete).code, "ROLLOUT_EVIDENCE_INCOMPLETE");
+        let current = run_evidence(
+            &pool,
+            &owner("h002"),
+            &h002,
+            &rollout("target:rollout:current", 1, "2026-11"),
+            now,
+        )
+        .await
+        .err()
+        .expect("the effective month must be in the future");
+        assert_eq!(business(current).code, "FUTURE_MONTH_REQUIRED");
+        let platform = BillingActor {
+            platform: true,
+            role: "platform_admin".into(),
+            holding_id: None,
+            ..owner("h001")
+        };
+        let denied = run_evidence(
+            &pool,
+            &platform,
+            &h001,
+            &rollout("target:rollout:platform", 3, "2026-12"),
+            now,
+        )
+        .await
+        .err()
+        .expect("target rollout is a Holding-owner command");
+        assert_eq!(business(denied).code, "FORBIDDEN");
+        let stale = run_evidence(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &rollout("target:rollout:stale", 2, "2026-12"),
+            now,
+        )
+        .await
+        .err()
+        .expect("stale account version conflicts");
+        assert_eq!(business(stale).code, "VERSION_CONFLICT");
+        let audit: i64 = sqlx::query_scalar("SELECT count(*) FROM billing_audit")
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+        assert_eq!(audit, 1);
+        let receipts: i64 = sqlx::query_scalar("SELECT count(*) FROM billing_receipts")
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+        assert_eq!(receipts, 1);
     });
 }

@@ -52,7 +52,45 @@ pub async fn read_target_rollout_readiness<R: TargetRolloutRepository>(
     now: TimestampMillis,
     storage_limit: i64,
 ) -> Result<TargetRolloutReadiness, R::Error> {
+    let second = previous_month(effective_month, 1)?;
+    let first = previous_month(effective_month, 32)?;
+    read_target_rollout_readiness_for_months(
+        repository,
+        holding,
+        effective_month,
+        &first,
+        &second,
+        minimum_margin_bps,
+        now,
+        storage_limit,
+    )
+    .await
+}
+
+/// Evaluate a rollout for an exact pair of completed shadow months. The
+/// migration command uses the two months that ended before the current month
+/// so a future effective month can be approved without an unclosed shadow
+/// cycle. The read-only installed parity above keeps effective-month arithmetic.
+pub async fn read_target_rollout_readiness_for_months<R: TargetRolloutRepository>(
+    repository: &mut R,
+    holding: &HoldingId,
+    effective_month: &str,
+    shadow_month_1: &str,
+    shadow_month_2: &str,
+    minimum_margin_bps: i64,
+    now: TimestampMillis,
+    storage_limit: i64,
+) -> Result<TargetRolloutReadiness, R::Error> {
     crate::domain::target_pricing::month_bounds(effective_month)?;
+    crate::domain::target_pricing::month_bounds(shadow_month_1)?;
+    crate::domain::target_pricing::month_bounds(shadow_month_2)?;
+    if shadow_month_1 >= shadow_month_2 || shadow_month_2 >= effective_month {
+        return Err(BusinessError::invalid(
+            "INVALID_BILLING_MONTH",
+            "Shadow months must be completed before the effective month.",
+        )
+        .into());
+    }
     if !(0..=10_000).contains(&minimum_margin_bps) {
         return Err(BusinessError::invalid(
             "INVALID_MARGIN_THRESHOLD",
@@ -60,8 +98,8 @@ pub async fn read_target_rollout_readiness<R: TargetRolloutRepository>(
         )
         .into());
     }
-    let second = previous_month(effective_month, 1)?;
-    let first = previous_month(effective_month, 32)?;
+    let first = shadow_month_1.to_owned();
+    let second = shadow_month_2.to_owned();
     let price = repository.effective_price(effective_month).await?;
     let mut months = Vec::with_capacity(2);
     for month in [first, second] {

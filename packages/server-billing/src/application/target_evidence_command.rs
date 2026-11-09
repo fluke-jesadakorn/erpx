@@ -13,11 +13,13 @@ use crate::domain::command::{
 use crate::domain::forecast_read::billing_month;
 use crate::domain::target_evidence_command::{
     BillingTargetEvidenceCommand, ValidatedCapacity, ValidatedOperatingCost,
-    ValidatedTargetEvidence, capacity_already_reviewed, evidence_required, extra_approval_required,
-    extra_service_dates, future_month_required, month_not_closed, operating_cost_already_verified,
+    ValidatedTargetEvidence, ValidatedTargetRollout, capacity_already_reviewed, evidence_required,
+    extra_approval_required, future_month_required, month_not_closed,
+    operating_cost_already_verified, rollout_already_approved, rollout_evidence_incomplete,
     target_assignment_required, target_period_frozen,
 };
 use crate::domain::target_pricing::month_bounds;
+use crate::domain::target_rollout::{TargetRolloutReadiness, previous_month};
 use erpx_server_shared::public::{BusinessError, HoldingId, TimestampMillis};
 
 pub trait TargetEvidenceRepository: Send {
@@ -90,6 +92,33 @@ pub trait TargetEvidenceRepository: Send {
         now: TimestampMillis,
     ) -> BillingFuture<'a, bool, Self::Error>;
 
+    fn lock_rollout_sources<'a>(&'a mut self) -> BillingFuture<'a, (), Self::Error>;
+
+    /// Read the two completed shadow months, price, verified operating costs and
+    /// capacity review inside the caller's serializable unit. This never writes
+    /// and never approves a rollout by itself.
+    fn rollout_readiness<'a>(
+        &'a mut self,
+        holding: &'a HoldingId,
+        effective_month: &'a str,
+        shadow_month_1: &'a str,
+        shadow_month_2: &'a str,
+        minimum_margin_bps: i64,
+        now: TimestampMillis,
+        storage_limit: i64,
+    ) -> BillingFuture<'a, TargetRolloutReadiness, Self::Error>;
+
+    fn insert_rollout_approval<'a>(
+        &'a mut self,
+        draft: &'a ValidatedTargetRollout,
+        holding: &'a HoldingId,
+        shadow_month_1: &'a str,
+        shadow_month_2: &'a str,
+        actor: &'a BillingActor,
+        reason: &'a str,
+        now: TimestampMillis,
+    ) -> BillingFuture<'a, bool, Self::Error>;
+
     fn increment_account_version<'a>(
         &'a mut self,
         holding: &'a HoldingId,
@@ -122,6 +151,7 @@ pub async fn execute_target_evidence<R: TargetEvidenceRepository>(
     command: &BillingTargetEvidenceCommand,
     repository: &mut R,
     now: TimestampMillis,
+    storage_limit: i64,
 ) -> Result<CommandReceipt, R::Error> {
     actor.require_target_command(target, now)?;
     let validated = command.validate()?;
@@ -216,6 +246,44 @@ pub async fn execute_target_evidence<R: TargetEvidenceRepository>(
                 .await?
             {
                 return Err(extra_approval_required().into());
+            }
+        }
+        ValidatedTargetEvidence::Rollout(draft) => {
+            if draft.target_month <= current_month {
+                return Err(future_month_required().into());
+            }
+            // The two completed shadow cycles are the two months that ended
+            // before the current month; the effective month stays in the future.
+            let second = previous_month(&current_month, 1)?;
+            let first = previous_month(&current_month, 32)?;
+            repository.lock_rollout_sources().await?;
+            let readiness = repository
+                .rollout_readiness(
+                    target,
+                    &draft.target_month,
+                    &first,
+                    &second,
+                    draft.minimum_margin_bps,
+                    now,
+                    storage_limit,
+                )
+                .await?;
+            if !readiness.ready {
+                return Err(rollout_evidence_incomplete().into());
+            }
+            if !repository
+                .insert_rollout_approval(
+                    draft,
+                    target,
+                    &first,
+                    &second,
+                    actor,
+                    js_trim(command.reason()),
+                    now,
+                )
+                .await?
+            {
+                return Err(rollout_already_approved().into());
             }
         }
     }

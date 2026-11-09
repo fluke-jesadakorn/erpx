@@ -2,13 +2,15 @@
 //!
 //! SQL is Billing-owned Control SQL. The caller's serializable transaction is
 //! required; no commit, Stripe call, rollout approval, rating or invoice occurs.
+use crate::adapters::target_rollout::PgTargetRolloutRepository;
 use crate::application::BillingFuture;
 use crate::application::cost::{AccountSnapshot, AuditEntry, ReceiptSnapshot};
 use crate::application::target_evidence_command::TargetEvidenceRepository;
 use crate::domain::actor::BillingActor;
 use crate::domain::target_evidence_command::{
-    ValidatedCapacity, ValidatedOperatingCost, ValidatedTargetExtra,
+    ValidatedCapacity, ValidatedOperatingCost, ValidatedTargetExtra, ValidatedTargetRollout,
 };
+use crate::domain::target_rollout::TargetRolloutReadiness;
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, HoldingId, TimestampMillis};
 use sqlx::{Connection, PgConnection, Row};
@@ -286,6 +288,80 @@ impl TargetEvidenceRepository for PgTargetEvidenceRepository<'_> {
         })
     }
 
+    fn lock_rollout_sources<'a>(&'a mut self) -> BillingFuture<'a, (), Self::Error> {
+        Box::pin(async move {
+            serializable(&mut *self.connection).await?;
+            sqlx::query(
+                "LOCK TABLE billing_target_prices,billing_target_rated_periods,\
+                 billing_target_operating_costs,billing_target_capacity_reviews,\
+                 billing_target_rollout_approvals,billing_usage_snapshots,billing_evidence \
+                 IN SHARE MODE",
+            )
+            .execute(&mut *self.connection)
+            .await?;
+            Ok(())
+        })
+    }
+
+    fn rollout_readiness<'a>(
+        &'a mut self,
+        holding: &'a HoldingId,
+        effective_month: &'a str,
+        shadow_month_1: &'a str,
+        shadow_month_2: &'a str,
+        minimum_margin_bps: i64,
+        now: TimestampMillis,
+        storage_limit: i64,
+    ) -> BillingFuture<'a, TargetRolloutReadiness, Self::Error> {
+        Box::pin(async move {
+            serializable(&mut *self.connection).await?;
+            crate::application::target_rollout::read_target_rollout_readiness_for_months(
+                &mut PgTargetRolloutRepository::new(self.connection),
+                holding,
+                effective_month,
+                shadow_month_1,
+                shadow_month_2,
+                minimum_margin_bps,
+                now,
+                storage_limit,
+            )
+            .await
+        })
+    }
+
+    fn insert_rollout_approval<'a>(
+        &'a mut self,
+        draft: &'a ValidatedTargetRollout,
+        holding: &'a HoldingId,
+        shadow_month_1: &'a str,
+        shadow_month_2: &'a str,
+        actor: &'a BillingActor,
+        reason: &'a str,
+        now: TimestampMillis,
+    ) -> BillingFuture<'a, bool, Self::Error> {
+        Box::pin(async move {
+            serializable(&mut *self.connection).await?;
+            let row = sqlx::query(
+                "INSERT INTO billing_target_rollout_approvals \
+                 (holding_id,effective_month,shadow_month_1,shadow_month_2,\
+                  minimum_margin_bps,approved_by,reason,approved_at) \
+                 VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING \
+                 RETURNING holding_id",
+            )
+            .bind(holding.as_str())
+            .bind(&draft.target_month)
+            .bind(shadow_month_1)
+            .bind(shadow_month_2)
+            .bind(draft.minimum_margin_bps)
+            .bind(actor.user_id.as_str())
+            .bind(reason)
+            .bind(now.get())
+            .fetch_optional(&mut *self.connection)
+            .await?;
+            Ok(row.is_some())
+        })
+    }
+
     fn increment_account_version<'a>(
         &'a mut self,
         holding: &'a HoldingId,
@@ -381,6 +457,7 @@ pub async fn execute_target_evidence(
     target: &HoldingId,
     command: &crate::domain::target_evidence_command::BillingTargetEvidenceCommand,
     now: TimestampMillis,
+    storage_limit: i64,
 ) -> Result<crate::domain::command::CommandReceipt, Error> {
     crate::application::target_evidence_command::execute_target_evidence(
         actor,
@@ -388,6 +465,7 @@ pub async fn execute_target_evidence(
         command,
         &mut PgTargetEvidenceRepository::new(connection),
         now,
+        storage_limit,
     )
     .await
 }
