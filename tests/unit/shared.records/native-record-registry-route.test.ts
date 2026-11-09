@@ -23,16 +23,21 @@ const state = vi.hoisted(() => ({
   archive: vi.fn(),
   reference: vi.fn(),
   context: vi.fn(),
+  transition: vi.fn(),
   retainedList: vi.fn(),
   retainedPage: vi.fn(),
   retainedGet: vi.fn(),
   retainedUpdate: vi.fn(),
   retainedArchive: vi.fn(),
   retainedReference: vi.fn(),
+  retainedTransition: vi.fn(),
 }));
 
 vi.mock('@erpx/server-identity_access/public/authorization', () => ({
   requireWorkContext: async () => state.actor,
+}));
+vi.mock('@erpx/server-manage_erpx/public/public-origin', () => ({
+  requestPublicOrigin: () => 'https://acme.example.com',
 }));
 vi.mock('@erpx/server-records/adapters/records', () => ({
   listRecords: state.retainedList,
@@ -45,6 +50,8 @@ vi.mock('@erpx/server-records/adapters/records', () => ({
   archiveRecord: state.retainedArchive,
   addReference: state.retainedReference,
   addReferenceSchema: { safeParse: (value: unknown) => ({ success: true, data: value }) },
+  transitionRecord: state.retainedTransition,
+  transitionSchema: { safeParse: (value: unknown) => ({ success: true, data: value }) },
   recordContext: vi.fn(),
 }));
 vi.mock('@erpx/server-records/public/mention-display', () => ({
@@ -66,6 +73,7 @@ vi.mock('@erpx/server-records/public/native-record-registry', () => ({
     update: state.update,
     archive: state.archive,
     reference: state.reference,
+    transition: state.transition,
   }),
   nativeRecordRegistryFailure: (error: unknown) =>
     error instanceof Error
@@ -80,6 +88,7 @@ vi.mock('@erpx/server-records/public/native-record-registry', () => ({
 import { GET, POST } from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/[module]/route';
 import { PATCH, DELETE } from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/route';
 import { POST as POST_REFERENCE } from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/references/route';
+import { POST as POST_TRANSITION } from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/transition/route';
 
 const params = { params: Promise.resolve({ holdingSlug: 'acme', module: 'operations' }) };
 const request = (query: string) =>
@@ -516,5 +525,114 @@ it('keeps the retained reference path outside the bounded support module', async
   );
   expect(state.reference).not.toHaveBeenCalled();
   expect(state.context).not.toHaveBeenCalled();
+  expect((await response.json()).data).toEqual(retained);
+});
+
+it('uses native transition for support with the current authority and never reads the retained writer', async () => {
+  const transitioned = {
+    moduleId: 'support',
+    id: 'rec-support-records:host',
+    sectionId: 'tickets',
+    title: 'Native record',
+    description: '',
+    status: 'in_review',
+    fields: [{ key: 'priority', label: 'Priority', type: 'text', value: 'high' }],
+    version: 2,
+    createdBy: 'actor',
+    updatedAt: 2,
+  };
+  state.transition.mockResolvedValue(transitioned);
+  const request = (key: string | null = 'records:http-transition-1') =>
+    new Request(
+      'https://acme.example.com/api/v1/holdings/acme/records/support/rec-support-records:host/transition',
+      {
+        method: 'POST',
+        headers: {
+          origin: 'https://acme.example.com',
+          'content-type': 'application/json',
+          ...(key ? { 'idempotency-key': key } : {}),
+        },
+        body: JSON.stringify({ expectedVersion: 1, action: 'submit', note: 'Ready' }),
+      },
+    );
+  const response = await POST_TRANSITION(request(), {
+    params: Promise.resolve({
+      holdingSlug: 'acme',
+      module: 'support',
+      id: 'rec-support-records:host',
+    }),
+  });
+  expect(response.status).toBe(200);
+  expect(state.transition).toHaveBeenCalledWith(
+    expect.any(Headers),
+    expect.objectContaining({
+      userId: 'actor',
+      holdingId: 'h001',
+      companyId: 'company',
+      branchSlug: null,
+      departmentSlug: null,
+    }),
+    {
+      holdingSlug: 'acme',
+      moduleId: 'support',
+      recordId: 'rec-support-records:host',
+      expectedVersion: 1,
+      action: 'submit',
+      note: 'Ready',
+    },
+    'records:http-transition-1',
+  );
+  expect(state.retainedTransition).not.toHaveBeenCalled();
+  expect((await response.json()).data).toEqual(transitioned);
+  const missing = await POST_TRANSITION(request(null), {
+    params: Promise.resolve({
+      holdingSlug: 'acme',
+      module: 'support',
+      id: 'rec-support-records:host',
+    }),
+  });
+  expect(missing.status).toBe(422);
+  expect((await missing.json()).error.code).toBe('COMMAND_KEY_REQUIRED');
+  expect(state.transition).toHaveBeenCalledTimes(1);
+});
+
+it('keeps the retained transition path outside the bounded support module', async () => {
+  const retained = {
+    moduleId: 'operations',
+    id: 'rec-1',
+    status: 'in_review',
+    version: 2,
+  };
+  state.retainedTransition.mockResolvedValue(retained);
+  const response = await POST_TRANSITION(
+    new Request(
+      'https://acme.example.com/api/v1/holdings/acme/records/operations/rec-1/transition',
+      {
+        method: 'POST',
+        headers: {
+          origin: 'https://acme.example.com',
+          'idempotency-key': 'records:http-retained-transition',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ expectedVersion: 1, action: 'submit', note: '' }),
+      },
+    ),
+    {
+      params: Promise.resolve({
+        holdingSlug: 'acme',
+        module: 'operations',
+        id: 'rec-1',
+      }),
+    },
+  );
+  expect(response.status).toBe(200);
+  expect(state.retainedTransition).toHaveBeenCalledWith(
+    state.actor,
+    'operations',
+    'rec-1',
+    { expectedVersion: 1, action: 'submit', note: '' },
+    'records:http-retained-transition',
+  );
+  expect(state.transition).not.toHaveBeenCalled();
   expect((await response.json()).data).toEqual(retained);
 });

@@ -9,9 +9,9 @@ use erpx_server_identity_access::public::{
 };
 use erpx_server_records::public::record_write::{
     ArchiveRecordInput, CreateRecordInput, MAX_REFERENCES, MAX_SAFE, RecordFieldInput,
-    ReferenceRecordInput, UpdateRecordInput, ValidatedRecord, ValidatedRecordUpdate,
-    reference_limit, validate_archive, validate_create, validate_reference, validate_update,
-    version_conflict,
+    ReferenceRecordInput, TRANSITION_ACTIONS, TransitionRecordInput, UpdateRecordInput,
+    ValidatedRecord, ValidatedRecordUpdate, reference_limit, validate_archive, validate_create,
+    validate_reference, validate_transition, validate_update, version_conflict,
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{
@@ -642,6 +642,173 @@ impl<C: Clock + Sync> PgOwnerCommandEffects for ReferenceEffects<'_, C> {
     }
 }
 
+struct TransitionEffects<'a, C> {
+    current: &'a AuthorizedWorkContext,
+    clock: &'a C,
+    module_id: &'a str,
+    record_id: &'a str,
+    key: &'a str,
+    input: &'a TransitionRecordInput,
+    prepared: Option<(i64, String, String)>,
+}
+
+impl<C: Clock + Sync> PgOwnerCommandEffects for TransitionEffects<'_, C> {
+    async fn lock_sources(
+        &mut self,
+        connection: &mut PgConnection,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        sqlx::query(
+            "LOCK TABLE workspace_records,workspace_record_transitions \
+             IN SHARE ROW EXCLUSIVE MODE NOWAIT",
+        )
+        .execute(&mut *connection)
+        .await
+        .map_err(
+            erpx_server_runtime::public::postgres::PersistenceError::pre_snapshot_lock_conflict,
+        )?;
+        Ok(())
+    }
+
+    async fn prepare(
+        &mut self,
+        connection: &mut PgConnection,
+        actor: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<WorkflowOutput, Error> {
+        let row: Option<(String, i64, String)> = sqlx::query_as(
+            "SELECT status,version,created_by FROM workspace_records \
+             WHERE module_id=$1 AND id=$2 AND company_id=$3 AND archived_at IS NULL FOR UPDATE",
+        )
+        .bind(self.module_id)
+        .bind(self.record_id)
+        .bind(self.current.selection().workspace().company_id.as_str())
+        .fetch_optional(&mut *connection)
+        .await?;
+        let (status, version, created_by) = row.ok_or_else(record_not_found)?;
+        let can_review = self.current.require_permission("records.review").is_ok();
+        let to_status = validate_transition(
+            self.module_id,
+            self.input,
+            &status,
+            version,
+            can_review,
+            &created_by,
+            actor.user_id.as_str(),
+        )?
+        .to_owned();
+        self.prepared = Some((version, status, to_status.clone()));
+        Ok(WorkflowOutput {
+            version: version + 1,
+            result: CommandJson::from_serializable(&serde_json::json!({
+                "id": self.record_id,
+                "status": to_status,
+                "version": version + 1,
+            }))?,
+            event_scope: None,
+        })
+    }
+
+    async fn apply(
+        &mut self,
+        connection: &mut PgConnection,
+        current: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        let (version, from_status, to_status) =
+            self.prepared.as_ref().ok_or_else(unavailable)?.clone();
+        let now = self.clock.now().get();
+        let updated = sqlx::query(
+            "UPDATE workspace_records SET status=$1,version=$2,updated_by=$3,updated_at=$4 \
+             WHERE module_id=$5 AND id=$6 AND company_id=$7 AND version=$8 AND archived_at IS NULL",
+        )
+        .bind(&to_status)
+        .bind(version + 1)
+        .bind(current.user_id.as_str())
+        .bind(now)
+        .bind(self.module_id)
+        .bind(self.record_id)
+        .bind(self.current.selection().workspace().company_id.as_str())
+        .bind(version)
+        .execute(&mut *connection)
+        .await?;
+        if updated.rows_affected() != 1 {
+            return Err(version_conflict().into());
+        }
+        let inserted = sqlx::query(
+            "INSERT INTO workspace_record_transitions(id,module_id,record_id,from_status,to_status,\
+             action,note,actor_id,assignment_id,record_version,created_at) \
+             VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
+        )
+        .bind(self.key)
+        .bind(self.module_id)
+        .bind(self.record_id)
+        .bind(&from_status)
+        .bind(&to_status)
+        .bind(&self.input.action)
+        .bind(&self.input.note)
+        .bind(current.user_id.as_str())
+        .bind(current.assignment_id.as_str())
+        .bind(version + 1)
+        .bind(now)
+        .execute(&mut *connection)
+        .await?;
+        if inserted.rows_affected() != 1 {
+            return Err(changed().into());
+        }
+        Ok(())
+    }
+
+    async fn retain(
+        &mut self,
+        connection: &mut PgConnection,
+        current: &CommandActor,
+        _: &WorkflowRequest,
+    ) -> Result<(), Error> {
+        let (version, from_status, to_status) =
+            self.prepared.as_ref().ok_or_else(unavailable)?.clone();
+        let row: Option<(String, i64, String)> = sqlx::query_as(
+            "SELECT status,version,updated_by FROM workspace_records \
+             WHERE module_id=$1 AND id=$2 AND company_id=$3",
+        )
+        .bind(self.module_id)
+        .bind(self.record_id)
+        .bind(self.current.selection().workspace().company_id.as_str())
+        .fetch_optional(&mut *connection)
+        .await?;
+        let Some((status, current_version, updated_by)) = row else {
+            return Err(record_not_found().into());
+        };
+        if status != to_status
+            || current_version != version + 1
+            || updated_by != current.user_id.as_str()
+        {
+            return Err(changed().into());
+        }
+        let transition: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM workspace_record_transitions \
+             WHERE id=$1 AND module_id=$2 AND record_id=$3 AND from_status=$4 AND to_status=$5 \
+             AND action=$6 AND note=$7 AND actor_id=$8 AND assignment_id=$9 AND record_version=$10",
+        )
+        .bind(self.key)
+        .bind(self.module_id)
+        .bind(self.record_id)
+        .bind(&from_status)
+        .bind(&to_status)
+        .bind(&self.input.action)
+        .bind(&self.input.note)
+        .bind(current.user_id.as_str())
+        .bind(current.assignment_id.as_str())
+        .bind(version + 1)
+        .fetch_one(&mut *connection)
+        .await?;
+        if transition != 1 {
+            return Err(changed().into());
+        }
+        Ok(())
+    }
+}
+
 struct Ids;
 
 impl IdentifierSource for Ids {
@@ -1200,6 +1367,155 @@ impl<C: Clock + Send + Sync + 'static> RecordsCommandService<C> {
                                 "id": record_id,
                                 "moduleId": module_id,
                             }),
+                        ))
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn transition<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        module_id: String,
+        record_id: String,
+        transition: TransitionRecordInput,
+        key: CommandKey,
+    ) -> Result<CommandJson, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        Ok(self
+            .transition_with_context(host, proof, input, module_id, record_id, transition, key)
+            .await?
+            .0)
+    }
+
+    pub async fn transition_with_context<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        module_id: String,
+        record_id: String,
+        transition: TransitionRecordInput,
+        key: CommandKey,
+    ) -> Result<(CommandJson, serde_json::Value, serde_json::Value), Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        if module_id != "support" {
+            return Err(BusinessError::invalid(
+                "RECORD_MODULE_UNSUPPORTED",
+                "This record module is not available in the native workbench yet.",
+            )
+            .into());
+        }
+        if !valid_record_id(&record_id)
+            || !(1..=MAX_SAFE).contains(&transition.expected_version)
+            || !TRANSITION_ACTIONS.contains(&transition.action.as_str())
+            || transition.note.encode_utf16().count() > 1_000
+        {
+            return Err(BusinessError::invalid(
+                "TRANSITION_INPUT_INVALID",
+                "Choose a valid transition and note.",
+            )
+            .into());
+        }
+        let holding = self.configuration.holding_id().clone();
+        let company = self.configuration.company().clone();
+        let clock = self.clock.clone();
+        let wire = CommandJson::from_serializable(&serde_json::json!({
+            "expectedVersion": transition.expected_version,
+            "action": transition.action,
+            "note": transition.note,
+        }))?;
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(&module_id),
+                crate::records::RecordsSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let module_id = module_id.clone();
+                    let wire = wire.clone();
+                    let record_id = record_id.clone();
+                    let transition = transition.clone();
+                    let command_key = key.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.write")?;
+                        require_module(current, &module_id)?;
+                        if matches!(transition.action.as_str(), "approve" | "reject") {
+                            current.require_permission("records.review")?;
+                        }
+                        let request = WorkflowRequest {
+                            key: command_key.as_str().to_owned(),
+                            operation: format!("record.{}", transition.action),
+                            record_id: record_id.clone(),
+                            input: wire,
+                        };
+                        let clock_ref = clock.as_ref();
+                        let mut authority = Authority {
+                            current,
+                            request: &request,
+                            clock: clock_ref,
+                        };
+                        let mut effects = TransitionEffects {
+                            current,
+                            clock: clock_ref,
+                            module_id: &module_id,
+                            record_id: &record_id,
+                            key: command_key.as_str(),
+                            input: &transition,
+                            prepared: None,
+                        };
+                        let mut ids = Ids;
+                        let mut ledger = PgCommandLedger::new(
+                            current.selection().workspace().company_id.clone(),
+                            connection,
+                            &mut authority,
+                            clock_ref,
+                            &mut ids,
+                        );
+                        let outcome = ledger.execute(&request, &mut effects).await?;
+                        let row: (String, String, String, String, String, i64, String, i64) =
+                            sqlx::query_as(
+                                "SELECT section_id,title,description,status,fields_json,version,                                 created_by,updated_at FROM workspace_records                                  WHERE module_id=$1 AND id=$2 AND company_id=$3",
+                            )
+                            .bind(&module_id)
+                            .bind(&record_id)
+                            .bind(current.selection().workspace().company_id.as_str())
+                            .fetch_one(&mut *connection)
+                            .await?;
+                        let fields: serde_json::Value =
+                            serde_json::from_str(&row.4).map_err(|_| unavailable())?;
+                        let view = serde_json::json!({
+                            "moduleId": module_id,
+                            "id": record_id,
+                            "sectionId": row.0,
+                            "title": row.1,
+                            "description": row.2,
+                            "status": row.3,
+                            "fields": fields,
+                            "version": row.5,
+                            "createdBy": row.6,
+                            "updatedAt": row.7,
+                        });
+                        Ok((
+                            outcome.result,
+                            crate::records::context_value(current),
+                            view,
                         ))
                     })
                 },

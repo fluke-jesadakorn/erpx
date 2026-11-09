@@ -9,7 +9,7 @@ use erpx_server_records::public::record_registry_http::{
 };
 use erpx_server_records::public::record_write::{
     ArchiveRecordInput, CreateRecordInput, RecordFieldInput, ReferenceRecordInput,
-    UpdateRecordInput,
+    TransitionRecordInput, UpdateRecordInput,
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{BusinessError, Clock, CommandKey, CompanyId, HoldingId};
@@ -960,6 +960,395 @@ async fn adds_record_reference_with_edge_receipt_audit_outbox_replay_and_limit()
         .await
         .unwrap();
         assert_eq!(receipts, 2); // accepted reference + same-edge command; failures add none
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn transitions_record_with_state_machine_review_guard_history_receipt_audit_outbox_and_replay()
+ {
+    review::account::with_system(|system| async move {
+        let (p, service, _) = records_setup(system).await;
+        let pool = &p.system.holdings[0];
+        let now = p.system.scenario.clock.now().get();
+        let expires = now + 3_600_000;
+        sqlx::query("INSERT INTO iam_roles(company_id,id,name,built_in,published_revision,status) VALUES('*','custom_records_reviewer','Synthetic Records reviewer',false,1,'active') ON CONFLICT DO NOTHING").execute(pool.raw()).await.unwrap();
+        sqlx::query("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at) VALUES('*','custom_records_reviewer',1,'[\"records.read\",\"records.write\",\"records.review\",\"module.support.read\"]','[]','[\"holding\",\"branch\",\"department\"]','synthetic-fixture',0) ON CONFLICT DO NOTHING").execute(pool.raw()).await.unwrap();
+        sqlx::query("UPDATE assignments SET role='custom_records_reviewer',modules_json='[\"support\"]',valid_until=$1 WHERE user_id='fixture-b' AND company_id='company'").bind(expires).execute(pool.raw()).await.unwrap();
+        let id = "rec-support-records:transition-host".to_owned();
+        service
+            .create(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                input("Transition host"),
+                key("records:transition-host"),
+            )
+            .await
+            .unwrap();
+        let submit = service
+            .transition(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                id.clone(),
+                TransitionRecordInput {
+                    expected_version: 1,
+                    action: "submit".into(),
+                    note: "Ready for review".into(),
+                },
+                key("records:transition-submit"),
+            )
+            .await
+            .unwrap();
+        let submitted: serde_json::Value = serde_json::from_str(submit.as_str()).unwrap();
+        assert_eq!(
+            submitted,
+            json!({"id": id, "status": "in_review", "version": 2})
+        );
+        let history: (String, String, String, String, i64, String) = sqlx::query_as(
+            "SELECT from_status,to_status,action,note,record_version,actor_id \
+             FROM workspace_record_transitions WHERE id='records:transition-submit'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            history,
+            (
+                "draft".into(),
+                "in_review".into(),
+                "submit".into(),
+                "Ready for review".into(),
+                2,
+                "fixture-a".into()
+            )
+        );
+        let approve = service
+            .transition(
+                "acme.example.test",
+                p.reviewer.clone(),
+                {
+                    let selection = p.reviewer_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                id.clone(),
+                TransitionRecordInput {
+                    expected_version: 2,
+                    action: "approve".into(),
+                    note: "Reviewed".into(),
+                },
+                key("records:transition-approve"),
+            )
+            .await
+            .unwrap();
+        let approved: serde_json::Value = serde_json::from_str(approve.as_str()).unwrap();
+        assert_eq!(
+            approved,
+            json!({"id": id, "status": "approved", "version": 3})
+        );
+        let reviewer: String = sqlx::query_scalar(
+            "SELECT actor_id FROM workspace_record_transitions \
+             WHERE id='records:transition-approve' AND from_status='in_review' \
+             AND to_status='approved' AND record_version=3",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(reviewer, "fixture-b");
+        let receipt: (String, String) = sqlx::query_as(
+            "SELECT operation,result_json FROM command_receipts \
+             WHERE command_id='records:transition-approve'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(receipt.0, "record.approve");
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&receipt.1).unwrap(),
+            approved
+        );
+        let audit: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM audit_events WHERE command_id='records:transition-approve' \
+             AND record_type='record_approve' AND record_version=3 AND record_id=$1",
+        )
+        .bind(&id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        let outbox: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM outbox_events WHERE command_id='records:transition-approve' \
+             AND event_type='record.approve' AND aggregate_version=3 AND aggregate_id=$1",
+        )
+        .bind(&id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!((audit, outbox), (1, 1));
+        // Exact replay returns the same receipt and does not append history twice.
+        let replay = service
+            .transition(
+                "acme.example.test",
+                p.reviewer.clone(),
+                {
+                    let selection = p.reviewer_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                id.clone(),
+                TransitionRecordInput {
+                    expected_version: 2,
+                    action: "approve".into(),
+                    note: "Reviewed".into(),
+                },
+                key("records:transition-approve"),
+            )
+            .await
+            .unwrap();
+        assert_eq!(replay.as_str(), approve.as_str());
+        let approvals: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM workspace_record_transitions \
+             WHERE id='records:transition-approve'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(approvals, 1);
+        // Completion and reopen stay on the same documented state machine.
+        let complete = service
+            .transition(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                id.clone(),
+                TransitionRecordInput {
+                    expected_version: 3,
+                    action: "complete".into(),
+                    note: String::new(),
+                },
+                key("records:transition-complete"),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(complete.as_str()).unwrap(),
+            json!({"id": id, "status": "completed", "version": 4})
+        );
+        let reopen = service
+            .transition(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                id.clone(),
+                TransitionRecordInput {
+                    expected_version: 4,
+                    action: "reopen".into(),
+                    note: "Reopened".into(),
+                },
+                key("records:transition-reopen"),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(reopen.as_str()).unwrap(),
+            json!({"id": id, "status": "draft", "version": 5})
+        );
+        // Draft records cannot approve directly.
+        let invalid_id = "rec-support-records:transition-invalid".to_owned();
+        service
+            .create(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                input("Invalid transition"),
+                key("records:transition-invalid"),
+            )
+            .await
+            .unwrap();
+        let invalid = service
+            .transition(
+                "acme.example.test",
+                p.reviewer.clone(),
+                {
+                    let selection = p.reviewer_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                invalid_id.clone(),
+                TransitionRecordInput {
+                    expected_version: 1,
+                    action: "approve".into(),
+                    note: String::new(),
+                },
+                key("records:transition-invalid-approve"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(business(invalid).code, "INVALID_TRANSITION");
+        let stale = service
+            .transition(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                invalid_id.clone(),
+                TransitionRecordInput {
+                    expected_version: 9,
+                    action: "submit".into(),
+                    note: String::new(),
+                },
+                key("records:transition-stale"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(business(stale).code, "VERSION_CONFLICT");
+        // The creator cannot approve their own record even with review permission.
+        let self_id = "rec-support-records:transition-self".to_owned();
+        service
+            .create(
+                "acme.example.test",
+                p.reviewer.clone(),
+                {
+                    let selection = p.reviewer_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                input("Self review"),
+                key("records:transition-self"),
+            )
+            .await
+            .unwrap();
+        service
+            .transition(
+                "acme.example.test",
+                p.reviewer.clone(),
+                {
+                    let selection = p.reviewer_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                self_id.clone(),
+                TransitionRecordInput {
+                    expected_version: 1,
+                    action: "submit".into(),
+                    note: String::new(),
+                },
+                key("records:transition-self-submit"),
+            )
+            .await
+            .unwrap();
+        let self_review = service
+            .transition(
+                "acme.example.test",
+                p.reviewer.clone(),
+                {
+                    let selection = p.reviewer_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                self_id.clone(),
+                TransitionRecordInput {
+                    expected_version: 2,
+                    action: "approve".into(),
+                    note: String::new(),
+                },
+                key("records:transition-self-approve"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(business(self_review).code, "SELF_REVIEW_FORBIDDEN");
+        // A writer without review permission cannot approve or reject.
+        let no_review_id = "rec-support-records:transition-no-review".to_owned();
+        service
+            .create(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                input("No review permission"),
+                key("records:transition-no-review"),
+            )
+            .await
+            .unwrap();
+        service
+            .transition(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                no_review_id.clone(),
+                TransitionRecordInput {
+                    expected_version: 1,
+                    action: "submit".into(),
+                    note: String::new(),
+                },
+                key("records:transition-no-review-submit"),
+            )
+            .await
+            .unwrap();
+        let no_review = service
+            .transition(
+                "acme.example.test",
+                p.maker.clone(),
+                {
+                    let selection = p.maker_selection.clone();
+                    move || Ok(selection)
+                },
+                "support".into(),
+                no_review_id,
+                TransitionRecordInput {
+                    expected_version: 2,
+                    action: "approve".into(),
+                    note: String::new(),
+                },
+                key("records:transition-no-review-approve"),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(
+            business(no_review).kind,
+            erpx_server_shared::public::FailureKind::Forbidden
+        );
+        let receipts: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM command_receipts WHERE command_id IN \
+             ('records:transition-submit','records:transition-approve',\
+             'records:transition-complete','records:transition-reopen',\
+             'records:transition-self-submit')",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(receipts, 5);
     })
     .await;
 }

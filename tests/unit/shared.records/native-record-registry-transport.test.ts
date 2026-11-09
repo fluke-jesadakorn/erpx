@@ -537,6 +537,68 @@ describe('native Records registry transport', () => {
     expect(calls).toHaveLength(1);
   });
 
+  it('posts a bounded transition and returns the updated view', async () => {
+    const calls: { method: string; url: URL; headers: Headers; body: string | undefined }[] = [];
+    const transitioned = {
+      ...view('rec-support-records:host', 2, 'support', 'tickets'),
+      status: 'in_review',
+      version: 2,
+    };
+    const transport: NativeRecordRegistryTransport = async (method, url, headers, body) => {
+      calls.push({ method, url, headers, body });
+      return new Response(JSON.stringify({ data: transitioned, context }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+    const writer = createNativeRecordRegistryClient(config() as never, transport);
+    const result = await writer.transition(
+      incoming({ origin: 'https://acme.example.com' }),
+      actor,
+      {
+        holdingSlug: 'acme',
+        moduleId: 'support',
+        recordId: 'rec-support-records:host',
+        expectedVersion: 1,
+        action: 'submit',
+        note: 'Ready for review',
+      },
+      'records:http-transition-1',
+    );
+    expect(result).toEqual(transitioned);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.method).toBe('POST');
+    expect(calls[0]!.url.toString()).toBe(
+      'http://127.0.0.1:44994/api/v1/holdings/acme/records/support/rec-support-records%3Ahost/transition',
+    );
+    expect(calls[0]!.headers.get('origin')).toBe('https://acme.example.com');
+    expect(calls[0]!.headers.get('idempotency-key')).toBe('records:http-transition-1');
+    expect(calls[0]!.headers.get('content-type')).toBe('application/json');
+    expect(calls[0]!.headers.get('x-erpx-context-company')).toBe('company');
+    expect(calls[0]!.headers.get('cookie')).toBe('__Host-erpx-product=session');
+    expect(JSON.parse(calls[0]!.body!)).toEqual({
+      expectedVersion: 1,
+      action: 'submit',
+      note: 'Ready for review',
+    });
+    await expect(
+      writer.transition(
+        incoming({ origin: 'https://acme.example.com' }),
+        actor,
+        {
+          holdingSlug: 'acme',
+          moduleId: 'support',
+          recordId: 'rec-support-records:host',
+          expectedVersion: 1,
+          action: 'bogus' as never,
+          note: '',
+        },
+        'records:http-transition-2',
+      ),
+    ).rejects.toMatchObject({ code: 'NATIVE_RECORD_REGISTRY_REQUEST_INVALID' });
+    expect(calls).toHaveLength(1);
+  });
+
   it('rejects missing origin, bad keys and duplicate fields before transport', async () => {
     const calls: string[] = [];
     const transport: NativeRecordRegistryTransport = async (method) => {

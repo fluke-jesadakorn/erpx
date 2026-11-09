@@ -72,6 +72,22 @@ export type NativeRecordReference = Readonly<{
   moduleId: string;
 }>;
 
+export type NativeRecordTransitionAction =
+  | 'submit'
+  | 'approve'
+  | 'reject'
+  | 'complete'
+  | 'reopen';
+
+export type NativeRecordTransitionInput = Readonly<{
+  holdingSlug: string;
+  moduleId: string;
+  recordId: string;
+  expectedVersion: number;
+  action: NativeRecordTransitionAction;
+  note?: string;
+}>;
+
 export type NativeRecordRegistryPage = Readonly<{
   items: NativeRecordView[];
   nextCursor: string | null;
@@ -135,6 +151,7 @@ const referenceKinds = new Set([
   'fulfills',
   'authoredWith',
 ]);
+const transitionActions = new Set(['submit', 'approve', 'reject', 'complete', 'reopen']);
 
 const field = (value: unknown): value is NativeRecordField => {
   if (
@@ -781,6 +798,76 @@ function referenceCall(
   });
 }
 
+function transitionCall(
+  transport: NativeRecordRegistryTransport,
+  config: ReturnType<typeof configuration>,
+  incoming: Pick<Headers, 'get'>,
+  actor: NativeRecordsPageContext,
+  input: NativeRecordTransitionInput,
+  key: string,
+  signal?: AbortSignal,
+): Promise<Response> {
+  const host = incoming.get('host');
+  const holding = host ? config.holdings.get(host) : undefined;
+  if (!holding || holding.holdingSlug !== input.holdingSlug || holding.holdingId !== actor.holdingId)
+    return Promise.reject(
+      new NativeRecordRegistryError('NATIVE_RECORD_REGISTRY_AUTHORITY_INVALID'),
+    );
+  const origin = incoming.get('origin');
+  if (!origin || origin !== `https://${host}`)
+    return Promise.reject(new NativeRecordRegistryError('ORIGIN_FORBIDDEN', 403));
+  const note = input.note ?? '';
+  if (
+    input.moduleId !== 'support' ||
+    !boundedId(input.recordId) ||
+    !integer(input.expectedVersion, 1) ||
+    !transitionActions.has(input.action) ||
+    typeof note !== 'string' ||
+    note.length > 1_000 ||
+    note.includes('\u0000')
+  )
+    return Promise.reject(
+      new NativeRecordRegistryError('NATIVE_RECORD_REGISTRY_REQUEST_INVALID'),
+    );
+  if (!/^[A-Za-z0-9_.:-]{8,180}$/.test(key))
+    return Promise.reject(new NativeRecordRegistryError('IDEMPOTENCY_KEY_REQUIRED', 422));
+  const body = JSON.stringify({ expectedVersion: input.expectedVersion, action: input.action, note });
+  if (new TextEncoder().encode(body).length > 64 * 1024)
+    return Promise.reject(new NativeRecordRegistryError('NATIVE_RECORD_REGISTRY_REQUEST_INVALID'));
+  const headers = new Headers({
+    host: host!,
+    accept: 'application/json',
+    'content-type': 'application/json',
+    origin,
+    'idempotency-key': key,
+    'x-erpx-context-company': actor.companyId,
+    'x-erpx-context-assignment': actor.assignmentId,
+    'x-erpx-context-revision': String(actor.authority.revision),
+    'x-erpx-context-assignment-version': String(actor.authority.assignmentVersion),
+  });
+  if (actor.branchSlug) headers.set('x-erpx-workspace-branch', actor.branchSlug);
+  if (actor.departmentSlug) headers.set('x-erpx-workspace-department', actor.departmentSlug);
+  const cookie = incoming.get('cookie');
+  if (cookie) {
+    if (new TextEncoder().encode(cookie).length > 8192)
+      return Promise.reject(new NativeRecordRegistryError('NATIVE_RECORD_REGISTRY_COOKIE_LIMIT'));
+    headers.set('cookie', cookie);
+  }
+  const url = new URL(
+    `/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/records/${encodeURIComponent(input.moduleId)}/${encodeURIComponent(input.recordId)}/transition`,
+    config.base,
+  );
+  const controller = new AbortController();
+  const cancel = () => controller.abort();
+  signal?.addEventListener('abort', cancel, { once: true });
+  if (signal?.aborted) controller.abort();
+  const timer = setTimeout(cancel, config.timeout);
+  return transport('POST', url, headers, body, controller.signal).finally(() => {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', cancel);
+  });
+}
+
 async function boundedBytes(response: Response, limit: number): Promise<Uint8Array> {
   if (!response.body) return new Uint8Array();
   const reader = response.body.getReader();
@@ -1048,6 +1135,29 @@ export function createNativeRecordRegistryClient(
     });
     return boundedJson(response, 64 * 1024);
   };
+  const writeTransition = async (
+    incoming: Pick<Headers, 'get'>,
+    actor: NativeRecordsPageContext,
+    input: NativeRecordTransitionInput,
+    key: string,
+    signal?: AbortSignal,
+  ) => {
+    if (!actor.authority || !actor.iam || actor.holdingSlug !== input.holdingSlug)
+      return failure('NATIVE_RECORD_REGISTRY_CONTEXT_CHANGED');
+    const response = await transitionCall(
+      transport,
+      config,
+      incoming,
+      actor,
+      input,
+      key,
+      signal,
+    ).catch((error: unknown) => {
+      if (error instanceof NativeRecordRegistryError) throw error;
+      return failure('NATIVE_RECORD_REGISTRY_UNAVAILABLE');
+    });
+    return boundedJson(response, 64 * 1024);
+  };
   return {
     create: async (
       incoming: Pick<Headers, 'get'>,
@@ -1106,6 +1216,21 @@ export function createNativeRecordRegistryClient(
         return failure('NATIVE_RECORD_REGISTRY_RESPONSE_INVALID');
       context(value.context, actor);
       if (!referenced(value.data, input.moduleId, input.recordId))
+        return failure('NATIVE_RECORD_REGISTRY_RESPONSE_INVALID');
+      return value.data;
+    },
+    transition: async (
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeRecordsPageContext,
+      input: NativeRecordTransitionInput,
+      key: string = crypto.randomUUID(),
+      signal?: AbortSignal,
+    ): Promise<NativeRecordView> => {
+      const value = await writeTransition(incoming, actor, input, key, signal);
+      if (!exact(value, ['data', 'context']))
+        return failure('NATIVE_RECORD_REGISTRY_RESPONSE_INVALID');
+      context(value.context, actor);
+      if (!view(value.data, input.moduleId, null))
         return failure('NATIVE_RECORD_REGISTRY_RESPONSE_INVALID');
       return value.data;
     },

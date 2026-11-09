@@ -81,6 +81,52 @@ pub const REFERENCE_KINDS: [&str; 5] = [
     "authoredWith",
 ];
 pub const MAX_REFERENCES: i64 = 50;
+pub const MAX_NOTE: usize = 1_000;
+pub const TRANSITION_ACTIONS: [&str; 5] = ["submit", "approve", "reject", "complete", "reopen"];
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TransitionRecordInput {
+    pub expected_version: i64,
+    pub action: String,
+    #[serde(default)]
+    pub note: String,
+}
+
+pub fn next_status(current: &str, action: &str) -> Option<&'static str> {
+    match (current, action) {
+        ("draft", "submit") => Some("in_review"),
+        ("in_review", "approve") => Some("approved"),
+        ("in_review", "reject") => Some("rejected"),
+        ("approved", "complete") => Some("completed"),
+        ("approved" | "rejected" | "completed", "reopen") => Some("draft"),
+        _ => None,
+    }
+}
+
+pub fn review_forbidden() -> BusinessError {
+    BusinessError::new(
+        erpx_server_shared::public::FailureKind::Forbidden,
+        "REVIEW_FORBIDDEN",
+        "An owner or manager assignment is required to review this record.",
+    )
+}
+
+pub fn self_review_forbidden() -> BusinessError {
+    BusinessError::new(
+        erpx_server_shared::public::FailureKind::Conflict,
+        "SELF_REVIEW_FORBIDDEN",
+        "A different person must review this record.",
+    )
+}
+
+pub fn invalid_transition() -> BusinessError {
+    BusinessError::new(
+        erpx_server_shared::public::FailureKind::Conflict,
+        "INVALID_TRANSITION",
+        "The transition is unavailable while this record is in its current status.",
+    )
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ValidatedRecord {
@@ -310,4 +356,43 @@ pub fn validate_reference(
         return Err(self_reference());
     }
     Ok(())
+}
+
+pub fn validate_transition(
+    module_id: &str,
+    input: &TransitionRecordInput,
+    current_status: &str,
+    current_version: i64,
+    can_review: bool,
+    created_by: &str,
+    actor_id: &str,
+) -> Result<&'static str, BusinessError> {
+    if module_id != "support" {
+        return Err(invalid(
+            "RECORD_MODULE_UNSUPPORTED",
+            "This record module is not available in the native workbench yet.",
+        ));
+    }
+    if !(1..=MAX_SAFE).contains(&input.expected_version)
+        || !TRANSITION_ACTIONS.contains(&input.action.as_str())
+        || text_units(&input.note) > MAX_NOTE
+    {
+        return Err(invalid(
+            "TRANSITION_INPUT_INVALID",
+            "Choose a valid transition and note.",
+        ));
+    }
+    if input.expected_version != current_version {
+        return Err(version_conflict());
+    }
+    let status = next_status(current_status, &input.action).ok_or_else(invalid_transition)?;
+    if matches!(input.action.as_str(), "approve" | "reject") {
+        if !can_review {
+            return Err(review_forbidden());
+        }
+        if created_by == actor_id {
+            return Err(self_review_forbidden());
+        }
+    }
+    Ok(status)
 }
