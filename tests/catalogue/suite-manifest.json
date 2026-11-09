@@ -37,6 +37,100 @@
   ],
   "suites": [
     {
+      "id": "shared.work.rust-quick-access-preferences-postgres.integration",
+      "lane": "integration",
+      "owner": "shared.work",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "files": [
+        "tests/integration/shared.work/rust-quick-access-preferences-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Work Projection quick-access preferences retain Control scope, current catalogue availability, exact replay, CAS/version conflicts and one concurrent winner."
+      },
+      "apps": [
+        "workplace"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-work-projection",
+        "targets": [
+          "quick_access_preferences_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-work_projection/Cargo.toml",
+        "tests/support/rust-postgres.rs",
+        "packages/server-work_projection/src/domain/quick_access_preferences.rs",
+        "packages/server-work_projection/src/application/quick_access_preferences.rs",
+        "packages/server-work_projection/src/adapters/quick_access_preferences.rs",
+        "packages/server-work_projection/src/public/quick_access_preferences.rs",
+        "packages/server-work_projection/src/domain/quick-access-preferences.ts",
+        "packages/server-work_projection/src/application/quick-access-preferences.ts"
+      ],
+      "packages": [
+        "@erpx/server-work_projection",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
       "id": "pms.booking-payment-recovery.e2e",
       "lane": "e2e",
       "owner": "pms",

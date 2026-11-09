@@ -1328,9 +1328,12 @@ dependencies = [
  "erpx-server-shared",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "sqlx",
+ "tokio",
  "ts-rs",
  "utoipa",
+ "uuid",
 ]
 
 [[package]]
