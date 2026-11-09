@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T15:05:00+07:00",
+  "updatedAt": "2026-11-09T15:45:00+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -6567,7 +6567,7 @@
   ],
   "executionPlan": {
     "generatedAt": "2026-11-09T14:15:00+07:00",
-    "sourceHead": "dfec1d1f8c639e968f3b1b938b5f33c70ddebb3c",
+    "sourceHead": "56de953a3cc33cb8804dc2c5739c4cad51350b3c",
     "interpretation": "ownerTotals includes the 41 register owners plus the seven catalogue surface owners (account, admin, apps, booking, forms, legal-portal, portal); surface owners are counted in the 206 workflows and are not part of the 41-owner strict certification denominator. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -8927,6 +8927,22 @@
           "Native journal page bounded 404 fallback"
         ],
         "evidence": "Mounted field_finance_history into private /finance/journals/{id}/field-history and /field-history/workspace routes. Exact archive 2128f7e98: cargo check -p erpx-service PASS; finance_journal_detail_postgres 13/13 (64.56s) including the Field payment journal route; journal_source_postgres 22/22 (49.42s) including the imported TS phase oracle; architecture/catalogue(1005)/docs/typecheck PASS. No owner promoted: Common Files link-existing, browser/SSO and legacy retirement remain open.",
+        "counts": {
+          "owners": 0,
+          "verified": 65,
+          "partial": 57,
+          "unstarted": 84,
+          "merged": 65,
+          "total": 206
+        }
+      },
+      {
+        "at": "2026-11-09T15:45:00+07:00",
+        "commit": "56de953a3",
+        "bundles": [
+          "Finance period-close proof-length parity"
+        ],
+        "evidence": "Aligned close/reopen proof validation with the installed TypeScript closeProofSchema (trimmed min 1, max 2000). Exact archive 56de953a3: cargo check -p erpx-service PASS; period_close_postgres 7/7 (29.96s) including the new one-character/blank case; business_evidence_postgres 3/3; architecture/catalogue(1005)/docs PASS. The remaining policy-version and exact attachment error-code parity require the Common-owned EvidencePolicyFact/Files port; no owner promoted.",
         "counts": {
           "owners": 0,
           "verified": 65,
