@@ -44071,6 +44071,62 @@
       }
     },
     {
+      "id": "customer_360.rust-customer-notes-http.integration",
+      "lane": "integration",
+      "owner": "customer_360",
+      "modules": [
+        "customer_360"
+      ],
+      "files": [
+        "tests/integration/customer_360/rust-customer-notes-http.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Customer360 contact-note HTTP ingress retains exact targets, bounded sources/commands and fail-closed errors."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-customer-360",
+        "targets": [
+          "customer_notes_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-customer_360/Cargo.toml"
+      ],
+      "apps": [
+        "sales",
+        "portal"
+      ],
+      "packages": [
+        "@erpx/server-customer_360",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
       "id": "customer_360.rust-customer-timeline-postgres.integration",
       "lane": "integration",
       "owner": "customer_360",

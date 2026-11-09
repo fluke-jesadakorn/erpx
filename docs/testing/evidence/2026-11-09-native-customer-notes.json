@@ -1,0 +1,124 @@
+{
+  "schema": "erpx.evidence/native-customer-notes/v1",
+  "recorded_at": "2026-11-09T12:23:48.963134Z",
+  "head": "73fbc7921911ccba8cc81a0cfa4d682de45795d3",
+  "environment": {
+    "public_holding_origin": "https://acme.jesadakorn.com",
+    "development_gateway": "http://127.0.0.1:3100",
+    "native_notes_api": "http://127.0.0.1:3198",
+    "native_account_api": "http://127.0.0.1:3199",
+    "account": "jesadakorn.kirtnu@gmail.com",
+    "native_notes_config": "ERPX_NATIVE_CUSTOMER_NOTES_CONFIG set in .env.local for acme/northstar; 3198 private API uses the disposable clone populated from the exact development business tables"
+  },
+  "native_command_gate": {
+    "create": {
+      "status": 200,
+      "result": {
+        "id": "contact-contact-test-1794225762",
+        "status": "active",
+        "version": 1
+      }
+    },
+    "readback": {
+      "notes": 1,
+      "history": 1,
+      "note": {
+        "version": 1,
+        "status": "active",
+        "body": "Native contact note verification"
+      }
+    },
+    "correct": {
+      "status": 200,
+      "result": {
+        "id": "contact-contact-test-1794225762",
+        "status": "active",
+        "version": 2
+      }
+    },
+    "archive": {
+      "status": 200,
+      "result": {
+        "id": "contact-contact-test-1794225762",
+        "status": "archived",
+        "version": 3
+      }
+    },
+    "stale": {
+      "status": 409,
+      "code": "CUSTOMER_SOURCE_CHANGED"
+    },
+    "replay": {
+      "status": 200,
+      "same_result": true,
+      "notes_after_replay": 1,
+      "history_after_replay": 3
+    },
+    "receipts": [
+      "customer.note.create",
+      "customer.note.correct",
+      "customer.note.archive"
+    ],
+    "order_source": {
+      "status": 200,
+      "customer": "commerce-acme-co-customer",
+      "order": "order-inventory-15e32e6f-sale",
+      "notes": 1
+    }
+  },
+  "browser": {
+    "desktop": {
+      "viewport": "1440x900",
+      "summary_status": 200,
+      "record_contact_form": true,
+      "history_status": 200,
+      "new_note_visible": true,
+      "archived_note_visible": true,
+      "failed_business_requests": [],
+      "page_errors": []
+    },
+    "mobile": {
+      "viewport": "390x844",
+      "summary_status": 200,
+      "record_contact_form": true,
+      "history_status": 200,
+      "new_note_visible": true,
+      "archived_note_visible": true,
+      "failed_business_requests": [],
+      "page_errors": []
+    }
+  },
+  "tests": [
+    {
+      "suite": "customer_360.rust-customer-notes-http.integration",
+      "result": "2/2 pass"
+    },
+    {
+      "suite": "tests/config typecheck",
+      "result": "pass"
+    },
+    {
+      "suite": "sales.semantic-services.unit",
+      "result": "112/112 pass"
+    },
+    {
+      "suite": "customer_360.customer-timeline.integration",
+      "result": "6/6 pass"
+    }
+  ],
+  "retirement": {
+    "page_profile": "packages/server-sales/src/adapters/customers.ts now reads notes through nativeCustomerNotes",
+    "next_route": "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-notes/route.ts now reads/commands through the native transport",
+    "legacy_test_only": "packages/server-sales/src/application/notes.ts and adapters/notes.ts remain for existing integration tests only; no production route or profile consumer imports them",
+    "remaining": "packages/server-customer_360/src/adapters/executive-main-evidence-sources.ts still uses the TS customerTimelineEvents projection for Executive customer-activity evidence"
+  },
+  "screenshots": [
+    ".scratch/dev/customer-notes-desktop.png",
+    ".scratch/dev/customer-notes-mobile.png"
+  ],
+  "notes": [
+    "The 3198 private API reads disposable clone databases populated from the exact development business tables for verification; it is not a production runtime.",
+    "The browser created a note through the real form on Summary and read it back on History on both desktop and mobile.",
+    "The customer_360 owner remains uncertified because jobs/providers are pending and the Executive TS timeline consumer remains."
+  ]
+}

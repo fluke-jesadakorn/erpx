@@ -90,6 +90,23 @@ fn configuration_invalid() -> BusinessError {
         "Use exact distinct registered Holding targets.",
     )
 }
+fn valid_origin(origin: &str) -> bool {
+    origin.strip_prefix("https://").is_some_and(|rest| {
+        let (host, port) = match rest.rsplit_once(':') {
+            Some((host, port)) => (host, Some(port)),
+            None => (rest, None),
+        };
+        !host.is_empty()
+            && !host
+                .bytes()
+                .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'@' | b':'))
+            && port.is_none_or(|port| {
+                (1..=5).contains(&port.len())
+                    && port.bytes().all(|byte| byte.is_ascii_digit())
+                    && port.parse::<u16>().is_ok_and(|value| value > 0)
+            })
+    })
+}
 fn valid_slug(slug: &str) -> bool {
     !slug.is_empty()
         && slug.len() <= 128
@@ -127,9 +144,22 @@ fn error_response(error: BusinessError) -> Response {
     )
         .into_response()
 }
+fn bounded(body: serde_json::Value) -> Response {
+    let mut response = (StatusCode::OK, Json(body)).into_response();
+    for (name, value) in [
+        (header::CACHE_CONTROL, "private, no-store"),
+        (header::REFERRER_POLICY, "no-referrer"),
+        (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+    ] {
+        response
+            .headers_mut()
+            .insert(name, HeaderValue::from_static(value));
+    }
+    response
+}
 fn respond<T: serde::Serialize>(result: Result<T, BusinessError>) -> Response {
     match result {
-        Ok(data) => Json(serde_json::json!({"data": data})).into_response(),
+        Ok(data) => bounded(serde_json::json!({"data": data})),
         Err(error) => error_response(error),
     }
 }
@@ -298,7 +328,7 @@ pub fn customer_notes_http_router(
     for target in targets {
         if target.host.is_empty()
             || !valid_slug(&target.holding_slug)
-            || !target.origin.starts_with("https://")
+            || !valid_origin(&target.origin)
             || map
                 .insert(
                     (target.host.clone(), target.holding_slug.clone()),

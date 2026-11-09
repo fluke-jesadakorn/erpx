@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-09T18:22:52+07:00",
+  "updatedAt": "2026-11-09T19:24:20+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -16,12 +16,12 @@
     "interpretation": "The 206 items are catalogue workflows, not the number of bounded flows. Each listed ID occurs once below. A partial item has supporting qualified slices, not whole-workflow verification."
   },
   "counts": {
-    "qualifiedBusinessFlows": 109,
+    "qualifiedBusinessFlows": 110,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 57,
-    "workflowsVerified": 66,
-    "workflowsMerged": 66,
+    "workflowsPartial": 56,
+    "workflowsVerified": 67,
+    "workflowsMerged": 67,
     "ownersComplete": 0,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -3520,6 +3520,15 @@
       "sourceIdentity": "working tree on 0cf200906",
       "evidenceRef": "docs/testing/evidence/2026-11-09-native-customer-timeline-browser.json",
       "durableContractRefs": []
+    },
+    {
+      "id": "customer-360-native-notes",
+      "kind": "business-flow-evidence",
+      "status": "flow-complete",
+      "scope": "Native Customer 360 contact notes: Rust HTTP router + read adapter + composition command ledger over the 3198 private API; create/correct/archive/replay/stale/order-source gates pass against the clone DB; Next profile/route use native; desktop/mobile browser form and History readback pass.",
+      "sourceIdentity": "working tree on 35f03f5f2",
+      "evidenceRef": "docs/testing/evidence/2026-11-09-native-customer-notes.json",
+      "durableContractRefs": []
     }
   ],
   "workflows": [
@@ -3942,11 +3951,15 @@
       "owner": "customer_360",
       "scope": "Customer notes",
       "partial": false,
-      "verified": false,
-      "merged": false,
-      "evidenceFlows": [],
+      "verified": true,
+      "merged": true,
+      "evidenceFlows": [
+        "customer-360-native-notes-http",
+        "customer-360-native-notes-postgres-live",
+        "customer-360-native-notes-browser"
+      ],
       "sourceRef": "packages/server-sales/src/public/customer-notes.ts",
-      "gap": "No full-scope Rust qualification recorded."
+      "gap": "Closed. Native Rust customer contact-note read/create/correct/archive through the 3198 private API over real clone business data; the Next profile and route use the native transport, desktop/mobile form and History readback pass, replay is idempotent, stale versions return CUSTOMER_SOURCE_CHANGED, and the HTTP router suite is 2/2. The TS note application/adapters remain only as legacy test fixtures; the Executive customer-activity TS timeline consumer remains and the owner still needs jobs/providers certification."
     },
     {
       "id": "customer_authority/duplicate-review",
@@ -6637,9 +6650,9 @@
       },
       "customer_360": {
         "workflows": 4,
-        "verified": 2,
-        "partial": 1,
-        "unstarted": 1,
+        "verified": 4,
+        "partial": 0,
+        "unstarted": 0,
         "phase": "partial",
         "businessMigrationComplete": false
       },

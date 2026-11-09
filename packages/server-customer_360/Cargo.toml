@@ -30,6 +30,10 @@ name = "customer_timeline"
 path = "../../tests/unit/customer_360/rust-customer-timeline.test.rs"
 
 [[test]]
+name = "customer_notes_http"
+path = "../../tests/integration/customer_360/rust-customer-notes-http.test.rs"
+
+[[test]]
 name = "customer_timeline_http"
 path = "../../tests/integration/customer_360/rust-customer-timeline-http.test.rs"
 
