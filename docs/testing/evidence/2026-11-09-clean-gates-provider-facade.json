@@ -1,0 +1,32 @@
+{
+  "recordedAt": "2026-11-09T11:10:00+07:00",
+  "branch": "codex/rust-backend-migration",
+  "sourceIdentity": "c58664706",
+  "bundle": "clean-gates-provider-facade",
+  "scope": "Architecture/gate correction only. No owner, workflow, frontend or runtime acceptance is promoted.",
+  "changes": [
+    "Moved the host-neutral Provider context store behind packages/server-identity_access/src/public/provider-switcher.ts so the Administration route no longer imports an owner-private adapter.",
+    "Registered the committed Assets cost composition, Files business-evidence and Runtime outbox PostgreSQL suites in tests/catalogue/suite-manifest.json."
+  ],
+  "checks": [
+    {
+      "command": "bun scripts/testing/test.ts --check (committed manifest, external untracked CRM test temporarily excluded)",
+      "result": "TEST_CATALOGUE_VALID:33 modules, 999 suites"
+    },
+    {
+      "command": "bun run architecture:check",
+      "result": "Architecture boundaries passed; 0 exact legacy edges remain; guest terminology and repository layout passed"
+    },
+    {
+      "command": "bun scripts/docs/check-documentation.ts",
+      "result": "Documentation checked: 281 Markdown files, 1631 local references, 99 historical source objects, 213 ledger files"
+    }
+  ],
+  "directory": {
+    "note": "The worktree still contains an untracked caller-owned CRM recipient composition test. It is deliberately not committed or registered here; when it is committed it needs its own catalogue entry. The clean committed manifest was verified by temporarily moving that untracked file out and restoring it immediately."
+  },
+  "remaining": [
+    "Global cargo clippy is still red on unrelated worktree warnings (for example rust-record-source unused mut and postgres_record_origin type complexity).",
+    "No owner is complete: Records reads still lack authoritative owner guards, Workflow approval/flow commands and the outbox consumer remain TS, Billing target/forecast/jobs/providers remain open, Files production consumers remain open, Work Projection cards/calendar/work items remain TS, Runtime owner families are not scheduled in production, and Shared durable adapter coverage is incomplete."
+  ]
+}
