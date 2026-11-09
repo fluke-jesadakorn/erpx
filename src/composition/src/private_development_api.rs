@@ -3723,7 +3723,6 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?,
         );
         let mut reads = Vec::new();
-        let mut work_roles = Vec::new();
         let mut reserves = Vec::new();
         for (i, holding) in config.holdings.iter().enumerate() {
             let Some(companies) = config
@@ -3763,16 +3762,7 @@ async fn assemble_checked(
                 {
                     service_order_create_targets.insert(target.clone());
                 }
-                if service_read_targets.insert(target.clone()) {
-                    work_roles.push(crate::native_work_roles_http::NativeWorkRoleTarget {
-                control:pools[0].clone(),
-                host: target.0.clone(), holding_slug: target.1.clone(),
-                inspector: Arc::new(erpx_server_identity_access::public::work_context::HoldingWorkContextInspector::new(
-                    pools[0].clone(), pools[i+1].clone(), holding.registration.holding_id.clone(),
-                    (*config.policy).clone(), clock.clone(), config.holdings_registry.clone(),
-                ).map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?),
-            });
-                }
+                service_read_targets.insert(target.clone());
                 let read_configuration = FieldServiceReservationReadConfiguration::new(
                     FieldServicePartsEnvironment::Development,
                     holding.registration.holding_id.clone(),
@@ -4174,16 +4164,6 @@ async fn assemble_checked(
                 );
             }
         }
-        router = router.merge(
-            crate::native_work_roles_http::native_work_roles_router(
-                config.policy.clone(),
-                config.holdings_registry.clone(),
-                Arc::new(FieldServiceReadScopeHeaders),
-                Arc::new(SharedClock(clock.clone())),
-                work_roles,
-            )
-            .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?,
-        );
         if !reserves.is_empty() {
             router = router.merge(
                 field_service_http_router(
@@ -4195,6 +4175,38 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?,
             );
         }
+    }
+    let mut work_roles = Vec::new();
+    for (i, holding) in config.holdings.iter().enumerate() {
+        service_read_targets.insert((holding.host.clone(), holding.registration.slug.clone()));
+        work_roles.push(crate::native_work_roles_http::NativeWorkRoleTarget {
+            control: pools[0].clone(),
+            host: holding.host.clone(),
+            holding_slug: holding.registration.slug.clone(),
+            inspector: Arc::new(
+                erpx_server_identity_access::public::work_context::HoldingWorkContextInspector::new(
+                    pools[0].clone(),
+                    pools[i + 1].clone(),
+                    holding.registration.holding_id.clone(),
+                    (*config.policy).clone(),
+                    clock.clone(),
+                    config.holdings_registry.clone(),
+                )
+                .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?,
+            ),
+        });
+    }
+    if !work_roles.is_empty() {
+        router = router.merge(
+            crate::native_work_roles_http::native_work_roles_router(
+                config.policy.clone(),
+                config.holdings_registry.clone(),
+                Arc::new(FieldServiceReadScopeHeaders),
+                Arc::new(SharedClock(clock.clone())),
+                work_roles,
+            )
+            .map_err(|_| "PRIVATE_API_FIELD_SERVICE_CONFIGURATION_INVALID")?,
+        );
     }
     if !config.support_ticket_writes.is_empty() {
         let catalogue = Arc::new(
