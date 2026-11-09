@@ -48,7 +48,8 @@
       ],
       "page_errors": [
         "React hydration mismatch warning for record-link href/text"
-      ]
+      ],
+      "transport": "retained TypeScript timeline (ERPX_NATIVE_CUSTOMER_TIMELINE_CONFIG is unset)"
     },
     "launch_contract": {
       "without_selected_role": "303 to /choose-work-role?companyId=acme-co&next=...",
@@ -64,6 +65,7 @@
   "notes": [
     "The earlier /launch 401 was an unauthenticated navigation; with the product session cookie the route redirects correctly.",
     "The native work-role routes are now mounted independently of fieldServiceReads and admitted by the private API boundary for every configured holding.",
+    "The customer History tab in this run used the retained TypeScript timeline because the native timeline configuration is unset. Native timeline transport enablement and legacy TypeScript retirement remain open; this evidence does not claim them.",
     "Legacy TypeScript consumers and owner certification remain open; this evidence qualifies the authenticated browser/SSO gate only."
   ]
 }

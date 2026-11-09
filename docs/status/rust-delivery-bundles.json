@@ -3507,7 +3507,7 @@
       "id": "authenticated-product-launch-and-customer-timeline",
       "kind": "integration-gate-evidence",
       "status": "gate-passed",
-      "scope": "Normal Account SSO -> Holding product entry -> /launch -> /choose-work-role -> Finance and Sales app pages on desktop and mobile. Customer 360 native timeline History tab renders invoice source events. Native work-role routes are mounted for every configured holding.",
+      "scope": "Normal Account SSO -> Holding product entry -> /launch -> /choose-work-role -> Finance and Sales app pages on desktop and mobile. Customer History renders the retained timeline; native timeline transport enablement and legacy TypeScript retirement remain open. Native work-role routes are mounted for every configured holding.",
       "sourceIdentity": "087fcab8c",
       "evidenceRef": "docs/testing/evidence/2026-11-09-authenticated-product-launch-and-customer-timeline.json",
       "durableContractRefs": []
@@ -3894,7 +3894,7 @@
         "customer-360-timeline-federation-integration"
       ],
       "sourceRef": "packages/server-customer_360/src/public/customer-timeline.ts",
-      "gap": "Native timeline read (11 unit/2 HTTP/7 PostgreSQL), frontend transport (12 unit) and scoped Field/Finance/Legal federation (6) pass. The product page native transport is opt-in and not enabled because the disposable Account runtime clone lacks business data; authenticated desktop/mobile browser and legacy TS timeline retirement remain open."
+      "gap": "Native timeline read (11 unit/2 HTTP/7 PostgreSQL), frontend transport (12 unit) and scoped Field/Finance/Legal federation (6) pass. Authenticated desktop/mobile product entry and the Customer History page now pass, but the page still uses the retained TypeScript timeline because ERPX_NATIVE_CUSTOMER_TIMELINE_CONFIG is unset; native transport enablement and legacy TS timeline retirement remain open."
     },
     {
       "id": "customer_360/service-timeline",
