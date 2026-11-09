@@ -1,5 +1,5 @@
 import type { DocumentBrand } from "@erpx/server-brand/domain/branding";
-import type { BrandRecordKind } from "@erpx/server-brand/application/branding";
+import type { BrandRecordKind } from "@erpx/server-brand/domain/branding";
 
 export interface BusinessDocumentBrandPorts {
   prepare(): Promise<void>;

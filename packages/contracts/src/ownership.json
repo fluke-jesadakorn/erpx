@@ -77,6 +77,19 @@
             "tests/integration/brand/brand-identity.test.ts",
             "tests/unit/brand/brand-application.test.ts"
           ]
+        },
+        {
+          "id": "branding-commands",
+          "migration": "clean",
+          "source": [
+            "packages/server-brand/src/domain/branding.rs",
+            "packages/server-brand/src/application/branding.rs",
+            "packages/server-brand/src/adapters/branding.rs",
+            "packages/server-brand/src/public/branding.rs"
+          ],
+          "regression": [
+            "tests/integration/brand/rust-branding-postgres.test.rs"
+          ]
         }
       ]
     },

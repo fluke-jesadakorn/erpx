@@ -400,7 +400,6 @@
 @source "../../../../packages/server-files/src/adapters/attachments/sensitive-policy.ts";
 @source "../../../../packages/server-files/src/adapters/attachments/service-repository.ts";
 @source "../../../../packages/server-files/src/adapters/attachments/service.ts";
-@source "../../../../packages/server-files/src/adapters/brand-media.ts";
 @source "../../../../packages/server-files/src/adapters/commercial-owner-projection-sources.ts";
 @source "../../../../packages/server-files/src/adapters/employee-evidence-read.ts";
 @source "../../../../packages/server-files/src/adapters/field-file-writer-owner.ts";
@@ -445,7 +444,6 @@
 @source "../../../../packages/server-files/src/public/attachments/scanner.ts";
 @source "../../../../packages/server-files/src/public/attachments/sensitive-policy.ts";
 @source "../../../../packages/server-files/src/public/attachments/service.ts";
-@source "../../../../packages/server-files/src/public/brand-media.ts";
 @source "../../../../packages/server-files/src/public/commercial-owner-projection-sources.ts";
 @source "../../../../packages/server-files/src/public/final-root-owner-projection-sources.ts";
 @source "../../../../packages/server-files/src/public/finance-review-file-sources.ts";

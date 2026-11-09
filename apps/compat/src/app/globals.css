@@ -403,6 +403,8 @@
 @source "../../../../packages/feature-booking/src/routes/book/[holdingSlug]/page.tsx";
 @source "../../../../packages/feature-brand/src/adapters/server/native-brand-identity-page.ts";
 @source "../../../../packages/feature-brand/src/adapters/server/native-brand-identity.ts";
+@source "../../../../packages/feature-brand/src/adapters/server/native-branding-page.ts";
+@source "../../../../packages/feature-brand/src/adapters/server/native-branding.ts";
 @source "../../../../packages/feature-brand/src/adapters/server/next-native-brand-identity.ts";
 @source "../../../../packages/feature-brand/src/components/appearance-switcher.tsx";
 @source "../../../../packages/feature-brand/src/components/brand-administration.tsx";
@@ -412,6 +414,7 @@
 @source "../../../../packages/feature-brand/src/components/product-brand.tsx";
 @source "../../../../packages/feature-brand/src/components/workspace-brand.tsx";
 @source "../../../../packages/feature-brand/src/lib/native-brand-identity.ts";
+@source "../../../../packages/feature-brand/src/lib/native-branding.ts";
 @source "../../../../packages/feature-collaboration/src/adapters/server/native-handbook-page.ts";
 @source "../../../../packages/feature-collaboration/src/adapters/server/native-handbook.ts";
 @source "../../../../packages/feature-collaboration/src/components/auth-form.tsx";
@@ -3326,7 +3329,6 @@
 @source "../../../../packages/server-files/src/adapters/attachments/types.ts";
 @source "../../../../packages/server-files/src/adapters/attachments/upload.ts";
 @source "../../../../packages/server-files/src/adapters/beta-management-facts.ts";
-@source "../../../../packages/server-files/src/adapters/brand-media.ts";
 @source "../../../../packages/server-files/src/adapters/collaboration-agent-sources.ts";
 @source "../../../../packages/server-files/src/adapters/collaboration-home-sources.ts";
 @source "../../../../packages/server-files/src/adapters/collaboration-message-sources.ts";
@@ -3428,7 +3430,6 @@
 @source "../../../../packages/server-files/src/public/attachments/types.ts";
 @source "../../../../packages/server-files/src/public/attachments/upload.ts";
 @source "../../../../packages/server-files/src/public/beta-management-facts.ts";
-@source "../../../../packages/server-files/src/public/brand-media.ts";
 @source "../../../../packages/server-files/src/public/collaboration-agent-sources.ts";
 @source "../../../../packages/server-files/src/public/collaboration-home-sources.ts";
 @source "../../../../packages/server-files/src/public/collaboration-message-sources.ts";

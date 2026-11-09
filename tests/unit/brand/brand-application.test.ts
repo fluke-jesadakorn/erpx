@@ -61,63 +61,33 @@ async function readBrandIdentityPorts(available: boolean, row: ActiveBrandIdenti
   const { readPublishedBrandIdentity } = await import("@erpx/server-brand/application/identity-read");
   return readPublishedBrandIdentity({ async available() { return available; }, async active() { return row; } });
 }
-import { createBrandingApplication, normalizeBrandMedia, type BrandingPorts, type BrandMutation as BrandingMutation } from "@erpx/server-brand/application/branding";
-import { storefrontPresentation, type BrandProfileRow } from "@erpx/server-brand/domain/branding";
-
-function brandingFixture(overrides: Partial<BrandingPorts<Uint8Array>> = {}) {
- const calls:string[]=[],mutations:BrandingMutation[]=[];
- const ports:BrandingPorts<Uint8Array>={
-  actor:{holdingId:"holding",holdingName:"Holding Name",holdingSlug:"holding-slug",companyId:"company",branchId:"branch"},clock:{now:()=>42},legacyAttachmentsReadable:false,
-  urls:{attachment:id=>id?`attachment/${id}`:null,publication:id=>id?`publication/${id}`:null},
-  async holdingAuthority(){return true;},async organizationAuthority(){return true;},async evidenceAuthority(){return true;},assertMediaWritable(){calls.push("writable");},
-  async company(){return {display_name:"Company"};},async branch(id){return {id,display_name:"North Branch"};},async companyExists(){return true;},
-  async profile(){return {primary_attachment_id:"old-media"} as BrandProfileRow;},async branches(){return [];},async profiles(){return [];},
-  async storefront(){return {slug:"company-slug",display_name:"Company",short_name:"Company",accent_color:"#3659c9",logo_attachment_id:"old-media",logo_publication_id:null};},
-  async storefrontLogo(){return {logo_attachment_id:"old-media"};},async published(){return null;},async recordBranch(){return "branch";},async evidence(){return null;},
-  image:{async metadata(){return {width:64,height:64};},async encode(){return new Uint8Array([1,2,3]);}},async checksum(){return "checksum";},
-  async attachmentObjectKey(){return "old-key";},
-  files:{async put(key){calls.push(`put:${key}`);},async delete(key){calls.push(`delete:${key}`);}},
-  async commit(mutation,result){mutations.push(mutation);calls.push("commit");return result;},...overrides,
- };
- return {app:createBrandingApplication(ports),ports,calls,mutations};
-}
-describe("Brand media and projection application",()=>{
- test("validates metadata through the provider port and retains provider encoding failures",async()=>{
-  const invalid=brandingFixture({image:{async metadata(){throw new Error("bad decoder");},async encode(){return new Uint8Array();}}});
-  await expect(invalid.app.normalize(new ArrayBuffer(0))).rejects.toMatchObject({code:"LOGO_INVALID"});
-  await expect(normalizeBrandMedia({async metadata(){return {width:31,height:32};},async encode(){throw new Error("must not encode");}},new ArrayBuffer(0))).rejects.toMatchObject({code:"LOGO_DIMENSIONS"});
-  const encode=brandingFixture({image:{async metadata(){return {width:64,height:64};},async encode(){throw new Error("encoder failure");}}});
-  await expect(encode.app.normalize(new ArrayBuffer(0))).rejects.toThrow("encoder failure");
- });
- test("commits file replacement facts then cleans the previous object",async()=>{
-  const f=brandingFixture();
-  await f.app.completeUpload({id:"intent",owner_type:"branch_brand",owner_id:"branch",purpose:"primary",revision:1,original_name:"logo.png"},new ArrayBuffer(0));
-  expect(f.mutations[0]).toMatchObject({action:"upload-profile",previousId:"old-media",attachmentId:"attachment-intent",bytes:3,now:42});
-  expect(f.calls).toEqual(["writable","put:holding/branding/branch/branch/primary-intent.webp","commit","delete:old-key"]);
- });
- test("compensates a failed atomic write without deleting the previous object",async()=>{
-  const f=brandingFixture({async commit(){throw new Error("authority revoked");}});
-  await expect(f.app.completeUpload({id:"intent",owner_type:"company_storefront_brand",owner_id:"company",purpose:"logo",revision:1,original_name:"logo.png"},new ArrayBuffer(0))).rejects.toThrow("authority revoked");
-  expect(f.calls).toEqual(["writable","put:holding/branding/storefront/company/logo-intent.webp","delete:holding/branding/storefront/company/logo-intent.webp"]);
- });
- test("checks media rollback before decoding and published identity before legacy edits",async()=>{
-  const readonly=brandingFixture({assertMediaWritable(){throw new Error("read only");},image:{async metadata(){throw new Error("must not decode");},async encode(){return new Uint8Array();}}});
-  await expect(readonly.app.completeUpload({id:"intent",owner_type:"branch_brand",owner_id:"branch",purpose:"primary",revision:1,original_name:"logo.png"},new ArrayBuffer(0))).rejects.toThrow("read only");
-  const active={identity,revision:4} as ActiveBrandIdentity,published=brandingFixture({async published(){return active;},assertMediaWritable(){throw new Error("must not check rollback");}});
-  await expect(published.app.updateStorefront({removeLogo:true,commandId:"key"})).rejects.toMatchObject({code:"BRAND_PUBLISHED_IDENTITY_CONTROLLED"});
- });
- test("published absence of a logo suppresses every legacy fallback",()=>{
-  const f=brandingFixture(),current={slug:"company",display_name:"Company",short_name:"Old",accent_color:"#112233",logo_attachment_id:"legacy",logo_publication_id:"legacy-publication"};
-  const brand=storefrontPresentation(f.ports.actor,current,{identity,revision:4} as ActiveBrandIdentity,f.ports.urls,false);
-  expect(brand).toMatchObject({shortName:"ERPX",accentColor:"#224488",logoUrl:null,identityRevision:4});
- });
- test("document mode honors active branch defaults and a company-wide scope",async()=>{
-  const f=brandingFixture({async profile(){return {document_mode:"both"} as BrandProfileRow;}});
-  expect(await f.app.document({branchId:"branch"})).toMatchObject({mode:"both",branchName:"North Branch"});
-  expect(await f.app.document({branchId:null,requestedMode:"branch"})).toMatchObject({mode:"holding",branch:null});
- });
- test("workspace view hides history and other's drafts using provided authority facts",async()=>{
-  const output=await readBrandIdentityWorkspace({actorId:"worker",canManage:false,canLock:false,async authorize(){},async drafts(includeOthers){expect(includeOthers).toBe(false);return [];},async versions(){return [];},async locks(){return [];},async history(){return [{id:"private"}] as never;},async active(){return null;},async legacy(){return {shortName:"Legacy",accentColor:"#123456"};},async media(){return [];}});
-  expect(output).toMatchObject({history:[],initial:{identity:{shortName:"Legacy",tagline:""},visual:{logoPublicationId:null}},canManage:false});
- });
+import { normalizeBrandMedia } from "@erpx/server-brand/application/branding";
+describe("Retained Branding media normalization", () => {
+  test("validates image metadata before encoding", async () => {
+    const encoded = await normalizeBrandMedia({
+      async metadata() { return { width: 64, height: 64 }; },
+      async encode() { return new Uint8Array([1, 2, 3]); },
+    }, new ArrayBuffer(0));
+    expect(Array.from(encoded)).toEqual([1, 2, 3]);
+  });
+  test("maps decoder and dimension failures to retained logo codes", async () => {
+    await expect(normalizeBrandMedia({
+      async metadata() { throw new Error("bad decoder"); },
+      async encode() { return new Uint8Array(); },
+    }, new ArrayBuffer(0))).rejects.toMatchObject({ code: "LOGO_INVALID" });
+    await expect(normalizeBrandMedia({
+      async metadata() { return { width: 31, height: 32 }; },
+      async encode() { throw new Error("must not encode"); },
+    }, new ArrayBuffer(0))).rejects.toMatchObject({ code: "LOGO_DIMENSIONS" });
+    await expect(normalizeBrandMedia({
+      async metadata() { return { width: 4097, height: 4097 }; },
+      async encode() { throw new Error("must not encode"); },
+    }, new ArrayBuffer(0))).rejects.toMatchObject({ code: "LOGO_PIXELS" });
+  });
+  test("retains encoder failures without masking them", async () => {
+    await expect(normalizeBrandMedia({
+      async metadata() { return { width: 64, height: 64 }; },
+      async encode() { throw new Error("encoder failure"); },
+    }, new ArrayBuffer(0))).rejects.toThrow("encoder failure");
+  });
 });

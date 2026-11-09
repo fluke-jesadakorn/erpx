@@ -17,7 +17,10 @@
     "./components/workspace-brand.module.css": "./src/components/workspace-brand.module.css",
     "./adapters/server/native-brand-identity": "./src/adapters/server/native-brand-identity.ts",
     "./adapters/server/native-brand-identity-page": "./src/adapters/server/native-brand-identity-page.ts",
-    "./lib/native-brand-identity": "./src/lib/native-brand-identity.ts"
+    "./lib/native-brand-identity": "./src/lib/native-brand-identity.ts",
+    "./adapters/server/native-branding": "./src/adapters/server/native-branding.ts",
+    "./adapters/server/native-branding-page": "./src/adapters/server/native-branding-page.ts",
+    "./lib/native-branding": "./src/lib/native-branding.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

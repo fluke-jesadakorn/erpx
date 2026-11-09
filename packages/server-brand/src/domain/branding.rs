@@ -16,6 +16,7 @@ fn invalid(code: &'static str, message: &'static str) -> BusinessError {
 fn text<'a>(value: Option<&'a Value>, code: &'static str) -> Result<&'a str, BusinessError> {
     value
         .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
         .ok_or_else(|| invalid(code, "Provide a valid branding value."))
 }
 

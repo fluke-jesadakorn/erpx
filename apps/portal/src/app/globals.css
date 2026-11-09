@@ -486,7 +486,6 @@
 @source "../../../../packages/server-files/src/adapters/attachments/service.ts";
 @source "../../../../packages/server-files/src/adapters/attachments/types.ts";
 @source "../../../../packages/server-files/src/adapters/attachments/upload.ts";
-@source "../../../../packages/server-files/src/adapters/brand-media.ts";
 @source "../../../../packages/server-files/src/adapters/commercial-owner-projection-sources.ts";
 @source "../../../../packages/server-files/src/adapters/customer-portal-files.ts";
 @source "../../../../packages/server-files/src/adapters/employee-evidence-read.ts";
@@ -536,7 +535,6 @@
 @source "../../../../packages/server-files/src/public/attachments/service.ts";
 @source "../../../../packages/server-files/src/public/attachments/types.ts";
 @source "../../../../packages/server-files/src/public/attachments/upload.ts";
-@source "../../../../packages/server-files/src/public/brand-media.ts";
 @source "../../../../packages/server-files/src/public/commercial-owner-projection-sources.ts";
 @source "../../../../packages/server-files/src/public/customer-portal-files.ts";
 @source "../../../../packages/server-files/src/public/final-root-owner-projection-sources.ts";

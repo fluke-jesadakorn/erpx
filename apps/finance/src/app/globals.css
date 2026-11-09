@@ -1436,7 +1436,6 @@
 @source "../../../../packages/server-files/src/adapters/attachments/service.ts";
 @source "../../../../packages/server-files/src/adapters/attachments/types.ts";
 @source "../../../../packages/server-files/src/adapters/attachments/upload.ts";
-@source "../../../../packages/server-files/src/adapters/brand-media.ts";
 @source "../../../../packages/server-files/src/adapters/collaboration-home-sources.ts";
 @source "../../../../packages/server-files/src/adapters/commerce-facts.ts";
 @source "../../../../packages/server-files/src/adapters/commerce-final-owner-projection-sources.ts";
@@ -1515,7 +1514,6 @@
 @source "../../../../packages/server-files/src/public/attachments/service.ts";
 @source "../../../../packages/server-files/src/public/attachments/types.ts";
 @source "../../../../packages/server-files/src/public/attachments/upload.ts";
-@source "../../../../packages/server-files/src/public/brand-media.ts";
 @source "../../../../packages/server-files/src/public/collaboration-home-sources.ts";
 @source "../../../../packages/server-files/src/public/commerce-facts.ts";
 @source "../../../../packages/server-files/src/public/commerce-final-owner-projection-sources.ts";

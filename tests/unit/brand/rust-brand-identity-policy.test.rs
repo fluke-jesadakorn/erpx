@@ -248,3 +248,77 @@ fn publication_requires_an_independent_reviewer() {
         assert_eq!(error.code, "BRAND_INDEPENDENT_PUBLICATION");
     }
 }
+
+#[test]
+fn branding_inputs_preserve_profile_storefront_and_media_bounds() {
+    use erpx_server_brand::public::branding::{
+        BrandMediaInput, BrandScopeKind, BrandVariant, DocumentMode, UpdateProfileInput,
+        UpdateStorefrontInput,
+    };
+    assert_eq!(BrandScopeKind::parse("holding"), Some(BrandScopeKind::Holding));
+    assert_eq!(DocumentMode::parse("both"), Some(DocumentMode::Both));
+    assert_eq!(BrandVariant::parse("inverse"), Some(BrandVariant::Inverse));
+
+    let branch = UpdateProfileInput::parse(&json!({
+        "scopeKind": "branch",
+        "scopeId": "branch-1",
+        "documentMode": "both",
+        "expectedUpdatedAt": 7
+    }))
+    .unwrap();
+    assert_eq!(branch.scope_kind, BrandScopeKind::Branch);
+    assert_eq!(branch.document_mode, Some(DocumentMode::Both));
+    assert_eq!(branch.expected_updated_at, Some(7));
+    let remove = UpdateProfileInput::parse(&json!({
+        "scopeKind": "holding",
+        "scopeId": "holding",
+        "remove": "primary"
+    }))
+    .unwrap();
+    assert_eq!(remove.remove, Some(BrandVariant::Primary));
+    for invalid in [
+        json!({"scopeKind": "holding", "scopeId": "holding", "documentMode": "branch"}),
+        json!({"scopeKind": "holding", "scopeId": "holding"}),
+        json!({"scopeKind": "branch", "scopeId": "", "documentMode": "branch"}),
+        json!({"scopeKind": "branch", "scopeId": "branch-1", "remove": "unknown"}),
+    ] {
+        assert!(UpdateProfileInput::parse(&invalid).is_err(), "{invalid}");
+    }
+
+    let storefront = UpdateStorefrontInput::parse(&json!({
+        "shortName": "  Reviewed storefront  ",
+        "accentColor": "#AABBCC",
+        "removeLogo": true
+    }))
+    .unwrap();
+    assert_eq!(storefront.short_name.as_deref(), Some("Reviewed storefront"));
+    assert_eq!(storefront.accent_color.as_deref(), Some("#aabbcc"));
+    assert_eq!(storefront.remove_logo, Some(true));
+    for invalid in [
+        json!({"shortName": "", "accentColor": "#224488"}),
+        json!({"shortName": "Reviewed", "accentColor": "#22448"}),
+        json!({}),
+        json!({"shortName": "x".repeat(41)}),
+    ] {
+        assert!(UpdateStorefrontInput::parse(&invalid).is_err(), "{invalid}");
+    }
+
+    let media = BrandMediaInput::parse(&json!({
+        "scopeKind": "branch",
+        "scopeId": "branch-1",
+        "variant": "primary",
+        "attachmentId": "attachment-1",
+        "publicationId": "publication-1"
+    }))
+    .unwrap();
+    assert_eq!(media.variant, Some(BrandVariant::Primary));
+    assert_eq!(media.attachment_id.as_deref(), Some("attachment-1"));
+    assert_eq!(media.publication_id.as_deref(), Some("publication-1"));
+    for invalid in [
+        json!({"scopeKind": "branch", "scopeId": "branch-1", "attachmentId": "attachment-1"}),
+        json!({"scopeKind": "branch", "scopeId": "branch-1", "variant": "primary"}),
+        json!({"scopeKind": "holding", "scopeId": "holding", "variant": "primary"}),
+    ] {
+        assert!(BrandMediaInput::parse(&invalid).is_err(), "{invalid}");
+    }
+}
