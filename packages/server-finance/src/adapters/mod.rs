@@ -1,3 +1,4 @@
+pub(crate) mod commerce_goods_journal;
 pub(crate) mod commerce_order_party_guard;
 pub(crate) mod sales_order_credit;
 pub(crate) mod asset_acquisition_money;

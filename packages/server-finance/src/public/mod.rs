@@ -1,3 +1,4 @@
+pub mod commerce_goods_journal;
 pub mod commerce_order_party_guard;
 pub mod sales_order_credit;
 pub mod asset_acquisition_money;
