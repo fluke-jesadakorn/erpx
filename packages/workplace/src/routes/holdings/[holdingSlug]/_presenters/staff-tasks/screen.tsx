@@ -1,4 +1,3 @@
-import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
 import { redirect } from "next/navigation";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
@@ -17,5 +16,5 @@ export default async function Tasks({
     ...(query.q ? { q: query.q } : {}),
     ...(query.new && !actor.beta ? { new: "task" } : {}),
   });
-  redirect(canonicalUiHref(`${workspaceBase(publicScope(actor))}/work?${search}`));
+  redirect(`${workspaceBase(publicScope(actor))}/work?${search}`);
 }
