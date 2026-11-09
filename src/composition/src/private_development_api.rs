@@ -2048,6 +2048,7 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut customer_360_targets = Vec::new();
         let mut customer_notes_targets = Vec::new();
+        let mut customer_activity_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut customer_authority_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -2627,23 +2628,33 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                let customer_360_backend: Arc<crate::customer_360::Customer360Backend<SharedClock>> =
+                    Arc::new(crate::customer_360::Customer360Backend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::customer_360::Customer360Service::new(
+                            authorizer.clone(),
+                            crate::customer_360::Customer360Configuration::new(
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    ));
                 customer_360_targets.push(
                     erpx_server_customer_360::public::customer_timeline_http::CustomerTimelineHttpTarget {
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
-                        backend: Arc::new(crate::customer_360::Customer360Backend::new(
-                            config.policy.clone(),
-                            Arc::new(FinanceJournalReadScopeHeaders),
-                            Arc::new(crate::customer_360::Customer360Service::new(
-                                authorizer.clone(),
-                                crate::customer_360::Customer360Configuration::new(
-                                    holding.registration.holding_id.clone(),
-                                    company.clone(),
-                                ),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )),
+                        backend: customer_360_backend.clone(),
+                    },
+                );
+                customer_activity_targets.push(
+                    erpx_server_customer_360::public::customer_activity_http::CustomerActivityHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: customer_360_backend,
                     },
                 );
                 branding_targets.push(erpx_server_brand::public::branding_http::BrandingHttpTarget {
@@ -3628,6 +3639,15 @@ async fn assemble_checked(
                     customer_notes_targets,
                 )
                 .map_err(|_| "PRIVATE_API_CUSTOMER_NOTES_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !customer_activity_targets.is_empty() {
+            router = router.merge(
+                erpx_server_customer_360::public::customer_activity_http::customer_activity_http_router(
+                    customer_activity_targets,
+                )
+                .map_err(|_| "PRIVATE_API_CUSTOMER_ACTIVITY_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]
@@ -7351,6 +7371,18 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         }
         _ => false,
     };
+    let customer_activity = match request
+        .uri()
+        .path()
+        .split('/')
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        ["", "api", "v1", "holdings", _, "customers", "activity"] => {
+            state.policy.audience(host).is_some()
+        }
+        _ => false,
+    };
     let planning = match request
         .uri()
         .path()
@@ -7656,6 +7688,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || legal
         || customer_timeline
         || customer_notes
+        || customer_activity
         || planning
         || manufacturing
         || procurement

@@ -250,6 +250,102 @@ impl CustomerTimelineItem {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ExecutiveCustomerActivityRow {
+    pub id: String,
+    pub source_id: String,
+    pub source_type: String,
+    pub title: String,
+    pub status: String,
+    pub version: i64,
+    pub at: i64,
+    pub href: String,
+    pub customer_id: String,
+    pub customer_name: String,
+}
+
+impl ExecutiveCustomerActivityRow {
+    pub fn validate(&self) -> Result<(), BusinessError> {
+        CustomerTimelineItem {
+            id: self.id.clone(),
+            source_id: self.source_id.clone(),
+            source_type: self.source_type.clone(),
+            title: self.title.clone(),
+            status: self.status.clone(),
+            version: self.version,
+            at: self.at,
+            href: self.href.clone(),
+        }
+        .validate()?;
+        if RecordId::new(self.customer_id.clone()).is_err()
+            || !valid_text(&self.customer_name, NAME_LIMIT)
+        {
+            return Err(source_invalid());
+        }
+        Ok(())
+    }
+}
+
+/// Bounded Executive customer-activity search over the same federated sources
+/// as the per-customer timeline. `record_id` narrows one evidence row.
+#[derive(Clone, Debug)]
+pub struct ExecutiveCustomerActivityQuery {
+    pub from: i64,
+    pub to: i64,
+    pub query: Option<String>,
+    pub cursor: Option<CustomerTimelineCursor>,
+    pub limit: usize,
+    pub record_id: Option<String>,
+}
+
+impl ExecutiveCustomerActivityQuery {
+    pub fn normalized_limit(&self) -> Result<usize, BusinessError> {
+        if (1..=MAX_LIMIT).contains(&self.limit) {
+            Ok(self.limit)
+        } else {
+            Err(BusinessError::invalid(
+                "CUSTOMER_ACTIVITY_LIMIT_INVALID",
+                "Choose a customer activity page size between 1 and 100.",
+            ))
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), BusinessError> {
+        self.normalized_limit()?;
+        const MAX_RANGE: i64 = 366 * 24 * 60 * 60 * 1000;
+        if self.from < 0
+            || self.to <= self.from
+            || self.to - self.from > MAX_RANGE
+        {
+            return Err(BusinessError::invalid(
+                "CUSTOMER_ACTIVITY_RANGE_INVALID",
+                "Choose a customer activity range within one year.",
+            ));
+        }
+        if self.query.as_deref().is_some_and(|value| {
+            value.len() > 200 || value.chars().any(char::is_control)
+        }) {
+            return Err(BusinessError::invalid(
+                "CUSTOMER_ACTIVITY_QUERY_INVALID",
+                "Use a bounded customer activity search.",
+            ));
+        }
+        if self
+            .record_id
+            .as_deref()
+            .is_some_and(|value| !valid_text(value, ID_LIMIT))
+        {
+            return Err(source_invalid());
+        }
+        if let Some(cursor) = &self.cursor {
+            if cursor.at < 0 || !valid_text(&cursor.id, ID_LIMIT) {
+                return Err(cursor_invalid());
+            }
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CustomerTimelineCursor {
     pub at: i64,

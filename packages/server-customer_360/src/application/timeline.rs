@@ -10,7 +10,8 @@
 use crate::domain::timeline::{
     CustomerAccount, CustomerTimelineActor, CustomerTimelineCursor, CustomerTimelineItem,
     CustomerTimelinePage, CustomerTimelinePageData, CustomerTimelineQuery, CustomerTimelineView,
-    cursor_scope, decode_cursor, source_invalid, validate_page,
+    ExecutiveCustomerActivityQuery, ExecutiveCustomerActivityRow, cursor_scope, decode_cursor,
+    source_invalid, validate_page,
 };
 use erpx_server_shared::public::{BusinessError, FailureKind, RecordId, TimestampMillis};
 use std::future::Future;
@@ -138,4 +139,73 @@ where
         coverage: view.coverage(),
         limitations: crate::domain::timeline::LIMITATIONS,
     })
+}
+
+/// Read-only Executive customer-activity search over the same source owners as
+/// the per-customer timeline. The caller supplies the current actor, Support
+/// history purchase state and the serializable Holding transaction.
+pub trait ExecutiveCustomerActivityRepository: Send {
+    type Error: From<BusinessError> + Send;
+
+    fn activity<'a>(
+        &'a mut self,
+        actor: &'a CustomerTimelineActor,
+        view: CustomerTimelineView,
+        query: &'a ExecutiveCustomerActivityQuery,
+        cursor: Option<&'a CustomerTimelineCursor>,
+        limit: usize,
+    ) -> CustomerTimelineFuture<'a, Vec<ExecutiveCustomerActivityRow>, Self::Error>;
+}
+
+pub async fn executive_customer_activity<R, E>(
+    actor: &CustomerTimelineActor,
+    query: &ExecutiveCustomerActivityQuery,
+    repository: &mut R,
+    entitlement: &mut E,
+    now: TimestampMillis,
+) -> Result<Vec<ExecutiveCustomerActivityRow>, R::Error>
+where
+    R: ExecutiveCustomerActivityRepository,
+    E: CustomerTimelineSupportEntitlement,
+    R::Error: From<E::Error>,
+{
+    actor.require_read(now)?;
+    query.validate()?;
+    let support_purchased = if actor.has("support.read") {
+        entitlement
+            .support_history(actor.company_id.as_str())
+            .await
+            .map_err(R::Error::from)?
+    } else {
+        false
+    };
+    let view = CustomerTimelineView {
+        support: actor.support_visible(support_purchased),
+        field_service: actor.field_service_visible(),
+        finance: actor.finance_visible(),
+        legal: actor.legal_visible(),
+    };
+    let limit = query.normalized_limit()?;
+    let rows = repository
+        .activity(actor, view, query, query.cursor.as_ref(), limit)
+        .await?;
+    if rows.len() > limit + 1 {
+        return Err(source_invalid().into());
+    }
+    let mut previous: Option<&ExecutiveCustomerActivityRow> = None;
+    for row in &rows {
+        row.validate()?;
+        if let Some(previous) = previous {
+            if row.at > previous.at || (row.at == previous.at && row.id >= previous.id) {
+                return Err(source_invalid().into());
+            }
+        }
+        if let Some(cursor) = &query.cursor {
+            if row.at > cursor.at || (row.at == cursor.at && row.id >= cursor.id) {
+                return Err(source_invalid().into());
+            }
+        }
+        previous = Some(row);
+    }
+    Ok(rows)
 }

@@ -8,6 +8,7 @@ import { createCustomerFollowup } from "@erpx/server-sales/public/customer-follo
 import {createSupportTicket} from '@erpx/server-support/public/support';
 import * as crm from "@erpx/server-crm/public/crm";
 import { editedCustomerParty } from "@erpx/server-finance/public/document-posting-preview";
+vi.mock('next/headers',()=>({headers:async()=>{throw new Error('NO_REQUEST_SCOPE');}}));
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
 let f: Awaited<ReturnType<typeof expenseFixture>>, customer: string, noDocument: string, order: string;
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });

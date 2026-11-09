@@ -79,15 +79,15 @@
     {
       "id": "customer_360",
       "package": "erpx-server-customer-360",
-      "phase": "partial",
-      "businessMigrationComplete": false,
+      "phase": "active",
+      "businessMigrationComplete": true,
       "surfaces": {
         "domain": "active",
         "application": "active",
-        "http": "partial",
-        "ssr": "partial",
-        "jobs": "pending",
-        "providers": "pending"
+        "http": "active",
+        "ssr": "active",
+        "jobs": "not-applicable",
+        "providers": "not-applicable"
       }
     },
     {

@@ -6,6 +6,13 @@ use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
     current_package_catalogue,
 };
+use erpx_server_customer_360::public::customer_activity::{
+    ExecutiveCustomerActivityQuery, ExecutiveCustomerActivityRow, executive_customer_activity,
+};
+use erpx_server_customer_360::public::customer_activity_http::{
+    CustomerActivityHttpBackend, CustomerActivityHttpFuture, CustomerActivityHttpReadRequest,
+    CustomerActivityHttpTarget, customer_activity_http_router,
+};
 use erpx_server_customer_360::public::customer_timeline::{
     CustomerTimelineActor, CustomerTimelineQuery, CustomerTimelineSupportEntitlement,
     PgCustomerTimelineRead, customer_timeline,
@@ -301,6 +308,90 @@ impl<C: Clock + Send + Sync + 'static> Customer360Service<C> {
             )
             .await
     }
+    pub async fn activity(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: HoldingWorkspaceRequest,
+        query: ExecutiveCustomerActivityQuery,
+    ) -> Result<Vec<ExecutiveCustomerActivityRow>, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(move || Ok(input)),
+                Self::access(),
+                Customer360Sources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let query = query.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let actor = customer_timeline_actor(current)?;
+                        let purchased = if current.has_permission("support.read") {
+                            let catalogue = current_package_catalogue()
+                                .map_err(|_| PgTransactionError::Business(unavailable()))?;
+                            let mut reader = PgCompanyPurchaseReader::new(
+                                current.holding_id().clone(),
+                                current.selection().workspace().company_id.clone(),
+                                connection,
+                                &catalogue,
+                            );
+                            let inspection = reader
+                                .inspect(
+                                    &PurchaseRequest {
+                                        capabilities: vec!["support.tickets".into()],
+                                        purpose: CapabilityPurpose::History,
+                                        mode: PackageEnforcementMode::Enforced,
+                                    },
+                                    clock.now(),
+                                )
+                                .await
+                                .map_err(|error| match error {
+                                    PgTransactionError::Business(error) => {
+                                        PgTransactionError::Business(error)
+                                    }
+                                    PgTransactionError::Persistence(_) => {
+                                        PgTransactionError::Business(unavailable())
+                                    }
+                                })?;
+                            inspection.require_allowed().is_ok()
+                        } else {
+                            false
+                        };
+                        let mut repository = PgCustomerTimelineRead::new(connection);
+                        let mut entitlement = SupportEntitlement { purchased };
+                        executive_customer_activity(
+                            &actor,
+                            &query,
+                            &mut repository,
+                            &mut entitlement,
+                            clock.now(),
+                        )
+                        .await
+                        .map_err(|error| match error {
+                            PgTransactionError::Business(error) => {
+                                PgTransactionError::Business(error)
+                            }
+                            PgTransactionError::Persistence(_) => {
+                                PgTransactionError::Business(unavailable())
+                            }
+                        })
+                    })
+                },
+            )
+            .await
+    }
 }
 
 pub struct Customer360Backend<C> {
@@ -373,4 +464,24 @@ impl<C: Clock + Send + Sync + 'static> CustomerTimelineHttpBackend for Customer3
 #[allow(dead_code)]
 fn _router(targets: Vec<CustomerTimelineHttpTarget>) -> Result<axum::Router, BusinessError> {
     customer_timeline_http_router(targets)
+}
+
+impl<C: Clock + Send + Sync + 'static> CustomerActivityHttpBackend for Customer360Backend<C> {
+    fn read<'a>(
+        &'a self,
+        request: CustomerActivityHttpReadRequest<'a>,
+    ) -> CustomerActivityHttpFuture<'a, Vec<ExecutiveCustomerActivityRow>> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .activity(request.host, proof, selection, request.query.clone())
+                .await
+                .map_err(business)
+        })
+    }
+}
+
+#[allow(dead_code)]
+fn _activity_router(targets: Vec<CustomerActivityHttpTarget>) -> Result<axum::Router, BusinessError> {
+    customer_activity_http_router(targets)
 }

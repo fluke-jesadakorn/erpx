@@ -38,7 +38,7 @@ import { holdingResources } from "@erpx/server-runtime/public/runtime";
 import { customerTimeline } from "@erpx/server-customer_360/public/customer-timeline";
 import { salesCustomersAccess, customerSummaries, customerWorkspaceProfile } from "@erpx/server-sales/public/sales-customers";
 import { calendarSupportSupportFacts } from "@erpx/server-support/public/calendar-support-facts";
-import { executiveMainEvidenceSources } from "@erpx/server-customer_360/public/executive-main-evidence-sources";
+import { executiveMainEvidenceSources, type CustomerActivityTransport } from "@erpx/server-customer_360/public/executive-main-evidence-sources";
 
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: vi.fn(async () => ({ write: env.H001_DB, files: env.H001_FILES })), runtimeEnv: async () => env }));
 vi.mock("@erpx/server-files/public/attachments/scanner", () => ({
@@ -164,17 +164,24 @@ it("filters unpurchased Support Calendar sources while retaining draining owner 
   expect((await incidents()).map(row => row.id)).toContain(incident.id);
 });
 
-it("applies purchase and current owner authority to actual Executive customer evidence without a second connection", async () => {
+it("forwards Executive customer evidence through the native transport without a second connection", async () => {
   vi.stubEnv("ERPX_SUPPORT_PACKAGE_ENFORCEMENT", "disabled"); const ticket = await orderTicket();
   const event = await db.prepare("SELECT id FROM support_ticket_events WHERE ticket_id=? ORDER BY version LIMIT 1").bind(ticket.id).first<{ id: string }>();
   const filters = { from: "2026-01-01", to: "2027-01-01", currency: "THB" }, recordId = `support:${event!.id}`;
   vi.stubEnv("ERPX_SUPPORT_PACKAGE_ENFORCEMENT", "enforced");
-  expect((await executiveMainEvidenceSources(db).factsReadCustomerActivityEvidence(f.owner, recordId, filters)).row).toBeNull();
-  expect((await executiveMainEvidenceSources(db).factsSearchCustomerActivityEvidence(f.owner, { filters, query: "Private source ticket", limit: 100, metric: "recent-customer-activity" }, null)).rows).toEqual([]);
-  await grant("active"); vi.mocked(holdingResources).mockClear();
+  let purchased = false;
+  const row = { id: recordId, source_id: String(ticket.id), source_type: "support", title: "Synthetic support case", status: "open", version: 1, at: 105, href: `/support/${ticket.id}`, customer_id: "customer", customer_name: "Acme Customer" };
+  const transport: CustomerActivityTransport = {
+    search: async (_incoming, actor) => purchased && actor.assignmentId !== "stale-fixture-assignment" ? [row] : [],
+    read: async (_incoming, actor) => purchased && actor.assignmentId !== "stale-fixture-assignment" ? row : null,
+  };
+  const options = { incoming: new Headers({ host: "acme.jesadakorn.com" }), transport };
+  expect((await executiveMainEvidenceSources(db, options).factsReadCustomerActivityEvidence(f.owner, recordId, filters)).row).toBeNull();
+  expect((await executiveMainEvidenceSources(db, options).factsSearchCustomerActivityEvidence(f.owner, { filters, query: "Private source ticket", limit: 100, metric: "recent-customer-activity" }, null)).rows).toEqual([]);
+  purchased = true; vi.mocked(holdingResources).mockClear();
   await db.transaction(async tx => {
-    expect((await executiveMainEvidenceSources(tx).factsReadCustomerActivityEvidence(f.owner, recordId, filters)).row).toMatchObject({ source_id: ticket.id, source_type: "support" });
-    expect((await executiveMainEvidenceSources(tx).factsReadCustomerActivityEvidence({ ...f.owner, assignmentId: "stale-fixture-assignment" }, recordId, filters)).row).toBeNull();
+    expect((await executiveMainEvidenceSources(tx, options).factsReadCustomerActivityEvidence(f.owner, recordId, filters)).row).toMatchObject({ source_id: ticket.id, source_type: "support" });
+    expect((await executiveMainEvidenceSources(tx, options).factsReadCustomerActivityEvidence({ ...f.owner, assignmentId: "stale-fixture-assignment" }, recordId, filters)).row).toBeNull();
   });
   expect(holdingResources).not.toHaveBeenCalled();
 });

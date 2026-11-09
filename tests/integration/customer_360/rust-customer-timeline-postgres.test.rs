@@ -6,8 +6,11 @@
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
 
+use erpx_server_customer_360::public::customer_activity::{
+    ExecutiveCustomerActivityQuery, executive_customer_activity,
+};
 use erpx_server_customer_360::public::customer_timeline::{
-    CustomerTimelineActor, CustomerTimelineFuture, CustomerTimelineQuery,
+    CustomerTimelineActor, CustomerTimelineCursor, CustomerTimelineFuture, CustomerTimelineQuery,
     CustomerTimelineSupportEntitlement, PgCustomerTimelineRead, customer_timeline,
 };
 use erpx_server_runtime::public::postgres::{
@@ -824,4 +827,154 @@ async fn persisted_source_rows_are_returned_unchanged() {
         assert_eq!(row.get::<i64, _>("version"), 1);
     })
     .await;
+}
+
+
+async fn read_activity(
+    pool: &DatabasePool,
+    actor: &CustomerTimelineActor,
+    query: ExecutiveCustomerActivityQuery,
+    purchased: bool,
+) -> Result<Vec<erpx_server_customer_360::public::customer_activity::ExecutiveCustomerActivityRow>, BusinessError> {
+    PgUnitOfWork::new(pool.clone())
+        .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+            let actor = actor.clone();
+            let query = query.clone();
+            Box::pin(async move {
+                let mut reader = PgCustomerTimelineRead::new(connection);
+                let mut entitlement = Entitlement(purchased);
+                executive_customer_activity(&actor, &query, &mut reader, &mut entitlement, NOW).await
+            })
+        })
+        .await
+        .map_err(|error| match error {
+            PgTransactionError::Business(error) => error,
+            other => panic!("expected an owner business failure, got {other:?}"),
+        })
+}
+
+fn activity_query(limit: usize) -> ExecutiveCustomerActivityQuery {
+    ExecutiveCustomerActivityQuery {
+        from: 0,
+        to: 1_000_000,
+        query: None,
+        cursor: None,
+        limit,
+        record_id: None,
+    }
+}
+
+#[tokio::test]
+async fn executive_activity_federates_cross_customer_rows_and_honors_gates() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let full = full_actor();
+        let rows = read_activity(&pool, &full, activity_query(100), true)
+            .await
+            .unwrap();
+        let ids = rows.iter().map(|row| row.id.as_str()).collect::<Vec<_>>();
+        assert_eq!(
+            ids,
+            vec![
+                "contact:note-history-dept",
+                "order:order-dept",
+                "contact:note-history-other",
+                "order:order-other",
+                "crm-activity:crm-activity-main",
+                "crm:crm-event-main",
+                "invoice:invoice-main",
+                "legal:legal-event-confidential",
+                "legal:legal-event-internal",
+                "service-order:service-order-event-main",
+                "service-agreement:agreement-event-main",
+                "support:support-event-main",
+                "followup:followup-event-main",
+                "contact:note-history-main",
+                "return:return-main",
+                "fulfillment:fulfillment-main",
+                "order:order-main",
+            ]
+        );
+        assert!(rows.iter().all(|row| row.customer_name == "Acme Customer"));
+        assert!(rows.iter().all(|row| row.customer_id == "customer"));
+
+        let unpurchased = read_activity(&pool, &full, activity_query(100), false)
+            .await
+            .unwrap();
+        assert!(!unpurchased.iter().any(|row| row.id.starts_with("support:")));
+        assert!(unpurchased.iter().any(|row| row.id.starts_with("invoice:")));
+
+        let restricted = actor(
+            "user",
+            "company",
+            None,
+            None,
+            "sales_agent",
+            "assignment-support",
+            &["commerce.read"],
+            &[],
+        );
+        let restricted_rows = read_activity(&pool, &restricted, activity_query(100), false)
+            .await
+            .unwrap();
+        let restricted_ids = restricted_rows
+            .iter()
+            .map(|row| row.id.as_str())
+            .collect::<Vec<_>>();
+        assert!(!restricted_ids.iter().any(|id| id.starts_with("invoice:")));
+        assert!(!restricted_ids.iter().any(|id| id.starts_with("legal:")));
+        assert!(!restricted_ids.iter().any(|id| id.starts_with("support:")));
+        assert!(!restricted_ids.iter().any(|id| id.starts_with("service-")));
+        assert_eq!(restricted_ids.len(), 11);
+
+        let mut search = activity_query(100);
+        search.query = Some("Confidential".into());
+        let searched = read_activity(&pool, &full, search, true).await.unwrap();
+        assert_eq!(
+            searched.iter().map(|row| row.id.as_str()).collect::<Vec<_>>(),
+            vec!["legal:legal-event-confidential"]
+        );
+
+        let mut record = activity_query(100);
+        record.record_id = Some("order:order-main".into());
+        let read = read_activity(&pool, &full, record, true).await.unwrap();
+        assert_eq!(read.len(), 1);
+        assert_eq!(read[0].id, "order:order-main");
+
+        let mut cursor = None;
+        let mut paged = Vec::new();
+        loop {
+            let mut query = activity_query(5);
+            query.cursor = cursor.clone();
+            let page = read_activity(&pool, &full, query, true).await.unwrap();
+            paged.extend(page.iter().map(|row| row.id.clone()));
+            match page.last() {
+                Some(last) if page.len() > 5 => cursor = Some(CustomerTimelineCursor { at: last.at, id: last.id.clone() }),
+                _ => break,
+            }
+            if page.len() <= 5 {
+                break;
+            }
+        }
+        assert_eq!(paged.len(), 17);
+        assert_eq!(paged.iter().collect::<std::collections::BTreeSet<_>>().len(), 17);
+
+        let branch = actor(
+            "user",
+            "company",
+            Some("branch"),
+            None,
+            "support_agent",
+            "assignment-support",
+            &["commerce.read", "support.read", "finance.read", "legal.read"],
+            &["field_service"],
+        );
+        let branch_rows = read_activity(&pool, &branch, activity_query(100), true)
+            .await
+            .unwrap();
+        let branch_ids = branch_rows.iter().map(|row| row.id.as_str()).collect::<Vec<_>>();
+        assert!(!branch_ids.contains(&"order:order-other"));
+        assert!(!branch_ids.contains(&"contact:note-history-other"));
+        assert!(branch_ids.contains(&"order:order-dept"));
+    });
 }
