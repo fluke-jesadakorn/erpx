@@ -697,3 +697,35 @@ async fn period_close_rejects_invalid_workpapers_without_effects_and_rolls_back(
     })
     .await;
 }
+
+#[tokio::test]
+async fn period_close_proof_length_matches_the_typescript_schema() {
+    account::with_system(|system| async move {
+        let p = setup(system).await;
+        let pool = &p.system.holdings[0];
+        seed(pool).await;
+        let maker = actor("fixture-a", "finance-fixture-a");
+        let reviewer = actor("fixture-b", "finance-fixture-b");
+        begin(pool, &maker, "close-begin-proof-parity")
+            .await
+            .unwrap();
+        // closeProofSchema trims and accepts one character; the native adapter
+        // must not require a longer proof than the installed TypeScript route.
+        let mut short = proof(1);
+        short.proof = "a".into();
+        let closed = close(pool, &reviewer, "close-proof-parity", &short, true)
+            .await
+            .unwrap();
+        assert_eq!(closed.state, "closed");
+        let blank = PeriodCloseProofInput {
+            proof: "   ".into(),
+            expected_version: Some(2),
+            attachment_set_ids: Vec::new(),
+        };
+        assert_business(
+            close(pool, &reviewer, "close-blank-proof", &blank, true).await,
+            "INVALID_CLOSE_PROOF",
+        );
+    })
+    .await;
+}

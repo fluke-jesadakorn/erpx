@@ -1159,7 +1159,7 @@ pub async fn close_period_with_evidence<E: PgPeriodCloseEvidence>(
             "Use a current Finance approver to close the period.",
         ));
     }
-    if input.proof.trim().len() < 3 || input.proof.trim().len() > 2000 {
+    if input.proof.trim().is_empty() || input.proof.trim().len() > 2000 {
         return Err(invalid(
             "INVALID_CLOSE_PROOF",
             "Record the review evidence before approving the close.",
@@ -1383,7 +1383,7 @@ pub async fn reopen_period(
             "Use a current Finance approver to reopen the period.",
         ));
     }
-    if input.proof.trim().len() < 3 || input.proof.trim().len() > 2000 {
+    if input.proof.trim().is_empty() || input.proof.trim().len() > 2000 {
         return Err(invalid(
             "INVALID_CLOSE_PROOF",
             "Record the review evidence before reopening the period.",
