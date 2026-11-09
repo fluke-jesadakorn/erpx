@@ -262,10 +262,16 @@ impl CompanyPurchaseReadPort for PgCompanyPurchaseReader<'_> {
         }
         self.transaction().await?;
         lock_commercial_authority_sources(self.connection).await?;
-        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))")
-            .bind(format!("commercial.package:company:{}", company.as_str()))
-            .execute(&mut *self.connection)
-            .await?;
+        let company_key = format!("commercial.package:company:{}", company.as_str());
+        let acquired:bool=sqlx::query_scalar("SELECT pg_try_advisory_xact_lock(hashtextextended($1,0))").bind(&company_key).fetch_one(&mut *self.connection).await?;
+        if !acquired {
+            // The caller's snapshot predates the writer that currently owns
+            // the Company fence. Waiting would retain that pre-insert snapshot
+            // and silently return empty facts after the writer commits, so the
+            // read fails closed as a retryable serialization failure instead.
+            sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))").bind(&company_key).execute(&mut *self.connection).await?;
+            return Err(PersistenceError::serialization_failure("COMMERCIAL_PURCHASE_SNAPSHOT_STALE").into());
+        }
         // Tuple locks preserve40001 if a revocation committed after an earlier
         // owner snapshot while this transaction awaited its Company fence.
         let rows=sqlx::query("SELECT company_id,package_id,package_version::bigint AS package_version,state,starts_at,ends_at,version::bigint AS version,reason,evidence FROM company_package_grants WHERE company_id=$1 ORDER BY package_id FOR SHARE").bind(company.as_str()).fetch_all(&mut *self.connection).await?;

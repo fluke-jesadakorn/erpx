@@ -28,6 +28,12 @@ impl PersistenceError {
     pub fn sql_state(&self) -> Option<&str> {
         self.sql_state.as_deref()
     }
+    /// Fail closed when a reader had to wait for an owner writer after its
+    /// snapshot was established. The caller can retry the whole unit under a
+    /// fresh snapshot; treating the retained snapshot as current is unsafe.
+    pub fn serialization_failure(code: &'static str) -> Self {
+        Self { code, sql_state: Some("40001".into()), context: None }
+    }
     /// Classify a NOWAIT conflict from an explicitly guarded pre-snapshot
     /// source lock. Other SQL errors retain their ordinary classification.
     pub fn pre_snapshot_lock_conflict(error: sqlx::Error) -> Self {
