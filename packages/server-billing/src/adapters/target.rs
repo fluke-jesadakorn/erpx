@@ -10,7 +10,7 @@ use crate::domain::target::{
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{BusinessError, HoldingId, TimestampMillis};
-use sqlx::{PgConnection, Row};
+use sqlx::{Connection, PgConnection, Row};
 use std::future::Future;
 
 fn source_invalid() -> BusinessError {
@@ -644,6 +644,330 @@ pub async fn read_target_billing_period(
         &mut PgTargetBillingRepository::new(connection),
         holding,
         month,
+        now,
+    )
+    .await
+}
+
+async fn serializable(
+    connection: &mut PgConnection,
+) -> Result<(), PgTransactionError<BusinessError>> {
+    if !connection.is_in_transaction() {
+        return Err(
+            erpx_server_runtime::public::postgres::PersistenceError::new(
+                "BILLING_COMMAND_TRANSACTION_REQUIRED",
+            )
+            .into(),
+        );
+    }
+    if sqlx::query_scalar::<_, String>("SHOW transaction_isolation")
+        .fetch_one(&mut *connection)
+        .await?
+        != "serializable"
+    {
+        return Err(
+            erpx_server_runtime::public::postgres::PersistenceError::new(
+                "BILLING_COMMAND_SERIALIZABLE_REQUIRED",
+            )
+            .into(),
+        );
+    }
+    Ok(())
+}
+
+impl crate::application::target_rate_command::RateTargetRepository
+    for PgTargetBillingRepository<'_>
+{
+    fn record_rating_run<'a>(
+        &'a mut self,
+        draft: &'a crate::application::target_rate_command::RateTargetDraft,
+        actor: &'a crate::domain::actor::BillingActor,
+        reason: &'a str,
+        now: TimestampMillis,
+    ) -> crate::application::BillingFuture<'a, (), Self::Error> {
+        Box::pin(async move {
+            serializable(&mut *self.connection).await?;
+            sqlx::query(
+                "INSERT INTO billing_target_rating_runs\
+                 (id,holding_id,month,price_id,meter_snapshot_id,state,missing_json,\
+                  lines_json,total_satang,actor,reason,created_at) \
+                 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",
+            )
+            .bind(&draft.id)
+            .bind(&draft.holding_id)
+            .bind(&draft.month)
+            .bind(&draft.price_id)
+            .bind(&draft.snapshot_id)
+            .bind(&draft.state)
+            .bind(&draft.missing_json)
+            .bind(&draft.lines_json)
+            .bind(draft.total_satang)
+            .bind(actor.user_id.as_str())
+            .bind(reason)
+            .bind(now.get())
+            .execute(&mut *self.connection)
+            .await?;
+            Ok(())
+        })
+    }
+
+    fn retain_rated_period<'a>(
+        &'a mut self,
+        draft: &'a crate::application::target_rate_command::RateTargetDraft,
+        now: TimestampMillis,
+    ) -> crate::application::BillingFuture<'a, bool, Self::Error> {
+        Box::pin(async move {
+            serializable(&mut *self.connection).await?;
+            let row = sqlx::query(
+                "INSERT INTO billing_target_rated_periods\
+                 (holding_id,month,price_id,assignment_month,mode,meter_snapshot_id,\
+                  service_start,service_end,state,missing_json,lines_json,total_satang,rated_at) \
+                 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) \
+                 ON CONFLICT(holding_id,month) DO UPDATE SET \
+                  price_id=excluded.price_id,assignment_month=excluded.assignment_month,\
+                  mode=excluded.mode,meter_snapshot_id=excluded.meter_snapshot_id,\
+                  service_start=excluded.service_start,service_end=excluded.service_end,\
+                  state=excluded.state,missing_json=excluded.missing_json,\
+                  lines_json=excluded.lines_json,total_satang=excluded.total_satang,\
+                  rated_at=excluded.rated_at \
+                 WHERE billing_target_rated_periods.state<>'approved' RETURNING holding_id",
+            )
+            .bind(&draft.holding_id)
+            .bind(&draft.month)
+            .bind(&draft.price_id)
+            .bind(&draft.assignment_month)
+            .bind(&draft.mode)
+            .bind(&draft.snapshot_id)
+            .bind(draft.service_start)
+            .bind(draft.service_end)
+            .bind(&draft.state)
+            .bind(&draft.missing_json)
+            .bind(&draft.lines_json)
+            .bind(draft.total_satang)
+            .bind(now.get())
+            .fetch_optional(&mut *self.connection)
+            .await?;
+            Ok(row.is_some())
+        })
+    }
+
+    fn digest<'a>(
+        &'a mut self,
+        value: &'a str,
+    ) -> crate::application::BillingFuture<'a, String, Self::Error> {
+        Box::pin(async move {
+            serializable(&mut *self.connection).await?;
+            Ok(
+                sqlx::query_scalar("SELECT encode(sha256(convert_to($1,'UTF8')),'hex')")
+                    .bind(value)
+                    .fetch_one(&mut *self.connection)
+                    .await?,
+            )
+        })
+    }
+
+    fn lock_holding<'a>(
+        &'a mut self,
+        holding: &'a HoldingId,
+    ) -> crate::application::BillingFuture<'a, (), Self::Error> {
+        Box::pin(async move {
+            serializable(&mut *self.connection).await?;
+            sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))")
+                .bind(format!("billing:{}", holding.as_str()))
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(())
+        })
+    }
+
+    fn lock_command<'a>(
+        &'a mut self,
+        key: &'a str,
+    ) -> crate::application::BillingFuture<'a, (), Self::Error> {
+        Box::pin(async move {
+            serializable(&mut *self.connection).await?;
+            sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))")
+                .bind(format!("billing-command:{key}"))
+                .execute(&mut *self.connection)
+                .await?;
+            Ok(())
+        })
+    }
+
+    fn receipt<'a>(
+        &'a mut self,
+        key: &'a str,
+    ) -> crate::application::BillingFuture<
+        'a,
+        Option<crate::application::cost::ReceiptSnapshot>,
+        Self::Error,
+    > {
+        Box::pin(async move {
+            serializable(&mut *self.connection).await?;
+            let row = sqlx::query("SELECT digest,result_json FROM billing_receipts WHERE id=$1")
+                .bind(key)
+                .fetch_optional(&mut *self.connection)
+                .await?;
+            row.map(|row| {
+                Ok::<_, PgTransactionError<BusinessError>>(
+                    crate::application::cost::ReceiptSnapshot {
+                        digest: row.try_get("digest")?,
+                        result_json: row.try_get("result_json")?,
+                    },
+                )
+            })
+            .transpose()
+        })
+    }
+
+    fn holding_exists<'a>(
+        &'a mut self,
+        holding: &'a HoldingId,
+    ) -> crate::application::BillingFuture<'a, bool, Self::Error> {
+        Box::pin(async move {
+            serializable(&mut *self.connection).await?;
+            Ok(sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS(SELECT 1 FROM holding_bindings WHERE holding_id=$1)",
+            )
+            .bind(holding.as_str())
+            .fetch_one(&mut *self.connection)
+            .await?)
+        })
+    }
+
+    fn account_for_update<'a>(
+        &'a mut self,
+        holding: &'a HoldingId,
+    ) -> crate::application::BillingFuture<
+        'a,
+        Option<crate::application::cost::AccountSnapshot>,
+        Self::Error,
+    > {
+        Box::pin(async move {
+            serializable(&mut *self.connection).await?;
+            let row =
+                sqlx::query("SELECT version FROM billing_accounts WHERE holding_id=$1 FOR UPDATE")
+                    .bind(holding.as_str())
+                    .fetch_optional(&mut *self.connection)
+                    .await?;
+            row.map(|row| {
+                Ok::<_, PgTransactionError<BusinessError>>(
+                    crate::application::cost::AccountSnapshot {
+                        version: i64::from(row.try_get::<i32, _>("version")?),
+                    },
+                )
+            })
+            .transpose()
+        })
+    }
+
+    fn increment_account_version<'a>(
+        &'a mut self,
+        holding: &'a HoldingId,
+        expected_version: i64,
+    ) -> crate::application::BillingFuture<'a, Option<i64>, Self::Error> {
+        Box::pin(async move {
+            serializable(&mut *self.connection).await?;
+            let row = sqlx::query(
+                "UPDATE billing_accounts SET version=version+1 \
+                 WHERE holding_id=$1 AND version=$2 RETURNING version",
+            )
+            .bind(holding.as_str())
+            .bind(expected_version)
+            .fetch_optional(&mut *self.connection)
+            .await?;
+            Ok(row.map(|row| i64::from(row.get::<i32, _>("version"))))
+        })
+    }
+
+    fn insert_audit<'a>(
+        &'a mut self,
+        entry: &'a crate::application::cost::AuditEntry<'a>,
+        now: TimestampMillis,
+    ) -> crate::application::BillingFuture<'a, bool, Self::Error> {
+        Box::pin(async move {
+            serializable(&mut *self.connection).await?;
+            let changed = sqlx::query(
+                "INSERT INTO billing_audit(id,holding_id,actor,action,reason,details_json,created_at) \
+                 VALUES($1,$2,$3,$4,$5,$6,$7)",
+            )
+            .bind(format!("billing-audit-{}", entry.key))
+            .bind(entry.target.as_str())
+            .bind(entry.actor.user_id.as_str())
+            .bind(entry.action)
+            .bind(entry.reason)
+            .bind(entry.details_json)
+            .bind(now.get())
+            .execute(&mut *self.connection)
+            .await?
+            .rows_affected();
+            Ok(changed == 1)
+        })
+    }
+
+    fn insert_receipt<'a>(
+        &'a mut self,
+        key: &'a str,
+        digest: &'a str,
+        result_json: &'a str,
+        now: TimestampMillis,
+    ) -> crate::application::BillingFuture<'a, bool, Self::Error> {
+        Box::pin(async move {
+            serializable(&mut *self.connection).await?;
+            let changed = sqlx::query(
+                "INSERT INTO billing_receipts(id,digest,result_json,created_at) \
+                 VALUES($1,$2,$3,$4) ON CONFLICT(id) DO NOTHING",
+            )
+            .bind(key)
+            .bind(digest)
+            .bind(result_json)
+            .bind(now.get())
+            .execute(&mut *self.connection)
+            .await?
+            .rows_affected();
+            Ok(changed == 1)
+        })
+    }
+
+    fn serialized_receipt<'a>(
+        &'a mut self,
+        key: &'a str,
+    ) -> crate::application::BillingFuture<
+        'a,
+        Option<crate::application::cost::ReceiptSnapshot>,
+        Self::Error,
+    > {
+        Box::pin(async move {
+            serializable(&mut *self.connection).await?;
+            let row = sqlx::query("SELECT digest,result_json FROM billing_receipts WHERE id=$1")
+                .bind(key)
+                .fetch_optional(&mut *self.connection)
+                .await?;
+            row.map(|row| {
+                Ok::<_, PgTransactionError<BusinessError>>(
+                    crate::application::cost::ReceiptSnapshot {
+                        digest: row.try_get("digest")?,
+                        result_json: row.try_get("result_json")?,
+                    },
+                )
+            })
+            .transpose()
+        })
+    }
+}
+
+pub async fn execute_rate_target(
+    connection: &mut PgConnection,
+    actor: &crate::domain::actor::BillingActor,
+    target: &HoldingId,
+    command: &crate::domain::target_rate_command::RateTarget,
+    now: TimestampMillis,
+) -> Result<crate::domain::command::CommandReceipt, PgTransactionError<BusinessError>> {
+    crate::application::target_rate_command::execute_rate_target(
+        actor,
+        target,
+        command,
+        &mut PgTargetBillingRepository::new(connection),
         now,
     )
     .await

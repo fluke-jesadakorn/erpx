@@ -7,5 +7,6 @@ pub mod target_command;
 pub mod target_evidence_command;
 pub mod target_pricing;
 pub mod target_provider_command;
+pub mod target_rate_command;
 pub mod target_rollout;
 pub mod workspace;

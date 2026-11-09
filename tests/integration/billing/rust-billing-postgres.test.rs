@@ -129,6 +129,32 @@ async fn run_provider(
         .await
 }
 
+async fn run_rate(
+    pool: &DatabasePool,
+    actor: &BillingActor,
+    target: &HoldingId,
+    command: &erpx_server_billing::public::target_rate_command::RateTarget,
+    now: TimestampMillis,
+) -> Result<erpx_server_billing::public::cost::CommandReceipt, PgTransactionError<BusinessError>> {
+    let pool = pool.clone();
+    let actor = actor.clone();
+    let target = target.clone();
+    let command = command.clone();
+    PgUnitOfWork::new(pool)
+        .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+            let actor = actor.clone();
+            let target = target.clone();
+            let command = command.clone();
+            Box::pin(async move {
+                erpx_server_billing::public::target_rate_command::execute_rate_target(
+                    connection, &actor, &target, &command, now,
+                )
+                .await
+            })
+        })
+        .await
+}
+
 fn record(key_value: &str, version: i64) -> BillingCostCommand {
     BillingCostCommand::Record(RecordCost {
         key: key(key_value),
@@ -1985,6 +2011,184 @@ fn target_provider_cost_and_statement_commands_verify_fx_evidence_and_totals() {
         .err()
         .expect("stale account version conflicts");
         assert_eq!(business(stale).code, "VERSION_CONFLICT");
+        let audit: i64 = sqlx::query_scalar("SELECT count(*) FROM billing_audit")
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+        assert_eq!(audit, 2);
+        let receipts: i64 = sqlx::query_scalar("SELECT count(*) FROM billing_receipts")
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+        assert_eq!(receipts, 2);
+    });
+}
+
+#[test]
+fn rate_target_appends_runs_and_replaces_only_unapproved_periods() {
+    with_database(|pool| async move {
+        migrate(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES \
+             ('h001','acme','Acme','write-h001','read-h001','files-h001','active'),\
+             ('h002','northstar','Northstar','write-h002','read-h002','files-h002','active');\
+             INSERT INTO billing_accounts(holding_id,version,customer_id,payment_mode,created_at) VALUES \
+             ('h001',2,'customer-1','manual',100),\
+             ('h002',1,'customer-2','manual',100);\
+             INSERT INTO billing_target_prices\
+             (id,effective_month,base_monthly_satang,included_original_bytes,storage_satang_per_gb_month,ai_markup_percent,created_at,created_by,seat_terms_status,included_seats,seat_monthly_satang,storage_allowance_mode,rating_enabled) VALUES \
+             ('price-1','2026-12',149000,20000000000,500,10,0,'fixture','defined',0,49900,'per_paid_seat_time',TRUE);\
+             INSERT INTO billing_target_assignments\
+             (holding_id,effective_month,price_id,mode,service_started_at,assigned_by,reason,created_at) VALUES \
+             ('h001','2027-01','price-1','shadow',1798736400000,'fixture','fixture',0),\
+             ('h001','2027-03','price-1','shadow',1803834000000,'fixture','fixture',0);\
+             INSERT INTO billing_usage_snapshots\
+             (holding_id,month,snapshot_id,refreshed_at,source_count,ai_coverage,storage_coverage,unreconciled_originals,seat_coverage,seat_source_count) VALUES \
+             ('h001','2027-01','snap-1',100,0,'measured','measured',0,'measured',0);",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        use erpx_server_billing::public::target_rate_command::RateTarget;
+        let now = TimestampMillis::new(1_802_667_600_000);
+        let owner = |holding: &str| BillingActor {
+            user_id: UserId::new("owner").unwrap(),
+            assignment_id: AssignmentId::new("assignment").unwrap(),
+            holding_id: Some(HoldingId::new(holding).unwrap()),
+            platform: false,
+            role: "holding_owner".into(),
+            expires_at: None,
+        };
+        let command = |key_value: &str, version: i64, month: &str| RateTarget {
+            key: key(key_value),
+            expected_version: version,
+            reason: "Rated from reviewed target evidence".into(),
+            target_month: month.into(),
+        };
+        let h001 = HoldingId::new("h001").unwrap();
+        let first = run_rate(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &command("target:rate:1", 2, "2027-01"),
+            now,
+        )
+        .await
+        .unwrap();
+        assert_eq!(first.result_json, "{\"ok\":true}");
+        let run: (String, String, Option<i64>, String) = sqlx::query_as(
+            "SELECT state,meter_snapshot_id,total_satang,actor FROM billing_target_rating_runs \
+             WHERE holding_id='h001' AND month='2027-01'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            run,
+            (
+                "ready".into(),
+                "snap-1".into(),
+                Some(149_000),
+                "owner".into()
+            )
+        );
+        let period: (String, Option<i64>, String) = sqlx::query_as(
+            "SELECT state,total_satang,price_id FROM billing_target_rated_periods \
+             WHERE holding_id='h001' AND month='2027-01'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(period, ("ready".into(), Some(149_000), "price-1".into()));
+        let version: i32 =
+            sqlx::query_scalar("SELECT version FROM billing_accounts WHERE holding_id='h001'")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        assert_eq!(version, 3);
+        let replay = run_rate(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &command("target:rate:1", 2, "2027-01"),
+            now,
+        )
+        .await
+        .unwrap();
+        assert_eq!(replay, first);
+        let runs: i64 = sqlx::query_scalar("SELECT count(*) FROM billing_target_rating_runs")
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+        assert_eq!(runs, 1);
+
+        let held = run_rate(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &command("target:rate:held", 3, "2027-03"),
+            now,
+        )
+        .await
+        .unwrap();
+        assert_eq!(held.result_json, "{\"ok\":true}");
+        let held_period: (String, Option<i64>) = sqlx::query_as(
+            "SELECT state,total_satang FROM billing_target_rated_periods \
+             WHERE holding_id='h001' AND month='2027-03'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(held_period, ("held".into(), None));
+        let missing: String = sqlx::query_scalar(
+            "SELECT missing_json FROM billing_target_rating_runs \
+             WHERE holding_id='h001' AND month='2027-03'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert!(missing.contains("month_not_closed"));
+        assert!(missing.contains("meter_snapshot_missing"));
+
+        let platform = BillingActor {
+            platform: true,
+            role: "platform_admin".into(),
+            holding_id: None,
+            ..owner("h001")
+        };
+        let denied = run_rate(
+            &pool,
+            &platform,
+            &h001,
+            &command("target:rate:platform", 4, "2027-01"),
+            now,
+        )
+        .await
+        .err()
+        .expect("rate-target is a Holding-owner command");
+        assert_eq!(business(denied).code, "FORBIDDEN");
+        let stale = run_rate(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &command("target:rate:stale", 3, "2027-01"),
+            now,
+        )
+        .await
+        .err()
+        .expect("stale account version conflicts");
+        assert_eq!(business(stale).code, "VERSION_CONFLICT");
+        let cross = run_rate(
+            &pool,
+            &owner("h002"),
+            &HoldingId::new("h002").unwrap(),
+            &command("target:rate:cross", 1, "2027-01"),
+            now,
+        )
+        .await
+        .err()
+        .expect("h002 has no assignment");
+        assert_eq!(business(cross).code, "TARGET_ASSIGNMENT_REQUIRED");
         let audit: i64 = sqlx::query_scalar("SELECT count(*) FROM billing_audit")
             .fetch_one(pool.raw())
             .await
