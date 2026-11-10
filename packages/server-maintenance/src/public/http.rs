@@ -3,5 +3,6 @@
 pub use crate::adapters::http::{
     MaintenanceHttpBackend, MaintenanceHttpCommand, MaintenanceHttpCommandRequest,
     MaintenanceHttpFuture, MaintenanceHttpReadKind, MaintenanceHttpReadRequest,
-    MaintenanceHttpResponse, MaintenanceHttpTarget, decoded_operation, maintenance_router,
+    MaintenanceHttpResponse, MaintenanceHttpTarget, PreventiveHttpCommandRequest,
+    decoded_operation, decoded_plan_operation, maintenance_router,
 };

@@ -6,12 +6,12 @@
 //! Assets owner adapter. No command, purchase or independent transaction is
 //! created here.
 use crate::application::read::{
-    MaintenanceReadFuture, MaintenanceReadRepository,
+    MaintenanceDowntimeQuery, MaintenanceReadFuture, MaintenanceReadRepository,
 };
 use crate::domain::read::{
-    MaintenanceAssetOption, MaintenanceNodeOption, MaintenanceOccurrenceRow,
-    MaintenancePersonOption, MaintenancePlanEventRow, MaintenancePlanRow, MaintenanceWorkEventRow,
-    MaintenanceWorkRow,
+    MaintenanceAssetOption, MaintenanceDowntimeEvidenceRow, MaintenanceNodeOption,
+    MaintenanceOccurrenceRow, MaintenancePersonOption, MaintenancePlanEventRow, MaintenancePlanRow,
+    MaintenanceWorkEventRow, MaintenanceWorkRow,
 };
 use erpx_server_assets::public::asset_register::{
     AssetActor, AssetRepository, PgAssetRegister,
@@ -472,6 +472,67 @@ impl MaintenanceReadRepository for PgMaintenanceRead<'_> {
             Ok(value)
         })
     }
+
+    fn downtime(
+        &mut self,
+        query: &MaintenanceDowntimeQuery,
+    ) -> MaintenanceReadFuture<'_, Vec<MaintenanceDowntimeEvidenceRow>, Error> {
+        let from = query.from;
+        let to = query.to;
+        let text = (!query.query.is_empty()).then(|| query.query.clone());
+        let record_id = query.record_id.clone();
+        let cursor = query.cursor.clone();
+        let limit = if record_id.is_some() {
+            1
+        } else {
+            i64::from(query.limit).saturating_add(1).clamp(1, 51)
+        };
+        Box::pin(async move {
+            let (company, branch, department) = self.scope();
+            let rows = sqlx::query(
+                "SELECT w.id,w.version::text version,w.status,w.title,a.code asset_code,a.name asset_name,\
+                 w.downtime_started_at::text downtime_started_at,w.downtime_ended_at::text downtime_ended_at \
+                 FROM maintenance_work_orders w \
+                 JOIN operational_assets a ON a.id=w.asset_id AND a.company_id=w.company_id \
+                 WHERE w.company_id=$1 AND ($2::text IS NULL OR w.branch_id=$2) \
+                 AND ($3::text IS NULL OR w.department_id=$3) \
+                 AND w.status IN ('completed','cancelled') \
+                 AND w.downtime_started_at IS NOT NULL AND w.downtime_ended_at IS NOT NULL \
+                 AND w.downtime_ended_at > w.downtime_started_at \
+                 AND w.downtime_started_at < $4 AND w.downtime_ended_at > $5 \
+                 AND ($6::text IS NULL OR position(lower($6::text) in lower(concat_ws(' ',w.title,a.code,a.name)))>0) \
+                 AND ($7::bigint IS NULL OR (w.downtime_ended_at,w.id)<($7::bigint,$8::text)) \
+                 AND ($9::text IS NULL OR w.id=$9::text) \
+                 ORDER BY w.downtime_ended_at DESC,w.id DESC LIMIT $10",
+            )
+            .bind(&company)
+            .bind(&branch)
+            .bind(&department)
+            .bind(to)
+            .bind(from)
+            .bind(text.as_deref())
+            .bind(cursor.as_ref().map(|cursor| cursor.ended_at))
+            .bind(cursor.as_ref().map(|cursor| cursor.id.as_str()))
+            .bind(record_id.as_deref())
+            .bind(limit)
+            .fetch_all(&mut *self.connection)
+            .await?;
+            rows.iter()
+                .map(|row| {
+                    Ok(MaintenanceDowntimeEvidenceRow {
+                        id: row.try_get("id")?,
+                        version: row.try_get("version")?,
+                        status: row.try_get("status")?,
+                        title: row.try_get("title")?,
+                        asset_code: row.try_get("asset_code")?,
+                        asset_name: row.try_get("asset_name")?,
+                        downtime_started_at: row.try_get("downtime_started_at")?,
+                        downtime_ended_at: row.try_get("downtime_ended_at")?,
+                    })
+                })
+                .collect()
+        })
+    }
 }
 
 /// Open the actual owner read on the caller's already-retained serializable
@@ -593,4 +654,34 @@ pub fn require_read_scope(
         return Err(changed());
     }
     Ok(())
+}
+
+/// Open the Executive/Work downtime evidence read on the caller's retained
+/// serializable transaction. No write, purchase or independent transaction.
+pub async fn read_maintenance_downtime_evidence(
+    c: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    query: &MaintenanceDowntimeQuery,
+    now: TimestampMillis,
+) -> Result<Vec<MaintenanceDowntimeEvidenceRow>, Error> {
+    serializable(c).await?;
+    if now.get() >= current.expires_at() {
+        return Err(changed().into());
+    }
+    let mut repository = PgMaintenanceRead::new(&mut *c, current, now);
+    crate::application::read::maintenance_downtime_evidence(
+        &crate::domain::read::MaintenanceReadActor {
+            user_id: current.user_id().clone(),
+            company_id: current.selection().workspace().company_id.clone(),
+            branch_id: current.selection().workspace().branch_id.clone(),
+            department_id: current.selection().workspace().department_id.clone(),
+            permissions: current.command_iam_metadata().permissions.clone(),
+            modules: current.modules().to_vec(),
+            expires_at: current.expires_at(),
+        },
+        &mut repository,
+        query,
+        now,
+    )
+    .await
 }

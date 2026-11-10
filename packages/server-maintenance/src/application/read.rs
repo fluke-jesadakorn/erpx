@@ -2,9 +2,10 @@
 //! serializable source read; these functions only enforce selected read policy
 //! and assemble owner presentation facts. They grant no write or purchase.
 use crate::domain::read::{
-    MaintenanceAssetOption, MaintenanceDetail, MaintenanceNodeOption, MaintenanceOccurrenceRow,
-    MaintenancePersonOption, MaintenancePlanDetail, MaintenancePlanEventRow, MaintenancePlanRow,
-    MaintenanceReadActor, MaintenanceWorkEventRow, MaintenanceWorkRow, MaintenanceWorkspace,
+    MaintenanceAssetOption, MaintenanceDetail, MaintenanceDowntimeEvidenceRow,
+    MaintenanceNodeOption, MaintenanceOccurrenceRow, MaintenancePersonOption, MaintenancePlanDetail,
+    MaintenancePlanEventRow, MaintenancePlanRow, MaintenanceReadActor, MaintenanceWorkEventRow,
+    MaintenanceWorkRow, MaintenanceWorkspace,
 };
 use serde_json::json;
 use erpx_server_shared::public::{BusinessError, FailureKind, TimestampMillis};
@@ -12,6 +13,24 @@ use std::future::Future;
 
 pub type MaintenanceReadFuture<'a, T, E> =
     std::pin::Pin<Box<dyn Future<Output = Result<T, E>> + Send + 'a>>;
+
+/// Retained Executive downtime evidence query. Numbers are the same bounded
+/// window/cursor contract; the adapter clamps the row limit.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MaintenanceDowntimeQuery {
+    pub from: i64,
+    pub to: i64,
+    pub query: String,
+    pub limit: i32,
+    pub cursor: Option<MaintenanceDowntimeCursor>,
+    pub record_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MaintenanceDowntimeCursor {
+    pub ended_at: i64,
+    pub id: String,
+}
 
 /// Repository queries stay on the caller's retained serializable transaction.
 /// Source eligibility is a current People/IAM read, never a submitted label.
@@ -45,6 +64,10 @@ pub trait MaintenanceReadRepository: Send {
         branch_id: &'a str,
         department_id: Option<&'a str>,
     ) -> MaintenanceReadFuture<'a, bool, Self::Error>;
+    fn downtime(
+        &mut self,
+        query: &MaintenanceDowntimeQuery,
+    ) -> MaintenanceReadFuture<'_, Vec<MaintenanceDowntimeEvidenceRow>, Self::Error>;
 }
 
 fn not_found() -> BusinessError {
@@ -229,4 +252,17 @@ pub async fn maintenance_plan_detail<R: MaintenanceReadRepository>(
         occurrences: repository.occurrences(id).await?,
         plan,
     })
+}
+
+/// Executive/read projection of completed and cancelled downtime windows. The
+/// selected read permission, module and scope are re-checked here; the adapter
+/// returns the exact bounded owner rows.
+pub async fn maintenance_downtime_evidence<R: MaintenanceReadRepository>(
+    actor: &MaintenanceReadActor,
+    repository: &mut R,
+    query: &MaintenanceDowntimeQuery,
+    now: TimestampMillis,
+) -> Result<Vec<MaintenanceDowntimeEvidenceRow>, R::Error> {
+    actor.require_read(now)?;
+    repository.downtime(query).await
 }

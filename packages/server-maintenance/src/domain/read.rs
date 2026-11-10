@@ -361,6 +361,33 @@ impl MaintenanceDetail {
 }
 
 #[derive(Clone, Debug)]
+pub struct MaintenanceDowntimeEvidenceRow {
+    pub id: String,
+    /// Retained Executive evidence shape serializes the version as text.
+    pub version: String,
+    pub status: String,
+    pub title: String,
+    pub asset_code: String,
+    pub asset_name: String,
+    pub downtime_started_at: String,
+    pub downtime_ended_at: String,
+}
+impl MaintenanceDowntimeEvidenceRow {
+    pub fn value(&self) -> Value {
+        json!({
+            "id": self.id,
+            "version": self.version,
+            "status": self.status,
+            "title": self.title,
+            "asset_code": self.asset_code,
+            "asset_name": self.asset_name,
+            "downtime_started_at": self.downtime_started_at,
+            "downtime_ended_at": self.downtime_ended_at,
+        })
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct MaintenancePlanDetail {
     pub plan: MaintenancePlanRow,
     pub actor_id: String,

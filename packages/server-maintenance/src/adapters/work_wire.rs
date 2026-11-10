@@ -1,8 +1,10 @@
 //! Original B0 Maintenance schema normalization, separate from current authority.
 use crate::application::preventive_commands::NormalizedMaintenancePreventiveAction;
+use crate::application::preventive_plan::NormalizedPreventivePlanSave;
 use crate::application::work_commands::{
     NormalizedMaintenanceChange, NormalizedMaintenanceCreate,
 };
+use crate::domain::preventive_plan::PreventivePlanDefinition;
 use crate::domain::preventive_input::{
     MaintenancePreventiveAction, MaintenancePreventiveActionInput,
 };
@@ -143,6 +145,46 @@ impl Validation {
             self.issue(if value > 0.0 { "too_big" } else { "too_small" }, path);
         }
         v
+    }
+    /// Bounded integer field: safe-range issues first, then inclusive min/max,
+    /// matching the retained numeric schema order.
+    fn integer_range(
+        &mut self,
+        v: Option<CommandJson>,
+        path: &[MaintenanceIssuePath],
+        minimum: f64,
+        maximum: f64,
+    ) -> Option<CommandJson> {
+        let Some(value) = v
+            .as_ref()
+            .and_then(|x| x.as_str().parse::<f64>().ok())
+            .filter(|x| x.is_finite() && x.fract() == 0.0)
+        else {
+            self.issue("invalid_type", path);
+            return None;
+        };
+        const MAX: f64 = 9_007_199_254_740_991.0;
+        if value > MAX {
+            self.issue("too_big", path);
+        } else if value < -MAX {
+            self.issue("too_small", path);
+        }
+        if value < minimum {
+            self.issue("too_small", path);
+        } else if value > maximum {
+            self.issue("too_big", path);
+        }
+        v
+    }
+    /// The retained schema probed `Intl.DateTimeFormat` for a valid IANA zone.
+    /// Zone existence is an owner calendar-port read at command execution, so
+    /// the transport keeps the exact string bounds here.
+    fn time_zone(
+        &mut self,
+        v: Option<CommandJson>,
+        path: &[MaintenanceIssuePath],
+    ) -> Option<CommandJson> {
+        self.string(v, path, 2, Some(80), true)
     }
     fn date(
         &mut self,
@@ -517,5 +559,100 @@ pub fn normalize_maintenance_preventive_action(
             action,
         },
         json.as_str().to_owned(),
+    ))
+}
+
+/// Preventive-plan create/revise normalization. This plain Zod object trims the
+/// title, timezone and reason, applies the `leadDays` default, drops unknown
+/// keys and validates the IANA timezone before any owner repository call.
+pub fn normalize_preventive_plan_save(
+    bytes: &[u8],
+) -> Result<NormalizedPreventivePlanSave, MaintenanceWireFailure> {
+    let body = document(bytes)?;
+    let mut check = Validation::default();
+    let mut fields = vec![];
+    if let Some(v) = check.string(property(&body, "assetId"), &field("assetId"), 1, None, false) {
+        fields.push(("assetId", v));
+    }
+    if let Some(v) = check.integer(property(&body, "assetVersion"), &field("assetVersion"), false) {
+        fields.push(("assetVersion", v));
+    }
+    if let Some(v) = check.string(property(&body, "title"), &field("title"), 3, Some(160), true) {
+        fields.push(("title", v));
+    }
+    if let Some(v) = check.enumeration(
+        property(&body, "priority"),
+        &field("priority"),
+        &["normal", "high", "critical"],
+    ) {
+        fields.push(("priority", v));
+    }
+    if let Some(v) = check.string(property(&body, "ownerId"), &field("ownerId"), 1, None, false) {
+        fields.push(("ownerId", v));
+    }
+    if let Some(v) = check.integer_range(
+        property(&body, "intervalDays"),
+        &field("intervalDays"),
+        1.0,
+        3650.0,
+    ) {
+        fields.push(("intervalDays", v));
+    }
+    if let Some(v) = check.integer(property(&body, "firstDueAt"), &field("firstDueAt"), true) {
+        fields.push(("firstDueAt", v));
+    }
+    if let Some(v) = check.time_zone(property(&body, "timeZone"), &field("timeZone")) {
+        fields.push(("timeZone", v));
+    }
+    match property(&body, "leadDays") {
+        // `z.number().int().min(0).max(60).default(7)`: only an absent value
+        // selects the default; an explicit null is a type failure.
+        None => fields.push((
+            "leadDays",
+            CommandJson::from_serializable(&7).map_err(|_| MaintenanceWireFailure::json())?,
+        )),
+        Some(v) => {
+            if let Some(v) = check.integer_range(Some(v), &field("leadDays"), 0.0, 60.0) {
+                fields.push(("leadDays", v));
+            }
+        }
+    }
+    if let Some(v) = property(&body, "expectedVersion")
+        .and_then(|v| check.integer(Some(v), &field("expectedVersion"), false))
+    {
+        fields.push(("expectedVersion", v));
+    }
+    if let Some(v) = check.string(
+        property(&body, "reason"),
+        &field("reason"),
+        3,
+        Some(2000),
+        true,
+    ) {
+        fields.push(("reason", v));
+    }
+    let json = check.finish(&fields)?;
+    let interval_days = i32::try_from(int(&json, "intervalDays")?)
+        .map_err(|_| MaintenanceWireFailure::json())?;
+    let lead_days =
+        i32::try_from(int(&json, "leadDays")?).map_err(|_| MaintenanceWireFailure::json())?;
+    let expected_version = property(&json, "expectedVersion")
+        .map(|_| int(&json, "expectedVersion"))
+        .transpose()?;
+    Ok(NormalizedPreventivePlanSave::new(
+        PreventivePlanDefinition {
+            asset_id: text(&json, "assetId")?,
+            asset_version: int(&json, "assetVersion")?,
+            title: text(&json, "title")?,
+            priority: text(&json, "priority")?,
+            owner_id: text(&json, "ownerId")?,
+            interval_days,
+            first_due_at: int(&json, "firstDueAt")?,
+            time_zone: text(&json, "timeZone")?,
+            lead_days,
+            expected_version,
+            reason: text(&json, "reason")?,
+        },
+        json,
     ))
 }

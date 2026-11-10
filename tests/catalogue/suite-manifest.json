@@ -88906,6 +88906,161 @@
         "rust-toolchain.toml",
         "packages/server-maintenance/Cargo.toml"
       ]
+    },
+    {
+      "id": "maintenance.rust-preventive-recurrence.unit",
+      "lane": "unit",
+      "owner": "maintenance",
+      "modules": [
+        "maintenance"
+      ],
+      "files": [
+        "tests/unit/maintenance/rust-preventive-recurrence.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native preventive-plan command retains recurrence/DST, independent activation and persisted plan/work effects."
+      },
+      "apps": [
+        "assets"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-maintenance",
+        "targets": [
+          "preventive_recurrence"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-maintenance/Cargo.toml"
+      ]
+    },
+    {
+      "id": "maintenance.rust-preventive-plan-policy.unit",
+      "lane": "unit",
+      "owner": "maintenance",
+      "modules": [
+        "maintenance"
+      ],
+      "files": [
+        "tests/unit/maintenance/rust-preventive-plan-policy.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native preventive-plan command retains recurrence/DST, independent activation and persisted plan/work effects."
+      },
+      "apps": [
+        "assets"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-maintenance",
+        "targets": [
+          "preventive_plan_policy"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-maintenance/Cargo.toml"
+      ]
+    },
+    {
+      "id": "maintenance.rust-preventive-plan-wire.unit",
+      "lane": "unit",
+      "owner": "maintenance",
+      "modules": [
+        "maintenance"
+      ],
+      "files": [
+        "tests/unit/maintenance/rust-preventive-plan-wire.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native preventive-plan command retains recurrence/DST, independent activation and persisted plan/work effects."
+      },
+      "apps": [
+        "assets"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-maintenance",
+        "targets": [
+          "preventive_plan_wire"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-maintenance/Cargo.toml"
+      ]
+    },
+    {
+      "id": "maintenance.rust-preventive-plan-command-postgres.integration",
+      "lane": "integration",
+      "owner": "maintenance",
+      "modules": [
+        "maintenance"
+      ],
+      "files": [
+        "tests/integration/maintenance/rust-preventive-plan-command-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native preventive-plan command retains recurrence/DST, independent activation and persisted plan/work effects."
+      },
+      "apps": [
+        "assets"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-maintenance",
+        "targets": [
+          "preventive_plan_command_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-maintenance/Cargo.toml"
+      ],
+      "postgres": {
+        "mode": "template",
+        "slots": [
+          "CONTROL_DB",
+          "H001_DB",
+          "H001_READ_DB"
+        ],
+        "migratedSlots": [
+          "H001_DB"
+        ]
+      }
     }
   ]
 }
