@@ -321,6 +321,22 @@ pub fn build_project_graph(
     actuals: Vec<GraphActual>,
     now: TimestampMillis,
 ) -> Result<ProjectGraph, BusinessError> {
+    build_project_graph_with(actor, project, milestones, tasks, actuals, now, false)
+}
+
+/// The retained handoff snapshot is the complete project graph. Its recipient
+/// review later applies the normal cost/time visibility policy when it reads
+/// the immutable snapshot, so the snapshot itself must not drop a source the
+/// independent reviewer needs.
+pub fn build_project_graph_with(
+    actor: &ProjectGraphActor,
+    project: ProjectRow,
+    milestones: Vec<MilestoneRow>,
+    tasks: Vec<GraphTask>,
+    actuals: Vec<GraphActual>,
+    now: TimestampMillis,
+    include_all: bool,
+) -> Result<ProjectGraph, BusinessError> {
     let company = &actor.read.company_id;
     if project.company_id != company.as_str() {
         return Err(source_invalid());
@@ -334,15 +350,19 @@ pub fn build_project_graph(
     let milestones = validate_milestones(company, &project.id, milestones, now)?;
     let tasks = validate_tasks(company, &project.id, &milestones, tasks)?;
     let actuals = validate_actuals(company, &project.id, &milestones, actuals)?;
-    let can_read_costs = actor.can_read_cost_history
-        && has_permission(&actor.read, "finance.read")
-        && same_scope(&actor.read, &project);
+    let can_read_costs = include_all
+        || (actor.can_read_cost_history
+            && has_permission(&actor.read, "finance.read")
+            && same_scope(&actor.read, &project));
     let is_project_owner = project.is_owner;
     let visible_actuals: Vec<GraphActual> = actuals
         .iter()
-        .filter(|actual| match actual.source_kind.as_str() {
-            "cost_allocation" => can_read_costs,
-            _ => is_project_owner || actual.is_actor,
+        .filter(|actual| {
+            include_all
+                || match actual.source_kind.as_str() {
+                    "cost_allocation" => can_read_costs,
+                    _ => is_project_owner || actual.is_actor,
+                }
         })
         .cloned()
         .collect();

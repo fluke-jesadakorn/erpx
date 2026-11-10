@@ -4,3 +4,8 @@ pub(crate) mod project_commands;
 pub(crate) mod project_commands_http;
 pub(crate) mod project_graph_http;
 pub(crate) mod project_graph_read;
+pub(crate) mod project_structure;
+pub(crate) mod project_structure_http;
+pub(crate) mod project_actuals;
+pub(crate) mod project_actuals_http;
+pub(crate) mod project_attachment;

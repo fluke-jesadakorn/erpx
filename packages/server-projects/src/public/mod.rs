@@ -5,3 +5,8 @@ pub mod project_commands;
 pub mod project_commands_http;
 pub mod project_graph;
 pub mod project_graph_http;
+pub mod project_structure;
+pub mod project_structure_http;
+pub mod project_actuals;
+pub mod project_actuals_http;
+pub mod project_attachment;

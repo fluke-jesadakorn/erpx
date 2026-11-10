@@ -47,3 +47,15 @@ path = "../../tests/unit/projects/rust-project-commands.test.rs"
 [[test]]
 name = "project_graph_http"
 path = "../../tests/unit/projects/rust-project-graph-http.test.rs"
+
+[[test]]
+name = "project_structure_commands"
+path = "../../tests/unit/projects/rust-project-structure.test.rs"
+
+[[test]]
+name = "project_actuals_commands"
+path = "../../tests/unit/projects/rust-project-actuals.test.rs"
+
+[[test]]
+name = "project_attachment_policy"
+path = "../../tests/unit/projects/rust-project-attachment.test.rs"

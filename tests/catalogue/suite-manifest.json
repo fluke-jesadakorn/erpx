@@ -88529,6 +88529,114 @@
         "rust-toolchain.toml",
         "packages/server-manage_erpx/Cargo.toml"
       ]
+    },
+    {
+      "id": "projects.rust-project-structure.unit",
+      "lane": "unit",
+      "owner": "projects",
+      "modules": [
+        "projects"
+      ],
+      "files": [
+        "tests/unit/projects/rust-project-structure.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native project task binding/handoff retains project CAS, source versions and independent decisions."
+      },
+      "apps": [
+        "projects"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-projects",
+        "targets": [
+          "project_structure_commands"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-projects/Cargo.toml"
+      ]
+    },
+    {
+      "id": "projects.rust-project-actuals.unit",
+      "lane": "unit",
+      "owner": "projects",
+      "modules": [
+        "projects"
+      ],
+      "files": [
+        "tests/unit/projects/rust-project-actuals.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native project time/cost commands retain exact money, authority and Finance posting facts."
+      },
+      "apps": [
+        "projects"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-projects",
+        "targets": [
+          "project_actuals_commands"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-projects/Cargo.toml"
+      ]
+    },
+    {
+      "id": "projects.rust-project-attachment.unit",
+      "lane": "unit",
+      "owner": "projects",
+      "modules": [
+        "projects"
+      ],
+      "files": [
+        "tests/unit/projects/rust-project-attachment.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Project attachment target policy retains bounded Files-port binding without storage logic."
+      },
+      "apps": [
+        "projects"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-projects",
+        "targets": [
+          "project_attachment_policy"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-projects/Cargo.toml"
+      ]
     }
   ]
 }
