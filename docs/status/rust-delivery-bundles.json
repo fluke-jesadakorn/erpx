@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 256,
+    "revision": 259,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g1",
       "agentId": "lead",
       "startedAt": "2026-11-10T16:01:48.750Z",
-      "heartbeatAt": "2026-11-10T19:16:58.850Z",
-      "expiresAt": "2026-11-10T19:46:58.850Z",
+      "heartbeatAt": "2026-11-10T19:36:31.947Z",
+      "expiresAt": "2026-11-10T20:06:31.947Z",
       "generation": 2,
       "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
     },
@@ -10339,13 +10339,13 @@
         "resources": [
           "owner:support"
         ],
-        "status": "blocked",
+        "status": "ready_for_integration",
         "claim": {
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T18:08:37.873Z",
-          "heartbeatAt": "2026-11-10T19:16:58.850Z",
-          "expiresAt": "2026-11-10T19:46:58.850Z",
+          "heartbeatAt": "2026-11-10T19:36:31.947Z",
+          "expiresAt": "2026-11-10T20:06:31.947Z",
           "generation": 2
         },
         "baseSha": null,
@@ -10354,7 +10354,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Blocked on portal customer-session resolution: TicketPortal customer projection/acknowledge require a verified external portal customer proof (PortalCustomer) that no composition subsystem provides yet. Staff workspace/prepare/decide/respond and ServiceTeam/auxiliary backends can be mounted once that seam is defined; record it as a new packet.",
+        "nextAction": "Portal proof seam now available (ece3bcacc). Implement the three composition backends (staff workspace/prepare/decide/respond, ServiceTeam, auxiliary; customer paths use resolve_portal_customer with control+holding pools), mount routers, bind consumers",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-support",
@@ -11950,8 +11950,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T17:27:02.192Z",
-          "heartbeatAt": "2026-11-10T19:16:58.850Z",
-          "expiresAt": "2026-11-10T19:46:58.850Z",
+          "heartbeatAt": "2026-11-10T19:36:31.947Z",
+          "expiresAt": "2026-11-10T20:06:31.947Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12140,8 +12140,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:27:02.162Z",
-          "heartbeatAt": "2026-11-10T19:16:58.850Z",
-          "expiresAt": "2026-11-10T19:46:58.850Z",
+          "heartbeatAt": "2026-11-10T19:36:31.947Z",
+          "expiresAt": "2026-11-10T20:06:31.947Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12238,8 +12238,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:53:28.777Z",
-          "heartbeatAt": "2026-11-10T19:16:58.850Z",
-          "expiresAt": "2026-11-10T19:46:58.850Z",
+          "heartbeatAt": "2026-11-10T19:36:31.947Z",
+          "expiresAt": "2026-11-10T20:06:31.947Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12817,8 +12817,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T17:05:17.831Z",
-          "heartbeatAt": "2026-11-10T19:16:58.850Z",
-          "expiresAt": "2026-11-10T19:46:58.850Z",
+          "heartbeatAt": "2026-11-10T19:36:31.947Z",
+          "expiresAt": "2026-11-10T20:06:31.947Z",
           "generation": 2
         },
         "baseSha": null,
@@ -14930,13 +14930,13 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T19:17:12.574Z",
-          "heartbeatAt": "2026-11-10T19:17:12.574Z",
-          "expiresAt": "2026-11-10T19:47:12.574Z",
+          "heartbeatAt": "2026-11-10T19:36:31.947Z",
+          "expiresAt": "2026-11-10T20:06:31.947Z",
           "generation": 2
         },
         "baseSha": null,
@@ -14945,7 +14945,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Define and implement the verified portal-session resolver + tests, then report the composition binding for Support portal customer reads.",
+        "nextAction": "Verified portal proof committed (ece3bcacc); lead wires the ~20-line SessionVerifier + PgPortalEnrollment into the Support portal customer backends, then support can mount",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -14961,17 +14961,17 @@
       "migratedPackets": 6,
       "statusCounts": {
         "pending": 37,
-        "in_progress": 1,
-        "ready_for_integration": 4,
+        "in_progress": 0,
+        "ready_for_integration": 6,
         "integrating": 0,
         "migrated": 6,
-        "blocked": 3,
+        "blocked": 2,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T19:17:12.575Z",
+    "updatedAt": "2026-11-10T19:36:31.948Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
