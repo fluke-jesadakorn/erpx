@@ -7,6 +7,7 @@
 use crate::domain::work_card_availability::{WorkItemFact, WorkQueue};
 use erpx_server_collaboration::public::collaboration_work::ActionWork;
 use erpx_server_field_service::public::work::FieldServiceWorkItem;
+use erpx_server_learning::public::learning::AssignmentRow;
 use erpx_server_maintenance::public::read::{MaintenancePlanRow, MaintenanceWorkRow};
 use erpx_server_operations::public::field_exceptions::ExceptionWork;
 use erpx_server_quality::public::quality_read::{HoldStatus, InspectionResult, QualityHold};
@@ -473,6 +474,44 @@ pub fn quality_hold_items(
         .collect()
 }
 
+/// Mirrors the availability branches of `learningWorkItems`.
+pub fn learning_assignment_items(
+    rows: &[AssignmentRow],
+    actor_user_id: &str,
+    can_review: bool,
+) -> Vec<WorkItemFact> {
+    rows.iter()
+        .map(|row| {
+            let terminal = matches!(row.status.as_str(), "completed" | "waived" | "cancelled");
+            let own = row.learner_id == actor_user_id && row.learner_eligible;
+            let can_act = !terminal && (own || can_review);
+            WorkItemFact {
+                id: format!("learning_assignment:{}", row.id),
+                kind: "learning_assignment".into(),
+                queue: if terminal {
+                    WorkQueue::Completed
+                } else if can_act {
+                    WorkQueue::Todo
+                } else {
+                    WorkQueue::Waiting
+                },
+                can_act: Some(can_act),
+                action_kind: None,
+                relationships: vec![if own {
+                    "assigned".to_owned()
+                } else if row.created_by == actor_user_id {
+                    "requested".to_owned()
+                } else {
+                    "team".to_owned()
+                }],
+                updated_at: row.updated_at,
+                source_id: Some(row.id.clone()),
+                href: format!("/learning/{}", row.id),
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -713,6 +752,53 @@ mod tests {
             disposed_at: None,
             inspection_count: 0,
         }
+    }
+
+    fn learning_assignment(
+        status: &str,
+        learner_eligible: bool,
+    ) -> erpx_server_learning::public::learning::AssignmentRow {
+        erpx_server_learning::public::learning::AssignmentRow {
+            id: "assignment-1".into(),
+            company_id: "company".into(),
+            branch_id: "branch".into(),
+            department_id: None,
+            course_id: "course".into(),
+            course_version: 1,
+            learner_id: "learner".into(),
+            due_date: "2026-11-10".into(),
+            status: status.into(),
+            attendance: None,
+            score_bps: None,
+            result_evidence: None,
+            completion_reason: None,
+            created_by: "creator".into(),
+            version: 1,
+            created_at: 1,
+            updated_at: 9,
+            course_title: "Safety".into(),
+            required_for: None,
+            person_id: None,
+            learner_name: None,
+            learner_eligible,
+        }
+    }
+
+    #[test]
+    fn learning_assignments_follow_learner_and_reviewer_rules() {
+        let own =
+            learning_assignment_items(&[learning_assignment("assigned", true)], "learner", false);
+        assert_eq!(own[0].id, "learning_assignment:assignment-1");
+        assert_eq!(own[0].queue, WorkQueue::Todo);
+        assert_eq!(own[0].relationships, ["assigned"]);
+        let reviewer =
+            learning_assignment_items(&[learning_assignment("assigned", false)], "reviewer", true);
+        assert_eq!(reviewer[0].can_act, Some(true));
+        assert_eq!(reviewer[0].relationships, ["team"]);
+        let completed =
+            learning_assignment_items(&[learning_assignment("completed", true)], "learner", false);
+        assert_eq!(completed[0].queue, WorkQueue::Completed);
+        assert_eq!(completed[0].can_act, Some(false));
     }
 
     #[test]
