@@ -2528,6 +2528,10 @@ async fn assemble_checked(
         let mut project_graph_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut project_command_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
+        let mut project_structure_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
+        let mut project_actuals_targets = Vec::new();
         let mut operations_targets = Vec::new();
         let mut people_payroll_targets = Vec::new();
         let mut asset_targets = Vec::new();
@@ -3035,6 +3039,24 @@ async fn assemble_checked(
                 #[cfg(feature = "existing-business")]
                 project_graph_targets.push(
                     erpx_server_projects::public::project_graph_http::ProjectGraphHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: projects_backend.clone(),
+                    },
+                );
+                #[cfg(feature = "existing-business")]
+                project_structure_targets.push(
+                    erpx_server_projects::public::project_structure_http::ProjectStructureHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: projects_backend.clone(),
+                    },
+                );
+                #[cfg(feature = "existing-business")]
+                project_actuals_targets.push(
+                    erpx_server_projects::public::project_actuals_http::ProjectActualsHttpTarget {
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
@@ -4603,6 +4625,24 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_projects::public::project_graph_http::project_graph_router(
                     project_graph_targets,
+                )
+                .map_err(|_| "PRIVATE_API_PROJECTS_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !project_structure_targets.is_empty() {
+            router = router.merge(
+                erpx_server_projects::public::project_structure_http::project_structure_router(
+                    project_structure_targets,
+                )
+                .map_err(|_| "PRIVATE_API_PROJECTS_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !project_actuals_targets.is_empty() {
+            router = router.merge(
+                erpx_server_projects::public::project_actuals_http::project_actuals_router(
+                    project_actuals_targets,
                 )
                 .map_err(|_| "PRIVATE_API_PROJECTS_CONFIGURATION_INVALID")?,
             );
