@@ -796,6 +796,289 @@
           }
         }
       ]
+    },
+    "ports.growth": {
+      "taskId": "ports.growth",
+      "owners": [
+        "crm",
+        "marketing",
+        "sales",
+        "pms"
+      ],
+      "status": "frozen-with-tail",
+      "seams": [
+        {
+          "id": "crm.lead-to-sales",
+          "provider": "crm",
+          "symbols": [
+            "create_lead",
+            "apply_crm_qualification_retained",
+            "win-pms validation",
+            "CurrentCrmReviewedAccountLink",
+            "MarketingCrmHandoffPort"
+          ],
+          "paths": [
+            "packages/server-crm/src/public/leads_http.rs",
+            "packages/server-crm/src/public/activity_source.rs",
+            "packages/server-marketing/src/public/lead_candidate.rs",
+            "packages/server-sales/src/public/sales_documents.rs"
+          ],
+          "authorityWitness": "CRM rechecks the reviewed account link, lead version and recipient eligibility; a PMS confirmed reservation witness or Marketing handoff is evidence, never a grant of Sales authority.",
+          "transaction": "One Holding transaction: lead/opportunity CAS, qualified/win facts, reviewed account link and handoff receipt/outbox. Reassignment additionally binds Workflow replay, Sales recipient eligibility and Collaboration notification in that same unit.",
+          "consumers": [
+            "crm",
+            "marketing",
+            "sales",
+            "pms"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs",
+            "src/composition/src/crm.rs"
+          ],
+          "status": "partial",
+          "note": "Native lead/opportunity ingress is mounted, but accounts/activities/lead-create/win-pms lack HTTP or the reviewed-link/composition witness; TS still carries the UI path. Tail lives in migrate.crm.*.",
+          "tests": [
+            "cargo check -p erpx-server-crm",
+            "cargo check -p erpx-server-marketing"
+          ],
+          "sourceDigest": {
+            "packages/server-crm/src/public/leads_http.rs": "fbd8c17fbe32821b71f4ed585141076736335d53479f055e4cc7f7f8cc56e349",
+            "packages/server-crm/src/public/activity_source.rs": "ad0ba0b579ad78cdb41427794a7affa4d0dbe4993f2d9a3c9f45083b119f1b6b",
+            "packages/server-marketing/src/public/lead_candidate.rs": "b2f0b809c28018097ea184c3da24ae92f9abae749ebbdc707ce23655bc1d3248",
+            "packages/server-sales/src/public/sales_documents.rs": "9a8ab4b72f526c42cb452f355eda364509b0109b4c15e65ece0f583d1af41a41"
+          }
+        },
+        {
+          "id": "marketing.public-form-attribution",
+          "provider": "marketing",
+          "symbols": [
+            "public form package read/approved revision/consent/submit (TS today)",
+            "candidate/engagement insert",
+            "attribution_json",
+            "MarketingCrmHandoffPort"
+          ],
+          "paths": [
+            "packages/server-marketing/src/adapters/public-form.ts",
+            "packages/server-marketing/src/public/lead_candidate.rs"
+          ],
+          "authorityWitness": "Public submissions carry tenant/form token scope only; consent-required validation and bounded body are enforced before any candidate/engagement write. No authenticated business authority is inferred.",
+          "transaction": "Submission writes the approved revision fact, attribution, candidate/engagement and handoff receipt in one transaction; replay returns the original submission.",
+          "consumers": [
+            "marketing",
+            "forms",
+            "crm"
+          ],
+          "mounts": [
+            "src/composition/src/marketing.rs"
+          ],
+          "status": "partial",
+          "note": "Public form and attribution read are TypeScript; campaign/asset/candidate commands exist with only record-engagement mounted. Tail lives in migrate.marketing.*.",
+          "tests": [
+            "cargo check -p erpx-server-marketing"
+          ],
+          "sourceDigest": {
+            "packages/server-marketing/src/adapters/public-form.ts": "92557aa234b2b70251c04b042679a23b88799ac4b8b7624c44822cfc6f6afcc9",
+            "packages/server-marketing/src/public/lead_candidate.rs": "b2f0b809c28018097ea184c3da24ae92f9abae749ebbdc707ce23655bc1d3248"
+          }
+        },
+        {
+          "id": "sales.revenue-handoff",
+          "provider": "sales",
+          "symbols": [
+            "sales_documents_router",
+            "invoiceFulfillment/settleInvoice consumer (missing native)",
+            "Commerce delivery writer",
+            "Finance customer invoice"
+          ],
+          "paths": [
+            "packages/server-sales/src/public/sales_documents_http.rs",
+            "packages/server-commerce/src/application/commerce.ts",
+            "packages/server-finance/src/public/mod.rs"
+          ],
+          "authorityWitness": "Sales rechecks order/customer authority and delivery evidence; Finance rechecks period/account. The delivery evidence or invoice draft is source material, not payment authority.",
+          "transaction": "Delivery completion and Finance invoice creation/settlement commit in the caller's serializable transaction after stock effects; no second invoice writer and no deferred fix-up.",
+          "consumers": [
+            "sales",
+            "commerce",
+            "finance",
+            "ecommerce"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "partial",
+          "note": "Sales read/price-list routes are frozen; confirmed cancellation, revenue handoff and delivery evidence remain TS. Tail lives in migrate.sales.confirmed-cancellation/revenue-handoff.",
+          "tests": [
+            "cargo check -p erpx-server-sales"
+          ],
+          "sourceDigest": {
+            "packages/server-sales/src/public/sales_documents_http.rs": "85972df95d2d07413f1146c22e5eecaa3899b9d28b9c43df0740f56949f98679",
+            "packages/server-commerce/src/application/commerce.ts": "b14498f2c4ae1a6e3a173d0a16e61a66987e0d2dcd7dfe70916d8944cd84fc49",
+            "packages/server-finance/src/public/mod.rs": "af13b32922321adefdcc2832ba9119d0cbbbe75aeb64df06f70d33d27377e929"
+          }
+        },
+        {
+          "id": "pms.reservation-witness",
+          "provider": "pms",
+          "symbols": [
+            "pms_http_router",
+            "native PMS board/front-desk transport",
+            "reservation quote/confirm/cancel/no-show/change-dates (missing native)"
+          ],
+          "paths": [
+            "packages/server-pms/src/adapters/pms_http.rs",
+            "packages/feature-pms/src/adapters/server/native-pms.ts"
+          ],
+          "authorityWitness": "PMS rechecks property/room/guest scope and reservation version; a confirmed reservation witness exposes only bounded facts to CRM/Finance/stock consumers.",
+          "transaction": "Availability lock and reservation CAS precede the witness write; booking notice is retained through the outbox. Night audit chunks commit progress before release.",
+          "consumers": [
+            "pms",
+            "crm",
+            "finance",
+            "inventory"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "partial",
+          "note": "Room-board/front-desk reads are native and mounted; commands, reservation booking, guest/cashier/stock, night audit and settings remain TS. Tail lives in migrate.pms.*.",
+          "tests": [
+            "cargo check -p erpx-server-pms"
+          ],
+          "sourceDigest": {
+            "packages/server-pms/src/adapters/pms_http.rs": "60876691585b8fd52d881028c175602213b4acf4b3e94af121a9b0de3fa3b413",
+            "packages/feature-pms/src/adapters/server/native-pms.ts": "755beb0231004a291b3e00afdd0adbc3ec7cfd290b7538ead34800354d536f6e"
+          }
+        }
+      ]
+    },
+    "ports.agent": {
+      "taskId": "ports.agent",
+      "owners": [
+        "agent",
+        "platform_administration"
+      ],
+      "status": "frozen-with-tail",
+      "seams": [
+        {
+          "id": "agent.governance",
+          "provider": "agent",
+          "symbols": [
+            "agent catalogue/version/approval",
+            "pool membership/lifecycle",
+            "assignment start/delegate/retry/cancel",
+            "private-session hold/expire"
+          ],
+          "paths": [
+            "packages/server-agent/src/adapters/agent-governance.ts"
+          ],
+          "authorityWitness": "Agent governance rechecks platform/Company administration authority and version; provider selection or pool membership never grants AI access.",
+          "transaction": "Catalog/version/approval and assignment/private-session changes are versioned owner commands with receipt/outbox in the caller transaction.",
+          "consumers": [
+            "agent",
+            "platform_administration",
+            "finance",
+            "operations"
+          ],
+          "mounts": [],
+          "status": "missing",
+          "note": "No owner crate exists; only the platform-owned agent evidence audit read is native. Tail lives in migrate.agent.crate_governance.",
+          "tests": [
+            "cargo check -p erpx-server-platform-administration"
+          ],
+          "sourceDigest": {
+            "packages/server-agent/src/adapters/agent-governance.ts": "cce91be3c58535716bd55e6644be2251a89b9adc430119c56be027bfe4ce18dc"
+          }
+        },
+        {
+          "id": "agent.provider-runtime",
+          "provider": "agent",
+          "symbols": [
+            "AI connection save/test/activate/disable/discover/select",
+            "key sealing",
+            "provider HTTP transport"
+          ],
+          "paths": [
+            "packages/server-agent/src/adapters/ai-providers.ts"
+          ],
+          "authorityWitness": "Sealed keys are never returned to a consumer; activation/selection rechecks platform authority and connection version. Fail closed when a provider or key is absent.",
+          "transaction": "Connection changes are versioned commands; provider calls occur outside owner transactions with explicit retry/quota reservation and no implicit commit.",
+          "consumers": [
+            "agent",
+            "finance",
+            "operations",
+            "assistant"
+          ],
+          "mounts": [],
+          "status": "missing",
+          "note": "Provider resolution/quota ports exist only as TypeScript with no fail-closed Rust adapter. Live provider verification is A1; adapter and failure behavior are G3.",
+          "tests": [
+            "cargo check -p erpx-server-platform-administration"
+          ],
+          "sourceDigest": {
+            "packages/server-agent/src/adapters/ai-providers.ts": "392f64ff523e05c3de0f0cde8c260851629c13bcc5d912f7e65576dcccf9485c"
+          }
+        },
+        {
+          "id": "agent.quota-gateway",
+          "provider": "agent",
+          "symbols": [
+            "Per-Company AI request quota lock",
+            "gateway reservation/finish",
+            "usage statements",
+            "provider statement reconciliation"
+          ],
+          "paths": [
+            "packages/server-agent/src/adapters/ai-quota.ts"
+          ],
+          "authorityWitness": "Company quota is locked and rechecked per request; usage or provider statements are facts, not authority to exceed quota.",
+          "transaction": "Quota reservation and finish are durable owner commands; provider usage settles through idempotent receipts and never double-charges a request.",
+          "consumers": [
+            "agent",
+            "finance",
+            "operations"
+          ],
+          "mounts": [],
+          "status": "partial",
+          "note": "Quota lock exists only as a TS port; no native gateway receipts. Tail lives in migrate.agent.provider_runtime.",
+          "tests": [
+            "cargo check -p erpx-server-platform-administration"
+          ],
+          "sourceDigest": {
+            "packages/server-agent/src/adapters/ai-quota.ts": "7095c93ff3f5104dd8a2ad45bd828c5a499ebd62effdad1a34588a3c24e5e5a3"
+          }
+        },
+        {
+          "id": "platform_administration.agent-evidence",
+          "provider": "platform_administration",
+          "symbols": [
+            "agent_evidence_http_router",
+            "platform_router"
+          ],
+          "paths": [
+            "packages/server-platform_administration/src/adapters/agent_evidence_http.rs",
+            "packages/server-platform_administration/src/adapters/platform_http.rs"
+          ],
+          "authorityWitness": "Platform audit read requires current platform administration authority; evidence rows are read-only and never grant Agent operation authority.",
+          "transaction": "Read-only bound audit query; no mutation or independent commit.",
+          "consumers": [
+            "platform_administration",
+            "agent"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "frozen",
+          "note": "Platform keeps the Agent evidence audit read; the new Agent crate must not duplicate it.",
+          "tests": [
+            "cargo check -p erpx-server-platform-administration"
+          ],
+          "sourceDigest": {
+            "packages/server-platform_administration/src/adapters/agent_evidence_http.rs": "72e6bfd2da02b58266e5cbf08d57f6f17294b63d7255918dac269a18a6a8d1f7",
+            "packages/server-platform_administration/src/adapters/platform_http.rs": "c0a2b6c5e79fc2f39aa44af5a7542b366c41cbe483d8f69f7d5ce448dba8fe88"
+          }
+        }
+      ]
     }
   }
 }
