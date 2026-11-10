@@ -1,62 +1,18 @@
-use std::{future::Future, pin::Pin};
+use crate::domain::identity::{RecordId, TimestampMillis};
 
-use crate::domain::{
-    error::BusinessError,
-    identity::{RecordId, TimestampMillis},
-};
-
+/// Wall-clock source owned by the caller; no shared port opens a transaction.
 pub trait Clock {
     fn now(&self) -> TimestampMillis;
 }
 
+/// Deterministic identifier source owned by the caller.
 pub trait IdentifierSource {
     fn next(&mut self) -> RecordId;
 }
 
-pub type TransactionFuture<'a, Output, Error = BusinessError> =
-    Pin<Box<dyn Future<Output = Result<Output, Error>> + Send + 'a>>;
-
-/// A replay coordinator constructs fresh owner ports for every serializable attempt.
-/// The callback may run again after a database conflict; external effects belong
-/// in an outbox, and owned outputs cannot retain a transaction or leased port.
-/// A retained cross-database authorization lease is a separate one-attempt contract.
-pub trait UnitOfWork<Ports> {
-    type Error: From<BusinessError> + Send + 'static;
-    fn run<'a, Output, Work>(
-        &'a mut self,
-        work: Work,
-    ) -> TransactionFuture<'a, Output, Self::Error>
-    where
-        Output: Send + 'static,
-        Work: for<'tx> FnMut(&'tx mut Ports) -> TransactionFuture<'tx, Output, Self::Error>
-            + Send
-            + 'a;
-}
-
-pub trait CommandReceipts<Identity, Output> {
-    fn replay(
-        &mut self,
-        identity: &Identity,
-    ) -> impl Future<Output = Result<Option<Output>, BusinessError>> + Send;
-    fn save(
-        &mut self,
-        identity: &Identity,
-        result: &Output,
-    ) -> impl Future<Output = Result<(), BusinessError>> + Send;
-}
-
-pub trait AuditSink<Event> {
-    fn append(&mut self, event: Event) -> impl Future<Output = Result<(), BusinessError>> + Send;
-}
-
-pub trait Outbox<Event> {
-    fn enqueue(&mut self, event: Event) -> impl Future<Output = Result<(), BusinessError>> + Send;
-}
-
-pub trait Authorization<Actor> {
-    fn require(
-        &mut self,
-        actor: &Actor,
-        permission: &str,
-    ) -> impl Future<Output = Result<(), BusinessError>> + Send;
-}
+// Transaction, command-receipt, audit and outbox witnesses are not declared here.
+// The adopted single implementations are `erpx_server_runtime::public::postgres::
+// PgUnitOfWork` (one Holding transaction, named session locks, bounded replay) and
+// `erpx_server_workflow::public::commands::PgCommandLedger` (receipt, owner effects
+// and outbox retain in the caller's transaction). Declaring trait copies here
+// created a second, unimplemented authority surface with no production consumer.

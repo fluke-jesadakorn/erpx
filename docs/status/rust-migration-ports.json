@@ -15,7 +15,7 @@
         "work_projection",
         "shared"
       ],
-      "status": "frozen-with-tail",
+      "status": "frozen",
       "seams": [
         {
           "id": "shared.record-source-v1",
@@ -47,7 +47,7 @@
             "cargo check -p erpx-service"
           ],
           "sourceDigest": {
-            "packages/server-shared/src/public/mod.rs": "6c3e8b79f43675cc9373de20d7cbd9c0e31b1783eb9ae5e40940cdd4c17e7d9a",
+            "packages/server-shared/src/public/mod.rs": "a0378b2ececa79ce9bf951753212342789fad8bdf0a13cd8b3bdea558600ae9e",
             "packages/server-shared/src/domain/source_record.rs": "c119f5672ce92652bd7e73a6ade6d8eccc860d4020f3185ed2e92465b1e7b0d8"
           }
         },
@@ -215,6 +215,38 @@
           ],
           "sourceDigest": {
             "packages/server-work_projection/src/adapters/work_snapshot_read.rs": "facc4da383186b256480b00edaf8eaefcc90cdfa08f9b43a7de7e5ca06b89d82"
+          }
+        },
+        {
+          "id": "shared.port-adoption",
+          "provider": "shared",
+          "symbols": [
+            "erpx_server_shared::public::Clock",
+            "erpx_server_shared::public::IdentifierSource"
+          ],
+          "paths": [
+            "packages/server-shared/src/application/ports.rs",
+            "packages/server-shared/src/public/mod.rs"
+          ],
+          "authorityWitness": "No transaction or receipt authority lives here. The single adopted transaction witness is runtime PgUnitOfWork; the single receipt/outbox witness is workflow PgCommandLedger.",
+          "transaction": "No effects. Clock/identifier ports are caller-owned; concrete UnitOfWork/ledger implementations retain their own documented replay and lock semantics.",
+          "consumers": [
+            "all owner crates",
+            "src/composition/**"
+          ],
+          "mounts": [
+            "src/composition/src/records_command.rs",
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "frozen",
+          "tests": [
+            "cargo check -p erpx-server-shared",
+            "bun run test:unit -- --suite=shared.architecture.rust-shared-core.unit",
+            "bun run test:unit -- --suite=shared.architecture.rust-architecture.unit"
+          ],
+          "sourceDigest": {
+            "packages/server-shared/src/application/ports.rs": "0835d1c463a288baddad77e9096cdf8630ba59a8a376f57e4c021b2ac1dfe9d3",
+            "packages/server-shared/src/public/mod.rs": "a0378b2ececa79ce9bf951753212342789fad8bdf0a13cd8b3bdea558600ae9e"
           }
         }
       ]

@@ -1,10 +1,930 @@
 {
   "version": 1,
   "planRef": "docs/production-plan.md#rust-migration-current",
-  "sourceSha": "ad3ca99657f06068c147cfbdd2537fd3f6edca1c",
-  "generatedAt": "2026-11-10T16:13:21+00:00",
+  "sourceSha": "603a4aa3e3e39a0a65651d839a6cdab04631b742",
+  "generatedAt": "2026-11-10T16:17:54+00:00",
   "interpretation": "G1 source inventory. Task records are read-only source findings; proposed packets are not implementation evidence. Catalogue qualification state is unchanged and acceptance stays deferred.",
   "owners": {
+    "billing": {
+      "taskId": "inventory.billing",
+      "owner": "billing",
+      "sourceSha": "603a4aa3e3e39a0a65651d839a6cdab04631b742",
+      "nativePresent": true,
+      "workflows": [],
+      "publicPorts": [
+        {
+          "name": "billing_router",
+          "path": "packages/server-billing/src/adapters/billing_http.rs:539",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:3954"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "billing_target_rollout_router",
+          "path": "packages/server-billing/src/adapters/target_rollout_http.rs:308",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:3960"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "billing_target_provider_router",
+          "path": "packages/server-billing/src/adapters/target_provider_http.rs:399",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:3968"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "billing_retry_job_router",
+          "path": "packages/server-billing/src/adapters/retry_job_http.rs:304",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:3976"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "billing_target_evidence_router",
+          "path": "packages/server-billing/src/adapters/target_evidence_http.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:3984"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "billing_rate_target_router",
+          "path": "packages/server-billing/src/adapters/target_rate_http.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:3992"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "native billing SSR reader",
+          "path": "packages/server-billing/src/public/native-billing-page.ts:40",
+          "mountedAt": [
+            "packages/feature-billing/src/lib/billing.ts"
+          ],
+          "status": "partial"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "subscription-checkout-provider",
+          "kind": "provider",
+          "detail": "Native Stripe subscription create/update/cancel/checkout-session commands and webhook settlement are missing; TS billingStripe/billingCommand and beta-billing.ts own them (billing.ts:259-269). Implement provider adapter with fail-closed config and record real credentials as A1.",
+          "suggestedPaths": [
+            "packages/server-billing/src/domain/stripe.rs",
+            "packages/server-billing/src/application/stripe.rs",
+            "packages/server-billing/src/adapters/billing_stripe.rs",
+            "packages/server-billing/src/adapters/billing_stripe_http.rs"
+          ]
+        },
+        {
+          "id": "durable-billing-jobs",
+          "kind": "job",
+          "detail": "Native route accepts retry (retry_job_http), but pending invoice/mirror/webhook jobs are drained by TS drainBilling (packages/server-billing/src/adapters/billing-jobs.ts; called from packages/server-runtime/src/adapters/runtime/jobs.ts:112). No native lease/retry/executor loop exists.",
+          "suggestedPaths": [
+            "packages/server-billing/src/domain/jobs.rs",
+            "packages/server-billing/src/application/jobs.rs",
+            "packages/server-billing/src/adapters/billing_jobs_postgres.rs",
+            "packages/server-billing/src/adapters/billing_jobs_worker.rs"
+          ]
+        },
+        {
+          "id": "invoice-lifecycle-command",
+          "kind": "command",
+          "detail": "Native workspace reads invoices, plans and costs; draft/issue/void/payment/credit commands remain TS advanceBilling/billingCommand.",
+          "suggestedPaths": [
+            "packages/server-billing/src/domain/invoice.rs",
+            "packages/server-billing/src/application/invoice.rs",
+            "packages/server-billing/src/adapters/invoice_postgres.rs"
+          ]
+        },
+        {
+          "id": "ts-billing-fallback-retirement",
+          "kind": "retirement",
+          "detail": "billingHandler keeps TS body for every non-cost operation; nativeCostCommand is only a subset. Route files are shared feature-admin/admin and retire with the lead.",
+          "suggestedPaths": [
+            "packages/server-billing/src/adapters/billing-api.ts"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-billing/src/adapters/billing-api.ts",
+          "reason": "billingHandler dispatch for all non-cost invoice/subscription/evidence operations; cost commands only use native when configured.",
+          "removalCondition": "Native billing router covers reads+all commands and admin billing routes select it; delete billing-api.ts and billing.ts command path."
+        },
+        {
+          "path": "packages/server-billing/src/adapters/billing-jobs.ts",
+          "reason": "drainBilling/mirrorInvoice durable job executor imported by the TS jobs runtime.",
+          "removalCondition": "Native billing job executor passes lease/retry/postgres suites and runtime jobs selects it; remove TS import at src/workers/jobs.ts and runtime jobs.ts:112."
+        },
+        {
+          "path": "packages/server-billing/src/adapters/beta-billing.ts",
+          "reason": "Stripe legacy subscription/webhook settlement and event inbox.",
+          "removalCondition": "Native subscription provider and webhook settlement replace it and stripe_inbox replay tests pass."
+        },
+        {
+          "path": "packages/server-billing/src/adapters/billing-stripe.ts",
+          "reason": "Stripe HTTP client/config used by TS billing commands.",
+          "removalCondition": "Native provider adapter owns Stripe calls; delete TS client."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.billing.subscription_commands",
+          "title": "Native Stripe subscription/checkout/webhook commands",
+          "paths": [
+            "packages/server-billing/src/domain/stripe.rs",
+            "packages/server-billing/src/application/stripe.rs",
+            "packages/server-billing/src/adapters/billing_stripe.rs",
+            "packages/server-billing/src/adapters/billing_stripe_http.rs",
+            "packages/server-billing/src/public/billing_stripe.rs",
+            "tests/unit/billing/rust-billing-stripe.test.rs",
+            "tests/integration/billing/rust-billing-stripe-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:billing"
+          ],
+          "dependsOn": [],
+          "requiredPorts": [
+            "ports.trade"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-billing",
+            "cargo test -p erpx-server-billing --test billing_commands",
+            "bun run test:unit --suite=billing.native-billing-transport.unit"
+          ]
+        },
+        {
+          "id": "migrate.billing.jobs",
+          "title": "Native durable billing jobs executor",
+          "paths": [
+            "packages/server-billing/src/domain/jobs.rs",
+            "packages/server-billing/src/application/jobs.rs",
+            "packages/server-billing/src/adapters/billing_jobs_postgres.rs",
+            "packages/server-billing/src/adapters/billing_jobs_worker.rs",
+            "packages/server-billing/src/public/billing_jobs.rs",
+            "tests/unit/billing/rust-billing-jobs.test.rs",
+            "tests/integration/billing/rust-billing-jobs-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:billing"
+          ],
+          "dependsOn": [
+            "migrate.billing.subscription_commands"
+          ],
+          "requiredPorts": [
+            "ports.trade"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-billing",
+            "cargo test -p erpx-server-billing --test billing_postgres",
+            "bun run test:unit --suite=billing.billing-owner-services.unit"
+          ]
+        },
+        {
+          "id": "migrate.billing.invoice_commands",
+          "title": "Native invoice lifecycle commands",
+          "paths": [
+            "packages/server-billing/src/domain/invoice.rs",
+            "packages/server-billing/src/application/invoice.rs",
+            "packages/server-billing/src/adapters/invoice_postgres.rs",
+            "packages/server-billing/src/public/billing_http.rs",
+            "tests/unit/billing/rust-billing-invoice.test.rs",
+            "tests/integration/billing/rust-billing-invoice-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:billing"
+          ],
+          "dependsOn": [
+            "migrate.billing.jobs"
+          ],
+          "requiredPorts": [
+            "ports.trade"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-billing",
+            "cargo test -p erpx-server-billing --test billing_http",
+            "bun run test:unit --suite=billing.rust-billing-commands.unit"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Real Stripe sandbox credentials, webhook signing and reconciliation acceptance",
+        "Browser billing console desktop/mobile for subscription/checkout",
+        "Provider outage/retry timing acceptance"
+      ],
+      "limitations": [
+        "Task carries zero catalogue workflowIds; this inventory covers auxiliary billing commands/reads/jobs/providers that must be tracked for G4/G5.",
+        "Admin billing route and runtime job selection are shared/lead integration.",
+        "Native retry route exists but no native job executor; do not infer jobs migration from the retry endpoint.",
+        "No cargo/test was run during inventory."
+      ]
+    },
+    "commerce": {
+      "taskId": "inventory.commerce",
+      "owner": "commerce",
+      "sourceSha": "ad3ca99657f06068c147cfbdd2537fd3f6edca1c",
+      "nativePresent": true,
+      "workflows": [],
+      "publicPorts": [
+        {
+          "name": "order_http::commerce_order_http_router",
+          "path": "packages/server-commerce/src/public/order_http.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs",
+            "src/composition/src/commerce.rs"
+          ],
+          "status": "partial"
+        },
+        {
+          "name": "order::save_order/transition_order",
+          "path": "packages/server-commerce/src/public/order.rs",
+          "mountedAt": [
+            "packages/server-commerce/src/adapters/order_http.rs"
+          ],
+          "status": "partial"
+        },
+        {
+          "name": "receipt::receive_purchase_order + PgCommerceReceipt",
+          "path": "packages/server-commerce/src/public/receipt.rs",
+          "mountedAt": [],
+          "status": "partial"
+        },
+        {
+          "name": "inventory_consumption",
+          "path": "packages/server-commerce/src/public/inventory_consumption.rs",
+          "mountedAt": [
+            "packages/server-pos/src/adapters/commands.rs"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "finance_goods_journal (Finance-owned)",
+          "path": "packages/server-finance/src/public/commerce_goods_journal.rs",
+          "mountedAt": [],
+          "status": "partial"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "goods-fulfillment-writer",
+          "kind": "command",
+          "detail": "Native fulfillment covers only completionMode=service (domain/fulfillment.rs build_service_completion:227; route selects native only at workplace commerce route line 87). Stock/mixed fulfillment still runs TS fulfillOrder, which writes stock, lot, reservation, invoice/settlement and Finance journal from application/commerce.ts. Native purchase receipt exists but is unreachable.",
+          "suggestedPaths": [
+            "packages/server-commerce/src/domain/receipt.rs",
+            "packages/server-commerce/src/domain/fulfillment.rs",
+            "packages/server-commerce/src/application/fulfillment.rs",
+            "packages/server-commerce/src/adapters/receipt.rs",
+            "packages/server-commerce/src/adapters/receipt_use_cases.rs",
+            "packages/server-commerce/src/public/receipt.rs"
+          ]
+        },
+        {
+          "id": "purchase-order-writer",
+          "kind": "command",
+          "detail": "Native save/transition explicitly refuses purchase orders: domain/order.rs:968-970 returns source_invalid() for OrderKind::Purchase; the Next route sends kind=purchase straight to TS saveOrder (route line 84).",
+          "suggestedPaths": [
+            "packages/server-commerce/src/domain/order.rs",
+            "packages/server-commerce/src/application/order.rs",
+            "packages/server-commerce/src/adapters/order.rs",
+            "packages/server-commerce/src/adapters/order_http.rs",
+            "packages/server-commerce/src/public/order.rs"
+          ]
+        },
+        {
+          "id": "goods-finance-journal-mount",
+          "kind": "mount",
+          "detail": "post_commerce_goods_journal (adapters/commerce_goods_journal.rs:107, re-exported at public/commerce_goods_journal.rs:3) has no caller and no composition mount, so a native delivery would not post the COGS/inventory draft. Its PostgreSQL suite exists (finance.rust-commerce-goods-journal-postgres.integration).",
+          "suggestedPaths": [
+            "packages/server-finance/src/adapters/commerce_goods_journal.rs",
+            "packages/server-finance/src/public/commerce_goods_journal.rs",
+            "packages/server-commerce/src/adapters/receipt.rs"
+          ]
+        },
+        {
+          "id": "fx-goods-carrying",
+          "kind": "provider",
+          "detail": "Native receipt hard-fails foreign currency with RECEIPT_FX_GUARD_REQUIRED (domain/receipt.rs:951-956 and receipt_use_cases.rs:185). Finance already publishes functional_fx_micros / functional_fx_evidence (public/mod.rs:46,56), so the missing piece is the Commerce receipt's use of that valuation inside the same transaction.",
+          "suggestedPaths": [
+            "packages/server-commerce/src/domain/receipt.rs",
+            "packages/server-commerce/src/adapters/receipt_use_cases.rs",
+            "packages/server-commerce/src/adapters/receipt.rs",
+            "tests/integration/commerce"
+          ]
+        },
+        {
+          "id": "returns-writer",
+          "kind": "command",
+          "detail": "Return request/decision/completion and their stock+credit+FX effects are TS only (application/commerce-return-accounting.ts, adapters/commerce-return-accounting.ts); the crate has no domain return module, only quality_return_origin/quality_return_join facts.",
+          "suggestedPaths": [
+            "packages/server-commerce/src/application/commerce-return-accounting.ts",
+            "packages/server-commerce/src/adapters/commerce-return-accounting.ts",
+            "packages/server-commerce/src/adapters/commerce-goods-accounting.ts",
+            "packages/server-commerce/src/public/mod.rs"
+          ]
+        },
+        {
+          "id": "receipt-quality-port",
+          "kind": "provider",
+          "detail": "public/receipt.rs:1-12 documents that composition must supply a Quality StockReceiptQualityPort and that no production implementation exists. Inventory owns the bridge (dependency direction inventory->quality); Commerce needs it plus the Finance journal step for full commerce.order.fulfill parity.",
+          "suggestedPaths": [
+            "packages/server-commerce/src/adapters/receipt.rs",
+            "packages/server-commerce/src/adapters/receipt_use_cases.rs",
+            "packages/server-commerce/src/public/receipt.rs"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
+          "reason": "Retained Next transport (no business logic of its own) still selects TS saveOrder/transitionOrder/fulfillOrder for purchase and stock/mixed fulfillment (lines 84-87).",
+          "removalCondition": "Remove the TS fallback branches when native purchase-order and goods-fulfillment commands are mounted and ERPX_NATIVE_COMMERCE_ORDER_CONFIG is default-on."
+        },
+        {
+          "path": "packages/server-commerce/src/application/commerce.ts",
+          "reason": "Authoritative TS Commerce application (orders, stock fulfillment, returns, invoice-from-delivery, settlement, masters).",
+          "removalCondition": "Delete only after the native order/fulfillment/return/invoice/settlement slices own their tables and the corresponding vitest integration assertions move to cargo suites."
+        },
+        {
+          "path": "packages/server-commerce/src/adapters/commerce.ts",
+          "reason": "932-line TS adapter wiring Commerce application to the Holding transaction, purchase admission and cross-owner facts.",
+          "removalCondition": "Delete after every exported command/read in it is replaced and the commerce route no longer imports @erpx/server-commerce/public/commerce."
+        },
+        {
+          "path": "packages/server-commerce/src/application/commerce-goods-accounting.ts",
+          "reason": "TS goods/return FX and cost-of-sales preparation used by the retained fulfillment.",
+          "removalCondition": "Remove when the native receipt/issue path computes valuation through the Finance functional-FX port and posts the goods journal natively."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.commerce.goods-fulfillment",
+          "title": "Native goods receipt/delivery fulfillment with Inventory stock, Quality hold and Finance goods-journal effects",
+          "paths": [
+            "packages/server-commerce/src/domain/receipt.rs",
+            "packages/server-commerce/src/domain/fulfillment.rs",
+            "packages/server-commerce/src/application/fulfillment.rs",
+            "packages/server-commerce/src/adapters/receipt.rs",
+            "packages/server-commerce/src/adapters/receipt_use_cases.rs",
+            "packages/server-commerce/src/adapters/order_http.rs",
+            "packages/server-commerce/src/public/receipt.rs",
+            "packages/server-commerce/src/public/order.rs",
+            "packages/feature-commerce/src/public/native-commerce-orders.ts",
+            "packages/feature-sales/src/public/native-commerce-orders-page.ts",
+            "tests/integration/commerce",
+            "tests/unit/commerce"
+          ],
+          "resources": [
+            "owner:commerce"
+          ],
+          "dependsOn": [
+            "inventory.commerce",
+            "migrate.inventory.receipt-quality-port",
+            "migrate.finance.goods-journal-port"
+          ],
+          "requiredPorts": [
+            "ports.trade",
+            "inventory.stock_receipt",
+            "quality.goods_receipt_hold",
+            "finance.commerce_goods_journal"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-commerce",
+            "bun run test:unit -- --suite=commerce.rust-commerce-order-http.unit",
+            "bun run test:integration -- --suite=commerce.rust-commerce-order-postgres.integration",
+            "bun run --filter '@erpx/feature-commerce' typecheck"
+          ]
+        },
+        {
+          "id": "migrate.commerce.purchase-orders",
+          "title": "Native purchase-order draft/save and submit/approve/convert transitions",
+          "paths": [
+            "packages/server-commerce/src/domain/order.rs",
+            "packages/server-commerce/src/application/order.rs",
+            "packages/server-commerce/src/adapters/order.rs",
+            "packages/server-commerce/src/adapters/order_http.rs",
+            "packages/server-commerce/src/adapters/order_replay_locked.rs",
+            "packages/server-commerce/src/public/order.rs",
+            "packages/server-commerce/src/public/order_http.rs",
+            "tests/unit/commerce",
+            "tests/integration/commerce"
+          ],
+          "resources": [
+            "owner:commerce"
+          ],
+          "dependsOn": [
+            "inventory.commerce",
+            "ports.trade"
+          ],
+          "requiredPorts": [
+            "ports.trade",
+            "commerce.goods-fulfillment"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-commerce",
+            "bun run test:unit -- --suite=commerce.rust-commerce-order.unit",
+            "bun run test:integration -- --suite=commerce.rust-commerce-order-postgres.integration"
+          ]
+        },
+        {
+          "id": "migrate.commerce.returns",
+          "title": "Native Commerce return request, independent decision and completion with stock/credit reversal",
+          "paths": [
+            "packages/server-commerce/src/domain",
+            "packages/server-commerce/src/application",
+            "packages/server-commerce/src/adapters",
+            "packages/server-commerce/src/public",
+            "packages/feature-commerce/src",
+            "tests/integration/commerce",
+            "tests/unit/commerce"
+          ],
+          "resources": [
+            "owner:commerce"
+          ],
+          "dependsOn": [
+            "inventory.commerce",
+            "migrate.commerce.goods-fulfillment"
+          ],
+          "requiredPorts": [
+            "ports.trade",
+            "inventory.stock_receipt",
+            "finance.commerce_goods_journal"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-commerce",
+            "bun run test:integration -- --suite=sales.commerce-returns.integration",
+            "bun run test:unit -- --suite=commerce.native-commerce-orders-transport.unit"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Authenticated order/fulfillment/return pages and PDF/document surfaces after native mount.",
+        "Foreign-currency and provider-free goods acceptance once the Finance FX port is bound (provider credentials are not required)."
+      ],
+      "limitations": [
+        "Task workflowIds is empty: tests/catalogue/engineering-scenarios.json contains no commerce/* capability; Commerce coverage is transitive through sales/fulfillment, procurement/goods-receipts and inventory/* cases.",
+        "Source-read inventory only: no cargo check, test suite, typecheck or build was executed.",
+        "Commerce has no jobs/providers of its own; durability is inherited from the workflow/runtime crates."
+      ]
+    },
+    "commercial": {
+      "taskId": "inventory.commercial",
+      "owner": "commercial",
+      "sourceSha": "ad3ca99657f06068c147cfbdd2537fd3f6edca1c",
+      "nativePresent": true,
+      "workflows": [
+        {
+          "id": "commercial/invoices",
+          "qualification": "partial",
+          "native": [
+            "packages/server-billing/src/application/workspace.rs:38-57",
+            "packages/server-billing/src/domain/workspace.rs:137",
+            "packages/server-billing/src/adapters/workspace.rs"
+          ],
+          "tsAuthoritative": [
+            "packages/server-billing/src/application/billing.ts",
+            "packages/server-billing/src/adapters/billing.ts",
+            "packages/feature-admin/src/routes/api/v1/platform/billing/[[...path]]/route.ts"
+          ],
+          "gap": "Native Billing workspace reads invoices, but invoice draft/issue/void/payment lifecycle remains billing TS advanceBilling/billingCommand behind billingHandler. The Commercial owner has no invoice writer of its own; this is a billing-owner dependency."
+        },
+        {
+          "id": "commercial/entitlements",
+          "qualification": "partial",
+          "native": [
+            "packages/server-commercial/src/domain/packages.rs:109",
+            "packages/server-commercial/src/application/purchases.rs",
+            "packages/server-commercial/src/adapters/postgres_purchases.rs",
+            "packages/server-commercial/src/domain/company_access.rs"
+          ],
+          "tsAuthoritative": [
+            "packages/server-identity_access/src/application/product-workspace.ts:339",
+            "packages/server-work_projection/src/application/product-launcher.ts:167",
+            "packages/server-commercial/src/adapters/capability-decision.ts:17-40"
+          ],
+          "gap": "Native purchased_capability and purchase admission exist, but product-entry gates still evaluate entitlement in TS product-workspace/product-launcher; capability-decision.ts readCommandCapability has no consumer, so no native command-time entitlement port is bound."
+        },
+        {
+          "id": "commercial/feature-catalog-plans",
+          "qualification": "partial",
+          "native": [
+            "packages/server-commercial/src/adapters/package_catalogue.rs",
+            "packages/server-commercial/src/adapters/company_packages_http.rs:241-248",
+            "packages/server-commercial/src/application/grant_commands.rs",
+            "packages/server-commercial/src/application/grant_batches.rs",
+            "packages/server-commercial/src/adapters/postgres_grant_commands.rs"
+          ],
+          "tsAuthoritative": [
+            "packages/server-commercial/src/adapters/provider-commercial.ts:100-116",
+            "packages/server-commercial/src/adapters/company-package-lifecycle.ts:16",
+            "packages/server-commercial/src/adapters/legacy-grant-migration.ts:11-45"
+          ],
+          "gap": "Catalogue/overview/admission HTTP is native; grant preview/apply exists in Rust application/adapters and is consumed by Field settlement only, but the platform provider route still executes TS companyPackageLifecycle/legacyGrantMigration preview/apply."
+        },
+        {
+          "id": "commercial/feature-subscriptions",
+          "qualification": "unstarted",
+          "native": [],
+          "tsAuthoritative": [
+            "packages/server-billing/src/application/billing.ts:259-269",
+            "packages/server-billing/src/adapters/beta-billing.ts:7",
+            "packages/server-billing/src/domain/beta-billing.ts"
+          ],
+          "gap": "Subscriptions live in Stripe-backed beta_billing and are read/settled only in TS; no Rust subscription domain/read/writer exists. billing owns the provider and persistence."
+        },
+        {
+          "id": "commercial/feature-grace-recovery",
+          "qualification": "unstarted",
+          "native": [
+            "packages/server-commercial/src/domain/packages.rs:306-319"
+          ],
+          "tsAuthoritative": [
+            "packages/server-commercial/src/domain/packages.ts:101-143"
+          ],
+          "gap": "Rust validates grant state/periods, but grace/expiry-to-draining and recovery decisions are TS domain text and lifecycle adapter; no native grace window, recovery command or scheduled expiry job exists."
+        }
+      ],
+      "publicPorts": [
+        {
+          "name": "company_package_router",
+          "path": "packages/server-commercial/src/adapters/company_packages_http.rs:241",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:4012"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "PgPackageGrantCommands / preview_package_batch / apply_package_batch",
+          "path": "packages/server-commercial/src/public/purchases.rs:8-21",
+          "mountedAt": [
+            "src/composition/src/field_service_package_settlement.rs:155",
+            "src/composition/src/field_service_package_settlement.rs:253"
+          ],
+          "status": "partial"
+        },
+        {
+          "name": "purchasedCapabilityPredicate (retained TS)",
+          "path": "packages/server-commercial/src/adapters/purchased-capability-sql.ts",
+          "mountedAt": [
+            "packages/server-work_projection/src/adapters/calendar/reminder-authority.ts:38"
+          ],
+          "status": "partial"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "package-grant-http-mount",
+          "kind": "mount",
+          "detail": "Expose native preview/apply grant commands over HTTP for platform/admin consumers and retire company-package-lifecycle.ts/legacy-grant-migration.ts; composition and provider route are lead/shared.",
+          "suggestedPaths": [
+            "packages/server-commercial/src/adapters/package_grants_http.rs",
+            "packages/server-commercial/src/public/purchases.rs"
+          ]
+        },
+        {
+          "id": "entitlement-command-port",
+          "kind": "read",
+          "detail": "Bind one native entitlement decision port (release+authority+record+grant gates) for product entry and command boundaries; TS readCommandCapability currently has no caller.",
+          "suggestedPaths": [
+            "packages/server-commercial/src/application/capability_decision.rs",
+            "packages/server-commercial/src/adapters/capability_decision_postgres.rs",
+            "packages/server-commercial/src/public/capability_decision.rs"
+          ]
+        },
+        {
+          "id": "subscription-and-grace-native",
+          "kind": "command",
+          "detail": "Add native subscription/grace/recovery read+command consuming billing's Stripe/subscription port; do not create a second provider writer.",
+          "suggestedPaths": [
+            "packages/server-commercial/src/domain/subscriptions.rs",
+            "packages/server-commercial/src/application/subscriptions.rs",
+            "packages/server-commercial/src/adapters/subscription_sources.rs"
+          ]
+        },
+        {
+          "id": "invoice-lifecycle-dependency",
+          "kind": "command",
+          "detail": "Invoice lifecycle is billing-owned TS; commercial inventory records it but must not implement a second invoice writer.",
+          "suggestedPaths": []
+        },
+        {
+          "id": "commercial-composition-mount",
+          "kind": "mount",
+          "detail": "Lead must mount any new grant/entitlement router and select it in private_development_api; worker paths exclude composition.",
+          "suggestedPaths": [
+            "src/composition/src/private_development_api.rs",
+            "src/composition/src/commercial.rs"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-commercial/src/adapters/provider-commercial.ts",
+          "reason": "Admin provider packages/preview/apply plus legacy-grants endpoints execute TS lifecycle/migration writers (lines 100-116).",
+          "removalCondition": "Native grant + lifecycle HTTP router is mounted, provider admin page consumes it, and preview/apply tests are ported; then delete provider-commercial.ts and its route."
+        },
+        {
+          "path": "packages/server-commercial/src/adapters/company-package-lifecycle.ts",
+          "reason": "TS preview/apply with review token and obligations settlement.",
+          "removalCondition": "Native PgPackageGrantCommands HTTP path covers preview/apply including review evidence and obligations; delete TS lifecycle."
+        },
+        {
+          "path": "packages/server-commercial/src/adapters/legacy-grant-migration.ts",
+          "reason": "Legacy module-to-package grant migration writer.",
+          "removalCondition": "One-off migration completes and native equivalent/receipt is recorded; delete legacy-grant-migration.ts."
+        },
+        {
+          "path": "packages/server-billing/src/application/billing.ts",
+          "reason": "Stripe subscription/invoice commands and jobs still authoritative (subscription list at lines 259-269).",
+          "removalCondition": "Native billing subscription/provider commands and durable jobs pass provider suites; delete TS billing command path."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.commercial.package_grant_http",
+          "title": "Native package grant preview/apply HTTP and TS retirement",
+          "paths": [
+            "packages/server-commercial/src/adapters/package_grants_http.rs",
+            "packages/server-commercial/src/adapters/postgres_grant_commands.rs",
+            "packages/server-commercial/src/application/grant_commands.rs",
+            "packages/server-commercial/src/application/grant_batches.rs",
+            "packages/server-commercial/src/public/purchases.rs",
+            "tests/unit/commercial/rust-package-grants-http.test.rs",
+            "tests/integration/commercial/rust-package-grants-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:commercial"
+          ],
+          "dependsOn": [],
+          "requiredPorts": [
+            "ports.authority"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-commercial",
+            "cargo test -p erpx-server-commercial --test company_packages",
+            "bun run test:integration --suite=commercial.rust-company-packages-postgres.integration"
+          ]
+        },
+        {
+          "id": "migrate.commercial.entitlement_port",
+          "title": "Native entitlement decision port and consumer binding",
+          "paths": [
+            "packages/server-commercial/src/domain/capability_decision.rs",
+            "packages/server-commercial/src/application/capability_decision.rs",
+            "packages/server-commercial/src/adapters/capability_decision_postgres.rs",
+            "packages/server-commercial/src/public/capability_decision.rs",
+            "tests/unit/commercial/rust-capability-decision.test.rs",
+            "tests/integration/commercial/rust-capability-decision-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:commercial"
+          ],
+          "dependsOn": [
+            "migrate.commercial.package_grant_http"
+          ],
+          "requiredPorts": [
+            "ports.authority",
+            "ports.trade"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-commercial",
+            "cargo test -p erpx-server-commercial --test package_capabilities",
+            "bun run test:unit --suite=commercial.rust-package-capabilities.unit"
+          ]
+        },
+        {
+          "id": "migrate.commercial.subscription_grace",
+          "title": "Native subscription and grace/recovery reads",
+          "paths": [
+            "packages/server-commercial/src/domain/subscriptions.rs",
+            "packages/server-commercial/src/application/subscriptions.rs",
+            "packages/server-commercial/src/adapters/subscription_sources.rs",
+            "packages/server-commercial/src/public/subscriptions.rs",
+            "tests/unit/commercial/rust-subscriptions.test.rs",
+            "tests/integration/commercial/rust-subscriptions-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:commercial"
+          ],
+          "dependsOn": [
+            "migrate.billing.subscription_commands"
+          ],
+          "requiredPorts": [
+            "ports.trade"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-commercial",
+            "cargo test -p erpx-server-commercial --test package_capabilities",
+            "bun run test:unit --suite=commercial.packages.unit"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Real Stripe checkout/subscription/webhook provider verification",
+        "Browser package manager preview/apply and legacy-grant review",
+        "Scheduled expiry/grace timing acceptance over wall-clock boundaries"
+      ],
+      "limitations": [
+        "Subscriptions and invoice lifecycle are billing-owned; commercial must consume ports, not duplicate persistence/provider writers.",
+        "Composition mounts and provider route are shared/lead integration.",
+        "No cargo/test was run during inventory."
+      ]
+    },
+    "customer_authority": {
+      "taskId": "inventory.customer_authority",
+      "owner": "customer_authority",
+      "sourceSha": "ad3ca99657f06068c147cfbdd2537fd3f6edca1c",
+      "nativePresent": true,
+      "workflows": [
+        {
+          "id": "customer_authority/duplicate-review",
+          "qualification": "partial",
+          "native": [
+            "packages/server-customer_authority/src/domain/duplicates.rs",
+            "packages/server-customer_authority/src/application/duplicates.rs:134-219",
+            "packages/server-customer_authority/src/adapters/duplicates.rs",
+            "packages/server-customer_authority/src/public/duplicates.rs"
+          ],
+          "tsAuthoritative": [
+            "packages/server-customer_authority/src/adapters/duplicates.ts:64-67",
+            "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-duplicates/route.ts:5"
+          ],
+          "gap": "Native request_duplicate_review plus workspace/detail reads exist, but no HTTP adapter/mount and no native decision/change command; the Sales customer-duplicates route still calls TS changeCustomerDuplicate/customerDuplicateWorkspace."
+        },
+        {
+          "id": "customer_authority/access-history",
+          "qualification": "verified",
+          "native": [
+            "packages/server-customer_authority/src/adapters/access_http.rs:241-248",
+            "packages/server-customer_authority/src/application/access.rs",
+            "packages/server-customer_authority/src/adapters/access.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "Native customer access request/approve/reject/revoke plus workspace/detail/history mounted at /api/v1/holdings/{holding_slug}/customer-access; Sales route selects native first (packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-access/route.ts:7)."
+        },
+        {
+          "id": "customer_authority/feature-authority-bindings",
+          "qualification": "verified",
+          "native": [
+            "packages/server-customer_authority/src/domain/access.rs",
+            "packages/server-customer_authority/src/application/access.rs",
+            "packages/server-customer_authority/src/adapters/access.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "Binding lifecycle and immutable decision history are native; invitations/enrollment remain auxiliary TS outside this ID."
+        },
+        {
+          "id": "customer_authority/feature-identity-changes",
+          "qualification": "unstarted",
+          "native": [],
+          "tsAuthoritative": [
+            "packages/server-customer_authority/src/adapters/identity.ts:40-44",
+            "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-identity/route.ts:2"
+          ],
+          "gap": "Customer identity workspace/detail/request/change has only TS domain/application/adapters; no .rs identity module exists (lib.rs comment lists identity changes as retained)."
+        }
+      ],
+      "publicPorts": [
+        {
+          "name": "customer_access_http_router",
+          "path": "packages/server-customer_authority/src/adapters/access_http.rs:225",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:4107"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "duplicate_review port",
+          "path": "packages/server-customer_authority/src/public/duplicates.rs",
+          "mountedAt": [],
+          "status": "missing"
+        },
+        {
+          "name": "customer access composition service",
+          "path": "src/composition/src/customer_authority.rs:186-328",
+          "mountedAt": [
+            "src/composition/src/customer_authority.rs:491"
+          ],
+          "status": "frozen"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "duplicate-decision-and-http",
+          "kind": "command",
+          "detail": "Add native change/decision/reopen/merge for duplicate reviews with CAS, evidence and audit, plus an HTTP adapter/mount; today only request + bounded read are native.",
+          "suggestedPaths": [
+            "packages/server-customer_authority/src/domain/duplicates.rs",
+            "packages/server-customer_authority/src/application/duplicates.rs",
+            "packages/server-customer_authority/src/adapters/duplicates.rs",
+            "packages/server-customer_authority/src/adapters/duplicates_http.rs",
+            "packages/server-customer_authority/src/public/duplicates.rs"
+          ]
+        },
+        {
+          "id": "identity-changes-native",
+          "kind": "command",
+          "detail": "Port customer identity request/change/workspace/detail from TS adapters/identity.ts to Rust domain/application/adapters with independent review semantics.",
+          "suggestedPaths": [
+            "packages/server-customer_authority/src/domain/identity.rs",
+            "packages/server-customer_authority/src/application/identity.rs",
+            "packages/server-customer_authority/src/adapters/identity_postgres.rs",
+            "packages/server-customer_authority/src/adapters/identity_http.rs",
+            "packages/server-customer_authority/src/public/identity.rs"
+          ]
+        },
+        {
+          "id": "sales-route-retirement",
+          "kind": "retirement",
+          "detail": "Sales customer-duplicates/customer-identity routes and the duplicate TS adapter must be removed after native HTTP selection; route files belong to the Sales surface/lead integration.",
+          "suggestedPaths": []
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-customer_authority/src/adapters/duplicates.ts",
+          "reason": "TS duplicate workspace/detail/change dispatch used by Sales customer-duplicates route.",
+          "removalCondition": "Native duplicate command+read HTTP mounted and route re-exports it; then delete duplicates.ts and public/customer-duplicates.ts."
+        },
+        {
+          "path": "packages/server-customer_authority/src/adapters/identity.ts",
+          "reason": "Entire customer identity-change capability is TS.",
+          "removalCondition": "Native identity-change router mounted with independent-review tests; delete identity.ts and customer-identity-changes.ts."
+        },
+        {
+          "path": "packages/server-customer_authority/src/adapters/portal-invitations.ts",
+          "reason": "Portal invitation/enrollment/support business code outside the four catalogue IDs.",
+          "removalCondition": "Scoped auxiliary portal packet lands native invitation/enrollment/support ports and portal route consumers switch; until then retain."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.customer_authority.duplicate_decisions",
+          "title": "Native duplicate review decisions and HTTP mount",
+          "paths": [
+            "packages/server-customer_authority/src/domain/duplicates.rs",
+            "packages/server-customer_authority/src/application/duplicates.rs",
+            "packages/server-customer_authority/src/adapters/duplicates.rs",
+            "packages/server-customer_authority/src/adapters/duplicates_http.rs",
+            "packages/server-customer_authority/src/public/duplicates.rs",
+            "tests/unit/customer_authority/rust-customer-duplicates.test.rs",
+            "tests/integration/customer_authority/rust-customer-duplicates-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:customer_authority"
+          ],
+          "dependsOn": [],
+          "requiredPorts": [],
+          "checks": [
+            "cargo check -p erpx-server-customer-authority",
+            "cargo test -p erpx-server-customer-authority --test customer_duplicates",
+            "bun run test:unit --suite=customer_authority.rust-customer-duplicates.unit"
+          ]
+        },
+        {
+          "id": "migrate.customer_authority.identity_changes",
+          "title": "Native customer identity changes",
+          "paths": [
+            "packages/server-customer_authority/src/domain/identity.rs",
+            "packages/server-customer_authority/src/application/identity.rs",
+            "packages/server-customer_authority/src/adapters/identity_postgres.rs",
+            "packages/server-customer_authority/src/adapters/identity_http.rs",
+            "packages/server-customer_authority/src/public/identity.rs",
+            "tests/unit/customer_authority/rust-customer-identity.test.rs",
+            "tests/integration/customer_authority/rust-customer-identity-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:customer_authority"
+          ],
+          "dependsOn": [
+            "migrate.customer_authority.duplicate_decisions"
+          ],
+          "requiredPorts": [
+            "ports.authority"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-customer-authority",
+            "cargo test -p erpx-server-customer-authority --test customer_identity",
+            "bun run test:unit --suite=customer_authority.rust-customer-access.unit"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Browser duplicate-review decision/merge journey on Sales",
+        "Portal invitation delivery and external email provider acceptance",
+        "Customer identity-change browser verification"
+      ],
+      "limitations": [
+        "Sales routes (packages/feature-sales/src/routes/api/...) and composition mounts are shared/lead integration, not worker paths.",
+        "Native duplicate port has no HTTP adapter yet, so no check was run.",
+        "Portal invitations/enrollment/support are auxiliary retained TS outside the four assigned workflows."
+      ]
+    },
     "files": {
       "taskId": "inventory.files",
       "owner": "files",
@@ -150,6 +1070,1610 @@
         "No catalogue workflow maps here: task.workflowIds is [] and 0 of 206 workflow rows have owner \"files\".",
         "Workplace route paths are surface-owned evidence, not files-owner write scope.",
         "Read-only inventory; no cargo or bun check was executed."
+      ]
+    },
+    "finance": {
+      "taskId": "inventory.finance",
+      "owner": "finance",
+      "sourceSha": "ad3ca99657f06068c147cfbdd2537fd3f6edca1c",
+      "nativePresent": true,
+      "workflows": [
+        {
+          "id": "finance/journals",
+          "qualification": "verified",
+          "native": [
+            "packages/server-finance/src/domain/journal.rs",
+            "packages/server-finance/src/application/journal.rs",
+            "packages/server-finance/src/public/journal_create_wire.rs",
+            "packages/server-finance/src/public/journal_detail.rs",
+            "src/composition/src/finance_journal_detail.rs",
+            "packages/server-finance/src/public/journal_detail.rs",
+            "packages/server-finance/src/public/journal_review_wire.rs",
+            "src/composition/src/finance_journal_create_http.rs",
+            "src/composition/src/finance_journal_detail_http.rs",
+            "src/composition/src/finance_journal_edit_http.rs",
+            "src/composition/src/business_http.rs"
+          ],
+          "tsAuthoritative": [
+            "packages/server-finance/src/adapters/finance.ts",
+            "packages/server-finance/src/application/journal.ts"
+          ],
+          "gap": "Native create/edit/post/reverse/list/detail exist and are mounted, but each Next path is env-gated (ERPX_NATIVE_FINANCE_JOURNAL_{CREATE,EDIT,POST,REVERSE}_CONFIG); with the variable unset the route falls through to TS postJournal/reverseJournal (workplace finance route lines 239-250)."
+        },
+        {
+          "id": "finance/payables",
+          "qualification": "verified",
+          "native": [
+            "packages/server-finance/src/adapters/supplier_bill.rs",
+            "packages/server-finance/src/public/supplier_bill.rs",
+            "src/composition/src/finance_journal_detail_http.rs",
+            "packages/server-procurement/src/adapters/finance_supplier_bill_match.rs"
+          ],
+          "tsAuthoritative": [
+            "packages/server-finance/src/public/finance.ts",
+            "packages/server-finance/src/public/supplier-bill-draft-void.ts"
+          ],
+          "gap": "Native supplier-bill create/edit/post/void (finance_journal_detail_http.rs:117-131) and the Procurement match source staged in src/composition/src/finance_journal_detail.rs:709-804 are present; the TS path remains authoritative whenever ERPX_NATIVE_FINANCE_SUPPLIER_BILL_CONFIG is unset (native-supplier-bill.ts:15-19) and still owns generic payable createInvoice."
+        },
+        {
+          "id": "finance/feature-chart-of-accounts",
+          "qualification": "verified",
+          "native": [
+            "packages/server-finance/src/adapters/finance_setup.rs",
+            "packages/server-finance/src/public/finance_setup.rs",
+            "src/composition/src/finance_journal_detail_http.rs"
+          ],
+          "tsAuthoritative": [
+            "packages/server-finance/src/adapters/finance.ts"
+          ],
+          "gap": "Charts/accounts/periods use nativeFinanceSetupCommand (route lines 292-300) under ERPX_NATIVE_FINANCE_SETUP_CONFIG; createChart/createAccount/changeAccountStatus remain the TS fallback and still own chart rules not yet in finance_setup.rs."
+        },
+        {
+          "id": "finance/feature-payments",
+          "qualification": "partial",
+          "native": [
+            "packages/server-finance/src/adapters/generic_payment.rs",
+            "packages/server-finance/src/public/generic_payment.rs",
+            "src/composition/src/finance_generic_payment_http.rs",
+            "packages/feature-finance/src/adapters/server/native-service-payment-command.ts"
+          ],
+          "tsAuthoritative": [
+            "packages/server-finance/src/adapters/finance.ts",
+            "packages/server-finance/src/application/payments.ts"
+          ],
+          "gap": "Native generic payment POST /finance/payments/generic is mounted, and all /payments* requests are routed to native when ERPX_NATIVE_FINANCE_SERVICE_PAYMENT_CONFIG is set (native-service-payment-command.ts:11); otherwise createPayment/approvePayment/releasePayment/confirmPayment/reversePayment/allocatePayment/exportPaymentFile run as TS business logic."
+        },
+        {
+          "id": "finance/feature-receivables-aging",
+          "qualification": "unstarted",
+          "native": [],
+          "tsAuthoritative": [
+            "packages/server-finance/src/adapters/finance.ts",
+            "packages/server-finance/src/application/finance-reads.ts"
+          ],
+          "gap": "No native AR/AP aging query or route. aging() is a TS purchased read (finance.ts:236) over financeReadService; finance_reports.rs publishes only trial balance/statements, and finance_journal_detail_http.rs:174 serves /finance/reports only."
+        },
+        {
+          "id": "finance/feature-bank-reconciliation",
+          "qualification": "partial",
+          "native": [
+            "packages/server-finance/src/adapters/bank_reconciliation.rs",
+            "packages/server-finance/src/public/bank_reconciliation.rs",
+            "src/composition/src/finance_bank_http.rs",
+            "packages/feature-finance/src/adapters/server/native-finance-bank.ts",
+            "packages/feature-finance/src/adapters/server/native-finance-bank-read.ts"
+          ],
+          "tsAuthoritative": [
+            "packages/server-finance/src/application/bank-automation.ts",
+            "packages/server-finance/src/domain/bank-automation.ts",
+            "packages/server-finance/src/adapters/finance-bank-automation.ts"
+          ],
+          "gap": "Statement import and transaction reconcile are native (finance_bank_http.rs:84-90); CSV mapping, mapped import, match-group propose/confirm/reverse/reject remain the 371-line TS createBankAutomation application (finance-bank-automation.ts:315-319)."
+        },
+        {
+          "id": "finance/feature-reports",
+          "qualification": "verified",
+          "native": [
+            "packages/server-finance/src/adapters/finance_reports.rs",
+            "packages/server-finance/src/public/finance_reports.rs",
+            "src/composition/src/finance_journal_detail_http.rs",
+            "packages/feature-finance/src/adapters/server/native-finance-report.ts"
+          ],
+          "tsAuthoritative": [
+            "packages/server-finance/src/adapters/finance-reporting.ts"
+          ],
+          "gap": "GET /finance/reports is native (finance_journal_detail_http.rs:174 -> read_financial_report, finance_reports.rs:173); reporting editions/statement packages/year closings remain TS owner commands, so the workflow is read-verified but not command-complete."
+        },
+        {
+          "id": "finance/feature-period-close",
+          "qualification": "verified",
+          "native": [
+            "packages/server-finance/src/adapters/period_close.rs",
+            "packages/server-finance/src/public/period_close.rs",
+            "src/composition/src/finance_journal_detail_http.rs",
+            "packages/feature-finance/src/adapters/server/native-period-close.ts"
+          ],
+          "tsAuthoritative": [
+            "packages/server-finance/src/public/finance.ts"
+          ],
+          "gap": "workspace/begin-close/cancel-close/close/reopen are native and mounted (finance_journal_detail_http.rs:133-151); the route only reaches TS when nativePeriodClose returns undefined (ERPX_NATIVE_FINANCE_PERIOD_CLOSE_CONFIG unset)."
+        },
+        {
+          "id": "finance/feature-opening-balances",
+          "qualification": "verified",
+          "native": [
+            "packages/server-finance/src/adapters/finance_opening.rs",
+            "packages/server-finance/src/public/finance_opening.rs",
+            "src/composition/src/finance_journal_detail_http.rs",
+            "packages/feature-finance/src/adapters/server/native-opening-balance.ts"
+          ],
+          "tsAuthoritative": [
+            "packages/server-finance/src/public/finance.ts"
+          ],
+          "gap": "Native preview/import mounted (finance_journal_detail_http.rs:177-183); TS previewOpeningTrialBalance/importOpeningTrialBalance remain the fallback under ERPX_NATIVE_FINANCE_OPENING_CONFIG."
+        },
+        {
+          "id": "finance:sales-invoice-workspace",
+          "qualification": "verified",
+          "native": [
+            "packages/server-finance/src/adapters/sales_invoice_create.rs",
+            "packages/server-finance/src/adapters/sales_invoice_edit.rs",
+            "packages/server-finance/src/adapters/sales_invoice_list.rs",
+            "packages/server-finance/src/adapters/sales_receipts.rs",
+            "src/composition/src/finance_journal_detail_http.rs",
+            "packages/feature-finance/src/adapters/server/native-sales-invoice-create.ts",
+            "packages/feature-finance/src/adapters/server/native-sales-receipt.ts"
+          ],
+          "tsAuthoritative": [
+            "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/sales/[[...path]]/route.ts",
+            "packages/server-finance/src/public/sales.ts"
+          ],
+          "gap": "Native standalone invoice create/edit/void/list, defaults and customer receipts are mounted at /finance/sales/*; the workspace shell, salesWorkspace/salesDefaultsWorkspace reads and generic settlement still come from TS sales.ts when the native env is unset. Invoice-from-delivery handoff is Commerce-owned and remains TS (see inventory.sales)."
+        }
+      ],
+      "publicPorts": [
+        {
+          "name": "journal_create/detail/review wire",
+          "path": "packages/server-finance/src/public/journal_create_wire.rs",
+          "mountedAt": [
+            "src/composition/src/finance_journal_create_http.rs",
+            "src/composition/src/finance_journal_detail_http.rs",
+            "src/composition/src/business_http.rs"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "supplier_bill",
+          "path": "packages/server-finance/src/public/supplier_bill.rs",
+          "mountedAt": [
+            "src/composition/src/finance_journal_detail_http.rs"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "finance_setup",
+          "path": "packages/server-finance/src/public/finance_setup.rs",
+          "mountedAt": [
+            "src/composition/src/finance_journal_detail_http.rs"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "generic_payment",
+          "path": "packages/server-finance/src/public/generic_payment.rs",
+          "mountedAt": [
+            "src/composition/src/finance_generic_payment_http.rs"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "bank_reconciliation",
+          "path": "packages/server-finance/src/public/bank_reconciliation.rs",
+          "mountedAt": [
+            "src/composition/src/finance_bank_http.rs"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "commerce_goods_journal::post_commerce_goods_journal",
+          "path": "packages/server-finance/src/public/commerce_goods_journal.rs",
+          "mountedAt": [],
+          "status": "partial"
+        },
+        {
+          "name": "functional_fx_micros / functional_fx_evidence",
+          "path": "packages/server-finance/src/public/mod.rs",
+          "mountedAt": [
+            "packages/server-finance/src/adapters/postgres_journal_facts.rs"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "due_drafts",
+          "path": "packages/server-finance/src/application/due-drafts.ts",
+          "mountedAt": [],
+          "status": "missing"
+        },
+        {
+          "name": "bank_automation",
+          "path": "packages/server-finance/src/application/bank-automation.ts",
+          "mountedAt": [],
+          "status": "missing"
+        },
+        {
+          "name": "aging_read",
+          "path": "packages/server-finance/src/adapters/finance.ts",
+          "mountedAt": [],
+          "status": "missing"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "goods-journal-consumer",
+          "kind": "mount",
+          "detail": "post_commerce_goods_journal (adapters/commerce_goods_journal.rs:107) has no caller anywhere in src/ or packages/; the Commerce receipt/delivery writer must call it inside its serializable transaction. The port is Finance-owned but the consumer edit is Commerce-owned, so this is a ports.trade seam decision.",
+          "suggestedPaths": [
+            "packages/server-finance/src/adapters/commerce_goods_journal.rs",
+            "packages/server-finance/src/public/commerce_goods_journal.rs",
+            "tests/integration/finance/rust-commerce-goods-journal-postgres.test.rs"
+          ]
+        },
+        {
+          "id": "goods-fx-valuation",
+          "kind": "provider",
+          "detail": "Finance publishes functional_fx_micros/functional_fx_evidence (public/mod.rs:46,56), but no transactional valuation port pairs them with stock currency/base currency and cost-of-sales rounding for a goods receipt. Commerce currently refuses FX (receipt.rs:951), so foreign-currency goods-carrying is unowned between the two crates.",
+          "suggestedPaths": [
+            "packages/server-finance/src/domain/journal.rs",
+            "packages/server-finance/src/domain/company_money.rs",
+            "packages/server-finance/src/adapters/commerce_goods_journal.rs",
+            "packages/server-finance/src/public/commerce_goods_journal.rs",
+            "tests/integration/finance"
+          ]
+        },
+        {
+          "id": "bank-automation-commands",
+          "kind": "command",
+          "detail": "createBankCsvMapping/importMappedBankCsv/proposeBankMatchGroup/decideBankMatchGroup are TS application logic (application/bank-automation.ts:286-371) with no Rust domain module; only statement import/reconcile are native.",
+          "suggestedPaths": [
+            "packages/server-finance/src/domain/bank_automation.rs",
+            "packages/server-finance/src/application/bank_automation.rs",
+            "packages/server-finance/src/adapters/bank_automation.rs",
+            "packages/server-finance/src/public/finance-bank-automation.rs",
+            "packages/feature-finance/src/adapters/server/native-bank-automation.ts"
+          ]
+        },
+        {
+          "id": "due-draft-jobs",
+          "kind": "job",
+          "detail": "Scheduled due-draft preparation and retry/cancel are the TS createFinanceDueDrafts application (application/due-drafts.ts:64-68); no native scheduler/job or worker registration exists for finance_due_drafts. src/workers/jobs.ts only re-exports the workflow job projector, so this is a real runtime gap, not transport.",
+          "suggestedPaths": [
+            "packages/server-finance/src/domain/due_drafts.rs",
+            "packages/server-finance/src/application/due_drafts.rs",
+            "packages/server-finance/src/adapters/due_drafts.rs",
+            "packages/server-finance/src/public/finance-due-drafts.rs",
+            "packages/feature-finance/src/adapters/server/native-due-drafts.ts"
+          ]
+        },
+        {
+          "id": "aging-read",
+          "kind": "read",
+          "detail": "Receivables/payables aging has no native query: finance.ts:236 delegates to financeReadService.aging in TS and no /finance/aging route is registered in finance_journal_detail_http.rs.",
+          "suggestedPaths": [
+            "packages/server-finance/src/application/finance-reads.rs",
+            "packages/server-finance/src/adapters/finance-reports.rs",
+            "packages/server-finance/src/public/finance_reports.rs",
+            "packages/feature-finance/src/adapters/server/native-finance-report.ts"
+          ]
+        },
+        {
+          "id": "ai-proposals",
+          "kind": "job",
+          "detail": "AI policy/prepare/dismiss/apply-draft and the scheduled scan remain TS (application/ai.ts, domain/ai.ts); no Rust AI module. Provider credentials are A1, but the deterministic approval/posting boundaries are still G3 work.",
+          "suggestedPaths": [
+            "packages/server-finance/src/domain/ai.rs",
+            "packages/server-finance/src/application/ai.rs",
+            "packages/server-finance/src/adapters/finance-ai.rs",
+            "packages/server-finance/src/public/finance-ai.rs"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-finance/src/application/bank-automation.ts",
+          "reason": "TS bank CSV mapping and match-group application (371 lines) still the only writer for finance_bank_match_groups.",
+          "removalCondition": "Delete after native create/import/propose/decide commands are mounted and finance.bank-automation.integration passes against the native routes."
+        },
+        {
+          "path": "packages/server-finance/src/application/due-drafts.ts",
+          "reason": "TS due-draft schedule/retry/cancel application plus the retained PostgreSQL jobs loop.",
+          "removalCondition": "Delete after a native scheduler prepares/retries/cancels finance_due_drafts with lease and replay and finance.due-draft-services.unit moves to cargo."
+        },
+        {
+          "path": "packages/server-finance/src/application/ai.ts",
+          "reason": "TS Finance AI policy/prepare/dismiss/apply and scheduled scan.",
+          "removalCondition": "Delete after native AI proposal commands + scan job exist and provider verification is deferred to A1 without a TS business fallback."
+        },
+        {
+          "path": "packages/server-finance/src/adapters/finance.ts",
+          "reason": "TS adapter still owns aging and the generic createPayment/approve/release/confirm/reverse/allocate/export paths used when native env is unset.",
+          "removalCondition": "Delete the affected exports once aging and every payment path are native and no Next route imports them."
+        },
+        {
+          "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
+          "reason": "Retained transport with per-path native gates and TS fallbacks; still ~585 lines and imports the whole TS finance surface.",
+          "removalCondition": "Reduce to pure transport or delete after the native routers are default-on and all TS branches are retired."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.finance.goods-journal-port",
+          "title": "Transactional goods-journal and functional-FX valuation port for Commerce receipt/delivery",
+          "paths": [
+            "packages/server-finance/src/adapters/commerce_goods_journal.rs",
+            "packages/server-finance/src/domain/journal.rs",
+            "packages/server-finance/src/domain/company_money.rs",
+            "packages/server-finance/src/public/commerce_goods_journal.rs",
+            "packages/server-finance/src/public/mod.rs",
+            "tests/integration/finance/rust-commerce-goods-journal-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:finance"
+          ],
+          "dependsOn": [
+            "inventory.finance",
+            "ports.trade"
+          ],
+          "requiredPorts": [
+            "ports.trade",
+            "commerce.goods-fulfillment"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-finance",
+            "bun run test:integration -- --suite=finance.rust-commerce-goods-journal-postgres.integration",
+            "bun run test:unit -- --suite=finance.rust-journal-wire.unit"
+          ]
+        },
+        {
+          "id": "migrate.finance.bank-automation",
+          "title": "Native bank CSV mapping and independently reviewed match-group commands",
+          "paths": [
+            "packages/server-finance/src/domain/bank_automation.rs",
+            "packages/server-finance/src/application/bank_automation.rs",
+            "packages/server-finance/src/adapters/bank_automation.rs",
+            "packages/server-finance/src/public/finance-bank-automation.rs",
+            "packages/feature-finance/src/adapters/server/native-bank-automation.ts",
+            "tests/integration/finance",
+            "tests/unit/finance"
+          ],
+          "resources": [
+            "owner:finance"
+          ],
+          "dependsOn": [
+            "inventory.finance",
+            "migrate.finance.goods-journal-port"
+          ],
+          "requiredPorts": [
+            "ports.trade"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-finance",
+            "bun run test:unit -- --suite=finance.bank-automation-services.unit",
+            "bun run test:integration -- --suite=finance.bank-automation.integration"
+          ]
+        },
+        {
+          "id": "migrate.finance.due-draft-jobs",
+          "title": "Native scheduled due-draft preparation with retry/cancel and lease-safe job",
+          "paths": [
+            "packages/server-finance/src/domain/due_drafts.rs",
+            "packages/server-finance/src/application/due_drafts.rs",
+            "packages/server-finance/src/adapters/due_drafts.rs",
+            "packages/server-finance/src/public/finance-due-drafts.rs",
+            "packages/feature-finance/src/adapters/server/native-due-drafts.ts",
+            "tests/integration/finance",
+            "tests/unit/finance"
+          ],
+          "resources": [
+            "owner:finance"
+          ],
+          "dependsOn": [
+            "inventory.finance",
+            "migrate.finance.goods-journal-port"
+          ],
+          "requiredPorts": [
+            "ports.trade",
+            "ports.common"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-finance",
+            "bun run test:unit -- --suite=finance.due-draft-services.unit",
+            "bun run test:integration -- --suite=finance.work-source.integration"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Live bank-provider and Finance AI provider verification once adapters exist (credentials/environment).",
+        "Authenticated Finance desktop/mobile journeys for aging, bank automation and due drafts after native mount.",
+        "Statement/withholding filing acceptance and PDF trust are A1 evidence, not implementation gates."
+      ],
+      "limitations": [
+        "Source-read inventory only: no cargo check, test suite, typecheck or build was executed.",
+        "Native mount facts come from src/composition (lead-owned); the finance Next route is ~585 lines and each segment has its own env gate, so a path is only 'verified' when both the Rust route and the Next selector were traced.",
+        "Finance is registered businessMigrationComplete=true in docs/status/rust-backend-migration.json:8-44, but the register cannot be used to infer native coverage; the residuals above are source-verified."
+      ]
+    },
+    "identity_access": {
+      "taskId": "inventory.identity_access",
+      "owner": "identity_access",
+      "sourceSha": "ad3ca99657f06068c147cfbdd2537fd3f6edca1c",
+      "nativePresent": true,
+      "workflows": [
+        {
+          "id": "identity_access/assignments",
+          "qualification": "verified",
+          "native": [
+            "packages/server-identity_access/src/adapters/assignment_http.rs:236-242",
+            "packages/server-identity_access/src/adapters/assignment_postgres.rs",
+            "packages/server-identity_access/src/application/assignment.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "Closed read/revoke slice mounted at src/composition/src/private_development_api.rs:3946 on /api/v1/holdings/{holding_slug}/iam/assignments; grant/proposal and role publication are separate workflows."
+        },
+        {
+          "id": "identity_access/access-reviews",
+          "qualification": "unstarted",
+          "native": [],
+          "tsAuthoritative": [
+            "packages/server-identity_access/src/adapters/iam-api.ts:367-369",
+            "packages/server-identity_access/src/adapters/iam-service.ts:21-23"
+          ],
+          "gap": "Campaign start/decide/cancel execute only in TypeScript behind /api/v1/holdings/[holdingSlug]/iam/[[...path]]/route.ts; no Rust access-review module exists (no *.rs under src/{domain,application,adapters,public} matching access reviews)."
+        },
+        {
+          "id": "identity_access/feature-people-principals",
+          "qualification": "partial",
+          "native": [
+            "packages/server-identity_access/src/adapters/account_work_roles.rs",
+            "packages/server-identity_access/src/public/work_admission.rs",
+            "packages/server-identity_access/src/adapters/holding_work_context.rs"
+          ],
+          "tsAuthoritative": [
+            "packages/server-identity_access/src/adapters/iam-api.ts:361-362",
+            "packages/server-identity_access/src/adapters/user-management.ts:296-301"
+          ],
+          "gap": "Work-role/effective-authority facts are native, but IAM user-management snapshot/preview/save and principal reconciliation remain TypeScript (managementCommand/readManagement)."
+        },
+        {
+          "id": "identity_access/feature-roles-permissions",
+          "qualification": "partial",
+          "native": [
+            "packages/server-identity_access/src/adapters/permission_catalog.rs",
+            "packages/server-identity_access/src/adapters/postgres_effective_authority.rs",
+            "tests/unit/identity_access/rust-permission-catalog.test.rs"
+          ],
+          "tsAuthoritative": [
+            "packages/server-identity_access/src/adapters/iam-api.ts:363",
+            "packages/server-identity_access/src/adapters/iam-service.ts:25"
+          ],
+          "gap": "Permission catalogue is native; versioned role draft/publish/saveIamRole and grant approval still execute in TS iam-service."
+        },
+        {
+          "id": "identity_access/feature-directory-connectors",
+          "qualification": "partial",
+          "native": [
+            "packages/server-identity_access/src/adapters/directory_ldap.rs",
+            "packages/server-identity_access/src/adapters/directory_source_admin.rs",
+            "packages/server-identity_access/src/adapters/directory_source_review.rs",
+            "src/composition/src/directory_source_http.rs:62-64",
+            "packages/server-identity_access/src/adapters/directory_http.rs:25-30"
+          ],
+          "tsAuthoritative": [
+            "packages/server-identity_access/src/adapters/iam-directories.ts:24-54",
+            "packages/server-identity_access/src/adapters/directory-operations.ts",
+            "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts:120",
+            "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts:188"
+          ],
+          "gap": "LDAP/OIDC/provider code and source preview/approve HTTP exist, but neither directory_source_http (composition) nor directory_account_router sign-in is mounted in src/composition/src/private_development_api.rs; connection test/activate/disable/mappings and directory-operation jobs still run in TS via the People catch-all route."
+        },
+        {
+          "id": "identity_access/feature-identity-conflicts",
+          "qualification": "unstarted",
+          "native": [],
+          "tsAuthoritative": [
+            "packages/server-identity_access/src/adapters/iam-service.ts",
+            "packages/server-identity_access/src/adapters/iam-service-reads.ts",
+            "packages/server-identity_access/src/adapters/iam-api.ts:89"
+          ],
+          "gap": "Catalogue sourceRef is iam-service.ts; same-contact distinct-provider identity import/conflict handling has no native module. iam-api.ts:89 also bypasses native whenever actor.platform is true."
+        }
+      ],
+      "publicPorts": [
+        {
+          "name": "iam_assignment_http_router",
+          "path": "packages/server-identity_access/src/adapters/assignment_http.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:3946"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "directory_source_router",
+          "path": "src/composition/src/directory_source_http.rs",
+          "mountedAt": [],
+          "status": "missing"
+        },
+        {
+          "name": "directory_account_router",
+          "path": "packages/server-identity_access/src/adapters/directory_http.rs",
+          "mountedAt": [],
+          "status": "missing"
+        },
+        {
+          "name": "HoldingWorkAuthorizer",
+          "path": "packages/server-identity_access/src/public/effective_authority.rs",
+          "mountedAt": [
+            "src/composition/src/identity_access.rs:145",
+            "src/composition/src/organization_nodes.rs",
+            "src/composition/src/billing.rs"
+          ],
+          "status": "frozen"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "iam-roles-reviews-native-command",
+          "kind": "command",
+          "detail": "Add native versioned role save/publish, review propose/decide and access-review campaign start/decide/cancel with CAS, audit/outbox and the current permission catalogue gate.",
+          "suggestedPaths": [
+            "packages/server-identity_access/src/domain/iam_roles.rs",
+            "packages/server-identity_access/src/application/iam_roles.rs",
+            "packages/server-identity_access/src/adapters/iam_roles_postgres.rs",
+            "packages/server-identity_access/src/adapters/iam_roles_http.rs"
+          ]
+        },
+        {
+          "id": "directory-runtime-mount",
+          "kind": "mount",
+          "detail": "Mount directory source preview/approve and directory sign-in routers; both exist but are absent from private_development_api. Lead owns composition mount.",
+          "suggestedPaths": [
+            "src/composition/src/private_development_api.rs",
+            "src/composition/src/directory_source_http.rs"
+          ]
+        },
+        {
+          "id": "directory-operations-native-command",
+          "kind": "command",
+          "detail": "Native connection test/activate/disable, mappings, automation and operation retry/drain commands; TS directory-operations.ts and iam-directories.ts remain authoritative inside people/[...path] route.",
+          "suggestedPaths": [
+            "packages/server-identity_access/src/domain/directory_operations.rs",
+            "packages/server-identity_access/src/application/directory_operations.rs",
+            "packages/server-identity_access/src/adapters/directory_operations_postgres.rs",
+            "packages/server-identity_access/src/adapters/directory_operations_http.rs"
+          ]
+        },
+        {
+          "id": "principals-conflicts-emergency",
+          "kind": "command",
+          "detail": "Native user-management preview/save, identity conflict review and temporary emergency access activate/revoke; TS user-management.ts, iam-service.ts, iam-recovery.ts and iam-api.ts (platform bypass at line 89) remain authoritative.",
+          "suggestedPaths": [
+            "packages/server-identity_access/src/domain/iam_principals.rs",
+            "packages/server-identity_access/src/application/iam_principals.rs",
+            "packages/server-identity_access/src/adapters/iam_principals_postgres.rs",
+            "packages/server-identity_access/src/adapters/iam_recovery_http.rs"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-identity_access/src/adapters/iam-api.ts",
+          "reason": "Dispatches roles, reviews, connections, emergency and platform IAM with line 89 explicitly preferring TS for platform actors.",
+          "removalCondition": "Native IAM HTTP router mounted for holding and platform scopes and feature-admin/workplace IAM routes re-export it; then delete iam-api dispatch and iam-service.ts."
+        },
+        {
+          "path": "packages/server-identity_access/src/adapters/directory-operations.ts",
+          "reason": "Directory automation/operation preview/apply/retry/drain called by the People catch-all API.",
+          "removalCondition": "Native directory-operations command+read HTTP is mounted and people/[...path] directory-operations branches are removed."
+        },
+        {
+          "path": "packages/server-identity_access/src/adapters/user-management.ts",
+          "reason": "managementSnapshot/readManagement/managementCommand/reconcileManagement business logic.",
+          "removalCondition": "Native principals command/read router passes rust-iam-principals suites and the IAM user-management TS branches are deleted."
+        },
+        {
+          "path": "packages/server-identity_access/src/adapters/iam-recovery.ts",
+          "reason": "Emergency activate/revoke/list business logic used by IAM emergency routes.",
+          "removalCondition": "Native temporary-access command/read mounted and audited; delete iam-recovery.ts and its public re-export."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.identity_access.iam_roles_reviews",
+          "title": "Native IAM roles, reviews and access-review campaigns",
+          "paths": [
+            "packages/server-identity_access/src/domain/iam_roles.rs",
+            "packages/server-identity_access/src/application/iam_roles.rs",
+            "packages/server-identity_access/src/adapters/iam_roles_postgres.rs",
+            "packages/server-identity_access/src/adapters/iam_roles_http.rs",
+            "packages/server-identity_access/src/public/iam_roles.rs",
+            "tests/unit/identity_access/rust-iam-roles.test.rs",
+            "tests/integration/identity_access/rust-iam-roles-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:identity_access"
+          ],
+          "dependsOn": [
+            "ports.authority"
+          ],
+          "requiredPorts": [
+            "ports.authority"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-identity-access",
+            "cargo test -p erpx-server-identity-access --test rust-iam-roles",
+            "bun run test:unit --suite=identity_access.rust-permission-catalog.unit"
+          ]
+        },
+        {
+          "id": "migrate.identity_access.directory_runtime",
+          "title": "Mount native directory source and sign-in; migrate directory operations",
+          "paths": [
+            "packages/server-identity_access/src/domain/directory_operations.rs",
+            "packages/server-identity_access/src/application/directory_operations.rs",
+            "packages/server-identity_access/src/adapters/directory_operations_postgres.rs",
+            "packages/server-identity_access/src/adapters/directory_http.rs",
+            "packages/server-identity_access/src/public/directory.rs",
+            "tests/unit/identity_access/rust-directory-operations.test.rs",
+            "tests/integration/identity_access/rust-directory-operations-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:identity_access"
+          ],
+          "dependsOn": [
+            "migrate.identity_access.iam_roles_reviews"
+          ],
+          "requiredPorts": [
+            "ports.authority"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-identity-access --features directory-ldaps",
+            "cargo test -p erpx-server-identity-access --test directory_mappings",
+            "bun run test:unit --suite=identity_access.directory-source-client.unit"
+          ]
+        },
+        {
+          "id": "migrate.identity_access.principals_emergency",
+          "title": "Native principals, identity conflicts and temporary access",
+          "paths": [
+            "packages/server-identity_access/src/domain/iam_principals.rs",
+            "packages/server-identity_access/src/application/iam_principals.rs",
+            "packages/server-identity_access/src/adapters/iam_principals_postgres.rs",
+            "packages/server-identity_access/src/adapters/iam_recovery_http.rs",
+            "packages/server-identity_access/src/public/iam_principals.rs",
+            "tests/unit/identity_access/rust-iam-principals.test.rs",
+            "tests/integration/identity_access/rust-iam-principals-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:identity_access"
+          ],
+          "dependsOn": [
+            "migrate.identity_access.iam_roles_reviews"
+          ],
+          "requiredPorts": [
+            "ports.authority"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-identity-access",
+            "cargo test -p erpx-server-identity-access --test rust-iam-principals",
+            "bun run test:unit --suite=identity_access.rust-effective-authority-postgres.integration"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Browser desktop/mobile journeys for access-review campaigns, directory sync and conflicts",
+        "Real OIDC/LDAPS provider credentials and unreachable-directory failure behaviour",
+        "Resend/mail provider delivery acceptance for invitations"
+      ],
+      "limitations": [
+        "Shared mounts in src/composition/src/private_development_api.rs and admin/workplace IAM route retirement are lead-integration, not worker paths.",
+        "Inventory is read-only: no cargo/test command was executed.",
+        "iam-api.ts:89 platform bypass means platform IAM is TS even when ERPX_NATIVE_IDENTITY_ACCESS_CONFIG is set."
+      ]
+    },
+    "inventory": {
+      "taskId": "inventory.inventory",
+      "owner": "inventory",
+      "sourceSha": "ad3ca99657f06068c147cfbdd2537fd3f6edca1c",
+      "nativePresent": true,
+      "workflows": [
+        {
+          "id": "inventory/availability",
+          "qualification": "verified",
+          "native": [
+            "packages/server-inventory/src/domain/availability.rs",
+            "packages/server-inventory/src/adapters/availability_read.rs",
+            "packages/server-inventory/src/public/availability_read.rs",
+            "src/composition/src/inventory_availability_read.rs",
+            "src/composition/src/inventory_availability_http.rs"
+          ],
+          "tsAuthoritative": [
+            "packages/workplace/src/routes/holdings/[holdingSlug]/inventory-quality/stock/_screen.tsx",
+            "packages/server-commerce/src/adapters/commerce.ts"
+          ],
+          "gap": "GET /api/v1/holdings/{slug}/inventory/availability is mounted (private_development_api.rs:4766) and _screen.tsx:83 selects it; with ERPX_NATIVE_INVENTORY_AVAILABILITY_CONFIG unset the SSR screen still builds rows from Commerce TS commercePage (commerce.ts:863). No write side in this workflow."
+        },
+        {
+          "id": "inventory/reservations",
+          "qualification": "partial",
+          "native": [
+            "packages/server-inventory/src/domain/reservation_alerts.rs",
+            "packages/server-inventory/src/adapters/postgres_consumption/reserve_stock.rs",
+            "packages/server-inventory/src/adapters/stock_issue.rs",
+            "src/composition/src/inventory_reservation_alerts.rs"
+          ],
+          "tsAuthoritative": [
+            "packages/server-commerce/src/adapters/commerce.ts",
+            "tests/integration/inventory/stock-reservations.test.ts"
+          ],
+          "gap": "Sales-order reserve/release rows in inventory_order_reservations are written by Commerce TS changeOrderReservation/saveOrder; only Field Service new reservations (reserve_stock.rs:56-121), reservation consumption in stock_issue.rs:166/525 and the expiring/expired alert sweep (inventory_reservation_alerts.rs, scheduled at field_dependency_worker.rs:62) are native."
+        },
+        {
+          "id": "inventory/feature-stock-register",
+          "qualification": "verified",
+          "native": [
+            "packages/server-inventory/src/domain/stock_register.rs",
+            "packages/server-inventory/src/adapters/stock_register_read.rs",
+            "packages/server-inventory/src/public/stock_register.rs",
+            "src/composition/src/inventory_stock_read.rs",
+            "src/composition/src/inventory_stock_http.rs"
+          ],
+          "tsAuthoritative": [
+            "packages/feature-inventory/src/adapters/server/native-stock-register.ts"
+          ],
+          "gap": "Read-only native projection at two mounted routes (inventory_stock_http.rs:65-72). Stock adjustments/count postings remain in the TS count application (adapters/inventory-counts.ts:104-105), outside this catalogue workflow."
+        },
+        {
+          "id": "inventory/feature-receipts",
+          "qualification": "partial",
+          "native": [
+            "packages/server-inventory/src/domain/stock_receipt.rs",
+            "packages/server-inventory/src/adapters/stock_receipt.rs",
+            "packages/server-inventory/src/adapters/commerce_receipt.rs",
+            "packages/server-inventory/src/public/stock_receipt.rs",
+            "packages/server-inventory/src/public/commerce_receipt.rs",
+            "packages/server-commerce/src/adapters/receipt.rs"
+          ],
+          "tsAuthoritative": [
+            "packages/server-commerce/src/adapters/commerce.ts",
+            "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts"
+          ],
+          "gap": "Receipt read is mounted at GET /inventory/receipts/{order_id}, but the write seam has no production StockReceiptQualityPort (trait stock_receipt.rs:21; only TestQuality at tests/integration/inventory/rust-stock-receipt-postgres.test.rs:634/1593), PgCommerceReceipt is never built in src/composition, and purchase goods still run TS fulfillOrder (commerce route line 87). Foreign currency is refused by receipt.rs:951 RECEIPT_FX_GUARD_REQUIRED."
+        },
+        {
+          "id": "inventory/feature-issues-movements",
+          "qualification": "partial",
+          "native": [
+            "packages/server-inventory/src/domain/stock_issue.rs",
+            "packages/server-inventory/src/adapters/stock_issue.rs",
+            "packages/server-inventory/src/domain/movement.rs",
+            "packages/server-inventory/src/adapters/movement_read.rs",
+            "packages/server-inventory/src/public/stock_issue.rs",
+            "packages/server-inventory/src/public/movement_read.rs"
+          ],
+          "tsAuthoritative": [
+            "packages/server-commerce/src/adapters/commerce.ts",
+            "packages/server-inventory/src/adapters/inventory-transfers.ts",
+            "packages/server-inventory/src/adapters/inventory-transit.ts"
+          ],
+          "gap": "GET /inventory/movements is mounted, but apply_stock_issue (stock_issue.rs:681) has zero production callers; goods delivery stock/lot consumption is still Commerce TS fulfillOrder. Transfer/transit movement writers remain TS."
+        }
+      ],
+      "publicPorts": [
+        {
+          "name": "availability_read",
+          "path": "packages/server-inventory/src/public/availability_read.rs",
+          "mountedAt": [
+            "src/composition/src/inventory_availability_http.rs",
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "movement_read",
+          "path": "packages/server-inventory/src/public/movement_read.rs",
+          "mountedAt": [
+            "src/composition/src/inventory_availability_http.rs"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "stock_register",
+          "path": "packages/server-inventory/src/public/stock_register.rs",
+          "mountedAt": [
+            "src/composition/src/inventory_stock_http.rs"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "stock_receipt::apply_stock_receipt",
+          "path": "packages/server-inventory/src/public/stock_receipt.rs",
+          "mountedAt": [],
+          "status": "partial"
+        },
+        {
+          "name": "commerce_receipt::InventoryStockReceipt",
+          "path": "packages/server-inventory/src/public/commerce_receipt.rs",
+          "mountedAt": [],
+          "status": "partial"
+        },
+        {
+          "name": "stock_issue::apply_stock_issue",
+          "path": "packages/server-inventory/src/public/stock_issue.rs",
+          "mountedAt": [],
+          "status": "partial"
+        },
+        {
+          "name": "reservation_alerts",
+          "path": "packages/server-inventory/src/public/reservation_alerts.rs",
+          "mountedAt": [
+            "src/composition/src/inventory_reservation_alerts.rs",
+            "src/composition/src/field_dependency_worker.rs"
+          ],
+          "status": "frozen"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "receipt-quality-port",
+          "kind": "provider",
+          "detail": "No production StockReceiptQualityPort exists, so Commerce receive_purchase_order cannot commit quality holds. quality::public::goods_receipt_hold::prepare_goods_receipt_hold (adapters/goods_receipt_hold.rs:63) already prepares the hold; inventory depends on erpx-server-quality (Cargo.toml:20) so the bridge must live in inventory (quality->inventory would cycle).",
+          "suggestedPaths": [
+            "packages/server-inventory/src/adapters/stock_receipt.rs",
+            "packages/server-inventory/src/adapters/commerce_receipt.rs",
+            "packages/server-inventory/src/adapters/quality_receipt_hold.rs",
+            "packages/server-inventory/src/public/commerce_receipt.rs",
+            "packages/server-inventory/src/public/stock_receipt.rs"
+          ]
+        },
+        {
+          "id": "stock-write-bindings",
+          "kind": "mount",
+          "detail": "PgCommerceReceipt + InventoryStockReceipt + apply_stock_issue have no composition binding; src/composition is lead-owned, so the worker can only freeze the owner binding surface and PostgreSQL evidence.",
+          "suggestedPaths": [
+            "packages/server-inventory/src/adapters/stock_receipt.rs",
+            "packages/server-inventory/src/adapters/stock_issue.rs",
+            "packages/server-inventory/src/public/stock_issue.rs",
+            "packages/server-inventory/src/public/commerce_receipt.rs",
+            "tests/integration/inventory"
+          ]
+        },
+        {
+          "id": "sales-reservation-writer",
+          "kind": "command",
+          "detail": "inventory_order_reservations create/release is Commerce TS; native reserve_stock.rs covers Field Service only. A native Sales reservation command is required before stock_issue can be the only delivery writer.",
+          "suggestedPaths": [
+            "packages/server-inventory/src/adapters/postgres_consumption/reserve_stock.rs",
+            "packages/server-inventory/src/domain/stock_issue.rs",
+            "packages/server-inventory/src/public/stock_issue.rs",
+            "tests/integration/inventory"
+          ]
+        },
+        {
+          "id": "transfer-transit-writers",
+          "kind": "command",
+          "detail": "Auxiliary owner scope with no catalogue workflow: inventory_transfers / inventory_transit are written only by TS application (adapters/inventory-transfers.ts:73-74, inventory-transit.ts:74-78). Needs its own migration packet before G4.",
+          "suggestedPaths": [
+            "packages/server-inventory/src/domain/transfers.rs",
+            "packages/server-inventory/src/domain/transit.rs",
+            "packages/server-inventory/src/adapters/transfers.rs",
+            "packages/server-inventory/src/adapters/transit.rs",
+            "tests/integration/inventory"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-inventory/src/adapters/inventory-transfers.ts",
+          "reason": "Authoritative TS transfer list/save/transition adapter; no Rust counterpart.",
+          "removalCondition": "Delete after a native inventory.transfer create/update/submit/post/reject/cancel packet is mounted and transfer catalogue cases run natively."
+        },
+        {
+          "path": "packages/server-inventory/src/adapters/inventory-transit.ts",
+          "reason": "Authoritative TS transit dispatch/receive/loss/cancel adapter.",
+          "removalCondition": "Delete after native transit dispatch/receive/loss decisions own the transit rows and inventory-transit.test.ts assertions move to Rust suites."
+        },
+        {
+          "path": "packages/server-inventory/src/adapters/inventory-counts.ts",
+          "reason": "Authoritative TS generic count list/save/transition; only service-owned counts route to native.",
+          "removalCondition": "Delete the generic branches after a native generic count command covers submit/approve/post plus list/detail reads."
+        },
+        {
+          "path": "packages/server-inventory/src/adapters/inventory-reorder-policies.ts",
+          "reason": "TS-only reorder policy list/save/transition; no Rust reorder module.",
+          "removalCondition": "Delete after native reorder-policy command + read replace saveInventoryReorderPolicy/transitionInventoryReorderPolicy."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.inventory.receipt-quality-port",
+          "title": "Inventory-owned StockReceiptQualityPort over the Quality receipt-hold seam",
+          "paths": [
+            "packages/server-inventory/src/adapters/stock_receipt.rs",
+            "packages/server-inventory/src/adapters/commerce_receipt.rs",
+            "packages/server-inventory/src/adapters/quality_receipt_hold.rs",
+            "packages/server-inventory/src/public/commerce_receipt.rs",
+            "packages/server-inventory/src/public/stock_receipt.rs",
+            "tests/integration/inventory/rust-stock-receipt-postgres.test.rs",
+            "tests/unit/inventory"
+          ],
+          "resources": [
+            "owner:inventory"
+          ],
+          "dependsOn": [
+            "inventory.inventory",
+            "migrate.quality.hold-create"
+          ],
+          "requiredPorts": [
+            "ports.trade",
+            "quality.goods_receipt_hold"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-inventory",
+            "bun run test:unit -- --suite=inventory.rust-stock-receipt.unit",
+            "bun run test:integration -- --suite=inventory.rust-stock-receipt-postgres.integration"
+          ]
+        },
+        {
+          "id": "migrate.inventory.stock-write-bindings",
+          "title": "Freeze Inventory receipt/issue owner bindings and PostgreSQL evidence for Commerce writers",
+          "paths": [
+            "packages/server-inventory/src/adapters/stock_issue.rs",
+            "packages/server-inventory/src/adapters/stock_receipt.rs",
+            "packages/server-inventory/src/adapters/commerce_receipt.rs",
+            "packages/server-inventory/src/public/stock_issue.rs",
+            "packages/server-inventory/src/public/commerce_receipt.rs",
+            "packages/server-inventory/Cargo.toml",
+            "tests/integration/inventory/rust-stock-issue-postgres.test.rs",
+            "tests/integration/inventory/rust-stock-receipt-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:inventory"
+          ],
+          "dependsOn": [
+            "inventory.inventory",
+            "migrate.inventory.receipt-quality-port"
+          ],
+          "requiredPorts": [
+            "ports.trade",
+            "commerce.goods-fulfillment"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-inventory",
+            "bun run test:unit -- --suite=inventory.rust-stock-issue.unit",
+            "bun run test:integration -- --suite=inventory.rust-stock-issue-postgres.integration"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Authenticated desktop/mobile stock register, availability, receipt and movement pages once ERPX_NATIVE_INVENTORY_* is default-on.",
+        "Lot/serial and foreign-currency stock evidence acceptance until the Commerce/Finance FX port lands."
+      ],
+      "limitations": [
+        "Source-read inventory only: no cargo check, test suite, typecheck or build was executed.",
+        "Catalogue cases for all five IDs are vitest suites under tests/integration/{inventory,sales}; registered cargo suites (inventory.rust-*) exist but do not yet certify those catalogue entries.",
+        "Mount facts were read from lead-owned src/composition/src/private_development_api.rs; no composition file was modified."
+      ]
+    },
+    "manage_erpx": {
+      "taskId": "inventory.manage_erpx",
+      "owner": "manage_erpx",
+      "sourceSha": "603a4aa3e3e39a0a65651d839a6cdab04631b742",
+      "nativePresent": true,
+      "workflows": [
+        {
+          "id": "manage_erpx/overview",
+          "qualification": "partial",
+          "native": [
+            "packages/server-manage_erpx/src/application/onboarding.rs:17",
+            "packages/server-manage_erpx/src/adapters/onboarding.rs:79",
+            "packages/server-manage_erpx/src/adapters/onboarding_http.rs:143",
+            "src/composition/src/manage_erpx.rs:138"
+          ],
+          "tsAuthoritative": [
+            "packages/workplace/src/routes/api/v1/onboarding/route.ts:18",
+            "packages/server-manage_erpx/src/adapters/beta-onboarding.ts:141"
+          ],
+          "gap": "Native GET /api/v1/onboarding is mounted and consumed by workplace/lib/native-manage-erpx.ts:37, but POST onboarding/company bootstrap still calls TS onboard()."
+        },
+        {
+          "id": "manage_erpx/billing",
+          "qualification": "partial",
+          "native": [
+            "packages/server-billing/src/application/workspace.rs",
+            "src/composition/src/billing.rs:251-296",
+            "packages/server-billing/src/adapters/billing_http.rs:539"
+          ],
+          "tsAuthoritative": [
+            "packages/feature-billing/src/components/billing-console.tsx",
+            "packages/server-billing/src/adapters/billing-api.ts"
+          ],
+          "gap": "Manage ERPX billing page renders BillingConsole (packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/manage-erpx/billing/screen.tsx:1); native billing read/cost commands exist, but subscription/invoice commands remain billing TS."
+        },
+        {
+          "id": "manage_erpx/iam",
+          "qualification": "unstarted",
+          "native": [],
+          "tsAuthoritative": [
+            "packages/feature-admin/src/routes/api/v1/platform/iam/[[...path]]/route.ts",
+            "packages/server-identity_access/src/adapters/iam-api.ts:89"
+          ],
+          "gap": "Platform IAM page/API is iamApi with platform actor bypass; no native platform IAM read/command exists."
+        },
+        {
+          "id": "manage_erpx/executive",
+          "qualification": "unstarted",
+          "native": [],
+          "tsAuthoritative": [
+            "packages/server-platform_administration/src/adapters/platform-executive.ts",
+            "packages/server-platform_administration/src/application/platform-executive.ts",
+            "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/manage-erpx/executive/screen.tsx:1"
+          ],
+          "gap": "Platform executive snapshot/source reads and authority check are TS only; Manage ERPX executive screen imports platformExecutiveForPresentation, not a native reader."
+        }
+      ],
+      "publicPorts": [
+        {
+          "name": "manage_erpx_router",
+          "path": "packages/server-manage_erpx/src/adapters/onboarding_http.rs:126",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:4138"
+          ],
+          "status": "partial"
+        },
+        {
+          "name": "native manage-erpx onboarding view",
+          "path": "packages/feature-platform_administration/src/adapters/server/native-manage-erpx.ts:226-283",
+          "mountedAt": [
+            "packages/workplace/src/routes/onboarding/page.tsx:18",
+            "packages/workplace/src/routes/api/v1/onboarding/route.ts:13"
+          ],
+          "status": "partial"
+        },
+        {
+          "name": "platform executive snapshot",
+          "path": "packages/server-platform_administration/src/adapters/platform-executive.ts",
+          "mountedAt": [
+            "packages/feature-admin/src/routes/api/v1/platform/executive/route.ts"
+          ],
+          "status": "missing"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "onboarding-bootstrap-command",
+          "kind": "command",
+          "detail": "Port TS onboard() company bootstrap (beta_members, company_provisioning/events, beta_bootstrap, beta_policy, beta_waitlist, lines 30-85 of beta-onboarding.ts) to native command with one transaction, idempotency, audit and owner ports; add POST to manage_erpx_router.",
+          "suggestedPaths": [
+            "packages/server-manage_erpx/src/domain/onboarding.rs",
+            "packages/server-manage_erpx/src/application/onboarding.rs",
+            "packages/server-manage_erpx/src/adapters/onboarding.rs",
+            "packages/server-manage_erpx/src/adapters/beta_onboarding_postgres.rs",
+            "packages/server-manage_erpx/src/adapters/onboarding_http.rs"
+          ]
+        },
+        {
+          "id": "manage-erpx-billing-iam-executive-ports",
+          "kind": "read",
+          "detail": "Billing, IAM and Executive views need billing, identity_access and platform_administration ports; manage_erpx must not duplicate them. Depends on migrate.billing.subscription_commands, migrate.identity_access.iam_roles_reviews and platform executive read.",
+          "suggestedPaths": []
+        },
+        {
+          "id": "native-client-onboarding-only",
+          "kind": "read",
+          "detail": "Feature native Manage ERPX client exposes only onboardingView; add typed ports for the other three tabs once producer ports exist.",
+          "suggestedPaths": [
+            "packages/feature-platform_administration/src/adapters/server/native-manage-erpx.ts",
+            "packages/workplace/src/lib/native-manage-erpx.ts"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-manage_erpx/src/adapters/beta-onboarding.ts",
+          "reason": "onboard() company bootstrap writes cross-owner tables in TS; GET view is native but POST is not.",
+          "removalCondition": "Native POST onboarding command passes PostgreSQL/idempotency tests and workplace/api/v1/onboarding/route.ts POST re-exports it; delete onboard() and beta-onboarding.ts."
+        },
+        {
+          "path": "packages/server-manage_erpx/src/adapters/beta-team.ts",
+          "reason": "Beta team/member management outside the four catalogue IDs.",
+          "removalCondition": "Scoped auxiliary beta-management packet ports members/invitations natively; until then retain."
+        },
+        {
+          "path": "packages/server-manage_erpx/src/adapters/legacy-license-access.ts",
+          "reason": "Legacy license/module access read retained for compatibility.",
+          "removalCondition": "No live caller after module/package retirement audit; delete with G4 audit evidence."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.manage_erpx.onboarding_command",
+          "title": "Native company onboarding/bootstrap command and POST mount",
+          "paths": [
+            "packages/server-manage_erpx/src/domain/onboarding.rs",
+            "packages/server-manage_erpx/src/application/onboarding.rs",
+            "packages/server-manage_erpx/src/adapters/onboarding.rs",
+            "packages/server-manage_erpx/src/adapters/beta_onboarding_postgres.rs",
+            "packages/server-manage_erpx/src/adapters/onboarding_http.rs",
+            "packages/server-manage_erpx/src/public/onboarding_http.rs",
+            "tests/unit/manage_erpx/rust-onboarding-command.test.rs",
+            "tests/integration/manage_erpx/rust-onboarding-command-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:manage_erpx"
+          ],
+          "dependsOn": [
+            "migrate.identity_access.iam_roles_reviews",
+            "migrate.organization.access_projection"
+          ],
+          "requiredPorts": [
+            "ports.authority",
+            "ports.trade"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-manage-erpx",
+            "cargo test -p erpx-server-manage-erpx --test onboarding_postgres",
+            "bun run test:unit --suite=manage_erpx.native-onboarding-transport.unit"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Browser Manage ERPX overview/billing/IAM/executive desktop+mobile verification",
+        "Real company bootstrap on a disposable registered Holding slot",
+        "Platform IAM/executive acceptance after identity_access/platform_administration ports land"
+      ],
+      "limitations": [
+        "Billing/IAM/Executive tabs are producer-owned; manage_erpx packets must consume ports rather than copy business logic.",
+        "POST route (packages/workplace/src/routes/api/v1/onboarding/route.ts) is a shared/lead integration path.",
+        "No cargo/test was run during inventory."
+      ]
+    },
+    "organization": {
+      "taskId": "inventory.organization",
+      "owner": "organization",
+      "sourceSha": "ad3ca99657f06068c147cfbdd2537fd3f6edca1c",
+      "nativePresent": true,
+      "workflows": [
+        {
+          "id": "organization/organization-tree",
+          "qualification": "verified",
+          "native": [
+            "packages/server-organization/src/domain/organization_nodes.rs",
+            "packages/server-organization/src/application/organization_nodes.rs",
+            "packages/server-organization/src/adapters/postgres_organization_nodes.rs",
+            "src/composition/src/organization_nodes_http.rs:70-72"
+          ],
+          "tsAuthoritative": [],
+          "gap": "Closed native workspace GET at /api/v1/holdings/{holding_slug}/people/organization; People page composes it through nativeOrganizationOverview (packages/feature-organization/src/adapters/server/native-organization.ts:248)."
+        },
+        {
+          "id": "organization/sharing",
+          "qualification": "partial",
+          "native": [
+            "packages/server-organization/src/domain/organization_nodes.rs:1012",
+            "packages/server-organization/src/application/organization_nodes.rs",
+            "packages/server-organization/src/public/organization_nodes.rs"
+          ],
+          "tsAuthoritative": [
+            "packages/server-organization/src/adapters/access.ts:12",
+            "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts:124",
+            "packages/server-collaboration/src/adapters/work-social-purchases.ts:92"
+          ],
+          "gap": "Native sharing target authorization and authorizedChannelNodes/channels are exposed in the workspace, but audience selection/social-beta settlement is collaboration-owned TS and the retained organizationAccessData read still supplies part of the page."
+        },
+        {
+          "id": "organization/feature-node-lifecycle",
+          "qualification": "partial",
+          "native": [
+            "packages/server-organization/src/adapters/postgres_organization_nodes.rs",
+            "src/composition/src/organization_nodes_http.rs:74-88",
+            "packages/server-organization/src/adapters/organization_setup_http.rs:472-486"
+          ],
+          "tsAuthoritative": [
+            "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts:212-236"
+          ],
+          "gap": "Native save/preview/review/cancel, levels and templates exist; route still owns request authorization and TS fallbacks, and the prepared Playwright lifecycle journey is unexecuted."
+        },
+        {
+          "id": "organization/feature-business-units",
+          "qualification": "verified",
+          "native": [
+            "packages/server-organization/src/domain/organization_nodes.rs",
+            "packages/server-organization/src/application/organization_setup.rs",
+            "packages/server-organization/src/adapters/postgres_organization_setup.rs",
+            "src/composition/src/organization_nodes_http.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "Closed native node/business-unit workspace and setup commands; browser verified per register. Position moves, department authority and staff defaults are separate auxiliary workflows outside this catalogue ID."
+        }
+      ],
+      "publicPorts": [
+        {
+          "name": "organization_nodes_router",
+          "path": "src/composition/src/organization_nodes_http.rs:70",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:3897"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "organization_setup_router",
+          "path": "packages/server-organization/src/adapters/organization_setup_http.rs:468",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:3909"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "organizationAccessData",
+          "path": "packages/server-organization/src/adapters/access.ts",
+          "mountedAt": [
+            "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/technology/[[...path]]/route.ts:30",
+            "packages/server-identity_access/src/adapters/presentation-context-queries.ts:91"
+          ],
+          "status": "partial"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "organization-access-native-read",
+          "kind": "read",
+          "detail": "Native workspace already carries nodes/positions/levels/channel authorization; add the bounded access projection (canMovePeople/people rows) so access.ts can be retired. Admin technology route and identity presentation-context still call organizationAccessData (TS).",
+          "suggestedPaths": [
+            "packages/server-organization/src/domain/access.rs",
+            "packages/server-organization/src/application/access.rs",
+            "packages/server-organization/src/adapters/access.rs",
+            "packages/server-organization/src/public/organization-access.rs"
+          ]
+        },
+        {
+          "id": "organization-command-route-retirement",
+          "kind": "retirement",
+          "detail": "People catch-all still dispatches native-or-TS for organization changes; remove TS organization/position/staff-default branches after native selector coverage is complete.",
+          "suggestedPaths": [
+            "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts"
+          ]
+        },
+        {
+          "id": "organization-shared-mount-verification",
+          "kind": "mount",
+          "detail": "Confirm organization_nodes/setup mounts remain selected for every registered Holding; lead owns composition.",
+          "suggestedPaths": [
+            "src/composition/src/private_development_api.rs",
+            "src/composition/src/lib.rs"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-organization/src/adapters/access.ts",
+          "reason": "organizationAccessData computes tree/people access projection in TS for Admin technology and identity presentation contexts.",
+          "removalCondition": "Native access projection mounted and both callers use it; then delete access.ts and public/organization-access.ts."
+        },
+        {
+          "path": "packages/server-organization/src/adapters/position-moves.ts",
+          "reason": "Position move preview/submit/cancel TS business logic dispatched by People catch-all route.",
+          "removalCondition": "Native position-move command HTTP mounted with CAS/audit tests; delete TS adapter and route branches."
+        },
+        {
+          "path": "packages/server-organization/src/adapters/department-authority.ts",
+          "reason": "Department authority/decision TS reads and writes outside the four catalogue IDs.",
+          "removalCondition": "Native department-authority command/read port mounted and its registered tests pass."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.organization.access_projection",
+          "title": "Native organization access projection and TS retirement",
+          "paths": [
+            "packages/server-organization/src/domain/access.rs",
+            "packages/server-organization/src/application/access.rs",
+            "packages/server-organization/src/adapters/access.rs",
+            "packages/server-organization/src/public/organization-access.rs",
+            "tests/unit/organization/rust-organization-access.test.rs",
+            "tests/integration/organization/rust-organization-access-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:organization"
+          ],
+          "dependsOn": [],
+          "requiredPorts": [],
+          "checks": [
+            "cargo check -p erpx-server-organization",
+            "cargo test -p erpx-server-organization --test organization_nodes",
+            "bun run test:unit --suite=organization.native-organization-setup.unit"
+          ]
+        },
+        {
+          "id": "migrate.organization.position_moves",
+          "title": "Native position-move commands and People route retirement",
+          "paths": [
+            "packages/server-organization/src/domain/position-moves.rs",
+            "packages/server-organization/src/application/position-moves.rs",
+            "packages/server-organization/src/adapters/position-moves.rs",
+            "tests/unit/organization/rust-position-moves.test.rs",
+            "tests/integration/organization/rust-position-moves-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:organization"
+          ],
+          "dependsOn": [
+            "migrate.organization.access_projection"
+          ],
+          "requiredPorts": [
+            "ports.authority"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-organization",
+            "cargo test -p erpx-server-organization --test organization_nodes",
+            "bun run test:unit --suite=organization.rust-organization-nodes.unit"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Prepared Playwright organization lifecycle journey (tests/e2e/organization/demo-organization-lifecycle.spec.ts)",
+        "Browser desktop/mobile sharing audience verification with collaboration",
+        "External directory/provider evidence for staff-level mapping"
+      ],
+      "limitations": [
+        "Sharing depends on collaboration-owned social audience settlement; organization cannot complete it alone.",
+        "Route and mount edits belong to lead integration; only owner-local files are proposed.",
+        "No cargo/test was run during inventory."
+      ]
+    },
+    "platform_administration": {
+      "taskId": "inventory.platform_administration",
+      "owner": "platform_administration",
+      "sourceSha": "ad3ca99657f06068c147cfbdd2537fd3f6edca1c",
+      "nativePresent": true,
+      "workflows": [
+        {
+          "id": "platform_administration/provisioning",
+          "qualification": "verified",
+          "native": [
+            "src/composition/src/platform_administration.rs:247-560",
+            "packages/server-platform_administration/src/adapters/platform_postgres.rs",
+            "packages/server-platform_administration/src/adapters/platform_http.rs:317-321",
+            "packages/server-platform_administration/src/application/platform_operations.rs"
+          ],
+          "tsAuthoritative": [
+            "packages/server-platform_administration/src/adapters/operations.ts:335"
+          ],
+          "gap": "Native provision/read/recover/migrate router mounted at /api/v1/platform/operations (src/composition/src/private_development_api.rs:2420). TS operations.ts provisionHolding remains a retained fallback selected when ERPX_NATIVE_PLATFORM_ADMIN_CONFIG is unset."
+        },
+        {
+          "id": "platform_administration/feature-holdings",
+          "qualification": "verified",
+          "native": [
+            "packages/server-platform_administration/src/adapters/platform_http.rs:317",
+            "packages/server-platform_administration/src/application/platform_operations.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "Native operations snapshot supplies per-Holding health, migrations and lifecycle read; no holding mutation gap inside this registered inspection scope."
+        },
+        {
+          "id": "platform_administration/feature-connectors",
+          "qualification": "unstarted",
+          "native": [],
+          "tsAuthoritative": [
+            "packages/server-identity_access/src/adapters/iam-directories.ts:24-34",
+            "tests/integration/shared.evidence/engineering-platform-access.test.ts"
+          ],
+          "gap": "Platform connector register/test/activate/disable is IAM connections for company 'platform', implemented only in identity_access TS iam-directories; no platform-administration native surface exists."
+        },
+        {
+          "id": "platform_administration/feature-infrastructure",
+          "qualification": "verified",
+          "native": [
+            "packages/server-platform_administration/src/domain/platform_operations.rs",
+            "packages/server-platform_administration/src/adapters/platform_postgres.rs"
+          ],
+          "tsAuthoritative": [
+            "ops/macos/erpxctl.py"
+          ],
+          "gap": "Closed against registered read/inspection scope; infrastructure mutation remains Ops tooling."
+        },
+        {
+          "id": "platform_administration/feature-backup-recovery",
+          "qualification": "partial",
+          "native": [
+            "packages/server-platform_administration/src/adapters/platform_postgres.rs:1114-1133",
+            "packages/server-platform_administration/src/application/platform_operations.rs"
+          ],
+          "tsAuthoritative": [
+            "ops/macos/erpxctl.py:123",
+            "ops/macos/erpxctl.py:160"
+          ],
+          "gap": "Native dead-letter replay with auditor denial, rollback and audit/outbox is qualified; backup/restore execution remains Python erpxctl (backup line 123, restore line 160) with TS tests only."
+        },
+        {
+          "id": "platform_administration/feature-projections-events",
+          "qualification": "partial",
+          "native": [
+            "packages/server-platform_administration/src/domain/platform_operations.rs:126-130",
+            "packages/server-platform_administration/src/adapters/platform_postgres.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "Native summary counts pending/dead/claimed events and exposes dead letters plus audited retry; no native projection inventory/rebuild or event-history read exists."
+        },
+        {
+          "id": "platform_administration/feature-migration-runs",
+          "qualification": "verified",
+          "native": [
+            "packages/server-platform_administration/src/adapters/platform_http.rs:320",
+            "packages/server-platform_administration/src/application/platform_operations.rs",
+            "migrations/postgres/control/0015_platform_migration_runs.sql"
+          ],
+          "tsAuthoritative": [],
+          "gap": "Native migrate command mounted and replay receipt recorded; no implementation gap."
+        },
+        {
+          "id": "platform_administration/feature-temporary-access",
+          "qualification": "unstarted",
+          "native": [],
+          "tsAuthoritative": [
+            "packages/server-identity_access/src/adapters/iam-recovery.ts",
+            "packages/server-identity_access/src/adapters/iam-api.ts:480"
+          ],
+          "gap": "Emergency/temporary access activate/revoke/list is identity_access TS only; native effective-authority merely reads iam_emergency_sessions."
+        },
+        {
+          "id": "platform_administration/feature-platform-audit",
+          "qualification": "unstarted",
+          "native": [],
+          "tsAuthoritative": [
+            "tests/integration/shared.evidence/engineering-platform-access.test.ts",
+            "packages/server-identity_access/src/adapters/iam-service-reads.ts"
+          ],
+          "gap": "Platform audit is iam_audit history for company 'platform' exposed by identity_access iamApi 'audit' branch (iam-api.ts:252-266); no platform-administration audit read/export exists."
+        }
+      ],
+      "publicPorts": [
+        {
+          "name": "platform_router",
+          "path": "packages/server-platform_administration/src/adapters/platform_http.rs:314",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:2420"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "agent_evidence_http_router",
+          "path": "packages/server-platform_administration/src/adapters/agent_evidence_http.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:4147"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "platform executive snapshot",
+          "path": "packages/server-platform_administration/src/adapters/platform-executive.ts",
+          "mountedAt": [
+            "packages/feature-admin/src/routes/api/v1/platform/executive/route.ts"
+          ],
+          "status": "missing"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "platform-connectors-audit-temp-access",
+          "kind": "read",
+          "detail": "Register/transition platform connectors, read platform audit and temporary access all require identity_access IAM ports. Platform owner should supply only platform-scoped wrappers; business authority stays identity_access. Depends on migrate.identity_access.directory_runtime and migrate.identity_access.principals_emergency.",
+          "suggestedPaths": []
+        },
+        {
+          "id": "platform-executive-native-read",
+          "kind": "read",
+          "detail": "platformExecutiveSnapshot/platformExecutiveSources and requirePlatformExecutive are TS-only (packages/server-platform_administration/src/adapters/platform-executive.ts, application/platform-executive.ts, domain/platform-executive.ts) and feed both /api/v1/platform/executive and Manage ERPX executive screen.",
+          "suggestedPaths": [
+            "packages/server-platform_administration/src/domain/platform_executive.rs",
+            "packages/server-platform_administration/src/application/platform_executive.rs",
+            "packages/server-platform_administration/src/adapters/platform_executive_postgres.rs"
+          ]
+        },
+        {
+          "id": "operations-fallback-retirement",
+          "kind": "retirement",
+          "detail": "Remove retained TS provision/summary/recovery business fallbacks after native configuration is guaranteed for every registered environment; route selection is shared feature-admin/admin code (lead).",
+          "suggestedPaths": [
+            "packages/server-platform_administration/src/adapters/operations.ts"
+          ]
+        },
+        {
+          "id": "projection-event-read",
+          "kind": "read",
+          "detail": "Add native projection/event inventory read beyond aggregate counters and dead-letter rows; no event listing or rebuild surface exists.",
+          "suggestedPaths": [
+            "packages/server-platform_administration/src/domain/platform_operations.rs",
+            "packages/server-platform_administration/src/adapters/platform_postgres.rs"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-platform_administration/src/adapters/operations.ts",
+          "reason": "TS provision/summary/recover/migrate fallback; only selected when native config is absent.",
+          "removalCondition": "All registered deployments set ERPX_NATIVE_PLATFORM_ADMIN_CONFIG and native platform suites cover provisioning/recovery; delete operations.ts and its public re-export."
+        },
+        {
+          "path": "ops/macos/erpxctl.py",
+          "reason": "Backup/restore (lines 123,160) and infrastructure commands are Python operator tooling, not backend business runtime.",
+          "removalCondition": "Keep as Ops tooling; replace only if a native operations job is explicitly scoped, otherwise classify retained operational tooling in G4."
+        },
+        {
+          "path": "packages/server-platform_administration/src/adapters/platform-executive.ts",
+          "reason": "TS executive metric/source reads and authority check.",
+          "removalCondition": "Native platform-executive read passes rust test and the admin route + Manage ERPX executive screen consume it."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.platform_administration.executive_read",
+          "title": "Native platform executive metrics read",
+          "paths": [
+            "packages/server-platform_administration/src/domain/platform_executive.rs",
+            "packages/server-platform_administration/src/application/platform_executive.rs",
+            "packages/server-platform_administration/src/adapters/platform_executive_postgres.rs",
+            "packages/server-platform_administration/src/public/platform_executive.rs",
+            "tests/unit/platform_administration/rust-platform-executive.test.rs",
+            "tests/integration/platform_administration/rust-platform-executive-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:platform_administration"
+          ],
+          "dependsOn": [
+            "ports.authority"
+          ],
+          "requiredPorts": [
+            "ports.authority"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-platform-administration",
+            "cargo test -p erpx-server-platform-administration --test platform-administration",
+            "bun run test:unit --suite=platform_administration.native-platform-administration-transport.unit"
+          ]
+        },
+        {
+          "id": "migrate.platform_administration.operations_retirement",
+          "title": "Retire TS platform operations fallback and add projection read",
+          "paths": [
+            "packages/server-platform_administration/src/adapters/operations.ts",
+            "packages/server-platform_administration/src/domain/platform_operations.rs",
+            "packages/server-platform_administration/src/adapters/platform_postgres.rs",
+            "tests/integration/platform_administration/rust-platform-administration-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:platform_administration"
+          ],
+          "dependsOn": [],
+          "requiredPorts": [
+            "ports.authority"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-platform-administration",
+            "cargo test -p erpx-server-platform-administration --test platform_administration_postgres",
+            "bun run test:unit --suite=platform_administration.rust-legal-release.unit"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Off-machine backup durability, production RPO/RTO and physical provisioning acceptance",
+        "Real connector activation against external LDAP/OIDC provider",
+        "Platform audit export/browser acceptance"
+      ],
+      "limitations": [
+        "Connectors/audit/temporary-access are identity_access business logic; platform work is blocked on those ports and may not duplicate them.",
+        "Shared composition mount and feature-admin route retirement are lead integration.",
+        "erpxctl.py backup/restore is Python Ops tooling; migration must not claim it as native backend without a scoped task.",
+        "No cargo/test was run during inventory."
       ]
     },
     "records": {
@@ -445,6 +2969,259 @@
         "No catalogue workflow maps here: task.workflowIds is [] and 0 of 206 workflow rows have owner \"runtime\".",
         "src/composition/** and scripts/** are lead-owned; those packet paths are integration requests, not worker writes.",
         "Read-only inventory; no cargo or bun check was executed."
+      ]
+    },
+    "sales": {
+      "taskId": "inventory.sales",
+      "owner": "sales",
+      "sourceSha": "ad3ca99657f06068c147cfbdd2537fd3f6edca1c",
+      "nativePresent": true,
+      "workflows": [
+        {
+          "id": "sales/quotes",
+          "qualification": "verified",
+          "native": [
+            "packages/server-sales/src/domain/sales_documents.rs",
+            "packages/server-sales/src/adapters/sales_documents_http.rs",
+            "packages/server-commerce/src/domain/order.rs",
+            "packages/server-commerce/src/application/order.rs",
+            "packages/server-commerce/src/adapters/order_http.rs",
+            "src/composition/src/private_development_api.rs"
+          ],
+          "tsAuthoritative": [
+            "packages/server-commerce/src/application/commerce.ts",
+            "packages/feature-sales/src/public/native-commerce-orders-page.ts"
+          ],
+          "gap": "Quote create/save/submit/approve/return/convert/cancel are native in the Commerce order port (OrderAction domain/order.rs:193-240) and the Next route selects them (workplace commerce route lines 84-85) with ERPX_NATIVE_COMMERCE_ORDER_CONFIG; the TS saveOrder/transitionOrder fallback still owns quotation pricing discounts and purchase-kind documents."
+        },
+        {
+          "id": "sales/orders",
+          "qualification": "verified",
+          "native": [
+            "packages/server-commerce/src/application/order.rs",
+            "packages/server-commerce/src/domain/order.rs",
+            "packages/server-commerce/src/adapters/order_replay_locked.rs",
+            "packages/server-sales/src/domain/sales_documents.rs"
+          ],
+          "tsAuthoritative": [
+            "packages/server-commerce/src/application/commerce.ts",
+            "tests/integration/shared.work/flow-routing.test.ts"
+          ],
+          "gap": "Native sales-order save/transition includes the credit-limit guard (application/order.rs:342 -> domain/order.rs:511); the catalogue order case still runs the TS flow-routing test, and the TS fallback remains authoritative when the native config is unset."
+        },
+        {
+          "id": "sales/fulfillment",
+          "qualification": "partial",
+          "native": [
+            "packages/server-commerce/src/domain/fulfillment.rs",
+            "packages/server-commerce/src/application/fulfillment.rs",
+            "packages/server-inventory/src/domain/stock_issue.rs",
+            "packages/server-inventory/src/adapters/stock_issue.rs"
+          ],
+          "tsAuthoritative": [
+            "packages/server-commerce/src/application/commerce.ts",
+            "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts"
+          ],
+          "gap": "Only completionMode=service is native (domain/fulfillment.rs:227 build_service_completion; route line 87 branches to TS for stock/mixed). Goods delivery, delivery evidence, reservation consumption and invoice-from-delivery remain TS, and native apply_stock_issue has no caller."
+        },
+        {
+          "id": "sales/feature-cancellations",
+          "qualification": "partial",
+          "native": [
+            "packages/server-commerce/src/domain/order.rs",
+            "packages/server-commerce/src/application/order.rs",
+            "packages/feature-sales/src/public/native-sales-documents.ts"
+          ],
+          "tsAuthoritative": [
+            "packages/server-commerce/src/application/commerce.ts",
+            "tests/integration/shared.work/flow-routing.test.ts"
+          ],
+          "gap": "Native cancel covers quotes and draft sales orders only: nativeSalesDocumentTransitionEligible returns true for sales cancel only when state==='draft' (native-sales-documents.ts:55-70), and domain/order.rs:970 refuses purchase. Confirmed-sales cancellation and return-after-stock-moved stay in TS commerce application."
+        },
+        {
+          "id": "sales/feature-revenue-handoff",
+          "qualification": "unstarted",
+          "native": [],
+          "tsAuthoritative": [
+            "packages/server-commerce/src/application/commerce.ts",
+            "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts"
+          ],
+          "gap": "No native invoice-from-delivery or settlement: invoiceFulfillment/settleInvoice are TS (application/commerce.ts:2197,2242) and the route calls them directly. Finance has a standalone native sales-invoice create (sales_invoice_create.rs:558) and customer receipts, but the Sales delivery\u2192invoice handoff and its goods revenue/cost split are not native."
+        }
+      ],
+      "publicPorts": [
+        {
+          "name": "sales_documents_http::sales_documents_router",
+          "path": "packages/server-sales/src/public/sales_documents_http.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "sales_documents (read facts)",
+          "path": "packages/server-sales/src/public/sales_documents.rs",
+          "mountedAt": [
+            "packages/server-sales/src/adapters/sales_documents_http.rs"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "sales_price_lists_http",
+          "path": "packages/server-sales/src/public/sales_price_lists_http.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "commerce_order_http (consumed Sales port)",
+          "path": "packages/server-commerce/src/public/order_http.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "partial"
+        },
+        {
+          "name": "revenue_handoff",
+          "path": "packages/server-commerce/src/application/commerce.ts",
+          "mountedAt": [],
+          "status": "missing"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "goods-fulfillment-dependency",
+          "kind": "command",
+          "detail": "sales/fulfillment resolves in migrate.commerce.goods-fulfillment: Sales must consume the native Commerce/Inventory delivery writer, not add a second stock/invoice writer. This inventory records the dependency; no separate Sales packet should duplicate it.",
+          "suggestedPaths": [
+            "packages/server-commerce/src/domain/receipt.rs",
+            "packages/server-inventory/src/adapters/stock_issue.rs"
+          ]
+        },
+        {
+          "id": "confirmed-cancellation",
+          "kind": "command",
+          "detail": "Confirmed sales-order cancellation and post-delivery returns are TS only. Native OrderAction::Cancel exists but is deliberately not selected for confirmed sales (native-sales-documents.ts:55-70); the return path lives in TS commerce-return-accounting.",
+          "suggestedPaths": [
+            "packages/server-commerce/src/domain/order.rs",
+            "packages/server-commerce/src/application/order.rs",
+            "packages/server-commerce/src/domain/fulfillment.rs",
+            "packages/feature-sales/src/public/native-sales-documents.ts",
+            "tests/integration/sales"
+          ]
+        },
+        {
+          "id": "revenue-handoff",
+          "kind": "command",
+          "detail": "invoiceFulfillment and settleInvoice (application/commerce.ts:2197,2242) create the customer invoice from a delivery and settle it; there is no Rust counterpart. Native Finance standalone invoice create cannot substitute because it has no delivery/lot/cost source.",
+          "suggestedPaths": [
+            "packages/server-commerce/src/application/commerce.ts",
+            "packages/server-commerce/src/adapters/commerce.ts",
+            "packages/server-finance/src/adapters/sales_invoice_create.rs",
+            "tests/integration/sales"
+          ]
+        },
+        {
+          "id": "delivery-evidence-native",
+          "kind": "command",
+          "detail": "Delivery-evidence capture/bind and its authority checks remain TS (commerce-delivery-evidence.ts, sales-delivery-evidence.test.ts) even though the native completion command takes an evidence note.",
+          "suggestedPaths": [
+            "packages/server-commerce/src/application/commerce-delivery-evidence.ts",
+            "packages/server-commerce/src/adapters/commerce-delivery-evidence.ts",
+            "tests/integration/sales"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-commerce/src/application/commerce.ts",
+          "reason": "Authoritative TS Sales fulfillment/cancellation/revenue-handoff implementation invoked from the Commerce route for stock/mixed and confirmed cancellation.",
+          "removalCondition": "Delete the Sales branches after native goods fulfillment, confirmed cancellation and invoice-from-delivery are mounted and their vitest cases run against native routes."
+        },
+        {
+          "path": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
+          "reason": "Retained transport selecting native quote/sales order commands only when configured; otherwise TS saveOrder/transitionOrder/fulfillOrder.",
+          "removalCondition": "Remove TS fallbacks when ERPX_NATIVE_COMMERCE_ORDER_CONFIG is default-on and the commerce native router covers purchase, goods fulfillment and returns."
+        },
+        {
+          "path": "packages/server-sales/src/adapters/sales_documents.ts",
+          "reason": "TS document read/merge used before the native /sales/documents read; the native read is a projection only and does not write.",
+          "removalCondition": "Delete when the SSR sales-views list uses only nativeSalesDocuments (feature-sales/src/components/customers/sales-views.tsx:29) and ERPX_NATIVE_SALES_DOCUMENTS_CONFIG is default-on."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.sales.confirmed-cancellation",
+          "title": "Native confirmed sales-order cancellation and controlled return decision",
+          "paths": [
+            "packages/server-commerce/src/domain/order.rs",
+            "packages/server-commerce/src/application/order.rs",
+            "packages/server-commerce/src/domain/fulfillment.rs",
+            "packages/server-commerce/src/adapters/order.rs",
+            "packages/server-commerce/src/public/order.rs",
+            "packages/feature-sales/src/public/native-sales-documents.ts",
+            "tests/integration/sales",
+            "tests/unit/sales"
+          ],
+          "resources": [
+            "owner:sales"
+          ],
+          "dependsOn": [
+            "inventory.sales",
+            "migrate.commerce.goods-fulfillment"
+          ],
+          "requiredPorts": [
+            "ports.trade",
+            "inventory.stock_issue",
+            "finance.commerce_goods_journal"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-sales",
+            "cargo check -p erpx-server-commerce",
+            "bun run test:integration -- --suite=sales.rust-sales-documents-postgres.integration"
+          ]
+        },
+        {
+          "id": "migrate.sales.revenue-handoff",
+          "title": "Native delivery-to-invoice revenue handoff and settlement source",
+          "paths": [
+            "packages/server-commerce/src/application/fulfillment.rs",
+            "packages/server-commerce/src/domain/fulfillment.rs",
+            "packages/server-commerce/src/public/order.rs",
+            "packages/feature-sales/src/public/native-commerce-orders-page.ts",
+            "tests/integration/sales",
+            "tests/unit/sales"
+          ],
+          "resources": [
+            "owner:sales"
+          ],
+          "dependsOn": [
+            "inventory.sales",
+            "migrate.finance.goods-journal-port",
+            "migrate.commerce.goods-fulfillment"
+          ],
+          "requiredPorts": [
+            "ports.trade",
+            "finance.sales_invoice_create",
+            "inventory.stock_issue"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-sales",
+            "bun run test:unit -- --suite=sales.rust-sales-documents.unit",
+            "bun run test:integration -- --suite=sales.rust-sales-documents-postgres.integration",
+            "bun run --filter '@erpx/feature-sales' typecheck"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Authenticated desktop/mobile sales-to-collection journey after native fulfillment/handoff mount.",
+        "Customer notification delivery/provider verification (Sales notification port is separate from this workflow)."
+      ],
+      "limitations": [
+        "Source-read inventory only: no cargo check, test suite, typecheck or build was executed.",
+        "All five catalogue cases are vitest/playwright; native Rust suites (sales.rust-sales-documents*, price-lists) exist but are not mapped to these catalogue IDs.",
+        "Sales depends on Commerce order HTTP rather than owning its own order command crate; the split is deliberate and recorded as a dependency, not a missing port."
       ]
     },
     "shared": {
@@ -869,6 +3646,333 @@
   },
   "packets": [
     {
+      "owner": "billing",
+      "taskId": "inventory.billing",
+      "id": "migrate.billing.subscription_commands",
+      "title": "Native Stripe subscription/checkout/webhook commands",
+      "paths": [
+        "packages/server-billing/src/domain/stripe.rs",
+        "packages/server-billing/src/application/stripe.rs",
+        "packages/server-billing/src/adapters/billing_stripe.rs",
+        "packages/server-billing/src/adapters/billing_stripe_http.rs",
+        "packages/server-billing/src/public/billing_stripe.rs",
+        "tests/unit/billing/rust-billing-stripe.test.rs",
+        "tests/integration/billing/rust-billing-stripe-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:billing"
+      ],
+      "dependsOn": [],
+      "requiredPorts": [
+        "ports.trade"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-billing",
+        "cargo test -p erpx-server-billing --test billing_commands",
+        "bun run test:unit --suite=billing.native-billing-transport.unit"
+      ]
+    },
+    {
+      "owner": "billing",
+      "taskId": "inventory.billing",
+      "id": "migrate.billing.jobs",
+      "title": "Native durable billing jobs executor",
+      "paths": [
+        "packages/server-billing/src/domain/jobs.rs",
+        "packages/server-billing/src/application/jobs.rs",
+        "packages/server-billing/src/adapters/billing_jobs_postgres.rs",
+        "packages/server-billing/src/adapters/billing_jobs_worker.rs",
+        "packages/server-billing/src/public/billing_jobs.rs",
+        "tests/unit/billing/rust-billing-jobs.test.rs",
+        "tests/integration/billing/rust-billing-jobs-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:billing"
+      ],
+      "dependsOn": [
+        "migrate.billing.subscription_commands"
+      ],
+      "requiredPorts": [
+        "ports.trade"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-billing",
+        "cargo test -p erpx-server-billing --test billing_postgres",
+        "bun run test:unit --suite=billing.billing-owner-services.unit"
+      ]
+    },
+    {
+      "owner": "billing",
+      "taskId": "inventory.billing",
+      "id": "migrate.billing.invoice_commands",
+      "title": "Native invoice lifecycle commands",
+      "paths": [
+        "packages/server-billing/src/domain/invoice.rs",
+        "packages/server-billing/src/application/invoice.rs",
+        "packages/server-billing/src/adapters/invoice_postgres.rs",
+        "packages/server-billing/src/public/billing_http.rs",
+        "tests/unit/billing/rust-billing-invoice.test.rs",
+        "tests/integration/billing/rust-billing-invoice-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:billing"
+      ],
+      "dependsOn": [
+        "migrate.billing.jobs"
+      ],
+      "requiredPorts": [
+        "ports.trade"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-billing",
+        "cargo test -p erpx-server-billing --test billing_http",
+        "bun run test:unit --suite=billing.rust-billing-commands.unit"
+      ]
+    },
+    {
+      "owner": "commerce",
+      "taskId": "inventory.commerce",
+      "id": "migrate.commerce.goods-fulfillment",
+      "title": "Native goods receipt/delivery fulfillment with Inventory stock, Quality hold and Finance goods-journal effects",
+      "paths": [
+        "packages/server-commerce/src/domain/receipt.rs",
+        "packages/server-commerce/src/domain/fulfillment.rs",
+        "packages/server-commerce/src/application/fulfillment.rs",
+        "packages/server-commerce/src/adapters/receipt.rs",
+        "packages/server-commerce/src/adapters/receipt_use_cases.rs",
+        "packages/server-commerce/src/adapters/order_http.rs",
+        "packages/server-commerce/src/public/receipt.rs",
+        "packages/server-commerce/src/public/order.rs",
+        "packages/feature-commerce/src/public/native-commerce-orders.ts",
+        "packages/feature-sales/src/public/native-commerce-orders-page.ts",
+        "tests/integration/commerce",
+        "tests/unit/commerce"
+      ],
+      "resources": [
+        "owner:commerce"
+      ],
+      "dependsOn": [
+        "inventory.commerce",
+        "migrate.inventory.receipt-quality-port",
+        "migrate.finance.goods-journal-port"
+      ],
+      "requiredPorts": [
+        "ports.trade",
+        "inventory.stock_receipt",
+        "quality.goods_receipt_hold",
+        "finance.commerce_goods_journal"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-commerce",
+        "bun run test:unit -- --suite=commerce.rust-commerce-order-http.unit",
+        "bun run test:integration -- --suite=commerce.rust-commerce-order-postgres.integration",
+        "bun run --filter '@erpx/feature-commerce' typecheck"
+      ]
+    },
+    {
+      "owner": "commerce",
+      "taskId": "inventory.commerce",
+      "id": "migrate.commerce.purchase-orders",
+      "title": "Native purchase-order draft/save and submit/approve/convert transitions",
+      "paths": [
+        "packages/server-commerce/src/domain/order.rs",
+        "packages/server-commerce/src/application/order.rs",
+        "packages/server-commerce/src/adapters/order.rs",
+        "packages/server-commerce/src/adapters/order_http.rs",
+        "packages/server-commerce/src/adapters/order_replay_locked.rs",
+        "packages/server-commerce/src/public/order.rs",
+        "packages/server-commerce/src/public/order_http.rs",
+        "tests/unit/commerce",
+        "tests/integration/commerce"
+      ],
+      "resources": [
+        "owner:commerce"
+      ],
+      "dependsOn": [
+        "inventory.commerce",
+        "ports.trade"
+      ],
+      "requiredPorts": [
+        "ports.trade",
+        "commerce.goods-fulfillment"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-commerce",
+        "bun run test:unit -- --suite=commerce.rust-commerce-order.unit",
+        "bun run test:integration -- --suite=commerce.rust-commerce-order-postgres.integration"
+      ]
+    },
+    {
+      "owner": "commerce",
+      "taskId": "inventory.commerce",
+      "id": "migrate.commerce.returns",
+      "title": "Native Commerce return request, independent decision and completion with stock/credit reversal",
+      "paths": [
+        "packages/server-commerce/src/domain",
+        "packages/server-commerce/src/application",
+        "packages/server-commerce/src/adapters",
+        "packages/server-commerce/src/public",
+        "packages/feature-commerce/src",
+        "tests/integration/commerce",
+        "tests/unit/commerce"
+      ],
+      "resources": [
+        "owner:commerce"
+      ],
+      "dependsOn": [
+        "inventory.commerce",
+        "migrate.commerce.goods-fulfillment"
+      ],
+      "requiredPorts": [
+        "ports.trade",
+        "inventory.stock_receipt",
+        "finance.commerce_goods_journal"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-commerce",
+        "bun run test:integration -- --suite=sales.commerce-returns.integration",
+        "bun run test:unit -- --suite=commerce.native-commerce-orders-transport.unit"
+      ]
+    },
+    {
+      "owner": "commercial",
+      "taskId": "inventory.commercial",
+      "id": "migrate.commercial.package_grant_http",
+      "title": "Native package grant preview/apply HTTP and TS retirement",
+      "paths": [
+        "packages/server-commercial/src/adapters/package_grants_http.rs",
+        "packages/server-commercial/src/adapters/postgres_grant_commands.rs",
+        "packages/server-commercial/src/application/grant_commands.rs",
+        "packages/server-commercial/src/application/grant_batches.rs",
+        "packages/server-commercial/src/public/purchases.rs",
+        "tests/unit/commercial/rust-package-grants-http.test.rs",
+        "tests/integration/commercial/rust-package-grants-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:commercial"
+      ],
+      "dependsOn": [],
+      "requiredPorts": [
+        "ports.authority"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-commercial",
+        "cargo test -p erpx-server-commercial --test company_packages",
+        "bun run test:integration --suite=commercial.rust-company-packages-postgres.integration"
+      ]
+    },
+    {
+      "owner": "commercial",
+      "taskId": "inventory.commercial",
+      "id": "migrate.commercial.entitlement_port",
+      "title": "Native entitlement decision port and consumer binding",
+      "paths": [
+        "packages/server-commercial/src/domain/capability_decision.rs",
+        "packages/server-commercial/src/application/capability_decision.rs",
+        "packages/server-commercial/src/adapters/capability_decision_postgres.rs",
+        "packages/server-commercial/src/public/capability_decision.rs",
+        "tests/unit/commercial/rust-capability-decision.test.rs",
+        "tests/integration/commercial/rust-capability-decision-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:commercial"
+      ],
+      "dependsOn": [
+        "migrate.commercial.package_grant_http"
+      ],
+      "requiredPorts": [
+        "ports.authority",
+        "ports.trade"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-commercial",
+        "cargo test -p erpx-server-commercial --test package_capabilities",
+        "bun run test:unit --suite=commercial.rust-package-capabilities.unit"
+      ]
+    },
+    {
+      "owner": "commercial",
+      "taskId": "inventory.commercial",
+      "id": "migrate.commercial.subscription_grace",
+      "title": "Native subscription and grace/recovery reads",
+      "paths": [
+        "packages/server-commercial/src/domain/subscriptions.rs",
+        "packages/server-commercial/src/application/subscriptions.rs",
+        "packages/server-commercial/src/adapters/subscription_sources.rs",
+        "packages/server-commercial/src/public/subscriptions.rs",
+        "tests/unit/commercial/rust-subscriptions.test.rs",
+        "tests/integration/commercial/rust-subscriptions-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:commercial"
+      ],
+      "dependsOn": [
+        "migrate.billing.subscription_commands"
+      ],
+      "requiredPorts": [
+        "ports.trade"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-commercial",
+        "cargo test -p erpx-server-commercial --test package_capabilities",
+        "bun run test:unit --suite=commercial.packages.unit"
+      ]
+    },
+    {
+      "owner": "customer_authority",
+      "taskId": "inventory.customer_authority",
+      "id": "migrate.customer_authority.duplicate_decisions",
+      "title": "Native duplicate review decisions and HTTP mount",
+      "paths": [
+        "packages/server-customer_authority/src/domain/duplicates.rs",
+        "packages/server-customer_authority/src/application/duplicates.rs",
+        "packages/server-customer_authority/src/adapters/duplicates.rs",
+        "packages/server-customer_authority/src/adapters/duplicates_http.rs",
+        "packages/server-customer_authority/src/public/duplicates.rs",
+        "tests/unit/customer_authority/rust-customer-duplicates.test.rs",
+        "tests/integration/customer_authority/rust-customer-duplicates-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:customer_authority"
+      ],
+      "dependsOn": [],
+      "requiredPorts": [],
+      "checks": [
+        "cargo check -p erpx-server-customer-authority",
+        "cargo test -p erpx-server-customer-authority --test customer_duplicates",
+        "bun run test:unit --suite=customer_authority.rust-customer-duplicates.unit"
+      ]
+    },
+    {
+      "owner": "customer_authority",
+      "taskId": "inventory.customer_authority",
+      "id": "migrate.customer_authority.identity_changes",
+      "title": "Native customer identity changes",
+      "paths": [
+        "packages/server-customer_authority/src/domain/identity.rs",
+        "packages/server-customer_authority/src/application/identity.rs",
+        "packages/server-customer_authority/src/adapters/identity_postgres.rs",
+        "packages/server-customer_authority/src/adapters/identity_http.rs",
+        "packages/server-customer_authority/src/public/identity.rs",
+        "tests/unit/customer_authority/rust-customer-identity.test.rs",
+        "tests/integration/customer_authority/rust-customer-identity-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:customer_authority"
+      ],
+      "dependsOn": [
+        "migrate.customer_authority.duplicate_decisions"
+      ],
+      "requiredPorts": [
+        "ports.authority"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-customer-authority",
+        "cargo test -p erpx-server-customer-authority --test customer_identity",
+        "bun run test:unit --suite=customer_authority.rust-customer-access.unit"
+      ]
+    },
+    {
       "owner": "files",
       "taskId": "inventory.files",
       "id": "migrate.files.generic-upload-intake",
@@ -921,6 +4025,382 @@
         "cargo check -p erpx-server-files --features preview-provider",
         "cargo test -p erpx-server-files --test attachment_scan_policy",
         "bun run test:unit -- --suite=files.native-attachment-cutover.unit"
+      ]
+    },
+    {
+      "owner": "finance",
+      "taskId": "inventory.finance",
+      "id": "migrate.finance.goods-journal-port",
+      "title": "Transactional goods-journal and functional-FX valuation port for Commerce receipt/delivery",
+      "paths": [
+        "packages/server-finance/src/adapters/commerce_goods_journal.rs",
+        "packages/server-finance/src/domain/journal.rs",
+        "packages/server-finance/src/domain/company_money.rs",
+        "packages/server-finance/src/public/commerce_goods_journal.rs",
+        "packages/server-finance/src/public/mod.rs",
+        "tests/integration/finance/rust-commerce-goods-journal-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:finance"
+      ],
+      "dependsOn": [
+        "inventory.finance",
+        "ports.trade"
+      ],
+      "requiredPorts": [
+        "ports.trade",
+        "commerce.goods-fulfillment"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-finance",
+        "bun run test:integration -- --suite=finance.rust-commerce-goods-journal-postgres.integration",
+        "bun run test:unit -- --suite=finance.rust-journal-wire.unit"
+      ]
+    },
+    {
+      "owner": "finance",
+      "taskId": "inventory.finance",
+      "id": "migrate.finance.bank-automation",
+      "title": "Native bank CSV mapping and independently reviewed match-group commands",
+      "paths": [
+        "packages/server-finance/src/domain/bank_automation.rs",
+        "packages/server-finance/src/application/bank_automation.rs",
+        "packages/server-finance/src/adapters/bank_automation.rs",
+        "packages/server-finance/src/public/finance-bank-automation.rs",
+        "packages/feature-finance/src/adapters/server/native-bank-automation.ts",
+        "tests/integration/finance",
+        "tests/unit/finance"
+      ],
+      "resources": [
+        "owner:finance"
+      ],
+      "dependsOn": [
+        "inventory.finance",
+        "migrate.finance.goods-journal-port"
+      ],
+      "requiredPorts": [
+        "ports.trade"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-finance",
+        "bun run test:unit -- --suite=finance.bank-automation-services.unit",
+        "bun run test:integration -- --suite=finance.bank-automation.integration"
+      ]
+    },
+    {
+      "owner": "finance",
+      "taskId": "inventory.finance",
+      "id": "migrate.finance.due-draft-jobs",
+      "title": "Native scheduled due-draft preparation with retry/cancel and lease-safe job",
+      "paths": [
+        "packages/server-finance/src/domain/due_drafts.rs",
+        "packages/server-finance/src/application/due_drafts.rs",
+        "packages/server-finance/src/adapters/due_drafts.rs",
+        "packages/server-finance/src/public/finance-due-drafts.rs",
+        "packages/feature-finance/src/adapters/server/native-due-drafts.ts",
+        "tests/integration/finance",
+        "tests/unit/finance"
+      ],
+      "resources": [
+        "owner:finance"
+      ],
+      "dependsOn": [
+        "inventory.finance",
+        "migrate.finance.goods-journal-port"
+      ],
+      "requiredPorts": [
+        "ports.trade",
+        "ports.common"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-finance",
+        "bun run test:unit -- --suite=finance.due-draft-services.unit",
+        "bun run test:integration -- --suite=finance.work-source.integration"
+      ]
+    },
+    {
+      "owner": "identity_access",
+      "taskId": "inventory.identity_access",
+      "id": "migrate.identity_access.iam_roles_reviews",
+      "title": "Native IAM roles, reviews and access-review campaigns",
+      "paths": [
+        "packages/server-identity_access/src/domain/iam_roles.rs",
+        "packages/server-identity_access/src/application/iam_roles.rs",
+        "packages/server-identity_access/src/adapters/iam_roles_postgres.rs",
+        "packages/server-identity_access/src/adapters/iam_roles_http.rs",
+        "packages/server-identity_access/src/public/iam_roles.rs",
+        "tests/unit/identity_access/rust-iam-roles.test.rs",
+        "tests/integration/identity_access/rust-iam-roles-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:identity_access"
+      ],
+      "dependsOn": [
+        "ports.authority"
+      ],
+      "requiredPorts": [
+        "ports.authority"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-identity-access",
+        "cargo test -p erpx-server-identity-access --test rust-iam-roles",
+        "bun run test:unit --suite=identity_access.rust-permission-catalog.unit"
+      ]
+    },
+    {
+      "owner": "identity_access",
+      "taskId": "inventory.identity_access",
+      "id": "migrate.identity_access.directory_runtime",
+      "title": "Mount native directory source and sign-in; migrate directory operations",
+      "paths": [
+        "packages/server-identity_access/src/domain/directory_operations.rs",
+        "packages/server-identity_access/src/application/directory_operations.rs",
+        "packages/server-identity_access/src/adapters/directory_operations_postgres.rs",
+        "packages/server-identity_access/src/adapters/directory_http.rs",
+        "packages/server-identity_access/src/public/directory.rs",
+        "tests/unit/identity_access/rust-directory-operations.test.rs",
+        "tests/integration/identity_access/rust-directory-operations-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:identity_access"
+      ],
+      "dependsOn": [
+        "migrate.identity_access.iam_roles_reviews"
+      ],
+      "requiredPorts": [
+        "ports.authority"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-identity-access --features directory-ldaps",
+        "cargo test -p erpx-server-identity-access --test directory_mappings",
+        "bun run test:unit --suite=identity_access.directory-source-client.unit"
+      ]
+    },
+    {
+      "owner": "identity_access",
+      "taskId": "inventory.identity_access",
+      "id": "migrate.identity_access.principals_emergency",
+      "title": "Native principals, identity conflicts and temporary access",
+      "paths": [
+        "packages/server-identity_access/src/domain/iam_principals.rs",
+        "packages/server-identity_access/src/application/iam_principals.rs",
+        "packages/server-identity_access/src/adapters/iam_principals_postgres.rs",
+        "packages/server-identity_access/src/adapters/iam_recovery_http.rs",
+        "packages/server-identity_access/src/public/iam_principals.rs",
+        "tests/unit/identity_access/rust-iam-principals.test.rs",
+        "tests/integration/identity_access/rust-iam-principals-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:identity_access"
+      ],
+      "dependsOn": [
+        "migrate.identity_access.iam_roles_reviews"
+      ],
+      "requiredPorts": [
+        "ports.authority"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-identity-access",
+        "cargo test -p erpx-server-identity-access --test rust-iam-principals",
+        "bun run test:unit --suite=identity_access.rust-effective-authority-postgres.integration"
+      ]
+    },
+    {
+      "owner": "inventory",
+      "taskId": "inventory.inventory",
+      "id": "migrate.inventory.receipt-quality-port",
+      "title": "Inventory-owned StockReceiptQualityPort over the Quality receipt-hold seam",
+      "paths": [
+        "packages/server-inventory/src/adapters/stock_receipt.rs",
+        "packages/server-inventory/src/adapters/commerce_receipt.rs",
+        "packages/server-inventory/src/adapters/quality_receipt_hold.rs",
+        "packages/server-inventory/src/public/commerce_receipt.rs",
+        "packages/server-inventory/src/public/stock_receipt.rs",
+        "tests/integration/inventory/rust-stock-receipt-postgres.test.rs",
+        "tests/unit/inventory"
+      ],
+      "resources": [
+        "owner:inventory"
+      ],
+      "dependsOn": [
+        "inventory.inventory",
+        "migrate.quality.hold-create"
+      ],
+      "requiredPorts": [
+        "ports.trade",
+        "quality.goods_receipt_hold"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-inventory",
+        "bun run test:unit -- --suite=inventory.rust-stock-receipt.unit",
+        "bun run test:integration -- --suite=inventory.rust-stock-receipt-postgres.integration"
+      ]
+    },
+    {
+      "owner": "inventory",
+      "taskId": "inventory.inventory",
+      "id": "migrate.inventory.stock-write-bindings",
+      "title": "Freeze Inventory receipt/issue owner bindings and PostgreSQL evidence for Commerce writers",
+      "paths": [
+        "packages/server-inventory/src/adapters/stock_issue.rs",
+        "packages/server-inventory/src/adapters/stock_receipt.rs",
+        "packages/server-inventory/src/adapters/commerce_receipt.rs",
+        "packages/server-inventory/src/public/stock_issue.rs",
+        "packages/server-inventory/src/public/commerce_receipt.rs",
+        "packages/server-inventory/Cargo.toml",
+        "tests/integration/inventory/rust-stock-issue-postgres.test.rs",
+        "tests/integration/inventory/rust-stock-receipt-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:inventory"
+      ],
+      "dependsOn": [
+        "inventory.inventory",
+        "migrate.inventory.receipt-quality-port"
+      ],
+      "requiredPorts": [
+        "ports.trade",
+        "commerce.goods-fulfillment"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-inventory",
+        "bun run test:unit -- --suite=inventory.rust-stock-issue.unit",
+        "bun run test:integration -- --suite=inventory.rust-stock-issue-postgres.integration"
+      ]
+    },
+    {
+      "owner": "manage_erpx",
+      "taskId": "inventory.manage_erpx",
+      "id": "migrate.manage_erpx.onboarding_command",
+      "title": "Native company onboarding/bootstrap command and POST mount",
+      "paths": [
+        "packages/server-manage_erpx/src/domain/onboarding.rs",
+        "packages/server-manage_erpx/src/application/onboarding.rs",
+        "packages/server-manage_erpx/src/adapters/onboarding.rs",
+        "packages/server-manage_erpx/src/adapters/beta_onboarding_postgres.rs",
+        "packages/server-manage_erpx/src/adapters/onboarding_http.rs",
+        "packages/server-manage_erpx/src/public/onboarding_http.rs",
+        "tests/unit/manage_erpx/rust-onboarding-command.test.rs",
+        "tests/integration/manage_erpx/rust-onboarding-command-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:manage_erpx"
+      ],
+      "dependsOn": [
+        "migrate.identity_access.iam_roles_reviews",
+        "migrate.organization.access_projection"
+      ],
+      "requiredPorts": [
+        "ports.authority",
+        "ports.trade"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-manage-erpx",
+        "cargo test -p erpx-server-manage-erpx --test onboarding_postgres",
+        "bun run test:unit --suite=manage_erpx.native-onboarding-transport.unit"
+      ]
+    },
+    {
+      "owner": "organization",
+      "taskId": "inventory.organization",
+      "id": "migrate.organization.access_projection",
+      "title": "Native organization access projection and TS retirement",
+      "paths": [
+        "packages/server-organization/src/domain/access.rs",
+        "packages/server-organization/src/application/access.rs",
+        "packages/server-organization/src/adapters/access.rs",
+        "packages/server-organization/src/public/organization-access.rs",
+        "tests/unit/organization/rust-organization-access.test.rs",
+        "tests/integration/organization/rust-organization-access-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:organization"
+      ],
+      "dependsOn": [],
+      "requiredPorts": [],
+      "checks": [
+        "cargo check -p erpx-server-organization",
+        "cargo test -p erpx-server-organization --test organization_nodes",
+        "bun run test:unit --suite=organization.native-organization-setup.unit"
+      ]
+    },
+    {
+      "owner": "organization",
+      "taskId": "inventory.organization",
+      "id": "migrate.organization.position_moves",
+      "title": "Native position-move commands and People route retirement",
+      "paths": [
+        "packages/server-organization/src/domain/position-moves.rs",
+        "packages/server-organization/src/application/position-moves.rs",
+        "packages/server-organization/src/adapters/position-moves.rs",
+        "tests/unit/organization/rust-position-moves.test.rs",
+        "tests/integration/organization/rust-position-moves-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:organization"
+      ],
+      "dependsOn": [
+        "migrate.organization.access_projection"
+      ],
+      "requiredPorts": [
+        "ports.authority"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-organization",
+        "cargo test -p erpx-server-organization --test organization_nodes",
+        "bun run test:unit --suite=organization.rust-organization-nodes.unit"
+      ]
+    },
+    {
+      "owner": "platform_administration",
+      "taskId": "inventory.platform_administration",
+      "id": "migrate.platform_administration.executive_read",
+      "title": "Native platform executive metrics read",
+      "paths": [
+        "packages/server-platform_administration/src/domain/platform_executive.rs",
+        "packages/server-platform_administration/src/application/platform_executive.rs",
+        "packages/server-platform_administration/src/adapters/platform_executive_postgres.rs",
+        "packages/server-platform_administration/src/public/platform_executive.rs",
+        "tests/unit/platform_administration/rust-platform-executive.test.rs",
+        "tests/integration/platform_administration/rust-platform-executive-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:platform_administration"
+      ],
+      "dependsOn": [
+        "ports.authority"
+      ],
+      "requiredPorts": [
+        "ports.authority"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-platform-administration",
+        "cargo test -p erpx-server-platform-administration --test platform-administration",
+        "bun run test:unit --suite=platform_administration.native-platform-administration-transport.unit"
+      ]
+    },
+    {
+      "owner": "platform_administration",
+      "taskId": "inventory.platform_administration",
+      "id": "migrate.platform_administration.operations_retirement",
+      "title": "Retire TS platform operations fallback and add projection read",
+      "paths": [
+        "packages/server-platform_administration/src/adapters/operations.ts",
+        "packages/server-platform_administration/src/domain/platform_operations.rs",
+        "packages/server-platform_administration/src/adapters/platform_postgres.rs",
+        "tests/integration/platform_administration/rust-platform-administration-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:platform_administration"
+      ],
+      "dependsOn": [],
+      "requiredPorts": [
+        "ports.authority"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-platform-administration",
+        "cargo test -p erpx-server-platform-administration --test platform_administration_postgres",
+        "bun run test:unit --suite=platform_administration.rust-legal-release.unit"
       ]
     },
     {
@@ -1026,6 +4506,72 @@
       "checks": [
         "cargo check -p erpx-service --features production-api",
         "bun run test:unit -- --suite=shared.runtime.native-runtime.integration"
+      ]
+    },
+    {
+      "owner": "sales",
+      "taskId": "inventory.sales",
+      "id": "migrate.sales.confirmed-cancellation",
+      "title": "Native confirmed sales-order cancellation and controlled return decision",
+      "paths": [
+        "packages/server-commerce/src/domain/order.rs",
+        "packages/server-commerce/src/application/order.rs",
+        "packages/server-commerce/src/domain/fulfillment.rs",
+        "packages/server-commerce/src/adapters/order.rs",
+        "packages/server-commerce/src/public/order.rs",
+        "packages/feature-sales/src/public/native-sales-documents.ts",
+        "tests/integration/sales",
+        "tests/unit/sales"
+      ],
+      "resources": [
+        "owner:sales"
+      ],
+      "dependsOn": [
+        "inventory.sales",
+        "migrate.commerce.goods-fulfillment"
+      ],
+      "requiredPorts": [
+        "ports.trade",
+        "inventory.stock_issue",
+        "finance.commerce_goods_journal"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-sales",
+        "cargo check -p erpx-server-commerce",
+        "bun run test:integration -- --suite=sales.rust-sales-documents-postgres.integration"
+      ]
+    },
+    {
+      "owner": "sales",
+      "taskId": "inventory.sales",
+      "id": "migrate.sales.revenue-handoff",
+      "title": "Native delivery-to-invoice revenue handoff and settlement source",
+      "paths": [
+        "packages/server-commerce/src/application/fulfillment.rs",
+        "packages/server-commerce/src/domain/fulfillment.rs",
+        "packages/server-commerce/src/public/order.rs",
+        "packages/feature-sales/src/public/native-commerce-orders-page.ts",
+        "tests/integration/sales",
+        "tests/unit/sales"
+      ],
+      "resources": [
+        "owner:sales"
+      ],
+      "dependsOn": [
+        "inventory.sales",
+        "migrate.finance.goods-journal-port",
+        "migrate.commerce.goods-fulfillment"
+      ],
+      "requiredPorts": [
+        "ports.trade",
+        "finance.sales_invoice_create",
+        "inventory.stock_issue"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-sales",
+        "bun run test:unit -- --suite=sales.rust-sales-documents.unit",
+        "bun run test:integration -- --suite=sales.rust-sales-documents-postgres.integration",
+        "bun run --filter '@erpx/feature-sales' typecheck"
       ]
     },
     {
@@ -1163,7 +4709,7 @@
     }
   ],
   "summary": {
-    "ownersInventoried": 6,
-    "packetsProposed": 11
+    "ownersInventoried": 17,
+    "packetsProposed": 37
   }
 }
