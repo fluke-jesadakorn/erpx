@@ -14,7 +14,9 @@ pub use crate::adapters::postgres::unit_of_work::{
     PgTransactionError, PgUnitOfWork, PgWorkFuture, SessionLock, TransactionOptions,
 };
 
-pub use crate::adapters::postgres::jobs::{claim, complete, fail, renew, requeue_dead_letter};
+pub use crate::adapters::postgres::jobs::{
+    claim, complete, fail, renew, requeue_dead_letter, requeue_dead_letter_with_audit,
+};
 pub use crate::adapters::postgres::worker::{
     OutboxJobHandler, WorkerFuture, WorkerOutcome, WorkerSupervisor, WorkerTarget, worker_failure,
 };

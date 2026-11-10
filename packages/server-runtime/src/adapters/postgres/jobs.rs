@@ -181,3 +181,85 @@ pub async fn requeue_dead_letter(
     .rows_affected()
         == 1)
 }
+
+/// Requeue one exact dead-lettered event and write one Runtime operator audit
+/// row in the caller's current transaction.
+///
+/// `owned` remains a static SQL predicate. The caller commits or rolls back the
+/// whole unit; this function never opens or commits a transaction.
+pub async fn requeue_dead_letter_with_audit(
+    connection: &mut PgConnection,
+    owned: &str,
+    id: &str,
+    dead_letter_at: i64,
+    now: i64,
+    reason: &str,
+    audit_id: &str,
+    holding_id: &str,
+) -> Result<bool, sqlx::Error> {
+    let reason = reason.trim();
+    if owned.trim().is_empty()
+        || owned.len() > 16 * 1024
+        || id.is_empty()
+        || id.len() > 180
+        || audit_id.is_empty()
+        || audit_id.len() > 180
+        || holding_id.trim().is_empty()
+        || holding_id.len() > 128
+        || reason.chars().count() < 3
+        || reason.chars().count() > 2000
+        || !(0..=9_007_199_254_740_991).contains(&dead_letter_at)
+        || !(0..=9_007_199_254_740_991).contains(&now)
+        || dead_letter_at > now
+    {
+        return Err(invalid("INVALID_NATIVE_JOB_REQUEUE"));
+    }
+    let row = sqlx::query(AssertSqlSafe(format!(
+        "SELECT e.aggregate_version,e.attempts,e.last_error,e.payload_json::jsonb->>'companyId' company \
+         FROM outbox_events e WHERE e.id=$1 AND e.dead_letter_at=$2 AND e.processed_at IS NULL \
+           AND e.published_at IS NULL AND e.lease_token IS NULL AND e.claim_until IS NULL \
+           AND ({owned}) FOR UPDATE OF e"
+    )))
+    .bind(id)
+    .bind(dead_letter_at)
+    .fetch_optional(&mut *connection)
+    .await?;
+    let Some(row) = row else {
+        return Ok(false);
+    };
+    let version: i64 = row.try_get("aggregate_version")?;
+    let attempts: i64 = row.try_get("attempts")?;
+    let previous_error: Option<String> = row.try_get("last_error")?;
+    let company: Option<String> = row.try_get("companyId").ok().flatten();
+    if !requeue_dead_letter(connection, owned, id, dead_letter_at, now).await? {
+        return Ok(false);
+    }
+    let purpose = serde_json::json!({
+        "reason": reason,
+        "previousAttempts": attempts,
+        "previousError": previous_error,
+        "deadLetterAt": dead_letter_at,
+    })
+    .to_string();
+    let authority = serde_json::json!({
+        "kind": "runtime_service",
+        "runtime": "native-rust",
+        "worker": "outbox-requeue",
+        "holdingId": holding_id,
+        "companyId": company,
+    })
+    .to_string();
+    sqlx::query(
+        "INSERT INTO audit_events(id,command_id,actor_id,assignment_id,action,record_type,record_id,record_version,purpose,created_at,authority_json) \
+         VALUES($1,$1,'runtime:outbox-requeue','runtime:outbox-requeue','runtime.job.retry','runtime_job',$2,$3,$4,$5,$6)",
+    )
+    .bind(audit_id)
+    .bind(id)
+    .bind(version)
+    .bind(purpose)
+    .bind(now)
+    .bind(authority)
+    .execute(&mut *connection)
+    .await?;
+    Ok(true)
+}

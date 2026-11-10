@@ -7,7 +7,7 @@ mod fixture;
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, OutboxJob, OutboxJobHandler, PgTransactionError, WorkerFuture,
     WorkerOutcome, WorkerSupervisor, WorkerTarget, claim, complete, fail, load_migrations,
-    migrate_database, renew, requeue_dead_letter, worker_failure,
+    migrate_database, renew, requeue_dead_letter, requeue_dead_letter_with_audit, worker_failure,
 };
 use erpx_server_shared::public::BusinessError;
 use sqlx::PgPool;
@@ -405,6 +405,66 @@ async fn requeues_only_the_exact_owned_dead_letter() {
         )
         .await
         .unwrap());
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn requeues_with_operator_audit_in_one_unit() {
+    fixture::with_database(1, |pool| async move {
+        setup(&pool).await;
+        sqlx::raw_sql(
+            "WITH runtime_owner AS MATERIALIZED (SELECT set_config('erpx.outbox_runtime','native-rust',true)) \
+             UPDATE outbox_events SET dead_letter_at=500,attempts=6,last_error='DEAD' FROM runtime_owner WHERE id='dead-1'",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let mut tx = pool.raw().begin().await.unwrap();
+        assert!(!requeue_dead_letter_with_audit(
+            &mut tx,
+            "e.event_type='billing.invoice.issue'",
+            "dead-1",
+            500,
+            NOW,
+            "Operator recovery",
+            "audit-1",
+            "h001",
+        )
+        .await
+        .unwrap());
+        assert!(requeue_dead_letter_with_audit(
+            &mut tx,
+            "e.event_type LIKE 'field.order.%'",
+            "dead-1",
+            500,
+            NOW,
+            "Operator recovery",
+            "audit-1",
+            "h001",
+        )
+        .await
+        .unwrap());
+        let state: (Option<i64>, i64, Option<String>) = sqlx::query_as(
+            "SELECT dead_letter_at,attempts,last_error FROM outbox_events WHERE id='dead-1'",
+        )
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+        assert_eq!(state, (None, 0, None));
+        let audit: (String, String, String, i64, Option<String>, Option<String>) = sqlx::query_as(
+            "SELECT action,record_type,record_id,record_version,purpose::jsonb->>'reason',authority_json::jsonb->>'holdingId' FROM audit_events WHERE id='audit-1'",
+        )
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+        assert_eq!(audit.0, "runtime.job.retry");
+        assert_eq!(audit.1, "runtime_job");
+        assert_eq!(audit.2, "dead-1");
+        assert_eq!(audit.3, 1);
+        assert_eq!(audit.4.as_deref(), Some("Operator recovery"));
+        assert_eq!(audit.5.as_deref(), Some("h001"));
+        tx.commit().await.unwrap();
     })
     .await;
 }
