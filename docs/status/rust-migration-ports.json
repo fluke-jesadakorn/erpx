@@ -427,6 +427,191 @@
           }
         }
       ]
+    },
+    "ports.trade": {
+      "taskId": "ports.trade",
+      "owners": [
+        "commerce",
+        "inventory",
+        "finance",
+        "commercial"
+      ],
+      "status": "frozen-with-tail",
+      "seams": [
+        {
+          "id": "commerce.goods-fulfillment",
+          "provider": "commerce",
+          "symbols": [
+            "commerce_order_http_router",
+            "fulfillment domain (service completion only)",
+            "apply_stock_issue consumer",
+            "post_commerce_goods_journal consumer"
+          ],
+          "paths": [
+            "packages/server-commerce/src/domain/fulfillment.rs",
+            "packages/server-commerce/src/domain/order.rs",
+            "src/composition/src/commerce.rs"
+          ],
+          "authorityWitness": "The authenticated Company/branch/department work context is rechecked in the order transaction; a selected product package never replaces owner authority.",
+          "transaction": "One serializable Holding transaction: receipt replay/lock, then Commerce document row lock, then Inventory stock/lot rows, then Quality hold rows, then Finance journal/period rows, then outbox retain. Business document -> stock -> quality -> accounting -> outbox; never the reverse.",
+          "consumers": [
+            "sales",
+            "inventory",
+            "finance",
+            "quality",
+            "procurement"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "partial",
+          "note": "Native path exists only for service completion; stock/mixed fulfillment, purchase orders and returns still run TypeScript. Tails live in migrate.commerce.goods-fulfillment/purchase-orders/returns.",
+          "tests": [
+            "cargo check -p erpx-server-commerce"
+          ],
+          "sourceDigest": {
+            "packages/server-commerce/src/domain/fulfillment.rs": "ad1138871abce421e44ae39e7b04cc7a011bd54883757c9b901635fb34f22c82",
+            "packages/server-commerce/src/domain/order.rs": "5177a8967db127f069dc1587578fd5f366fa1d024b3a12b979b61b5e03dcd50b",
+            "src/composition/src/commerce.rs": "837de76e34e9039b75e3a570c0d98d3061f9ee89b58795d11fd7f9de06fae16c"
+          }
+        },
+        {
+          "id": "inventory.stock-write",
+          "provider": "inventory",
+          "symbols": [
+            "InventoryStockReceipt",
+            "PgCommerceReceipt",
+            "apply_stock_issue",
+            "StockReceiptQualityPort",
+            "reserve_stock (field-service only)"
+          ],
+          "paths": [
+            "packages/server-inventory/src/adapters/stock_receipt.rs",
+            "packages/server-inventory/src/adapters/commerce_receipt.rs",
+            "packages/server-inventory/src/adapters/stock_issue.rs",
+            "packages/server-inventory/src/public/commerce_receipt.rs"
+          ],
+          "authorityWitness": "Inventory rechecks Company/branch warehouse scope and current stock/lot version; the caller's document is only a source witness.",
+          "transaction": "Runs inside the caller's Holding transaction after the Commerce document lock. Stock/lot rows are locked before the Quality hold and Finance posting; no pool checkout or independent commit.",
+          "consumers": [
+            "commerce",
+            "sales",
+            "procurement",
+            "quality",
+            "finance"
+          ],
+          "mounts": [],
+          "status": "partial",
+          "note": "Writers and quality bridge exist but have no production StockReceiptQualityPort and no composition binding; apply_stock_issue has no caller. Tails live in migrate.inventory.receipt-quality-port/stock-write-bindings.",
+          "tests": [
+            "cargo check -p erpx-server-inventory",
+            "bun run test:integration -- --suite=inventory.rust-stock-receipt-postgres.integration"
+          ],
+          "sourceDigest": {
+            "packages/server-inventory/src/adapters/stock_receipt.rs": "d072b362462c63b3c3549ed5c2a956359df70e8c71687ea0894ba9445bef5ff6",
+            "packages/server-inventory/src/adapters/commerce_receipt.rs": "f2cbcee0282c59c19222c06a4b59f3243b932ce11bc389cd317bd239e6396072",
+            "packages/server-inventory/src/adapters/stock_issue.rs": "51057d678ca4901c08dad06cb0513cc00d4f6b961f81b9fc7baf8d462ec9c2cb",
+            "packages/server-inventory/src/public/commerce_receipt.rs": "fc91e209f777eef09dde2c6666d78ead866d1912ec0ec8bb50d5983873dd1483"
+          }
+        },
+        {
+          "id": "quality.goods-receipt-hold",
+          "provider": "quality",
+          "symbols": [
+            "prepare_goods_receipt_hold",
+            "quality.hold.create (missing native)",
+            "read_quality_workspace/read_quality_detail"
+          ],
+          "paths": [
+            "packages/server-quality/src/adapters/goods_receipt_hold.rs",
+            "packages/server-quality/src/adapters/quality.ts"
+          ],
+          "authorityWitness": "Quality inspection/release/cancel rechecks current Quality authority and version; a receipt hold never grants release authority to the receiving owner.",
+          "transaction": "The hold fact is prepared for the Inventory/Commerce receipt transaction; Quality must not open its own commit. Dependency direction stays inventory -> quality, never a crate cycle.",
+          "consumers": [
+            "inventory",
+            "commerce",
+            "procurement"
+          ],
+          "mounts": [],
+          "status": "partial",
+          "note": "prepare_goods_receipt_hold has no consumer and hold creation is still TypeScript; native workspace/detail reads are mounted but unused by the product page. Tails live in migrate.quality.hold-create/read-overlay.",
+          "tests": [
+            "cargo check -p erpx-server-quality"
+          ],
+          "sourceDigest": {
+            "packages/server-quality/src/adapters/goods_receipt_hold.rs": "0af4886c42dc2fe713d92945dbde919709b02ddd2028dc42272d37974af60193",
+            "packages/server-quality/src/adapters/quality.ts": "538811aee1994795c3c2e116b6878a862f4ff3819f458dbdf31af10b567c9028"
+          }
+        },
+        {
+          "id": "finance.goods-journal",
+          "provider": "finance",
+          "symbols": [
+            "post_commerce_goods_journal",
+            "functional_fx_micros",
+            "functional_fx_evidence"
+          ],
+          "paths": [
+            "packages/server-finance/src/adapters/commerce_goods_journal.rs",
+            "packages/server-finance/src/public/mod.rs"
+          ],
+          "authorityWitness": "Finance rechecks accounting period/account and current Company finance authority; Commerce supplies quantities and source facts only.",
+          "transaction": "Posts COGS/inventory journal in the same serializable transaction after stock/quality effects, before outbox retain. Foreign-currency goods use the published functional valuation; no second writer or deferred fix-up.",
+          "consumers": [
+            "commerce",
+            "inventory",
+            "procurement"
+          ],
+          "mounts": [],
+          "status": "frozen",
+          "note": "Port and PostgreSQL suite exist but have no caller or composition mount; the consumer edit is Commerce-owned. Tail lives in migrate.finance.goods-journal-port and migrate.commerce.goods-fulfillment.",
+          "tests": [
+            "cargo check -p erpx-server-finance",
+            "bun run test:integration -- --suite=finance.rust-commerce-goods-journal-postgres.integration"
+          ],
+          "sourceDigest": {
+            "packages/server-finance/src/adapters/commerce_goods_journal.rs": "34a5c56df24513fb7ef728d73b8cc47d965b80e627ea84fcc82bca017f78260a",
+            "packages/server-finance/src/public/mod.rs": "af13b32922321adefdcc2832ba9119d0cbbbe75aeb64df06f70d33d27377e929"
+          }
+        },
+        {
+          "id": "commercial.package-grants",
+          "provider": "commercial",
+          "symbols": [
+            "PgGrantCommands",
+            "package_grant preview/apply",
+            "entitlement decision port",
+            "commercial package read router"
+          ],
+          "paths": [
+            "packages/server-commercial/src/adapters/postgres_grant_commands.rs",
+            "packages/server-commercial/src/application/grant_batches.rs",
+            "packages/server-commercial/src/public/purchases.rs"
+          ],
+          "authorityWitness": "Platform/Company commercial lease is rechecked; a provider purchase or review signature never creates IAM rights or bypasses owner obligations.",
+          "transaction": "Grant preview is read-only; apply retains revision CAS, owner-obligation settlement evidence and the package change set in one transaction with receipt/outbox.",
+          "consumers": [
+            "identity_access",
+            "organization",
+            "billing",
+            "admin"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "partial",
+          "note": "Package read is mounted; native grant preview/apply has no HTTP mount and admin still uses TS company-package-lifecycle. Tail lives in migrate.commercial.package_grant_http/entitlement_port.",
+          "tests": [
+            "cargo check -p erpx-server-commercial"
+          ],
+          "sourceDigest": {
+            "packages/server-commercial/src/adapters/postgres_grant_commands.rs": "890948ce367d6e56baf6fcc2f0f68588e07d844b6f0fd5410cd8c4c6a4bdb762",
+            "packages/server-commercial/src/application/grant_batches.rs": "3c60d748d5bb54b682f5876a7132b62bfeeccb3173473d7cbdb49f62cebcaac1",
+            "packages/server-commercial/src/public/purchases.rs": "22bdbadf72f6dd8e0be8c078bfd9e40db6064da15dbe646b8121e77f94226f7f"
+          }
+        }
+      ]
     }
   }
 }
