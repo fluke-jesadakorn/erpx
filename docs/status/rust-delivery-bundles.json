@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 298,
+    "revision": 303,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g1",
       "agentId": "lead",
       "startedAt": "2026-11-10T16:01:48.750Z",
-      "heartbeatAt": "2026-11-10T21:11:45.846Z",
-      "expiresAt": "2026-11-10T21:41:45.846Z",
+      "heartbeatAt": "2026-11-10T21:29:11.809Z",
+      "expiresAt": "2026-11-10T21:59:11.809Z",
       "generation": 2,
       "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
     },
@@ -10026,8 +10026,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T20:03:18.253Z",
-          "heartbeatAt": "2026-11-10T21:11:45.846Z",
-          "expiresAt": "2026-11-10T21:41:45.846Z",
+          "heartbeatAt": "2026-11-10T21:29:11.809Z",
+          "expiresAt": "2026-11-10T21:59:11.809Z",
           "generation": 2
         },
         "baseSha": null,
@@ -10118,8 +10118,15 @@
         "resources": [
           "owner:customer_360"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "claimedAt": "2026-11-10T21:12:25.795Z",
+          "heartbeatAt": "2026-11-10T21:29:11.809Z",
+          "expiresAt": "2026-11-10T21:59:11.809Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -11229,8 +11236,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T20:43:31.284Z",
-          "heartbeatAt": "2026-11-10T21:11:45.846Z",
-          "expiresAt": "2026-11-10T21:41:45.846Z",
+          "heartbeatAt": "2026-11-10T21:29:11.809Z",
+          "expiresAt": "2026-11-10T21:59:11.809Z",
           "generation": 2
         },
         "baseSha": null,
@@ -11664,15 +11671,22 @@
         "resources": [
           "owner:crm"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "ready_for_integration",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-10T21:12:08.910Z",
+          "heartbeatAt": "2026-11-10T21:29:11.809Z",
+          "expiresAt": "2026-11-10T21:59:11.809Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the first inventoried crm packet (migrate.crm.accounts), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead.",
+        "nextAction": "Account/activity/lead ingress committed (ba3102f10). Remaining: replace CrmEntitlementImpl stub with real Commercial revision (pipeline now fails closed), wire purchase/workflow/Sales-recipient/Collaboration/Finance witnesses in composition backends, mount 3 routers + 5 POST classifiers, then switch feature-sales CRM routes; win-pms stays excluded (no PMS witness port)",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-crm",
@@ -12036,8 +12050,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T17:27:02.192Z",
-          "heartbeatAt": "2026-11-10T21:11:45.846Z",
-          "expiresAt": "2026-11-10T21:41:45.846Z",
+          "heartbeatAt": "2026-11-10T21:29:11.809Z",
+          "expiresAt": "2026-11-10T21:59:11.809Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12226,8 +12240,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:27:02.162Z",
-          "heartbeatAt": "2026-11-10T21:11:45.846Z",
-          "expiresAt": "2026-11-10T21:41:45.846Z",
+          "heartbeatAt": "2026-11-10T21:29:11.809Z",
+          "expiresAt": "2026-11-10T21:59:11.809Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12324,8 +12338,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:53:28.777Z",
-          "heartbeatAt": "2026-11-10T21:11:45.846Z",
-          "expiresAt": "2026-11-10T21:41:45.846Z",
+          "heartbeatAt": "2026-11-10T21:29:11.809Z",
+          "expiresAt": "2026-11-10T21:59:11.809Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12903,8 +12917,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T17:05:17.831Z",
-          "heartbeatAt": "2026-11-10T21:11:45.846Z",
-          "expiresAt": "2026-11-10T21:41:45.846Z",
+          "heartbeatAt": "2026-11-10T21:29:11.809Z",
+          "expiresAt": "2026-11-10T21:59:11.809Z",
           "generation": 2
         },
         "baseSha": null,
@@ -14961,8 +14975,8 @@
           "runId": "run-20261110-g1",
           "agentId": "lead",
           "claimedAt": "2026-11-10T19:59:26.353Z",
-          "heartbeatAt": "2026-11-10T21:11:45.846Z",
-          "expiresAt": "2026-11-10T21:41:45.846Z",
+          "heartbeatAt": "2026-11-10T21:29:11.809Z",
+          "expiresAt": "2026-11-10T21:59:11.809Z",
           "generation": 2
         },
         "baseSha": null,
@@ -15104,9 +15118,9 @@
       "totalPackets": 51,
       "migratedPackets": 10,
       "statusCounts": {
-        "pending": 33,
-        "in_progress": 0,
-        "ready_for_integration": 5,
+        "pending": 31,
+        "in_progress": 1,
+        "ready_for_integration": 6,
         "integrating": 0,
         "migrated": 10,
         "blocked": 3,
@@ -15115,7 +15129,7 @@
       }
     },
     "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T21:11:45.846Z",
+    "updatedAt": "2026-11-10T21:29:11.810Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
