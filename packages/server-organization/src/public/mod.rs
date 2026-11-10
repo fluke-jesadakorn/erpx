@@ -33,3 +33,5 @@ pub mod organization_setup_http;
 
 pub mod pos_issuer;
 pub mod records_request_department_head;
+pub mod organization_access;
+pub mod position_moves;

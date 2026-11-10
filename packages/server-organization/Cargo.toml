@@ -62,3 +62,23 @@ path = "../../tests/unit/organization/rust-journal-flow-department.test.rs"
 [[test]]
 name = "journal_flow_department_postgres"
 path = "../../tests/integration/organization/rust-journal-flow-department-postgres.test.rs"
+
+[[test]]
+name = "organization_access"
+path = "../../tests/unit/organization/rust-organization-access.test.rs"
+
+[[test]]
+name = "organization_access_postgres"
+path = "../../tests/integration/organization/rust-organization-access-postgres.test.rs"
+
+[[test]]
+name = "position_moves"
+path = "../../tests/unit/organization/rust-position-moves.test.rs"
+
+[[test]]
+name = "position_moves_postgres"
+path = "../../tests/integration/organization/rust-position-moves-postgres.test.rs"
+
+[[test]]
+name = "position_moves_apply"
+path = "../../tests/unit/organization/rust-position-moves-apply.test.rs"
