@@ -1153,9 +1153,47 @@ async fn supplier_bill_http_route_creates_posts_and_reads_payable() {
                 serde_json::to_vec(&create_input("BILL-NO-KEY")).unwrap(),
             ))
             .unwrap();
+        let missing = app.clone().oneshot(missing_key).await.unwrap();
+        assert_eq!(missing.status(), StatusCode::UNPROCESSABLE_ENTITY);
         assert_eq!(
-            app.oneshot(missing_key).await.unwrap().status(),
-            StatusCode::UNPROCESSABLE_ENTITY
+            missing
+                .headers()
+                .get("content-type")
+                .and_then(|value| value.to_str().ok()),
+            Some("application/json")
+        );
+        let repeat_post = Request::builder()
+            .method("POST")
+            .uri(format!("/api/v1/holdings/acme/finance/payables/{id}/post"))
+            .header("host", "acme.example.test")
+            .header(
+                "cookie",
+                format!("__Host-erpx-product={}", p.reviewer_token.expose()),
+            )
+            .header("origin", "https://acme.example.test")
+            .header("content-type", "application/json")
+            .header("idempotency-key", "supplier-bill-http-post-repeat")
+            .header("x-erpx-context-company", "company")
+            .header("x-erpx-context-assignment", "finance-fixture-b")
+            .header("x-erpx-context-revision", "7")
+            .header("x-erpx-context-assignment-version", "3")
+            .body(Body::from(
+                serde_json::to_vec(&serde_json::json!({
+                    "periodId": "period",
+                    "entryDate": "2026-01-10",
+                    "expectedVersion": 1
+                }))
+                .unwrap(),
+            ))
+            .unwrap();
+        let repeat = app.oneshot(repeat_post).await.unwrap();
+        assert_eq!(repeat.status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            repeat
+                .headers()
+                .get("content-type")
+                .and_then(|value| value.to_str().ok()),
+            Some("application/json")
         );
     })
     .await;
