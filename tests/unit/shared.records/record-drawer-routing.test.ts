@@ -194,6 +194,7 @@ it('keeps a newer edit dirty after a late acknowledgement in a mounted React Rec
   "@erpx/ui/components/dialog":'export function Dialog({children,title}){return <div role="dialog" aria-label={title}>{children}</div>;}',
   "@erpx/ui/components/button":'export function Button({children,onClick,type="button"}){return <button type={type} onClick={onClick}>{children}</button>;}',
   '@erpx/ui/components/record-context':'export function EmbeddedRecord({children}){return children;}',
+  '@erpx/ui/components/navigation-context':'export function NavigationLink({children,href,...rest}){return <a href={href} {...rest}>{children}</a>;} export function UiNavigationProvider({children}){return children;}',
   "@erpx/feature-work_projection/lib/context-switch":'export function registerUnsavedWork(){return ()=>{};}',
   "@erpx/feature-records/lib/record-drawer":'export function recordDrawerHref(){return "/record";} export function withoutRecordDrawer(){return "/list";}',
  };
