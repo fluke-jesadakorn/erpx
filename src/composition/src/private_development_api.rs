@@ -2485,6 +2485,8 @@ async fn assemble_checked(
         let mut records_registry_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut legal_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
+        let mut legal_auxiliary_targets = Vec::new();
         let mut benefits_targets = Vec::new();
         let mut benefits_command_targets: Vec<
             erpx_server_benefits::public::command_http::BenefitsCommandHttpTarget,
@@ -2821,7 +2823,30 @@ async fn assemble_checked(
                         )),
                     )),
                 });
-                legal_targets.push(erpx_server_legal::public::legal_records::LegalHttpTarget {
+                {
+                    let legal_backend = Arc::new(crate::legal::LegalBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::legal::LegalService::new(
+                            authorizer.clone(),
+                            crate::legal::LegalConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                holding.registration.slug.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    ));
+                    legal_auxiliary_targets.push(
+                        erpx_server_legal::public::auxiliary::LegalAuxiliaryHttpTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: format!("https://{}", holding.host),
+                            backend: legal_backend.clone(),
+                        },
+                    );
+                    legal_targets.push(
+                        erpx_server_legal::public::legal_records::LegalHttpTarget {
                     host: holding.host.clone(),
                     holding_slug: holding.registration.slug.clone(),
                     origin: format!("https://{}", holding.host),
@@ -2839,6 +2864,7 @@ async fn assemble_checked(
                         )),
                     )),
                 });
+                }
                 procurement_targets.push(
                 erpx_server_procurement::public::supplier_promise_history_http::SupplierPromiseHistoryHttpTarget {
                     host: holding.host.clone(),
@@ -4286,6 +4312,15 @@ async fn assemble_checked(
             );
         }
         #[cfg(feature = "existing-business")]
+        #[cfg(feature = "existing-business")]
+        if !legal_auxiliary_targets.is_empty() {
+            router = router.merge(
+                erpx_server_legal::public::auxiliary::legal_auxiliary_router(
+                    legal_auxiliary_targets,
+                )
+                .map_err(|_| "PRIVATE_API_LEGAL_CONFIGURATION_INVALID")?,
+            );
+        }
         if !legal_targets.is_empty() {
             router = router.merge(
                 erpx_server_legal::public::legal_records::legal_router(legal_targets)

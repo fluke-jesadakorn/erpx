@@ -16,6 +16,11 @@ use erpx_server_legal::public::legal_records::{
     LegalRenderedContext, PgLegalFuture, PgLegalRecords, legal_command, legal_detail, legal_export,
     legal_register,
 };
+use erpx_server_legal::public::auxiliary::{
+    LegalAuxiliaryActor, LegalAuxiliaryHttpBackend, LegalAuxiliaryHttpFuture,
+    LegalAuxiliaryHttpRequest, LegalAuxiliaryHttpTarget, LegalAuxiliaryRead,
+    PgLegalAuxiliaryReads, read_auxiliary,
+};
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
@@ -475,6 +480,66 @@ impl<C: Clock + Send + Sync + 'static> LegalService<C> {
             )
             .await
     }
+
+    pub async fn auxiliary<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        read: LegalAuxiliaryRead,
+    ) -> Result<Value, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                LegalSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let read = read.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        let selected = current.selection();
+                        let workspace = selected.workspace();
+                        let actor = LegalAuxiliaryActor {
+                            user_id: current.user_id().clone(),
+                            assignment_id: selected.assignment().id.clone(),
+                            holding_id: current.holding_id().clone(),
+                            company_id: workspace.company_id.clone(),
+                            branch_id: workspace.branch_id.clone(),
+                            department_id: workspace.department_id.clone(),
+                            role: selected.assignment().role.clone(),
+                            permissions: current
+                                .command_iam_metadata()
+                                .permissions
+                                .clone(),
+                        };
+                        let mut ports = PgLegalAuxiliaryReads::new(connection);
+                        let data = read_auxiliary(&mut ports, &actor, read, clock.as_ref())
+                            .await
+                            .map_err(|error| match error {
+                                erpx_server_legal::public::auxiliary::LegalAuxiliaryError::Business(error) => Error::Business(error),
+                                erpx_server_legal::public::auxiliary::LegalAuxiliaryError::Persistence(error) => Error::Persistence(error),
+                            })?;
+                        Ok(data)
+                    })
+                },
+            )
+            .await
+    }
 }
 
 pub struct LegalBackend<C> {
@@ -515,6 +580,19 @@ impl<C: Clock + Send + Sync + 'static> LegalBackend<C> {
                 mutation: false,
             },
         ))
+    }
+}
+
+
+impl<C: Clock + Send + Sync + 'static> LegalAuxiliaryHttpBackend for LegalBackend<C> {
+    fn read<'a>(&'a self, request: LegalAuxiliaryHttpRequest<'a>) -> LegalAuxiliaryHttpFuture<'a> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .auxiliary(request.host, proof, move || Ok(selection), request.read)
+                .await
+                .map_err(business)
+        })
     }
 }
 

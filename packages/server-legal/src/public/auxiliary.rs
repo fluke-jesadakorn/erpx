@@ -6,9 +6,9 @@
 //! here; unported paths are named in `UNPORTED_READS` and must keep the retained
 //! route until their own native slice lands.
 pub use crate::adapters::legal_http_auxiliary::{
-    LegalAuxiliaryHttpBackend, LegalAuxiliaryHttpRequest, LegalAuxiliaryHttpService,
-    LegalAuxiliaryHttpTarget, LegalAuxiliaryQueryWire, UNPORTED_READS,
-    legal_auxiliary_router,
+    LegalAuxiliaryHttpBackend, LegalAuxiliaryHttpFuture, LegalAuxiliaryHttpRequest,
+    LegalAuxiliaryHttpService, LegalAuxiliaryHttpTarget, LegalAuxiliaryQueryWire,
+    UNPORTED_READS, legal_auxiliary_router,
 };
 pub use crate::adapters::postgres_auxiliary_reads::{
     PgLegalAuxiliaryReads, legal_auxiliary_business_error, require_auxiliary_transaction,
