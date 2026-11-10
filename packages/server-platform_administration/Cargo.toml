@@ -41,6 +41,18 @@ name = "platform_administration_postgres"
 path = "../../tests/integration/platform_administration/rust-platform-administration-postgres.test.rs"
 
 [[test]]
+name = "platform_executive"
+path = "../../tests/unit/platform_administration/rust-platform-executive.test.rs"
+
+[[test]]
+name = "platform_executive_postgres"
+path = "../../tests/integration/platform_administration/rust-platform-executive-postgres.test.rs"
+
+[[test]]
+name = "platform_operations_projection"
+path = "../../tests/unit/platform_administration/rust-platform-operations-projection.test.rs"
+
+[[test]]
 name = "agent_evidence"
 path = "../../tests/unit/agent/rust-agent-evidence.test.rs"
 

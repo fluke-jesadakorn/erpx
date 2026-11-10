@@ -101,6 +101,51 @@ export type NativePlatformOperationsSnapshot = {
   provisioning: NativePlatformProvisioningSnapshot;
   operations: NativePlatformOperationsSummary;
 };
+export type NativePlatformExecutiveGroup = {
+  label: string;
+  value: string;
+};
+export type NativePlatformExecutiveSourceReference = {
+  dataset: string;
+  revision: string;
+  referencedAt: number;
+};
+export type NativePlatformExecutiveMetric = {
+  id: 'failed-provisioning' | 'abnormal-platform-services';
+  label: string;
+  formula: string;
+  dateBasis: string;
+  total: string;
+  rows: NativePlatformExecutiveGroup[];
+  status: 'ready' | 'empty';
+  sourceReferences: NativePlatformExecutiveSourceReference[];
+};
+export type NativePlatformExecutiveSnapshot = {
+  scope: 'platform';
+  referenceAt: number;
+  filters: { from: string; to: string };
+  sourceRevision: string;
+  metrics: NativePlatformExecutiveMetric[];
+};
+export type NativePlatformExecutiveSourceRow =
+  | { created_at: number; action: string }
+  | { component: string; status: string; checked_at: number };
+export type NativePlatformExecutiveSources = {
+  id: string;
+  name: string;
+  metric: 'failed-provisioning' | 'abnormal-platform-services';
+  filters: { from: string; to: string };
+  rows: NativePlatformExecutiveSourceRow[];
+  page: number;
+  hasNext: boolean;
+};
+export type NativePlatformExecutiveQuery = {
+  from?: string;
+  to?: string;
+  metric?: 'failed-provisioning' | 'abnormal-platform-services';
+  group?: string;
+  page?: number;
+};
 export type NativePlatformProvisioningResult = {
   id: string;
   holdingId: string;
@@ -426,6 +471,164 @@ function snapshot(value: unknown, actor: NativePlatformAdminActor): NativePlatfo
     operations: operations(data.operations),
   };
 }
+
+function projection(
+  value: unknown,
+  actor: NativePlatformAdminActor,
+): NativePlatformOperationsSummary {
+  const row = fields(value, ['data', 'context']);
+  context(row.context, actor);
+  return operations(row.data);
+}
+
+const executiveMetricIds = ['failed-provisioning', 'abnormal-platform-services'] as const;
+const executiveDate = (value: unknown): value is string =>
+  typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+const executiveFilters = (value: unknown): { from: string; to: string } => {
+  const row = fields(value, ['from', 'to']);
+  if (!executiveDate(row.from) || !executiveDate(row.to))
+    return fail('NATIVE_PLATFORM_ADMIN_RESPONSE_INVALID');
+  return row as { from: string; to: string };
+};
+const executiveGroup = (value: unknown): NativePlatformExecutiveGroup => {
+  const row = fields(value, ['label', 'value']);
+  if (
+    !text(row.label, 250) ||
+    typeof row.value !== 'string' ||
+    !/^-?\d+$/.test(row.value)
+  )
+    return fail('NATIVE_PLATFORM_ADMIN_RESPONSE_INVALID');
+  return row as NativePlatformExecutiveGroup;
+};
+const executiveReference = (value: unknown): NativePlatformExecutiveSourceReference => {
+  const row = fields(value, ['dataset', 'revision', 'referencedAt']);
+  if (
+    !text(row.dataset, 200) ||
+    !/^[a-f0-9]{64}$/.test(String(row.revision)) ||
+    !integer(row.referencedAt)
+  )
+    return fail('NATIVE_PLATFORM_ADMIN_RESPONSE_INVALID');
+  return row as NativePlatformExecutiveSourceReference;
+};
+const executiveMetric = (value: unknown): NativePlatformExecutiveMetric => {
+  const row = fields(value, [
+    'id',
+    'label',
+    'formula',
+    'dateBasis',
+    'total',
+    'rows',
+    'status',
+    'sourceReferences',
+  ]);
+  if (
+    !executiveMetricIds.includes(row.id as (typeof executiveMetricIds)[number]) ||
+    !text(row.label, 250) ||
+    !text(row.formula, 2000) ||
+    !text(row.dateBasis, 500) ||
+    typeof row.total !== 'string' ||
+    !/^-?\d+$/.test(row.total) ||
+    !Array.isArray(row.rows) ||
+    row.rows.length > 10_000 ||
+    !['ready', 'empty'].includes(String(row.status)) ||
+    !Array.isArray(row.sourceReferences) ||
+    row.sourceReferences.length < 1 ||
+    row.sourceReferences.length > 8
+  )
+    return fail('NATIVE_PLATFORM_ADMIN_RESPONSE_INVALID');
+  return {
+    ...(row as unknown as NativePlatformExecutiveMetric),
+    rows: row.rows.map(executiveGroup),
+    sourceReferences: row.sourceReferences.map(executiveReference),
+  };
+};
+const executiveSnapshot = (
+  value: unknown,
+  actor: NativePlatformAdminActor,
+): NativePlatformExecutiveSnapshot => {
+  const row = fields(value, ['data', 'context']);
+  context(row.context, actor);
+  const data = fields(row.data, [
+    'scope',
+    'referenceAt',
+    'filters',
+    'sourceRevision',
+    'metrics',
+  ]);
+  const scope = data.scope;
+  const referenceAt = data.referenceAt;
+  const sourceRevision = data.sourceRevision;
+  if (
+    scope !== 'platform' ||
+    !integer(referenceAt) ||
+    typeof sourceRevision !== 'string' ||
+    !/^[a-f0-9]{64}$/.test(sourceRevision) ||
+    !Array.isArray(data.metrics) ||
+    data.metrics.length !== 2
+  )
+    return fail('NATIVE_PLATFORM_ADMIN_RESPONSE_INVALID');
+  const metrics = data.metrics.map(executiveMetric);
+  if (
+    new Set(metrics.map((metric) => metric.id)).size !== 2 ||
+    metrics.some((metric) => metric.sourceReferences.some((source) => source.revision !== sourceRevision))
+  )
+    return fail('NATIVE_PLATFORM_ADMIN_RESPONSE_INVALID');
+  return {
+    scope: 'platform',
+    referenceAt,
+    filters: executiveFilters(data.filters),
+    sourceRevision,
+    metrics,
+  };
+};
+const executiveSources = (
+  value: unknown,
+  actor: NativePlatformAdminActor,
+): NativePlatformExecutiveSources => {
+  const row = fields(value, ['data', 'context']);
+  context(row.context, actor);
+  const data = fields(row.data, [
+    'id',
+    'name',
+    'metric',
+    'filters',
+    'rows',
+    'page',
+    'hasNext',
+  ]);
+  if (
+    !text(data.id, 250) ||
+    !text(data.name, 250) ||
+    !executiveMetricIds.includes(data.metric as (typeof executiveMetricIds)[number]) ||
+    !Array.isArray(data.rows) ||
+    data.rows.length > 30 ||
+    !integer(data.page, 1) ||
+    data.page > 100_000 ||
+    !boolean(data.hasNext)
+  )
+    return fail('NATIVE_PLATFORM_ADMIN_RESPONSE_INVALID');
+  const rows = data.rows.map((item) => {
+    if (data.metric === 'failed-provisioning') {
+      const row = fields(item, ['created_at', 'action']);
+      if (!integer(row.created_at) || !text(row.action, 40))
+        return fail('NATIVE_PLATFORM_ADMIN_RESPONSE_INVALID');
+      return row as NativePlatformExecutiveSourceRow;
+    }
+    const row = fields(item, ['component', 'status', 'checked_at']);
+    if (!text(row.component, 200) || !text(row.status, 40) || !integer(row.checked_at))
+      return fail('NATIVE_PLATFORM_ADMIN_RESPONSE_INVALID');
+    return row as NativePlatformExecutiveSourceRow;
+  });
+  return {
+    id: data.id,
+    name: data.name,
+    metric: data.metric as NativePlatformExecutiveSources['metric'],
+    filters: executiveFilters(data.filters),
+    rows,
+    page: data.page,
+    hasNext: data.hasNext,
+  };
+};
 
 function result(value: unknown, actor: NativePlatformAdminActor): NativePlatformProvisioningResult {
   const row = fields(value, ['data', 'context']);
@@ -766,6 +969,86 @@ export function createNativePlatformAdminClient(
     ): Promise<NativePlatformOperationsSnapshot> {
       return snapshot(
         await call(transport, config, incoming, actor, '/operations', undefined),
+        actor,
+      );
+    },
+    async operationsProjection(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativePlatformAdminActor,
+    ): Promise<NativePlatformOperationsSummary> {
+      return projection(
+        await call(
+          transport,
+          config,
+          incoming,
+          actor,
+          '/operations/projection',
+          undefined,
+        ),
+        actor,
+      );
+    },
+    async executive(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativePlatformAdminActor,
+      query: NativePlatformExecutiveQuery = {},
+    ): Promise<NativePlatformExecutiveSnapshot> {
+      const params = new URLSearchParams();
+      if (query.metric !== undefined) {
+        if (!executiveMetricIds.includes(query.metric))
+          throw new NativePlatformAdminError('NATIVE_PLATFORM_ADMIN_REQUEST_INVALID');
+        params.set('metric', query.metric);
+        if (!query.group || !query.from || !query.to)
+          throw new NativePlatformAdminError('NATIVE_PLATFORM_ADMIN_REQUEST_INVALID');
+        params.set('group', query.group);
+      }
+      if (query.from !== undefined) params.set('from', query.from);
+      if (query.to !== undefined) params.set('to', query.to);
+      if (query.page !== undefined) {
+        if (!Number.isSafeInteger(query.page) || query.page < 1 || query.page > 100_000)
+          throw new NativePlatformAdminError('NATIVE_PLATFORM_ADMIN_REQUEST_INVALID');
+        params.set('page', String(query.page));
+      }
+      if (query.metric === undefined && params.has('page'))
+        throw new NativePlatformAdminError('NATIVE_PLATFORM_ADMIN_REQUEST_INVALID');
+      return executiveSnapshot(
+        await call(
+          transport,
+          config,
+          incoming,
+          actor,
+          `/executive${params.size ? `?${params}` : ''}`,
+          undefined,
+        ),
+        actor,
+      );
+    },
+    async executiveSources(
+      incoming: Pick<Headers, 'get'>,
+      actor: NativePlatformAdminActor,
+      query: Required<Pick<NativePlatformExecutiveQuery, 'metric' | 'group' | 'from' | 'to'>> &
+        Pick<NativePlatformExecutiveQuery, 'page'>,
+    ): Promise<NativePlatformExecutiveSources> {
+      const params = new URLSearchParams({
+        metric: query.metric,
+        group: query.group,
+        from: query.from,
+        to: query.to,
+      });
+      if (query.page !== undefined) {
+        if (!Number.isSafeInteger(query.page) || query.page < 1 || query.page > 100_000)
+          throw new NativePlatformAdminError('NATIVE_PLATFORM_ADMIN_REQUEST_INVALID');
+        params.set('page', String(query.page));
+      }
+      return executiveSources(
+        await call(
+          transport,
+          config,
+          incoming,
+          actor,
+          `/executive?${params}`,
+          undefined,
+        ),
         actor,
       );
     },

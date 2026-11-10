@@ -142,6 +142,18 @@ pub async fn platform_operations_snapshot<S: PlatformAdministrationStore + ?Size
     })
 }
 
+/// The admin operations route consumes only the operational projection; this
+/// explicit contract lets it replace the retained TypeScript summary without
+/// also reading the provisioning page payload.
+pub async fn platform_operations_projection<S: PlatformAdministrationStore + ?Sized>(
+    actor: &PlatformActor,
+    store: &S,
+    holdings: &[PlatformHoldingIdentity],
+    now: i64,
+) -> Result<PlatformOperationsProjection, BusinessError> {
+    platform_operations_summary(actor, store, holdings, now).await
+}
+
 pub async fn provision_holding<S: PlatformAdministrationStore + ?Sized>(
     actor: &PlatformActor,
     store: &S,

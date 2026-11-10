@@ -121,6 +121,51 @@ const ok = (value: unknown) =>
     status: 200,
     headers: { 'content-type': 'application/json' },
   });
+const executiveSnapshotData = {
+  scope: 'platform',
+  referenceAt: 10,
+  filters: { from: '2026-06-01', to: '2026-06-30' },
+  sourceRevision: 'a'.repeat(64),
+  metrics: [
+    {
+      id: 'failed-provisioning',
+      label: 'Failed provisioning jobs',
+      formula: 'Count failed provisioning events.',
+      dateBasis: 'Failure event time (UTC)',
+      total: '1',
+      rows: [{ label: '2026-06', value: '1' }],
+      status: 'ready',
+      sourceReferences: [
+        {
+          dataset: 'platform_holding_provisioning_events',
+          revision: 'a'.repeat(64),
+          referencedAt: 10,
+        },
+      ],
+    },
+    {
+      id: 'abnormal-platform-services',
+      label: 'Abnormal platform services',
+      formula: 'Count abnormal health observations.',
+      dateBasis: 'Latest health observation',
+      total: '0',
+      rows: [],
+      status: 'empty',
+      sourceReferences: [
+        { dataset: 'platform_health', revision: 'a'.repeat(64), referencedAt: 10 },
+      ],
+    },
+  ],
+};
+const executiveSourcesData = {
+  id: '2026-06',
+  name: '2026-06',
+  metric: 'failed-provisioning',
+  filters: { from: '2026-06-01', to: '2026-06-30' },
+  rows: [{ created_at: 1, action: 'failed' }],
+  page: 1,
+  hasNext: false,
+};
 
 describe('native Platform Administration transport', () => {
   it('rejects reserved, non-loopback and duplicate targets', () => {
@@ -469,6 +514,68 @@ describe('native Platform Administration transport', () => {
         'platform-provision-key-2',
       ),
     ).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' });
+  });
+
+  it('reads the native operations projection and executive metrics without a retained fallback', async () => {
+    const transport = vi
+      .fn()
+      .mockResolvedValueOnce(ok({ data: snapshot.operations, context }))
+      .mockResolvedValueOnce(ok({ data: executiveSnapshotData, context }))
+      .mockResolvedValueOnce(ok({ data: executiveSourcesData, context }));
+    const client = createNativePlatformAdminClient(
+      JSON.parse(config()),
+      transport as never,
+    );
+    const projection = await client.operationsProjection(incoming(), actor);
+    expect(projection.totals).toEqual({
+      holdings: 1,
+      pendingEvents: 1,
+      deadLetterEvents: 1,
+      claimedEvents: 0,
+    });
+    expect(transport.mock.calls[0][0]).toBe('GET');
+    expect(transport.mock.calls[0][1].pathname).toBe(
+      '/api/v1/platform/operations/projection',
+    );
+    const executive = await client.executive(incoming(), actor, {
+      from: '2026-06-01',
+      to: '2026-06-30',
+    });
+    expect(transport.mock.calls[1][1].searchParams.get('from')).toBe('2026-06-01');
+    expect(executive.metrics.map((metric) => metric.total)).toEqual(['1', '0']);
+    const sources = await client.executiveSources(incoming(), actor, {
+      metric: 'failed-provisioning',
+      group: '2026-06',
+      from: '2026-06-01',
+      to: '2026-06-30',
+      page: 2,
+    });
+    expect(transport.mock.calls[2][1].searchParams.get('page')).toBe('2');
+    expect(sources.rows).toEqual([{ created_at: 1, action: 'failed' }]);
+    const invalid = createNativePlatformAdminClient(
+      JSON.parse(config()),
+      vi.fn().mockResolvedValue(
+        ok({
+          data: {
+            ...executiveSnapshotData,
+            metrics: [{ ...executiveSnapshotData.metrics[0], total: 1 }, executiveSnapshotData.metrics[1]],
+          },
+          context,
+        }),
+      ) as never,
+    );
+    await expect(
+      invalid.executive(incoming(), actor, { from: '2026-06-01', to: '2026-06-30' }),
+    ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_RESPONSE_INVALID' });
+    await expect(
+      client.executive(incoming(), actor, {
+        metric: 'failed-provisioning',
+        group: '2026-06',
+        from: '2026-06-01',
+        to: '2026-06-30',
+        page: 0,
+      }),
+    ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_REQUEST_INVALID' });
   });
 
   it('maps configuration, context and response failures without inventing success', () => {

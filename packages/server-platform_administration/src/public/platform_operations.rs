@@ -8,19 +8,19 @@ pub use crate::adapters::platform_postgres::{
     PgPlatformAdministration, PlatformHoldingDatabase, platform_business_error,
 };
 pub use crate::application::platform_operations::{
-    PlatformAdministrationStore, PlatformFuture, platform_operations_snapshot,
-    platform_operations_summary, provision_holding, provisioning_snapshot, recover_dead_letter_job,
-    run_holding_migration,
+    PlatformAdministrationStore, PlatformFuture, platform_operations_projection,
+    platform_operations_snapshot, platform_operations_summary, provision_holding,
+    provisioning_snapshot, recover_dead_letter_job, run_holding_migration,
 };
 pub use crate::domain::platform_operations::{
     ControlServiceHealth, DEAD_LETTER_LIMIT, HOLDING_ID_MAX, HoldingJobStatistics, LAST_ERROR_MAX,
     MIGRATION_ERROR_MAX, MIGRATION_TRACK, MigrationRunPlan, MigrationRunReceipt,
     MigrationRunStatus, PlatformActor, PlatformDeadLetter, PlatformHoldingIdentity,
     PlatformHoldingOperation, PlatformMigrationState, PlatformOperationTotals,
-    PlatformOperationsSnapshot, PlatformOperationsSummary, PlatformProvisioningRow,
-    PlatformProvisioningSnapshot, PlatformResourceSlot, ProvisionHoldingInput,
-    ProvisionHoldingResult, ProvisioningPlan, ProvisioningReceipt, REASON_MAX,
-    RecoverDeadLetterInput, RecoverDeadLetterResult, RecoveryPlan, RecoveryReceipt,
+    PlatformOperationsProjection, PlatformOperationsSnapshot, PlatformOperationsSummary,
+    PlatformProvisioningRow, PlatformProvisioningSnapshot, PlatformResourceSlot,
+    ProvisionHoldingInput, ProvisionHoldingResult, ProvisioningPlan, ProvisioningReceipt,
+    REASON_MAX, RecoverDeadLetterInput, RecoverDeadLetterResult, RecoveryPlan, RecoveryReceipt,
     RunHoldingMigrationInput, RunHoldingMigrationResult, SLUG_MAX, available_resource_slots,
     holding_operation_status, migration_digest, migration_run_result, operation_totals,
     provisioning_digest, provisioning_result, recovery_digest, require_platform_admin,

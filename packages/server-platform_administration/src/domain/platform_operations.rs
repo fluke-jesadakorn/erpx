@@ -192,6 +192,10 @@ pub struct PlatformOperationsSummary {
     pub totals: PlatformOperationTotals,
 }
 
+/// Native replacement for the retained TypeScript `summarizePlatformOperations`
+/// projection consumed by the admin platform operations route.
+pub type PlatformOperationsProjection = PlatformOperationsSummary;
+
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlatformOperationsSnapshot {

@@ -4,8 +4,12 @@ import {
   nativePlatformAdminConfiguration,
   NativePlatformAdminError,
   type NativePlatformAdminActor,
+  type NativePlatformExecutiveQuery,
+  type NativePlatformExecutiveSnapshot,
+  type NativePlatformExecutiveSources,
   type NativePlatformMigrationResult,
   type NativePlatformOperationsSnapshot,
+  type NativePlatformOperationsSummary,
   type NativePlatformProvisioningResult,
   type NativePlatformRecoveryResult,
 } from '../adapters/server/native-platform-administration';
@@ -105,6 +109,42 @@ export async function nativePlatformOperationsForPresentation(
   const native = nativeClient();
   if (!native) return undefined;
   return native.operations(incoming, platformAdminActor(work, platform));
+}
+
+/** Explicit operations projection read used by the admin operations route. A
+ * configured native failure is surfaced; only absent configuration returns
+ * undefined so the caller may keep the retained implementation. */
+export async function nativePlatformOperationsProjectionForPresentation(
+  work: PlatformAdminWorkInput,
+  platform: PlatformAdminPlatformInput,
+  incoming: Pick<Headers, 'get'>,
+): Promise<NativePlatformOperationsSummary | undefined> {
+  const native = nativeClient();
+  if (!native) return undefined;
+  return native.operationsProjection(incoming, platformAdminActor(work, platform));
+}
+
+export async function nativePlatformExecutiveForPresentation(
+  work: PlatformAdminWorkInput,
+  platform: PlatformAdminPlatformInput,
+  incoming: Pick<Headers, 'get'>,
+  query?: NativePlatformExecutiveQuery,
+): Promise<NativePlatformExecutiveSnapshot | undefined> {
+  const native = nativeClient();
+  if (!native) return undefined;
+  return native.executive(incoming, platformAdminActor(work, platform), query);
+}
+
+export async function nativePlatformExecutiveSourcesForPresentation(
+  work: PlatformAdminWorkInput,
+  platform: PlatformAdminPlatformInput,
+  incoming: Pick<Headers, 'get'>,
+  query: Required<Pick<NativePlatformExecutiveQuery, 'metric' | 'group' | 'from' | 'to'>> &
+    Pick<NativePlatformExecutiveQuery, 'page'>,
+): Promise<NativePlatformExecutiveSources | undefined> {
+  const native = nativeClient();
+  if (!native) return undefined;
+  return native.executiveSources(incoming, platformAdminActor(work, platform), query);
 }
 
 export async function nativePlatformProvision(

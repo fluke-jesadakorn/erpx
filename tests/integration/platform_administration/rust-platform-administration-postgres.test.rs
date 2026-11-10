@@ -336,6 +336,31 @@ async fn operations_summary_reads_real_queues_and_recovery_is_reviewed_idempoten
             .unwrap();
             assert_eq!(unavailable.holdings[1].status, "unavailable");
             assert_eq!(unavailable.holdings[1].job_heartbeat_at, Some(NOW - 500));
+            let projection = platform_operations_projection(
+                &admin(),
+                &store,
+                &[holding_identity("h001", "acme")],
+                NOW,
+            )
+            .await
+            .unwrap();
+            assert_eq!(projection.holdings[0].status, "attention");
+            assert_eq!(projection.holdings[0].pending_events, 1);
+            assert_eq!(projection.holdings[0].dead_letter_events, 1);
+            assert_eq!(projection.totals.holdings, 1);
+            assert_eq!(projection.actor_role, "platform_admin");
+            let denied_projection = platform_operations_projection(
+                &PlatformActor {
+                    role: "legal_editor".into(),
+                    ..admin()
+                },
+                &store,
+                &[holding_identity("h001", "acme")],
+                NOW,
+            )
+            .await
+            .unwrap_err();
+            assert_eq!(denied_projection.code, "PLATFORM_OPERATIONS_FORBIDDEN");
             let denied = platform_operations_summary(
                 &PlatformActor {
                     role: "legal_editor".into(),
