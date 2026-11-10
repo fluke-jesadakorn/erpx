@@ -112,6 +112,8 @@ pub mod marketing;
 pub mod operations;
 #[cfg(feature = "existing-business")]
 pub mod organization_nodes;
+#[cfg(feature = "existing-business")]
+pub mod organization_access;
 #[cfg(any(feature = "existing-business", feature = "business-http"))]
 pub mod organization_nodes_http;
 #[cfg(feature = "existing-business")]

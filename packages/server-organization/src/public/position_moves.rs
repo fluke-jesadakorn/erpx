@@ -6,7 +6,7 @@
 pub use crate::adapters::position_moves_http::{
     position_moves_router, CancelPositionMoveHttpRequest, PositionMoveHttpBackend,
     PositionMoveHttpFuture, PositionMoveHttpState, PositionMoveHttpTarget,
-    PositionMovePreviewHttpRequest, PositionMoveSubmitHttpRequest,
+    PositionMoveListHttpRequest, PositionMovePreviewHttpRequest, PositionMoveSubmitHttpRequest,
 };
 pub use crate::adapters::postgres_position_moves::{
     drain_due_position_moves, PgPositionMoveDrain, PgPositionMoves,

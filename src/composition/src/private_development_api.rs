@@ -2438,6 +2438,10 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut organization_targets = Vec::new();
         #[cfg(feature = "existing-business")]
+        let mut organization_access_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
+        let mut position_move_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut organization_setup_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut approval_targets = Vec::new();
@@ -2932,6 +2936,46 @@ async fn assemble_checked(
                         backend: projects_backend.clone(),
                     },
                 );
+                #[cfg(feature = "existing-business")]
+                {
+                    let access_configuration =
+                        crate::organization_access::OrganizationAccessConfiguration::new(
+                            holding.registration.holding_id.clone(),
+                            company.clone(),
+                        );
+                    organization_access_targets.push(
+                        crate::organization_access::access_target(
+                            holding.host.clone(),
+                            holding.registration.slug.clone(),
+                            format!("https://{}", holding.host),
+                            Arc::new(crate::organization_access::OrganizationAccessBackend::new(
+                                config.policy.clone(),
+                                Arc::new(FinanceJournalReadScopeHeaders),
+                                Arc::new(
+                                    crate::organization_access::OrganizationAccessService::new(
+                                        authorizer.clone(),
+                                        access_configuration.clone(),
+                                        Arc::new(SharedClock(clock.clone())),
+                                    ),
+                                ),
+                            )),
+                        ),
+                    );
+                    position_move_targets.push(crate::organization_access::position_target(
+                        holding.host.clone(),
+                        holding.registration.slug.clone(),
+                        format!("https://{}", holding.host),
+                        Arc::new(crate::organization_access::PositionMoveBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::organization_access::PositionMoveService::new(
+                                authorizer.clone(),
+                                access_configuration,
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    ));
+                }
                 #[cfg(feature = "existing-business")]
                 organization_targets.push(
                     crate::organization_nodes_http::OrganizationNodesTarget {
@@ -3910,6 +3954,24 @@ async fn assemble_checked(
                     organization_targets,
                 )
                 .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !organization_access_targets.is_empty() {
+            router = router.merge(
+                erpx_server_organization::public::organization_access::organization_access_router(
+                    organization_access_targets,
+                )
+                .map_err(|_| "PRIVATE_API_ORGANIZATION_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !position_move_targets.is_empty() {
+            router = router.merge(
+                erpx_server_organization::public::position_moves::position_moves_router(
+                    position_move_targets,
+                )
+                .map_err(|_| "PRIVATE_API_ORGANIZATION_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]
