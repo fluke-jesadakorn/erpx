@@ -2471,6 +2471,8 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut customer_duplicate_targets = Vec::new();
         #[cfg(feature = "existing-business")]
+        let mut customer_identity_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut ecommerce_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut crm_targets = Vec::new();
@@ -3168,6 +3170,27 @@ async fn assemble_checked(
                                 Arc::new(SharedClock(clock.clone())),
                             )),
                         )),
+                    },
+                );
+                customer_identity_targets.push(
+                    erpx_server_customer_authority::public::identity_http::CustomerIdentityHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(
+                            crate::customer_authority::CustomerAuthorityBackend::new(
+                                config.policy.clone(),
+                                Arc::new(FinanceJournalReadScopeHeaders),
+                                Arc::new(crate::customer_authority::CustomerAuthorityService::new(
+                                    authorizer.clone(),
+                                    crate::customer_authority::CustomerAuthorityConfiguration::new(
+                                        holding.registration.holding_id.clone(),
+                                        company.clone(),
+                                    ),
+                                    Arc::new(SharedClock(clock.clone())),
+                                )),
+                            ),
+                        ),
                     },
                 );
                 customer_duplicate_targets.push(
@@ -4200,6 +4223,15 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_customer_authority::public::access_http::customer_access_http_router(
                     customer_authority_targets,
+                )
+                .map_err(|_| "PRIVATE_API_CUSTOMER_AUTHORITY_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !customer_identity_targets.is_empty() {
+            router = router.merge(
+                erpx_server_customer_authority::public::identity_http::customer_identity_http_router(
+                    customer_identity_targets,
                 )
                 .map_err(|_| "PRIVATE_API_CUSTOMER_AUTHORITY_CONFIGURATION_INVALID")?,
             );
