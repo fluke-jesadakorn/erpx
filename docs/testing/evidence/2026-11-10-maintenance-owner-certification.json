@@ -121,5 +121,8 @@
     "No 6-subagent roster or Common frozen-bundle coordination is present; this bundle follows the user-directed execution without claiming that process evidence."
   ],
   "status": "owner-complete",
-  "surfaces_scope": "The surfaces apply to the five registered Maintenance workflows. Preventive-plan POST writes are a disclosed auxiliary consumer outside this certification."
+  "surfaces_scope": "The surfaces apply to the five registered Maintenance workflows. Preventive-plan POST writes are a disclosed auxiliary consumer outside this certification.",
+  "rebased_base": "619e7f95379ead8f9df6b71fde1f654dbbcc71b0",
+  "reverified_at": "2026-11-10T21:27:59+07:00",
+  "reverification": "After rebasing the bundle onto the external writer tip 619e7f953, all Maintenance unit suites (8 Rust tests + 17 transport tests), both TS integration suites (8 tests), all six Rust PostgreSQL integration suites (45 tests), typecheck and structure:check were rerun and passed."
 }
