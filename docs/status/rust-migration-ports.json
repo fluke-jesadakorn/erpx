@@ -250,6 +250,183 @@
           }
         }
       ]
+    },
+    "ports.authority": {
+      "taskId": "ports.authority",
+      "owners": [
+        "identity_access",
+        "organization",
+        "customer_authority"
+      ],
+      "status": "frozen-with-tail",
+      "seams": [
+        {
+          "id": "identity_access.effective-authority",
+          "provider": "identity_access",
+          "symbols": [
+            "HoldingWorkAuthorizer (execute/execute_with_sources/execute_with_selected_typed_transport_ingress_deferred)",
+            "AuthorizedWorkContext",
+            "WorkPermissionRequirement",
+            "require_effective_authority_sources_held",
+            "lock_effective_authority_sources"
+          ],
+          "paths": [
+            "packages/server-identity_access/src/public/effective_authority.rs",
+            "packages/server-identity_access/src/adapters/authorized_work.rs",
+            "packages/server-identity_access/src/adapters/postgres_effective_authority.rs"
+          ],
+          "authorityWitness": "The selected assignment, Company/branch/department scope, role and permission catalogue are rechecked from source rows inside the transaction. A prepared/held-lock token grants no authority by itself.",
+          "transaction": "Caller retains the Holding transaction and Control lease. Authority/source locks are acquired before the first data snapshot and are never released and reacquired after preparation.",
+          "consumers": [
+            "all owner commands/reads",
+            "organization",
+            "commercial",
+            "billing",
+            "customer_authority"
+          ],
+          "mounts": [
+            "src/composition/src/identity_access.rs",
+            "src/composition/src/organization_nodes.rs",
+            "src/composition/src/billing.rs"
+          ],
+          "status": "frozen",
+          "tests": [
+            "cargo check -p erpx-server-identity-access",
+            "bun run test:integration -- --suite=identity_access.rust-effective-authority-postgres.integration"
+          ],
+          "sourceDigest": {
+            "packages/server-identity_access/src/public/effective_authority.rs": "ce3fd6c4e51fe040cc1950816dc3b879e402183250ae025fd5c21dac7bd991b3",
+            "packages/server-identity_access/src/adapters/authorized_work.rs": "b8608dbcd77d13dcc40aab0872778d862096ad8a7506e1d2997a4b6d800ef8d0",
+            "packages/server-identity_access/src/adapters/postgres_effective_authority.rs": "46ddb1eab8d1a9ddad9ea201b82898e1d1bbbeb2df26693958c3f9d0bf523bdf"
+          }
+        },
+        {
+          "id": "identity_access.iam-assignment-http",
+          "provider": "identity_access",
+          "symbols": [
+            "iam_assignment_http_router"
+          ],
+          "paths": [
+            "packages/server-identity_access/src/adapters/assignment_http.rs"
+          ],
+          "authorityWitness": "Transport maps the authenticated Holding context; every IAM mutation rechecks platform/Company authority in the owner transaction.",
+          "transaction": "Reads share the owner transaction; writes use the command ledger receipt/outbox contract.",
+          "consumers": [
+            "admin",
+            "account",
+            "people"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "frozen",
+          "tests": [
+            "cargo check -p erpx-server-identity-access --features contracts"
+          ],
+          "sourceDigest": {
+            "packages/server-identity_access/src/adapters/assignment_http.rs": "a91cfb21e91e77a7c29780de1779609e438c948f497b64dbae02a5ba2d0040f7"
+          }
+        },
+        {
+          "id": "identity_access.directory-source",
+          "provider": "identity_access",
+          "symbols": [
+            "directory source preview/approve/sign-in routers",
+            "directory_account_router"
+          ],
+          "paths": [
+            "src/composition/src/directory_source_http.rs",
+            "packages/server-identity_access/src/adapters/directory_http.rs"
+          ],
+          "authorityWitness": "Directory source approval and sign-in decisions recheck platform authority and source freshness before issuing/refreshing a session.",
+          "transaction": "Source approval is a versioned command; sign-in retries preserve source policy and never fabricate a session on a stale source.",
+          "consumers": [
+            "account",
+            "people",
+            "admin"
+          ],
+          "mounts": [],
+          "status": "missing",
+          "note": "Both routers exist but neither is mounted in private_development_api; directory operations remain TypeScript-authoritative. Tail lives in migrate.identity_access.directory_runtime.",
+          "tests": [
+            "cargo check -p erpx-server-identity-access --features directory-ldaps"
+          ],
+          "sourceDigest": {
+            "src/composition/src/directory_source_http.rs": "a97614a5bbed40d92e2916f6b60ee3dedb84736473d1d2bbad21141bbc4032f9",
+            "packages/server-identity_access/src/adapters/directory_http.rs": "d92647487224d2c7e436bdb2b0d97173c9ff14eaed86f00a3fd0c14401c4f117"
+          }
+        },
+        {
+          "id": "organization.nodes-setup",
+          "provider": "organization",
+          "symbols": [
+            "organization_nodes_router",
+            "organization_setup_router",
+            "organizationAccessData"
+          ],
+          "paths": [
+            "src/composition/src/organization_nodes_http.rs",
+            "packages/server-organization/src/adapters/organization_setup_http.rs",
+            "packages/server-organization/src/adapters/access.ts"
+          ],
+          "authorityWitness": "Nodes/positions/levels and channel authorization are rechecked per Company scope; the access projection may only summarize what the same transaction authorizes.",
+          "transaction": "Tree/business-unit reads run in the caller transaction; setup writes are versioned owner commands.",
+          "consumers": [
+            "admin",
+            "people",
+            "platform_administration"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "partial",
+          "note": "Nodes/setup mounted and frozen; the access projection that still feeds Admin technology remains TypeScript. Tail lives in migrate.organization.access_projection.",
+          "tests": [
+            "cargo check -p erpx-server-organization",
+            "bun run test:unit -- --suite=organization.native-organization-setup.unit"
+          ],
+          "sourceDigest": {
+            "src/composition/src/organization_nodes_http.rs": "ec1de63a911862a2da85c4ecf0df6a4a813c147a48dc45196eb54a07b2e07d20",
+            "packages/server-organization/src/adapters/organization_setup_http.rs": "ce4083eab3f6feb71cb3da519871a1972834998667577fb887b9193f1c6de625",
+            "packages/server-organization/src/adapters/access.ts": "9a07a1fd7d86613366d10355c3e9ee55c4094a514465e2c45bc444c534105b5c"
+          }
+        },
+        {
+          "id": "customer_authority.access-duplicates",
+          "provider": "customer_authority",
+          "symbols": [
+            "customer_access_http_router",
+            "customer authority composition service",
+            "duplicate_review request/read"
+          ],
+          "paths": [
+            "packages/server-customer_authority/src/adapters/access_http.rs",
+            "packages/server-customer_authority/src/public/duplicates.rs",
+            "src/composition/src/customer_authority.rs"
+          ],
+          "authorityWitness": "Access changes and duplicate decisions require current Customer 360 authority; independent review cannot be satisfied by the requester.",
+          "transaction": "Accessed changes retain the customer authority transaction; duplicate decision/merge is not yet native, so no second writer is introduced before it is.",
+          "consumers": [
+            "sales",
+            "crm",
+            "portal"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs",
+            "src/composition/src/customer_authority.rs"
+          ],
+          "status": "partial",
+          "note": "Access router mounted; duplicate review has only request + bounded read, no decision/merge HTTP. Tail lives in migrate.customer_authority.duplicate_decisions.",
+          "tests": [
+            "cargo check -p erpx-server-customer-authority"
+          ],
+          "sourceDigest": {
+            "packages/server-customer_authority/src/adapters/access_http.rs": "c68db8ac82f471bb98e3e540726f5a8128659edcc2cb07e18ac59776b4d8a0cb",
+            "packages/server-customer_authority/src/public/duplicates.rs": "a94f17fe95f6c74b9374acd9cc9cabe16aa2c4a012a79a0d40128b1f8e4e1ffa",
+            "src/composition/src/customer_authority.rs": "d2b9d0fb1eb707c2dbc47eb826da5b89bc9d68da9f6d127fe722dd35270d80e0"
+          }
+        }
+      ]
     }
   }
 }
