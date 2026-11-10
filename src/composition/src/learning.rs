@@ -12,7 +12,8 @@ use erpx_server_identity_access::public::{
     work_context::{HoldingWorkspaceRequest, WorkScopeKind},
 };
 use erpx_server_learning::public::eligibility_facts::{
-    EligibilityQuery, learning_eligibility_facts,
+    BenefitConsumptionActor, BenefitConsumptionCommand, EligibilityQuery, consume_benefit,
+    learning_eligibility_facts, lock_learning_benefit_sources,
 };
 use erpx_server_learning::public::learning::{
     LearningActor, PgLearning, learning_detail, learning_workspace,
@@ -325,6 +326,83 @@ impl<C: Clock + Send + Sync + 'static> LearningService<C> {
             )
             .await
     }
+
+    pub async fn consume_benefit<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command_input: BenefitConsumptionCommand,
+        idempotency_key: String,
+    ) -> Result<LearningHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let expected = company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != expected {
+                return Err(scope());
+            }
+            request.mutation = true;
+            Ok(request)
+        };
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                Self::access(),
+                LearningSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let command_input = command_input.clone();
+                    let idempotency_key = idempotency_key.clone();
+                    let now = clock.now();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.write")?;
+                        let selected = current.selection();
+                        let workspace = selected.workspace();
+                        let assignment = selected.assignment();
+                        let actor = BenefitConsumptionActor {
+                            user_id: current.user_id().clone(),
+                            assignment_id: assignment.id.clone(),
+                            company_id: workspace.company_id.clone(),
+                            branch_id: workspace.branch_id.clone(),
+                            department_id: workspace.department_id.clone(),
+                            permissions: current.command_iam_metadata().permissions.clone(),
+                            modules: current.modules().to_vec(),
+                            expires_at: current.expires_at(),
+                        };
+                        let key = erpx_server_shared::public::CommandKey::new(idempotency_key)?;
+                        lock_learning_benefit_sources(connection).await?;
+                        let mut repository = PgLearning::new(connection);
+                        let data = consume_benefit(
+                            &mut repository,
+                            &actor,
+                            &key,
+                            &command_input,
+                            now.get(),
+                        )
+                        .await?;
+                        Ok(LearningHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
 }
 
 pub struct LearningBackend<C> {
@@ -391,6 +469,21 @@ impl<C: Clock + Send + Sync + 'static> LearningHttpBackend for LearningBackend<C
                     .eligibility(request.host, proof, move || Ok(selection), query)
                     .await
                     .map_err(business),
+                LearningHttpCommand::ConsumeBenefit {
+                    input,
+                    idempotency_key,
+                } => {
+                    self.service
+                        .consume_benefit(
+                            request.host,
+                            proof,
+                            move || Ok(selection),
+                            input,
+                            idempotency_key,
+                        )
+                        .await
+                        .map_err(business)
+                }
                 _ => Err(command_unavailable()),
             }
         })
