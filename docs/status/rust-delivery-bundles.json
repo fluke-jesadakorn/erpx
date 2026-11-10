@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 214,
+    "revision": 219,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g1",
       "agentId": "lead",
       "startedAt": "2026-11-10T16:01:48.750Z",
-      "heartbeatAt": "2026-11-10T17:26:50.821Z",
-      "expiresAt": "2026-11-10T17:56:50.821Z",
+      "heartbeatAt": "2026-11-10T17:33:14.421Z",
+      "expiresAt": "2026-11-10T18:03:14.421Z",
       "generation": 2,
       "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
     },
@@ -9923,7 +9923,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Native access/position-move contracts are frozen and tested; bind after migrate.organization.position_moves_apply lands and lead mounts the routers",
+        "nextAction": "Mounts are committed (access + position-move routers). Next: switch the People catch-all/Admin technology consumers to the native access read, schedule drain_due_position_moves in the native job tick, then retire the TS access adapters and People catch-all branches.",
         "handoff": {
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
@@ -11866,8 +11866,15 @@
         "resources": [
           "owner:projects"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-10T17:27:02.192Z",
+          "heartbeatAt": "2026-11-10T17:33:14.421Z",
+          "expiresAt": "2026-11-10T18:03:14.421Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -12049,8 +12056,15 @@
         "resources": [
           "owner:benefits"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-a",
+          "claimedAt": "2026-11-10T17:27:02.162Z",
+          "heartbeatAt": "2026-11-10T17:33:14.421Z",
+          "expiresAt": "2026-11-10T18:03:14.421Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -12712,13 +12726,13 @@
         "resources": [
           "owner:manage_erpx"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T17:05:17.831Z",
-          "heartbeatAt": "2026-11-10T17:26:50.821Z",
-          "expiresAt": "2026-11-10T17:56:50.821Z",
+          "heartbeatAt": "2026-11-10T17:33:14.421Z",
+          "expiresAt": "2026-11-10T18:03:14.421Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12727,7 +12741,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the first inventoried manage_erpx packet (migrate.manage_erpx.onboarding_command), run the packet's cargo/suite checks, and report the exact mount request and retired consumers to the lead.",
+        "nextAction": "Lead mounts manage_erpx_onboarding_command_router and switches the workplace onboarding POST to the native client",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-manage-erpx",
@@ -14767,9 +14781,9 @@
       "totalPackets": 49,
       "migratedPackets": 4,
       "statusCounts": {
-        "pending": 42,
-        "in_progress": 1,
-        "ready_for_integration": 0,
+        "pending": 40,
+        "in_progress": 2,
+        "ready_for_integration": 1,
         "integrating": 0,
         "migrated": 4,
         "blocked": 2,
@@ -14778,7 +14792,7 @@
       }
     },
     "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T17:26:50.821Z",
+    "updatedAt": "2026-11-10T17:33:14.422Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
