@@ -26,6 +26,7 @@ erpx-server-operations.workspace = true
 erpx-server-maintenance.workspace = true
 erpx-server-quality.workspace = true
 erpx-server-learning.workspace = true
+erpx-server-marketing.workspace = true
 sqlx.workspace=true
 sha2.workspace=true
 [dev-dependencies]

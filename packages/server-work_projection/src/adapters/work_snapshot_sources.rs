@@ -9,6 +9,7 @@ use erpx_server_collaboration::public::collaboration_work::ActionWork;
 use erpx_server_field_service::public::work::FieldServiceWorkItem;
 use erpx_server_learning::public::learning::AssignmentRow;
 use erpx_server_maintenance::public::read::{MaintenancePlanRow, MaintenanceWorkRow};
+use erpx_server_marketing::public::lead_candidate::MarketingLeadCandidateRow;
 use erpx_server_operations::public::field_exceptions::ExceptionWork;
 use erpx_server_quality::public::quality_read::{HoldStatus, InspectionResult, QualityHold};
 use erpx_server_support::public::incident::IncidentWorkItem;
@@ -512,6 +513,38 @@ pub fn learning_assignment_items(
         .collect()
 }
 
+/// Mirrors `marketingWorkItems`: a creator waits for another reviewer and a
+/// non-creator receives the actionable consent/handoff review.
+pub fn marketing_candidate_items(
+    rows: &[MarketingLeadCandidateRow],
+    actor_user_id: &str,
+) -> Vec<WorkItemFact> {
+    rows.iter()
+        .map(|row| {
+            let own = row.created_by == actor_user_id;
+            WorkItemFact {
+                id: format!("marketing_candidate:{}", row.id),
+                kind: "marketing_candidate".into(),
+                queue: if own {
+                    WorkQueue::Waiting
+                } else {
+                    WorkQueue::Todo
+                },
+                can_act: Some(!own),
+                action_kind: None,
+                relationships: vec![if own {
+                    "requested".to_owned()
+                } else {
+                    "approval".to_owned()
+                }],
+                updated_at: row.updated_at,
+                source_id: Some(row.id.clone()),
+                href: format!("/marketing/{}", row.id),
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -782,6 +815,45 @@ mod tests {
             learner_name: None,
             learner_eligible,
         }
+    }
+
+    fn marketing_candidate(
+        created_by: &str,
+    ) -> erpx_server_marketing::public::lead_candidate::MarketingLeadCandidateRow {
+        erpx_server_marketing::public::lead_candidate::MarketingLeadCandidateRow {
+            id: "candidate-1".into(),
+            company_id: "company".into(),
+            branch_id: "branch".into(),
+            department_id: None,
+            form_id: "form".into(),
+            form_version: 1,
+            form_name: "Contact".into(),
+            contact_name: "Fictional contact".into(),
+            contact_detail: "contact@example.test".into(),
+            consent_evidence: "Consent recorded".into(),
+            attribution_json: "{}".into(),
+            brief: "Review consent".into(),
+            status: "pending".into(),
+            crm_lead_id: None,
+            created_by: created_by.into(),
+            reviewed_by: None,
+            version: 1,
+            created_at: 1,
+            updated_at: 9,
+        }
+    }
+
+    #[test]
+    fn marketing_candidates_separate_creator_from_reviewer() {
+        let own = marketing_candidate_items(&[marketing_candidate("creator")], "creator");
+        assert_eq!(own[0].id, "marketing_candidate:candidate-1");
+        assert_eq!(own[0].queue, WorkQueue::Waiting);
+        assert_eq!(own[0].can_act, Some(false));
+        assert_eq!(own[0].relationships, ["requested"]);
+        let reviewer = marketing_candidate_items(&[marketing_candidate("creator")], "reviewer");
+        assert_eq!(reviewer[0].queue, WorkQueue::Todo);
+        assert_eq!(reviewer[0].can_act, Some(true));
+        assert_eq!(reviewer[0].relationships, ["approval"]);
     }
 
     #[test]
