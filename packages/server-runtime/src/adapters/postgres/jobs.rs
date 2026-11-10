@@ -145,3 +145,39 @@ pub async fn fail(
     .rows_affected()
         == 1)
 }
+
+/// Requeue exactly one dead-lettered event under a static owner predicate.
+///
+/// The caller must write its audit/receipt in the same unit. A different
+/// `dead_letter_at`, a processed event or an event outside the predicate is
+/// never requeued.
+pub async fn requeue_dead_letter(
+    connection: &mut PgConnection,
+    owned: &str,
+    id: &str,
+    dead_letter_at: i64,
+    now: i64,
+) -> Result<bool, sqlx::Error> {
+    if owned.trim().is_empty()
+        || owned.len() > 16 * 1024
+        || id.is_empty()
+        || id.len() > 180
+        || !(0..=9_007_199_254_740_991).contains(&dead_letter_at)
+        || !(0..=9_007_199_254_740_991).contains(&now)
+    {
+        return Err(invalid("INVALID_NATIVE_JOB_REQUEUE"));
+    }
+    Ok(sqlx::query(AssertSqlSafe(format!(
+        "WITH runtime_owner AS MATERIALIZED (SELECT set_config('erpx.outbox_runtime','native-rust',true)) \
+         UPDATE outbox_events e SET dead_letter_at=NULL,next_attempt_at=$1,attempts=0,\
+         claim_until=NULL,lease_token=NULL,last_error=NULL FROM runtime_owner \
+         WHERE e.id=$2 AND e.dead_letter_at=$3 AND e.processed_at IS NULL AND ({owned})"
+    )))
+    .bind(now)
+    .bind(id)
+    .bind(dead_letter_at)
+    .execute(connection)
+    .await?
+    .rows_affected()
+        == 1)
+}

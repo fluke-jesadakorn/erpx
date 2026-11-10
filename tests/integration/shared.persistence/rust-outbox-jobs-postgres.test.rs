@@ -7,7 +7,7 @@ mod fixture;
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, OutboxJob, OutboxJobHandler, PgTransactionError, WorkerFuture,
     WorkerSupervisor, WorkerTarget, claim, complete, fail, load_migrations, migrate_database,
-    renew, worker_failure,
+    renew, requeue_dead_letter, worker_failure,
 };
 use erpx_server_shared::public::BusinessError;
 use sqlx::PgPool;
@@ -349,4 +349,62 @@ async fn rejects_empty_targets_and_owner_predicates() {
         )
         .is_err()
     );
+}
+
+#[tokio::test]
+async fn requeues_only_the_exact_owned_dead_letter() {
+    fixture::with_database(1, |pool| async move {
+        setup(&pool).await;
+        sqlx::raw_sql(
+            "WITH runtime_owner AS MATERIALIZED (SELECT set_config('erpx.outbox_runtime','native-rust',true))              UPDATE outbox_events SET dead_letter_at=500,attempts=6,last_error='DEAD' FROM runtime_owner WHERE id='dead-1'",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let mut c = pool.raw().acquire().await.unwrap();
+        assert!(!requeue_dead_letter(
+            &mut c,
+            "e.event_type='billing.invoice.issue'",
+            "dead-1",
+            500,
+            NOW,
+        )
+        .await
+        .unwrap());
+        assert!(!requeue_dead_letter(
+            &mut c,
+            "e.event_type LIKE 'field.order.%'",
+            "dead-1",
+            499,
+            NOW,
+        )
+        .await
+        .unwrap());
+        assert!(requeue_dead_letter(
+            &mut c,
+            "e.event_type LIKE 'field.order.%'",
+            "dead-1",
+            500,
+            NOW,
+        )
+        .await
+        .unwrap());
+        let state: (Option<i64>, i64, Option<i64>, Option<String>, i64) = sqlx::query_as(
+            "SELECT dead_letter_at,attempts,processed_at,last_error,next_attempt_at FROM outbox_events WHERE id='dead-1'",
+        )
+        .fetch_one(&mut *c)
+        .await
+        .unwrap();
+        assert_eq!(state, (None, 0, None, None, NOW));
+        assert!(!requeue_dead_letter(
+            &mut c,
+            "e.event_type LIKE 'field.order.%'",
+            "dead-1",
+            500,
+            NOW,
+        )
+        .await
+        .unwrap());
+    })
+    .await;
 }
