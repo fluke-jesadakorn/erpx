@@ -11,3 +11,4 @@ pub mod target_rollout;
 pub mod workspace;
 pub mod target_rollout_http;
 pub mod target_provider_http;
+pub mod retry_job;

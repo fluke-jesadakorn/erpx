@@ -2646,3 +2646,149 @@ fn approve_target_rollout_uses_completed_shadow_months_storage_cap_and_records_a
         assert_eq!(receipts, 1);
     });
 }
+
+#[test]
+fn retry_requeues_exactly_one_owned_job_or_legacy_event_and_replays_receipt() {
+    with_database(|pool| async move {
+        setup(&pool).await;
+        use erpx_server_billing::public::retry_job::{RetryJob, execute_retry_job};
+        let owner = |holding: &str| BillingActor {
+            user_id: UserId::new("owner").unwrap(),
+            assignment_id: AssignmentId::new("assignment").unwrap(),
+            holding_id: Some(HoldingId::new(holding).unwrap()),
+            platform: false,
+            role: "holding_owner".into(),
+            expires_at: None,
+        };
+        let retry = |command_key: &str, job_id: &str| RetryJob {
+            key: key(command_key),
+            reason: "Retry the reviewed Billing job".into(),
+            job_id: RecordId::new(job_id).unwrap(),
+        };
+        async fn run(
+            pool: &DatabasePool,
+            actor: &BillingActor,
+            target: &HoldingId,
+            command: &RetryJob,
+        ) -> Result<erpx_server_billing::public::cost::CommandReceipt, PgTransactionError<BusinessError>> {
+            let pool = pool.clone();
+            let actor = actor.clone();
+            let target = target.clone();
+            let command = command.clone();
+            PgUnitOfWork::new(pool)
+                .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                    let actor = actor.clone();
+                    let target = target.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        execute_retry_job(connection, &actor, &target, &command, NOW).await
+                    })
+                })
+                .await
+        }
+        let h001 = HoldingId::new("h001").unwrap();
+        let first = run(&pool, &owner("h001"), &h001, &retry("billing:retry:1", "job-1"))
+            .await
+            .unwrap();
+        assert_eq!(first.result_json, "{\"ok\":true}");
+        assert_eq!(
+            sqlx::query_as::<_, (String, Option<String>)>(
+                "SELECT state,last_error FROM billing_jobs WHERE id='job-1'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            ("pending".into(), None)
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT version::bigint FROM billing_accounts WHERE holding_id='h001'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            5
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT count(*) FROM billing_audit")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            3
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT count(*) FROM billing_receipts")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            1
+        );
+        let replay = run(&pool, &owner("h001"), &h001, &retry("billing:retry:1", "job-1"))
+            .await
+            .unwrap();
+        assert_eq!(replay, first);
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT version::bigint FROM billing_accounts WHERE holding_id='h001'",
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            5
+        );
+        let foreign = run(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &retry("billing:retry:foreign", "job-foreign"),
+        )
+        .await
+        .err()
+        .expect("foreign job is not owned by h001");
+        assert_eq!(business(foreign).code, "JOB_MISSING");
+        sqlx::query("UPDATE billing_jobs SET last_error='IDEMPOTENCY_WINDOW_EXPIRED' WHERE id='job-1'")
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        let ambiguous = run(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &retry("billing:retry:ambiguous", "job-1"),
+        )
+        .await
+        .err()
+        .expect("ambiguous Stripe job must not be retried");
+        assert_eq!(business(ambiguous).code, "MANUAL_RECONCILIATION_REQUIRED");
+        sqlx::query("UPDATE billing_jobs SET last_error=NULL WHERE id='job-1'")
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        let legacy = run(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &retry("billing:retry:inbox", "inbox-1"),
+        )
+        .await
+        .unwrap();
+        assert_eq!(legacy.result_json, "{\"ok\":true}");
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT next_at FROM stripe_inbox WHERE id='inbox-1'")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            NOW.get()
+        );
+        let foreign_event = run(
+            &pool,
+            &owner("h001"),
+            &h001,
+            &retry("billing:retry:inbox-foreign", "inbox-foreign"),
+        )
+        .await
+        .err()
+        .expect("foreign inbox event is not owned by h001");
+        assert_eq!(business(foreign_event).code, "JOB_MISSING");
+    });
+}
