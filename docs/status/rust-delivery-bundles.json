@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 219,
+    "revision": 223,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g1",
       "agentId": "lead",
       "startedAt": "2026-11-10T16:01:48.750Z",
-      "heartbeatAt": "2026-11-10T17:33:14.421Z",
-      "expiresAt": "2026-11-10T18:03:14.421Z",
+      "heartbeatAt": "2026-11-10T17:47:57.833Z",
+      "expiresAt": "2026-11-10T18:17:57.833Z",
       "generation": 2,
       "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
     },
@@ -10201,8 +10201,15 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-10T17:47:32.605Z",
+          "heartbeatAt": "2026-11-10T17:47:57.833Z",
+          "expiresAt": "2026-11-10T18:17:57.833Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -11316,8 +11323,15 @@
         "resources": [
           "owner:legal"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "claimedAt": "2026-11-10T17:47:32.634Z",
+          "heartbeatAt": "2026-11-10T17:47:57.833Z",
+          "expiresAt": "2026-11-10T18:17:57.833Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -11866,13 +11880,13 @@
         "resources": [
           "owner:projects"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T17:27:02.192Z",
-          "heartbeatAt": "2026-11-10T17:33:14.421Z",
-          "expiresAt": "2026-11-10T18:03:14.421Z",
+          "heartbeatAt": "2026-11-10T17:47:57.833Z",
+          "expiresAt": "2026-11-10T18:17:57.833Z",
           "generation": 2
         },
         "baseSha": null,
@@ -11881,7 +11895,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the first inventoried projects packet (migrate.projects.structure_handoff_commands), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead.",
+        "nextAction": "Lead mounts project_structure_router/project_actuals_router and the Files attachment port, then retires the TS project command path",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-projects",
@@ -12061,8 +12075,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:27:02.162Z",
-          "heartbeatAt": "2026-11-10T17:33:14.421Z",
-          "expiresAt": "2026-11-10T18:03:14.421Z",
+          "heartbeatAt": "2026-11-10T17:47:57.833Z",
+          "expiresAt": "2026-11-10T18:17:57.833Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12731,8 +12745,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T17:05:17.831Z",
-          "heartbeatAt": "2026-11-10T17:33:14.421Z",
-          "expiresAt": "2026-11-10T18:03:14.421Z",
+          "heartbeatAt": "2026-11-10T17:47:57.833Z",
+          "expiresAt": "2026-11-10T18:17:57.833Z",
           "generation": 2
         },
         "baseSha": null,
@@ -14781,9 +14795,9 @@
       "totalPackets": 49,
       "migratedPackets": 4,
       "statusCounts": {
-        "pending": 40,
-        "in_progress": 2,
-        "ready_for_integration": 1,
+        "pending": 38,
+        "in_progress": 3,
+        "ready_for_integration": 2,
         "integrating": 0,
         "migrated": 4,
         "blocked": 2,
@@ -14792,7 +14806,7 @@
       }
     },
     "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T17:33:14.422Z",
+    "updatedAt": "2026-11-10T17:47:57.833Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
