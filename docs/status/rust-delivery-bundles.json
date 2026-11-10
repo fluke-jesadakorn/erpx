@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 250,
+    "revision": 252,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g1",
       "agentId": "lead",
       "startedAt": "2026-11-10T16:01:48.750Z",
-      "heartbeatAt": "2026-11-10T19:02:31.022Z",
-      "expiresAt": "2026-11-10T19:32:31.022Z",
+      "heartbeatAt": "2026-11-10T19:16:12.611Z",
+      "expiresAt": "2026-11-10T19:46:12.611Z",
       "generation": 2,
       "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
     },
@@ -10344,8 +10344,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T18:08:37.873Z",
-          "heartbeatAt": "2026-11-10T19:02:31.022Z",
-          "expiresAt": "2026-11-10T19:32:31.022Z",
+          "heartbeatAt": "2026-11-10T19:16:12.611Z",
+          "expiresAt": "2026-11-10T19:46:12.611Z",
           "generation": 2
         },
         "baseSha": null,
@@ -10354,7 +10354,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Owner HTTP ingress committed (d3b9f591a): mount TicketPortalHttpBackend, ServiceTeamHttpBackend and SupportAuxiliaryHttpBackend in src/composition, then switch Portal/Sales/Collaboration consumers and retire TS writers",
+        "nextAction": "Production PgTicketPortal/PgServiceTeams/PgSupportAuxiliaryReads committed (847efdbbf). Lead: implement the three composition backends over the existing Account proof/HoldingWorkAuthorizer pattern (support_read_http.rs), mount routers, then switch Portal/Sales/Collaboration consumers",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-support",
@@ -11950,8 +11950,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T17:27:02.192Z",
-          "heartbeatAt": "2026-11-10T19:02:31.022Z",
-          "expiresAt": "2026-11-10T19:32:31.022Z",
+          "heartbeatAt": "2026-11-10T19:16:12.611Z",
+          "expiresAt": "2026-11-10T19:46:12.611Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12140,8 +12140,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:27:02.162Z",
-          "heartbeatAt": "2026-11-10T19:02:31.022Z",
-          "expiresAt": "2026-11-10T19:32:31.022Z",
+          "heartbeatAt": "2026-11-10T19:16:12.611Z",
+          "expiresAt": "2026-11-10T19:46:12.611Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12238,8 +12238,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:53:28.777Z",
-          "heartbeatAt": "2026-11-10T19:02:31.022Z",
-          "expiresAt": "2026-11-10T19:32:31.022Z",
+          "heartbeatAt": "2026-11-10T19:16:12.611Z",
+          "expiresAt": "2026-11-10T19:46:12.611Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12817,8 +12817,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T17:05:17.831Z",
-          "heartbeatAt": "2026-11-10T19:02:31.022Z",
-          "expiresAt": "2026-11-10T19:32:31.022Z",
+          "heartbeatAt": "2026-11-10T19:16:12.611Z",
+          "expiresAt": "2026-11-10T19:46:12.611Z",
           "generation": 2
         },
         "baseSha": null,
@@ -14920,7 +14920,7 @@
       }
     },
     "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T19:02:31.023Z",
+    "updatedAt": "2026-11-10T19:16:12.612Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
