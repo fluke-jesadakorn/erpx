@@ -1,11 +1,22 @@
 //! Native Talent owner.
 //!
-//! The qualified slice is the requisition lifecycle: a branch-scoped draft
-//! requisition command, independent approve/reject, open/close/cancel
-//! transitions, and bounded workspace/detail reads over the existing Talent
-//! requisition tables. Candidate, application, interview, proposal, offer,
-//! hire handoff, privacy, attachment and package-obligation workflows remain in
-//! the retained TypeScript owner until their native slices are implemented.
+//! Qualified native slices:
+//!
+//! - requisition draft/approve/reject/open/close/cancel plus workspace/detail;
+//! - candidate creation with consent/retention evidence and privacy
+//!   hold/release/withdraw/erase plus the privacy workspace read;
+//! - application interview/select/reject/withdraw/reassign and proposal
+//!   submission/accept/reject with pinned requisition/candidate versions and
+//!   owner eligibility;
+//! - offer draft/approve/send/accept/decline/withdraw with the
+//!   monthly-compensation Money snapshot port and the accepted-offer hire
+//!   handoff contract consumed by People intake.
+//!
+//! Interview material, attachments, package obligations, the talent workspace
+//! merge, offer documents and the People hire intake itself remain with their
+//! current owners. The Finance Money snapshot producer is not public yet, so
+//! offer creation fails closed with
+//! `TALENT_OFFER_MONEY_SNAPSHOT_UNAVAILABLE` until it is composed.
 mod adapters;
 mod application;
 mod domain;

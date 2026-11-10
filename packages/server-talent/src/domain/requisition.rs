@@ -97,7 +97,7 @@ impl TalentActor {
         self.permissions.iter().any(|value| value == permission)
     }
 
-    fn require_context(&self, now: i64) -> Result<(), BusinessError> {
+    pub fn require_context(&self, now: i64) -> Result<(), BusinessError> {
         if now >= self.expires_at {
             return Err(BusinessError::new(
                 FailureKind::Conflict,
@@ -282,7 +282,7 @@ fn valid_text(value: &str, max: usize) -> bool {
     chars_len(value) <= max && !value.chars().any(char::is_control)
 }
 
-fn valid_date(value: &str) -> bool {
+pub(crate) fn valid_date(value: &str) -> bool {
     let bytes = value.as_bytes();
     if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-' {
         return false;
@@ -509,15 +509,7 @@ impl RequisitionReceipt {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ReceiptSnapshot {
-    pub request_hash: String,
-    pub result_json: String,
-    pub operation: String,
-    pub actor_id: String,
-    pub record_id: String,
-    pub authority_json: String,
-}
+pub use super::receipt::ReceiptSnapshot;
 
 pub fn requisition_id(key: &str) -> String {
     format!("talent-req-{key}")

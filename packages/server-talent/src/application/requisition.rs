@@ -5,8 +5,9 @@
 use crate::domain::requisition::{
     ChangePlan, CreatePlan, MAX_EVENT_ROWS, MAX_WORKSPACE_ROWS, ReceiptSnapshot, RequisitionChange,
     RequisitionEventRow, RequisitionReceipt, RequisitionRequest, RequisitionRow, TalentActor,
-    access_changed, change_identity, change_plan, create_identity, create_plan, js_trim,
-    idempotency_conflict, readback_invalid, requisition_not_found, source_invalid, utf16_len,
+    access_changed, change_identity, change_plan, create_identity, create_plan,
+    idempotency_conflict, js_trim, readback_invalid, requisition_not_found, source_invalid,
+    utf16_len,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, RecordId};
 use serde_json::Value;
