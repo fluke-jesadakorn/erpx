@@ -18,6 +18,8 @@ utoipa={workspace=true,optional=true}
 erpx-server-shared.workspace=true
 erpx-server-runtime.workspace=true
 erpx-server-workflow.workspace=true
+erpx-server-field-service.workspace = true
+erpx-server-support.workspace = true
 sqlx.workspace=true
 sha2.workspace=true
 [dev-dependencies]
