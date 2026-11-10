@@ -4914,7 +4914,13 @@ async fn assemble_checked(
                 erpx_server_work_projection::public::work_card_preferences_http::WorkCardPreferencesHttpTarget {
                     host: holding.host.clone(),
                     holding_slug: holding.registration.slug.clone(),
-                    origin: format!("https://{}", holding.host),
+                    origin: config
+                        .policy
+                        .holdings
+                        .iter()
+                        .find(|registered| registered.host == holding.host)
+                        .map(|registered| registered.origin.clone())
+                        .unwrap_or_else(|| format!("https://{}", holding.host)),
                     backend: Arc::new(
                         crate::work_card_preferences::WorkCardPreferencesBackend::new(
                             config.policy.clone(),

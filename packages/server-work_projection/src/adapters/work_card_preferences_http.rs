@@ -102,16 +102,41 @@ fn unique_header<'a>(headers: &'a HeaderMap, name: &str) -> Result<Option<&'a st
 }
 
 fn valid_origin(origin: &str) -> bool {
-    origin.strip_prefix("https://").is_some_and(|rest| {
-        !rest.is_empty()
-            && !rest
-                .bytes()
-                .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'@' | b':'))
-    }) || origin
-        .strip_prefix("http://127.0.0.1:")
-        .is_some_and(|port| {
-            !port.is_empty() && port.len() <= 5 && port.bytes().all(|byte| byte.is_ascii_digit())
+    let Some((scheme, authority)) = origin.split_once("://") else {
+        return false;
+    };
+    if !matches!(scheme, "https" | "http") || authority.is_empty() || authority.len() > 255 {
+        return false;
+    }
+    let (host, port) = match authority.rsplit_once(':') {
+        Some((host, port)) => (host, Some(port)),
+        None => (authority, None),
+    };
+    if host.is_empty()
+        || host.len() > 253
+        || host.starts_with('.')
+        || host.ends_with('.')
+        || !host.split('.').all(|label| {
+            !label.is_empty()
+                && label.len() <= 63
+                && label
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+                && !label.starts_with('-')
+                && !label.ends_with('-')
         })
+    {
+        return false;
+    }
+    match port {
+        None => true,
+        Some(port) => {
+            !port.is_empty()
+                && port.len() <= 5
+                && port.bytes().all(|byte| byte.is_ascii_digit())
+                && port.parse::<u16>().is_ok_and(|value| value > 0)
+        }
+    }
 }
 
 fn source_invalid() -> BusinessError {
