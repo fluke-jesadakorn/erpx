@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 238,
+    "revision": 242,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g1",
       "agentId": "lead",
       "startedAt": "2026-11-10T16:01:48.750Z",
-      "heartbeatAt": "2026-11-10T18:30:01.010Z",
-      "expiresAt": "2026-11-10T19:00:01.010Z",
+      "heartbeatAt": "2026-11-10T18:33:21.626Z",
+      "expiresAt": "2026-11-10T19:03:21.626Z",
       "generation": 2,
       "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
     },
@@ -10344,8 +10344,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T18:08:37.873Z",
-          "heartbeatAt": "2026-11-10T18:30:01.010Z",
-          "expiresAt": "2026-11-10T19:00:01.010Z",
+          "heartbeatAt": "2026-11-10T18:33:21.626Z",
+          "expiresAt": "2026-11-10T19:03:21.626Z",
           "generation": 2
         },
         "baseSha": null,
@@ -11371,8 +11371,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T17:47:32.634Z",
-          "heartbeatAt": "2026-11-10T18:30:01.010Z",
-          "expiresAt": "2026-11-10T19:00:01.010Z",
+          "heartbeatAt": "2026-11-10T18:33:21.626Z",
+          "expiresAt": "2026-11-10T19:03:21.626Z",
           "generation": 2
         },
         "baseSha": null,
@@ -11928,8 +11928,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T17:27:02.192Z",
-          "heartbeatAt": "2026-11-10T18:30:01.010Z",
-          "expiresAt": "2026-11-10T19:00:01.010Z",
+          "heartbeatAt": "2026-11-10T18:33:21.626Z",
+          "expiresAt": "2026-11-10T19:03:21.626Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12118,8 +12118,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:27:02.162Z",
-          "heartbeatAt": "2026-11-10T18:30:01.010Z",
-          "expiresAt": "2026-11-10T19:00:01.010Z",
+          "heartbeatAt": "2026-11-10T18:33:21.626Z",
+          "expiresAt": "2026-11-10T19:03:21.626Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12216,8 +12216,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:53:28.777Z",
-          "heartbeatAt": "2026-11-10T18:30:01.010Z",
-          "expiresAt": "2026-11-10T19:00:01.010Z",
+          "heartbeatAt": "2026-11-10T18:33:21.626Z",
+          "expiresAt": "2026-11-10T19:03:21.626Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12226,7 +12226,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead mounts ConsumeBenefit + command variants in src/composition/src/learning.rs, implements LearningEvidencePort via files, binds the Benefits port and switches the workplace detail continuation",
+        "nextAction": "ConsumeBenefit is mounted. Remaining: Files LearningEvidencePort adapter (task migrate.files.learning-evidence-port is blocked by the external-WIP reservation on server-files paths), Benefits port binding + learning_certificate_id persistence, workplace continuation switch",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-learning",
@@ -12795,8 +12795,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T17:05:17.831Z",
-          "heartbeatAt": "2026-11-10T18:30:01.010Z",
-          "expiresAt": "2026-11-10T19:00:01.010Z",
+          "heartbeatAt": "2026-11-10T18:33:21.626Z",
+          "expiresAt": "2026-11-10T19:03:21.626Z",
           "generation": 2
         },
         "baseSha": null,
@@ -14834,6 +14834,48 @@
         "plannedPackage": "erpx-server-organization",
         "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
+      },
+      {
+        "id": "migrate.files.learning-evidence-port",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "files",
+        "workflowIds": [],
+        "workstream": "S01",
+        "kind": "migration",
+        "title": "Files adapter for the Learning evidence port",
+        "scope": "Implement the Files-owned concrete adapter for erpx_server_learning::public::learning::LearningEvidencePort (prepare/require_current over the same transaction connection) using the existing business-evidence/attachment-set binding, with exact learning assignment/certificate/action/completion|waiver policy. No learning business logic and no storage bytes here.",
+        "dependsOn": [
+          "inventory.files",
+          "ports.common"
+        ],
+        "requiredPorts": [
+          "records"
+        ],
+        "allowedPaths": [
+          "packages/server-files/src/**",
+          "packages/server-files/Cargo.toml",
+          "tests/unit/files/**",
+          "tests/integration/files/**"
+        ],
+        "resources": [
+          "owner:files"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Blocked by external-wip-2026-11-10: server-files paths are reserved dirty WIP. After the holder handoff is reviewed/narrowed, implement the Files LearningEvidencePort adapter against the Learning public trait and report the composition binding.",
+        "handoff": null,
+        "procedureRef": "executionPlan.sliceProcedure",
+        "registeredPackage": "erpx-server-files",
+        "plannedPackage": "erpx-server-files",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       }
     ],
     "migrationProgress": {
@@ -14842,10 +14884,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 49,
+      "totalPackets": 50,
       "migratedPackets": 5,
       "statusCounts": {
-        "pending": 36,
+        "pending": 37,
         "in_progress": 0,
         "ready_for_integration": 6,
         "integrating": 0,
@@ -14856,7 +14898,7 @@
       }
     },
     "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T18:30:01.011Z",
+    "updatedAt": "2026-11-10T18:33:21.626Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
