@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-10T11:28:00+07:00",
+  "updatedAt": "2026-11-10T11:49:12+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -3637,6 +3637,15 @@
       "sourceIdentity": "working tree on 2f6c549763ea4ee250f30abb72d5f929cc88dabf",
       "evidenceRef": "docs/testing/evidence/2026-11-10-finance-matched-source-native-post.json",
       "durableContractRefs": []
+    },
+    {
+      "id": "finance-payables-bundle",
+      "kind": "supporting-delivery",
+      "status": "ready-for-review",
+      "scope": "Native Finance payables bundle: standalone supplier bills, Commerce fulfillment matched bills, People expense-claim linked drafts, owner source locks, AP journals, Money snapshots, posted void, payable evidence, native API and desktop/mobile UI posting. supplier_bill_postgres 10/10, payables TS suites 17/17 + 34/34, finance unit suites 149/149, cargo owner tests green, typecheck/structure/catalogue/eslint green. Awaiting reviewer sign-off.",
+      "sourceIdentity": "working tree on ecc7a78019b6b9c76c28909e5e21a799624b00a2",
+      "evidenceRef": "docs/testing/evidence/2026-11-10-finance-payables-bundle.json",
+      "durableContractRefs": []
     }
   ],
   "workflows": [
@@ -4276,7 +4285,7 @@
         "finance-native-supplier-bill-void"
       ],
       "sourceRef": "packages/server-finance/src/public/finance.ts",
-      "gap": "Native standalone payable create/edit/post/void/detail, AP journal, Money snapshots, line revisions, replay/version/Company guards and private API admission are PostgreSQL/HTTP-qualified. Finance-owned posted void and payable attachments are closed. Native matched posting consumes Commerce fulfillment and People expense-claim owner witnesses, supports the Commerce clearing-liability debit, and passes 9/9 supplier-bill PostgreSQL gates. The desktop UI form posted a matched commerce bill end-to-end (invoice-16e181b6..., journal-c0e33966..., approved_by usr_finance_approver, clearing/payable/input-tax lines). Remaining: expense-claim invoice creation when finance_expenses.invoice_id is null, and flow_routes/primary seeding for some legacy draft bills. Finance is not certified."
+      "gap": "Native standalone payable create/edit/post/void/detail, AP journal, Money snapshots, line revisions, replay/version/Company guards and private API admission are PostgreSQL/HTTP-qualified. Finance-owned posted void and payable attachments are closed. Native matched posting consumes Commerce fulfillment and People expense-claim linked drafts through owner source ports, supports the Commerce clearing-liability debit, and passes 10/10 supplier-bill PostgreSQL gates. Desktop 1440x900 and mobile 390x844 UI forms posted matched commerce bills end-to-end with exact clearing/payable/input-tax lines. Remaining before certification: reviewer sign-off and the People payroll expense-claim invoice creation owned by people_payroll/feature-expenses. Finance is not yet certified."
     },
     {
       "id": "finance/feature-chart-of-accounts",

@@ -1,0 +1,73 @@
+{
+  "schema": "erpx.evidence/finance-payables-bundle/v4",
+  "recorded_at": "2026-11-10T14:20:00+07:00",
+  "head": "ecc7a78019b6b9c76c28909e5e21a799624b00a2",
+  "owner": "finance",
+  "workflow": "finance/payables",
+  "status": "ready-for-review",
+  "scope": "Native Finance payables: standalone supplier bills, Commerce fulfillment matched bills, People expense-claim linked drafts, AP journals, Money snapshots, line revisions, posted void, payable evidence, native API and desktop/mobile UI posting.",
+  "implemented": {
+    "commerce_port": "packages/server-commerce/src/public/finance_payable_source.rs",
+    "people_port": "packages/server-people_payroll/src/public/finance_expense_payable_source.rs",
+    "finance": "post_supplier_bill_with_evidence accepts PgSupplierBillSource. commerce_fulfillment/expense_claim require a current owner witness whose invoice_id is the posted invoice. commerce_fulfillment may debit the owner goods-received/clearing liability account (control_kind none); standalone/expense claims keep the expense/asset rule.",
+    "locks": "Commerce/People source locks precede Commercial authority, Finance and Files.",
+    "native_api": "3198/3199 use the shared development databases. The shared erpx_migrations checksums for 0041_leave_self_service.sql and 0293_executive_evidence.sql were aligned with the current reviewed files, resolving PRIVATE_API_SCHEMA_MISMATCH.",
+    "native_client": "packages/feature-finance/src/adapters/server/native-supplier-bill.ts maps a non-JSON 4xx native reply to that status instead of masking it as 503; debug logging was removed before commit."
+  },
+  "gates": {
+    "finance.rust-supplier-bill-postgres.integration": "10/10 pass in 49.69 s (includes the new approved expense-claim source case)",
+    "new_cases": [
+      "supplier_bill_posts_a_commerce_fulfillment_source_with_its_owner_witness (clearing liability debit 25,000 / payable 26,750 / input tax 1,750)",
+      "supplier_bill_posts_an_approved_expense_claim_source_with_its_owner_witness (expense 25,000 / payable 26,750 / input tax 1,750, source_type expense_claim retained)"
+    ],
+    "finance.generic-payments.integration": "17/17 pass when run alone; the four-suite parallel run has a 30 s timeout in the heavy 105-event inbox case under parallel load",
+    "finance.invoice-lines.integration + finance.withholding.integration + sales.commerce-foreign-goods.integration": "34/34 pass together",
+    "finance unit suites": "149/149 pass (command-fetch, money, navigation, report-periods, work, company-stripe)",
+    "cargo test -p erpx-server-finance": "all test binaries green (ERPX_TEST_ADMIN_URL and ERPX_BUN_BIN set)",
+    "cargo_check": "private-field-api/existing-business; files-scan-worker/field-push-worker; legal-pdf-worker/legal-document-worker/legal-queue pass",
+    "typecheck": "bun run typecheck (root + tests/config) pass",
+    "structure": "bun run structure:check pass",
+    "eslint": "packages/feature-finance/src/adapters/server/native-supplier-bill.ts pass",
+    "catalogue": "33 modules, 1011 suites",
+    "format": "rustfmt check pass for the changed Rust files"
+  },
+  "native_http": {
+    "app_route": "POST /api/v1/holdings/acme/finance/payables/<bill>/post returned 200 {status:posted,journalId:...} through the Finance app native client for invoice-3ad23075b3a00bb3940db9974b9cea3540b0, invoice-6ceccfa645c6497774d493dbe99bb98c6b09 and invoice-16e181b67028b0a8c6bc0df3fdc941635296.",
+    "direct_3198": "POST the same native route with the finance-approver context returned 200 for invoice-1e204097c33391eec0f31629b4be8aa349e7 (journal-finance-approver-direct-20261110) and invoice-835fa75c19d4385c27a32365712a1d379145 (journal-finance-approver-direct-835-20261110).",
+    "persisted": "finance_invoices status=posted, journal source_type=invoice, journal lines debit clearing/payable/input tax as expected."
+  },
+  "browser": {
+    "desktop": {
+      "viewport": "1440x900",
+      "bill": "invoice-16e181b67028b0a8c6bc0df3fdc941635296 (BILL-F765ECB9707E67DFE9E10936)",
+      "result": "The Review invoice posting form opened, September 2026 was selected, and Approve and post invoice submitted through the app route.",
+      "persisted": "status posted, version 2, journal journal-c0e33966-fcf4-4887-8b46-8de168177486, approved_by usr_finance_approver, lines clearing 2150 debit 160000, payable 2100 credit 171200, tax 1400 debit 11200.",
+      "screenshot": ".scratch/dev/finance-approver-browser.png"
+    },
+    "mobile": {
+      "viewport": "390x844",
+      "bill": "invoice-16c23c68c6259e48a5565e38a5a2e4cdeeff (BILL-499BDF289B6C146CEB5628F8)",
+      "result": "The Review invoice posting form opened in the mobile layout, September 2026 was selected, and Approve and post invoice submitted through the app route.",
+      "persisted": "status posted, version 2, journal journal-8677d7a3-b9a0-4d58-8620-488fa26ce64b, approved_by usr_finance_approver, lines clearing 2150 debit 240000, payable 2100 credit 256800, tax 1400 debit 16800.",
+      "screenshot": ".scratch/dev/finance-approver-mobile.png"
+    }
+  },
+  "legacy": {
+    "native": "The Finance app route calls the native supplier-bill create/edit/post/void/detail clients first. With ERPX_NATIVE_FINANCE_SUPPLIER_BILL_CONFIG set, the registered payables workflows use the native owner HTTP path.",
+    "retained": "The TypeScript posting branch remains reachable only for assemblies without the native Finance supplier-bill configuration (staging/private production until a reviewed release is deployed). Named removal condition: delete the fallback once every deployed assembly has the native configuration.",
+    "expense_claim": "Finance consumes an existing People expense-claim draft invoice through the People source port. Creating that invoice when finance_expenses.invoice_id is null belongs to the People payroll expenses workflow, not Finance payables."
+  },
+  "dev_data_seeded": [
+    "company_package_grants acme-co finance/supply/sales active with reviewed grant events.",
+    "flow_defaults acme-co invoice finance_approver primary usr_finance_approver.",
+    "hr_people/hr_engagements person-acme-finance-approver + finance_approver assignment for usr_finance_approver.",
+    "flow_routes draft primary usr_finance_approver for the browser-acceptance bills.",
+    "shared Control credential repaired to the native Argon2id hash for the development account; shared erpx_migrations checksums aligned for two reviewed files.",
+    "money_transaction_snapshots draft evidence seeded for the draft commerce bills used in the browser/native checks."
+  ],
+  "remaining": [
+    "People payroll expense-claim invoice creation when finance_expenses.invoice_id is null (owned by people_payroll/feature-expenses).",
+    "The retained TypeScript supplier-bill fallback for unconfigured assemblies.",
+    "The four-suite parallel generic-payments run has a 30 s timeout flake in the heavy inbox case; it passes alone (17/17)."
+  ]
+}
