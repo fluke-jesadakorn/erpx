@@ -52,16 +52,17 @@
   ],
   "browser": {
     "attempted": [
-      "https://acme.jesadakorn.com/finance/documents/payable",
-      "https://acme.jesadakorn.com/finance/documents/invoices/invoice-42f999a1faa48f2fb5a1583829ffaa4b5952",
-      "https://acme.jesadakorn.com/bangkok/accounting/finance/documents/invoices/invoice-42f999a1faa48f2fb5a1583829ffaa4b5952"
+      "https://acme.jesadakorn.com/launch?companyId=acme-co&app=finance&next=%2Fholdings%2Facme%2Ffinance%2Fdocuments",
+      "https://acme.jesadakorn.com/finance/documents/invoices/invoice-42f999a1faa48f2fb5a1583829ffaa4b5952?company=acme-co",
+      "https://acme.jesadakorn.com/choose-work-role?companyId=acme-co&next=%2Fholdings%2Facme%2Ffinance%2Fdocuments%2Finvoices%2Finvoice-42f999a1faa48f2fb5a1583829ffaa4b5952"
     ],
     "result": "blocked",
-    "detail": "The company-level Finance launch lands on the product-entry workspace chooser (/finance?company=acme-co) instead of the company Finance workspace, so the invoice detail and the new posted-void form are not reachable. The Bangkok Accounting department path renders a workspace but returns 403 for the company-level posted bill. This is a development Finance workspace-routing limitation, not the posted-void API; the service/HTTP gates above pass. No browser acceptance is claimed."
+    "detail": "The launch succeeds (303 to /finance?company=acme-co, erpx_company_h001 and erpx_last_workspace set). A company Finance record URL requires the explicit ?company=acme-co query; without it holding-proxy rewrites the page to /product-entry. With the query, the invoice detail returns 403 with 'The original queued Work context changed' from the finance-product-presentation work-context assertion. The choose-work-role page for the same next path returns 'No current role and package can open this page.' The available development account therefore lacks a Finance role/package that can open this company-level invoice. No browser acceptance is claimed; granting that role or supplying a Finance-authorized development account is required.",
+    "screenshot": ".scratch/dev/finance-invoice-posted.png"
   },
   "remaining": [
     "Matched supplier bills (Procurement/Commerce) and expense claims (People Payroll) still keep their own owners; Finance does not write those sources.",
-    "The Finance company workspace browser route must be repaired before the payables browser journey can be verified.",
+    "The available development account has no Finance role/package that can open the company-level invoice detail; the chooser reports no current role and package. A Finance-authorized development account or a reviewed role grant is required before the payables browser journey can be verified.",
     "Finance remains partial at 9/10 workflows and is not owner 6/41."
   ],
   "notes": [
