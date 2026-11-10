@@ -5,10 +5,19 @@
 mod fixture;
 
 use erpx_server_runtime::public::postgres::{
-    DatabasePool, MigrationTrack, claim, complete, fail, load_migrations, migrate_database, renew,
+    DatabasePool, MigrationTrack, OutboxJob, OutboxJobHandler, PgTransactionError, WorkerFuture,
+    WorkerSupervisor, WorkerTarget, claim, complete, fail, load_migrations, migrate_database,
+    renew, worker_failure,
+};
+use erpx_server_shared::public::BusinessError;
+use sqlx::PgPool;
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
 };
 
 const OWNED: &str = "e.event_type LIKE 'field.order.%'";
+const NOW: i64 = 1_800_000_000_000;
 
 async fn setup(pool: &DatabasePool) {
     let files = load_migrations(
@@ -165,4 +174,179 @@ async fn static_owner_predicate_is_required_and_the_native_fence_stays_closed() 
         );
     })
     .await;
+}
+
+struct Handler {
+    seen: Arc<Mutex<Vec<String>>>,
+    fail: bool,
+}
+impl OutboxJobHandler for Handler {
+    fn handle<'a>(&'a self, _: &'a PgPool, job: &'a OutboxJob, _: i64) -> WorkerFuture<'a> {
+        Box::pin(async move {
+            self.seen.lock().unwrap().push(job.id.clone());
+            if self.fail {
+                Err(worker_failure("SYNTHETIC_WORKER_FAILURE"))
+            } else {
+                Ok(())
+            }
+        })
+    }
+}
+
+async fn migrate(pool: &DatabasePool) {
+    let files = load_migrations(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"),
+        MigrationTrack::HoldingWrite,
+    )
+    .await
+    .unwrap();
+    migrate_database(pool, MigrationTrack::HoldingWrite, &files)
+        .await
+        .unwrap();
+}
+
+async fn seed(pool: &DatabasePool, id: &str, event_type: &str, attempts: i64) {
+    sqlx::query(
+        "INSERT INTO outbox_events(id,command_id,event_type,aggregate_type,aggregate_id,aggregate_version,payload_json,created_at,attempts,next_attempt_at) \
+         VALUES($1,$2,$3,'synthetic','aggregate',1,'{}',0,$4,0)",
+    )
+    .bind(id)
+    .bind(format!("command-{id}"))
+    .bind(event_type)
+    .bind(attempts)
+    .execute(pool.raw())
+    .await
+    .unwrap();
+}
+
+fn target(name: &str, pool: &DatabasePool, handler: Arc<dyn OutboxJobHandler>) -> WorkerTarget {
+    WorkerTarget {
+        name: name.into(),
+        write: pool.raw().clone(),
+        owned: "event_type='owned'".into(),
+        handler,
+    }
+}
+
+#[tokio::test]
+async fn drains_each_explicit_holding_and_ignores_foreign_events() {
+    fixture::with_database(2, |first| async move {
+        fixture::with_database(2, move |second| async move {
+            migrate(&first).await;
+            migrate(&second).await;
+            seed(&first, "owned-1", "owned", 0).await;
+            seed(&first, "foreign", "foreign", 0).await;
+            seed(&second, "owned-2", "owned", 0).await;
+            let seen = Arc::new(Mutex::new(Vec::<String>::new()));
+            let handler = Arc::new(Handler {
+                seen: seen.clone(),
+                fail: false,
+            });
+            let supervisor = WorkerSupervisor::new(
+                vec![
+                    target("h001", &first, handler.clone()),
+                    target("h002", &second, handler),
+                ],
+                Duration::from_millis(10),
+            )
+            .unwrap();
+            assert_eq!(supervisor.run_once(NOW).await.unwrap(), 2);
+            let mut found = seen.lock().unwrap().clone();
+            found.sort();
+            assert_eq!(found, vec!["owned-1", "owned-2"]);
+            let first_state: (Option<i64>, Option<String>, i64) = sqlx::query_as(
+                "SELECT processed_at,lease_token,attempts FROM outbox_events WHERE id='owned-1'",
+            )
+            .fetch_one(first.raw())
+            .await
+            .unwrap();
+            assert!(first_state.0.is_some_and(|value| value >= NOW));
+            assert_eq!(first_state.1, None);
+            assert_eq!(first_state.2, 1);
+            let foreign: (Option<i64>, i64) = sqlx::query_as(
+                "SELECT processed_at,attempts FROM outbox_events WHERE id='foreign'",
+            )
+            .fetch_one(first.raw())
+            .await
+            .unwrap();
+            assert_eq!(foreign, (None, 0));
+            let second_state: (Option<i64>, i64) = sqlx::query_as(
+                "SELECT processed_at,attempts FROM outbox_events WHERE id='owned-2'",
+            )
+            .fetch_one(second.raw())
+            .await
+            .unwrap();
+            assert!(second_state.0.is_some_and(|value| value >= NOW));
+            assert_eq!(second_state.1, 1);
+        })
+        .await;
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn records_a_failure_and_dead_letters_the_sixth_attempt() {
+    fixture::with_database(2, |pool| async move {
+        migrate(&pool).await;
+        seed(&pool, "failing", "owned", 5).await;
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let handler = Arc::new(Handler {
+            seen,
+            fail: true,
+        });
+        let supervisor = WorkerSupervisor::new(
+            vec![target("h001", &pool, handler)],
+            Duration::from_millis(10),
+        )
+        .unwrap();
+        let result = supervisor.run_once(NOW).await;
+        assert!(matches!(
+            result,
+            Err(PgTransactionError::Business(BusinessError {
+                code: "SYNTHETIC_WORKER_FAILURE",
+                ..
+            }))
+        ));
+        let state: (i64, Option<i64>, Option<i64>, Option<String>, Option<String>) = sqlx::query_as(
+            "SELECT attempts,processed_at,dead_letter_at,last_error,lease_token FROM outbox_events WHERE id='failing'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(state.0, 6);
+        assert_eq!(state.1, None);
+        assert!(state.2.is_some_and(|value| value >= NOW));
+        assert_eq!(state.3.as_deref(), Some("SYNTHETIC_WORKER_FAILURE"));
+        assert_eq!(state.4, None);
+        let next: i64 = sqlx::query_scalar("SELECT next_attempt_at FROM outbox_events WHERE id='failing'")
+            .fetch_one(pool.raw())
+            .await
+            .unwrap();
+        assert!(next > NOW);
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn rejects_empty_targets_and_owner_predicates() {
+    assert!(WorkerSupervisor::new(Vec::new(), Duration::from_millis(1)).is_err());
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .connect_lazy("postgresql://unused")
+        .unwrap();
+    let handler = Arc::new(Handler {
+        seen: Arc::new(Mutex::new(Vec::new())),
+        fail: false,
+    });
+    assert!(
+        WorkerSupervisor::new(
+            vec![WorkerTarget {
+                name: "h001".into(),
+                write: pool,
+                owned: " ".into(),
+                handler,
+            }],
+            Duration::from_millis(1),
+        )
+        .is_err()
+    );
 }

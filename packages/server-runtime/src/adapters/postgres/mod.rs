@@ -5,6 +5,7 @@ pub(crate) mod migrations;
 pub(crate) mod pool;
 pub(crate) mod request_lease;
 pub(crate) mod unit_of_work;
+pub(crate) mod worker;
 
 /// Sanitized persistence failures never contain SQL, parameters, passwords or DSNs.
 #[derive(Clone, Debug, PartialEq, Eq)]
