@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 305,
+    "revision": 307,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g1",
       "agentId": "lead",
       "startedAt": "2026-11-10T16:01:48.750Z",
-      "heartbeatAt": "2026-11-10T21:35:06.128Z",
-      "expiresAt": "2026-11-10T22:05:06.128Z",
+      "heartbeatAt": "2026-11-10T21:37:24.511Z",
+      "expiresAt": "2026-11-10T22:07:24.511Z",
       "generation": 2,
       "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
     },
@@ -10026,8 +10026,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T20:03:18.253Z",
-          "heartbeatAt": "2026-11-10T21:35:06.128Z",
-          "expiresAt": "2026-11-10T22:05:06.128Z",
+          "heartbeatAt": "2026-11-10T21:37:24.511Z",
+          "expiresAt": "2026-11-10T22:07:24.511Z",
           "generation": 2
         },
         "baseSha": null,
@@ -10123,8 +10123,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T21:12:25.795Z",
-          "heartbeatAt": "2026-11-10T21:35:06.128Z",
-          "expiresAt": "2026-11-10T22:05:06.128Z",
+          "heartbeatAt": "2026-11-10T21:37:24.511Z",
+          "expiresAt": "2026-11-10T22:07:24.511Z",
           "generation": 2
         },
         "baseSha": null,
@@ -10133,7 +10133,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Directory page, portal and activity metric owners committed (51d3d4536; 5/8/4 + 2/4/2 suites). Remaining: mount 3 routers (portal needs Files shared-file rows + CustomerPortalEffects), switch Sales customers list + feature-portal routes + executive metric consumer; postgres portal/metric SQL not DB-verified locally (PostgreSQL unreachable)",
+        "nextAction": "Directory and activity-metric routers mounted (20e737d66). Remaining: switch Sales customers list to native /customers, replace commerce executive metric branch with native metric groups, and mount portal only after Files CustomerPortalSharedFiles + CustomerPortalEffects exist",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-customer-360",
@@ -11236,8 +11236,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T20:43:31.284Z",
-          "heartbeatAt": "2026-11-10T21:35:06.128Z",
-          "expiresAt": "2026-11-10T22:05:06.128Z",
+          "heartbeatAt": "2026-11-10T21:37:24.511Z",
+          "expiresAt": "2026-11-10T22:07:24.511Z",
           "generation": 2
         },
         "baseSha": null,
@@ -11676,8 +11676,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T21:12:08.910Z",
-          "heartbeatAt": "2026-11-10T21:35:06.128Z",
-          "expiresAt": "2026-11-10T22:05:06.128Z",
+          "heartbeatAt": "2026-11-10T21:37:24.511Z",
+          "expiresAt": "2026-11-10T22:07:24.511Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12050,8 +12050,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T17:27:02.192Z",
-          "heartbeatAt": "2026-11-10T21:35:06.128Z",
-          "expiresAt": "2026-11-10T22:05:06.128Z",
+          "heartbeatAt": "2026-11-10T21:37:24.511Z",
+          "expiresAt": "2026-11-10T22:07:24.511Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12240,8 +12240,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:27:02.162Z",
-          "heartbeatAt": "2026-11-10T21:35:06.128Z",
-          "expiresAt": "2026-11-10T22:05:06.128Z",
+          "heartbeatAt": "2026-11-10T21:37:24.511Z",
+          "expiresAt": "2026-11-10T22:07:24.511Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12338,8 +12338,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:53:28.777Z",
-          "heartbeatAt": "2026-11-10T21:35:06.128Z",
-          "expiresAt": "2026-11-10T22:05:06.128Z",
+          "heartbeatAt": "2026-11-10T21:37:24.511Z",
+          "expiresAt": "2026-11-10T22:07:24.511Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12917,8 +12917,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T17:05:17.831Z",
-          "heartbeatAt": "2026-11-10T21:35:06.128Z",
-          "expiresAt": "2026-11-10T22:05:06.128Z",
+          "heartbeatAt": "2026-11-10T21:37:24.511Z",
+          "expiresAt": "2026-11-10T22:07:24.511Z",
           "generation": 2
         },
         "baseSha": null,
@@ -14975,8 +14975,8 @@
           "runId": "run-20261110-g1",
           "agentId": "lead",
           "claimedAt": "2026-11-10T19:59:26.353Z",
-          "heartbeatAt": "2026-11-10T21:35:06.128Z",
-          "expiresAt": "2026-11-10T22:05:06.128Z",
+          "heartbeatAt": "2026-11-10T21:37:24.511Z",
+          "expiresAt": "2026-11-10T22:07:24.511Z",
           "generation": 2
         },
         "baseSha": null,
@@ -15129,7 +15129,7 @@
       }
     },
     "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T21:35:06.129Z",
+    "updatedAt": "2026-11-10T21:37:24.512Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
