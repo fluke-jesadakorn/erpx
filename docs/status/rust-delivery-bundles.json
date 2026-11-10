@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 233,
+    "revision": 238,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g1",
       "agentId": "lead",
       "startedAt": "2026-11-10T16:01:48.750Z",
-      "heartbeatAt": "2026-11-10T18:19:18.766Z",
-      "expiresAt": "2026-11-10T18:49:18.766Z",
+      "heartbeatAt": "2026-11-10T18:30:01.010Z",
+      "expiresAt": "2026-11-10T19:00:01.010Z",
       "generation": 2,
       "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
     },
@@ -10201,22 +10201,58 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-10T17:47:32.605Z",
-          "heartbeatAt": "2026-11-10T18:19:18.766Z",
-          "expiresAt": "2026-11-10T18:49:18.766Z",
-          "generation": 2
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "001ad8db6d4a9ec8d8911a1a9f1611b291ac1773",
+        "lastPushedSha": "001ad8db6d4a9ec8d8911a1a9f1611b291ac1773",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-customer-authority --locked",
+            "result": "passed",
+            "sourceSha": "001ad8db6d4a9ec8d8911a1a9f1611b291ac1773",
+            "sourceKind": "committed",
+            "note": "Customer Authority crate compiles with duplicate/identity commands."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business --locked",
+            "result": "passed",
+            "sourceSha": "001ad8db6d4a9ec8d8911a1a9f1611b291ac1773",
+            "sourceKind": "committed",
+            "note": "Both native routers and their composition backends compile."
+          },
+          {
+            "command": "bun run test:unit -- --suite=customer_authority.rust-customer-duplicates.unit",
+            "result": "passed",
+            "sourceSha": "001ad8db6d4a9ec8d8911a1a9f1611b291ac1773",
+            "sourceKind": "committed",
+            "note": "28/28 duplicate-review cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=customer_authority.rust-customer-duplicates-postgres.integration",
+            "result": "passed",
+            "sourceSha": "001ad8db6d4a9ec8d8911a1a9f1611b291ac1773",
+            "sourceKind": "committed",
+            "note": "4/4 PostgreSQL duplicate cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=customer_authority.rust-customer-access.unit",
+            "result": "passed",
+            "sourceSha": "001ad8db6d4a9ec8d8911a1a9f1611b291ac1773",
+            "sourceKind": "committed",
+            "note": "8/8 access cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=customer_authority.rust-customer-access-postgres.integration",
+            "result": "passed",
+            "sourceSha": "001ad8db6d4a9ec8d8911a1a9f1611b291ac1773",
+            "sourceKind": "committed",
+            "note": "9/9 PostgreSQL access cases pass."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead mounts the duplicate/identity HTTP routers and switches the Sales customer-duplicates/identity routes; then retire the TS adapters",
+        "nextAction": "Retained TS Sales customer-duplicates/identity routes call the native port; retire them when the Sales native client switch lands (residual, not blocking the packet)",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-customer-authority",
@@ -10303,13 +10339,13 @@
         "resources": [
           "owner:support"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T18:08:37.873Z",
-          "heartbeatAt": "2026-11-10T18:19:18.766Z",
-          "expiresAt": "2026-11-10T18:49:18.766Z",
+          "heartbeatAt": "2026-11-10T18:30:01.010Z",
+          "expiresAt": "2026-11-10T19:00:01.010Z",
           "generation": 2
         },
         "baseSha": null,
@@ -10318,7 +10354,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the first inventoried support packet (migrate.support.ticket-portal), run its cargo/registered-suite checks and report the exact mount request plus retired consumers to the lead.",
+        "nextAction": "Lead mounts ticket-portal/service-team/auxiliary read routers and switches the Portal/Sales/Collaboration consumers; retire the TS portal and service-team writers",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-support",
@@ -11335,8 +11371,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T17:47:32.634Z",
-          "heartbeatAt": "2026-11-10T18:19:18.766Z",
-          "expiresAt": "2026-11-10T18:49:18.766Z",
+          "heartbeatAt": "2026-11-10T18:30:01.010Z",
+          "expiresAt": "2026-11-10T19:00:01.010Z",
           "generation": 2
         },
         "baseSha": null,
@@ -11892,8 +11928,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T17:27:02.192Z",
-          "heartbeatAt": "2026-11-10T18:19:18.766Z",
-          "expiresAt": "2026-11-10T18:49:18.766Z",
+          "heartbeatAt": "2026-11-10T18:30:01.010Z",
+          "expiresAt": "2026-11-10T19:00:01.010Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12082,8 +12118,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:27:02.162Z",
-          "heartbeatAt": "2026-11-10T18:19:18.766Z",
-          "expiresAt": "2026-11-10T18:49:18.766Z",
+          "heartbeatAt": "2026-11-10T18:30:01.010Z",
+          "expiresAt": "2026-11-10T19:00:01.010Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12180,8 +12216,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:53:28.777Z",
-          "heartbeatAt": "2026-11-10T18:19:18.766Z",
-          "expiresAt": "2026-11-10T18:49:18.766Z",
+          "heartbeatAt": "2026-11-10T18:30:01.010Z",
+          "expiresAt": "2026-11-10T19:00:01.010Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12759,8 +12795,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T17:05:17.831Z",
-          "heartbeatAt": "2026-11-10T18:19:18.766Z",
-          "expiresAt": "2026-11-10T18:49:18.766Z",
+          "heartbeatAt": "2026-11-10T18:30:01.010Z",
+          "expiresAt": "2026-11-10T19:00:01.010Z",
           "generation": 2
         },
         "baseSha": null,
@@ -14807,20 +14843,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 49,
-      "migratedPackets": 4,
+      "migratedPackets": 5,
       "statusCounts": {
         "pending": 36,
-        "in_progress": 1,
+        "in_progress": 0,
         "ready_for_integration": 6,
         "integrating": 0,
-        "migrated": 4,
+        "migrated": 5,
         "blocked": 2,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T18:19:18.766Z",
+    "updatedAt": "2026-11-10T18:30:01.011Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
