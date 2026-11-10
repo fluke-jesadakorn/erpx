@@ -1558,6 +1558,34 @@ pub async fn void_posted_supplier_bill(
         )
         .into());
     }
+    let open_period: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM finance_periods WHERE id=$1 AND company_id=$2 \
+         AND state='open' AND start_date<=$3 AND end_date>=$3)",
+    )
+    .bind(period_id)
+    .bind(&actor.company_id)
+    .bind(entry_date)
+    .fetch_one(&mut *c)
+    .await?;
+    if !open_period {
+        return Err(conflict(
+            "SUPPLIER_BILL_PERIOD_INVALID",
+            "Choose an open Company period containing the reversal date.",
+        ));
+    }
+    let allocated: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM finance_allocations WHERE company_id=$1 AND invoice_id=$2)",
+    )
+    .bind(&actor.company_id)
+    .bind(id)
+    .fetch_one(&mut *c)
+    .await?;
+    if allocated {
+        return Err(conflict(
+            "SUPPLIER_BILL_ALLOCATED",
+            "Reverse the applied payments before voiding this supplier bill.",
+        ));
+    }
     let journal_id = journal_id.ok_or_else(|| {
         conflict(
             "SUPPLIER_BILL_JOURNAL_REQUIRED",
@@ -2132,12 +2160,7 @@ where
     let source_type = invoice
         .source_type
         .as_deref()
-        .filter(|value| {
-            matches!(
-                *value,
-                "standalone" | "commerce_fulfillment" | "expense_claim"
-            )
-        })
+        .filter(|value| matches!(*value, "standalone" | "commerce_fulfillment"))
         .ok_or_else(|| {
             BusinessError::new(
                 FailureKind::NotFound,
@@ -2177,7 +2200,7 @@ where
             || facts.source_id != source_id
             || facts.invoice_id.as_deref() != Some(id)
             || facts.source_version < 1
-            || (source_type == "expense_claim" && facts.status != "approved")
+            || (source_type == "commerce_fulfillment" && facts.status != "purchase")
         {
             return Err(conflict(
                 "SUPPLIER_BILL_SOURCE_CHANGED",

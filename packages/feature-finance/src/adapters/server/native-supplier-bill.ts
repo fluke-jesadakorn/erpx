@@ -136,6 +136,7 @@ async function command(
   validate: (value: unknown, key: string) => Record<string, unknown> | undefined,
   expectedStatus: number,
   rejectEvidence = false,
+  fallbackOn404 = true,
 ): Promise<Response | undefined> {
   const settings = configuration();
   if (!settings) return undefined;
@@ -184,8 +185,14 @@ async function command(
   try {
     const response = await nativeFinanceCommandHttp(url, headers, body, controller.signal);
     if (response.status === 404) {
-      void response.body?.cancel().catch(() => undefined);
-      return undefined;
+      if (fallbackOn404) {
+        void response.body?.cancel().catch(() => undefined);
+        return undefined;
+      }
+      const value = await reply(response, commandReplyLimit).catch(() => undefined);
+      return value === undefined
+        ? closed(404, 'NOT_FOUND', 'Not found.')
+        : failure(value, 404);
     }
     const value = await reply(response, commandReplyLimit);
     if (response.status === expectedStatus) {
@@ -273,6 +280,8 @@ export async function nativeSupplierBillPost(
       return data;
     },
     200,
+    false,
+    false,
   );
   return response;
 }

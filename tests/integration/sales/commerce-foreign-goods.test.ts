@@ -80,6 +80,9 @@ async function invoice(source: Awaited<ReturnType<typeof goods>>, matched = fals
     await decideSupplierBill(f.manager, matchId, { action: "approve", expectedVersion: 1, reason: "Independently reviewed document price variance", varianceAccountId: ids.variance }, key());
   }
   const result = await invoiceFulfillment(f.owner, source.fulfillmentId, { expectedVersion: matched ? 2 : 1, date: "2026-09-29", dueDate: "2026-09-30", ...(matchId ? { matchId, matchVersion: 2 } : {}) }, key()), invoiceId = String(result.invoiceId);
+  if (!await db.prepare("SELECT 1 FROM commerce_orders WHERE id=? AND kind='sales'").bind(source.orderId).first()) {
+    expect(await db.prepare("SELECT COUNT(*) n FROM money_transaction_snapshots WHERE company_id=? AND source_type='finance_invoice' AND source_id=? AND amount_kind='draft:v1'").bind(f.company, invoiceId).first("n")).toBe(1);
+  }
   await assign("invoice", invoiceId, "draft", f.manager.userId);
   const input = { expectedVersion: 1, periodId: f.period, entryDate: "2026-09-29", fxGainAccountId: ids.gain, fxLossAccountId: ids.loss };
   if (!await db.prepare("SELECT 1 FROM commerce_orders WHERE id=? AND kind='sales'").bind(source.orderId).first()) {
