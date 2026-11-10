@@ -1,3 +1,4 @@
+pub(crate) mod auxiliary;
 pub(crate) mod document_extraction;
 pub(crate) mod document_processing;
 pub(crate) mod pdf_validation;

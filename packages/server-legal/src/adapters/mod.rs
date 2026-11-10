@@ -30,9 +30,13 @@ pub(crate) mod processing_maintenance;
 pub(crate) mod trust_material_inspector;
 
 pub(crate) mod legal_http;
+pub(crate) mod legal_http_auxiliary;
+pub(crate) mod legal_trust_http;
+pub(crate) mod postgres_auxiliary_reads;
 pub(crate) mod postgres_legal_records;
 
 pub(crate) mod postgres_processing_queue;
 
 pub mod legal_records_use_cases;
 pub(crate) mod postgres_processing_status;
+pub(crate) mod postgres_retention;

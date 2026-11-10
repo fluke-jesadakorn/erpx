@@ -88637,6 +88637,53 @@
         "rust-toolchain.toml",
         "packages/server-projects/Cargo.toml"
       ]
+    },
+    {
+      "id": "legal.rust-legal-auxiliary-postgres.integration",
+      "lane": "integration",
+      "owner": "legal",
+      "modules": [
+        "legal"
+      ],
+      "files": [
+        "tests/integration/legal/rust-auxiliary-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Legal auxiliary reads retain matter scope, legal hold and evidence-lock authority."
+      },
+      "apps": [
+        "legal"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-legal",
+        "targets": [
+          "auxiliary_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-legal/Cargo.toml"
+      ],
+      "postgres": {
+        "mode": "template",
+        "slots": [
+          "CONTROL_DB",
+          "H001_DB",
+          "H001_READ_DB"
+        ],
+        "migratedSlots": [
+          "H001_DB"
+        ]
+      }
     }
   ]
 }

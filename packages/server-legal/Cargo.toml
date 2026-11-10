@@ -151,3 +151,7 @@ required-features = ["document-provider"]
 [[test]]
 name = "processing_maintenance_postgres"
 path = "../../tests/integration/legal/rust-processing-maintenance-postgres.test.rs"
+
+[[test]]
+name = "auxiliary_postgres"
+path = "../../tests/integration/legal/rust-auxiliary-postgres.test.rs"
