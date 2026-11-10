@@ -2530,6 +2530,7 @@ async fn assemble_checked(
         let mut bom_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut planning_targets = Vec::new();
+        let mut planning_command_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut marketing_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -3334,23 +3335,33 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                let planning_backend =
+                    Arc::new(crate::manufacturing::ManufacturingBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::manufacturing::ManufacturingService::new(
+                            authorizer.clone(),
+                            crate::manufacturing::ManufacturingConfiguration::new(
+                                holding.registration.holding_id.clone(),
+                                company.clone(),
+                            ),
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    ));
                 planning_targets.push(
                     erpx_server_planning::public::planning_http::PlanningHttpTarget {
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
-                        backend: Arc::new(crate::manufacturing::ManufacturingBackend::new(
-                            config.policy.clone(),
-                            Arc::new(FinanceJournalReadScopeHeaders),
-                            Arc::new(crate::manufacturing::ManufacturingService::new(
-                                authorizer.clone(),
-                                crate::manufacturing::ManufacturingConfiguration::new(
-                                    holding.registration.holding_id.clone(),
-                                    company.clone(),
-                                ),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )),
+                        backend: planning_backend.clone(),
+                    },
+                );
+                planning_command_targets.push(
+                    erpx_server_planning::public::planning_command_http::PlanningCommandHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: planning_backend.clone(),
                     },
                 );
                 customer_identity_targets.push(
@@ -4606,6 +4617,15 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_planning::public::planning_http::planning_router(planning_targets)
                     .map_err(|_| "PRIVATE_API_MANUFACTURING_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !planning_command_targets.is_empty() {
+            router = router.merge(
+                erpx_server_planning::public::planning_command_http::planning_command_router(
+                    planning_command_targets,
+                )
+                .map_err(|_| "PRIVATE_API_MANUFACTURING_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]
