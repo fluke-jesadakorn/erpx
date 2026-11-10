@@ -405,6 +405,7 @@ function transportCall(
   input: NativeCustomerTimelineReadInput,
   actor: NativeCustomerTimelinePageContext,
   timeout: number,
+  path: string,
   signal?: AbortSignal,
 ): Promise<Response> {
   const forwarded = incoming
@@ -457,10 +458,7 @@ function transportCall(
     headers.set('x-erpx-context-revision', String(input.expected.revision));
     headers.set('x-erpx-context-assignment-version', String(input.expected.assignmentVersion));
   }
-  const url = new URL(
-    `/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/customers/${encodeURIComponent(input.customerId)}/timeline`,
-    base,
-  );
+  const url = new URL(path, base);
   if (input.cursor !== undefined) url.searchParams.set('cursor', input.cursor);
   if (input.limit !== undefined) url.searchParams.set('limit', String(input.limit));
   const controller = new AbortController();
@@ -601,6 +599,7 @@ export function createNativeCustomerTimelineClient(
       input,
       actor,
       config.timeout,
+      `/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/customers/${encodeURIComponent(input.customerId)}/timeline`,
       signal,
     ).catch((error: unknown) => {
       if (error instanceof NativeCustomerTimelineError) throw error;
@@ -612,7 +611,47 @@ export function createNativeCustomerTimelineClient(
     context(value.context, actor, input);
     return pageData(value.data, input);
   };
-  return { timeline };
+
+  const directory = async (
+    incoming: Pick<Headers, 'get'>,
+    actor: NativeCustomerTimelinePageContext,
+    input: NativeCustomerTimelineReadInput,
+    signal?: AbortSignal,
+  ) => {
+    if (!actor.authority || !actor.iam || actor.holdingSlug !== input.holdingSlug)
+      return failure('NATIVE_CUSTOMER_TIMELINE_CONTEXT_CHANGED');
+    if (
+      (input.cursor !== undefined &&
+        (input.cursor.length > 1000 ||
+          input.cursor.length === 0 ||
+          /[\u0000-\u001f\u007f]/.test(input.cursor))) ||
+      (input.limit !== undefined && (!integer(input.limit, 1) || input.limit > 200))
+    )
+      return failure('NATIVE_CUSTOMER_TIMELINE_REQUEST_INVALID');
+    const response = await transportCall(
+      transport,
+      config.base,
+      config.holdings,
+      incoming,
+      { ...input, customerId: '' },
+      actor,
+      config.timeout,
+      `/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/customers`,
+      signal,
+    ).catch((error: unknown) => {
+      if (error instanceof NativeCustomerTimelineError) throw error;
+      return failure('NATIVE_CUSTOMER_TIMELINE_UNAVAILABLE');
+    });
+    const value = await boundedJson(response);
+    if (!exact(value, ['data', 'context']))
+      return failure('NATIVE_CUSTOMER_TIMELINE_RESPONSE_INVALID');
+    context(value.context, actor, input);
+    const data = value.data as { items?: unknown; hasMore?: unknown; nextCursor?: unknown };
+    if (!record(data) || !Array.isArray(data.items)) return failure('NATIVE_CUSTOMER_TIMELINE_RESPONSE_INVALID');
+    return data as { items: Array<{ id: string; name: string; code?: string | null }>; hasMore: boolean; nextCursor: string | null };
+  };
+
+  return { timeline, directory };
 }
 
 /** Fresh bounded socket; bypasses patched fetch/HMR and ambient proxies. */

@@ -70,6 +70,35 @@ function client() {
 
 /** Native customer timeline read. An unset configuration is unavailable; an
  * invalid or failed native read is surfaced and never silently replaced. */
+
+export async function nativeCustomerDirectory(
+  incoming: Pick<Headers, 'get'>,
+  actor: WorkContext,
+  cursor?: string,
+  limit?: number,
+): Promise<{ items: Array<{ id: string; name: string; code?: string | null }>; hasMore: boolean; nextCursor: string | null }> {
+  const native = client();
+  const pageContext = nativeCustomerTimelinePageContext(actor);
+  try {
+    return await native.directory(
+      incoming,
+      pageContext,
+      {
+        holdingSlug: actor.holdingSlug,
+        customerId: "",
+        cursor,
+        limit,
+        ...scope(pageContext),
+        expected: expected(pageContext),
+      },
+    );
+  } catch (error) {
+    const failure = nativeCustomerTimelineFailure(error);
+    if (failure) throw new ApiError(failure.status, failure.code, failure.message);
+    throw error;
+  }
+}
+
 export async function nativeCustomerTimeline(
   actor: WorkContext,
   customerId: string,
