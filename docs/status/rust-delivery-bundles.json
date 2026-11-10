@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 282,
+    "revision": 284,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g1",
       "agentId": "lead",
       "startedAt": "2026-11-10T16:01:48.750Z",
-      "heartbeatAt": "2026-11-10T20:36:20.074Z",
-      "expiresAt": "2026-11-10T21:06:20.074Z",
+      "heartbeatAt": "2026-11-10T20:41:20.848Z",
+      "expiresAt": "2026-11-10T21:11:20.848Z",
       "generation": 2,
       "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
     },
@@ -10026,8 +10026,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T20:03:18.253Z",
-          "heartbeatAt": "2026-11-10T20:36:20.074Z",
-          "expiresAt": "2026-11-10T21:06:20.074Z",
+          "heartbeatAt": "2026-11-10T20:41:20.848Z",
+          "expiresAt": "2026-11-10T21:11:20.848Z",
           "generation": 2
         },
         "baseSha": null,
@@ -10999,8 +10999,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T20:03:34.441Z",
-          "heartbeatAt": "2026-11-10T20:36:20.074Z",
-          "expiresAt": "2026-11-10T21:06:20.074Z",
+          "heartbeatAt": "2026-11-10T20:41:20.848Z",
+          "expiresAt": "2026-11-10T21:11:20.848Z",
           "generation": 2
         },
         "baseSha": null,
@@ -11009,7 +11009,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Owner preventive-plan command + read ports committed (6ecf26163). Lead: mount execute_preventive_plan_command in composition, switch the feature-assets plans POST route, bind Work/Collaboration/Executive consumers, then retire the TS plan/work app",
+        "nextAction": "Preventive-plan backend mounted in composition with a dedicated PgCommandAuthority (4e79a1d42). Remaining: switch feature-assets plans POST to nativeMaintenance planCommand client, bind Work/Collaboration/Executive read consumers, then retire TS plan/work app and record migrated",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-maintenance",
@@ -11993,8 +11993,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T17:27:02.192Z",
-          "heartbeatAt": "2026-11-10T20:36:20.074Z",
-          "expiresAt": "2026-11-10T21:06:20.074Z",
+          "heartbeatAt": "2026-11-10T20:41:20.848Z",
+          "expiresAt": "2026-11-10T21:11:20.848Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12183,8 +12183,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:27:02.162Z",
-          "heartbeatAt": "2026-11-10T20:36:20.074Z",
-          "expiresAt": "2026-11-10T21:06:20.074Z",
+          "heartbeatAt": "2026-11-10T20:41:20.848Z",
+          "expiresAt": "2026-11-10T21:11:20.848Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12281,8 +12281,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:53:28.777Z",
-          "heartbeatAt": "2026-11-10T20:36:20.074Z",
-          "expiresAt": "2026-11-10T21:06:20.074Z",
+          "heartbeatAt": "2026-11-10T20:41:20.848Z",
+          "expiresAt": "2026-11-10T21:11:20.848Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12860,8 +12860,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T17:05:17.831Z",
-          "heartbeatAt": "2026-11-10T20:36:20.074Z",
-          "expiresAt": "2026-11-10T21:06:20.074Z",
+          "heartbeatAt": "2026-11-10T20:41:20.848Z",
+          "expiresAt": "2026-11-10T21:11:20.848Z",
           "generation": 2
         },
         "baseSha": null,
@@ -14882,8 +14882,8 @@
           "runId": "run-20261110-g1",
           "agentId": "lead",
           "claimedAt": "2026-11-10T19:59:26.353Z",
-          "heartbeatAt": "2026-11-10T20:36:20.074Z",
-          "expiresAt": "2026-11-10T21:06:20.074Z",
+          "heartbeatAt": "2026-11-10T20:41:20.848Z",
+          "expiresAt": "2026-11-10T21:11:20.848Z",
           "generation": 2
         },
         "baseSha": null,
@@ -15036,7 +15036,7 @@
       }
     },
     "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T20:36:20.074Z",
+    "updatedAt": "2026-11-10T20:41:20.848Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
