@@ -612,6 +612,190 @@
           }
         }
       ]
+    },
+    "ports.people": {
+      "taskId": "ports.people",
+      "owners": [
+        "people_payroll",
+        "talent",
+        "benefits",
+        "learning"
+      ],
+      "status": "frozen-with-tail",
+      "seams": [
+        {
+          "id": "people.payroll-run-command",
+          "provider": "people_payroll",
+          "symbols": [
+            "payroll_run_command (missing native)",
+            "payroll_summary_read",
+            "payroll_accounting_projection",
+            "Finance prepare_journal/journal_minor"
+          ],
+          "paths": [
+            "packages/server-people_payroll/src/public/payroll_summary.rs",
+            "packages/server-people_payroll/src/public/payroll_accounting.rs",
+            "packages/server-people_payroll/src/adapters/people-payroll.ts",
+            "packages/server-finance/src/public/mod.rs"
+          ],
+          "authorityWitness": "Payroll rechecks current People/Payroll authority, Company scope and run version; Finance rechecks accounting period/account in the same transaction. A prepared journal never grants payroll authority.",
+          "transaction": "One serializable Holding transaction: run/version CAS, statutory item calculation, Finance journal preparation, receipt/outbox retain. Finance valuation is called inside the same transaction; no deferred posting or second writer.",
+          "consumers": [
+            "people_payroll",
+            "finance",
+            "benefits"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "partial",
+          "note": "Summary/read and accounting projection are native; create/calculate/cancel/post/detail are TypeScript. Tail lives in migrate.people_payroll.payroll-run-commands.",
+          "tests": [
+            "cargo check -p erpx-server-people-payroll",
+            "cargo check -p erpx-server-finance"
+          ],
+          "sourceDigest": {
+            "packages/server-people_payroll/src/public/payroll_summary.rs": "08558cb52f79bcc23f02aa09026af349e360a24f181c9b16493a051dd9f22228",
+            "packages/server-people_payroll/src/public/payroll_accounting.rs": "2e055011799870d31044ab974750ca0f74883cd4833fa8ba9e9aba1a8d5346fd",
+            "packages/server-people_payroll/src/adapters/people-payroll.ts": "441e209bbbc8b43e7d4cecefb943ebcfc884e696dc2191921df1a28fdd8ab591",
+            "packages/server-finance/src/public/mod.rs": "af13b32922321adefdcc2832ba9119d0cbbbe75aeb64df06f70d33d27377e929"
+          }
+        },
+        {
+          "id": "people.workforce-employee",
+          "provider": "people_payroll",
+          "symbols": [
+            "workforce_employee_command (missing)",
+            "identity_facts",
+            "invitation_person_link",
+            "Organization placement/role sources"
+          ],
+          "paths": [
+            "packages/server-people_payroll/src/application/people-payroll.ts",
+            "packages/server-people_payroll/src/public/identity_facts.rs",
+            "packages/server-organization/src/public/organization-access.ts"
+          ],
+          "authorityWitness": "Employee/engagement/compensation commands recheck People authority; Organization and IAM facts are rechecked in their owner scopes, never trusted from the transport.",
+          "transaction": "Caller transaction holds the person/engagement rows and the Organization placement facts; IAM invitation/link effects land through the owner port in the same unit.",
+          "consumers": [
+            "people_payroll",
+            "organization",
+            "identity_access",
+            "talent"
+          ],
+          "mounts": [
+            "src/composition/src/private_development_api.rs"
+          ],
+          "status": "missing",
+          "note": "Employee/engagement/compensation/pay-group commands are TypeScript; only borrowed identity facts are native. Tail lives in migrate.people_payroll.employees.",
+          "tests": [
+            "cargo check -p erpx-server-people-payroll",
+            "cargo check -p erpx-server-organization"
+          ],
+          "sourceDigest": {
+            "packages/server-people_payroll/src/application/people-payroll.ts": "acaf0b3618032c256d78ee9c00864df3c6dc26150377722d8c5e002ad5ec83f2",
+            "packages/server-people_payroll/src/public/identity_facts.rs": "dafe033c39a41fe33b2acf7bffb77b3aa8bcee15d4607c3afbcc2bbb897716ed",
+            "packages/server-organization/src/public/organization-access.ts": "dd1b433b18d6b9d53e5a15a6535c62182f69fbfd9e4a4ea048bf7445efab146f"
+          }
+        },
+        {
+          "id": "benefits.learning-eligibility",
+          "provider": "learning",
+          "symbols": [
+            "learning_eligibility_handoffs",
+            "learning_certificates",
+            "learning_benefit_consumption_receipts",
+            "benefits require_learning_port",
+            "eligibility_facts"
+          ],
+          "paths": [
+            "packages/server-learning/src/adapters/eligibility_facts.rs",
+            "packages/server-learning/src/adapters/learning-eligibility.ts",
+            "packages/server-benefits/src/public/eligibility.ts"
+          ],
+          "authorityWitness": "The election's Person/Company scope and certificate validity are rechecked; a certificate or handoff from another Person/Company never satisfies the gate.",
+          "transaction": "The consumption receipt is written by Learning in the caller's election transaction after certificate/handoff locks; Benefits fails closed when the port is absent.",
+          "consumers": [
+            "benefits",
+            "learning",
+            "people_payroll"
+          ],
+          "mounts": [
+            "src/composition/src/benefits.rs",
+            "src/composition/src/learning.rs"
+          ],
+          "status": "partial",
+          "note": "The read port and TS consumption exist; no Rust command writes receipts, so plan-gated elections fail closed natively. Tail lives in migrate.learning.eligibility-consumption and migrate.benefits.election-eligibility.",
+          "tests": [
+            "cargo check -p erpx-server-learning",
+            "cargo check -p erpx-server-benefits"
+          ],
+          "sourceDigest": {
+            "packages/server-learning/src/adapters/eligibility_facts.rs": "a080feffa5bc2b75c3f880fd5947d27e62f6506c948cd348350b6362b2df0771",
+            "packages/server-learning/src/adapters/learning-eligibility.ts": "20c2fc6b7ef7e18870623f97b8fc7b5355ffef51fb93d63535b038d173400848",
+            "packages/server-benefits/src/public/eligibility.ts": "f5ca356f9f72128b4c51416631ef7d6976ce97c2ad42a71ad96dfe8eb386121f"
+          }
+        },
+        {
+          "id": "talent.offer-money-snapshot",
+          "provider": "finance",
+          "symbols": [
+            "monthly-compensation Money snapshot (missing producer port)",
+            "Finance journal_minor/valuation"
+          ],
+          "paths": [
+            "packages/server-talent/src/adapters/talent.ts",
+            "packages/server-finance/src/public/mod.rs"
+          ],
+          "authorityWitness": "Talent rechecks offer/requisition/candidate authority and version; the money snapshot is evidence, not authority to hire or pay.",
+          "transaction": "Offer acceptance retains the immutable monthly-compensation snapshot in the Talent transaction; Finance publishes the value and does not post a journal for an offer.",
+          "consumers": [
+            "talent",
+            "people_payroll",
+            "finance"
+          ],
+          "mounts": [],
+          "status": "missing",
+          "note": "Offer create/approve/send/accept/decline/withdraw and the Money snapshot are TypeScript. Tail lives in migrate.talent.offers-hire-handoff.",
+          "tests": [
+            "cargo check -p erpx-server-talent"
+          ],
+          "sourceDigest": {
+            "packages/server-talent/src/adapters/talent.ts": "df4480d4c7dd87c52b0be4698609297159f737ee85f12d4032b7bdf2a931bbf5",
+            "packages/server-finance/src/public/mod.rs": "af13b32922321adefdcc2832ba9119d0cbbbe75aeb64df06f70d33d27377e929"
+          }
+        },
+        {
+          "id": "talent.people-hire-handoff",
+          "provider": "people_payroll",
+          "symbols": [
+            "people_hire_intake_command",
+            "accepted-offer handoff"
+          ],
+          "paths": [
+            "packages/server-people_payroll/src/public/people-handoffs.ts",
+            "packages/server-talent/src/application/talent.ts"
+          ],
+          "authorityWitness": "The accepted offer is rechecked against the requisition/candidate version; People rechecks hire intake authority and never trusts the Talent transport.",
+          "transaction": "Accepted-offer evidence and the People employee intake commit in one caller transaction with receipt/outbox; replay returns the original intake.",
+          "consumers": [
+            "talent",
+            "people_payroll",
+            "organization"
+          ],
+          "mounts": [],
+          "status": "partial",
+          "note": "Intake and privacy workspace are TypeScript; native requisition only. Tail lives in migrate.talent.offers-hire-handoff and migrate.people_payroll.employees.",
+          "tests": [
+            "cargo check -p erpx-server-people-payroll",
+            "cargo check -p erpx-server-talent"
+          ],
+          "sourceDigest": {
+            "packages/server-people_payroll/src/public/people-handoffs.ts": "eba37ceccecbb9dd3267ea426e90c26f1bf0c9ebeacc83b471d4e1e3be713ed4",
+            "packages/server-talent/src/application/talent.ts": "2c72ef8fe27aa1801102224dfb81198fa5a3a83185d540d8a96c2d1f04ba7999"
+          }
+        }
+      ]
     }
   }
 }
