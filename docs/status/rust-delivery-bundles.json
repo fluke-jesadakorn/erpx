@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 339,
+    "revision": 342,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g2",
       "agentId": "lead",
       "startedAt": "2026-11-10T22:49:18.933Z",
-      "heartbeatAt": "2026-11-10T23:14:19.146Z",
-      "expiresAt": "2026-11-10T23:44:19.146Z",
+      "heartbeatAt": "2026-11-10T23:17:02.131Z",
+      "expiresAt": "2026-11-10T23:47:02.131Z",
       "generation": 3,
       "tokenHash": "1c7f6e53dfb2427cfaf83ab6abbd9317a934d613494123e492d216e59d8be53d"
     },
@@ -9831,8 +9831,8 @@
           "runId": "run-20261110-g2",
           "agentId": "lead",
           "claimedAt": "2026-11-10T23:14:19.080Z",
-          "heartbeatAt": "2026-11-10T23:14:19.146Z",
-          "expiresAt": "2026-11-10T23:44:19.146Z",
+          "heartbeatAt": "2026-11-10T23:17:02.131Z",
+          "expiresAt": "2026-11-10T23:47:02.131Z",
           "generation": 3
         },
         "baseSha": null,
@@ -11685,15 +11685,22 @@
         "resources": [
           "owner:crm"
         ],
-        "status": "ready_for_integration",
-        "claim": null,
+        "status": "blocked",
+        "claim": {
+          "runId": "run-20261110-g2",
+          "agentId": "lead",
+          "claimedAt": "2026-11-10T23:17:02.062Z",
+          "heartbeatAt": "2026-11-10T23:17:02.131Z",
+          "expiresAt": "2026-11-10T23:47:02.131Z",
+          "generation": 3
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Previous coordinator lease expired during a long integration batch; WIP and processes reconciled, same lead resumed",
-        "nextAction": "Account/activity/lead ingress committed (ba3102f10). Remaining: replace CrmEntitlementImpl stub with real Commercial revision (pipeline now fails closed), wire purchase/workflow/Sales-recipient/Collaboration/Finance witnesses in composition backends, mount 3 routers + 5 POST classifiers, then switch feature-sales CRM routes; win-pms stays excluded (no PMS witness port)",
+        "blocker": null,
+        "nextAction": "Blocked on cross-owner backend ports: account/link-finance need a Finance customer witness, activities need Sales recipient eligibility + Collaboration notification retention, lead qualify needs reviewed-account/status/currency witnesses. These owner ports are not publicly exposed yet (migrate.sales/collaboration/finance pending), so mounting now would break notifications/authority. Resume after those ports land.",
         "handoff": {
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
@@ -12704,8 +12711,8 @@
           "runId": "run-20261110-g2",
           "agentId": "lead",
           "claimedAt": "2026-11-10T22:49:36.230Z",
-          "heartbeatAt": "2026-11-10T23:14:19.146Z",
-          "expiresAt": "2026-11-10T23:44:19.146Z",
+          "heartbeatAt": "2026-11-10T23:17:02.131Z",
+          "expiresAt": "2026-11-10T23:47:02.131Z",
           "generation": 3
         },
         "baseSha": null,
@@ -15205,16 +15212,16 @@
       "statusCounts": {
         "pending": 27,
         "in_progress": 0,
-        "ready_for_integration": 10,
+        "ready_for_integration": 9,
         "integrating": 0,
         "migrated": 11,
-        "blocked": 3,
+        "blocked": 4,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 3,
-    "updatedAt": "2026-11-10T23:14:19.147Z",
+    "updatedAt": "2026-11-10T23:17:02.131Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
