@@ -5,6 +5,8 @@
 //! port owns the team/revision/member/coverage validation and writes.
 pub const CONTRACT_VERSION: &str = "support.service-teams.v1";
 
+pub use crate::adapters::service_teams_pg::PgServiceTeams;
+
 pub use crate::adapters::service_teams::{
     apply_plan, authority_snapshot, company_member, current_team, lock_service_team_sources,
     organization_node, overlapping_teams, replay, service_member, service_team_options,

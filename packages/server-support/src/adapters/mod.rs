@@ -17,9 +17,17 @@ pub(crate) mod support_ticket_read;
 
 pub(crate) mod ticket_portal;
 
+pub(crate) mod ticket_portal_pg;
+
 pub(crate) mod service_teams;
 
+pub(crate) mod service_teams_pg;
+
 pub(crate) mod support_auxiliary;
+
+pub(crate) mod support_auxiliary_pg;
+
+pub(crate) mod support_command_receipt;
 
 pub(crate) mod support_http;
 

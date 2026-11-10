@@ -14,6 +14,7 @@ fn actor(user: &str, manage: bool) -> PortalActor {
         department_id: None,
         user_id: user.into(),
         assignment_id: "assignment-1".into(),
+        role: "support_manager".into(),
         support_manage: manage,
     }
 }

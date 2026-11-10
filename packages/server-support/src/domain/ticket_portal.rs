@@ -79,6 +79,7 @@ pub struct PortalActor {
     pub department_id: Option<String>,
     pub user_id: String,
     pub assignment_id: String,
+    pub role: String,
     pub support_manage: bool,
 }
 
@@ -1013,6 +1014,7 @@ mod tests {
             department_id: None,
             user_id: user.into(),
             assignment_id: "assignment-1".into(),
+            role: "support_manager".into(),
             support_manage: manage,
         }
     }

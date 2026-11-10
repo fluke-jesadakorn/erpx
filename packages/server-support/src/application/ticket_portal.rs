@@ -21,6 +21,12 @@ pub enum PortalPurpose {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PortalSourceImage {
+    pub bindings: String,
+    pub ticket: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PriorAcknowledgement {
     pub binding_id: String,
     pub user_id: String,
@@ -96,6 +102,13 @@ pub trait TicketPortalPorts {
         result: &Value,
     ) -> Result<(), BusinessError>;
 
+    /// Capture the exact binding/ticket image before owner effects.
+    async fn snapshot(
+        &mut self,
+        binding_ids: &[String],
+        ticket_id: Option<&str>,
+    ) -> Result<PortalSourceImage, BusinessError>;
+
     /// Recheck every current source image before the transaction completes.
     async fn guard(
         &mut self,
@@ -103,6 +116,7 @@ pub trait TicketPortalPorts {
         binding_ids: &[String],
         ticket_id: Option<&str>,
         purpose: PortalPurpose,
+        expected: &PortalSourceImage,
     ) -> Result<(), BusinessError>;
 
     async fn customer_binding(
@@ -180,16 +194,23 @@ pub async fn prepare<P: TicketPortalPorts>(
                 &prior,
             )
             .await?;
+        let expected = ports
+            .snapshot(&[format!("support-portal-{key}")], Some(&input.ticket_id))
+            .await?;
         ports
             .guard(
                 actor,
                 &[format!("support-portal-{key}")],
                 Some(&input.ticket_id),
                 purpose,
+                &expected,
             )
             .await?;
         return Ok(prior);
     }
+    let expected = ports
+        .snapshot(&[format!("support-portal-{key}")], Some(&input.ticket_id))
+        .await?;
     let plan =
         crate::domain::ticket_portal::plan_prepare(actor, &input, &ticket, key, ports.now())?;
     let PortalPlan::Prepare { result, .. } = &plan else {
@@ -205,7 +226,7 @@ pub async fn prepare<P: TicketPortalPorts>(
             key,
             "support.ticket-portal.prepare",
             &plan,
-            raw,
+            &wire,
             &result,
         )
         .await?;
@@ -215,6 +236,7 @@ pub async fn prepare<P: TicketPortalPorts>(
             &[format!("support-portal-{key}")],
             Some(&input.ticket_id),
             purpose,
+            &expected,
         )
         .await?;
     Ok(result)
@@ -254,11 +276,23 @@ pub async fn decide<P: TicketPortalPorts>(
         ports
             .replay_proof(actor, key, id, input.action.as_str(), &prior)
             .await?;
+        let expected = ports
+            .snapshot(&[id.to_owned()], Some(&binding.ticket_id))
+            .await?;
         ports
-            .guard(actor, &[id.to_owned()], Some(&binding.ticket_id), purpose)
+            .guard(
+                actor,
+                &[id.to_owned()],
+                Some(&binding.ticket_id),
+                purpose,
+                &expected,
+            )
             .await?;
         return Ok(prior);
     }
+    let expected = ports
+        .snapshot(&[id.to_owned()], Some(&binding.ticket_id))
+        .await?;
     let ticket = ports.ticket(actor, &binding.ticket_id).await?;
     let plan = crate::domain::ticket_portal::plan_decision(
         actor,
@@ -279,7 +313,13 @@ pub async fn decide<P: TicketPortalPorts>(
         .apply(actor, key, &operation, &plan, &wire, &result)
         .await?;
     ports
-        .guard(actor, &[id.to_owned()], Some(&binding.ticket_id), purpose)
+        .guard(
+            actor,
+            &[id.to_owned()],
+            Some(&binding.ticket_id),
+            purpose,
+            &expected,
+        )
         .await?;
     Ok(result)
 }
@@ -317,11 +357,23 @@ pub async fn respond<P: TicketPortalPorts>(
         ports
             .replay_proof(actor, key, id, "respond", &prior)
             .await?;
+        let expected = ports
+            .snapshot(&[id.to_owned()], Some(&binding.ticket_id))
+            .await?;
         ports
-            .guard(actor, &[id.to_owned()], Some(&binding.ticket_id), purpose)
+            .guard(
+                actor,
+                &[id.to_owned()],
+                Some(&binding.ticket_id),
+                purpose,
+                &expected,
+            )
             .await?;
         return Ok(prior);
     }
+    let expected = ports
+        .snapshot(&[id.to_owned()], Some(&binding.ticket_id))
+        .await?;
     let current = ports.current_response(id).await?;
     let plan = crate::domain::ticket_portal::plan_response(
         actor,
@@ -344,12 +396,18 @@ pub async fn respond<P: TicketPortalPorts>(
             key,
             "support.ticket-portal.respond",
             &plan,
-            raw,
+            &wire,
             &result,
         )
         .await?;
     ports
-        .guard(actor, &[id.to_owned()], Some(&binding.ticket_id), purpose)
+        .guard(
+            actor,
+            &[id.to_owned()],
+            Some(&binding.ticket_id),
+            purpose,
+            &expected,
+        )
         .await?;
     Ok(result)
 }

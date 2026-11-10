@@ -18,6 +18,8 @@ pub struct ServiceTeamActor {
     pub branch_id: Option<String>,
     pub department_id: Option<String>,
     pub user_id: String,
+    pub assignment_id: String,
+    pub role: String,
     pub holding_owner: bool,
 }
 

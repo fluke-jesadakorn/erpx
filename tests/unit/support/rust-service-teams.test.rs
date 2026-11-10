@@ -65,6 +65,8 @@ fn workspace_containment_matches_typescript() {
         branch_id: Some("branch".into()),
         department_id: None,
         user_id: "owner".into(),
+        assignment_id: "assignment-1".into(),
+        role: "holding_owner".into(),
         holding_owner: true,
     };
     assert!(in_service_workspace(

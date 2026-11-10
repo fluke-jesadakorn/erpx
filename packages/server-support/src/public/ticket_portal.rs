@@ -5,6 +5,8 @@
 //! reviewed summary, independent review, version/CAS and acknowledgement rules.
 pub const CONTRACT_VERSION: &str = "support.ticket-portal.v1";
 
+pub use crate::adapters::ticket_portal_pg::PgTicketPortal;
+
 pub use crate::adapters::ticket_portal::{
     acknowledged_at, acknowledgement_prior, apply_customer_acknowledgement, apply_plan,
     binding_for_staff, binding_image, current_response, customer_binding, decision_replay_proof,

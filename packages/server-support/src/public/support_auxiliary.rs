@@ -4,6 +4,10 @@
 //! These reads return only what the selected Support scope already reveals.
 pub const CONTRACT_VERSION: &str = "support.auxiliary-reads.v1";
 
+pub use crate::adapters::support_auxiliary_pg::{
+    PgSupportAuxiliaryReads, SupportAuxiliaryReadPorts,
+};
+
 pub use crate::adapters::support_auxiliary::{
     SupportAlertSourceSnapshot, SupportAuxiliaryScope, SupportIncidentSourceSnapshot,
     SupportPolicySourceSnapshot, SupportSalesWorkspace, SupportSessionSourceSnapshot,
