@@ -11,6 +11,7 @@ use erpx_server_learning::public::learning::AssignmentRow;
 use erpx_server_maintenance::public::read::{MaintenancePlanRow, MaintenanceWorkRow};
 use erpx_server_marketing::public::lead_candidate::MarketingLeadCandidateRow;
 use erpx_server_operations::public::field_exceptions::ExceptionWork;
+use erpx_server_organization::public::organization_nodes::{ChangeRow, NodeChangeState};
 use erpx_server_quality::public::quality_read::{HoldStatus, InspectionResult, QualityHold};
 use erpx_server_support::public::incident::IncidentWorkItem;
 use erpx_server_support::public::session::SessionWorkItem;
@@ -545,6 +546,58 @@ pub fn marketing_candidate_items(
         .collect()
 }
 
+pub struct OrganizationChangeWorkRow {
+    pub change: ChangeRow,
+    pub company_id: String,
+}
+
+/// Mirrors `organizationChangeWorkItems`.
+pub fn organization_change_items(
+    rows: &[OrganizationChangeWorkRow],
+    actor_user_id: &str,
+    actor_user_ids: &[&str],
+) -> Vec<WorkItemFact> {
+    rows.iter()
+        .map(|row| {
+            let change = &row.change;
+            let requested_by = change.requested_by.as_str();
+            let own = requested_by == actor_user_id;
+            let same = actor_user_ids.iter().any(|candidate| *candidate == requested_by);
+            let review = change.state == NodeChangeState::Submitted && !same;
+            let correct = own && matches!(change.state, NodeChangeState::Draft | NodeChangeState::Rejected);
+            let completed = matches!(change.state, NodeChangeState::Applied | NodeChangeState::Cancelled);
+            let can_act = review || correct;
+            let href = format!(
+                "/people/organization?view=legacy&company={}&tab=changes&changeId={}#organization-change-{}",
+                row.company_id, change.id, change.id
+            );
+            WorkItemFact {
+                id: format!("organization_change:{}", change.id),
+                kind: "organization_change".into(),
+                queue: if completed {
+                    WorkQueue::Completed
+                } else if review || correct {
+                    WorkQueue::Todo
+                } else {
+                    WorkQueue::Waiting
+                },
+                can_act: Some(can_act),
+                action_kind: None,
+                relationships: vec![if own {
+                    "requested".to_owned()
+                } else if review {
+                    "approval".to_owned()
+                } else {
+                    "team".to_owned()
+                }],
+                updated_at: change.updated_at,
+                source_id: Some(change.id.clone()),
+                href,
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -841,6 +894,61 @@ mod tests {
             created_at: 1,
             updated_at: 9,
         }
+    }
+
+    fn organization_change(
+        state: erpx_server_organization::public::organization_nodes::NodeChangeState,
+    ) -> erpx_server_organization::public::organization_nodes::ChangeRow {
+        use erpx_server_organization::public::organization_nodes::{
+            NodeChangeAction, NodeLifecycleKind,
+        };
+        erpx_server_organization::public::organization_nodes::ChangeRow {
+            id: "change-1".into(),
+            target_node_id: None,
+            action: NodeChangeAction::Create,
+            node_kind: NodeLifecycleKind::Branch,
+            slug: Some("branch".into()),
+            display_name: "Branch".into(),
+            branch_id: None,
+            source_branch_id: None,
+            expected_node_version: None,
+            state,
+            version: 1,
+            requested_by: erpx_server_shared::public::UserId::new("requester").unwrap(),
+            reviewed_by: None,
+            reason: "Reason".into(),
+            review_reason: None,
+            created_at: 1,
+            updated_at: 9,
+            reviewed_at: None,
+            applied_at: None,
+        }
+    }
+
+    #[test]
+    fn organization_changes_follow_independent_review_rules() {
+        use erpx_server_organization::public::organization_nodes::NodeChangeState;
+        let row = OrganizationChangeWorkRow {
+            change: organization_change(NodeChangeState::Submitted),
+            company_id: "company".into(),
+        };
+        let reviewer = organization_change_items(&[row], "reviewer", &["reviewer"]);
+        assert_eq!(reviewer[0].queue, WorkQueue::Todo);
+        assert_eq!(reviewer[0].relationships, ["approval"]);
+        assert!(reviewer[0].href.contains("changeId=change-1"));
+        let row = OrganizationChangeWorkRow {
+            change: organization_change(NodeChangeState::Submitted),
+            company_id: "company".into(),
+        };
+        let requester = organization_change_items(&[row], "requester", &["requester"]);
+        assert_eq!(requester[0].queue, WorkQueue::Waiting);
+        assert_eq!(requester[0].can_act, Some(false));
+        let row = OrganizationChangeWorkRow {
+            change: organization_change(NodeChangeState::Applied),
+            company_id: "company".into(),
+        };
+        let completed = organization_change_items(&[row], "reviewer", &["reviewer"]);
+        assert_eq!(completed[0].queue, WorkQueue::Completed);
     }
 
     #[test]

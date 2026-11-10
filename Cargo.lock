@@ -1346,6 +1346,7 @@ dependencies = [
  "erpx-server-maintenance",
  "erpx-server-marketing",
  "erpx-server-operations",
+ "erpx-server-organization",
  "erpx-server-quality",
  "erpx-server-runtime",
  "erpx-server-shared",
