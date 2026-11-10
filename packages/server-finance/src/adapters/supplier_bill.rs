@@ -208,6 +208,7 @@ struct Invoice {
     status: String,
     version: i64,
     source_type: Option<String>,
+    source_id: Option<String>,
     invoice_number: String,
     invoice_date: String,
     currency: String,
@@ -949,7 +950,7 @@ async fn existing_invoice(
     id: &str,
 ) -> Result<Option<Invoice>, Error> {
     let row = sqlx::query(
-        "SELECT id,kind,status,version,source_type,invoice_number,invoice_date,currency,\
+        "SELECT id,kind,status,version,source_type,source_id,invoice_number,invoice_date,currency,\
          subtotal_minor,tax_minor,total_minor,outstanding_minor,debit_account_id,\
          credit_account_id,tax_account_id,line_revision,line_mode,created_by \
          FROM finance_invoices WHERE id=$1 AND company_id=$2 FOR UPDATE",
@@ -967,6 +968,7 @@ async fn existing_invoice(
         status: row.try_get("status")?,
         version: row.try_get("version")?,
         source_type: row.try_get("source_type")?,
+        source_id: row.try_get("source_id")?,
         invoice_number: row.try_get("invoice_number")?,
         invoice_date: row.try_get("invoice_date")?,
         currency: row.try_get("currency")?,
@@ -1356,6 +1358,45 @@ pub trait PgSupplierBillEvidence: Send {
         c: &mut PgConnection,
         prepared: &Self::Prepared,
     ) -> impl Future<Output = Result<(), Error>> + Send;
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SupplierBillSourceFacts {
+    pub source_type: String,
+    pub source_id: String,
+    pub source_version: i64,
+    pub status: String,
+    pub invoice_id: Option<String>,
+}
+
+/// Owner-supplied read-only witness for a non-standalone payable source.
+/// Finance never reads Commerce/Procurement/People tables itself.
+pub trait PgSupplierBillSource: Send {
+    fn load(
+        &mut self,
+        c: &mut PgConnection,
+        company_id: &str,
+        source_type: &str,
+        source_id: &str,
+    ) -> impl Future<Output = Result<Option<SupplierBillSourceFacts>, Error>> + Send;
+}
+
+struct UnmountedSupplierBillSource;
+impl PgSupplierBillSource for UnmountedSupplierBillSource {
+    fn load(
+        &mut self,
+        _c: &mut PgConnection,
+        _company_id: &str,
+        _source_type: &str,
+        _source_id: &str,
+    ) -> impl Future<Output = Result<Option<SupplierBillSourceFacts>, Error>> + Send {
+        async move {
+            Err(invalid(
+                "SUPPLIER_BILL_SOURCE_UNSUPPORTED",
+                "This supplier-bill source is unavailable in this assembly.",
+            ))
+        }
+    }
 }
 
 struct UnmountedSupplierBillEvidence;
@@ -1971,12 +2012,13 @@ where
         clock,
         authority,
         &mut UnmountedSupplierBillEvidence,
+        &mut UnmountedSupplierBillSource,
     )
     .await
 }
 
 #[allow(clippy::too_many_arguments)]
-pub async fn post_supplier_bill_with_evidence<A, C, E>(
+pub async fn post_supplier_bill_with_evidence<A, C, E, S>(
     c: &mut PgConnection,
     actor: &SalesInvoiceCommandActor,
     journal_actor: &FinanceActor,
@@ -1987,11 +2029,13 @@ pub async fn post_supplier_bill_with_evidence<A, C, E>(
     clock: &C,
     authority: &mut A,
     evidence: &mut E,
+    source: &mut S,
 ) -> Result<SupplierBillPostResult, Error>
 where
     A: JournalAuthority<Error = PgTransactionError<JournalError>> + Send,
     C: Clock + Sync,
     E: PgSupplierBillEvidence,
+    S: PgSupplierBillSource,
 {
     serializable(c).await?;
     company_actor(
@@ -2067,13 +2111,61 @@ where
                 "A postable supplier bill draft was not found.",
             )
         })?;
-    if invoice.kind != "payable" || invoice.source_type.as_deref() != Some("standalone") {
+    let source_type = invoice
+        .source_type
+        .as_deref()
+        .filter(|value| {
+            matches!(
+                *value,
+                "standalone" | "commerce_fulfillment" | "expense_claim"
+            )
+        })
+        .ok_or_else(|| {
+            BusinessError::new(
+                FailureKind::NotFound,
+                "INVOICE_NOT_FOUND",
+                "A postable supplier bill draft was not found.",
+            )
+        })?;
+    if invoice.kind != "payable" {
         return Err(BusinessError::new(
             FailureKind::NotFound,
             "INVOICE_NOT_FOUND",
             "A postable supplier bill draft was not found.",
         )
         .into());
+    }
+    if source_type != "standalone" {
+        let source_id = invoice
+            .source_id
+            .as_deref()
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                conflict(
+                    "SUPPLIER_BILL_SOURCE_REQUIRED",
+                    "The supplier bill has no current owner source.",
+                )
+            })?;
+        let facts = source
+            .load(c, &actor.company_id, source_type, source_id)
+            .await?
+            .ok_or_else(|| {
+                conflict(
+                    "SUPPLIER_BILL_SOURCE_CHANGED",
+                    "The supplier bill source is no longer current.",
+                )
+            })?;
+        if facts.source_type != source_type
+            || facts.source_id != source_id
+            || facts.invoice_id.as_deref() != Some(id)
+            || facts.source_version < 1
+            || (source_type == "expense_claim" && facts.status != "approved")
+        {
+            return Err(conflict(
+                "SUPPLIER_BILL_SOURCE_CHANGED",
+                "The supplier bill source is no longer current.",
+            ));
+        }
     }
     if invoice.status != "draft" {
         return Err(BusinessError::new(
@@ -2276,7 +2368,7 @@ where
          base_total_minor=$5,base_outstanding_minor=$5,approved_by=$6,posted_at=$7,\
          version=version+1,updated_at=$7 \
          WHERE company_id=$1 AND id=$2 AND kind='payable' AND status='draft' AND version=$8 \
-         AND source_type='standalone' AND to_jsonb(finance_invoices)=$9",
+         AND to_jsonb(finance_invoices)=$9",
     )
     .bind(&actor.company_id)
     .bind(id)

@@ -593,10 +593,14 @@ struct SupplierBillPostSources;
 impl HoldingWorkSourcePreparation for SupplierBillPostSources {
     fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
         Box::pin(async move {
+            // Source owners fence before the first Finance read. The global
+            // order for this unit is Commerce/People -> Commercial -> Finance -> Files.
+            erpx_server_commerce::public::finance_payable_source::lock_commerce_payable_sources(c)
+                .await?;
+            erpx_server_people_payroll::public::finance_expense_payable_source::lock_expense_claim_payable_sources(c)
+                .await?;
             lock_commercial_authority_sources(c).await?;
             lock_supplier_bill_post_sources(c).await?;
-            // Files owner fence before the first evidence read/bind. The global
-            // order for this unit is Commercial -> Finance -> Files.
             lock_business_evidence_sources(c).await?;
             Ok(())
         })
@@ -630,6 +634,52 @@ impl HoldingWorkSourcePreparation for PeriodCloseSources {
             // this unit is Commercial -> Finance -> Files.
             lock_business_evidence_sources(c).await?;
             Ok(())
+        })
+    }
+}
+
+struct FinanceSupplierBillSource;
+impl PgSupplierBillSource for FinanceSupplierBillSource {
+    fn load(
+        &mut self,
+        c: &mut PgConnection,
+        company_id: &str,
+        source_type: &str,
+        source_id: &str,
+    ) -> impl std::future::Future<Output = Result<Option<SupplierBillSourceFacts>, Error>> + Send
+    {
+        Box::pin(async move {
+            match source_type {
+                "commerce_fulfillment" => {
+                    let source = erpx_server_commerce::public::finance_payable_source::load_commerce_payable_source(
+                        c, company_id, source_id,
+                    )
+                    .await
+                    .map_err(PgTransactionError::Business)?;
+                    Ok(source.map(|source| SupplierBillSourceFacts {
+                        source_type: "commerce_fulfillment".into(),
+                        source_id: source.fulfillment_id,
+                        source_version: source.fulfillment_version,
+                        status: source.order_kind,
+                        invoice_id: source.invoice_id,
+                    }))
+                }
+                "expense_claim" => {
+                    let source = erpx_server_people_payroll::public::finance_expense_payable_source::load_expense_claim_payable_source(
+                        c, company_id, source_id,
+                    )
+                    .await
+                    .map_err(PgTransactionError::Business)?;
+                    Ok(source.map(|source| SupplierBillSourceFacts {
+                        source_type: "expense_claim".into(),
+                        source_id: source.claim_id,
+                        source_version: source.claim_version,
+                        status: source.status,
+                        invoice_id: source.invoice_id,
+                    }))
+                }
+                _ => Ok(None),
+            }
         })
     }
 }
@@ -2980,6 +3030,7 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                             actor: actor.user_id.clone(),
                             now,
                         };
+                        let mut source = FinanceSupplierBillSource;
                         let data = post_supplier_bill_with_evidence(
                             c,
                             &actor,
@@ -2991,6 +3042,7 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                             clock.as_ref(),
                             &mut authority,
                             &mut evidence,
+                            &mut source,
                         )
                         .await?;
                         Ok(FinanceSupplierBillPostResponse { data })

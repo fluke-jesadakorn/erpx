@@ -20,3 +20,5 @@ pub(crate) mod service_initial_count_masters;
 pub(crate) mod service_stock_masters;
 pub(crate) mod receipt;
 pub mod pos_catalog;
+
+pub(crate) mod finance_payable_source;

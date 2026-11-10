@@ -1,0 +1,40 @@
+{
+  "schema": "erpx.evidence/finance-matched-source-native-post/v1",
+  "recorded_at": "2026-11-10T10:20:00+07:00",
+  "head": "0db8d9a05dd984f4df2781d8e6dd237eaa70e32a",
+  "owner": "finance",
+  "workflow": "finance/payables",
+  "status": "partial",
+  "scope": "Native Finance posting for matched supplier-bill sources: Commerce fulfillment and People expense-claim owner witnesses, with Finance-owned journal/Money/replay/version/audit in the same serializable unit.",
+  "implemented": {
+    "commerce_port": "packages/server-commerce/src/public/finance_payable_source.rs: lock_commerce_payable_sources + load_commerce_payable_source (fulfillment id/version/invoice link/order kind).",
+    "people_port": "packages/server-people_payroll/src/public/finance_expense_payable_source.rs: lock_expense_claim_payable_sources + load_expense_claim_payable_source (claim id/version/invoice link/status).",
+    "finance": "post_supplier_bill_with_evidence now accepts a PgSupplierBillSource witness. Standalone stays source-free; commerce_fulfillment and expense_claim require a current owner source whose invoice_id is the posted invoice. The invoice update no longer hard-codes source_type='standalone'.",
+    "locks": "SupplierBillPostSources locks Commerce/People sources before Commercial authority, Finance and Files.",
+    "no_fallback": "Assemblies without the source port keep SUPPLIER_BILL_SOURCE_UNSUPPORTED for non-standalone bills."
+  },
+  "gates": {
+    "finance.rust-supplier-bill-postgres.integration": "9/9 pass in 42.89 s",
+    "new_case": "supplier_bill_posts_a_commerce_fulfillment_source_with_its_owner_witness (journal lines 25,000 expense / 26,750 payable / 1,750 input tax, invoice posted, source_type retained)",
+    "cargo_check": "private-field-api/existing-business; files-scan-worker/field-push-worker; legal-pdf-worker/legal-document-worker/legal-queue pass",
+    "typecheck": "tests/config pass",
+    "catalogue": "33 modules, 1011 suites",
+    "format": "rustfmt check pass for the changed files"
+  },
+  "browser": {
+    "result": "blocked",
+    "detail": "The Finance invoice detail now renders for the available account after seeding reviewed finance/supply/sales package grants and repairing the session work-context row. The draft commerce bill BILL-C53367514A545C51A0EABBE8 opens with its source facts. The UI posting form is still blocked by the Finance approver flow primary (the current user has no acme-co staff engagement), and the direct native route falls back to the retained TypeScript posting path because the configured native Finance API at 3198 is bound to the clone erpx_dev_rust_* databases, while the dev invoice lives in erpx_dev_h001_write. The native API rejects the shared DB with PRIVATE_API_SCHEMA_MISMATCH even after the shared migrations. No browser acceptance for matched posting is claimed.",
+    "observed_ts_error": "GOODS_VALUATION_REVIEW_REQUIRED from the retained TypeScript commerce goods-accounting path; this is not the native post result."
+  },
+  "dev_data_seeded": [
+    "company_package_grants acme-co finance/supply/sales active with reviewed grant events (development only).",
+    "flow_defaults acme-co invoice finance_approver primary usr_jesadakorn revision 0 (development only).",
+    "active_work_contexts repaired for the current disposable browser sessions so the Finance presentation guard matches the selected holding-owner assignment."
+  ],
+  "remaining": [
+    "Finance approver team membership/primary for the current dev user (or a Finance-authorized account) so the UI posting form renders.",
+    "Native Finance API bound to the shared development databases (or a clone-DB browser fixture) so the native matched post can be exercised in the browser.",
+    "Expense-claim invoice creation when finance_expenses.invoice_id is null; the current native post handles the existing draft invoice link only.",
+    "Finance remains partial at 9/10 workflows and is not owner 6/41."
+  ]
+}

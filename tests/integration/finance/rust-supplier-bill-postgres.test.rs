@@ -1250,6 +1250,111 @@ async fn supplier_bill_post_binds_review_evidence_sets_in_the_posting_unit() {
 }
 
 #[tokio::test]
+async fn supplier_bill_posts_a_commerce_fulfillment_source_with_its_owner_witness() {
+    account::with_system(|system| async move {
+        let p = setup(system).await;
+        let pool = &p.system.holdings[0];
+        seed(pool).await;
+        let invoice = "invoice-commerce-source";
+        let delivery = "delivery-commerce-source";
+        sqlx::query(
+            "INSERT INTO commerce_orders(id,company_id,kind,number,party_id,currency,order_date,\
+             due_date,subtotal_minor,tax_minor,state,version,created_by,created_at,updated_at) \
+             VALUES('order-commerce-source','company','purchase','PO-COMMERCE',\
+             'bill-supplier','THB','2026-01-02','2026-02-01',25000,1750,'fulfilled',1,\
+             'fixture-a',0,0)",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO commerce_fulfillments(id,order_id,number,fulfillment_date,created_by,\
+             created_at,invoice_id,version,completion_kind,completion_note) \
+             VALUES($1,'order-commerce-source','FUL-COMMERCE','2026-01-05','fixture-a',0,NULL,1,\
+             'goods','')",
+        )
+        .bind(delivery)
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,\
+             due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,\
+             debit_account_id,credit_account_id,tax_account_id,source_type,source_id,status,\
+             version,line_revision,line_mode,created_by,created_at,updated_at) \
+             VALUES($1,'company','bill-supplier','payable','BILL-COMMERCE','2026-01-02',\
+             '2026-02-01','THB',25000,1750,26750,26750,'bill-expense','bill-ap','bill-vat-in',\
+             'commerce_fulfillment',$2,'draft',1,1,'whole_document','fixture-a',0,0)",
+        )
+        .bind(invoice)
+        .bind(delivery)
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        sqlx::query("UPDATE commerce_fulfillments SET invoice_id=$1 WHERE id=$2")
+            .bind(invoice)
+            .bind(delivery)
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO money_transaction_snapshots(company_id,source_type,source_id,amount_kind,\
+             transaction_date,currency,currency_scale,amount_units,usd_units,captured_at) \
+             VALUES('company','finance_invoice',$1,'draft:v1','2026-01-02','THB',2,26750,26750,0)",
+        )
+        .bind(invoice)
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let posted = service(&p)
+            .post_supplier_bill(
+                "acme.example.test",
+                p.reviewer.clone(),
+                owned_reviewer(&p),
+                CommandKey::new("supplier-bill-commerce-post").unwrap(),
+                invoice.into(),
+                SupplierBillPostInput {
+                    period_id: "period".into(),
+                    entry_date: "2026-01-10".into(),
+                    expected_version: Some(1),
+                    fx_rate: None,
+                    attachment_set_ids: Vec::new(),
+                    fx_gain_account_id: None,
+                    fx_loss_account_id: None,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(posted.data.status, "posted");
+        let row: (String, String) = sqlx::query_as(
+            "SELECT status,source_type FROM finance_invoices WHERE id=$1 AND company_id='company'",
+        )
+        .bind(invoice)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(row, ("posted".into(), "commerce_fulfillment".into()));
+        let journal_lines: Vec<(String, i64, i64)> = sqlx::query_as(
+            "SELECT account_id,debit_minor,credit_minor FROM finance_journal_lines \
+             WHERE journal_id=$1 ORDER BY ordinal",
+        )
+        .bind(&posted.data.journal_id)
+        .fetch_all(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            journal_lines,
+            vec![
+                ("bill-expense".into(), 25_000, 0),
+                ("bill-ap".into(), 0, 26_750),
+                ("bill-vat-in".into(), 1_750, 0),
+            ]
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn supplier_bill_posted_void_posts_an_exact_reversal_with_an_independent_approver() {
     account::with_system(|system| async move {
         let p = setup(system).await;
