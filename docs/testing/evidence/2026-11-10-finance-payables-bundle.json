@@ -1,31 +1,30 @@
 {
-  "schema": "erpx.evidence/finance-payables-bundle/v4",
-  "recorded_at": "2026-11-10T14:20:00+07:00",
-  "head": "ecc7a78019b6b9c76c28909e5e21a799624b00a2",
+  "schema": "erpx.evidence/finance-payables-bundle/v5",
+  "recorded_at": "2026-11-10T12:55:00+07:00",
+  "head": "80b4d18f6cdb703688581f530120ebae9511a3b9",
   "owner": "finance",
   "workflow": "finance/payables",
-  "status": "ready-for-review",
-  "scope": "Native Finance payables: standalone supplier bills, Commerce fulfillment matched bills, People expense-claim linked drafts, AP journals, Money snapshots, line revisions, posted void, payable evidence, native API and desktop/mobile UI posting.",
+  "status": "review-rejected",
+  "scope": "Native Finance payables: standalone supplier bills, Commerce fulfillment matched bills, AP journals, Money snapshots, line revisions, posted void, payable evidence, native API and desktop/mobile UI posting.",
   "implemented": {
-    "commerce_port": "packages/server-commerce/src/public/finance_payable_source.rs",
-    "people_port": "packages/server-people_payroll/src/public/finance_expense_payable_source.rs",
-    "finance": "post_supplier_bill_with_evidence accepts PgSupplierBillSource. commerce_fulfillment/expense_claim require a current owner witness whose invoice_id is the posted invoice. commerce_fulfillment may debit the owner goods-received/clearing liability account (control_kind none); standalone/expense claims keep the expense/asset rule.",
-    "locks": "Commerce/People source locks precede Commercial authority, Finance and Files.",
+    "commerce_port": "packages/server-commerce/src/public/finance_payable_source.rs: lock + read the exact fulfillment/order facts; Finance requires order_kind='purchase'.",
+    "commerce_draft_money": "packages/server-commerce/src/application/commerce.ts: a purchase invoice now retains the Finance finance_invoice draft:v1 Money snapshot in the same command, so a real Commerce draft is postable without hand-seeded snapshots.",
+    "finance": "post_supplier_bill_with_evidence accepts PgSupplierBillSource. commerce_fulfillment requires a current owner witness whose invoice_id is the posted invoice and whose order is a purchase. commerce_fulfillment may debit the owner goods-received/clearing liability account (control_kind none); standalone keeps the expense/asset rule.",
+    "locks": "Commerce source lock precedes Commercial authority, Finance and Files.",
     "native_api": "3198/3199 use the shared development databases. The shared erpx_migrations checksums for 0041_leave_self_service.sql and 0293_executive_evidence.sql were aligned with the current reviewed files, resolving PRIVATE_API_SCHEMA_MISMATCH.",
-    "native_client": "packages/feature-finance/src/adapters/server/native-supplier-bill.ts maps a non-JSON 4xx native reply to that status instead of masking it as 503; debug logging was removed before commit."
+    "native_client": "packages/feature-finance/src/adapters/server/native-supplier-bill.ts maps a non-JSON 4xx native reply to that status and no longer falls back to the TypeScript posting branch on a native 404.",
+    "void": "void_posted_supplier_bill now requires an open Company period containing the reversal date and rejects a bill with live finance_allocations.",
+    "removed": "The People expense-claim draft source branch was removed after review: the current People flow creates a posted expense invoice in its own unit, so Finance must not post it as a draft."
   },
   "gates": {
-    "finance.rust-supplier-bill-postgres.integration": "10/10 pass in 49.69 s (includes the new approved expense-claim source case)",
-    "new_cases": [
-      "supplier_bill_posts_a_commerce_fulfillment_source_with_its_owner_witness (clearing liability debit 25,000 / payable 26,750 / input tax 1,750)",
-      "supplier_bill_posts_an_approved_expense_claim_source_with_its_owner_witness (expense 25,000 / payable 26,750 / input tax 1,750, source_type expense_claim retained)"
-    ],
+    "finance.rust-supplier-bill-postgres.integration": "10/10 pass in 45.17 s (commerce source, non-purchase rejection, bad-period void included)",
+    "sales.commerce-foreign-goods.integration": "5/5 pass; asserts the Commerce-created finance_invoice draft:v1 snapshot",
     "finance.generic-payments.integration": "17/17 pass when run alone; the four-suite parallel run has a 30 s timeout in the heavy 105-event inbox case under parallel load",
     "finance.invoice-lines.integration + finance.withholding.integration + sales.commerce-foreign-goods.integration": "34/34 pass together",
-    "finance unit suites": "149/149 pass (command-fetch, money, navigation, report-periods, work, company-stripe)",
+    "finance unit suites": "149/149 pass (8 files)",
     "cargo test -p erpx-server-finance": "all test binaries green (ERPX_TEST_ADMIN_URL and ERPX_BUN_BIN set)",
     "cargo_check": "private-field-api/existing-business; files-scan-worker/field-push-worker; legal-pdf-worker/legal-document-worker/legal-queue pass",
-    "typecheck": "bun run typecheck (root + tests/config) pass",
+    "typecheck": "bunx tsc --noEmit pass",
     "structure": "bun run structure:check pass",
     "eslint": "packages/feature-finance/src/adapters/server/native-supplier-bill.ts pass",
     "catalogue": "33 modules, 1011 suites",
@@ -34,6 +33,7 @@
   "native_http": {
     "app_route": "POST /api/v1/holdings/acme/finance/payables/<bill>/post returned 200 {status:posted,journalId:...} through the Finance app native client for invoice-3ad23075b3a00bb3940db9974b9cea3540b0, invoice-6ceccfa645c6497774d493dbe99bb98c6b09 and invoice-16e181b67028b0a8c6bc0df3fdc941635296.",
     "direct_3198": "POST the same native route with the finance-approver context returned 200 for invoice-1e204097c33391eec0f31629b4be8aa349e7 (journal-finance-approver-direct-20261110) and invoice-835fa75c19d4385c27a32365712a1d379145 (journal-finance-approver-direct-835-20261110).",
+    "receipts": "command_receipts has six finance.supplier-bill.post rows for the six keys, proving the native Rust command committed rather than the legacy path.",
     "persisted": "finance_invoices status=posted, journal source_type=invoice, journal lines debit clearing/payable/input tax as expected."
   },
   "browser": {
@@ -52,10 +52,26 @@
       "screenshot": ".scratch/dev/finance-approver-mobile.png"
     }
   },
-  "legacy": {
-    "native": "The Finance app route calls the native supplier-bill create/edit/post/void/detail clients first. With ERPX_NATIVE_FINANCE_SUPPLIER_BILL_CONFIG set, the registered payables workflows use the native owner HTTP path.",
-    "retained": "The TypeScript posting branch remains reachable only for assemblies without the native Finance supplier-bill configuration (staging/private production until a reviewed release is deployed). Named removal condition: delete the fallback once every deployed assembly has the native configuration.",
-    "expense_claim": "Finance consumes an existing People expense-claim draft invoice through the People source port. Creating that invoice when finance_expenses.invoice_id is null belongs to the People payroll expenses workflow, not Finance payables."
+  "review": {
+    "verdict": "REJECT",
+    "reviewer": "independent general reviewer (read-only)",
+    "fixed_after_review": [
+      "Commerce purchase invoices now write the Finance draft:v1 Money snapshot; the foreign-goods suite asserts it.",
+      "Finance requires order_kind='purchase' and has a non-purchase rejection case.",
+      "Posted void checks the open Company period and live allocations; a bad-period case is added.",
+      "Native post no longer falls back to the TypeScript branch on a native 404.",
+      "The unreachable People expense-claim draft branch was removed; People owns claim/invoice posting.",
+      "Evidence head/sourceIdentity corrected to the corrections commit."
+    ],
+    "remaining_blockers": [
+      "Source version is still decorative: the invoice does not retain the expected fulfillment/order version, so a source changed after invoice creation is not detected.",
+      "The Commerce port does not read a posted-fulfillment flag; order_kind='purchase' is enforced but 'fulfillment posted' is not.",
+      "Matched/expense bill void is unsupported; the native route has no legacy void fallback.",
+      "Procurement bill-match posting/void remains open in the cross-owner bundle.",
+      "People payroll expense-claim posting/invoice creation is owned by people_payroll/feature-expenses and is not implemented natively.",
+      "nativeSupplierBillDetail still masks non-JSON 4xx as 503 (the post command is fixed).",
+      "The four-suite parallel generic-payments run has a 30 s timeout flake in the heavy inbox case; it passes alone (17/17)."
+    ]
   },
   "dev_data_seeded": [
     "company_package_grants acme-co finance/supply/sales active with reviewed grant events.",
@@ -63,11 +79,11 @@
     "hr_people/hr_engagements person-acme-finance-approver + finance_approver assignment for usr_finance_approver.",
     "flow_routes draft primary usr_finance_approver for the browser-acceptance bills.",
     "shared Control credential repaired to the native Argon2id hash for the development account; shared erpx_migrations checksums aligned for two reviewed files.",
-    "money_transaction_snapshots draft evidence seeded for the draft commerce bills used in the browser/native checks."
+    "money_transaction_snapshots draft evidence seeded for the historical draft commerce bills used in the browser/native checks."
   ],
   "remaining": [
-    "People payroll expense-claim invoice creation when finance_expenses.invoice_id is null (owned by people_payroll/feature-expenses).",
-    "The retained TypeScript supplier-bill fallback for unconfigured assemblies.",
-    "The four-suite parallel generic-payments run has a 30 s timeout flake in the heavy inbox case; it passes alone (17/17)."
+    "Finance payables is not certified. The reviewer rejected certification on the remaining blockers above.",
+    "The desktop/mobile UI posting and the six native posts are real and DB-verified, but the full owner-witness contract (stale source version, posted fulfillment, matched void, Procurement) is incomplete.",
+    "Finance remains 9/10 workflows and 5/41 owners."
   ]
 }
