@@ -1,0 +1,50 @@
+[package]
+name = "erpx-server-agent"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+erpx-server-shared.workspace = true
+erpx-server-runtime.workspace = true
+erpx-server-workflow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+uuid.workspace = true
+
+[[test]]
+name = "agent_governance"
+path = "../../tests/unit/agent/rust-agent-governance.test.rs"
+
+[[test]]
+name = "agent_providers"
+path = "../../tests/unit/agent/rust-agent-providers.test.rs"
+
+[[test]]
+name = "agent_quota"
+path = "../../tests/unit/agent/rust-agent-quota.test.rs"
+
+[[test]]
+name = "agent_governance_http"
+path = "../../tests/integration/agent/rust-agent-governance-http.test.rs"
+
+[[test]]
+name = "ai_providers_http"
+path = "../../tests/integration/agent/rust-ai-providers-http.test.rs"
+
+[[test]]
+name = "agent_governance_postgres"
+path = "../../tests/integration/agent/rust-agent-governance-postgres.test.rs"
+
+[lints]
+workspace = true

@@ -3335,7 +3335,7 @@ async fn assemble_checked(
                     },
                 );
                 planning_targets.push(
-                    erpx_server_manufacturing::public::planning_http::PlanningHttpTarget {
+                    erpx_server_planning::public::planning_http::PlanningHttpTarget {
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
@@ -4604,7 +4604,7 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         if !planning_targets.is_empty() {
             router = router.merge(
-                erpx_server_manufacturing::public::planning_http::planning_router(planning_targets)
+                erpx_server_planning::public::planning_http::planning_router(planning_targets)
                     .map_err(|_| "PRIVATE_API_MANUFACTURING_CONFIGURATION_INVALID")?,
             );
         }

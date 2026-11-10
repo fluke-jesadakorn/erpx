@@ -1,5 +1,5 @@
 [workspace]
-members = ["packages/server-crm", "packages/server-work_projection", "packages/server-brand", "packages/server-pos", "packages/server-projects", "packages/server-procurement", "packages/server-sales", "packages/server-manufacturing", "packages/server-ecommerce", "packages/server-marketing", "packages/server-customer_360", "packages/server-customer_authority", "packages/server-billing", "packages/server-benefits", "packages/server-talent", "packages/server-learning", "packages/server-operations", "packages/server-records", "packages/server-field_service", "packages/server-support","packages/server-collaboration", "packages/server-assets", "packages/server-maintenance", "packages/server-commerce", "packages/server-quality", "packages/server-inventory", "packages/server-shared", "packages/server-runtime", "packages/server-legal", "src/composition", "packages/server-finance", "packages/server-identity_access", "packages/server-organization", "packages/server-people_payroll", "packages/server-files", "packages/server-manage_erpx", "packages/server-commercial", "packages/server-platform_administration", "packages/server-pms", "packages/server-workflow"]
+members = ["packages/server-crm", "packages/server-work_projection", "packages/server-brand", "packages/server-pos", "packages/server-projects", "packages/server-procurement", "packages/server-sales", "packages/server-manufacturing", "packages/server-ecommerce", "packages/server-marketing", "packages/server-customer_360", "packages/server-customer_authority", "packages/server-billing", "packages/server-benefits", "packages/server-talent", "packages/server-learning", "packages/server-operations", "packages/server-records", "packages/server-field_service", "packages/server-support","packages/server-collaboration", "packages/server-assets", "packages/server-maintenance", "packages/server-commerce", "packages/server-quality", "packages/server-inventory", "packages/server-shared", "packages/server-runtime", "packages/server-legal", "src/composition", "packages/server-finance", "packages/server-identity_access", "packages/server-organization", "packages/server-people_payroll", "packages/server-files", "packages/server-manage_erpx", "packages/server-commercial", "packages/server-platform_administration", "packages/server-pms", "packages/server-workflow", "packages/server-planning", "packages/server-agent"]
 resolver = "3"
 
 [workspace.package]
@@ -58,6 +58,8 @@ erpx-server-commercial = { path = "packages/server-commercial" }
 erpx-server-platform-administration = { path = "packages/server-platform_administration" }
 erpx-server-pms = { path = "packages/server-pms" }
 erpx-server-workflow = { path = "packages/server-workflow" }
+erpx-server-planning = { path = "packages/server-planning" }
+erpx-server-agent = { path = "packages/server-agent" }
 erpx-server-legal = { path = "packages/server-legal" }
 axum = { version = "=0.8.9", default-features = false, features = ["http1", "json", "tokio", "query"] }
 serde = { version = "=1.0.229", features = ["derive"] }

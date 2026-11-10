@@ -56,6 +56,7 @@ erpx-server-commerce = { workspace = true, optional = true }
 erpx-server-inventory = { workspace = true, optional = true }
 erpx-server-maintenance = { workspace = true, optional = true }
 erpx-server-manufacturing = { workspace = true, optional = true }
+erpx-server-planning = { workspace = true }
 erpx-server-marketing = { workspace = true, optional = true }
 erpx-server-customer-360 = { workspace = true, optional = true }
 erpx-server-customer-authority = { workspace = true, optional = true }

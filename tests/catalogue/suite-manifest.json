@@ -89928,6 +89928,388 @@
         ],
         "migratedSlots": []
       }
+    },
+    {
+      "id": "planning.rust-planning-scenario-commands.unit",
+      "lane": "unit",
+      "owner": "planning",
+      "modules": [
+        "planning"
+      ],
+      "files": [
+        "tests/unit/planning/rust-planning-scenario-commands.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner command/read retains authority, CAS and persisted effects."
+      },
+      "apps": [
+        "manufacturing"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-planning",
+        "targets": [
+          "planning_scenario_commands"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-planning/Cargo.toml"
+      ]
+    },
+    {
+      "id": "planning.rust-planning-capacity-resources.unit",
+      "lane": "unit",
+      "owner": "planning",
+      "modules": [
+        "planning"
+      ],
+      "files": [
+        "tests/unit/planning/rust-planning-capacity-resources.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner command/read retains authority, CAS and persisted effects."
+      },
+      "apps": [
+        "manufacturing"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-planning",
+        "targets": [
+          "planning_capacity_resources"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-planning/Cargo.toml"
+      ]
+    },
+    {
+      "id": "planning.rust-planning-command-http.unit",
+      "lane": "unit",
+      "owner": "planning",
+      "modules": [
+        "planning"
+      ],
+      "files": [
+        "tests/unit/planning/rust-planning-command-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner command/read retains authority, CAS and persisted effects."
+      },
+      "apps": [
+        "manufacturing"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-planning",
+        "targets": [
+          "planning_command_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-planning/Cargo.toml"
+      ]
+    },
+    {
+      "id": "planning.rust-planning-command-postgres.integration",
+      "lane": "integration",
+      "owner": "planning",
+      "modules": [
+        "planning"
+      ],
+      "files": [
+        "tests/integration/planning/rust-planning-command-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner command/read retains authority, CAS and persisted effects."
+      },
+      "apps": [
+        "manufacturing"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-planning",
+        "targets": [
+          "planning_command_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-planning/Cargo.toml"
+      ],
+      "postgres": {
+        "mode": "template",
+        "slots": [
+          "CONTROL_DB",
+          "H001_DB",
+          "H001_READ_DB"
+        ],
+        "migratedSlots": [
+          "H001_DB"
+        ]
+      }
+    },
+    {
+      "id": "agent.rust-agent-governance.unit",
+      "lane": "unit",
+      "owner": "agent",
+      "modules": [
+        "agent"
+      ],
+      "files": [
+        "tests/unit/agent/rust-agent-governance.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner command/read retains authority, CAS and persisted effects."
+      },
+      "apps": [
+        "admin"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-agent",
+        "targets": [
+          "agent_governance"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-agent/Cargo.toml"
+      ]
+    },
+    {
+      "id": "agent.rust-agent-providers.unit",
+      "lane": "unit",
+      "owner": "agent",
+      "modules": [
+        "agent"
+      ],
+      "files": [
+        "tests/unit/agent/rust-agent-providers.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner command/read retains authority, CAS and persisted effects."
+      },
+      "apps": [
+        "admin"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-agent",
+        "targets": [
+          "agent_providers"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-agent/Cargo.toml"
+      ]
+    },
+    {
+      "id": "agent.rust-agent-quota.unit",
+      "lane": "unit",
+      "owner": "agent",
+      "modules": [
+        "agent"
+      ],
+      "files": [
+        "tests/unit/agent/rust-agent-quota.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner command/read retains authority, CAS and persisted effects."
+      },
+      "apps": [
+        "admin"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-agent",
+        "targets": [
+          "agent_quota"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-agent/Cargo.toml"
+      ]
+    },
+    {
+      "id": "agent.rust-agent-governance-http.integration",
+      "lane": "integration",
+      "owner": "agent",
+      "modules": [
+        "agent"
+      ],
+      "files": [
+        "tests/integration/agent/rust-agent-governance-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner command/read retains authority, CAS and persisted effects."
+      },
+      "apps": [
+        "admin"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-agent",
+        "targets": [
+          "agent_governance_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-agent/Cargo.toml"
+      ]
+    },
+    {
+      "id": "agent.rust-ai-providers-http.integration",
+      "lane": "integration",
+      "owner": "agent",
+      "modules": [
+        "agent"
+      ],
+      "files": [
+        "tests/integration/agent/rust-ai-providers-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner command/read retains authority, CAS and persisted effects."
+      },
+      "apps": [
+        "admin"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-agent",
+        "targets": [
+          "ai_providers_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-agent/Cargo.toml"
+      ]
+    },
+    {
+      "id": "agent.rust-agent-governance-postgres.integration",
+      "lane": "integration",
+      "owner": "agent",
+      "modules": [
+        "agent"
+      ],
+      "files": [
+        "tests/integration/agent/rust-agent-governance-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native owner command/read retains authority, CAS and persisted effects."
+      },
+      "apps": [
+        "admin"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-agent",
+        "targets": [
+          "agent_governance_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-agent/Cargo.toml"
+      ],
+      "postgres": {
+        "mode": "template",
+        "slots": [
+          "CONTROL_DB",
+          "H001_DB",
+          "H001_READ_DB"
+        ],
+        "migratedSlots": [
+          "H001_DB"
+        ]
+      }
     }
   ]
 }

@@ -15,11 +15,11 @@ use erpx_server_manufacturing::public::bom::{
 use erpx_server_manufacturing::public::bom_http::{
     BomHttpBackend, BomHttpFuture, BomHttpRequest, BomHttpResponse,
 };
-use erpx_server_manufacturing::public::planning::{
+use erpx_server_planning::public::planning::{
     PgPlanningWorkspaceRead, PlanningActor, PlanningWorkspace, PlanningWorkspaceRepository,
     planning_workspace,
 };
-use erpx_server_manufacturing::public::planning_http::{
+use erpx_server_planning::public::planning_http::{
     PlanningHttpBackend, PlanningHttpFuture, PlanningHttpRequest, PlanningHttpResponse,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;

@@ -1,0 +1,41 @@
+[package]
+name = "erpx-server-planning"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+erpx-server-shared.workspace = true
+erpx-server-runtime.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+uuid.workspace = true
+
+[lints]
+workspace = true
+
+[[test]]
+name = "planning_scenario_commands"
+path = "../../tests/unit/planning/rust-planning-scenario-commands.test.rs"
+
+[[test]]
+name = "planning_capacity_resources"
+path = "../../tests/unit/planning/rust-planning-capacity-resources.test.rs"
+
+[[test]]
+name = "planning_command_http"
+path = "../../tests/unit/planning/rust-planning-command-http.test.rs"
+
+[[test]]
+name = "planning_command_postgres"
+path = "../../tests/integration/planning/rust-planning-command-postgres.test.rs"
