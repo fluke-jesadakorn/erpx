@@ -30,6 +30,7 @@ erpx-server-marketing.workspace = true
 erpx-server-organization.workspace = true
 erpx-server-benefits.workspace = true
 erpx-server-customer-authority.workspace = true
+erpx-server-identity-access.workspace = true
 sqlx.workspace=true
 sha2.workspace=true
 [dev-dependencies]
@@ -43,6 +44,10 @@ path="../../tests/integration/shared.work/rust-quick-access-preferences-postgres
 [[test]]
 name="work_role_initialization"
 path="../../tests/unit/shared.work/rust-work-role-initialization.test.rs"
+
+[[test]]
+name = "work_snapshot_maintenance_postgres"
+path = "../../tests/integration/shared.work/rust-work-snapshot-maintenance-postgres.test.rs"
 
 [[test]]
 name = "work_card_preferences_postgres"

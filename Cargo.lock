@@ -1345,6 +1345,7 @@ dependencies = [
  "erpx-server-customer-authority",
  "erpx-server-field-service",
  "erpx-server-finance",
+ "erpx-server-identity-access",
  "erpx-server-learning",
  "erpx-server-maintenance",
  "erpx-server-marketing",

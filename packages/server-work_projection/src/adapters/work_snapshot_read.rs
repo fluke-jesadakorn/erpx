@@ -1,0 +1,154 @@
+//! Native Work Projection snapshot composition.
+//!
+//! This adapter reads only owner public contracts on the caller's retained
+//! serializable Holding transaction. Sources without a native owner read are
+//! reported as unavailable; they are never replaced by an empty list.
+use crate::adapters::work_snapshot_sources::{
+    approval_items, maintenance_items, preventive_plan_items,
+};
+use crate::domain::work_card_availability::WorkItemFact;
+use erpx_server_identity_access::public::effective_authority::AuthorizedWorkContext;
+use erpx_server_identity_access::public::work_context::WorkScopeKind;
+use erpx_server_maintenance::public::read::{read_maintenance_plans, read_maintenance_workspace};
+use erpx_server_runtime::public::postgres::PgTransactionError;
+use erpx_server_shared::public::{BusinessError, TimestampMillis};
+use erpx_server_workflow::public::approval_oversight::{
+    ApprovalOversightActor, PgApprovalOversight, approval_queue,
+};
+use sqlx::PgConnection;
+
+type Error = PgTransactionError<BusinessError>;
+
+/// Sources whose TypeScript work readers have no native owner public read yet.
+/// They are explicit gaps, not empty results.
+const UNAVAILABLE_SOURCES: &[&str] = &[
+    "fieldFinancialWork",
+    "financeExpansionWork",
+    "legalWork",
+    "organizationChangeWork",
+    "companyBusinessAcceptanceWork",
+    "posWork",
+    "crmWork",
+    "supportAlertWork",
+    "incidentWork",
+    "supportPolicyWork",
+    "supportWork",
+    "supportSessionWork",
+    "projectHandoffWork",
+    "fieldServiceWork",
+    "collaborationActionWork",
+    "operationsExceptionWork",
+    "learningWork",
+    "benefitWork",
+    "talentWork",
+    "marketingWork",
+    "manufacturingWork",
+    "customerAccessWork",
+    "customerDuplicateWork",
+    "customerIdentityWork",
+    "customerFollowupWork",
+    "supplierBillWork",
+    "landedCostWork",
+    "rfqWork",
+    "supplierPromiseWork",
+    "transitWork",
+    "qualityWork",
+    "qualityAlertWork",
+    "supplierBatchWork",
+    "refundWork",
+    "overtimeWork",
+    "pmsWork",
+    "employeeRequestWork",
+    "departmentOverrideWork",
+    "retirementWork",
+    "peopleLifecycleWork",
+    "otherFlowWork",
+];
+
+/// One native snapshot plus the sources that could not be read natively.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NativeWorkSnapshot {
+    pub items: Vec<WorkItemFact>,
+    pub unavailable_sources: Vec<&'static str>,
+}
+
+fn approval_actor(current: &AuthorizedWorkContext) -> ApprovalOversightActor {
+    let workspace = current.selection().workspace();
+    let assignment = current.selection().assignment();
+    ApprovalOversightActor {
+        user_id: current.user_id().clone(),
+        holding_id: current.holding_id().clone(),
+        company_id: workspace.company_id.clone(),
+        branch_id: workspace.branch_id.clone(),
+        department_id: workspace.department_id.clone(),
+        assignment_id: assignment.id.clone(),
+        scope_kind: match assignment.scope_kind {
+            WorkScopeKind::Holding => "holding",
+            WorkScopeKind::Branch => "branch",
+            WorkScopeKind::Department => "department",
+        }
+        .to_owned(),
+        permissions: current
+            .command_iam_metadata()
+            .permissions
+            .iter()
+            .cloned()
+            .collect(),
+    }
+}
+
+/// Compose the native snapshot from current owner public reads.
+///
+/// The caller must already hold the retained serializable Holding transaction.
+/// The function opens no transaction, reads no HTTP request and grants no
+/// authority; each owner read rechecks the selected context and its own scope.
+pub async fn read_native_work_snapshot(
+    connection: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    now: TimestampMillis,
+) -> Result<NativeWorkSnapshot, Error> {
+    let actor = approval_actor(current);
+    let approvals = if actor.has("organization.manage")
+        && actor.scope_kind == "holding"
+        && actor.branch_id.is_none()
+        && actor.department_id.is_none()
+    {
+        let mut repository = PgApprovalOversight::new(connection);
+        approval_queue(&mut repository, &actor, now.get())
+            .await?
+            .approvals
+    } else {
+        Vec::new()
+    };
+    let mut items = approval_items(&approvals);
+
+    if current
+        .modules()
+        .iter()
+        .any(|module| module == "maintenance")
+        && current.has_permission("records.read")
+    {
+        let workspace = read_maintenance_workspace(&mut *connection, current, now).await?;
+        items.extend(maintenance_items(
+            &workspace.items,
+            current.user_id().as_str(),
+            current.has_permission("records.review"),
+        ));
+        let plans = read_maintenance_plans(&mut *connection, current, now).await?;
+        items.extend(preventive_plan_items(
+            &plans,
+            current.user_id().as_str(),
+            current.has_permission("records.write"),
+            current.has_permission("records.review"),
+            now.get(),
+        ));
+    }
+
+    let mut unavailable_sources = UNAVAILABLE_SOURCES.to_vec();
+    unavailable_sources
+        .retain(|source| !matches!(*source, "maintenanceWork" | "preventivePlanWork"));
+    Ok(NativeWorkSnapshot {
+        items,
+        unavailable_sources,
+    })
+}
