@@ -14,3 +14,9 @@ pub(crate) mod field_ticket_read;
 pub(crate) mod sla_drain;
 
 pub(crate) mod support_ticket_read;
+
+pub(crate) mod ticket_portal;
+
+pub(crate) mod service_teams;
+
+pub(crate) mod support_auxiliary;

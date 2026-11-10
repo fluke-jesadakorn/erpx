@@ -24,3 +24,9 @@ pub mod sla_drain;
 pub mod support_evidence;
 
 pub mod support_ticket_read;
+
+pub mod ticket_portal;
+
+pub mod service_teams;
+
+pub mod support_auxiliary;

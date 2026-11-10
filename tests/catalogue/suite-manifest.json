@@ -88684,6 +88684,78 @@
           "H001_DB"
         ]
       }
+    },
+    {
+      "id": "support.rust-ticket-portal-rules.unit",
+      "lane": "unit",
+      "owner": "support",
+      "modules": [
+        "support"
+      ],
+      "files": [
+        "tests/unit/support/rust-ticket-portal-rules.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Support ticket portal retains tenant/customer scope and independent decisions."
+      },
+      "apps": [
+        "support"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-support",
+        "targets": [
+          "ticket_portal_rules"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-support/Cargo.toml"
+      ]
+    },
+    {
+      "id": "support.rust-service-teams.unit",
+      "lane": "unit",
+      "owner": "support",
+      "modules": [
+        "support"
+      ],
+      "files": [
+        "tests/unit/support/rust-service-teams.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Support service teams retain revision/member/coverage invariants."
+      },
+      "apps": [
+        "support"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-support",
+        "targets": [
+          "service_teams"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-support/Cargo.toml"
+      ]
     }
   ]
 }

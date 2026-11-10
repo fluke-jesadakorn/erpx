@@ -117,7 +117,7 @@ fn limited() -> Error {
 
 /// The TypeScript `supportTicketReadPredicate`: support.read on the selected
 /// Company assignment, or records.read for the reporter of a non-order report.
-fn read_predicate(assignment: &str, user: &str, role: &str) -> String {
+pub(crate) fn read_predicate(assignment: &str, user: &str, role: &str) -> String {
     format!(
         "EXISTS(SELECT 1 FROM assignments g WHERE g.id={assignment} AND g.user_id={user} AND g.role={role} AND g.company_id=t.company_id
    AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
