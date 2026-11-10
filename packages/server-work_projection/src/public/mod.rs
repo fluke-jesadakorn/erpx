@@ -13,3 +13,4 @@ pub mod work_capability_probes;
 pub mod navigation_destinations;
 pub mod work_snapshot_sources;
 pub mod work_card_selection;
+pub mod work_card_availability_source;

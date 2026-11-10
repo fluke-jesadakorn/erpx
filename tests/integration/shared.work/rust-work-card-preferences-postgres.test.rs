@@ -19,7 +19,7 @@ use erpx_server_workflow::public::commands::{
     CommandActor, CommandDisposition, CommandJson, CommandOutcome, PgCommandAuthority,
     WorkflowRequest,
 };
-use sqlx::PgConnection;
+use sqlx::{Connection, PgConnection};
 
 type Error = PgTransactionError<BusinessError>;
 
@@ -476,6 +476,97 @@ async fn save_accepts_exactly_the_composed_work_card_availability() {
         .err()
         .expect("quality holds is not in the composed availability");
         assert_eq!(business(denied).code, "SHORTCUT_UNAVAILABLE");
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn availability_source_composes_current_approvals_capabilities_and_shortcuts() {
+    use erpx_server_shared::public::{AssignmentId, HoldingId, UserId};
+    use erpx_server_work_projection::public::work_card_availability_source::{
+        WorkCardAvailabilityRequest, read_available_work_cards,
+    };
+    use erpx_server_work_projection::public::work_capability_probes::InventoryPreparation;
+    use erpx_server_workflow::public::approval_oversight::ApprovalOversightActor;
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO approval_instances(id,company_id,branch_id,department_id,record_type,record_id,phase,cycle,requester_user_id,assignee_user_id,state,current_step,blocked_reason,version,created_at,updated_at) \
+             VALUES('approval-1','company',NULL,NULL,'expense','expense-1','request',1,'user-1',NULL,'pending',0,NULL,1,100,200);\
+             INSERT INTO staff_levels(id,company_id,code,name,rank,active,version,created_at,updated_at) \
+             VALUES('level-1','company','L1','Level one',1,1,1,1,1);\
+             INSERT INTO organization_positions(id,company_id,title,level_id,is_ceo,active,version,created_by,created_at,updated_at,roster_required) \
+             VALUES('pos-1','company','Shift lead','level-1',0,1,1,'fixture',1,1,1);\
+             INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,status,version,created_by,created_at,updated_at) \
+             VALUES('person-1','user-1','company','Fixture person','TH','active',1,'fixture',1,1);\
+             INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,job_title,currency,version,created_by,created_at,updated_at,position_id) \
+             VALUES('engagement-1','person-1','company','employee','salaried','active','2000-01-01','Shift lead','THB',1,'fixture',1,1,'pos-1');\
+             INSERT INTO service_teams(id,company_id,name,active,version,configuration_json,created_by,created_at,updated_at) \
+             VALUES('team-1','company','Coverage',1,1,'{}','fixture',1,1);\
+             INSERT INTO service_team_members(company_id,team_id,user_id,responsibility) \
+             VALUES('company','team-1','user-1','member');\
+             INSERT INTO service_team_coverage(company_id,team_id,category,scope_kind,scope_node_id) \
+             VALUES('company','team-1','service','holding','company');",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let permissions = [
+            "organization.manage",
+            "commerce.read",
+            "inventory.read",
+            "finance.read",
+            "support.read",
+            "records.read",
+        ]
+        .map(str::to_owned);
+        let modules = ["projects".to_owned()];
+        let oversight = ApprovalOversightActor {
+            user_id: UserId::new("user-1").unwrap(),
+            holding_id: HoldingId::new("h001").unwrap(),
+            company_id: CompanyId::new("company").unwrap(),
+            branch_id: None,
+            department_id: None,
+            assignment_id: AssignmentId::new("assignment-1").unwrap(),
+            scope_kind: "holding".into(),
+            permissions: permissions.to_vec(),
+        };
+        let request = WorkCardAvailabilityRequest {
+            approval_actor: &oversight,
+            branch_id: None,
+            department_id: None,
+            beta: false,
+            permissions: &permissions,
+            modules: &modules,
+            inventory: InventoryPreparation {
+                can_prepare_counts: true,
+                can_prepare_transfers: true,
+            },
+            expense_available: true,
+        };
+        let mut transaction = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+            .execute(&mut *transaction)
+            .await
+            .unwrap();
+        let available = read_available_work_cards(&mut transaction, &request, 1_000)
+            .await
+            .unwrap();
+        transaction.commit().await.unwrap();
+        for id in [
+            "approvals",
+            "expenses",
+            "customer-followups",
+            "operations-stock",
+            "finance-payables",
+            "support-cases",
+            "projects-list",
+            "tasks",
+            "team",
+        ] {
+            assert!(available.contains(id), "{id}");
+        }
+        assert!(!available.contains("quality-holds"));
     })
     .await;
 }
