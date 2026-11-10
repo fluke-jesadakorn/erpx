@@ -16,6 +16,10 @@ use erpx_server_billing::public::retry_job_http::{
 use erpx_server_billing::public::target_evidence_command::{
     BillingTargetEvidenceCommand, execute_target_evidence,
 };
+use erpx_server_billing::public::target_evidence_http::{
+    BillingTargetEvidenceHttpBackend, BillingTargetEvidenceHttpFuture,
+    BillingTargetEvidenceHttpRequest, BillingTargetEvidenceHttpResponse,
+};
 use erpx_server_billing::public::target_provider_command::{
     BillingTargetProviderCommand, execute_target_provider,
 };
@@ -396,6 +400,66 @@ impl<C: Clock + Send + Sync + 'static> BillingService<C> {
             .await
     }
 
+    pub async fn target_evidence<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: BillingTargetEvidenceCommand,
+    ) -> Result<BillingHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        if matches!(command, BillingTargetEvidenceCommand::Rollout(_)) {
+            return Err(BusinessError::invalid(
+                "BILLING_REQUEST_INVALID",
+                "Use the dedicated rollout approval route.",
+            )
+            .into());
+        }
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                BillingSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.read")?;
+                        let now = clock.now();
+                        let actor = billing_actor(current, connection, now).await?;
+                        execute_target_evidence(
+                            connection,
+                            &actor,
+                            &holding,
+                            &command,
+                            now,
+                            beta_storage_limit()?,
+                        )
+                        .await?;
+                        Ok(BillingHttpResponse {
+                            data: serde_json::json!({"ok": true}),
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
     pub async fn target_provider<Input>(
         &self,
         host: &str,
@@ -607,6 +671,25 @@ impl<C: Clock + Send + Sync + 'static> BillingRetryJobHttpBackend for BillingBac
                 .retry_job(request.host, proof, move || Ok(selection), request.command)
                 .await
                 .map(|response| BillingRetryJobHttpResponse {
+                    data: response.data,
+                    context: response.context,
+                })
+                .map_err(business)
+        })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> BillingTargetEvidenceHttpBackend for BillingBackend<C> {
+    fn execute<'a>(
+        &'a self,
+        request: BillingTargetEvidenceHttpRequest<'a>,
+    ) -> BillingTargetEvidenceHttpFuture<'a, BillingTargetEvidenceHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .target_evidence(request.host, proof, move || Ok(selection), request.command)
+                .await
+                .map(|response| BillingTargetEvidenceHttpResponse {
                     data: response.data,
                     context: response.context,
                 })

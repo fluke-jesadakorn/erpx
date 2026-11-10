@@ -168,6 +168,42 @@ export async function nativeBillingCostCommand(
       jobId: input.jobId,
       reason: input.reason,
     };
+  } else if (input.action === 'record-operating-cost') {
+    action = 'record-operating-cost';
+    body = {
+      version: input.version,
+      reason: input.reason,
+      targetMonth: input.targetMonth,
+      category: input.operatingCategory,
+      amountSatang: input.operatingCostSatang,
+      evidenceId: input.evidenceId,
+    };
+  } else if (input.action === 'review-target-capacity') {
+    action = 'review-target-capacity';
+    body = {
+      version: input.version,
+      reason: input.reason,
+      targetMonth: input.targetMonth,
+      projectedOriginalBytes: input.projectedOriginalBytes,
+      primaryAvailableBytes: input.primaryAvailableBytes,
+      backupAvailableBytes: input.backupAvailableBytes,
+      reservedBytes: input.reservedBytes,
+      companyLimitBytes: input.companyLimitBytes,
+      evidenceId: input.evidenceId,
+    };
+  } else if (input.action === 'approve-target-extra') {
+    action = 'approve-target-extra';
+    body = {
+      version: input.version,
+      reason: input.reason,
+      targetMonth: input.targetMonth,
+      extraKind: input.extraKind,
+      amountSatang: input.amountSatang,
+      serviceStart: input.serviceStart,
+      serviceEnd: input.serviceEnd,
+      note: input.note,
+      evidenceId: input.evidenceId,
+    };
   } else {
     return undefined;
   }

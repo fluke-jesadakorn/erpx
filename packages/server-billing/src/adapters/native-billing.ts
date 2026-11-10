@@ -42,7 +42,7 @@ export type NativeBillingTransport = (
 export type NativeBillingCommandInput = Readonly<{
   holdingId: string;
   holdingSlug: string;
-  action: "cost" | "delete-cost" | "complete-costs" | "approve-target-rollout" | "verify-provider-cost" | "verify-statement" | "retry";
+  action: "cost" | "delete-cost" | "complete-costs" | "approve-target-rollout" | "verify-provider-cost" | "verify-statement" | "retry" | "record-operating-cost" | "review-target-capacity" | "approve-target-extra";
   key: string;
   body: Readonly<Record<string, unknown>>;
 }>;
@@ -780,7 +780,13 @@ export function createNativeBillingClient(
                 ? "/target/provider/cost"
                 : input.action === "verify-statement"
                   ? "/target/provider/statement"
-                  : "/jobs/retry";
+                  : input.action === "retry"
+                    ? "/jobs/retry"
+                    : input.action === "record-operating-cost"
+                      ? "/target/evidence/operating-cost"
+                      : input.action === "review-target-capacity"
+                        ? "/target/evidence/capacity"
+                        : "/target/extra";
     const response = await ownerCall(
       transport,
       config,

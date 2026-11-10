@@ -2450,6 +2450,7 @@ async fn assemble_checked(
         let mut billing_rollout_targets = Vec::new();
         let mut billing_provider_targets = Vec::new();
         let mut billing_retry_targets = Vec::new();
+        let mut billing_evidence_targets = Vec::new();
         let mut pos_targets = Vec::new();
         let mut pos_command_targets = Vec::new();
         let mut commercial_targets = Vec::new();
@@ -3346,6 +3347,14 @@ async fn assemble_checked(
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
+                        backend: billing_backend.clone(),
+                    },
+                );
+                billing_evidence_targets.push(
+                    erpx_server_billing::public::target_evidence_http::BillingTargetEvidenceHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
                         backend: billing_backend,
                     },
                 );
@@ -4002,6 +4011,14 @@ async fn assemble_checked(
                     billing_retry_targets,
                 )
                 .map_err(|_| "PRIVATE_API_BILLING_RETRY_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !billing_evidence_targets.is_empty() {
+            router = router.merge(
+                erpx_server_billing::public::target_evidence_http::billing_target_evidence_router(
+                    billing_evidence_targets,
+                )
+                .map_err(|_| "PRIVATE_API_BILLING_EVIDENCE_CONFIGURATION_INVALID")?,
             );
         }
         if !pos_targets.is_empty() {

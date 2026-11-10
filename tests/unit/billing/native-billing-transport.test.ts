@@ -485,6 +485,69 @@ describe('native Billing transport', () => {
     expect(JSON.parse(body!)).toEqual(input.body);
   });
 
+  it('posts the exact target evidence routes and bodies', async () => {
+    const calls: Parameters<NativeBillingTransport>[] = [];
+    const client = createNativeBillingClient(configuration, async (...args) => {
+      calls.push(args);
+      return response({ data: { ok: true }, context: context() });
+    });
+    const base = { holdingId: 'h001', holdingSlug: 'acme', key: 'billing-evidence-0001' };
+    const commands = [
+      {
+        ...base,
+        action: 'record-operating-cost' as const,
+        body: {
+          version: 2,
+          reason: 'Reviewed actual cost',
+          targetMonth: '2026-09',
+          category: 'infrastructure',
+          amountSatang: 25000,
+          evidenceId: 'evidence-1',
+        },
+      },
+      {
+        ...base,
+        action: 'review-target-capacity' as const,
+        body: {
+          version: 2,
+          reason: 'Reviewed capacity',
+          targetMonth: '2026-12',
+          projectedOriginalBytes: 10000000000,
+          primaryAvailableBytes: 30000000000,
+          backupAvailableBytes: 30000000000,
+          reservedBytes: 1000000000,
+          companyLimitBytes: 25000000000,
+          evidenceId: 'evidence-1',
+        },
+      },
+      {
+        ...base,
+        action: 'approve-target-extra' as const,
+        body: {
+          version: 2,
+          reason: 'Reviewed extra service',
+          targetMonth: '2026-12',
+          extraKind: 'setup',
+          amountSatang: 10000,
+          serviceStart: 1796112000000,
+          serviceEnd: 1796198400000,
+          note: 'Setup',
+          evidenceId: 'evidence-1',
+        },
+      },
+    ];
+    for (const command of commands)
+      expect(await client.command(headers(), actor, command)).toEqual({ ok: true });
+    expect(calls.map(([, url]) => String(url))).toEqual([
+      'http://127.0.0.1:3110/api/v1/holdings/acme/billing/target/evidence/operating-cost',
+      'http://127.0.0.1:3110/api/v1/holdings/acme/billing/target/evidence/capacity',
+      'http://127.0.0.1:3110/api/v1/holdings/acme/billing/target/extra',
+    ]);
+    expect(calls.map(([, , , body]) => JSON.parse(body!))).toEqual(
+      commands.map(command => command.body),
+    );
+  });
+
   it('posts the exact target-rollout approval route and body', async () => {
     const calls: Parameters<NativeBillingTransport>[] = [];
     const client = createNativeBillingClient(configuration, async (...args) => {
