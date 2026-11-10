@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 49,
+    "revision": 74,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -9681,22 +9681,15 @@
         "resources": [
           "inventory:commercial"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-10T16:03:24.550Z",
-          "heartbeatAt": "2026-11-10T16:14:11.756Z",
-          "expiresAt": "2026-11-10T16:44:11.756Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-commercial/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.commercial to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine the proposed packet when its authority/trade port freezes",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -9777,22 +9770,15 @@
         "resources": [
           "inventory:identity_access"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-10T16:03:24.447Z",
-          "heartbeatAt": "2026-11-10T16:14:11.756Z",
-          "expiresAt": "2026-11-10T16:44:11.756Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-identity_access/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.identity_access to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine the proposed packet when its authority/trade port freezes",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -9875,22 +9861,15 @@
         "resources": [
           "inventory:organization"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-10T16:03:24.475Z",
-          "heartbeatAt": "2026-11-10T16:14:11.756Z",
-          "expiresAt": "2026-11-10T16:44:11.756Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-organization/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.organization to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine the proposed packet when its authority/trade port freezes",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -9975,22 +9954,15 @@
         "resources": [
           "inventory:platform_administration"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-10T16:03:24.500Z",
-          "heartbeatAt": "2026-11-10T16:14:11.756Z",
-          "expiresAt": "2026-11-10T16:44:11.756Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-platform_administration/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.platform_administration to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine the proposed packet when its authority/trade port freezes",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -10163,22 +10135,15 @@
         "resources": [
           "inventory:customer_authority"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-10T16:03:24.524Z",
-          "heartbeatAt": "2026-11-10T16:14:11.756Z",
-          "expiresAt": "2026-11-10T16:44:11.756Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-customer_authority/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.customer_authority to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine the proposed packet when its authority/trade port freezes",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -11818,8 +11783,15 @@
         "resources": [
           "inventory:projects"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-10T16:17:54.671Z",
+          "heartbeatAt": "2026-11-10T16:17:54.671Z",
+          "expiresAt": "2026-11-10T16:47:54.671Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -12398,8 +12370,15 @@
         "resources": [
           "inventory:agent"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-10T16:17:54.725Z",
+          "heartbeatAt": "2026-11-10T16:17:54.725Z",
+          "expiresAt": "2026-11-10T16:47:54.725Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -12490,8 +12469,15 @@
         "resources": [
           "inventory:collaboration"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-10T16:17:54.699Z",
+          "heartbeatAt": "2026-11-10T16:17:54.699Z",
+          "expiresAt": "2026-11-10T16:47:54.699Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -12590,8 +12576,15 @@
         "resources": [
           "inventory:pms"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-10T16:17:54.752Z",
+          "heartbeatAt": "2026-11-10T16:17:54.752Z",
+          "expiresAt": "2026-11-10T16:47:54.752Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -12689,22 +12682,15 @@
         "resources": [
           "inventory:manage_erpx"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-10T16:03:24.600Z",
-          "heartbeatAt": "2026-11-10T16:14:11.756Z",
-          "expiresAt": "2026-11-10T16:44:11.756Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-manage_erpx/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.manage_erpx to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine the proposed packet when its authority/trade port freezes",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -12860,22 +12846,15 @@
         "resources": [
           "inventory:billing"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-10T16:03:24.575Z",
-          "heartbeatAt": "2026-11-10T16:14:11.756Z",
-          "expiresAt": "2026-11-10T16:44:11.756Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-billing/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.billing to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine the proposed packet when its authority/trade port freezes",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -12968,7 +12947,7 @@
         "workstream": "S01",
         "kind": "migration",
         "title": "Migrate records backend residuals",
-        "scope": "Inventory all command/source/attachment/projection consumers beyond Field. Finish public transaction witnesses, receipts/audit/outbox, scanner/preview/storage, queues/retries/lease recovery, Work aggregation and native runtime entrypoints. Publish the bounded ports first; migrate independent owner consumers in parallel.",
+        "scope": "Make the native registry/context reader authoritative for the ordinary record list/detail path and delete the TS fallback branch; implement native record-details/request-AI supplement reads that still run SQL. Preserve Company scope, authenticated work context and replay-safe writes.",
         "dependsOn": [
           "inventory.records"
         ],
@@ -12976,7 +12955,9 @@
         "allowedPaths": [
           "packages/server-records/src/**",
           "packages/server-records/Cargo.toml",
-          "packages/feature-records/src/**"
+          "packages/feature-records/src/**",
+          "tests/unit/shared.records/**",
+          "tests/integration/shared.records/**"
         ],
         "resources": [
           "owner:records"
@@ -12989,12 +12970,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "After inventory.records, refine to a bounded packet and exact shared-shell paths; implement missing native behavior, send mounts to lead, retire replaced legacy and run source-bound checks.",
+        "nextAction": "Retire the TS record registry/context fallback and implement native record-details reads from inventory.records; run cargo check/test for record_registry_http and record_context plus the registered records unit suites.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-records",
         "plannedPackage": "erpx-server-records",
-        "scopeRefinementRequired": true,
+        "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       },
       {
@@ -13041,7 +13022,7 @@
         "workstream": "S01",
         "kind": "migration",
         "title": "Migrate workflow backend residuals",
-        "scope": "Inventory all command/source/attachment/projection consumers beyond Field. Finish public transaction witnesses, receipts/audit/outbox, scanner/preview/storage, queues/retries/lease recovery, Work aggregation and native runtime entrypoints. Publish the bounded ports first; migrate independent owner consumers in parallel.",
+        "scope": "Port the outbox event projector and flow routing/attention read into Rust workflow owners. Receipts, owner effects and outbox retain stay in the caller transaction; no independent commit. TS executeCommand/replayCommand fallback may be retired only for flows with native parity.",
         "dependsOn": [
           "inventory.workflow"
         ],
@@ -13051,9 +13032,9 @@
         "allowedPaths": [
           "packages/server-workflow/src/**",
           "packages/server-workflow/Cargo.toml",
-          "packages/feature-workflow/src/**",
           "tests/unit/workflow/**",
-          "tests/integration/workflow/**"
+          "tests/integration/workflow/**",
+          "tests/integration/shared.work/**"
         ],
         "resources": [
           "owner:workflow"
@@ -13066,12 +13047,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "After inventory.workflow, refine to a bounded packet and exact shared-shell paths; implement missing native behavior, send mounts to lead, retire replaced legacy and run source-bound checks.",
+        "nextAction": "Implement the native event projector and flow routing read from inventory.workflow, run cargo check -p erpx-server-workflow and registered command-ledger/approval suites, and report the projection commit contract to the lead.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-workflow",
         "plannedPackage": "erpx-server-workflow",
-        "scopeRefinementRequired": true,
+        "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       },
       {
@@ -13118,7 +13099,7 @@
         "workstream": "S01",
         "kind": "migration",
         "title": "Migrate files backend residuals",
-        "scope": "Inventory all command/source/attachment/projection consumers beyond Field. Finish public transaction witnesses, receipts/audit/outbox, scanner/preview/storage, queues/retries/lease recovery, Work aggregation and native runtime entrypoints. Publish the bounded ports first; migrate independent owner consumers in parallel.",
+        "scope": "Port generic /uploads and attachment-set intake (create set, reserve, complete upload, sanitization attestation) to native files owners and make the native scan receipt the completion gate. Keep legal hold, evidence lock, private-file authority and existing provider fail-closed behavior.",
         "dependsOn": [
           "inventory.files"
         ],
@@ -13144,12 +13125,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "After inventory.files, refine to a bounded packet and exact shared-shell paths; implement missing native behavior, send mounts to lead, retire replaced legacy and run source-bound checks.",
+        "nextAction": "Implement native generic upload intake and scan-receipt authority from inventory.files; run cargo check -p erpx-server-files plus registered attachment-read/scan suites and report the transport contract to the lead.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-files",
         "plannedPackage": "erpx-server-files",
-        "scopeRefinementRequired": true,
+        "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       },
       {
@@ -13196,7 +13177,7 @@
         "workstream": "S01",
         "kind": "migration",
         "title": "Migrate work_projection backend residuals",
-        "scope": "Inventory all command/source/attachment/projection consumers beyond Field. Finish public transaction witnesses, receipts/audit/outbox, scanner/preview/storage, queues/retries/lease recovery, Work aggregation and native runtime entrypoints. Publish the bounded ports first; migrate independent owner consumers in parallel.",
+        "scope": "Bind the existing native Work snapshot read to its actual consumer and implement the remaining Work report/navigation read ports so the TS SQL projections can be retired. The snapshot runs only inside the caller-retained serializable Holding transaction and grants no authority.",
         "dependsOn": [
           "inventory.work_projection"
         ],
@@ -13204,7 +13185,9 @@
         "allowedPaths": [
           "packages/server-work_projection/src/**",
           "packages/server-work_projection/Cargo.toml",
-          "packages/feature-work_projection/src/**"
+          "packages/feature-work_projection/src/**",
+          "tests/unit/shared.work/**",
+          "tests/integration/shared.work/**"
         ],
         "resources": [
           "owner:work_projection"
@@ -13217,12 +13200,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "After inventory.work_projection, refine to a bounded packet and exact shared-shell paths; implement missing native behavior, send mounts to lead, retire replaced legacy and run source-bound checks.",
+        "nextAction": "Mount-capable Work snapshot/report reads from inventory.work_projection; run cargo check -p erpx-server-work_projection and the registered work-snapshot cargo suite, and send the exact composition mount request to the lead.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-work-projection",
         "plannedPackage": "erpx-server-work-projection",
-        "scopeRefinementRequired": true,
+        "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       },
       {
@@ -13269,7 +13252,7 @@
         "workstream": "S01",
         "kind": "migration",
         "title": "Migrate runtime backend residuals",
-        "scope": "Inventory all command/source/attachment/projection consumers beyond Field. Finish public transaction witnesses, receipts/audit/outbox, scanner/preview/storage, queues/retries/lease recovery, Work aggregation and native runtime entrypoints. Publish the bounded ports first; migrate independent owner consumers in parallel.",
+        "scope": "Replace the TypeScript general outbox/job supervisor with a native runtime supervisor for every registered Holding: claim/complete/fail/renew leases, retry/backoff, dead-letter, attestation. Preserve one heavy worker slot and the existing field/count worker loops. Production worker entrypoint parity belongs to this task only after the supervisor exists.",
         "dependsOn": [
           "inventory.runtime"
         ],
@@ -13277,7 +13260,8 @@
         "allowedPaths": [
           "packages/server-runtime/src/**",
           "packages/server-runtime/Cargo.toml",
-          "packages/feature-runtime/src/**"
+          "tests/unit/shared.runtime/**",
+          "tests/integration/shared.runtime/**"
         ],
         "resources": [
           "owner:runtime"
@@ -13290,12 +13274,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "After inventory.runtime, refine to a bounded packet and exact shared-shell paths; implement missing native behavior, send mounts to lead, retire replaced legacy and run source-bound checks.",
+        "nextAction": "Implement the native general outbox supervisor and worker entrypoint from inventory.runtime, run cargo check -p erpx-server-runtime and the registered worker-attestation/outbox cargo suites, and request the lead composition mount.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-runtime",
         "plannedPackage": "erpx-server-runtime",
-        "scopeRefinementRequired": true,
+        "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       },
       {
@@ -13342,7 +13326,7 @@
         "workstream": "S01",
         "kind": "migration",
         "title": "Migrate shared backend residuals",
-        "scope": "Inventory all command/source/attachment/projection consumers beyond Field. Finish public transaction witnesses, receipts/audit/outbox, scanner/preview/storage, queues/retries/lease recovery, Work aggregation and native runtime entrypoints. Publish the bounded ports first; migrate independent owner consumers in parallel.",
+        "scope": "Publish or remove the unused shared port traits so exactly one transaction/receipt/outbox witness is adoptable: Clock, IdentifierSource, UnitOfWork, CommandReceipts, AuditSink, Outbox. Keep BusinessError/identifiers/DecimalAmount/record-source.v1 frozen. No business behavior moves here.",
         "dependsOn": [
           "inventory.shared"
         ],
@@ -13350,25 +13334,54 @@
         "allowedPaths": [
           "packages/server-shared/src/**",
           "packages/server-shared/Cargo.toml",
-          "packages/feature-shared/src/**"
+          "tests/unit/shared.architecture/**"
         ],
         "resources": [
           "owner:shared"
         ],
-        "status": "pending",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "b6b8677a45ea32dd001771dca235d2f9f0553d8b",
+        "lastPushedSha": "b6b8677a45ea32dd001771dca235d2f9f0553d8b",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-shared --locked",
+            "result": "passed",
+            "sourceSha": "b6b8677a45ea32dd001771dca235d2f9f0553d8b",
+            "sourceKind": "committed",
+            "note": "Shared crate compiles with the consolidated Clock/IdentifierSource port surface."
+          },
+          {
+            "command": "bun run test:unit -- --suite=shared.architecture.rust-shared-core.unit",
+            "result": "passed",
+            "sourceSha": "b6b8677a45ea32dd001771dca235d2f9f0553d8b",
+            "sourceKind": "committed",
+            "note": "5/5 registered cargo cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=shared.architecture.rust-architecture.unit",
+            "result": "passed",
+            "sourceSha": "b6b8677a45ea32dd001771dca235d2f9f0553d8b",
+            "sourceKind": "committed",
+            "note": "8/8 architecture cases pass; owner layers/public facades unchanged."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business --locked",
+            "result": "passed",
+            "sourceSha": "b6b8677a45ea32dd001771dca235d2f9f0553d8b",
+            "sourceKind": "committed",
+            "note": "Whole business composition still compiles after removing the dead shared trait re-exports."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "After inventory.shared, refine to a bounded packet and exact shared-shell paths; implement missing native behavior, send mounts to lead, retire replaced legacy and run source-bound checks.",
+        "nextAction": "Reuse the single transaction/receipt witness for runtime and owner packets; no shared trait adoption remains",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-shared",
         "plannedPackage": "erpx-server-shared",
-        "scopeRefinementRequired": true,
+        "scopeRefinementRequired": false,
         "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       },
       {
@@ -13903,15 +13916,65 @@
         "resources": [
           "shared-integration"
         ],
-        "status": "pending",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "b6b8677a45ea32dd001771dca235d2f9f0553d8b",
+        "lastPushedSha": "b6b8677a45ea32dd001771dca235d2f9f0553d8b",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-workflow --locked",
+            "result": "passed",
+            "sourceSha": "b6b8677a45ea32dd001771dca235d2f9f0553d8b",
+            "sourceKind": "committed",
+            "note": "Provider public facade and adapters compile at the frozen source."
+          },
+          {
+            "command": "cargo check -p erpx-server-records --locked",
+            "result": "passed",
+            "sourceSha": "b6b8677a45ea32dd001771dca235d2f9f0553d8b",
+            "sourceKind": "committed",
+            "note": "Provider public facade and adapters compile at the frozen source."
+          },
+          {
+            "command": "cargo check -p erpx-server-files --locked",
+            "result": "passed",
+            "sourceSha": "b6b8677a45ea32dd001771dca235d2f9f0553d8b",
+            "sourceKind": "committed",
+            "note": "Provider public facade and adapters compile at the frozen source."
+          },
+          {
+            "command": "cargo check -p erpx-server-runtime --locked",
+            "result": "passed",
+            "sourceSha": "b6b8677a45ea32dd001771dca235d2f9f0553d8b",
+            "sourceKind": "committed",
+            "note": "Provider public facade and adapters compile at the frozen source."
+          },
+          {
+            "command": "cargo check -p erpx-server-work-projection --locked",
+            "result": "passed",
+            "sourceSha": "b6b8677a45ea32dd001771dca235d2f9f0553d8b",
+            "sourceKind": "committed",
+            "note": "Provider public facade and adapters compile at the frozen source."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business --locked",
+            "result": "passed",
+            "sourceSha": "b6b8677a45ea32dd001771dca235d2f9f0553d8b",
+            "sourceKind": "committed",
+            "note": "Every recorded common mount compiles in the business composition."
+          },
+          {
+            "command": "bun scripts/testing/rust-migration-work.ts validate",
+            "result": "passed",
+            "sourceSha": "b6b8677a45ea32dd001771dca235d2f9f0553d8b",
+            "sourceKind": "committed",
+            "note": "Ledger schema validates; ports.common records seven frozen seams with provider, authority, transaction order and mounts."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Choose the smallest public seam a ready consumer needs; freeze exact port/mount/lock order without broadening authority or creating an owner cycle.",
+        "nextAction": "Consumers can build against the frozen common seams; tail items stay in migrate.work_projection (snapshot mount) and migrate.files (generic upload/scan gate)",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -14312,20 +14375,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 48,
-      "migratedPackets": 0,
+      "migratedPackets": 1,
       "statusCounts": {
-        "pending": 48,
+        "pending": 47,
         "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 0,
+        "migrated": 1,
         "blocked": 0,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T16:14:11.756Z",
+    "updatedAt": "2026-11-10T16:20:06.304Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
