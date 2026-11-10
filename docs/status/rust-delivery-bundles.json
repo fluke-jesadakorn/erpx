@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-10T21:53:41+07:00",
+  "updatedAt": "2026-11-10T22:27:13+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -19,9 +19,9 @@
     "qualifiedBusinessFlows": 112,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 46,
-    "workflowsVerified": 78,
-    "workflowsMerged": 78,
+    "workflowsPartial": 44,
+    "workflowsVerified": 80,
+    "workflowsMerged": 80,
     "ownersComplete": 8,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
@@ -3673,6 +3673,15 @@
       "sourceIdentity": "working tree on 0f8f40f745314c8c927c8fd7511193d2b659af4d",
       "evidenceRef": "docs/testing/evidence/2026-11-10-operations-owner-certification.json",
       "durableContractRefs": []
+    },
+    {
+      "id": "quality-inspections-cancellation-bundle",
+      "kind": "bundle-certification",
+      "status": "bundle-complete",
+      "scope": "Quality inspections and feature-cancellation: the product route is native-only for inspect, cancel and specification commands and fails closed without the native transport. Native inspect 200 v4 awaiting_release/pass with a persisted inspection; native cancellation request 200 cancel_pending v2 and independent approve 200 cancelled v3 with persisted events. Quality units 37/37, Rust units 10/10, TS integration 31/31, Rust PostgreSQL integration 41/41, typecheck and structure pass. quality/results remains partial because the workspace/detail presenter still reads the retained shape and overlays native flags.",
+      "sourceIdentity": "working tree on fdfac5ab21c6dc8e04434b058c03c0a85153fc62",
+      "evidenceRef": "docs/testing/evidence/2026-11-10-quality-inspections-cancellation.json",
+      "durableContractRefs": []
     }
   ],
   "workflows": [
@@ -5003,16 +5012,16 @@
       "kind": "module",
       "owner": "quality",
       "scope": "Inspections",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "quality-native-read",
         "quality-native-cancel",
         "quality-http"
       ],
       "sourceRef": "packages/server-quality/src/public/quality.ts",
-      "gap": "Historical native slice. Native Quality inspection supports direct attachmentIds and attachmentSetIds through a Files-owned bounded set-membership witness, merged/deduplicated under the combined bound with persisted attachment refs, measurements, staff notifications/inbox, receipts/audit/outbox. Browser set inspection 200 verified with persisted ref and notification; stale/foreign-set rejection and direct+set dedup covered by PostgreSQL tests. Correction at e208578b4: The product Quality route retains TypeScript inspect fallback when native is unavailable. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
+      "gap": "Closed. The product Quality route now calls the native inspect, cancellation and specification commands and fails closed with 503 NATIVE_QUALITY_UNAVAILABLE; the retained TypeScript fallbacks were removed. Native Quality inspection supports direct attachmentIds and attachmentSetIds through a Files-owned bounded set-membership witness, merged/deduplicated under the combined bound with persisted attachment refs, measurements, staff notifications/inbox, receipts/audit/outbox. Browser set inspection 200 verified with persisted ref and notification; stale/foreign-set rejection and direct+set dedup covered by PostgreSQL tests. Native inspect returned 200 {status:awaiting_release,result:pass,version:4} with a persisted inspection row and last_inspector usr_jesadakorn. The native specification save/activate branches are native-only. Create hold remains a disclosed auxiliary consumer outside this workflow."
     },
     {
       "id": "quality/results",
@@ -5051,16 +5060,16 @@
       "kind": "module",
       "owner": "quality",
       "scope": "Cancellation",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "quality-native-read",
         "quality-native-cancel",
         "quality-http"
       ],
       "sourceRef": "packages/server-quality/src/public/quality.ts",
-      "gap": "Historical native slice. Native cancellation request/approve/reject now runs through the Quality workflow ledger in the caller's serializable Holding unit with current authority, supply.quality purchase admission, hold-row CAS, independence checks, one receipt/audit/outbox per action and the Identity recipient witness plus Collaboration staff notification/inbox handoff. Browser verified through the Quality UI: approve path cancel_pending v2 -> cancelled v3; reject path cancel_pending v2 -> held v3; persisted four cancellation events, four receipts/audit/outbox, pending independent quality.release notices and terminal creator notice with inbox deliveries. Correction at e208578b4: The product Quality route retains TypeScript cancellation fallback when native is unavailable. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
+      "gap": "Closed. The product Quality route now calls the native inspect, cancellation and specification commands and fails closed with 503 NATIVE_QUALITY_UNAVAILABLE; the retained TypeScript fallbacks were removed. Native cancellation request/approve/reject now runs through the Quality workflow ledger in the caller's serializable Holding unit with current authority, supply.quality purchase admission, hold-row CAS, independence checks, one receipt/audit/outbox per action and the Identity recipient witness plus Collaboration staff notification/inbox handoff. Browser verified through the Quality UI: approve path cancel_pending v2 -> cancelled v3; reject path cancel_pending v2 -> held v3; persisted four cancellation events, four receipts/audit/outbox, pending independent quality.release notices and terminal creator notice with inbox deliveries. Native cancellation request returned 200 cancel_pending v2 and native approve by independent usr_mali returned 200 cancelled v3; PostgreSQL readback persisted cancelled_by usr_mali and the request/approve events."
     },
     {
       "id": "legal/contracts",
@@ -6750,8 +6759,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-10T21:53:41+07:00",
-    "sourceHead": "0f8f40f745314c8c927c8fd7511193d2b659af4d",
+    "generatedAt": "2026-11-10T22:27:13+07:00",
+    "sourceHead": "fdfac5ab21c6dc8e04434b058c03c0a85153fc62",
     "interpretation": "ownerTotals includes the 41 register owners plus the seven catalogue surface owners (account, admin, apps, booking, forms, legal-portal, portal); surface owners are counted in the 206 workflows and are not part of the 41-owner strict certification denominator. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6884,8 +6893,8 @@
       },
       "quality": {
         "workflows": 4,
-        "verified": 1,
-        "partial": 3,
+        "verified": 3,
+        "partial": 1,
         "unstarted": 0,
         "phase": "partial",
         "businessMigrationComplete": false

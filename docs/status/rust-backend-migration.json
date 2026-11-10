@@ -238,7 +238,7 @@
       "surfaces": {
         "domain": "active",
         "application": "active",
-        "http": "partial",
+        "http": "active",
         "ssr": "partial",
         "jobs": "pending",
         "providers": "pending"
