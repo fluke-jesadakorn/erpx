@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 268,
+    "revision": 270,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g1",
       "agentId": "lead",
       "startedAt": "2026-11-10T16:01:48.750Z",
-      "heartbeatAt": "2026-11-10T19:56:22.014Z",
-      "expiresAt": "2026-11-10T20:26:22.014Z",
+      "heartbeatAt": "2026-11-10T19:57:22.006Z",
+      "expiresAt": "2026-11-10T20:27:22.006Z",
       "generation": 2,
       "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
     },
@@ -11979,8 +11979,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T17:27:02.192Z",
-          "heartbeatAt": "2026-11-10T19:56:22.014Z",
-          "expiresAt": "2026-11-10T20:26:22.014Z",
+          "heartbeatAt": "2026-11-10T19:57:22.006Z",
+          "expiresAt": "2026-11-10T20:27:22.006Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12169,8 +12169,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:27:02.162Z",
-          "heartbeatAt": "2026-11-10T19:56:22.014Z",
-          "expiresAt": "2026-11-10T20:26:22.014Z",
+          "heartbeatAt": "2026-11-10T19:57:22.006Z",
+          "expiresAt": "2026-11-10T20:27:22.006Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12267,8 +12267,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:53:28.777Z",
-          "heartbeatAt": "2026-11-10T19:56:22.014Z",
-          "expiresAt": "2026-11-10T20:26:22.014Z",
+          "heartbeatAt": "2026-11-10T19:57:22.006Z",
+          "expiresAt": "2026-11-10T20:27:22.006Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12841,13 +12841,13 @@
         "resources": [
           "owner:manage_erpx"
         ],
-        "status": "ready_for_integration",
+        "status": "blocked",
         "claim": {
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T17:05:17.831Z",
-          "heartbeatAt": "2026-11-10T19:56:22.014Z",
-          "expiresAt": "2026-11-10T20:26:22.014Z",
+          "heartbeatAt": "2026-11-10T19:57:22.006Z",
+          "expiresAt": "2026-11-10T20:27:22.006Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12856,7 +12856,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead mounts manage_erpx_onboarding_command_router and switches the workplace onboarding POST to the native client",
+        "nextAction": "Blocked on provisioning configuration: onboard_company/reserve_onboarding requires OnboardingCommandResource write/read/files bindings + OnboardingCommandLimits for the newly claimed slot, but composition has no source that allocates/registers physical bindings or pools for a not-yet-existing Holding. Needs an infrastructure decision (binding allocation scheme + pool lookup for a new slot) before the backend can be mounted safely.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-manage-erpx",
@@ -15006,16 +15006,16 @@
       "statusCounts": {
         "pending": 37,
         "in_progress": 0,
-        "ready_for_integration": 4,
+        "ready_for_integration": 3,
         "integrating": 0,
         "migrated": 8,
-        "blocked": 2,
+        "blocked": 3,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T19:56:22.015Z",
+    "updatedAt": "2026-11-10T19:57:22.006Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
