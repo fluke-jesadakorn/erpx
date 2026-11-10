@@ -75,5 +75,9 @@ path = "../../tests/unit/shared.architecture/rust-owned-process.test.rs"
 required-features = ["owned-process"]
 
 [[test]]
+name = "worker_attestation_postgres"
+path = "../../tests/integration/shared.runtime/worker-attestation-postgres.test.rs"
+
+[[test]]
 name = "outbox_jobs_postgres"
 path = "../../tests/integration/shared.persistence/rust-outbox-jobs-postgres.test.rs"

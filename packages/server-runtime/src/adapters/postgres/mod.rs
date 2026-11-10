@@ -1,3 +1,4 @@
+pub(crate) mod attestation;
 pub(crate) mod jobs;
 pub(crate) mod config;
 pub(crate) mod development_lease;

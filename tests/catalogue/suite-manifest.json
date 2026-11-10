@@ -57429,6 +57429,116 @@
       }
     },
         {
+      "id": "shared.runtime.worker-attestation-postgres.integration",
+      "lane": "integration",
+      "owner": "shared.runtime",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "files": [
+        "tests/integration/shared.runtime/worker-attestation-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Read-only Runtime worker attestation must prove exact database identity, primary/recovery state and reviewed migration inventory before a drain loop is admitted."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-runtime",
+        "targets": [
+          "worker_attestation_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-runtime/Cargo.toml",
+        "packages/server-runtime/src/adapters/postgres/attestation.rs",
+        "packages/server-runtime/src/public/postgres/mod.rs",
+        "tests/support/rust-postgres.rs",
+        "tests/integration/shared.runtime/worker-attestation-postgres.test.rs"
+      ],
+      "apps": [
+        "apps",
+        "pos",
+        "pms",
+        "finance",
+        "people",
+        "sales",
+        "supply",
+        "assets",
+        "projects",
+        "recruit",
+        "learn",
+        "support",
+        "service",
+        "legal",
+        "manufacturing",
+        "account",
+        "admin",
+        "booking",
+        "portal",
+        "legal-portal",
+        "forms"
+      ],
+      "packages": [
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
       "id": "shared.persistence.rust-outbox-jobs-postgres.integration",
       "lane": "integration",
       "owner": "shared.persistence",
