@@ -31,6 +31,7 @@ const state = vi.hoisted(() => ({
   retainedArchive: vi.fn(),
   retainedReference: vi.fn(),
   retainedTransition: vi.fn(),
+  retainedContext: vi.fn(),
 }));
 
 vi.mock('@erpx/server-identity_access/public/authorization', () => ({
@@ -40,8 +41,6 @@ vi.mock('@erpx/server-manage_erpx/public/public-origin', () => ({
   requestPublicOrigin: () => 'https://acme.example.com',
 }));
 vi.mock('@erpx/server-records/adapters/records', () => ({
-  listRecords: state.retainedList,
-  recordsPage: state.retainedPage,
   createRecord: vi.fn(),
   createRecordSchema: { safeParse: (value: unknown) => ({ success: true, data: value }) },
   getRecord: state.retainedGet,
@@ -52,14 +51,13 @@ vi.mock('@erpx/server-records/adapters/records', () => ({
   addReferenceSchema: { safeParse: (value: unknown) => ({ success: true, data: value }) },
   transitionRecord: state.retainedTransition,
   transitionSchema: { safeParse: (value: unknown) => ({ success: true, data: value }) },
-  recordContext: vi.fn(),
+  recordContext: state.retainedContext,
 }));
 vi.mock('@erpx/server-records/public/mention-display', () => ({
   recordMentionDisplay: vi.fn(),
 }));
 vi.mock('@erpx/server-records/public/native-record-context', () => ({
   createNativeRecordContextClient: () => ({ context: state.context }),
-  nativeRecordContextAvailable: () => false,
   nativeRecordContextConfiguration: () => ({}),
   nativeRecordContextFailure: () => undefined,
 }));
@@ -86,7 +84,7 @@ vi.mock('@erpx/server-records/public/native-record-registry', () => ({
 }));
 
 import { GET, POST } from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/[module]/route';
-import { PATCH, DELETE } from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/route';
+import { GET as GET_RECORD, PATCH, DELETE } from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/route';
 import { POST as POST_REFERENCE } from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/references/route';
 import { POST as POST_TRANSITION } from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/transition/route';
 
@@ -151,19 +149,54 @@ it('fails closed on a configured native failure and never reads the retained own
   expect(state.retainedList).not.toHaveBeenCalled();
 });
 
-it('retains the existing owner path only when native configuration is absent', async () => {
+it('fails the list closed with 503 instead of running retained SQL when native configuration is absent', async () => {
   state.available = false;
-  const paged = await GET(request('section=overview&paged=1'), params);
-  expect(paged.status).toBe(200);
-  expect(state.retainedPage).toHaveBeenCalledWith(state.actor, 'operations', 'overview', {
-    q: undefined,
-    cursor: undefined,
-  });
-  const listed = await GET(request('section=overview'), params);
-  expect(listed.status).toBe(200);
-  expect(state.retainedList).toHaveBeenCalledWith(state.actor, 'operations', 'overview');
+  delete process.env.ERPX_NATIVE_RECORDS_CONFIG;
+  for (const query of ['section=overview&paged=1', 'section=overview']) {
+    const response = await GET(request(query), params);
+    expect(response.status).toBe(503);
+    expect((await response.json()).error.code).toBe('NATIVE_RECORD_REGISTRY_UNAVAILABLE');
+  }
   expect(state.page).not.toHaveBeenCalled();
   expect(state.list).not.toHaveBeenCalled();
+  expect(state.retainedPage).not.toHaveBeenCalled();
+  expect(state.retainedList).not.toHaveBeenCalled();
+});
+
+it('reads the ordinary record detail only through the native context reader', async () => {
+  const recordContext = {
+    record: { id: 'rec-1', version: 2 },
+    references: [],
+    backlinks: [],
+    mentions: [],
+    suggestions: [],
+    history: [],
+  };
+  state.context.mockResolvedValue(recordContext);
+  const response = await GET_RECORD(
+    new Request('https://acme.example.com/api/v1/holdings/acme/records/operations/rec-1'),
+    { params: Promise.resolve({ holdingSlug: 'acme', module: 'operations', id: 'rec-1' }) },
+  );
+  expect(response.status).toBe(200);
+  expect((await response.json()).data).toEqual(recordContext);
+  expect(state.context).toHaveBeenCalledWith(
+    expect.any(Headers),
+    expect.objectContaining({ holdingId: 'h001', companyId: 'company' }),
+    { holdingSlug: 'acme', moduleId: 'operations', recordId: 'rec-1' },
+  );
+  expect(state.retainedContext).not.toHaveBeenCalled();
+});
+
+it('fails the record detail closed with 503 instead of running retained SQL when native configuration is absent', async () => {
+  delete process.env.ERPX_NATIVE_RECORDS_CONFIG;
+  const response = await GET_RECORD(
+    new Request('https://acme.example.com/api/v1/holdings/acme/records/operations/rec-1'),
+    { params: Promise.resolve({ holdingSlug: 'acme', module: 'operations', id: 'rec-1' }) },
+  );
+  expect(response.status).toBe(503);
+  expect((await response.json()).error.code).toBe('NATIVE_RECORD_CONTEXT_UNAVAILABLE');
+  expect(state.context).not.toHaveBeenCalled();
+  expect(state.retainedContext).not.toHaveBeenCalled();
 });
 
 it('uses native create with the current authority then reads back the created record', async () => {

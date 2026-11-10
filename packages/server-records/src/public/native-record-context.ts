@@ -759,3 +759,268 @@ export function directHttp(
     outgoing.end(body);
   });
 }
+
+/** Bounded drawer-detail read for one Records-owned workspace record. */
+export type NativeRecordDetailsInput = Readonly<{
+  holdingSlug: string;
+  moduleId: string;
+  recordId: string;
+  page?: number;
+}>;
+
+export type NativeRecordDetailRelated = Readonly<{ kind: string; id: string }>;
+
+export type NativeRecordDetail = Readonly<{
+  kind: 'workspace_record';
+  row: NativeRecordView;
+  related: NativeRecordDetailRelated[];
+  history: NativeRecordHistory[];
+  page: number;
+  hasNext: boolean;
+}>;
+
+export class NativeRecordDetailsError extends Error {
+  readonly code: string;
+  readonly status?: number;
+  constructor(code: string, status?: number, message?: string) {
+    super(message ?? 'The native Records detail request could not be completed.');
+    this.name = 'NativeRecordDetailsError';
+    this.code = code;
+    this.status = status;
+  }
+}
+
+const detailsFailure = (code: string, status?: number, message?: string): never => {
+  throw new NativeRecordDetailsError(code, status, message);
+};
+
+export const RECORD_DETAILS_PAGE_SIZE = 20;
+export const RECORD_DETAILS_MAX_PAGE = 100_000;
+
+const detailRow = (
+  value: unknown,
+  moduleId: string,
+  recordId: string,
+): value is NativeRecordView =>
+  exact(value, [
+    'moduleId',
+    'id',
+    'sectionId',
+    'title',
+    'description',
+    'status',
+    'fields',
+    'version',
+    'createdBy',
+    'updatedAt',
+  ]) &&
+  value.moduleId === moduleId &&
+  value.id === recordId &&
+  trimmed(value.sectionId, 1, 128) &&
+  trimmed(value.title, 1, 160) &&
+  text(value.description, 2_000) &&
+  (typeof value.description === 'string' && !value.description.includes('\u0000')) &&
+  typeof value.status === 'string' &&
+  statuses.has(value.status) &&
+  Array.isArray(value.fields) &&
+  value.fields.length >= 1 &&
+  value.fields.length <= 64 &&
+  value.fields.every(field) &&
+  new Set((value.fields as NativeRecordField[]).map((item) => item.key)).size ===
+    value.fields.length &&
+  integer(value.version, 1) &&
+  trimmed(value.createdBy, 1, 200) &&
+  integer(value.updatedAt);
+
+const detailRelated = (value: unknown): value is NativeRecordDetailRelated =>
+  exact(value, ['kind', 'id']) &&
+  trimmed(value.kind, 1, 64) &&
+  /^[a-z0-9_-]+$/.test(value.kind as string) &&
+  identifier(value.id);
+
+function detailData(value: unknown, input: NativeRecordDetailsInput): NativeRecordDetail {
+  const page = input.page ?? 1;
+  if (
+    !exact(value, ['kind', 'row', 'related', 'history', 'page', 'hasNext']) ||
+    value.kind !== 'workspace_record' ||
+    !detailRow(value.row, input.moduleId, input.recordId) ||
+    !Array.isArray(value.related) ||
+    value.related.length > 50 ||
+    !value.related.every(detailRelated) ||
+    new Set(
+      (value.related as NativeRecordDetailRelated[]).map((item) => `${item.kind}/${item.id}`),
+    ).size !== value.related.length ||
+    !Array.isArray(value.history) ||
+    value.history.length > RECORD_DETAILS_PAGE_SIZE ||
+    !value.history.every(history) ||
+    value.page !== page ||
+    typeof value.hasNext !== 'boolean'
+  )
+    return detailsFailure('NATIVE_RECORD_DETAILS_RESPONSE_INVALID');
+  return value as unknown as NativeRecordDetail;
+}
+
+export function nativeRecordDetailsAvailable(): boolean {
+  return process.env.ERPX_NATIVE_RECORDS_CONFIG !== undefined;
+}
+
+export function nativeRecordDetailsConfiguration(
+  raw: string,
+): NativeRecordContextConfiguration {
+  try {
+    return nativeRecordContextConfiguration(raw);
+  } catch (error) {
+    if (error instanceof NativeRecordContextError)
+      return detailsFailure('NATIVE_RECORD_DETAILS_CONFIGURATION_INVALID');
+    throw error;
+  }
+}
+
+export function nativeRecordDetailsFailure(
+  error: unknown,
+): { status: number; code: string; message: string } | undefined {
+  if (!(error instanceof NativeRecordDetailsError)) return undefined;
+  if (error.code === 'NATIVE_RECORD_DETAILS_CONTEXT_CHANGED')
+    return {
+      status: 409,
+      code: 'WORK_CONTEXT_CHANGED',
+      message: 'Your work role changed. Reload and review before retrying.',
+    };
+  if (error.status === 401)
+    return { status: 401, code: 'UNAUTHENTICATED', message: 'Sign in to continue.' };
+  if (error.status === 403)
+    return {
+      status: 403,
+      code: error.code === 'NATIVE_RECORD_DETAILS_UNAVAILABLE' ? 'FORBIDDEN' : error.code,
+      message: error.message,
+    };
+  if (error.status === 404)
+    return {
+      status: 404,
+      code: error.code === 'NATIVE_RECORD_DETAILS_UNAVAILABLE' ? 'NOT_FOUND' : error.code,
+      message: error.message,
+    };
+  if (error.status === 409)
+    return { status: 409, code: error.code, message: error.message };
+  if (error.status === 422)
+    return { status: 422, code: error.code, message: error.message };
+  if (error.status === 503)
+    return {
+      status: 503,
+      code: 'NATIVE_RECORD_DETAILS_UNAVAILABLE',
+      message: 'The native Records detail reader is unavailable.',
+    };
+  if (error.code === 'NATIVE_RECORD_DETAILS_CONFIGURATION_INVALID')
+    return {
+      status: 503,
+      code: 'NATIVE_RECORD_DETAILS_UNAVAILABLE',
+      message: 'The native Records detail reader is unavailable.',
+    };
+  if (error.code === 'NATIVE_RECORD_DETAILS_REQUEST_INVALID')
+    return {
+      status: 422,
+      code: 'RECORD_TARGET_REQUIRED',
+      message: 'Choose a valid source record.',
+    };
+  if (
+    error.code === 'NATIVE_RECORD_DETAILS_AUTHORITY_INVALID' ||
+    error.code === 'NATIVE_RECORD_DETAILS_COOKIE_LIMIT' ||
+    error.code === 'NATIVE_RECORD_DETAILS_RESPONSE_INVALID' ||
+    error.code === 'NATIVE_RECORD_DETAILS_RESPONSE_LIMIT'
+  )
+    return {
+      status: 503,
+      code: 'NATIVE_RECORD_DETAILS_UNAVAILABLE',
+      message: 'The native Records detail reader is unavailable.',
+    };
+  return undefined;
+}
+
+export function createNativeRecordDetailsClient(
+  raw: NativeRecordContextConfiguration,
+  transport: NativeRecordContextTransport = directHttp,
+) {
+  let config: ReturnType<typeof configuration>;
+  try {
+    config = configuration(raw);
+  } catch (error) {
+    if (error instanceof NativeRecordContextError)
+      return detailsFailure('NATIVE_RECORD_DETAILS_CONFIGURATION_INVALID');
+    throw error;
+  }
+  return {
+    supplement: async (
+      incoming: Pick<Headers, 'get'>,
+      actor: NativeRecordsPageContext,
+      input: NativeRecordDetailsInput,
+      signal?: AbortSignal,
+    ): Promise<NativeRecordDetail> => {
+      const page = input.page ?? 1;
+      if (!actor.authority || !actor.iam || actor.holdingSlug !== input.holdingSlug)
+        return detailsFailure('NATIVE_RECORD_DETAILS_CONTEXT_CHANGED');
+      const host = incoming.get('host');
+      const holding = host ? config.holdings.get(host) : undefined;
+      if (
+        !holding ||
+        holding.holdingSlug !== input.holdingSlug ||
+        holding.holdingId !== actor.holdingId
+      )
+        return detailsFailure('NATIVE_RECORD_DETAILS_AUTHORITY_INVALID');
+      if (
+        !/^[a-z0-9_-]{1,64}$/.test(input.moduleId) ||
+        !identifier(input.recordId) ||
+        input.recordId.length > 180 ||
+        input.recordId.includes('/') ||
+        input.recordId.includes('\\') ||
+        !integer(page, 1) ||
+        page > RECORD_DETAILS_MAX_PAGE
+      )
+        return detailsFailure('NATIVE_RECORD_DETAILS_REQUEST_INVALID');
+      const headers = new Headers({
+        host: host!,
+        accept: 'application/json',
+        'cache-control': 'no-cache',
+      });
+      const cookie = incoming.get('cookie');
+      if (cookie) {
+        if (new TextEncoder().encode(cookie).length > 8192)
+          return detailsFailure('NATIVE_RECORD_DETAILS_COOKIE_LIMIT');
+        headers.set('cookie', cookie);
+      }
+      const url = new URL(
+        `/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/records/${encodeURIComponent(input.moduleId)}/${encodeURIComponent(input.recordId)}/detail`,
+        config.base,
+      );
+      url.searchParams.set('page', String(page));
+      const controller = new AbortController();
+      const cancel = () => controller.abort();
+      signal?.addEventListener('abort', cancel, { once: true });
+      if (signal?.aborted) controller.abort();
+      const timer = setTimeout(cancel, config.timeout);
+      const response = await transport('GET', url, headers, undefined, controller.signal)
+        .catch((error: unknown) => {
+          if (error instanceof NativeRecordDetailsError) throw error;
+          return detailsFailure('NATIVE_RECORD_DETAILS_UNAVAILABLE');
+        })
+        .finally(() => {
+          clearTimeout(timer);
+          signal?.removeEventListener('abort', cancel);
+        });
+      const value = await boundedJson(response).catch((error: unknown) => {
+        if (error instanceof NativeRecordDetailsError) throw error;
+        if (error instanceof NativeRecordContextError) {
+          if (error.code === 'NATIVE_RECORD_CONTEXT_CONTEXT_CHANGED')
+            return detailsFailure('NATIVE_RECORD_DETAILS_CONTEXT_CHANGED');
+          if (error.status !== undefined)
+            return detailsFailure(error.code, error.status, error.message);
+          return detailsFailure('NATIVE_RECORD_DETAILS_RESPONSE_INVALID');
+        }
+        throw error;
+      });
+      if (!exact(value, ['data', 'context']))
+        return detailsFailure('NATIVE_RECORD_DETAILS_RESPONSE_INVALID');
+      context(value.context, actor);
+      return detailData(value.data, { ...input, page });
+    },
+  };
+}

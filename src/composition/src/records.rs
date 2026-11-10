@@ -23,6 +23,11 @@ use erpx_server_records::public::record_registry_http::{
     RecordsRegistryHttpBackend, RecordsRegistryHttpCommand, RecordsRegistryHttpFuture,
     RecordsRegistryHttpRequest, RecordsRegistryHttpResponse,
 };
+use erpx_server_records::public::record_details::{RecordDetailsQuery, record_details};
+use erpx_server_records::public::record_details_http::{
+    RecordsDetailsHttpBackend, RecordsDetailsHttpCommand, RecordsDetailsHttpFuture,
+    RecordsDetailsHttpRequest, RecordsDetailsHttpResponse,
+};
 use erpx_server_runtime::public::http_support::HeaderMap;
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
@@ -326,6 +331,66 @@ impl<C: Clock + Send + Sync + 'static> RecordsService<C> {
             .await
     }
 
+    pub async fn details<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        module_id: String,
+        record_id: String,
+        page: u32,
+    ) -> Result<RecordsDetailsHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let page_text = page.to_string();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                RecordsSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let module_id = module_id.clone();
+                    let record_id = record_id.clone();
+                    let page_text = page_text.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.read")?;
+                        let actor = records_actor(current)?;
+                        let now = clock.now().get();
+                        let query = RecordDetailsQuery::new(&module_id, &record_id, Some(&page_text))?;
+                        let mut repository = PgRecordContext::new(connection);
+                        let mut guard = RecordsContextGuardImpl;
+                        let data = record_details(
+                            &mut repository,
+                            &mut guard,
+                            &actor,
+                            &query,
+                            now,
+                        )
+                        .await?;
+                        Ok(RecordsDetailsHttpResponse {
+                            data,
+                            context: context_value(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
     pub async fn registry<Input>(
         &self,
         host: &str,
@@ -543,6 +608,35 @@ impl<C: Clock + Send + Sync + 'static> RecordsContextHttpBackend for RecordsBack
                     move || Ok(selection),
                     module_id,
                     record_id,
+                )
+                .await
+                .map_err(business)
+        })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> RecordsDetailsHttpBackend for RecordsBackend<C> {
+    fn execute<'a>(
+        &'a self,
+        request: RecordsDetailsHttpRequest<'a>,
+    ) -> RecordsDetailsHttpFuture<'a, RecordsDetailsHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context_request(request.headers)?;
+            let (module_id, record_id, page) = match &request.command {
+                RecordsDetailsHttpCommand::Supplement {
+                    module_id,
+                    record_id,
+                    page,
+                } => (module_id.clone(), record_id.clone(), *page),
+            };
+            self.service
+                .details(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    module_id,
+                    record_id,
+                    page,
                 )
                 .await
                 .map_err(business)

@@ -2473,6 +2473,7 @@ async fn assemble_checked(
         let mut manage_erpx_targets = Vec::new();
         let mut agent_evidence_targets = Vec::new();
         let mut records_context_targets = Vec::new();
+        let mut records_details_targets = Vec::new();
         let mut records_registry_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut legal_targets = Vec::new();
@@ -3468,6 +3469,14 @@ async fn assemble_checked(
                         backend: records_backend.clone(),
                     },
                 );
+                records_details_targets.push(
+                    erpx_server_records::public::record_details_http::RecordsDetailsHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: records_backend.clone(),
+                    },
+                );
                 files_targets.push(
                     erpx_server_files::public::attachment_http::AttachmentReadHttpTarget {
                         host: holding.host.clone(),
@@ -4262,6 +4271,14 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_records::public::record_registry_http::records_registry_http_router(
                     records_registry_targets,
+                )
+                .map_err(|_| "PRIVATE_API_RECORDS_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !records_details_targets.is_empty() {
+            router = router.merge(
+                erpx_server_records::public::record_details_http::records_details_http_router(
+                    records_details_targets,
                 )
                 .map_err(|_| "PRIVATE_API_RECORDS_CONFIGURATION_INVALID")?,
             );

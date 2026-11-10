@@ -79,3 +79,17 @@ test('Field source cutover never falls back or replaces same-unit guards with HT
   native.mockResolvedValueOnce(undefined);await expect(policy.readSourceRecord(actor,{kind:'field_service_order',id:'source'})).rejects.toMatchObject({status:503,code:'FIELD_RECORD_SOURCE_NATIVE_UNAVAILABLE'});expect(prepare).not.toHaveBeenCalled();
  }finally{vi.doUnmock('@erpx/server-field_service/public/native-source-record');vi.doUnmock('@erpx/server-identity_access/public/iam-permissions');vi.doUnmock('../../../packages/server-runtime/src/public/runtime');vi.resetModules();}
 });
+
+test('workspace-record detail is native-only and fails closed without configuration',async()=>{
+ const previous=process.env.ERPX_NATIVE_RECORDS_CONFIG;
+ const reader={...actor,iam:{permissions:['records.read'],grantablePermissions:[],principalId:'principal',personId:null,roleRevision:1,identityVersion:1,freshUntil:null}} as WorkContext;
+ const {recordSupplementData}=await import('@erpx/server-records/public/record-details');
+ delete process.env.ERPX_NATIVE_RECORDS_CONFIG;
+ try{
+  await expect(recordSupplementData(reader,{kind:'workspace_record',id:'record'},{module:'operations'})).rejects.toMatchObject({status:503,code:'NATIVE_RECORD_DETAILS_UNAVAILABLE'});
+  await expect(recordSupplementData(reader,{kind:'workspace_record',id:'record'},{})).rejects.toMatchObject({status:422,code:'RECORD_TARGET_REQUIRED'});
+ }finally{
+  if(previous!==undefined)process.env.ERPX_NATIVE_RECORDS_CONFIG=previous;
+  else delete process.env.ERPX_NATIVE_RECORDS_CONFIG;
+ }
+});

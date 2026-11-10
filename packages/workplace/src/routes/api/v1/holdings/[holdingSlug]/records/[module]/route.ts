@@ -2,16 +2,12 @@ import type { RouteContext } from "@erpx/contracts/next-routes";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError,errorResponse } from "@erpx/server-runtime/public/http";
-import { createRecord,createRecordSchema,listRecords,recordsPage } from "@erpx/server-records/public/records";
+import { createRecord,createRecordSchema } from "@erpx/server-records/public/records";
 import { createNativeRecordRegistryClient, nativeRecordRegistryAvailable, nativeRecordRegistryConfiguration, nativeRecordRegistryFailure } from "@erpx/server-records/public/native-record-registry";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request:Request,context:RouteContext<"/api/v1/holdings/[holdingSlug]/records/[module]">){try{const {holdingSlug,module}=await context.params;const section=new URL(request.url).searchParams.get("section");if(!section)throw new ApiError(422,"SECTION_REQUIRED","Choose a module section.");const query=new URL(request.url).searchParams,actor=await requireWorkContext(holdingSlug);const data=nativeRecordRegistryAvailable()
-  ? await readNativeRegistry(request,actor,holdingSlug,module,section,query)
-  : query.get("paged")==="1"
-    ? await recordsPage(actor,module,section,{q:query.get("q")??undefined,cursor:query.get("cursor")??undefined})
-    : await listRecords(actor,module,section);return Response.json(canonicalDestinationLinks({data}),{headers:{"Cache-Control":"private, no-store"}});}catch(error){return errorResponse(error);}}
+export async function GET(request:Request,context:RouteContext<"/api/v1/holdings/[holdingSlug]/records/[module]">){try{const {holdingSlug,module}=await context.params;const section=new URL(request.url).searchParams.get("section");if(!section)throw new ApiError(422,"SECTION_REQUIRED","Choose a module section.");const query=new URL(request.url).searchParams,actor=await requireWorkContext(holdingSlug);const data=await readNativeRegistry(request,actor,holdingSlug,module,section,query);return Response.json(canonicalDestinationLinks({data}),{headers:{"Cache-Control":"private, no-store"}});}catch(error){return errorResponse(error);}}
 async function readNativeRegistry(request:Request,actor:Awaited<ReturnType<typeof requireWorkContext>>,holdingSlug:string,moduleId:string,sectionId:string,query:URLSearchParams){
   if(!actor.authority||!actor.iam)throw new ApiError(409,"WORK_CONTEXT_CHANGED","Your work role changed. Reload and review before retrying.");
   try {

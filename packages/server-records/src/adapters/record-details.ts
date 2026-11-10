@@ -36,6 +36,7 @@ import { holdingResources as nativeHoldingResources } from '../../../../packages
 import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '@erpx/server-identity_access/public/iam-read-snapshot';
 
 import { ApiError as NativeApiError } from '@erpx/server-runtime/public/http';
+import { createNativeRecordDetailsClient, nativeRecordDetailsConfiguration, nativeRecordDetailsFailure } from '../public/native-record-context';
 import { drilldownPage as puredrilldownPage } from '@erpx/server-records/domain/record-details';
 import { createRecordDetailsApplication, type RecordDetailsRepository } from '@erpx/server-records/application/record-details';
 import { BusinessRuleError } from '@erpx/server-shared/index';
@@ -93,7 +94,50 @@ function invokeSync<Result>(run: () => Result) {
 }
 export async function commerceMasterDetail(actor: WorkContext, kind: "product" | "party" | "warehouse", id: string) { return invoke(() => application().commerceMasterDetail(actor, kind, id)); }
 export function drilldownPage(value?: string) { return invokeSync(() => puredrilldownPage(value)); }
-export async function recordSupplementData(actor: WorkContext, target: RecordTarget, args: Record<string, string>) { return invoke(() => application().recordSupplementData(actor, target, args)); }
+export async function recordSupplementData(actor: WorkContext, target: RecordTarget, args: Record<string, string>) {
+    if (target.kind === 'workspace_record')
+        return supplementWorkspaceRecord(actor, target, args);
+    return invoke(() => application().recordSupplementData(actor, target, args));
+}
+/** Native detail for a Records-owned workspace record. Never falls back to TS SQL. */
+async function supplementWorkspaceRecord(actor: WorkContext, target: RecordTarget, args: Record<string, string>) {
+    if (!actor.authority || !actor.iam)
+        throw new NativeApiError(409, "WORK_CONTEXT_CHANGED", "Your work role changed. Reload and review before retrying.");
+    const moduleId = args.module;
+    if (!moduleId)
+        throw new NativeApiError(422, "RECORD_TARGET_REQUIRED", "Choose a valid source record.");
+    const raw = process.env.ERPX_NATIVE_RECORDS_CONFIG;
+    if (raw === undefined)
+        throw new NativeApiError(503, "NATIVE_RECORD_DETAILS_UNAVAILABLE", "The native Records detail reader is unavailable.");
+    const scope = actor.scope;
+    const page = args.detailPage === undefined ? 1 : /^\d+$/.test(args.detailPage) ? Number(args.detailPage) : Number.NaN;
+    try {
+        const client = createNativeRecordDetailsClient(nativeRecordDetailsConfiguration(raw));
+        const { headers: requestHeaders } = await import('next/headers');
+        return await client.supplement(await requestHeaders(), {
+            userId: actor.userId,
+            holdingId: actor.holdingId,
+            holdingSlug: actor.holdingSlug,
+            companyId: actor.companyId,
+            branchId: actor.branchId,
+            departmentId: actor.departmentId,
+            branchSlug: scope.kind === "branch" || scope.kind === "department" ? (scope.branchSlug ?? null) : null,
+            departmentSlug: scope.kind === "department" ? scope.departmentSlug : null,
+            assignmentId: actor.assignmentId,
+            role: actor.role,
+            assignmentScope: actor.assignmentScope,
+            modules: actor.modules,
+            authority: actor.authority,
+            iam: { permissions: actor.iam.permissions },
+        }, { holdingSlug: actor.holdingSlug, moduleId, recordId: target.id, page });
+    }
+    catch (error) {
+        const mapped = nativeRecordDetailsFailure(error);
+        if (!mapped)
+            throw error;
+        throw new NativeApiError(mapped.status, mapped.code, mapped.message);
+    }
+}
 function fromNativeSync<Result>(run: () => Result) {
     try {
         return run();

@@ -2,9 +2,9 @@ import type { RouteContext } from "@erpx/contracts/next-routes";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { errorResponse, ApiError } from "@erpx/server-runtime/public/http";
-import { archiveRecord, getRecord, recordContext, updateRecord, updateRecordSchema } from "@erpx/server-records/public/records";
+import { archiveRecord, getRecord, updateRecord, updateRecordSchema } from "@erpx/server-records/public/records";
 import { recordMentionDisplay } from "@erpx/server-records/public/mention-display";
-import { createNativeRecordContextClient, nativeRecordContextAvailable, nativeRecordContextConfiguration, nativeRecordContextFailure } from "@erpx/server-records/public/native-record-context";
+import { createNativeRecordContextClient, nativeRecordContextConfiguration, nativeRecordContextFailure } from "@erpx/server-records/public/native-record-context";
 import { createNativeRecordRegistryClient, nativeRecordRegistryAvailable, nativeRecordRegistryConfiguration, nativeRecordRegistryFailure } from "@erpx/server-records/public/native-record-registry";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +20,6 @@ export async function GET(request: Request, context: RouteContext<"/api/v1/holdi
   catch(error){return errorResponse(error);}
 }
 async function readRecordContext(request:Request,actor:Awaited<ReturnType<typeof requireWorkContext>>,holdingSlug:string,moduleId:string,recordId:string) {
-  if(!nativeRecordContextAvailable())return recordContext(actor,moduleId,recordId);
   if(!actor.authority||!actor.iam)throw new ApiError(409,"WORK_CONTEXT_CHANGED","Your work role changed. Reload and review before retrying.");
   try {
     const raw=process.env.ERPX_NATIVE_RECORDS_CONFIG;

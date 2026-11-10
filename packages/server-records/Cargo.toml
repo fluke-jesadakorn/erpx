@@ -45,6 +45,14 @@ name = "record_context_postgres"
 path = "../../tests/integration/shared.records/rust-record-context-postgres.test.rs"
 
 [[test]]
+name = "record_details"
+path = "../../tests/unit/shared.records/rust-record-details.test.rs"
+
+[[test]]
+name = "record_details_http"
+path = "../../tests/unit/shared.records/rust-record-details-http.test.rs"
+
+[[test]]
 name = "record_registry"
 path = "../../tests/unit/shared.records/rust-record-registry.test.rs"
 

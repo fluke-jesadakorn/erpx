@@ -6,8 +6,14 @@ import {
   nativeRecordContextConfiguration,
   nativeRecordContextFailure,
   NativeRecordContextError,
+  createNativeRecordDetailsClient,
+  nativeRecordDetailsAvailable,
+  nativeRecordDetailsConfiguration,
+  nativeRecordDetailsFailure,
+  NativeRecordDetailsError,
   type NativeRecordsPageContext,
   type NativeRecordContextTransport,
+  type NativeRecordDetailsInput,
 } from '../../../packages/server-records/src/public/native-record-context';
 
 const config = (overrides: Record<string, unknown> = {}) => ({
@@ -318,5 +324,193 @@ describe('native Records context transport', () => {
         new NativeRecordContextError('NATIVE_RECORD_CONTEXT_REQUEST_INVALID'),
       ),
     ).toMatchObject({ status: 422, code: 'RECORD_CONTEXT_REQUEST_INVALID' });
+  });
+});
+
+
+const detail = {
+  kind: 'workspace_record' as const,
+  row: data.record,
+  related: [{ kind: 'operations', id: 'rec-2' }],
+  history: data.history,
+  page: 1,
+  hasNext: false,
+};
+const detailInput: NativeRecordDetailsInput = {
+  holdingSlug: 'acme',
+  moduleId: 'operations',
+  recordId: 'rec-1',
+};
+
+function detailClient(body: unknown = { data: detail, context }, status = 200) {
+  const calls: { url: URL; headers: Headers }[] = [];
+  const transport: NativeRecordContextTransport = async (method, url, headers) => {
+    calls.push({ url, headers });
+    expect(method).toBe('GET');
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+  return {
+    calls,
+    client: createNativeRecordDetailsClient(config() as never, transport),
+  };
+}
+
+describe('native Records detail transport', () => {
+  it('validates configuration and availability closed', () => {
+    expect(nativeRecordDetailsAvailable()).toBe(
+      process.env.ERPX_NATIVE_RECORDS_CONFIG !== undefined,
+    );
+    expect(nativeRecordDetailsConfiguration(JSON.stringify(config()))).toEqual(
+      config() as never,
+    );
+    for (const value of [
+      config({ privateBaseUrl: 'http://127.0.0.1:3100' }),
+      config({ timeoutMs: 249 }),
+      config({ holdings: [] }),
+    ])
+      expect(() => createNativeRecordDetailsClient(value as never)).toThrow(
+        NativeRecordDetailsError,
+      );
+  });
+
+  it('forwards the exact target, session and bounded detail page', async () => {
+    const { calls, client: reader } = detailClient({
+      data: { ...detail, page: 2 },
+      context,
+    });
+    const value = await reader.supplement(incoming(), actor, {
+      ...detailInput,
+      page: 2,
+    });
+    expect(value.row.id).toBe('rec-1');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url.toString()).toBe(
+      'http://127.0.0.1:44994/api/v1/holdings/acme/records/operations/rec-1/detail?page=2',
+    );
+    expect(calls[0]!.headers.get('host')).toBe('acme.example.com');
+    expect(calls[0]!.headers.get('cookie')).toBe('__Host-erpx-product=session');
+    expect(calls[0]!.headers.get('accept')).toBe('application/json');
+  });
+
+  it('rejects wrong host, changed context and unbounded identifiers before transport', async () => {
+    for (const [expected, overrides, nextActor, nextInput] of [
+      [
+        'NATIVE_RECORD_DETAILS_AUTHORITY_INVALID',
+        { host: 'other.example.com' },
+        actor,
+        detailInput,
+      ],
+      [
+        'NATIVE_RECORD_DETAILS_CONTEXT_CHANGED',
+        {},
+        { ...actor, holdingSlug: 'other' },
+        detailInput,
+      ],
+      [
+        'NATIVE_RECORD_DETAILS_REQUEST_INVALID',
+        {},
+        actor,
+        { ...detailInput, moduleId: '../operations' },
+      ],
+      [
+        'NATIVE_RECORD_DETAILS_REQUEST_INVALID',
+        {},
+        actor,
+        { ...detailInput, recordId: 'rec/1' },
+      ],
+      [
+        'NATIVE_RECORD_DETAILS_REQUEST_INVALID',
+        {},
+        actor,
+        { ...detailInput, page: 0 },
+      ],
+      [
+        'NATIVE_RECORD_DETAILS_REQUEST_INVALID',
+        {},
+        actor,
+        { ...detailInput, page: 100_001 },
+      ],
+    ] as const) {
+      const { calls, client: reader } = detailClient();
+      await expect(
+        reader.supplement(incoming(overrides), nextActor, nextInput as NativeRecordDetailsInput),
+      ).rejects.toMatchObject({ code: expected });
+      expect(calls).toHaveLength(0);
+    }
+  });
+
+  it('rejects foreign, paginated and unbounded owner details', async () => {
+    const mutations: unknown[] = [
+      { ...detail, row: { ...detail.row, id: 'rec-2' } },
+      { ...detail, row: { ...detail.row, moduleId: 'crm' } },
+      { ...detail, page: 2 },
+      { ...detail, kind: 'other' },
+      { ...detail, extra: true },
+      {
+        ...detail,
+        related: [detail.related[0], detail.related[0]],
+      },
+      {
+        ...detail,
+        related: Array.from({ length: 51 }, (_, index) => ({
+          kind: 'operations',
+          id: `rec-${index}`,
+        })),
+      },
+      { ...detail, history: Array.from({ length: 21 }, () => data.history[0]) },
+      { ...detail, history: [{ ...data.history[0], action: 'delete' }] },
+      { ...detail, hasNext: 'yes' },
+    ];
+    for (const value of mutations) {
+      const { client: reader } = detailClient({ data: value, context });
+      await expect(reader.supplement(incoming(), actor, detailInput)).rejects.toMatchObject({
+        code: 'NATIVE_RECORD_DETAILS_RESPONSE_INVALID',
+      });
+    }
+    const { client: reader } = detailClient({
+      data: detail,
+      context: { ...context, companyId: 'foreign' },
+    });
+    await expect(reader.supplement(incoming(), actor, detailInput)).rejects.toMatchObject({
+      code: 'NATIVE_RECORD_CONTEXT_CONTEXT_CHANGED',
+    });
+  });
+
+  it('maps owner failures without falling back', async () => {
+    for (const [status, code] of [
+      [404, 'NOT_FOUND'],
+      [403, 'PERMISSION_REQUIRED'],
+      [409, 'WORK_CONTEXT_CHANGED'],
+      [422, 'RECORD_DETAILS_PAGE_INVALID'],
+      [503, 'RECORDS_DETAILS_CONFIGURATION_INVALID'],
+    ] as const) {
+      const { client: reader } = detailClient(
+        { error: { code, message: 'Synthetic owner failure.' } },
+        status,
+      );
+      await expect(reader.supplement(incoming(), actor, detailInput)).rejects.toMatchObject({
+        code,
+        status,
+      });
+      expect(nativeRecordDetailsFailure(new Error(code))).toBeUndefined();
+    }
+    expect(
+      nativeRecordDetailsFailure(
+        new NativeRecordDetailsError('NATIVE_RECORD_DETAILS_CONTEXT_CHANGED'),
+      ),
+    ).toMatchObject({ status: 409, code: 'WORK_CONTEXT_CHANGED' });
+    expect(
+      nativeRecordDetailsFailure(
+        new NativeRecordDetailsError('NATIVE_RECORD_DETAILS_CONFIGURATION_INVALID'),
+      ),
+    ).toMatchObject({ status: 503, code: 'NATIVE_RECORD_DETAILS_UNAVAILABLE' });
+    expect(
+      nativeRecordDetailsFailure(
+        new NativeRecordDetailsError('NATIVE_RECORD_DETAILS_REQUEST_INVALID'),
+      ),
+    ).toMatchObject({ status: 422, code: 'RECORD_TARGET_REQUIRED' });
   });
 });

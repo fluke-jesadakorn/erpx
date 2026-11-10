@@ -54262,32 +54262,119 @@
       "id": "commerce.rust-commerce-selected-http-postgres.integration",
       "lane": "integration",
       "owner": "commerce",
-      "modules": ["commercial", "identity_access", "organization"],
-      "files": ["tests/integration/commerce/rust-commerce-selected-http-postgres.test.rs"],
+      "modules": [
+        "commercial",
+        "identity_access",
+        "organization"
+      ],
+      "files": [
+        "tests/integration/commerce/rust-commerce-selected-http-postgres.test.rs"
+      ],
       "fixture": "postgres",
-      "requires": {"jobs": false, "scanner": false},
-      "ci": {"critical": true, "reason": "Checks authenticated selected Company and context isolation for native Commerce HTTP."},
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Checks authenticated selected Company and context isolation for native Commerce HTTP."
+      },
       "framework": "cargo",
-      "cargo": {"package": "erpx-service", "targets": ["commerce_selected_http_postgres"], "features": ["existing-business", "private-field-api"]},
-      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "src/composition/Cargo.toml", "packages/server-commerce/Cargo.toml", "tests/support/finance/review-composition.rs"],
-      "apps": ["commerce"],
-      "packages": ["@erpx/server-commerce", "@erpx/server-identity_access", "@erpx/server-organization", "@erpx/server-runtime"]
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "commerce_selected_http_postgres"
+        ],
+        "features": [
+          "existing-business",
+          "private-field-api"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml",
+        "packages/server-commerce/Cargo.toml",
+        "tests/support/finance/review-composition.rs"
+      ],
+      "apps": [
+        "commerce"
+      ],
+      "packages": [
+        "@erpx/server-commerce",
+        "@erpx/server-identity_access",
+        "@erpx/server-organization",
+        "@erpx/server-runtime"
+      ]
     },
     {
       "id": "crm.rust-crm-recipient-composition-postgres.integration",
       "lane": "integration",
       "owner": "crm",
-      "modules": ["crm", "sales", "identity_access", "people_payroll", "organization", "manage_erpx"],
-      "files": ["tests/integration/crm/rust-crm-recipient-composition-postgres.test.rs"],
+      "modules": [
+        "crm",
+        "sales",
+        "identity_access",
+        "people_payroll",
+        "organization",
+        "manage_erpx"
+      ],
+      "files": [
+        "tests/integration/crm/rust-crm-recipient-composition-postgres.test.rs"
+      ],
       "fixture": "postgres",
-      "requires": {"jobs": false, "scanner": false},
-      "ci": {"critical": true, "reason": "CRM recipient eligibility retains the original joined owner sources and selected scope."},
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "CRM recipient eligibility retains the original joined owner sources and selected scope."
+      },
       "framework": "cargo",
-      "cargo": {"package": "erpx-service", "targets": ["crm_recipient_composition_postgres"], "features": ["existing-business"]},
-      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "src/composition/Cargo.toml"],
-      "apps": ["sales"],
-      "packages": ["@erpx/server-crm", "@erpx/server-sales", "@erpx/server-identity_access", "@erpx/server-people_payroll", "@erpx/server-organization", "@erpx/server-manage_erpx", "@erpx/server-runtime", "@erpx/server-shared"],
-      "postgres": {"mode": "raw", "slots": ["CONTROL_DB", "CONTROL_READ_DB", "H001_DB", "H001_READ_DB", "H002_DB", "H002_READ_DB", "H003_DB", "H003_READ_DB"], "migratedSlots": []}
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "crm_recipient_composition_postgres"
+        ],
+        "features": [
+          "existing-business"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml"
+      ],
+      "apps": [
+        "sales"
+      ],
+      "packages": [
+        "@erpx/server-crm",
+        "@erpx/server-sales",
+        "@erpx/server-identity_access",
+        "@erpx/server-people_payroll",
+        "@erpx/server-organization",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
     },
     {
       "id": "crm.rust-crm-pipeline-postgres.integration",
@@ -57428,7 +57515,7 @@
         "migratedSlots": []
       }
     },
-        {
+    {
       "id": "shared.runtime.worker-attestation-postgres.integration",
       "lane": "integration",
       "owner": "shared.runtime",
@@ -57542,19 +57629,110 @@
       "id": "shared.persistence.rust-outbox-jobs-postgres.integration",
       "lane": "integration",
       "owner": "shared.persistence",
-      "modules": ["agent","assets","benefits","brand","collaboration","commercial","crm","customer_360","customer_authority","ecommerce","field_service","finance","identity_access","inventory","learning","legal","maintenance","manage_erpx","manufacturing","marketing","operations","organization","people_payroll","planning","platform_administration","pms","pos","procurement","projects","quality","sales","support","talent"],
-      "files": ["tests/integration/shared.persistence/rust-outbox-jobs-postgres.test.rs"],
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "files": [
+        "tests/integration/shared.persistence/rust-outbox-jobs-postgres.test.rs"
+      ],
       "fixture": "postgres",
-      "requires": {"jobs": false, "scanner": false},
-      "ci": {"critical": true, "reason": "Native Runtime durable outbox must retain exact lease ownership, bounded retry backoff, dead-letter placement and the native-runtime transaction fence."},
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Runtime durable outbox must retain exact lease ownership, bounded retry backoff, dead-letter placement and the native-runtime transaction fence."
+      },
       "framework": "cargo",
-      "cargo": {"package": "erpx-server-runtime", "targets": ["outbox_jobs_postgres"]},
-      "verificationInputs": ["Cargo.toml","Cargo.lock","rust-toolchain.toml","packages/server-runtime/Cargo.toml","tests/support/rust-postgres.rs"],
-      "apps": ["apps","pos","pms","finance","people","sales","supply","assets","projects","recruit","learn","support","service","legal","manufacturing","account","admin","booking","portal","legal-portal","forms"],
-      "packages": ["@erpx/server-runtime","@erpx/server-shared"],
-      "postgres": {"mode": "raw", "slots": ["CONTROL_DB","CONTROL_READ_DB","H001_DB","H001_READ_DB","H002_DB","H002_READ_DB","H003_DB","H003_READ_DB"], "migratedSlots": []}
+      "cargo": {
+        "package": "erpx-server-runtime",
+        "targets": [
+          "outbox_jobs_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-runtime/Cargo.toml",
+        "tests/support/rust-postgres.rs"
+      ],
+      "apps": [
+        "apps",
+        "pos",
+        "pms",
+        "finance",
+        "people",
+        "sales",
+        "supply",
+        "assets",
+        "projects",
+        "recruit",
+        "learn",
+        "support",
+        "service",
+        "legal",
+        "manufacturing",
+        "account",
+        "admin",
+        "booking",
+        "portal",
+        "legal-portal",
+        "forms"
+      ],
+      "packages": [
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
     },
-{
+    {
       "lane": "integration",
       "owner": "shared.persistence",
       "modules": [
@@ -65085,33 +65263,120 @@
       "id": "finance.rust-commerce-goods-journal-postgres.integration",
       "lane": "integration",
       "owner": "finance",
-      "modules": ["finance", "inventory", "sales"],
+      "modules": [
+        "finance",
+        "inventory",
+        "sales"
+      ],
       "fixture": "postgres",
-      "requires": {"jobs": false, "scanner": false},
-      "apps": ["finance", "sales"],
-      "packages": ["@erpx/server-finance", "@erpx/server-runtime", "@erpx/server-shared"],
-      "ci": {"critical": true, "reason": "Finance-owned goods journal must preserve open periods, exact chart/accounts/base currency, balanced delivery lines, deterministic source binding and rollback with the caller unit."},
-      "files": ["tests/integration/finance/rust-commerce-goods-journal-postgres.test.rs"],
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "finance",
+        "sales"
+      ],
+      "packages": [
+        "@erpx/server-finance",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "ci": {
+        "critical": true,
+        "reason": "Finance-owned goods journal must preserve open periods, exact chart/accounts/base currency, balanced delivery lines, deterministic source binding and rollback with the caller unit."
+      },
+      "files": [
+        "tests/integration/finance/rust-commerce-goods-journal-postgres.test.rs"
+      ],
       "framework": "cargo",
-      "cargo": {"package": "erpx-server-finance", "targets": ["commerce_goods_journal_postgres"]},
-      "verificationInputs": ["packages/server-finance/Cargo.toml", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "tests/support/rust-postgres.rs", "packages/server-finance/src/adapters/commerce_goods_journal.rs"],
-      "postgres": {"mode": "raw", "slots": ["CONTROL_DB", "CONTROL_READ_DB", "H001_DB", "H001_READ_DB", "H002_DB", "H002_READ_DB", "H003_DB", "H003_READ_DB"], "migratedSlots": []}
+      "cargo": {
+        "package": "erpx-server-finance",
+        "targets": [
+          "commerce_goods_journal_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-finance/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/support/rust-postgres.rs",
+        "packages/server-finance/src/adapters/commerce_goods_journal.rs"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
     },
     {
       "id": "finance.rust-sales-order-credit-postgres.integration",
       "lane": "integration",
       "owner": "finance",
-      "modules": ["finance", "sales"],
+      "modules": [
+        "finance",
+        "sales"
+      ],
       "fixture": "postgres",
-      "requires": {"jobs": false, "scanner": false},
-      "apps": ["sales"],
-      "packages": ["@erpx/server-commerce", "@erpx/server-finance", "@erpx/server-runtime", "@erpx/server-shared"],
-      "ci": {"critical": true, "reason": "Finance-owned sales-order credit exposure must match the retained invoice/order/fulfillment formula and lock the party in the serializable unit."},
-      "files": ["tests/integration/finance/rust-sales-order-credit-postgres.test.rs"],
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "sales"
+      ],
+      "packages": [
+        "@erpx/server-commerce",
+        "@erpx/server-finance",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "ci": {
+        "critical": true,
+        "reason": "Finance-owned sales-order credit exposure must match the retained invoice/order/fulfillment formula and lock the party in the serializable unit."
+      },
+      "files": [
+        "tests/integration/finance/rust-sales-order-credit-postgres.test.rs"
+      ],
       "framework": "cargo",
-      "cargo": {"package": "erpx-server-finance", "targets": ["sales_order_credit_postgres"]},
-      "verificationInputs": ["packages/server-finance/Cargo.toml", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "tests/support/rust-postgres.rs", "packages/server-finance/src/adapters/sales_order_credit.rs"],
-      "postgres": {"mode": "raw", "slots": ["CONTROL_DB", "CONTROL_READ_DB", "H001_DB", "H001_READ_DB", "H002_DB", "H002_READ_DB", "H003_DB", "H003_READ_DB"], "migratedSlots": []}
+      "cargo": {
+        "package": "erpx-server-finance",
+        "targets": [
+          "sales_order_credit_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-finance/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/support/rust-postgres.rs",
+        "packages/server-finance/src/adapters/sales_order_credit.rs"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
     },
     {
       "id": "identity_access.rust-directory-policy.unit",
@@ -73317,23 +73582,69 @@
         "@erpx/native-sdk"
       ]
     },
-        {
+    {
       "id": "shared.records.rust-record-write-postgres.integration",
       "lane": "integration",
       "owner": "shared.records",
-      "modules": ["support"],
-      "files": ["tests/integration/shared.records/rust-record-write-postgres.test.rs"],
+      "modules": [
+        "support"
+      ],
+      "files": [
+        "tests/integration/shared.records/rust-record-write-postgres.test.rs"
+      ],
       "fixture": "postgres",
-      "requires": {"jobs": false, "scanner": false},
-      "ci": {"critical": true, "reason": "Native generic Records create, field update, archive, reference and transition must retain current Account/IAM authority, Company/workspace scope, version CAS, field validation, Workflow receipt/idempotency, version CAS, archive/reference edges, transition history, audit and outbox in one serializable unit."},
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native generic Records create, field update, archive, reference and transition must retain current Account/IAM authority, Company/workspace scope, version CAS, field validation, Workflow receipt/idempotency, version CAS, archive/reference edges, transition history, audit and outbox in one serializable unit."
+      },
       "framework": "cargo",
-      "cargo": {"package": "erpx-service", "targets": ["records_write_postgres"], "features": ["existing-business"]},
-      "verificationInputs": ["Cargo.toml","Cargo.lock","rust-toolchain.toml","src/composition/Cargo.toml","packages/server-records/Cargo.toml","packages/server-workflow/Cargo.toml","tests/support/finance/review-composition.rs"],
-      "apps": ["apps"],
-      "packages": ["@erpx/server-records","@erpx/server-workflow","@erpx/server-runtime","@erpx/server-shared"],
-      "postgres": {"mode": "raw", "slots": ["CONTROL_DB","CONTROL_READ_DB","H001_DB","H001_READ_DB","H002_DB","H002_READ_DB","H003_DB","H003_READ_DB"], "migratedSlots": []}
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "records_write_postgres"
+        ],
+        "features": [
+          "existing-business"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml",
+        "packages/server-records/Cargo.toml",
+        "packages/server-workflow/Cargo.toml",
+        "tests/support/finance/review-composition.rs"
+      ],
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-records",
+        "@erpx/server-workflow",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
     },
-{
+    {
       "id": "shared.records.rust-business-evidence.unit",
       "lane": "unit",
       "owner": "shared.records",
@@ -81653,17 +81964,60 @@
       "id": "inventory.rust-commerce-order-cancellation-postgres.integration",
       "lane": "integration",
       "owner": "inventory",
-      "modules": ["inventory", "sales"],
+      "modules": [
+        "inventory",
+        "sales"
+      ],
       "fixture": "postgres",
-      "requires": {"jobs": false, "scanner": false},
-      "apps": ["sales"],
-      "packages": ["@erpx/server-commerce", "@erpx/server-inventory", "@erpx/server-runtime", "@erpx/server-shared"],
-      "ci": {"critical": true, "reason": "Confirmed sales-order cancellation must release only remaining reservations with the retained reason and no consumed-stock change."},
-      "files": ["tests/integration/inventory/rust-commerce-order-cancellation-postgres.test.rs"],
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "sales"
+      ],
+      "packages": [
+        "@erpx/server-commerce",
+        "@erpx/server-inventory",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "ci": {
+        "critical": true,
+        "reason": "Confirmed sales-order cancellation must release only remaining reservations with the retained reason and no consumed-stock change."
+      },
+      "files": [
+        "tests/integration/inventory/rust-commerce-order-cancellation-postgres.test.rs"
+      ],
       "framework": "cargo",
-      "cargo": {"package": "erpx-server-inventory", "targets": ["commerce_order_cancellation_postgres"]},
-      "verificationInputs": ["packages/server-inventory/Cargo.toml", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "tests/support/rust-postgres.rs", "packages/server-inventory/src/adapters/commerce_order_cancellation.rs"],
-      "postgres": {"mode": "raw", "slots": ["CONTROL_DB", "CONTROL_READ_DB", "H001_DB", "H001_READ_DB", "H002_DB", "H002_READ_DB", "H003_DB", "H003_READ_DB"], "migratedSlots": []}
+      "cargo": {
+        "package": "erpx-server-inventory",
+        "targets": [
+          "commerce_order_cancellation_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-inventory/Cargo.toml",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/support/rust-postgres.rs",
+        "packages/server-inventory/src/adapters/commerce_order_cancellation.rs"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
     },
     {
       "id": "inventory.rust-stock-issue-postgres.integration",
@@ -82005,16 +82359,59 @@
       "id": "assets.rust-asset-cost-composition-postgres.integration",
       "lane": "integration",
       "owner": "assets",
-      "modules": ["assets", "finance", "maintenance", "identity_access", "people_payroll", "organization", "manage_erpx"],
-      "files": ["tests/integration/assets/rust-asset-cost-composition-postgres.test.rs"],
+      "modules": [
+        "assets",
+        "finance",
+        "maintenance",
+        "identity_access",
+        "people_payroll",
+        "organization",
+        "manage_erpx"
+      ],
+      "files": [
+        "tests/integration/assets/rust-asset-cost-composition-postgres.test.rs"
+      ],
       "fixture": "postgres",
-      "requires": {"jobs": false, "scanner": false},
-      "ci": {"critical": true, "reason": "Checks Finance acquisition-cost rollback and the composed Maintenance purchase source against TypeScript."},
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Checks Finance acquisition-cost rollback and the composed Maintenance purchase source against TypeScript."
+      },
       "framework": "cargo",
-      "cargo": {"package": "erpx-service", "targets": ["asset_cost_composition_postgres"], "features": ["existing-business"]},
-      "verificationInputs": ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "src/composition/Cargo.toml", "packages/server-assets/Cargo.toml", "packages/server-finance/Cargo.toml", "packages/server-maintenance/src/adapters/purchase-sources.ts"],
-      "apps": ["assets"],
-      "packages": ["@erpx/server-assets", "@erpx/server-finance", "@erpx/server-maintenance", "@erpx/server-identity_access", "@erpx/server-people_payroll", "@erpx/server-organization", "@erpx/server-manage_erpx", "@erpx/server-runtime"]
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "asset_cost_composition_postgres"
+        ],
+        "features": [
+          "existing-business"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/composition/Cargo.toml",
+        "packages/server-assets/Cargo.toml",
+        "packages/server-finance/Cargo.toml",
+        "packages/server-maintenance/src/adapters/purchase-sources.ts"
+      ],
+      "apps": [
+        "assets"
+      ],
+      "packages": [
+        "@erpx/server-assets",
+        "@erpx/server-finance",
+        "@erpx/server-maintenance",
+        "@erpx/server-identity_access",
+        "@erpx/server-people_payroll",
+        "@erpx/server-organization",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-runtime"
+      ]
     },
     {
       "id": "assets.rust-asset-http-postgres.integration",
@@ -87731,6 +88128,82 @@
         "critical": true,
         "reason": "Cross-AI task claims, source-bound migration progress and stale-run recovery must prevent duplicate work without changing acceptance certification."
       }
+    },
+    {
+      "lane": "unit",
+      "owner": "shared.records",
+      "modules": [
+        "manage_erpx"
+      ],
+      "cargo": {
+        "package": "erpx-server-records",
+        "targets": [
+          "record_details"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-records/Cargo.toml"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Records detail read retains Company scope, current authority, bounded pagination and link admission."
+      },
+      "apps": [
+        "admin",
+        "finance",
+        "supply"
+      ],
+      "id": "records.rust-record-details.unit",
+      "files": [
+        "tests/unit/shared.records/rust-record-details.test.rs"
+      ],
+      "framework": "cargo"
+    },
+    {
+      "lane": "unit",
+      "owner": "shared.records",
+      "modules": [
+        "manage_erpx"
+      ],
+      "cargo": {
+        "package": "erpx-server-records",
+        "targets": [
+          "record_details_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-records/Cargo.toml"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Records detail read retains Company scope, current authority, bounded pagination and link admission."
+      },
+      "apps": [
+        "admin",
+        "finance",
+        "supply"
+      ],
+      "id": "records.rust-record-details-http.unit",
+      "files": [
+        "tests/unit/shared.records/rust-record-details-http.test.rs"
+      ],
+      "framework": "cargo"
     }
   ]
 }

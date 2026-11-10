@@ -94,6 +94,46 @@ impl<'c> PgRecordContext<'c> {
             .await?;
         row.as_ref().map(map_record).transpose().map_err(Into::into)
     }
+
+    /// One bounded timeline page for the drawer detail read. The caller asks
+    /// for one row over the page size to detect a following page.
+    pub(crate) async fn history_offset(
+        &mut self,
+        module_id: &str,
+        id: &str,
+        offset: i64,
+        limit: usize,
+    ) -> Result<Vec<HistoryRow>, Error> {
+        self.ready().await?;
+        if offset < 0 || !(1..=crate::domain::record_context::MAX_HISTORY + 1).contains(&limit) {
+            return Err(PersistenceError::new("RECORDS_DETAILS_HISTORY_BOUND_INVALID").into());
+        }
+        let rows = sqlx::query(
+            "SELECT from_status,to_status,action,note,actor_id,record_version,created_at \
+             FROM workspace_record_transitions WHERE module_id=$1 AND record_id=$2 \
+             ORDER BY created_at DESC LIMIT $3 OFFSET $4",
+        )
+        .bind(module_id)
+        .bind(id)
+        .bind(limit as i64)
+        .bind(offset)
+        .fetch_all(&mut *self.connection)
+        .await?;
+        rows.iter()
+            .map(|row| {
+                Ok(HistoryRow {
+                    from_status: row.try_get("from_status")?,
+                    to_status: row.try_get("to_status")?,
+                    action: row.try_get("action")?,
+                    note: row.try_get("note")?,
+                    actor_id: row.try_get("actor_id")?,
+                    record_version: row.try_get("record_version")?,
+                    created_at: row.try_get("created_at")?,
+                })
+            })
+            .collect::<Result<Vec<_>, sqlx::Error>>()
+            .map_err(Into::into)
+    }
 }
 
 impl RecordContextRepository for PgRecordContext<'_> {
