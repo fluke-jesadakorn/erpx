@@ -8,6 +8,11 @@ use erpx_server_billing::public::billing_http::{
 };
 use erpx_server_billing::public::cost::PgBillingCostCommand;
 use erpx_server_billing::public::cost::{BillingCostCommand, execute_cost_command};
+use erpx_server_billing::public::retry_job::{RetryJob, execute_retry_job};
+use erpx_server_billing::public::retry_job_http::{
+    BillingRetryJobHttpBackend, BillingRetryJobHttpFuture, BillingRetryJobHttpRequest,
+    BillingRetryJobHttpResponse,
+};
 use erpx_server_billing::public::target_evidence_command::{
     BillingTargetEvidenceCommand, execute_target_evidence,
 };
@@ -436,6 +441,51 @@ impl<C: Clock + Send + Sync + 'static> BillingService<C> {
             )
             .await
     }
+
+    pub async fn retry_job<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: RetryJob,
+    ) -> Result<BillingHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                BillingSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.read")?;
+                        let now = clock.now();
+                        let actor = billing_actor(current, connection, now).await?;
+                        execute_retry_job(connection, &actor, &holding, &command, now).await?;
+                        Ok(BillingHttpResponse {
+                            data: serde_json::json!({"ok": true}),
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
 }
 
 pub struct BillingBackend<C> {
@@ -538,6 +588,25 @@ impl<C: Clock + Send + Sync + 'static> BillingTargetProviderHttpBackend for Bill
                 .target_provider(request.host, proof, move || Ok(selection), request.command)
                 .await
                 .map(|response| BillingTargetProviderHttpResponse {
+                    data: response.data,
+                    context: response.context,
+                })
+                .map_err(business)
+        })
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> BillingRetryJobHttpBackend for BillingBackend<C> {
+    fn retry<'a>(
+        &'a self,
+        request: BillingRetryJobHttpRequest<'a>,
+    ) -> BillingRetryJobHttpFuture<'a, BillingRetryJobHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .retry_job(request.host, proof, move || Ok(selection), request.command)
+                .await
+                .map(|response| BillingRetryJobHttpResponse {
                     data: response.data,
                     context: response.context,
                 })

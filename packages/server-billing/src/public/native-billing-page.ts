@@ -162,6 +162,12 @@ export async function nativeBillingCostCommand(
       providerTotalMinor: input.providerTotalMinor,
       evidenceId: input.evidenceId,
     };
+  } else if (input.action === 'retry') {
+    action = 'retry';
+    body = {
+      jobId: input.jobId,
+      reason: input.reason,
+    };
   } else {
     return undefined;
   }

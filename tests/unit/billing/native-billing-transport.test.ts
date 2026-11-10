@@ -458,6 +458,33 @@ describe('native Billing transport', () => {
     expect(JSON.parse(calls[1]![3]!)).toEqual(statement.body);
   });
 
+  it('posts the exact Billing retry route and body', async () => {
+    const calls: Parameters<NativeBillingTransport>[] = [];
+    const client = createNativeBillingClient(configuration, async (...args) => {
+      calls.push(args);
+      return response({ data: { ok: true }, context: context() });
+    });
+    const input = {
+      holdingId: 'h001',
+      holdingSlug: 'acme',
+      action: 'retry' as const,
+      key: 'billing-retry-0001',
+      body: {
+        jobId: 'job-1',
+        reason: 'Retry the reviewed Billing job',
+      },
+    };
+    expect(await client.command(headers(), actor, input)).toEqual({ ok: true });
+    const [method, url, sent, body] = calls[0]!;
+    expect(method).toBe('POST');
+    expect(String(url)).toBe(
+      'http://127.0.0.1:3110/api/v1/holdings/acme/billing/jobs/retry',
+    );
+    expect(sent.get('idempotency-key')).toBe('billing-retry-0001');
+    expect(sent.get('origin')).toBe('https://acme.example.test');
+    expect(JSON.parse(body!)).toEqual(input.body);
+  });
+
   it('posts the exact target-rollout approval route and body', async () => {
     const calls: Parameters<NativeBillingTransport>[] = [];
     const client = createNativeBillingClient(configuration, async (...args) => {
