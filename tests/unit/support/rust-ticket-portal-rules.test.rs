@@ -194,3 +194,186 @@ fn command_key_and_presentation_flags_fail_closed() {
     );
     assert!(!view.can_revoke && !view.can_respond);
 }
+
+// Owner router construction and duplicate-target rejection. Handler behavior is
+// covered by the `#[cfg(test)]` modules inside the owner adapters.
+mod http_ingress_contract {
+    use erpx_server_shared::public::{BusinessError, FailureKind};
+    use erpx_server_support::public::service_teams::{ServiceTeamPreview, ServiceTeamResult};
+    use erpx_server_support::public::service_teams_http::{
+        ServiceTeamHttpBackend, ServiceTeamHttpTarget, ServiceTeamListHttpRequest,
+        ServiceTeamOptionsHttpRequest, ServiceTeamPreviewHttpRequest, ServiceTeamSaveHttpRequest,
+        SupportHttpFuture, service_teams_http_router,
+    };
+    use erpx_server_support::public::support_auxiliary::SupportSalesWorkspace;
+    use erpx_server_support::public::support_auxiliary_http::{
+        SupportAuxiliaryHttpBackend, SupportAuxiliaryHttpTarget, SupportAuxiliaryReadHttpRequest,
+        SupportAuxiliarySourceReply, SupportAuxiliaryWorkspaceHttpRequest,
+        support_auxiliary_http_router,
+    };
+    use erpx_server_support::public::ticket_portal::{
+        AcknowledgementResult, DecisionResult, PortalProjection, PortalWorkspace, PrepareResult,
+        ResponseResult,
+    };
+    use erpx_server_support::public::ticket_portal_http::{
+        TicketPortalAcknowledgementHttpRequest, TicketPortalCustomerHttpRequest,
+        TicketPortalDecisionHttpRequest, TicketPortalHttpBackend, TicketPortalHttpTarget,
+        TicketPortalPrepareHttpRequest, TicketPortalResponseHttpRequest,
+        TicketPortalWorkspaceHttpRequest, ticket_portal_http_router,
+    };
+    use std::sync::Arc;
+
+    fn unavailable() -> BusinessError {
+        BusinessError::new(
+            FailureKind::Unavailable,
+            "TEST_BACKEND",
+            "Test backend is not callable.",
+        )
+    }
+
+    struct PortalBackend;
+    impl TicketPortalHttpBackend for PortalBackend {
+        fn staff_workspace<'a>(
+            &'a self,
+            _request: TicketPortalWorkspaceHttpRequest<'a>,
+        ) -> SupportHttpFuture<'a, PortalWorkspace> {
+            Box::pin(async { Err(unavailable()) })
+        }
+        fn customer_projection<'a>(
+            &'a self,
+            _request: TicketPortalCustomerHttpRequest<'a>,
+        ) -> SupportHttpFuture<'a, PortalProjection> {
+            Box::pin(async { Err(unavailable()) })
+        }
+        fn prepare<'a>(
+            &'a self,
+            _request: TicketPortalPrepareHttpRequest<'a>,
+        ) -> SupportHttpFuture<'a, PrepareResult> {
+            Box::pin(async { Err(unavailable()) })
+        }
+        fn decide<'a>(
+            &'a self,
+            _request: TicketPortalDecisionHttpRequest<'a>,
+        ) -> SupportHttpFuture<'a, DecisionResult> {
+            Box::pin(async { Err(unavailable()) })
+        }
+        fn respond<'a>(
+            &'a self,
+            _request: TicketPortalResponseHttpRequest<'a>,
+        ) -> SupportHttpFuture<'a, ResponseResult> {
+            Box::pin(async { Err(unavailable()) })
+        }
+        fn acknowledge<'a>(
+            &'a self,
+            _request: TicketPortalAcknowledgementHttpRequest<'a>,
+        ) -> SupportHttpFuture<'a, AcknowledgementResult> {
+            Box::pin(async { Err(unavailable()) })
+        }
+    }
+
+    struct TeamBackend;
+    impl ServiceTeamHttpBackend for TeamBackend {
+        fn options<'a>(
+            &'a self,
+            _request: ServiceTeamOptionsHttpRequest<'a>,
+        ) -> SupportHttpFuture<'a, serde_json::Value> {
+            Box::pin(async { Err(unavailable()) })
+        }
+        fn list<'a>(
+            &'a self,
+            _request: ServiceTeamListHttpRequest<'a>,
+        ) -> SupportHttpFuture<'a, serde_json::Value> {
+            Box::pin(async { Err(unavailable()) })
+        }
+        fn preview<'a>(
+            &'a self,
+            _request: ServiceTeamPreviewHttpRequest<'a>,
+        ) -> SupportHttpFuture<'a, ServiceTeamPreview> {
+            Box::pin(async { Err(unavailable()) })
+        }
+        fn save<'a>(
+            &'a self,
+            _request: ServiceTeamSaveHttpRequest<'a>,
+        ) -> SupportHttpFuture<'a, ServiceTeamResult> {
+            Box::pin(async { Err(unavailable()) })
+        }
+    }
+
+    struct AuxiliaryBackend;
+    impl SupportAuxiliaryHttpBackend for AuxiliaryBackend {
+        fn workspace<'a>(
+            &'a self,
+            _request: SupportAuxiliaryWorkspaceHttpRequest<'a>,
+        ) -> SupportHttpFuture<'a, SupportSalesWorkspace> {
+            Box::pin(async { Err(unavailable()) })
+        }
+        fn source<'a>(
+            &'a self,
+            _request: SupportAuxiliaryReadHttpRequest<'a>,
+        ) -> SupportHttpFuture<'a, Option<SupportAuxiliarySourceReply>> {
+            Box::pin(async { Err(unavailable()) })
+        }
+    }
+
+    fn portal_target() -> TicketPortalHttpTarget {
+        TicketPortalHttpTarget {
+            host: "acme.example.test".into(),
+            holding_slug: "acme".into(),
+            origin: "https://acme.example.test".into(),
+            backend: Arc::new(PortalBackend),
+        }
+    }
+
+    fn team_target() -> ServiceTeamHttpTarget {
+        ServiceTeamHttpTarget {
+            host: "acme.example.test".into(),
+            holding_slug: "acme".into(),
+            origin: "https://acme.example.test".into(),
+            backend: Arc::new(TeamBackend),
+        }
+    }
+
+    fn auxiliary_target() -> SupportAuxiliaryHttpTarget {
+        SupportAuxiliaryHttpTarget {
+            host: "acme.example.test".into(),
+            holding_slug: "acme".into(),
+            origin: "https://acme.example.test".into(),
+            backend: Arc::new(AuxiliaryBackend),
+        }
+    }
+
+    #[test]
+    fn routers_accept_exact_targets_and_reject_duplicates() {
+        assert!(ticket_portal_http_router(vec![portal_target()]).is_ok());
+        assert!(service_teams_http_router(vec![team_target()]).is_ok());
+        assert!(support_auxiliary_http_router(vec![auxiliary_target()]).is_ok());
+
+        let duplicate = ticket_portal_http_router(vec![portal_target(), portal_target()])
+            .expect_err("duplicate portal targets");
+        assert_eq!(duplicate.code, "SUPPORT_PORTAL_HTTP_CONFIGURATION_INVALID");
+        let duplicate = service_teams_http_router(vec![team_target(), team_target()])
+            .expect_err("duplicate service-team targets");
+        assert_eq!(duplicate.code, "SERVICE_TEAMS_HTTP_CONFIGURATION_INVALID");
+        let duplicate = support_auxiliary_http_router(vec![auxiliary_target(), auxiliary_target()])
+            .expect_err("duplicate auxiliary targets");
+        assert_eq!(
+            duplicate.code,
+            "SUPPORT_AUXILIARY_HTTP_CONFIGURATION_INVALID"
+        );
+    }
+
+    #[test]
+    fn routers_reject_empty_host_slug_and_non_https_origin() {
+        let mut target = portal_target();
+        target.origin = "http://acme.example.test".into();
+        assert!(ticket_portal_http_router(vec![target]).is_err());
+
+        let mut target = team_target();
+        target.host.clear();
+        assert!(service_teams_http_router(vec![target]).is_err());
+
+        let mut target = auxiliary_target();
+        target.holding_slug.clear();
+        assert!(support_auxiliary_http_router(vec![target]).is_err());
+    }
+}

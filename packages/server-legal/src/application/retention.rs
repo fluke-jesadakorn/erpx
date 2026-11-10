@@ -69,6 +69,7 @@ struct RetentionWire {
     days: Option<i64>,
 }
 
+#[derive(Clone, Debug)]
 pub struct RetentionCommand {
     pub action: LegalRetentionAction,
     pub id: Option<String>,

@@ -5,6 +5,9 @@
 mod fixture;
 
 use erpx_server_legal::public::auxiliary::*;
+use erpx_server_runtime::public::http_support::{
+    HeaderMap, HeaderName, HeaderValue, StatusCode, body::to_bytes, header,
+};
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
@@ -12,8 +15,9 @@ use erpx_server_runtime::public::postgres::{
 use erpx_server_shared::public::{
     BusinessError, Clock, CommandKey, CompanyId, HoldingId, RecordId, TimestampMillis, UserId,
 };
-use serde_json::json;
+use serde_json::{Value, json};
 use sqlx::{AssertSqlSafe, PgConnection};
+use std::sync::{Arc, Mutex};
 
 struct FixedClock(i64);
 
@@ -585,6 +589,169 @@ async fn retention_commands_retain_independence_replay_and_audit_effects() {
         .await
         .unwrap_err();
         assert_eq!(code(error), "NOT_FOUND");
+    })
+    .await;
+}
+
+struct RetentionBackend {
+    calls: Mutex<Vec<(String, String, i64)>>,
+}
+
+impl LegalRetentionHttpBackend for RetentionBackend {
+    fn resolve_actor<'a>(
+        &'a self,
+        _: LegalRetentionHttpSessionRequest<'a>,
+    ) -> LegalRetentionActorFuture<'a> {
+        Box::pin(async { Ok(manager()) })
+    }
+
+    fn command<'a>(
+        &'a self,
+        request: LegalRetentionHttpCommandRequest<'a>,
+    ) -> LegalRetentionHttpFuture<'a> {
+        self.calls.lock().unwrap().push((
+            request.actor.user_id.as_str().to_owned(),
+            request.command.action.operation().to_owned(),
+            request.now,
+        ));
+        let actor = request.actor.clone();
+        let key = request.key.clone();
+        let request_hash = request.request_hash.to_owned();
+        let raw = request.raw.clone();
+        let pool = request.pool.clone();
+        Box::pin(async move {
+            execute_retention(&pool, &actor, &key, &request_hash, &raw, request.now)
+                .await
+                .map_err(legal_retention_business_error)
+        })
+    }
+}
+
+fn retention_headers(origin: Option<&str>, key: Option<&str>) -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    headers.insert(header::HOST, HeaderValue::from_static("acme.example"));
+    if let Some(origin) = origin {
+        headers.insert(header::ORIGIN, HeaderValue::from_str(origin).unwrap());
+    }
+    if let Some(key) = key {
+        headers.insert(
+            HeaderName::from_static("idempotency-key"),
+            HeaderValue::from_str(key).unwrap(),
+        );
+    }
+    headers
+}
+
+#[tokio::test]
+async fn retention_router_receives_actor_and_pool_and_serves_the_native_family() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        seed(&pool).await;
+        let backend = Arc::new(RetentionBackend {
+            calls: Mutex::new(Vec::new()),
+        });
+        let service = LegalRetentionHttpService::new(vec![LegalRetentionHttpTarget {
+            host: "acme.example".into(),
+            holding_slug: "acme".into(),
+            origin: "https://acme.example".into(),
+            pool: pool.clone(),
+            clock: Arc::new(FixedClock(1_794_330_000_000)),
+            backend: backend.clone(),
+        }])
+        .unwrap();
+
+        let body = json!({
+            "action":"retention.policy",
+            "name":"HTTP seven year policy",
+            "days":1,
+            "reason":"Group retention policy"
+        })
+        .to_string()
+        .into_bytes();
+        let response = service
+            .command(
+                "acme.example",
+                "acme",
+                &retention_headers(Some("https://acme.example"), Some("retention-http-one")),
+                &body,
+            )
+            .await;
+        let (parts, response_body) = response.into_parts();
+        assert_eq!(parts.status, StatusCode::OK);
+        assert_eq!(parts.headers.get(header::CACHE_CONTROL).unwrap(), "private, no-store");
+        let value: Value =
+            serde_json::from_slice(&to_bytes(response_body, 8192).await.unwrap()).unwrap();
+        assert_eq!(
+            value["data"]["policyId"],
+            "retention-retention-http-one"
+        );
+        // The backend received the proof-derived actor, the caller pool and the
+        // service clock; the router itself never executes the command.
+        assert_eq!(
+            backend.calls.lock().unwrap().as_slice(),
+            [(
+                "user-one".to_owned(),
+                "retention.policy".to_owned(),
+                1_794_330_000_000
+            )]
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT count(*) FROM legal_retention_policies WHERE id='retention-retention-http-one'"
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            1
+        );
+
+        // Same key + body replays the retained result through the same contract.
+        let replay = service
+            .command(
+                "acme.example",
+                "acme",
+                &retention_headers(Some("https://acme.example"), Some("retention-http-one")),
+                &body,
+            )
+            .await;
+        let (parts, response_body) = replay.into_parts();
+        assert_eq!(parts.status, StatusCode::OK);
+        let value: Value =
+            serde_json::from_slice(&to_bytes(response_body, 8192).await.unwrap()).unwrap();
+        assert_eq!(value["data"]["policyId"], "retention-retention-http-one");
+
+        // Transport failures never reach the backend.
+        let cases = [
+            (
+                retention_headers(Some("https://other.example"), Some("retention-http-two")),
+                body.clone(),
+                StatusCode::FORBIDDEN,
+            ),
+            (
+                retention_headers(Some("https://acme.example"), None),
+                body.clone(),
+                StatusCode::UNPROCESSABLE_ENTITY,
+            ),
+            (
+                retention_headers(Some("https://acme.example"), Some("retention-http-three")),
+                json!({"action":"trust.add","reason":"Not retention"}).to_string().into_bytes(),
+                StatusCode::UNPROCESSABLE_ENTITY,
+            ),
+        ];
+        for (headers, body, expected) in cases {
+            let response = service.command("acme.example", "acme", &headers, &body).await;
+            assert_eq!(response.into_parts().0.status, expected);
+        }
+        let unknown_holding = service
+            .command(
+                "acme.example",
+                "other",
+                &retention_headers(Some("https://acme.example"), Some("retention-http-four")),
+                &body,
+            )
+            .await;
+        assert_eq!(unknown_holding.into_parts().0.status, StatusCode::NOT_FOUND);
+        assert_eq!(backend.calls.lock().unwrap().len(), 2);
     })
     .await;
 }

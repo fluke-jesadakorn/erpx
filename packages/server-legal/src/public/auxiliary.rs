@@ -13,6 +13,12 @@ pub use crate::adapters::legal_http_auxiliary::{
 pub use crate::adapters::postgres_auxiliary_reads::{
     PgLegalAuxiliaryReads, legal_auxiliary_business_error, require_auxiliary_transaction,
 };
+pub use crate::adapters::legal_http_retention::{
+    LegalRetentionActorFuture, LegalRetentionCommandReply, LegalRetentionHttpBackend,
+    LegalRetentionHttpCommandRequest, LegalRetentionHttpFuture, LegalRetentionHttpService,
+    LegalRetentionHttpSessionRequest, LegalRetentionHttpTarget, RETENTION_BODY_LIMIT,
+    legal_retention_router,
+};
 pub use crate::adapters::postgres_retention::{
     PgLegalRetention, execute_retention, legal_retention, legal_retention_business_error,
 };

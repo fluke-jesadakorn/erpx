@@ -30,3 +30,9 @@ pub mod ticket_portal;
 pub mod service_teams;
 
 pub mod support_auxiliary;
+
+pub mod ticket_portal_http;
+
+pub mod service_teams_http;
+
+pub mod support_auxiliary_http;

@@ -6,6 +6,10 @@
 //! `execute_legal_trust_command` on the same serializable Holding transaction.
 //! Offline PDF trust/revocation/timestamp/modification and the three-state
 //! verifier are unchanged; provider-dependent signing stays fail-closed.
+pub use crate::adapters::trust_workflow_bridge::{
+    LegalTrustIdentityBridge, PgLegalTrustWorkflowBridge,
+    execute_legal_trust_command_with_owner_bridge, trust_command_request_hash,
+};
 pub use crate::adapters::legal_trust_http::{
     LegalTrustCommandReply, LegalTrustCommandWire, LegalTrustHttpBackend,
     LegalTrustHttpCommandRequest, LegalTrustHttpService, LegalTrustHttpTarget,

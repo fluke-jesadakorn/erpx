@@ -10,12 +10,15 @@ use erpx_server_legal::public::{
     PgLegalTrustWorkflow, PreparedLegalTrustCommand, RustTrustMaterialInspector, TrustMaterialKind,
     TrustMaterialState, execute_legal_trust_command, prepare_legal_trust_command,
 };
+use erpx_server_legal::public::trust_http::{
+    LegalTrustIdentityBridge, execute_legal_trust_command_with_owner_bridge,
+};
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
 use erpx_server_shared::public::{
-    BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId, UserId,
+    AssignmentId, BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId, UserId,
 };
 use sqlx::PgConnection;
 
@@ -306,4 +309,248 @@ async fn concrete_command_repository_and_cross_owner_receipt_share_one_commit() 
         assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM receipt_probe").fetch_one(pool.raw()).await.unwrap(),1);
         assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM audit_probe").fetch_one(pool.raw()).await.unwrap(),1);
     }).await;
+}
+
+/// Synthetic Identity facts for the owner bridge. Production replaces this with
+/// current IAM/owner authority; the Workflow half stays owner code.
+struct SyntheticIdentity {
+    manage: bool,
+}
+
+impl LegalTrustIdentityBridge for SyntheticIdentity {
+    async fn authorize_manage(
+        &mut self,
+        _: &mut PgConnection,
+        actor: &LegalTrustActor,
+    ) -> Result<String, PgTransactionError<BusinessError>> {
+        if self.manage {
+            Ok(format!("authority-{}", actor.company_id.as_str()))
+        } else {
+            Err(PgTransactionError::Business(BusinessError::new(
+                FailureKind::Forbidden,
+                "LEGAL_PERMISSION_REQUIRED",
+                "Current Legal manage permission is required.",
+            )))
+        }
+    }
+
+    async fn revalidate_authority(
+        &mut self,
+        _: &mut PgConnection,
+        actor: &LegalTrustActor,
+        witness: &str,
+    ) -> Result<(), PgTransactionError<BusinessError>> {
+        if self.manage && witness == format!("authority-{}", actor.company_id.as_str()) {
+            Ok(())
+        } else {
+            Err(PgTransactionError::Business(BusinessError::new(
+                FailureKind::Forbidden,
+                "LEGAL_AUTHORITY_CHANGED",
+                "Authority changed.",
+            )))
+        }
+    }
+
+    async fn same_person(
+        &mut self,
+        _: &mut PgConnection,
+        actor: &LegalTrustActor,
+        other: &UserId,
+    ) -> Result<bool, PgTransactionError<BusinessError>> {
+        Ok(actor.user_id == *other)
+    }
+}
+
+fn assignment() -> AssignmentId {
+    AssignmentId::new("assignment-reviewer").unwrap()
+}
+
+#[tokio::test]
+async fn owner_workflow_bridge_writes_receipt_audit_outbox_and_replays_the_exact_result() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let uow = PgUnitOfWork::new(pool.clone());
+
+        let first = uow
+            .run::<LegalTrustReceipt, BusinessError, _>(
+                TransactionOptions::default(),
+                |connection| {
+                    Box::pin(async move {
+                        execute_legal_trust_command_with_owner_bridge(
+                            connection,
+                            &facts::actor(),
+                            &assignment(),
+                            &key("trust-bridge-add"),
+                            &addition(),
+                            &RustTrustMaterialInspector,
+                            &facts::FixedClock,
+                            SyntheticIdentity { manage: true },
+                        )
+                        .await
+                    })
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(first.version, 1);
+        assert_eq!(first.id, CompanyId::new("company-a").unwrap());
+
+        // Same key and command replays the retained receipt without a new write.
+        let replay = uow
+            .run::<LegalTrustReceipt, BusinessError, _>(
+                TransactionOptions::default(),
+                |connection| {
+                    Box::pin(async move {
+                        execute_legal_trust_command_with_owner_bridge(
+                            connection,
+                            &facts::actor(),
+                            &assignment(),
+                            &key("trust-bridge-add"),
+                            &addition(),
+                            &RustTrustMaterialInspector,
+                            &facts::FixedClock,
+                            SyntheticIdentity { manage: true },
+                        )
+                        .await
+                    })
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!((replay.id.as_str(), replay.version), (first.id.as_str(), first.version));
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT count(*) FROM legal_trust_material")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT count(*) FROM command_receipts")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT count(*) FROM audit_events")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT count(*) FROM outbox_events")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT assignment_id FROM audit_events WHERE command_id='trust-bridge-add'"
+            )
+            .fetch_one(pool.raw())
+            .await
+            .unwrap(),
+            "assignment-reviewer"
+        );
+
+        // The same key with a different command is rejected before any write.
+        let mut other = addition();
+        if let LegalTrustCommand::Add { name, .. } = &mut other {
+            *name = "A different root".to_owned();
+        }
+        let conflict = uow
+            .run::<LegalTrustReceipt, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let other = other.clone();
+                Box::pin(async move {
+                    execute_legal_trust_command_with_owner_bridge(
+                        connection,
+                        &facts::actor(),
+                        &assignment(),
+                        &key("trust-bridge-add"),
+                        &other,
+                        &RustTrustMaterialInspector,
+                        &facts::FixedClock,
+                        SyntheticIdentity { manage: true },
+                    )
+                    .await
+                })
+            })
+            .await;
+        assert!(matches!(
+            conflict,
+            Err(PgTransactionError::Business(error)) if error.code == "IDEMPOTENCY_CONFLICT"
+        ));
+
+        let mut approver = facts::actor();
+        approver.user_id = UserId::new("approver-two").unwrap();
+        let approve = LegalTrustCommand::Approve {
+            id: RecordId::new("trust-bridge-add").unwrap(),
+            version: 1,
+        };
+        let approved = uow
+            .run::<LegalTrustReceipt, BusinessError, _>(
+                TransactionOptions::default(),
+                |connection| {
+                    let approve = approve.clone();
+                    let approver = approver.clone();
+                    Box::pin(async move {
+                        execute_legal_trust_command_with_owner_bridge(
+                            connection,
+                            &approver,
+                            &AssignmentId::new("assignment-approver").unwrap(),
+                            &key("trust-bridge-approve"),
+                            &approve,
+                            &RustTrustMaterialInspector,
+                            &facts::FixedClock,
+                            SyntheticIdentity { manage: true },
+                        )
+                        .await
+                    })
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(approved.version, 1);
+        let stored: (String, Option<String>) = sqlx::query_as(
+            "SELECT state,approved_by FROM legal_trust_material WHERE id='trust-bridge-add'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(stored, ("approved".to_owned(), Some("approver-two".to_owned())));
+
+        // A missing current authority writes nothing.
+        let denied = uow
+            .run::<LegalTrustReceipt, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                Box::pin(async move {
+                    execute_legal_trust_command_with_owner_bridge(
+                        connection,
+                        &facts::actor(),
+                        &assignment(),
+                        &key("trust-bridge-denied"),
+                        &addition(),
+                        &RustTrustMaterialInspector,
+                        &facts::FixedClock,
+                        SyntheticIdentity { manage: false },
+                    )
+                    .await
+                })
+            })
+            .await;
+        assert!(matches!(
+            denied,
+            Err(PgTransactionError::Business(error)) if error.code == "LEGAL_PERMISSION_REQUIRED"
+        ));
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT count(*) FROM command_receipts")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap(),
+            2
+        );
+    })
+    .await;
 }

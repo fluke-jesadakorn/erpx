@@ -20,3 +20,11 @@ pub(crate) mod ticket_portal;
 pub(crate) mod service_teams;
 
 pub(crate) mod support_auxiliary;
+
+pub(crate) mod support_http;
+
+pub(crate) mod ticket_portal_http;
+
+pub(crate) mod service_teams_http;
+
+pub(crate) mod support_auxiliary_http;
