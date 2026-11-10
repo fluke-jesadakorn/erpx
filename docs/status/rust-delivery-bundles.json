@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-10T16:28:40+07:00",
+  "updatedAt": "2026-11-10T17:00:53+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -3642,8 +3642,8 @@
       "id": "finance-payables-bundle",
       "kind": "supporting-delivery",
       "status": "review-rejected",
-      "scope": "Native Finance payables bundle: Procurement match lifecycle (post/void/event/receipt/notification), price-variance lines, receipt-version validation, stranded-match repair, source_version, posted goods-journal guard, matched void, and a scoped post-only foreign-currency goods-FX gate. supplier_bill_postgres 16/16, commerce foreign-goods 5/5, generic payments 17/17, finance unit 149/149, finance 131 tests, procurement 35 tests. Independent review still rejects certification pending native FX and remaining tests; evidence v9.",
-      "sourceIdentity": "working tree on 824e3d04ad5076c6232baee5824b5076e995eff6",
+      "scope": "Native Finance payables bundle: Procurement match lifecycle (post/void/event/receipt/notification), positive/negative variance, receipt-version validation, stranded-match repair, source_version, posted goods-journal guard, matched void, stale-match CAS, posted re-match, desktop/mobile matched-void browser acceptance, and a scoped post-only foreign-currency goods-FX gate. supplier_bill_postgres 18/18, commerce foreign-goods 5/5, generic payments 17/17, finance unit 149/149, finance 131 tests, procurement 35 tests. Independent review still rejects certification pending native FX scope; evidence v10.",
+      "sourceIdentity": "working tree on d30f8047970f368f3e144da7411146defe2bbab8",
       "evidenceRef": "docs/testing/evidence/2026-11-10-finance-payables-bundle.json",
       "durableContractRefs": []
     }
@@ -4285,7 +4285,7 @@
         "finance-native-supplier-bill-void"
       ],
       "sourceRef": "packages/server-finance/src/public/finance.ts",
-      "gap": "Native standalone payable create/edit/post/void/detail, AP journal, Money snapshots, line revisions, replay/version/Company guards and private API admission are PostgreSQL/HTTP-qualified. Finance-owned standalone posted void and payable attachments are closed. Native matched posting consumes Commerce fulfillment sources, requires a purchase order, retains/compares the source version, requires a posted goods journal, advances the Procurement match with an event and native Collaboration notifications, posts price variance to the approved account, and validates every active match receipt version. Matched draft/posted void returns the Procurement match, deactivates receipts, releases the Commerce fulfillment and checks the open Company period and live allocations. Migration 1101 repairs stranded pre-port matches (tested). Foreign-currency commerce is scoped to the retained goods-carrying FX path with an explicit native post gate; the fallback is post-only so the FX void guard surfaces 409. Remaining: native foreign-currency goods FX posting/void (scope decision required), browser matched-void acceptance, and stale-match/negative-variance/re-match-post tests. An independent re-reviewer rejected certification; Finance is not certified."
+      "gap": "Native standalone payable create/edit/post/void/detail, AP journal, Money snapshots, line revisions, replay/version/Company guards and private API admission are PostgreSQL/HTTP-qualified. Finance-owned standalone posted void and payable attachments are closed. Native matched posting consumes Commerce fulfillment sources, requires a purchase order, retains/compares the source version, requires a posted goods journal, advances the Procurement match with an event and native Collaboration notifications, posts positive/negative price variance to the approved account, and validates every active match receipt version. Matched draft/posted void returns the Procurement match, deactivates receipts, releases the Commerce fulfillment and checks the open Company period and live allocations. Migration 1101 repairs stranded pre-port matches (tested); stale match CAS and posted re-match are tested. Desktop 1440x900 and mobile 390x844 matched-void browser journeys passed with DB readback. Foreign-currency commerce is scoped to the retained goods-carrying FX path with an explicit native post gate; the fallback is post-only so the FX void guard surfaces 409. Remaining: native foreign-currency goods FX posting/void (scope decision required). An independent re-reviewer rejected certification; Finance is not certified."
     },
     {
       "id": "finance/feature-chart-of-accounts",
