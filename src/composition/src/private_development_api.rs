@@ -2368,6 +2368,7 @@ async fn assemble_checked(
     // Platform Administration has its own explicit Company binding. Its target
     // must not depend on a Finance journal read or another business scope.
     let mut platform_administration_targets = Vec::new();
+        let mut platform_projection_targets = Vec::new();
     for (i, holding) in config.holdings.iter().enumerate() {
         let Some(companies) = config
             .platform_administration_companies
@@ -2390,27 +2391,36 @@ async fn assemble_checked(
                 )
                 .map_err(|_| "PRIVATE_API_PLATFORM_ADMINISTRATION_CONFIGURATION_INVALID")?,
             );
+            let platform_backend = Arc::new(
+                crate::platform_administration::PlatformAdministrationBackend::new(
+                    config.policy.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    Arc::new(crate::platform_administration::PlatformAdministrationService::new(
+                        authorizer,
+                        crate::platform_administration::PlatformAdministrationConfiguration::new(
+                            holding.registration.holding_id.clone(),
+                            holding.registration.slug.clone(),
+                            company.clone(),
+                            platform_administration_store.clone(),
+                            platform_administration_slots.clone(),
+                            platform_administration_holdings.clone(),
+                            pools[0].clone(),
+                        ),
+                        Arc::new(SharedClock(clock.clone())),
+                    )),
+                ),
+            );
             platform_administration_targets.push(
                 erpx_server_platform_administration::public::platform_operations::PlatformHttpTarget {
                     host: holding.host.clone(),
                     origin: format!("https://{}", holding.host),
-                    backend: Arc::new(crate::platform_administration::PlatformAdministrationBackend::new(
-                        config.policy.clone(),
-                        Arc::new(FinanceJournalReadScopeHeaders),
-                        Arc::new(crate::platform_administration::PlatformAdministrationService::new(
-                            authorizer,
-                            crate::platform_administration::PlatformAdministrationConfiguration::new(
-                                holding.registration.holding_id.clone(),
-                                holding.registration.slug.clone(),
-                                company.clone(),
-                                platform_administration_store.clone(),
-                                platform_administration_slots.clone(),
-                                platform_administration_holdings.clone(),
-                                pools[0].clone(),
-                            ),
-                            Arc::new(SharedClock(clock.clone())),
-                        )),
-                    )),
+                    backend: platform_backend.clone(),
+                },
+            );
+            platform_projection_targets.push(
+                erpx_server_platform_administration::public::platform_operations_projection::PlatformOperationsProjectionHttpTarget {
+                    host: holding.host.clone(),
+                    backend: platform_backend.clone(),
                 },
             );
         }
@@ -2419,6 +2429,14 @@ async fn assemble_checked(
         router = router.merge(
             erpx_server_platform_administration::public::platform_operations::platform_router(
                 platform_administration_targets,
+            )
+            .map_err(|_| "PRIVATE_API_PLATFORM_ADMINISTRATION_CONFIGURATION_INVALID")?,
+        );
+    }
+    if !platform_projection_targets.is_empty() {
+        router = router.merge(
+            erpx_server_platform_administration::public::platform_operations_projection::platform_operations_projection_router(
+                platform_projection_targets,
             )
             .map_err(|_| "PRIVATE_API_PLATFORM_ADMINISTRATION_CONFIGURATION_INVALID")?,
         );

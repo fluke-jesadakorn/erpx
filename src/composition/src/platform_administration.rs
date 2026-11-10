@@ -543,7 +543,38 @@ impl<C: Clock + Send + Sync + 'static> PlatformAdministrationBackend<C> {
     }
 }
 
+use erpx_server_platform_administration::public::platform_operations_projection::{
+    PlatformOperationsProjectionHttpBackend, PlatformOperationsProjectionHttpFuture,
+    PlatformOperationsProjectionHttpReadRequest, PlatformOperationsProjectionHttpResponse,
+};
 use erpx_server_runtime::public::http_support::HeaderName;
+
+
+impl<C: Clock + Send + Sync + 'static> PlatformOperationsProjectionHttpBackend
+    for PlatformAdministrationBackend<C>
+{
+    fn read<'a>(
+        &'a self,
+        request: PlatformOperationsProjectionHttpReadRequest<'a>,
+    ) -> PlatformOperationsProjectionHttpFuture<'a, PlatformOperationsProjectionHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection, platform_assignment_id) = self.context(request.headers)?;
+            self.service
+                .read_operations(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    platform_assignment_id,
+                )
+                .await
+                .map(|response| PlatformOperationsProjectionHttpResponse {
+                    data: response.data,
+                    context: response.context,
+                })
+                .map_err(business)
+        })
+    }
+}
 
 impl<C: Clock + Send + Sync + 'static> PlatformHttpBackend for PlatformAdministrationBackend<C> {
     fn read<'a>(
