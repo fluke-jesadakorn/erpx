@@ -43,3 +43,11 @@ path = "../../tests/integration/quality/rust-quality-read-cancel-postgres.test.r
 [[test]]
 name = "quality_http"
 path = "../../tests/integration/quality/rust-quality-http.test.rs"
+
+[[test]]
+name = "quality_hold"
+path = "../../tests/unit/quality/rust-quality-hold.test.rs"
+
+[[test]]
+name = "quality_hold_create_postgres"
+path = "../../tests/integration/quality/rust-quality-hold-create-postgres.test.rs"

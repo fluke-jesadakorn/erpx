@@ -1,11 +1,13 @@
 //! Native Quality HTTP transport facts over a real loopback listener.
 use erpx_server_quality::public::quality_http::{
-    QualityHttpBackend, QualityHttpCommandRequest, QualityHttpFuture, QualityHttpReadReply,
-    QualityHttpReadRequest, QualityHttpTarget, parse_quality_history_query, quality_router,
+    QualityHttpBackend, QualityHttpCommandRequest, QualityHttpFuture, QualityHttpHoldCreateRequest,
+    QualityHttpReadReply, QualityHttpReadRequest, QualityHttpTarget,
+    parse_quality_history_query, quality_router,
 };
+use erpx_server_quality::public::quality_commands::QualityHoldReceipt;
 use erpx_server_quality::public::quality_read::{
     CancellationAction, HoldStatus, QualityCancellationReceipt, QualityDecision, QualityDetail, QualityDetailCore,
-    QualityHold, QualityHoldView, QualityWorkspace,
+    QualityHold, QualityHoldProduct, QualityHoldView, QualityWorkspace,
 };
 use erpx_server_runtime::public::http_support::serde_json::{self, Value, json};
 use erpx_server_runtime::public::http_support::{Router, serve};
@@ -85,9 +87,23 @@ fn hold() -> QualityHold {
     }
 }
 
+fn product() -> QualityHoldProduct {
+    QualityHoldProduct {
+        product_name: "Quality product".into(),
+        product_unit: "each".into(),
+        tracking_mode: "none".into(),
+        warehouse_name: "Quality warehouse".into(),
+        lot_code: None,
+        serial_number: None,
+        expiry_date: None,
+        eligible_count: 1,
+    }
+}
+
 struct Backend {
     reads: AtomicUsize,
     cancels: AtomicUsize,
+    creates: AtomicUsize,
     seen_host: std::sync::Mutex<String>,
     seen_key: std::sync::Mutex<String>,
     fail: Option<BusinessError>,
@@ -98,6 +114,7 @@ impl Backend {
         Self {
             reads: AtomicUsize::new(0),
             cancels: AtomicUsize::new(0),
+            creates: AtomicUsize::new(0),
             seen_host: std::sync::Mutex::new(String::new()),
             seen_key: std::sync::Mutex::new(String::new()),
             fail: None,
@@ -116,7 +133,7 @@ impl QualityHttpBackend for Backend {
         Box::pin(async move {
             if request.id != Some("hold-a") { return Err(BusinessError::new(FailureKind::NotFound, "QUALITY_HOLD_NOT_FOUND", "Hold not found.")); }
             Ok(QualityDetailCore {
-                hold: QualityHoldView { hold: hold(), decision: QualityDecision { can_inspect: false, can_release: true, can_cancel: false, can_review_cancellation: false, can_disposition: false }, next_action: "Approve release of the passing inspection" },
+                hold: QualityHoldView { hold: hold(), product: product(), decision: QualityDecision { can_inspect: false, can_release: true, can_cancel: false, can_review_cancellation: false, can_disposition: false }, next_action: "Approve release of the passing inspection" },
                 inspections: vec![], measurements: vec![], dispositions: vec![], spec_metrics: vec![], alerts: vec![],
             })
         })
@@ -136,6 +153,7 @@ impl QualityHttpBackend for Backend {
                     QualityWorkspace {
                         holds: vec![QualityHoldView {
                             hold: hold(),
+                            product: product(),
                             decision: QualityDecision {
                                 can_inspect: false,
                                 can_release: true,
@@ -145,6 +163,11 @@ impl QualityHttpBackend for Backend {
                             },
                             next_action: "Approve release of the passing inspection",
                         }],
+                        stock: vec![],
+                        lots: vec![],
+                        products: vec![],
+                        specifications: vec![],
+                        specification_metrics: vec![],
                         can_hold: true,
                         can_manage_specs: true,
                     },
@@ -152,6 +175,7 @@ impl QualityHttpBackend for Backend {
                 Some("hold-a") => Ok(QualityHttpReadReply::Detail(Box::new(QualityDetail {
                     hold: QualityHoldView {
                         hold: hold(),
+                        product: product(),
                         decision: QualityDecision {
                             can_inspect: false,
                             can_release: true,
@@ -174,6 +198,24 @@ impl QualityHttpBackend for Backend {
                     "Quality hold not found.",
                 )),
             }
+        })
+    }
+
+    fn hold_create<'a>(
+        &'a self,
+        request: QualityHttpHoldCreateRequest<'a>,
+    ) -> QualityHttpFuture<'a, QualityHoldReceipt> {
+        self.creates.fetch_add(1, Ordering::SeqCst);
+        *self.seen_key.lock().unwrap() = request.key.as_str().to_owned();
+        Box::pin(async move {
+            if let Some(error) = self.fail.clone() {
+                return Err(error);
+            }
+            Ok(QualityHoldReceipt {
+                id: format!("quality-{}", request.key.as_str()),
+                status: HoldStatus::Held,
+                version: 1,
+            })
         })
     }
 
@@ -276,6 +318,15 @@ async fn reads_the_registered_holding_with_session_headers_and_bounded_headers()
     assert_eq!(status, 200);
     assert_eq!(value["data"]["holds"][0]["id"], "hold-a");
     assert_eq!(value["data"]["holds"][0]["decision"]["canRelease"], true);
+    assert_eq!(value["data"]["holds"][0]["productName"], "Quality product");
+    assert_eq!(value["data"]["holds"][0]["productUnit"], "each");
+    assert_eq!(value["data"]["holds"][0]["warehouseName"], "Quality warehouse");
+    assert_eq!(value["data"]["holds"][0]["eligibleCount"], 1);
+    assert_eq!(value["data"]["stock"], json!([]));
+    assert_eq!(value["data"]["lots"], json!([]));
+    assert_eq!(value["data"]["products"], json!([]));
+    assert_eq!(value["data"]["specifications"], json!([]));
+    assert_eq!(value["data"]["specMetrics"], json!([]));
     assert_eq!(*backend.seen_host.lock().unwrap(), "acme.example.test");
     assert_eq!(backend.reads.load(Ordering::SeqCst), 1);
 
@@ -428,6 +479,102 @@ async fn forwards_one_canonical_cancellation_and_preserves_owner_errors() {
     .await;
     assert_eq!(status, 409);
     assert_eq!(value["error"]["code"], "QUALITY_CANCELLATION_CONFLICT");
+    task.abort();
+}
+
+#[tokio::test]
+async fn forwards_one_canonical_hold_create_and_rejects_stale_input() {
+    let backend = Arc::new(Backend::new());
+    let (address, task) = start(backend.clone()).await;
+    let key = "quality-hold-http";
+    let body = json!({
+        "warehouseId": "warehouse",
+        "productId": "product",
+        "expectedStockVersion": 3,
+        "dueDate": "2026-11-10",
+        "reason": "Damaged carton requires independent review"
+    });
+    let (status, value) = call(
+        address,
+        "POST",
+        "/api/v1/holdings/acme/quality",
+        &[
+            ("Origin", "https://acme.example.test"),
+            ("Idempotency-Key", key),
+        ],
+        Some(body.clone()),
+    )
+    .await;
+    assert_eq!(status, 200, "{value}");
+    assert_eq!(value["data"]["id"], format!("quality-{key}"));
+    assert_eq!(value["data"]["status"], "held");
+    assert_eq!(value["data"]["version"], 1);
+    assert_eq!(*backend.seen_key.lock().unwrap(), key);
+    assert_eq!(backend.creates.load(Ordering::SeqCst), 1);
+
+    let (status, value) = call(
+        address,
+        "POST",
+        "/api/v1/holdings/acme/quality",
+        &[
+            ("Origin", "https://acme.example.test"),
+            ("Idempotency-Key", "quality-hold-bad-version"),
+        ],
+        Some(json!({
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "expectedStockVersion": 0,
+            "dueDate": "2026-11-10",
+            "reason": "Damaged carton requires independent review"
+        })),
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(value["error"]["code"], "VERSION_REQUIRED");
+    assert_eq!(backend.creates.load(Ordering::SeqCst), 1);
+
+    let (status, value) = call(
+        address,
+        "POST",
+        "/api/v1/holdings/acme/quality",
+        &[
+            ("Origin", "https://acme.example.test"),
+            ("Idempotency-Key", "quality-hold-bad-date"),
+        ],
+        Some(json!({
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "expectedStockVersion": 3,
+            "dueDate": "2026-02-30",
+            "reason": "Damaged carton requires independent review"
+        })),
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(value["error"]["code"], "QUALITY_DUE_DATE_REQUIRED");
+    assert_eq!(backend.creates.load(Ordering::SeqCst), 1);
+
+    let (status, value) = call(
+        address,
+        "POST",
+        "/api/v1/holdings/acme/quality",
+        &[
+            ("Origin", "https://acme.example.test"),
+            ("Idempotency-Key", "quality-hold-extra"),
+        ],
+        Some(json!({
+            "warehouseId": "warehouse",
+            "productId": "product",
+            "expectedStockVersion": 3,
+            "dueDate": "2026-11-10",
+            "reason": "Damaged carton requires independent review",
+            "sourceType": "goods_receipt"
+        })),
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(value["error"]["code"], "QUALITY_HOLD_REQUIRED");
+    assert_eq!(backend.creates.load(Ordering::SeqCst), 1);
     task.abort();
 }
 

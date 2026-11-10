@@ -49,10 +49,11 @@ use erpx_server_quality::public::quality_commands::{
     HoldStatus, PreparedQualityCancellation, PreparedQualityInspection, PreparedQualityRelease,
     PreparedQualitySpecSave, PreparedQualitySpecTransition, QualityCancellationCommand,
     QualityDispositionCommand, QualityDispositionReceipt, QualityInspectionCommand,
-    QualityReleaseCommand, QualityScrapLot, QualityScrapStock, QualitySpecAction,
-    QualitySpecActionCommand, QualitySpecCommand, RetainedQualityCancellation,
-    lock_quality_command_sources, lock_quality_scrap_writes, plan_quality_scrap,
-    prepare_quality_cancellation, prepare_quality_inspection, prepare_quality_release,
+    QualityHoldCommand, QualityReleaseCommand, QualityScrapLot, QualityScrapStock,
+    QualitySpecAction, QualitySpecActionCommand, QualitySpecCommand,
+    PreparedQualityHold, RetainedQualityCancellation, lock_quality_command_sources,
+    lock_quality_scrap_writes, plan_quality_scrap, prepare_quality_cancellation,
+    prepare_quality_hold, prepare_quality_inspection, prepare_quality_release,
     prepare_quality_spec_save, prepare_quality_spec_transition, read_quality_hold_for_command,
 };
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
@@ -213,6 +214,7 @@ impl HoldingWorkSourcePreparation for QualityCommandPreparation {
 
 #[derive(Clone)]
 pub enum QualityOwnerCommand {
+    HoldCreate(QualityHoldCommand),
     SaveSpec(QualitySpecCommand),
     TransitionSpec(QualitySpecActionCommand),
     Inspect(QualityInspectionCommand),
@@ -224,6 +226,7 @@ pub enum QualityOwnerCommand {
 impl QualityOwnerCommand {
     fn key(&self) -> &CommandKey {
         match self {
+            Self::HoldCreate(command) => &command.key,
             Self::SaveSpec(command) => &command.key,
             Self::TransitionSpec(command) => &command.key,
             Self::Inspect(command) => &command.key,
@@ -235,6 +238,7 @@ impl QualityOwnerCommand {
 
     fn operation(&self) -> String {
         match self {
+            Self::HoldCreate(command) => command.operation().to_owned(),
             Self::SaveSpec(command) => command.operation().to_owned(),
             Self::TransitionSpec(command) => command.operation(),
             Self::Inspect(command) => command.operation().to_owned(),
@@ -246,6 +250,7 @@ impl QualityOwnerCommand {
 
     fn record_id(&self) -> Result<RecordId, BusinessError> {
         match self {
+            Self::HoldCreate(command) => command.record_id(),
             Self::SaveSpec(command) => command.record_id(),
             Self::TransitionSpec(command) => Ok(command.id.clone()),
             Self::Inspect(command) => Ok(command.hold_id.clone()),
@@ -257,6 +262,7 @@ impl QualityOwnerCommand {
 
     fn permission(&self) -> &'static str {
         match self {
+            Self::HoldCreate(_) => "quality.hold",
             Self::SaveSpec(_) | Self::TransitionSpec(_) => "quality.release",
             Self::Inspect(_) => "quality.inspect",
             Self::Cancel(command) => command.action.permission(),
@@ -270,6 +276,7 @@ impl QualityOwnerCommand {
 
     fn purpose(&self) -> CapabilityPurpose {
         match self {
+            Self::HoldCreate(_) => CapabilityPurpose::NewWork,
             Self::SaveSpec(_) => CapabilityPurpose::NewWork,
             Self::TransitionSpec(command) => match command.action {
                 QualitySpecAction::Activate => CapabilityPurpose::NewWork,
@@ -290,6 +297,15 @@ impl QualityOwnerCommand {
 
     fn input_json(&self) -> Result<CommandJson, BusinessError> {
         match self {
+            Self::HoldCreate(command) => CommandJson::from_serializable(&HoldJson {
+                warehouse_id: command.warehouse_id.as_str(),
+                product_id: command.product_id.as_str(),
+                lot_id: command.lot_id.as_ref().map(RecordId::as_str),
+                expected_stock_version: command.expected_stock_version,
+                expected_lot_version: command.expected_lot_version,
+                due_date: &command.due_date,
+                reason: &command.reason,
+            }),
             Self::SaveSpec(command) => CommandJson::from_serializable(&SpecSaveJson {
                 product_id: command.input.product_id.as_str(),
                 name: &command.input.name,
@@ -413,6 +429,20 @@ struct ReleaseJson<'a> {
 }
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
+struct HoldJson<'a> {
+    warehouse_id: &'a str,
+    product_id: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    lot_id: Option<&'a str>,
+    expected_stock_version: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    expected_lot_version: Option<i64>,
+    due_date: &'a str,
+    reason: &'a str,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ScrapJson<'a> {
     expected_version: i64,
     attachment_set_ids: &'a [String],
@@ -523,6 +553,7 @@ impl<G: Clock + Sync> PgCommandAuthority for Authority<'_, G> {
 }
 
 enum Prepared {
+    HoldCreate(PreparedQualityHold),
     Save {
         prepared: PreparedQualitySpecSave,
         master: CurrentQualityMasters,
@@ -535,6 +566,7 @@ enum Prepared {
 }
 
 enum Written<'a> {
+    HoldCreate(PreparedQualityHold),
     Save {
         prepared: PreparedQualitySpecSave,
         master: CurrentQualityMasters,
@@ -1135,6 +1167,12 @@ struct Effects<'a, W> {
 }
 
 #[derive(serde::Serialize)]
+struct HoldResult<'a> {
+    id: &'a str,
+    status: &'a str,
+    version: i64,
+}
+#[derive(serde::Serialize)]
 struct SpecResult<'a> {
     id: &'a str,
     status: &'a str,
@@ -1197,6 +1235,26 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W> {
         let now = self.write_clock.now().get();
         let actor = self.current.user_id().clone();
         match self.command {
+            QualityOwnerCommand::HoldCreate(command) => {
+                let branch = self.current.selection().workspace().branch_id.clone();
+                let prepared =
+                    prepare_quality_hold(c, command, &company, branch.as_ref(), &actor, now)
+                        .await?;
+                let receipt = prepared.receipt();
+                let (id, status, version) =
+                    (receipt.id.clone(), receipt.status.as_str(), receipt.version);
+                let result = CommandJson::from_serializable(&HoldResult {
+                    id: &id,
+                    status,
+                    version,
+                })?;
+                self.prepared = Some(Prepared::HoldCreate(prepared));
+                Ok(WorkflowOutput {
+                    version,
+                    result,
+                    event_scope: None,
+                })
+            }
             QualityOwnerCommand::SaveSpec(command) => {
                 let master = inspect_quality_masters(
                     c,
@@ -1356,6 +1414,10 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W> {
         _: &WorkflowRequest,
     ) -> Result<(), Error> {
         match self.prepared.take().ok_or_else(changed)? {
+            Prepared::HoldCreate(prepared) => {
+                prepared.apply(c).await?;
+                self.written = Some(Written::HoldCreate(prepared));
+            }
             Prepared::Save { prepared, master } => {
                 prepared.apply(c).await?;
                 master.require_current(c).await?;
@@ -1471,6 +1533,7 @@ impl<W: Clock + Sync> PgOwnerCommandEffects for Effects<'_, W> {
             .execute(&mut *c)
             .await?;
         match self.written.as_ref().ok_or_else(changed)? {
+            Written::HoldCreate(prepared) => prepared.require_after(c).await?,
             Written::Save { prepared, master } => {
                 prepared.require_after(c).await?;
                 master.require_current(c).await?;

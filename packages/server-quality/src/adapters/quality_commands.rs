@@ -8,7 +8,7 @@ use super::quality_read::{
 };
 use crate::application::quality::{QualityInspection, QualityMeasurement};
 use crate::application::quality_commands::{
-    QualityDispositionCommand, QualityInspectionCommand,
+    QualityDispositionCommand, QualityHoldCommand, QualityHoldReceipt, QualityInspectionCommand,
     QualityInspectionReceipt, QualityReleaseCommand, QualityReleaseReceipt, QualitySpecAction,
     QualitySpecActionCommand, QualitySpecCommand, QualitySpecMetricInput, QualitySpecReceipt,
 };
@@ -116,6 +116,35 @@ fn evidence_changed() -> BusinessError {
     conflict(
         "QUALITY_ATTACHMENT_CHANGED",
         "The inspection evidence changed. Reload and review before retrying.",
+    )
+}
+
+fn stock_not_found() -> BusinessError {
+    BusinessError::new(
+        FailureKind::NotFound,
+        "STOCK_NOT_FOUND",
+        "Active stock location not found.",
+    )
+}
+
+fn stock_changed() -> BusinessError {
+    conflict(
+        "CONFLICT",
+        "The stock balance changed. Refresh before placing the hold.",
+    )
+}
+
+fn lot_changed() -> BusinessError {
+    conflict(
+        "QUALITY_LOT_CHANGED",
+        "The lot or serial balance changed. Refresh before placing the hold.",
+    )
+}
+
+fn invalid_active_spec() -> BusinessError {
+    conflict(
+        "QUALITY_SPEC_INVALID",
+        "The active inspection specification is ambiguous.",
     )
 }
 
@@ -254,6 +283,7 @@ fn expected_metrics(command: &QualitySpecCommand, record: &RecordId) -> Vec<Qual
         .map(
             |(index, metric): (usize, &QualitySpecMetricInput)| QualityMetric {
                 id: format!("{}-metric-{}", record.as_str(), index),
+                spec_id: Some(record.as_str().to_owned()),
                 code: metric.code.clone(),
                 label: metric.label.clone(),
                 unit: metric.unit.clone(),
@@ -1045,6 +1075,456 @@ pub async fn prepare_quality_release(
         },
         source,
         expected,
+    })
+}
+
+/// Current Commerce stock source for a manual Quality hold. The row is locked
+/// before the Quality hold relation so the frozen stock/lot -> quality order is
+/// preserved inside the caller's Holding transaction.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QualityHoldStock {
+    pub warehouse_id: String,
+    pub product_id: String,
+    pub branch_id: String,
+    pub quantity_milli: i64,
+    pub version: i64,
+    pub tracking_mode: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QualityHoldLot {
+    pub id: String,
+    pub tracking_mode: String,
+    pub lot_code: Option<String>,
+    pub serial_number: Option<String>,
+    pub expiry_date: Option<String>,
+    pub quantity_milli: i64,
+    pub balance_version: i64,
+}
+
+async fn read_hold_stock(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    branch: Option<&RecordId>,
+    warehouse_id: &str,
+    product_id: &str,
+) -> Result<Option<QualityHoldStock>, Error> {
+    let row = sqlx::query(
+        "SELECT s.warehouse_id,s.product_id,s.quantity_milli,s.version,w.branch_id,p.tracking_mode \
+         FROM commerce_stock s \
+         JOIN commerce_warehouses w ON w.id=s.warehouse_id \
+         JOIN commerce_products p ON p.id=s.product_id \
+         WHERE s.warehouse_id=$1 AND s.product_id=$2 AND w.company_id=$3 \
+           AND p.company_id=w.company_id AND w.status='active' AND p.status='active' \
+           AND ($4::text IS NULL OR w.branch_id=$4) \
+         FOR UPDATE OF s",
+    )
+    .bind(warehouse_id)
+    .bind(product_id)
+    .bind(company.as_str())
+    .bind(branch.map(RecordId::as_str))
+    .fetch_optional(&mut *c)
+    .await?;
+    row.map(|row| {
+        Ok(QualityHoldStock {
+            warehouse_id: row.try_get("warehouse_id")?,
+            product_id: row.try_get("product_id")?,
+            branch_id: row.try_get("branch_id")?,
+            quantity_milli: safe(row.try_get("quantity_milli")?)?,
+            version: safe(row.try_get("version")?)?,
+            tracking_mode: row.try_get("tracking_mode")?,
+        })
+    })
+    .transpose()
+}
+
+async fn read_hold_lot(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    product_id: &str,
+    warehouse_id: &str,
+    lot_id: &str,
+) -> Result<Option<QualityHoldLot>, Error> {
+    let row = sqlx::query(
+        "SELECT l.id,l.tracking_mode,l.lot_code,l.serial_number,l.expiry_date,b.quantity_milli,b.version \
+         FROM inventory_lots l \
+         JOIN inventory_lot_balances b ON b.lot_id=l.id \
+         WHERE l.id=$1 AND l.company_id=$2 AND l.product_id=$3 AND b.warehouse_id=$4 \
+           AND b.quantity_milli>0 \
+         FOR UPDATE OF b",
+    )
+    .bind(lot_id)
+    .bind(company.as_str())
+    .bind(product_id)
+    .bind(warehouse_id)
+    .fetch_optional(&mut *c)
+    .await?;
+    row.map(|row| {
+        Ok(QualityHoldLot {
+            id: row.try_get("id")?,
+            tracking_mode: row.try_get("tracking_mode")?,
+            lot_code: row.try_get("lot_code")?,
+            serial_number: row.try_get("serial_number")?,
+            expiry_date: row.try_get("expiry_date")?,
+            quantity_milli: safe(row.try_get("quantity_milli")?)?,
+            balance_version: safe(row.try_get("version")?)?,
+        })
+    })
+    .transpose()
+}
+
+async fn read_active_hold_spec(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    product_id: &str,
+) -> Result<Option<(String, i64)>, Error> {
+    let rows = sqlx::query(
+        "SELECT id,version FROM inventory_quality_specs \
+         WHERE company_id=$1 AND product_id=$2 AND status='active' \
+         ORDER BY version DESC,id LIMIT 2",
+    )
+    .bind(company.as_str())
+    .bind(product_id)
+    .fetch_all(&mut *c)
+    .await?;
+    if rows.len() > 1 {
+        return Err(invalid_active_spec().into());
+    }
+    rows.first()
+        .map(|row| {
+            Ok((
+                row.try_get("id")?,
+                safe(row.try_get::<i64, _>("version")?)?,
+            ))
+        })
+        .transpose()
+}
+
+/// Writer intent for a manual hold-create. Composition calls this before
+/// `lock_quality_command_sources` so the stock and lot row locks precede the
+/// Quality relation locks; the owner preparation performs the same ordering
+/// when it is invoked directly.
+pub async fn lock_quality_hold_create_sources(
+    c: &mut PgConnection,
+    command: &QualityHoldCommand,
+    company: &CompanyId,
+    branch: Option<&RecordId>,
+) -> Result<(), Error> {
+    serializable(c).await?;
+    let stock = read_hold_stock(
+        c,
+        company,
+        branch,
+        command.warehouse_id.as_str(),
+        command.product_id.as_str(),
+    )
+    .await?
+    .ok_or_else(stock_not_found)?;
+    if stock.version != command.expected_stock_version {
+        return Err(stock_changed().into());
+    }
+    if let Some(lot_id) = command.lot_id.as_ref() {
+        let lot = read_hold_lot(
+            c,
+            company,
+            command.product_id.as_str(),
+            command.warehouse_id.as_str(),
+            lot_id.as_str(),
+        )
+        .await?
+        .ok_or_else(lot_changed)?;
+        if command.expected_lot_version != Some(lot.balance_version) {
+            return Err(lot_changed().into());
+        }
+    }
+    Ok(())
+}
+
+/// Prepare one command-keyed hold against locked current stock, lot and active
+/// specification. The source hold row is the only Quality write; notification,
+/// receipt, audit and outbox retention stay with composition.
+pub struct PreparedQualityHold {
+    unit: Unit,
+    company: CompanyId,
+    branch: Option<RecordId>,
+    stock: QualityHoldStock,
+    lot: Option<QualityHoldLot>,
+    spec: Option<(String, i64)>,
+    expected: crate::application::quality::QualityHold,
+    receipt: QualityHoldReceipt,
+}
+
+impl PreparedQualityHold {
+    pub fn receipt(&self) -> &QualityHoldReceipt {
+        &self.receipt
+    }
+
+    pub fn hold(&self) -> &crate::application::quality::QualityHold {
+        &self.expected
+    }
+
+    async fn require_source(&self, c: &mut PgConnection) -> Result<(), Error> {
+        if read_hold_stock(
+            c,
+            &self.company,
+            self.branch.as_ref(),
+            self.stock.warehouse_id.as_str(),
+            self.stock.product_id.as_str(),
+        )
+        .await?
+        .as_ref()
+            != Some(&self.stock)
+        {
+            return Err(stock_changed().into());
+        }
+        let lot = match self.lot.as_ref() {
+            Some(lot) => read_hold_lot(
+                c,
+                &self.company,
+                self.stock.product_id.as_str(),
+                self.stock.warehouse_id.as_str(),
+                lot.id.as_str(),
+            )
+            .await?,
+            None => None,
+        };
+        if lot != self.lot {
+            return Err(lot_changed().into());
+        }
+        if read_active_hold_spec(
+            c,
+            &self.company,
+            self.stock.product_id.as_str(),
+        )
+        .await?
+            != self.spec
+        {
+            return Err(invalid_active_spec().into());
+        }
+        Ok(())
+    }
+
+    pub async fn require_before(&self, c: &mut PgConnection) -> Result<(), Error> {
+        require_quality_command_locks(c).await?;
+        if unit(c).await? != self.unit
+            || read_holds(
+                c,
+                self.company.as_str(),
+                self.branch.as_ref().map(RecordId::as_str),
+                Some(&self.expected.id),
+            )
+            .await?
+            .pop()
+            .is_some()
+        {
+            return Err(hold_changed().into());
+        }
+        self.require_source(c).await
+    }
+
+    pub async fn apply(&self, c: &mut PgConnection) -> Result<(), Error> {
+        self.require_before(c).await?;
+        let inserted = sqlx::query(
+            "INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,created_by,created_at,updated_at,lot_id,held_quantity_milli,spec_id,spec_version) \
+             VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)",
+        )
+        .bind(&self.expected.id)
+        .bind(&self.expected.company_id)
+        .bind(&self.expected.branch_id)
+        .bind(&self.expected.warehouse_id)
+        .bind(&self.expected.product_id)
+        .bind(&self.expected.reason)
+        .bind(&self.expected.due_date)
+        .bind(&self.expected.created_by)
+        .bind(self.expected.created_at)
+        .bind(self.expected.updated_at)
+        .bind(self.expected.lot_id.as_deref())
+        .bind(self.expected.held_quantity_milli)
+        .bind(self.spec.as_ref().map(|(id, _)| id.as_str()))
+        .bind(self.spec.as_ref().map(|(_, version)| *version))
+        .execute(&mut *c)
+        .await?;
+        if inserted.rows_affected() != 1 {
+            return Err(hold_changed().into());
+        }
+        self.require_after(c).await
+    }
+
+    pub async fn require_after(&self, c: &mut PgConnection) -> Result<(), Error> {
+        require_quality_command_locks(c).await?;
+        if unit(c).await? != self.unit
+            || read_holds(
+                c,
+                self.company.as_str(),
+                self.branch.as_ref().map(RecordId::as_str),
+                Some(&self.expected.id),
+            )
+            .await?
+            .pop()
+            .as_ref()
+                != Some(&self.expected)
+        {
+            return Err(hold_changed().into());
+        }
+        // The hold trigger advances the stock version in this same statement;
+        // quantities and the lot balance must otherwise be unchanged.
+        let stock = read_hold_stock(
+            c,
+            &self.company,
+            self.branch.as_ref(),
+            self.stock.warehouse_id.as_str(),
+            self.stock.product_id.as_str(),
+        )
+        .await?
+        .ok_or_else(stock_changed)?;
+        if stock.quantity_milli != self.stock.quantity_milli
+            || stock.version != self.stock.version + 1
+        {
+            return Err(stock_changed().into());
+        }
+        let lot = match self.lot.as_ref() {
+            Some(lot) => read_hold_lot(
+                c,
+                &self.company,
+                self.stock.product_id.as_str(),
+                self.stock.warehouse_id.as_str(),
+                lot.id.as_str(),
+            )
+            .await?,
+            None => None,
+        };
+        if lot != self.lot {
+            return Err(lot_changed().into());
+        }
+        if read_active_hold_spec(
+            c,
+            &self.company,
+            self.stock.product_id.as_str(),
+        )
+        .await?
+            != self.spec
+        {
+            return Err(invalid_active_spec().into());
+        }
+        Ok(())
+    }
+}
+
+pub async fn prepare_quality_hold(
+    c: &mut PgConnection,
+    command: &QualityHoldCommand,
+    company: &CompanyId,
+    branch: Option<&RecordId>,
+    actor: &UserId,
+    now: i64,
+) -> Result<PreparedQualityHold, Error> {
+    let command = crate::application::quality_commands::normalize_quality_hold(command.clone())?;
+    // Stock/lot row locks precede the Quality relation locks. Composition may
+    // already have called this before its common preparation; re-locking the
+    // same rows in the same unit is a no-op.
+    lock_quality_hold_create_sources(c, &command, company, branch).await?;
+    lock_quality_command_sources(c).await?;
+    require_quality_command_locks(c).await?;
+    let record = command.record_id()?;
+    let source = read_hold_stock(
+        c,
+        company,
+        branch,
+        command.warehouse_id.as_str(),
+        command.product_id.as_str(),
+    )
+    .await?
+    .ok_or_else(stock_not_found)?;
+    if source.version != command.expected_stock_version {
+        return Err(stock_changed().into());
+    }
+    if read_holds(
+        c,
+        company.as_str(),
+        branch.map(RecordId::as_str),
+        Some(record.as_str()),
+    )
+    .await?
+    .pop()
+    .is_some()
+    {
+        return Err(hold_changed().into());
+    }
+    let lot = match command.lot_id.as_ref() {
+        Some(lot_id) => {
+            let lot = read_hold_lot(
+                c,
+                company,
+                command.product_id.as_str(),
+                command.warehouse_id.as_str(),
+                lot_id.as_str(),
+            )
+            .await?
+            .ok_or_else(lot_changed)?;
+            if command.expected_lot_version != Some(lot.balance_version) {
+                return Err(lot_changed().into());
+            }
+            Some(lot)
+        }
+        None => None,
+    };
+    let spec = read_active_hold_spec(c, company, command.product_id.as_str()).await?;
+    let held_quantity_milli = lot
+        .as_ref()
+        .map_or(source.quantity_milli, |lot| lot.quantity_milli);
+    let expected = crate::application::quality::QualityHold {
+        id: record.as_str().to_owned(),
+        company_id: company.as_str().to_owned(),
+        branch_id: source.branch_id.clone(),
+        warehouse_id: source.warehouse_id.clone(),
+        product_id: source.product_id.clone(),
+        lot_id: lot.as_ref().map(|lot| lot.id.clone()),
+        reason: command.reason.clone(),
+        due_date: command.due_date.clone(),
+        status: HoldStatus::Held,
+        created_by: actor.as_str().to_owned(),
+        last_inspector: None,
+        last_result: None,
+        released_by: None,
+        release_reason: None,
+        released_at: None,
+        version: 1,
+        created_at: now,
+        updated_at: now,
+        spec_id: spec.as_ref().map(|(id, _)| id.clone()),
+        spec_version: spec.as_ref().map(|(_, version)| *version),
+        // Retained insert omits quantity_scope; the schema default is 'whole'.
+        quantity_scope: "whole".into(),
+        held_quantity_milli: Some(held_quantity_milli),
+        source_type: None,
+        source_id: None,
+        cancel_requested_by: None,
+        cancel_reason: None,
+        cancelled_by: None,
+        cancelled_at: None,
+        disposition_kind: None,
+        disposition_reason: None,
+        disposition_requested_by: None,
+        disposition_count_id: None,
+        disposition_quantity_milli: None,
+        disposed_by: None,
+        disposed_at: None,
+        inspection_count: 0,
+    };
+    let receipt = QualityHoldReceipt {
+        id: expected.id.clone(),
+        status: HoldStatus::Held,
+        version: 1,
+    };
+    Ok(PreparedQualityHold {
+        unit: unit(c).await?,
+        company: company.clone(),
+        branch: branch.cloned(),
+        stock: source,
+        lot,
+        spec,
+        expected,
+        receipt,
     })
 }
 

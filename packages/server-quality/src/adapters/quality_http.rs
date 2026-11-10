@@ -7,15 +7,17 @@
 //! backend, which must implement [`QualityHttpBackend`].
 use crate::application::quality::{
     QualityAlert, QualityCancellation, QualityCancellationCommand, QualityCancellationReceipt,
-    QualityDetail, QualityDetailCore, QualityDisposition, QualityHold, QualityInspection,
-    QualityMeasurement, QualityWorkspace,
+    QualityDetail, QualityDetailCore, QualityDisposition, QualityHold, QualityHoldProduct,
+    QualityInspection, QualityLot, QualityMeasurement, QualityProduct, QualitySpecification,
+    QualityStock, QualityWorkspace,
 };
 use crate::application::quality_commands::{
-    QualityDispositionCommand, QualityDispositionReceipt, QualityInspectionCommand,
-    QualityInspectionReceipt, QualityReleaseCommand, QualityReleaseReceipt, QualitySpecAction,
-    QualitySpecActionCommand, QualitySpecCommand, QualitySpecInput, QualitySpecMetricInput,
-    QualitySpecReceipt, normalize_quality_disposition, normalize_quality_inspection,
-    normalize_quality_release, normalize_quality_spec_action, normalize_quality_spec_save,
+    QualityDispositionCommand, QualityDispositionReceipt, QualityHoldCommand, QualityHoldReceipt,
+    QualityInspectionCommand, QualityInspectionReceipt, QualityReleaseCommand,
+    QualityReleaseReceipt, QualitySpecAction, QualitySpecActionCommand, QualitySpecCommand,
+    QualitySpecInput, QualitySpecMetricInput, QualitySpecReceipt, normalize_quality_disposition,
+    normalize_quality_hold, normalize_quality_inspection, normalize_quality_release,
+    normalize_quality_spec_action, normalize_quality_spec_save,
 };
 use crate::domain::quality::{
     CancellationAction, InspectionResult, MAX_SAFE_INTEGER, QualityDecision, QualityMetric,
@@ -60,6 +62,16 @@ pub struct QualityHttpSaveSpecRequest<'a> {
     pub holding_slug: &'a str,
     pub headers: &'a HeaderMap,
     pub id: Option<&'a str>,
+    pub body: &'a Value,
+    pub key: &'a CommandKey,
+}
+
+/// A hold has no path identifier before creation; the owner derives
+/// `quality-{key}` from the idempotency key.
+pub struct QualityHttpHoldCreateRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
     pub body: &'a Value,
     pub key: &'a CommandKey,
 }
@@ -136,6 +148,18 @@ pub trait QualityHttpBackend: Send + Sync {
                 FailureKind::Unavailable,
                 "QUALITY_SPEC_UNAVAILABLE",
                 "Inspection specification writes are unavailable.",
+            ))
+        })
+    }
+    fn hold_create<'a>(
+        &'a self,
+        _request: QualityHttpHoldCreateRequest<'a>,
+    ) -> QualityHttpFuture<'a, QualityHoldReceipt> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "QUALITY_HOLD_CREATE_UNAVAILABLE",
+                "Quality hold creation is unavailable.",
             ))
         })
     }
@@ -265,7 +289,7 @@ pub fn quality_router(targets: Vec<QualityHttpTarget>) -> Result<Router, Busines
     Ok(Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/quality",
-            get(read_workspace),
+            get(read_workspace).post(create_hold),
         )
         .route(
             "/api/v1/holdings/{holding_slug}/quality/{id}",
@@ -365,8 +389,13 @@ fn decision_json(value: QualityDecision) -> Value {
     })
 }
 
-fn hold_json(hold: &QualityHold, decision: QualityDecision, next_action: &str) -> Value {
-    json!({
+fn hold_json(
+    hold: &QualityHold,
+    product: &QualityHoldProduct,
+    decision: QualityDecision,
+    next_action: &str,
+) -> Value {
+    let mut value = json!({
         "id": hold.id,
         "companyId": hold.company_id,
         "branchId": hold.branch_id,
@@ -389,6 +418,8 @@ fn hold_json(hold: &QualityHold, decision: QualityDecision, next_action: &str) -
         "specVersion": hold.spec_version,
         "quantityScope": hold.quantity_scope,
         "heldQuantityMilli": hold.held_quantity_milli,
+    });
+    let rest = json!({
         "sourceType": hold.source_type,
         "sourceId": hold.source_id,
         "cancelRequestedBy": hold.cancel_requested_by,
@@ -403,19 +434,80 @@ fn hold_json(hold: &QualityHold, decision: QualityDecision, next_action: &str) -
         "disposedBy": hold.disposed_by,
         "disposedAt": hold.disposed_at,
         "inspectionCount": hold.inspection_count,
+        "productName": product.product_name,
+        "productUnit": product.product_unit,
+        "trackingMode": product.tracking_mode,
+        "warehouseName": product.warehouse_name,
+        "lotCode": product.lot_code,
+        "serialNumber": product.serial_number,
+        "expiryDate": product.expiry_date,
+        "eligibleCount": product.eligible_count,
         "decision": decision_json(decision),
         "nextAction": next_action,
+    });
+    value
+        .as_object_mut()
+        .expect("hold object")
+        .extend(rest.as_object().expect("hold rest").clone());
+    value
+}
+
+fn stock_json(value: &QualityStock) -> Value {
+    json!({
+        "warehouseId": value.warehouse_id,
+        "productId": value.product_id,
+        "quantityMilli": value.quantity_milli,
+        "version": value.version,
+        "productName": value.product_name,
+        "trackingMode": value.tracking_mode,
+        "warehouseName": value.warehouse_name,
+    })
+}
+
+fn lot_json(value: &QualityLot) -> Value {
+    json!({
+        "id": value.id,
+        "warehouseId": value.warehouse_id,
+        "productId": value.product_id,
+        "quantityMilli": value.quantity_milli,
+        "balanceVersion": value.balance_version,
+        "productName": value.product_name,
+        "warehouseName": value.warehouse_name,
+        "trackingMode": value.tracking_mode,
+        "lotCode": value.lot_code,
+        "serialNumber": value.serial_number,
+        "expiryDate": value.expiry_date,
+        "qualityHeld": value.quality_held,
+    })
+}
+
+fn product_json(value: &QualityProduct) -> Value {
+    json!({"id": value.id, "sku": value.sku, "name": value.name})
+}
+
+fn specification_json(value: &QualitySpecification) -> Value {
+    json!({
+        "id": value.id,
+        "productId": value.product_id,
+        "name": value.name,
+        "status": value.status.as_str(),
+        "version": value.version,
+        "sku": value.sku,
+        "productName": value.product_name,
     })
 }
 
 fn metric(metric: &QualityMetric) -> Value {
     json!({
         "id": metric.id,
+        "specId": metric.spec_id,
         "code": metric.code,
         "label": metric.label,
         "unit": metric.unit,
         "minimum": metric.minimum,
         "maximum": metric.maximum,
+        "minimumValue": metric.minimum,
+        "maximumValue": metric.maximum,
         "ordinal": metric.ordinal,
     })
 }
@@ -493,7 +585,12 @@ fn alert(row: &QualityAlert) -> Value {
 fn workspace(value: &QualityWorkspace) -> Value {
     json!({
         "data": {
-            "holds": value.holds.iter().map(|row| hold_json(&row.hold, row.decision, row.next_action)).collect::<Vec<_>>(),
+            "holds": value.holds.iter().map(|row| hold_json(&row.hold, &row.product, row.decision, row.next_action)).collect::<Vec<_>>(),
+            "stock": value.stock.iter().map(stock_json).collect::<Vec<_>>(),
+            "lots": value.lots.iter().map(lot_json).collect::<Vec<_>>(),
+            "products": value.products.iter().map(product_json).collect::<Vec<_>>(),
+            "specifications": value.specifications.iter().map(specification_json).collect::<Vec<_>>(),
+            "specMetrics": value.specification_metrics.iter().map(metric).collect::<Vec<_>>(),
             "canHold": value.can_hold,
             "canManageSpecs": value.can_manage_specs,
         }
@@ -503,7 +600,7 @@ fn workspace(value: &QualityWorkspace) -> Value {
 fn detail(value: &QualityDetail) -> Value {
     json!({
         "data": {
-            "hold": hold_json(&value.hold.hold, value.hold.decision, value.hold.next_action),
+            "hold": hold_json(&value.hold.hold, &value.hold.product, value.hold.decision, value.hold.next_action),
             "inspections": value.inspections.iter().map(inspection).collect::<Vec<_>>(),
             "measurements": value.measurements.iter().map(measurement).collect::<Vec<_>>(),
             "cancellations": value.cancellations.iter().map(cancellation).collect::<Vec<_>>(),
@@ -516,7 +613,7 @@ fn detail(value: &QualityDetail) -> Value {
 
 fn detail_core(value: &QualityDetailCore) -> Value {
     json!({"data": {
-        "hold": hold_json(&value.hold.hold, value.hold.decision, value.hold.next_action),
+        "hold": hold_json(&value.hold.hold, &value.hold.product, value.hold.decision, value.hold.next_action),
         "inspections": value.inspections.iter().map(inspection).collect::<Vec<_>>(),
         "measurements": value.measurements.iter().map(measurement).collect::<Vec<_>>(),
         "dispositions": value.dispositions.iter().map(disposition).collect::<Vec<_>>(),
@@ -539,6 +636,16 @@ fn receipt_json(value: &QualityCancellationReceipt) -> Value {
 }
 
 fn spec_receipt_json(value: &QualitySpecReceipt) -> Value {
+    json!({
+        "data": {
+            "id": value.id,
+            "status": value.status.as_str(),
+            "version": value.version,
+        }
+    })
+}
+
+fn hold_receipt_json(value: &QualityHoldReceipt) -> Value {
     json!({
         "data": {
             "id": value.id,
@@ -966,6 +1073,79 @@ fn required_version(
         .ok_or_else(|| BusinessError::invalid(code, message))
 }
 
+pub fn parse_hold_create(
+    value: &Value,
+    command_key: CommandKey,
+) -> Result<QualityHoldCommand, BusinessError> {
+    let invalid = || {
+        BusinessError::invalid(
+            "QUALITY_HOLD_REQUIRED",
+            "Review the selected stock, expected versions, due date and hold reason.",
+        )
+    };
+    let object = value.as_object().ok_or_else(invalid)?;
+    strict_keys(
+        object,
+        &[
+            "warehouseId",
+            "productId",
+            "lotId",
+            "expectedStockVersion",
+            "expectedLotVersion",
+            "dueDate",
+            "reason",
+        ],
+        "QUALITY_HOLD_REQUIRED",
+        "Review the selected stock, expected versions, due date and hold reason.",
+    )?;
+    let warehouse_id = RecordId::new(command_text(object, "warehouseId")?)?;
+    let product_id = RecordId::new(command_text(object, "productId")?)?;
+    let lot_id = object
+        .get("lotId")
+        .filter(|value| !value.is_null())
+        .map(|value| {
+            value
+                .as_str()
+                .filter(|value| !value.is_empty())
+                .ok_or_else(invalid)
+                .and_then(RecordId::new)
+        })
+        .transpose()?;
+    let expected_stock_version = object
+        .get("expectedStockVersion")
+        .and_then(|value| json_integer(value, 1))
+        .ok_or_else(|| {
+            BusinessError::invalid(
+                "VERSION_REQUIRED",
+                "Refresh the stock balance before placing the hold.",
+            )
+        })?;
+    let expected_lot_version = object
+        .get("expectedLotVersion")
+        .filter(|value| !value.is_null())
+        .map(|value| {
+            json_integer(value, 1).ok_or_else(|| {
+                BusinessError::invalid(
+                    "VERSION_REQUIRED",
+                    "Refresh the lot or serial balance before placing the hold.",
+                )
+            })
+        })
+        .transpose()?;
+    let due_date = command_text(object, "dueDate")?.to_owned();
+    let reason = command_text(object, "reason")?.to_owned();
+    normalize_quality_hold(QualityHoldCommand {
+        key: command_key,
+        warehouse_id,
+        product_id,
+        lot_id,
+        expected_stock_version,
+        expected_lot_version,
+        due_date,
+        reason,
+    })
+}
+
 pub fn parse_release(
     value: &Value,
     hold_id: &str,
@@ -1169,6 +1349,33 @@ async fn parse_quality_command(
         })?;
     let body = serde_json::from_slice::<Value>(&body).map_err(|_| malformed())?;
     Ok(ParsedQualityCommand { headers, key, body })
+}
+
+async fn create_hold(
+    State(state): State<Arc<QualityHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let target = target(&state, request.headers(), &slug)?;
+        let parsed = parse_quality_command(request, target).await?;
+        let command = parse_hold_create(&parsed.body, parsed.key.clone())?;
+        target
+            .backend
+            .hold_create(QualityHttpHoldCreateRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &parsed.headers,
+                body: &parsed.body,
+                key: &command.key,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(receipt) => bounded(hold_receipt_json(&receipt)),
+        Err(error) => error_response(error),
+    }
 }
 
 async fn save_spec(

@@ -142,6 +142,7 @@ impl CancellationAction {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct QualityMetric {
     pub id: String,
+    pub spec_id: Option<String>,
     pub code: String,
     pub label: String,
     pub unit: String,

@@ -30,6 +30,7 @@ fn command(value: &str) -> CommandKey {
 fn metric(minimum: Option<&str>, maximum: Option<&str>) -> QualityMetric {
     QualityMetric {
         id: "metric-weight".into(),
+        spec_id: Some("spec".into()),
         code: "weight".into(),
         label: "Weight".into(),
         unit: "kg".into(),
@@ -77,6 +78,7 @@ fn derives_measurement_results_and_rejects_conflicting_or_incomplete_values() {
         metric(Some("9.9"), Some("10.1")),
         QualityMetric {
             id: "metric-temperature".into(),
+            spec_id: Some("spec".into()),
             code: "temperature".into(),
             label: "Temperature".into(),
             unit: "C".into(),
@@ -341,6 +343,11 @@ impl QualityReadRepository for EmptyRead {
         Box::pin(async {
             Ok(QualityWorkspaceData {
                 holds: vec![],
+                hold_products: Default::default(),
+                stock: vec![],
+                lots: vec![],
+                products: vec![],
+                specifications: vec![],
                 specification_metrics: vec![],
                 alerts: vec![],
             })

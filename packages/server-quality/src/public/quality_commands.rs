@@ -1,9 +1,11 @@
 //! Native Quality specification, inspection, release and scrap command ports.
 pub use crate::adapters::quality_commands::{
-    PreparedQualityInspection, PreparedQualityRelease, PreparedQualitySpecSave,
-    PreparedQualitySpecTransition, QualityScrapLot, QualityScrapLotAdjustment, QualityScrapPlan,
-    QualityScrapStock, QualitySpecRecord, lock_quality_command_sources, lock_quality_scrap_writes,
-    plan_quality_scrap, prepare_quality_inspection, prepare_quality_release, quality_same_person,
+    PreparedQualityHold, PreparedQualityInspection, PreparedQualityRelease,
+    PreparedQualitySpecSave, PreparedQualitySpecTransition, QualityHoldLot, QualityHoldStock,
+    QualityScrapLot, QualityScrapLotAdjustment, QualityScrapPlan, QualityScrapStock,
+    QualitySpecRecord, lock_quality_command_sources, lock_quality_hold_create_sources,
+    lock_quality_scrap_writes, plan_quality_scrap, prepare_quality_hold,
+    prepare_quality_inspection, prepare_quality_release, quality_same_person,
     prepare_quality_spec_save, prepare_quality_spec_transition, read_quality_hold_for_command,
 };
 pub use crate::adapters::quality_read::{
@@ -13,12 +15,12 @@ pub use crate::application::quality::{
     QualityCancellationCommand, QualityCancellationReceipt, normalize_quality_cancellation,
 };
 pub use crate::application::quality_commands::{
-    QualityDispositionCommand, QualityDispositionReceipt, QualityInspectionCommand,
-    QualityInspectionReceipt, QualityReleaseCommand, QualityReleaseReceipt, QualitySpecAction,
-    QualitySpecActionCommand, QualitySpecCommand, QualitySpecInput, QualitySpecMetricInput,
-    QualitySpecReceipt, disposition_quantity_milli, is_disposition_quantity, is_iso_date,
-    is_measured_value, normalize_quality_disposition, normalize_quality_inspection,
-    normalize_quality_release, normalize_quality_spec_action, normalize_quality_spec_save,
-    scaled_amount,
+    QualityDispositionCommand, QualityDispositionReceipt, QualityHoldCommand, QualityHoldReceipt,
+    QualityInspectionCommand, QualityInspectionReceipt, QualityReleaseCommand,
+    QualityReleaseReceipt, QualitySpecAction, QualitySpecActionCommand, QualitySpecCommand,
+    QualitySpecInput, QualitySpecMetricInput, QualitySpecReceipt, disposition_quantity_milli,
+    is_disposition_quantity, is_iso_date, is_measured_value, normalize_quality_disposition,
+    normalize_quality_hold, normalize_quality_inspection, normalize_quality_release,
+    normalize_quality_spec_action, normalize_quality_spec_save, scaled_amount,
 };
 pub use crate::domain::quality::{HoldStatus, InspectionResult, SpecStatus};

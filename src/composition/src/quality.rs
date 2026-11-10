@@ -21,7 +21,8 @@ use erpx_server_identity_access::public::{
 use erpx_server_quality::public::quality_commands::{
     HoldStatus, InspectionResult, QualityDispositionCommand, QualityDispositionReceipt,
     QualityInspectionCommand, QualityInspectionReceipt, QualityReleaseCommand,
-    QualityReleaseReceipt, QualitySpecActionCommand, QualitySpecCommand, QualitySpecReceipt,
+    QualityHoldCommand, QualityHoldReceipt, QualityReleaseReceipt, QualitySpecActionCommand,
+    QualitySpecCommand, QualitySpecReceipt,
     SpecStatus, normalize_quality_cancellation, normalize_quality_disposition,
     normalize_quality_inspection, normalize_quality_release, normalize_quality_spec_action,
     normalize_quality_spec_save,
@@ -29,8 +30,9 @@ use erpx_server_quality::public::quality_commands::{
 use erpx_server_quality::public::quality_http::{
     PgQualityRead, QualityHttpBackend, QualityHttpCommandRequest, QualityHttpFuture,
     QualityHttpHistoryReply, QualityHttpHistoryRequest, QualityHttpReadReply,
-    QualityHttpReadRequest, QualityHttpSaveSpecRequest, QualityHttpTarget, parse_cancellation,
-    parse_disposition, parse_inspection, parse_quality_history_query, parse_release,
+    QualityHttpHoldCreateRequest, QualityHttpReadRequest, QualityHttpSaveSpecRequest,
+    QualityHttpTarget, parse_cancellation, parse_disposition, parse_hold_create,
+    parse_inspection, parse_quality_history_query, parse_release,
     parse_spec_action, parse_spec_save, quality_router, read_quality_cancellation_history_page,
     read_quality_detail_core,
 };
@@ -586,6 +588,56 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
             .await
     }
 
+    pub async fn hold_create(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        mut selection: HoldingWorkspaceRequest,
+        command: QualityHoldCommand,
+    ) -> Result<QualityHoldReceipt, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        if selection.company_id != company {
+            return Err(scope().into());
+        }
+        selection.mutation = true;
+        self.authorizer
+            .execute_with_sources(
+                host,
+                proof,
+                selection,
+                Self::command_access("quality.hold"),
+                QualityCommandPreparation::new(false),
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        let mut identifiers = QualityIds;
+                        let outcome = execute_quality_command(
+                            connection,
+                            current,
+                            &QualityOwnerCommand::HoldCreate(command),
+                            PackageEnforcementMode::Enforced,
+                            clock.as_ref(),
+                            clock.as_ref(),
+                            &mut identifiers,
+                        )
+                        .await?;
+                        hold_receipt(&outcome).map_err(Into::into)
+                    })
+                },
+            )
+            .await
+    }
+
     pub async fn inspect(
         &self,
         host: &str,
@@ -858,6 +910,25 @@ struct InspectionResultJson {
     version: i64,
 }
 
+#[derive(serde::Deserialize)]
+struct HoldResultJson {
+    id: String,
+    status: String,
+    version: i64,
+}
+
+fn hold_receipt(
+    outcome: &erpx_server_workflow::public::commands::CommandOutcome,
+) -> Result<QualityHoldReceipt, BusinessError> {
+    let value: HoldResultJson =
+        serde_json::from_str(outcome.result.as_str()).map_err(|_| changed_result())?;
+    Ok(QualityHoldReceipt {
+        id: value.id,
+        status: HoldStatus::parse(&value.status).ok_or_else(changed_result)?,
+        version: value.version,
+    })
+}
+
 fn inspection_receipt(
     key: &str,
     outcome: &erpx_server_workflow::public::commands::CommandOutcome,
@@ -1023,6 +1094,20 @@ impl<C: Clock + Send + Sync + 'static> QualityBackend<C> {
 }
 
 impl<C: Clock + Send + Sync + 'static> QualityHttpBackend for QualityBackend<C> {
+    fn hold_create<'a>(
+        &'a self,
+        request: QualityHttpHoldCreateRequest<'a>,
+    ) -> QualityHttpFuture<'a, QualityHoldReceipt> {
+        Box::pin(async move {
+            let (proof, selection) = self.command_context(request.headers)?;
+            let command = parse_hold_create(request.body, request.key.clone())?;
+            self.service
+                .hold_create(request.host, proof, selection, command)
+                .await
+                .map_err(business)
+        })
+    }
+
     fn read<'a>(
         &'a self,
         request: QualityHttpReadRequest<'a>,

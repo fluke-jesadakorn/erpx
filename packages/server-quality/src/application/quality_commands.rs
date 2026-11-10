@@ -8,6 +8,39 @@
 use crate::domain::quality::{HoldStatus, InspectionResult, SpecStatus, validate_text};
 use erpx_server_shared::public::{BusinessError, CommandKey, RecordId};
 
+/// Retained `quality.hold.create` input. The source stock and lot are owner
+/// facts read in the same unit; the caller only supplies expected versions so
+/// a stale page cannot quarantine a changed balance.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QualityHoldCommand {
+    pub key: CommandKey,
+    pub warehouse_id: RecordId,
+    pub product_id: RecordId,
+    pub lot_id: Option<RecordId>,
+    pub expected_stock_version: i64,
+    pub expected_lot_version: Option<i64>,
+    pub due_date: String,
+    pub reason: String,
+}
+
+impl QualityHoldCommand {
+    pub fn operation(&self) -> &'static str {
+        "quality.hold.create"
+    }
+
+    /// Retained TypeScript record identity for a command-keyed hold.
+    pub fn record_id(&self) -> Result<RecordId, BusinessError> {
+        RecordId::new(format!("quality-{}", self.key.as_str()))
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QualityHoldReceipt {
+    pub id: String,
+    pub status: HoldStatus,
+    pub version: i64,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct QualitySpecMetricInput {
     pub code: String,
@@ -285,6 +318,51 @@ fn metric(input: QualitySpecMetricInput) -> Result<QualitySpecMetricInput, Busin
         unit,
         minimum,
         maximum,
+    })
+}
+
+/// Retained hold-create admission: scoped identifiers, positive expected
+/// versions, a calendar due date and the shared 3..2000 character reason.
+pub fn normalize_quality_hold(
+    command: QualityHoldCommand,
+) -> Result<QualityHoldCommand, BusinessError> {
+    if command.expected_stock_version < 1 {
+        return Err(invalid(
+            "VERSION_REQUIRED",
+            "Refresh the stock balance before placing the hold.",
+        ));
+    }
+    if command.lot_id.is_some()
+        && command
+            .expected_lot_version
+            .is_none_or(|version| version < 1)
+    {
+        return Err(invalid(
+            "VERSION_REQUIRED",
+            "Refresh the lot or serial balance before placing the hold.",
+        ));
+    }
+    if command.lot_id.is_none() && command.expected_lot_version.is_some() {
+        return Err(invalid(
+            "QUALITY_LOT_REQUIRED",
+            "Choose a lot or serial for the expected lot version.",
+        ));
+    }
+    if !is_iso_date(&command.due_date) {
+        return Err(invalid(
+            "QUALITY_DUE_DATE_REQUIRED",
+            "Choose a valid quality review due date.",
+        ));
+    }
+    Ok(QualityHoldCommand {
+        reason: validate_text(
+            &command.reason,
+            3,
+            2000,
+            "QUALITY_HOLD_REASON",
+            "Enter a hold reason between 3 and 2000 characters.",
+        )?,
+        ..command
     })
 }
 

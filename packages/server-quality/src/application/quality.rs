@@ -13,6 +13,7 @@ use crate::domain::quality::{
 use erpx_server_shared::public::{
     BusinessError, Clock, CommandKey, CompanyId, FailureKind, RecordId, UserId,
 };
+use std::collections::BTreeMap;
 use std::future::Future;
 use std::pin::Pin;
 
@@ -191,9 +192,92 @@ pub struct QualityAlert {
     pub reason: Option<String>,
 }
 
+/// Product and warehouse labels for one hold. These are bounded source facts
+/// for the product response; they never grant Quality authority.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QualityHoldProduct {
+    pub product_name: String,
+    pub product_unit: String,
+    pub tracking_mode: String,
+    pub warehouse_name: String,
+    pub lot_code: Option<String>,
+    pub serial_number: Option<String>,
+    pub expiry_date: Option<String>,
+    /// Number of currently eligible independent Quality recipients. Zero is a
+    /// retained blocker fact, not proof that no recipient could be assigned.
+    pub eligible_count: i64,
+}
+
+impl QualityHoldProduct {
+    pub fn empty() -> Self {
+        Self {
+            product_name: String::new(),
+            product_unit: String::new(),
+            tracking_mode: String::new(),
+            warehouse_name: String::new(),
+            lot_code: None,
+            serial_number: None,
+            expiry_date: None,
+            eligible_count: 0,
+        }
+    }
+}
+
+/// One selectable stock location on the Quality workspace.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QualityStock {
+    pub warehouse_id: String,
+    pub product_id: String,
+    pub quantity_milli: i64,
+    pub version: i64,
+    pub product_name: String,
+    pub tracking_mode: String,
+    pub warehouse_name: String,
+}
+
+/// One lot/serial balance on the Quality workspace.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QualityLot {
+    pub id: String,
+    pub warehouse_id: String,
+    pub product_id: String,
+    pub quantity_milli: i64,
+    pub balance_version: i64,
+    pub product_name: String,
+    pub warehouse_name: String,
+    pub tracking_mode: String,
+    pub lot_code: Option<String>,
+    pub serial_number: Option<String>,
+    pub expiry_date: Option<String>,
+    pub quality_held: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QualityProduct {
+    pub id: String,
+    pub sku: String,
+    pub name: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QualitySpecification {
+    pub id: String,
+    pub product_id: String,
+    pub name: String,
+    pub status: crate::domain::quality::SpecStatus,
+    pub version: i64,
+    pub sku: String,
+    pub product_name: String,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct QualityWorkspaceData {
     pub holds: Vec<QualityHold>,
+    pub hold_products: BTreeMap<String, QualityHoldProduct>,
+    pub stock: Vec<QualityStock>,
+    pub lots: Vec<QualityLot>,
+    pub products: Vec<QualityProduct>,
+    pub specifications: Vec<QualitySpecification>,
     pub specification_metrics: Vec<QualityMetric>,
     pub alerts: Vec<QualityAlert>,
 }
@@ -201,6 +285,7 @@ pub struct QualityWorkspaceData {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct QualityDetailData {
     pub hold: QualityHold,
+    pub product: QualityHoldProduct,
     pub inspections: Vec<QualityInspection>,
     pub measurements: Vec<QualityMeasurement>,
     pub cancellations: Vec<QualityCancellation>,
@@ -214,6 +299,7 @@ pub struct QualityDetailData {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct QualityDetailCoreData {
     pub hold: QualityHold,
+    pub product: QualityHoldProduct,
     pub inspections: Vec<QualityInspection>,
     pub measurements: Vec<QualityMeasurement>,
     pub dispositions: Vec<QualityDisposition>,
@@ -224,17 +310,44 @@ pub struct QualityDetailCoreData {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct QualityHoldView {
     pub hold: QualityHold,
+    pub product: QualityHoldProduct,
     pub decision: QualityDecision,
     pub next_action: &'static str,
 }
 
+/// Native Quality workspace product response.
+///
+/// Contract (`GET /api/v1/holdings/{slug}/quality` in `quality_http`):
+/// `holds[]` carries the hold row plus `productName`, `productUnit`,
+/// `trackingMode`, `warehouseName`, `lotCode`, `serialNumber`, `expiryDate`,
+/// `eligibleCount`, `decision` and `nextAction`; `stock[]` carries
+/// `warehouseId`, `productId`, `quantityMilli`, `version`, `productName`,
+/// `trackingMode`, `warehouseName`; `lots[]` adds `balanceVersion`,
+/// `lotCode`, `serialNumber`, `expiryDate`, `qualityHeld`; `products[]` carries
+/// `id`, `sku`, `name`; `specifications[]` carries the specification row plus
+/// `sku`/`productName`; `specMetrics[]` is the retained Company metric set;
+/// and `canHold`/`canManageSpecs` are the current actor's decisions. All
+/// arrays are bounded by the same limits as the owner reads.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct QualityWorkspace {
     pub holds: Vec<QualityHoldView>,
+    pub stock: Vec<QualityStock>,
+    pub lots: Vec<QualityLot>,
+    pub products: Vec<QualityProduct>,
+    pub specifications: Vec<QualitySpecification>,
+    pub specification_metrics: Vec<QualityMetric>,
     pub can_hold: bool,
     pub can_manage_specs: bool,
 }
 
+/// Native Quality detail product response.
+///
+/// Contract (`GET /api/v1/holdings/{slug}/quality/{id}`): `hold` is the same
+/// enriched hold object as the workspace; `inspections`, `measurements`,
+/// `cancellations`, `dispositions`, `specMetrics` and `alerts` retain the
+/// existing bounded shapes. `hold.decision`/`hold.nextAction` are the current
+/// actor's decisions and `hold.version` is the exact row version the page must
+/// send back on the next command.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct QualityDetail {
     pub hold: QualityHoldView,
@@ -290,6 +403,7 @@ pub fn quality_detail_core_with_same_person(
     Ok(QualityDetailCore {
         hold: QualityHoldView {
             hold: data.hold,
+            product: data.product,
             decision,
             next_action,
         },
@@ -401,8 +515,14 @@ pub fn quality_workspace_with_same_person<'a, R: QualityReadRepository, P: Fn(&s
             .map(|hold| {
                 let decision = quality_decision_with_same_person(&hold.facts(), &actor_facts, &same_person);
                 let next_action = next_action(hold.status, hold.last_result, decision);
+                let product = data
+                    .hold_products
+                    .get(&hold.id)
+                    .cloned()
+                    .unwrap_or_else(QualityHoldProduct::empty);
                 QualityHoldView {
                     hold,
+                    product,
                     decision,
                     next_action,
                 }
@@ -410,6 +530,11 @@ pub fn quality_workspace_with_same_person<'a, R: QualityReadRepository, P: Fn(&s
             .collect();
         Ok(QualityWorkspace {
             holds,
+            stock: data.stock,
+            lots: data.lots,
+            products: data.products,
+            specifications: data.specifications,
+            specification_metrics: data.specification_metrics,
             can_hold,
             can_manage_specs,
         })
@@ -450,6 +575,7 @@ pub fn quality_detail_with_same_person<'a, R: QualityReadRepository, P: Fn(&str)
         Ok(QualityDetail {
             hold: QualityHoldView {
                 hold: data.hold,
+                product: data.product,
                 decision,
                 next_action,
             },

@@ -6,17 +6,19 @@
 use crate::application::quality::{
     QualityAlert, QualityCancellation, QualityCancellationCommand, QualityCancellationReceipt,
     QualityCancellationRepository, QualityDetailCoreData, QualityDetailData, QualityDisposition,
-    QualityFuture, QualityHold, QualityInspection, QualityMeasurement, QualityReadRepository,
+    QualityFuture, QualityHold, QualityHoldProduct, QualityInspection, QualityLot,
+    QualityMeasurement, QualityProduct, QualityReadRepository, QualitySpecification, QualityStock,
     QualityWorkspaceData,
 };
 use crate::domain::quality::{
-    CancellationAction, HoldStatus, InspectionResult, QualityHoldFacts, QualityMetric,
+    CancellationAction, HoldStatus, InspectionResult, QualityHoldFacts, QualityMetric, SpecStatus,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, RecordId, UserId};
 use futures_util::TryStreamExt;
 use sha2::{Digest, Sha256};
 use sqlx::{Connection, PgConnection, Row};
+use std::collections::BTreeMap;
 
 type Error = PgTransactionError<BusinessError>;
 
@@ -301,12 +303,204 @@ pub(crate) async fn read_holds(
     rows.iter().map(hold_from_row).collect()
 }
 
-pub(crate) async fn read_specification_metrics(
+fn hold_product_from_row(row: &sqlx::postgres::PgRow) -> Result<QualityHoldProduct, Error> {
+    Ok(QualityHoldProduct {
+        product_name: row.try_get("product_name")?,
+        product_unit: row.try_get("product_unit")?,
+        tracking_mode: row.try_get("tracking_mode")?,
+        warehouse_name: row.try_get("warehouse_name")?,
+        lot_code: row.try_get("lot_code")?,
+        serial_number: row.try_get("serial_number")?,
+        expiry_date: row.try_get("expiry_date")?,
+        eligible_count: safe(row.try_get("eligible_count")?)?,
+    })
+}
+
+/// Product-response hold rows. This is a read-only projection over the same
+/// Commerce/Inventory source facts the retained page used; current Quality
+/// authority and version comparison remain with the application use case.
+pub(crate) async fn read_hold_views(
     c: &mut PgConnection,
+    company: &str,
+    branch: Option<&str>,
+    id: Option<&str>,
+) -> Result<(Vec<QualityHold>, BTreeMap<String, QualityHoldProduct>), Error> {
+    let sql = "SELECT h.id,h.company_id,h.branch_id,h.warehouse_id,h.product_id,h.lot_id,h.reason,h.due_date,h.status,h.created_by,h.last_inspector,h.last_result,h.released_by,h.release_reason,h.released_at,h.version,h.created_at,h.updated_at,h.spec_id,h.spec_version,h.quantity_scope,h.held_quantity_milli,h.source_type,h.source_id,h.cancel_requested_by,h.cancel_reason,h.cancelled_by,h.cancelled_at,h.disposition_kind,h.disposition_reason,h.disposition_requested_by,h.disposition_count_id,h.disposition_quantity_milli,h.disposed_by,h.disposed_at, \
+        (SELECT count(*) FROM inventory_quality_inspections i WHERE i.hold_id=h.id) inspection_count, \
+        p.name product_name,p.unit product_unit,p.tracking_mode,w.name warehouse_name,l.lot_code,l.serial_number,l.expiry_date, \
+        (SELECT count(DISTINCT a.user_id) FROM assignments a \
+          WHERE a.company_id=h.company_id \
+            AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=h.branch_id)) \
+            AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) \
+            AND iam_role_allows(a.role,a.company_id,CASE WHEN h.status IN ('awaiting_release','cancel_pending') THEN 'quality.release' ELSE 'quality.inspect' END) \
+            AND NOT iam_same_person(a.user_id,h.created_by,h.company_id) \
+            AND (h.status<>'cancel_pending' OR NOT iam_same_person(a.user_id,h.cancel_requested_by,h.company_id)) \
+            AND (h.status<>'awaiting_release' OR NOT iam_same_person(a.user_id,h.last_inspector,h.company_id))) eligible_count \
+        FROM inventory_quality_holds h \
+        JOIN commerce_products p ON p.id=h.product_id \
+        JOIN commerce_warehouses w ON w.id=h.warehouse_id \
+        LEFT JOIN inventory_lots l ON l.id=h.lot_id \
+        WHERE h.company_id=$1 AND ($2::text IS NULL OR h.branch_id=$2) AND ($3::text IS NULL OR h.id=$3) \
+        ORDER BY h.due_date,h.id LIMIT 1001";
+    let rows = sqlx::query(sql)
+        .bind(company)
+        .bind(branch)
+        .bind(id)
+        .fetch_all(&mut *c)
+        .await?;
+    if rows.len() > if id.is_some() { 1 } else { MAX_HOLDS } {
+        return Err(bounded("holds").into());
+    }
+    let mut holds = Vec::with_capacity(rows.len());
+    let mut products = BTreeMap::new();
+    for row in &rows {
+        let hold = hold_from_row(row)?;
+        products.insert(hold.id.clone(), hold_product_from_row(row)?);
+        holds.push(hold);
+    }
+    Ok((holds, products))
+}
+
+async fn read_workspace_stock(
+    c: &mut PgConnection,
+    company: &str,
+    branch: Option<&str>,
+) -> Result<Vec<QualityStock>, Error> {
+    let rows = sqlx::query(
+        "SELECT s.warehouse_id,s.product_id,s.quantity_milli,s.version,p.name product_name,p.tracking_mode,w.name warehouse_name \
+         FROM commerce_stock s \
+         JOIN commerce_products p ON p.id=s.product_id \
+         JOIN commerce_warehouses w ON w.id=s.warehouse_id \
+         WHERE w.company_id=$1 AND p.company_id=w.company_id AND w.status='active' AND p.status='active' \
+           AND ($2::text IS NULL OR w.branch_id=$2) \
+         ORDER BY w.name,p.name LIMIT 1001",
+    )
+    .bind(company)
+    .bind(branch)
+    .fetch_all(&mut *c)
+    .await?;
+    if rows.len() > MAX_HOLDS {
+        return Err(bounded("holds").into());
+    }
+    rows.iter()
+        .map(|row| {
+            Ok(QualityStock {
+                warehouse_id: row.try_get("warehouse_id")?,
+                product_id: row.try_get("product_id")?,
+                quantity_milli: safe(row.try_get("quantity_milli")?)?,
+                version: safe(row.try_get("version")?)?,
+                product_name: row.try_get("product_name")?,
+                tracking_mode: row.try_get("tracking_mode")?,
+                warehouse_name: row.try_get("warehouse_name")?,
+            })
+        })
+        .collect()
+}
+
+async fn read_workspace_lots(
+    c: &mut PgConnection,
+    company: &str,
+    branch: Option<&str>,
+) -> Result<Vec<QualityLot>, Error> {
+    let rows = sqlx::query(
+        "SELECT l.id,l.product_id,l.tracking_mode,l.lot_code,l.serial_number,l.expiry_date,b.warehouse_id,b.quantity_milli,b.version balance_version,p.name product_name,w.name warehouse_name, \
+            CASE WHEN EXISTS(SELECT 1 FROM inventory_quality_holds h WHERE h.lot_id=l.id AND h.warehouse_id=b.warehouse_id AND h.status NOT IN ('released','cancelled','disposed')) THEN 1 ELSE 0 END::bigint quality_held \
+         FROM inventory_lots l \
+         JOIN inventory_lot_balances b ON b.lot_id=l.id \
+         JOIN commerce_products p ON p.id=l.product_id \
+         JOIN commerce_warehouses w ON w.id=b.warehouse_id \
+         WHERE l.company_id=$1 AND b.quantity_milli>0 AND p.company_id=w.company_id \
+           AND ($2::text IS NULL OR w.branch_id=$2) \
+         ORDER BY w.name,p.name,l.expiry_date NULLS LAST,l.id LIMIT 1001",
+    )
+    .bind(company)
+    .bind(branch)
+    .fetch_all(&mut *c)
+    .await?;
+    if rows.len() > MAX_HOLDS {
+        return Err(bounded("holds").into());
+    }
+    rows.iter()
+        .map(|row| {
+            Ok(QualityLot {
+                id: row.try_get("id")?,
+                warehouse_id: row.try_get("warehouse_id")?,
+                product_id: row.try_get("product_id")?,
+                quantity_milli: safe(row.try_get("quantity_milli")?)?,
+                balance_version: safe(row.try_get("balance_version")?)?,
+                product_name: row.try_get("product_name")?,
+                warehouse_name: row.try_get("warehouse_name")?,
+                tracking_mode: row.try_get("tracking_mode")?,
+                lot_code: row.try_get("lot_code")?,
+                serial_number: row.try_get("serial_number")?,
+                expiry_date: row.try_get("expiry_date")?,
+                quality_held: row.try_get::<i64, _>("quality_held")? == 1,
+            })
+        })
+        .collect()
+}
+
+async fn read_workspace_products(
+    c: &mut PgConnection,
+    company: &str,
+) -> Result<Vec<QualityProduct>, Error> {
+    let rows = sqlx::query(
+        "SELECT id,sku,name FROM commerce_products WHERE company_id=$1 AND status='active' ORDER BY sku,name LIMIT 1001",
+    )
+    .bind(company)
+    .fetch_all(&mut *c)
+    .await?;
+    if rows.len() > MAX_HOLDS {
+        return Err(bounded("holds").into());
+    }
+    rows.iter()
+        .map(|row| {
+            Ok(QualityProduct {
+                id: row.try_get("id")?,
+                sku: row.try_get("sku")?,
+                name: row.try_get("name")?,
+            })
+        })
+        .collect()
+}
+
+async fn read_workspace_specifications(
+    c: &mut PgConnection,
+    company: &str,
+) -> Result<Vec<QualitySpecification>, Error> {
+    let rows = sqlx::query(
+        "SELECT s.id,s.product_id,s.name,s.status,s.version,p.sku,p.name product_name \
+         FROM inventory_quality_specs s JOIN commerce_products p ON p.id=s.product_id \
+         WHERE s.company_id=$1 ORDER BY p.sku,s.created_at DESC LIMIT 1001",
+    )
+    .bind(company)
+    .fetch_all(&mut *c)
+    .await?;
+    if rows.len() > MAX_HOLDS {
+        return Err(bounded("metrics").into());
+    }
+    rows.iter()
+        .map(|row| {
+            Ok(QualitySpecification {
+                id: row.try_get("id")?,
+                product_id: row.try_get("product_id")?,
+                name: row.try_get("name")?,
+                status: SpecStatus::parse(&row.try_get::<String, _>("status")?).ok_or_else(|| {
+                    invalid("A Quality specification status is invalid.")
+                })?,
+                version: safe(row.try_get("version")?)?,
+                sku: row.try_get("sku")?,
+                product_name: row.try_get("product_name")?,
+            })
+        })
+        .collect()
+}
+
+pub(crate) async fn read_specification_metrics(    c: &mut PgConnection,
     company: &str,
     spec_id: Option<&str>,
 ) -> Result<Vec<QualityMetric>, Error> {
-    let sql = "SELECT m.id,m.code,m.label,m.unit,m.minimum_value::text minimum,m.maximum_value::text maximum,m.ordinal FROM inventory_quality_spec_metrics m JOIN inventory_quality_specs s ON s.id=m.spec_id WHERE s.company_id=$1 AND ($2::text IS NULL OR m.spec_id=$2) ORDER BY m.spec_id,m.ordinal LIMIT 1001";
+    let sql = "SELECT m.id,m.spec_id,m.code,m.label,m.unit,m.minimum_value::text minimum,m.maximum_value::text maximum,m.ordinal FROM inventory_quality_spec_metrics m JOIN inventory_quality_specs s ON s.id=m.spec_id WHERE s.company_id=$1 AND ($2::text IS NULL OR m.spec_id=$2) ORDER BY m.spec_id,m.ordinal LIMIT 1001";
     let rows = sqlx::query(sql)
         .bind(company)
         .bind(spec_id)
@@ -319,6 +513,7 @@ pub(crate) async fn read_specification_metrics(
         .map(|row| {
             Ok(QualityMetric {
                 id: row.try_get("id")?,
+                spec_id: row.try_get("spec_id")?,
                 code: row.try_get("code")?,
                 label: row.try_get("label")?,
                 unit: row.try_get("unit")?,
@@ -382,7 +577,21 @@ impl CurrentQualityWorkspace {
         if unit(c).await? != self.unit {
             return Err(changed().into());
         }
-        if read_holds(c, &self.company, self.branch.as_deref(), None).await? != self.data.holds {
+        let (holds, products) =
+            read_hold_views(c, &self.company, self.branch.as_deref(), None).await?;
+        if holds != self.data.holds || products != self.data.hold_products {
+            return Err(changed().into());
+        }
+        if read_workspace_stock(c, &self.company, self.branch.as_deref()).await? != self.data.stock {
+            return Err(changed().into());
+        }
+        if read_workspace_lots(c, &self.company, self.branch.as_deref()).await? != self.data.lots {
+            return Err(changed().into());
+        }
+        if read_workspace_products(c, &self.company).await? != self.data.products {
+            return Err(changed().into());
+        }
+        if read_workspace_specifications(c, &self.company).await? != self.data.specifications {
             return Err(changed().into());
         }
         if read_specification_metrics(c, &self.company, None).await?
@@ -403,10 +612,23 @@ pub async fn read_quality_workspace(
     branch: Option<&RecordId>,
 ) -> Result<CurrentQualityWorkspace, Error> {
     require_quality_detail_core_locks(c).await?;
+    let (holds, hold_products) =
+        read_hold_views(c, company.as_str(), branch.map(RecordId::as_str), None).await?;
+    let stock = read_workspace_stock(c, company.as_str(), branch.map(RecordId::as_str)).await?;
+    let lots = read_workspace_lots(c, company.as_str(), branch.map(RecordId::as_str)).await?;
+    let products = read_workspace_products(c, company.as_str()).await?;
+    let specifications = read_workspace_specifications(c, company.as_str()).await?;
+    let specification_metrics = read_specification_metrics(c, company.as_str(), None).await?;
+    let alerts = read_alerts(c, company.as_str(), None).await?;
     let data = QualityWorkspaceData {
-        holds: read_holds(c, company.as_str(), branch.map(RecordId::as_str), None).await?,
-        specification_metrics: read_specification_metrics(c, company.as_str(), None).await?,
-        alerts: read_alerts(c, company.as_str(), None).await?,
+        holds,
+        hold_products,
+        stock,
+        lots,
+        products,
+        specifications,
+        specification_metrics,
+        alerts,
     };
     Ok(CurrentQualityWorkspace {
         unit: unit(c).await?,
@@ -705,10 +927,13 @@ async fn read_detail_core_data(
     branch: Option<&str>,
     id: &str,
 ) -> Result<Option<QualityDetailCoreData>, Error> {
-    let mut hold_rows = read_holds(c, company, branch, Some(id)).await?;
+    let (mut hold_rows, mut hold_products) = read_hold_views(c, company, branch, Some(id)).await?;
     let Some(hold) = hold_rows.pop() else {
         return Ok(None);
     };
+    let product = hold_products
+        .remove(&hold.id)
+        .unwrap_or_else(QualityHoldProduct::empty);
     let inspection_rows = sqlx::query(
         "SELECT i.id,i.hold_id,i.reviewed_version,i.result,i.evidence,i.inspected_by,i.created_at,i.spec_id,i.spec_version FROM inventory_quality_inspections i WHERE i.hold_id=$1 ORDER BY i.created_at,i.id LIMIT 1001",
     )
@@ -798,6 +1023,7 @@ async fn read_detail_core_data(
         },
         alerts: read_alerts(c, company, Some(id)).await?,
         hold,
+        product,
         inspections,
         measurements,
         dispositions,
@@ -816,6 +1042,7 @@ async fn read_detail(
     let cancellations = read_cancellation_events(c, id, None).await?;
     Ok(Some(QualityDetailData {
         hold: core.hold,
+        product: core.product,
         inspections: core.inspections,
         measurements: core.measurements,
         cancellations,
