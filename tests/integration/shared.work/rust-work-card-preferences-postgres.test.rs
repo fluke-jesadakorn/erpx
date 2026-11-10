@@ -401,3 +401,81 @@ async fn capability_probes_read_active_staff_team_and_inventory_gates() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn save_accepts_exactly_the_composed_work_card_availability() {
+    use erpx_server_work_projection::public::work_card_selection::available_work_cards;
+    use erpx_server_work_projection::public::navigation_destinations::NavigationShortcutFacts;
+    use erpx_server_work_projection::public::work_card_availability::{
+        WorkCapabilitiesFact, WorkSnapshotFact,
+    };
+    use erpx_server_work_projection::public::work_snapshot_sources::approval_items;
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let rows = [erpx_server_workflow::public::approval_oversight::ApprovalQueueRow {
+            id: "approval-1".into(),
+            company_id: "company".into(),
+            branch_id: None,
+            department_id: None,
+            record_type: "expense".into(),
+            record_id: "expense-1".into(),
+            state: "pending".into(),
+            blocked_reason: None,
+            version: 1,
+            created_at: 7,
+        }];
+        let navigation = NavigationShortcutFacts {
+            beta: false,
+            scope_is_department: false,
+            executive_visible: false,
+            commerce_read: false,
+            inventory_read: false,
+            finance_read: true,
+            support_read: true,
+            quality_read: false,
+            records_read: false,
+            active_modules: &[],
+        };
+        let available: Vec<String> = available_work_cards(
+            &WorkSnapshotFact { items: approval_items(&rows) },
+            &WorkCapabilitiesFact::default(),
+            &navigation,
+        )
+        .into_iter()
+        .collect();
+        assert!(available.iter().any(|id| id == "approvals"));
+        assert!(available.iter().any(|id| id == "support-cases"));
+        assert!(available.iter().any(|id| id == "finance-payables"));
+        let saved = execute(
+            &pool,
+            actor(),
+            &command(
+                "composed",
+                r#"{"pinnedIds":["approvals","support-cases"],"expectedVersion":0}"#,
+                "company:user-1",
+            ),
+            &available,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(saved.result.as_str()).unwrap(),
+            serde_json::json!({"pinnedIds":["approvals","support-cases"],"version":1})
+        );
+        let denied = execute(
+            &pool,
+            actor(),
+            &command(
+                "unavailable",
+                r#"{"pinnedIds":["quality-holds"],"expectedVersion":1}"#,
+                "company:user-1",
+            ),
+            &available,
+        )
+        .await
+        .err()
+        .expect("quality holds is not in the composed availability");
+        assert_eq!(business(denied).code, "SHORTCUT_UNAVAILABLE");
+    })
+    .await;
+}
