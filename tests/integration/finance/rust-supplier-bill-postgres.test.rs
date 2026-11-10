@@ -76,6 +76,66 @@ async fn seed(pool: &DatabasePool) {
     .unwrap();
 }
 
+async fn independent_void_actor(p: &Prepared) -> (DeviceProof, HoldingWorkspaceRequest) {
+    let pool = &p.system.holdings[0];
+    let now = p.system.scenario.clock.now().get();
+    let expires = now + 3_600_000;
+    sqlx::query(
+        "INSERT INTO \"user\"(id,name,email,\"emailVerified\",\"createdAt\",\"updatedAt\") \
+         VALUES('fixture-c','fixture-c','c@example.test',1,$1,$1) ON CONFLICT(id) DO NOTHING",
+    )
+    .bind(now)
+    .execute(p.system.control.raw())
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO account(id,\"accountId\",\"providerId\",issuer,\"userId\",password,\"createdAt\",\"updatedAt\") \
+         SELECT 'fixture-c','fixture-c','credential','local:credential','fixture-c',password,$1,$1 \
+         FROM account WHERE id='fixture-a' ON CONFLICT(id) DO NOTHING",
+    )
+    .bind(now)
+    .execute(p.system.control.raw())
+    .await
+    .unwrap();
+    let third_central = account::login(&p.system, "c@example.test", None).await;
+    let third = account::child(&p.system, &third_central, account::ACME).await;
+    sqlx::query(
+        "INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind) \
+         VALUES('finance-fixture-c','fixture-c','custom_finance_review','[\"finance\"]','company',$1,$2,3,'holding')",
+    )
+    .bind(now - 1000)
+    .bind(expires)
+    .execute(pool.raw())
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at) \
+         VALUES($1,'fixture-c','company','finance-fixture-c',3,7,$2,$3)",
+    )
+    .bind(&third.result.session_id)
+    .bind(expires)
+    .bind(now)
+    .execute(pool.raw())
+    .await
+    .unwrap();
+    let third_proof = DeviceProof {
+        active: Some(SystemAuthenticationSecrets.digest(SecretPurpose::Session, &third.token)),
+        ..Default::default()
+    };
+    let third_selection = HoldingWorkspaceRequest {
+        company_id: CompanyId::new("company").unwrap(),
+        branch_slug: None,
+        department_slug: None,
+        expected: Some(ExpectedWorkSelection {
+            revision: 7,
+            assignment_id: AssignmentId::new("finance-fixture-c").unwrap(),
+            assignment_version: 3,
+        }),
+        mutation: true,
+    };
+    (third_proof, third_selection)
+}
+
 fn line(
     description: &str,
     quantity: &str,
@@ -1258,6 +1318,15 @@ async fn supplier_bill_posts_a_commerce_fulfillment_source_with_its_owner_witnes
         seed(pool).await;
         let invoice = "invoice-commerce-source";
         let delivery = "delivery-commerce-source";
+        p.create("commerce-goods", false).await.unwrap();
+        p.review(
+            "journal-commerce-goods",
+            "post-commerce-goods",
+            facts::post(),
+        )
+        .await
+        .unwrap();
+        let goods_journal = "journal-commerce-goods";
         sqlx::query(
             "INSERT INTO commerce_orders(id,company_id,kind,number,party_id,currency,order_date,\
              due_date,subtotal_minor,tax_minor,state,version,created_by,created_at,updated_at) \
@@ -1270,29 +1339,30 @@ async fn supplier_bill_posts_a_commerce_fulfillment_source_with_its_owner_witnes
         .unwrap();
         sqlx::query(
             "INSERT INTO commerce_fulfillments(id,order_id,number,fulfillment_date,created_by,\
-             created_at,invoice_id,version,completion_kind,completion_note) \
-             VALUES($1,'order-commerce-source','FUL-COMMERCE','2026-01-05','fixture-a',0,NULL,1,\
+             created_at,journal_id,invoice_id,version,completion_kind,completion_note) \
+             VALUES($1,'order-commerce-source','FUL-COMMERCE','2026-01-05','fixture-a',0,$2,NULL,1,\
              'goods','')",
         )
         .bind(delivery)
+        .bind(goods_journal)
         .execute(pool.raw())
         .await
         .unwrap();
         sqlx::query(
             "INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,\
              due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,\
-             debit_account_id,credit_account_id,tax_account_id,source_type,source_id,status,\
-             version,line_revision,line_mode,created_by,created_at,updated_at) \
+             debit_account_id,credit_account_id,tax_account_id,source_type,source_id,\
+             source_version,status,version,line_revision,line_mode,created_by,created_at,updated_at) \
              VALUES($1,'company','bill-supplier','payable','BILL-COMMERCE','2026-01-02',\
              '2026-02-01','THB',25000,1750,26750,26750,'bill-clearing','bill-ap','bill-vat-in',\
-             'commerce_fulfillment',$2,'draft',1,1,'whole_document','fixture-a',0,0)",
+             'commerce_fulfillment',$2,2,'draft',1,1,'whole_document','fixture-a',0,0)",
         )
         .bind(invoice)
         .bind(delivery)
         .execute(pool.raw())
         .await
         .unwrap();
-        sqlx::query("UPDATE commerce_fulfillments SET invoice_id=$1 WHERE id=$2")
+        sqlx::query("UPDATE commerce_fulfillments SET invoice_id=$1,version=version+1 WHERE id=$2")
             .bind(invoice)
             .bind(delivery)
             .execute(pool.raw())
@@ -1363,6 +1433,15 @@ async fn supplier_bill_rejects_a_non_purchase_commerce_source() {
         seed(pool).await;
         let invoice = "invoice-sales-source";
         let delivery = "delivery-sales-source";
+        p.create("commerce-sales-goods", false).await.unwrap();
+        p.review(
+            "journal-commerce-sales-goods",
+            "post-commerce-sales-goods",
+            facts::post(),
+        )
+        .await
+        .unwrap();
+        let goods_journal = "journal-commerce-sales-goods";
         sqlx::query(
             "INSERT INTO commerce_orders(id,company_id,kind,number,party_id,currency,order_date,\
              due_date,subtotal_minor,tax_minor,state,version,created_by,created_at,updated_at) \
@@ -1375,29 +1454,30 @@ async fn supplier_bill_rejects_a_non_purchase_commerce_source() {
         .unwrap();
         sqlx::query(
             "INSERT INTO commerce_fulfillments(id,order_id,number,fulfillment_date,created_by,\
-             created_at,invoice_id,version,completion_kind,completion_note) \
-             VALUES($1,'order-sales-source','FUL-SALES','2026-01-05','fixture-a',0,NULL,1,\
+             created_at,journal_id,invoice_id,version,completion_kind,completion_note) \
+             VALUES($1,'order-sales-source','FUL-SALES','2026-01-05','fixture-a',0,$2,NULL,1,\
              'goods','')",
         )
         .bind(delivery)
+        .bind(goods_journal)
         .execute(pool.raw())
         .await
         .unwrap();
         sqlx::query(
             "INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,\
              due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,\
-             debit_account_id,credit_account_id,tax_account_id,source_type,source_id,status,\
-             version,line_revision,line_mode,created_by,created_at,updated_at) \
+             debit_account_id,credit_account_id,tax_account_id,source_type,source_id,\
+             source_version,status,version,line_revision,line_mode,created_by,created_at,updated_at) \
              VALUES($1,'company','bill-supplier','payable','BILL-SALES','2026-01-02',\
              '2026-02-01','THB',25000,1750,26750,26750,'bill-clearing','bill-ap','bill-vat-in',\
-             'commerce_fulfillment',$2,'draft',1,1,'whole_document','fixture-a',0,0)",
+             'commerce_fulfillment',$2,2,'draft',1,1,'whole_document','fixture-a',0,0)",
         )
         .bind(invoice)
         .bind(delivery)
         .execute(pool.raw())
         .await
         .unwrap();
-        sqlx::query("UPDATE commerce_fulfillments SET invoice_id=$1 WHERE id=$2")
+        sqlx::query("UPDATE commerce_fulfillments SET invoice_id=$1,version=version+1 WHERE id=$2")
             .bind(invoice)
             .bind(delivery)
             .execute(pool.raw())
@@ -1433,6 +1513,366 @@ async fn supplier_bill_rejects_a_non_purchase_commerce_source() {
                 .await,
             "SUPPLIER_BILL_SOURCE_CHANGED",
         );
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn supplier_bill_rejects_a_stale_or_unposted_commerce_source() {
+    account::with_system(|system| async move {
+        let p = setup(system).await;
+        let pool = &p.system.holdings[0];
+        seed(pool).await;
+        p.create("commerce-stale-goods", false).await.unwrap();
+        p.review(
+            "journal-commerce-stale-goods",
+            "post-commerce-stale-goods",
+            facts::post(),
+        )
+        .await
+        .unwrap();
+        p.create("commerce-draft-goods", false).await.unwrap();
+        sqlx::query(
+            "INSERT INTO commerce_orders(id,company_id,kind,number,party_id,currency,order_date,\
+             due_date,subtotal_minor,tax_minor,state,version,created_by,created_at,updated_at) \
+             VALUES('order-commerce-stale','company','purchase','PO-STALE','bill-supplier',\
+             'THB','2026-01-02','2026-02-01',25000,1750,'fulfilled',1,'fixture-a',0,0)",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        for (delivery, number, journal) in [
+            (
+                "delivery-commerce-stale",
+                "FUL-STALE",
+                "journal-commerce-stale-goods",
+            ),
+            (
+                "delivery-commerce-draft",
+                "FUL-DRAFT",
+                "journal-commerce-draft-goods",
+            ),
+        ] {
+            sqlx::query(
+                "INSERT INTO commerce_fulfillments(id,order_id,number,fulfillment_date,created_by,\
+                 created_at,journal_id,invoice_id,version,completion_kind,completion_note) \
+                 VALUES($1,'order-commerce-stale',$2,'2026-01-05','fixture-a',0,$3,NULL,1,\
+                 'goods','')",
+            )
+            .bind(delivery)
+            .bind(number)
+            .bind(journal)
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        }
+        for (invoice, delivery, number) in [
+            (
+                "invoice-commerce-stale",
+                "delivery-commerce-stale",
+                "BILL-STALE",
+            ),
+            (
+                "invoice-commerce-draft",
+                "delivery-commerce-draft",
+                "BILL-DRAFT",
+            ),
+        ] {
+            sqlx::query(
+                "INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,\
+                 due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,\
+                 debit_account_id,credit_account_id,tax_account_id,source_type,source_id,\
+                 source_version,status,version,line_revision,line_mode,created_by,created_at,updated_at) \
+                 VALUES($1,'company','bill-supplier','payable',$3,'2026-01-02',\
+                 '2026-02-01','THB',25000,1750,26750,26750,'bill-clearing','bill-ap','bill-vat-in',\
+                 'commerce_fulfillment',$2,2,'draft',1,1,'whole_document','fixture-a',0,0)",
+            )
+            .bind(invoice)
+            .bind(delivery)
+            .bind(number)
+            .execute(pool.raw())
+            .await
+            .unwrap();
+            sqlx::query(
+                "UPDATE commerce_fulfillments SET invoice_id=$1,version=version+1 WHERE id=$2",
+            )
+            .bind(invoice)
+            .bind(delivery)
+            .execute(pool.raw())
+            .await
+            .unwrap();
+            sqlx::query(
+                "INSERT INTO money_transaction_snapshots(company_id,source_type,source_id,amount_kind,\
+                 transaction_date,currency,currency_scale,amount_units,usd_units,captured_at) \
+                 VALUES('company','finance_invoice',$1,'draft:v1','2026-01-02','THB',2,26750,26750,0)",
+            )
+            .bind(invoice)
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        }
+        sqlx::query(
+            "UPDATE commerce_fulfillments SET version=version+1 WHERE id='delivery-commerce-stale'",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        for (invoice, key) in [
+            ("invoice-commerce-stale", "supplier-bill-stale-source"),
+            ("invoice-commerce-draft", "supplier-bill-unposted-source"),
+        ] {
+            assert_business(
+                service(&p)
+                    .post_supplier_bill(
+                        "acme.example.test",
+                        p.reviewer.clone(),
+                        owned_reviewer(&p),
+                        CommandKey::new(key).unwrap(),
+                        invoice.into(),
+                        SupplierBillPostInput {
+                            period_id: "period".into(),
+                            entry_date: "2026-01-10".into(),
+                            expected_version: Some(1),
+                            fx_rate: None,
+                            attachment_set_ids: Vec::new(),
+                            fx_gain_account_id: None,
+                            fx_loss_account_id: None,
+                        },
+                    )
+                    .await,
+                "SUPPLIER_BILL_SOURCE_CHANGED",
+            );
+        }
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn supplier_bill_draft_void_releases_a_matched_commerce_fulfillment() {
+    account::with_system(|system| async move {
+        let p = setup(system).await;
+        let pool = &p.system.holdings[0];
+        seed(pool).await;
+        p.create("commerce-void-goods", false).await.unwrap();
+        p.review(
+            "journal-commerce-void-goods",
+            "post-commerce-void-goods",
+            facts::post(),
+        )
+        .await
+        .unwrap();
+        let invoice = "invoice-commerce-void";
+        let delivery = "delivery-commerce-void";
+        sqlx::query(
+            "INSERT INTO commerce_orders(id,company_id,kind,number,party_id,currency,order_date,\
+             due_date,subtotal_minor,tax_minor,state,version,created_by,created_at,updated_at) \
+             VALUES('order-commerce-void','company','purchase','PO-VOID','bill-supplier',\
+             'THB','2026-01-02','2026-02-01',25000,1750,'fulfilled',1,'fixture-a',0,0)",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO commerce_fulfillments(id,order_id,number,fulfillment_date,created_by,\
+             created_at,journal_id,invoice_id,version,completion_kind,completion_note) \
+             VALUES($1,'order-commerce-void','FUL-VOID','2026-01-05','fixture-a',0,\
+             'journal-commerce-void-goods',NULL,1,'goods','')",
+        )
+        .bind(delivery)
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,\
+             due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,\
+             debit_account_id,credit_account_id,tax_account_id,source_type,source_id,\
+             source_version,status,version,line_revision,line_mode,created_by,created_at,updated_at) \
+             VALUES($1,'company','bill-supplier','payable','BILL-VOID-MATCHED','2026-01-02',\
+             '2026-02-01','THB',25000,1750,26750,26750,'bill-clearing','bill-ap','bill-vat-in',\
+             'commerce_fulfillment',$2,2,'draft',1,1,'whole_document','fixture-a',0,0)",
+        )
+        .bind(invoice)
+        .bind(delivery)
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        sqlx::query("UPDATE commerce_fulfillments SET invoice_id=$1,version=version+1 WHERE id=$2")
+            .bind(invoice)
+            .bind(delivery)
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        let voided = service(&p)
+            .void_supplier_bill(
+                "acme.example.test",
+                p.reviewer.clone(),
+                owned_reviewer(&p),
+                CommandKey::new("supplier-bill-matched-draft-void").unwrap(),
+                invoice.into(),
+                SupplierBillVoidInput {
+                    expected_version: 1,
+                    period_id: None,
+                    entry_date: None,
+                    memo: None,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(voided.data.status, "voided");
+        assert_eq!(voided.data.version, 2);
+        let fulfillment: (Option<String>, i64) = sqlx::query_as(
+            "SELECT invoice_id,version FROM commerce_fulfillments WHERE id=$1",
+        )
+        .bind(delivery)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(fulfillment, (None, 3));
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn supplier_bill_posted_void_reverses_a_matched_commerce_bill_and_releases_the_fulfillment() {
+    account::with_system(|system| async move {
+        let p = setup(system).await;
+        let pool = &p.system.holdings[0];
+        seed(pool).await;
+        p.create("commerce-posted-void-goods", false).await.unwrap();
+        p.review(
+            "journal-commerce-posted-void-goods",
+            "post-commerce-posted-void-goods",
+            facts::post(),
+        )
+        .await
+        .unwrap();
+        let invoice = "invoice-commerce-posted-void";
+        let delivery = "delivery-commerce-posted-void";
+        sqlx::query(
+            "INSERT INTO commerce_orders(id,company_id,kind,number,party_id,currency,order_date,\
+             due_date,subtotal_minor,tax_minor,state,version,created_by,created_at,updated_at) \
+             VALUES('order-commerce-posted-void','company','purchase','PO-POSTED-VOID',\
+             'bill-supplier','THB','2026-01-02','2026-02-01',25000,1750,'fulfilled',1,\
+             'fixture-a',0,0)",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO commerce_fulfillments(id,order_id,number,fulfillment_date,created_by,\
+             created_at,journal_id,invoice_id,version,completion_kind,completion_note) \
+             VALUES($1,'order-commerce-posted-void','FUL-POSTED-VOID','2026-01-05','fixture-a',0,\
+             'journal-commerce-posted-void-goods',NULL,1,'goods','')",
+        )
+        .bind(delivery)
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,\
+             due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,\
+             debit_account_id,credit_account_id,tax_account_id,source_type,source_id,\
+             source_version,status,version,line_revision,line_mode,created_by,created_at,updated_at) \
+             VALUES($1,'company','bill-supplier','payable','BILL-POSTED-VOID-MATCHED','2026-01-02',\
+             '2026-02-01','THB',25000,1750,26750,26750,'bill-clearing','bill-ap','bill-vat-in',\
+             'commerce_fulfillment',$2,2,'draft',1,1,'whole_document','fixture-a',0,0)",
+        )
+        .bind(invoice)
+        .bind(delivery)
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        sqlx::query("UPDATE commerce_fulfillments SET invoice_id=$1,version=version+1 WHERE id=$2")
+            .bind(invoice)
+            .bind(delivery)
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO money_transaction_snapshots(company_id,source_type,source_id,amount_kind,\
+             transaction_date,currency,currency_scale,amount_units,usd_units,captured_at) \
+             VALUES('company','finance_invoice',$1,'draft:v1','2026-01-02','THB',2,26750,26750,0)",
+        )
+        .bind(invoice)
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let posted = service(&p)
+            .post_supplier_bill(
+                "acme.example.test",
+                p.reviewer.clone(),
+                owned_reviewer(&p),
+                CommandKey::new("supplier-bill-matched-posted-void-post").unwrap(),
+                invoice.into(),
+                SupplierBillPostInput {
+                    period_id: "period".into(),
+                    entry_date: "2026-01-10".into(),
+                    expected_version: Some(1),
+                    fx_rate: None,
+                    attachment_set_ids: Vec::new(),
+                    fx_gain_account_id: None,
+                    fx_loss_account_id: None,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(posted.data.status, "posted");
+        let (third_proof, third_selection) = independent_void_actor(&p).await;
+        let selection = third_selection.clone();
+        let voided = service(&p)
+            .void_supplier_bill(
+                "acme.example.test",
+                third_proof,
+                move || Ok(selection),
+                CommandKey::new("supplier-bill-matched-posted-void").unwrap(),
+                invoice.into(),
+                SupplierBillVoidInput {
+                    expected_version: 2,
+                    period_id: Some("period".into()),
+                    entry_date: Some("2026-01-20".into()),
+                    memo: Some("Matched supplier invoice reversed".into()),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(voided.data.status, "voided");
+        assert_eq!(voided.data.version, 3);
+        let reversal_id = voided
+            .data
+            .reversal_journal_id
+            .clone()
+            .expect("posted matched void returns its reversing journal");
+        let original: String = sqlx::query_scalar(
+            "SELECT status FROM finance_journals WHERE id=$1 AND company_id='company'",
+        )
+        .bind(&posted.data.journal_id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(original, "reversed");
+        let reversal: (String, String, String) = sqlx::query_as(
+            "SELECT source_type,source_id,status FROM finance_journals WHERE id=$1 AND company_id='company'",
+        )
+        .bind(&reversal_id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(
+            reversal,
+            (
+                "invoice_reversal".into(),
+                invoice.to_string(),
+                "posted".into()
+            )
+        );
+        let fulfillment: (Option<String>, i64) = sqlx::query_as(
+            "SELECT invoice_id,version FROM commerce_fulfillments WHERE id=$1",
+        )
+        .bind(delivery)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(fulfillment, (None, 3));
     })
     .await;
 }
@@ -1491,80 +1931,7 @@ async fn supplier_bill_posted_void_posts_an_exact_reversal_with_an_independent_a
                 .await,
             "INDEPENDENT_APPROVER_REQUIRED",
         );
-        let now = p.system.scenario.clock.now().get();
-        let expires = now + 3_600_000;
-        sqlx::query(
-            "INSERT INTO \"user\"(id,name,email,\"emailVerified\",\"createdAt\",\"updatedAt\") \
-             VALUES('fixture-c','fixture-c','c@example.test',1,$1,$1) ON CONFLICT(id) DO NOTHING",
-        )
-        .bind(now)
-        .execute(p.system.control.raw())
-        .await
-        .unwrap();
-        sqlx::query(
-            "INSERT INTO account(id,\"accountId\",\"providerId\",issuer,\"userId\",password,\"createdAt\",\"updatedAt\") \
-             SELECT 'fixture-c','fixture-c','credential','local:credential','fixture-c',password,$1,$1 \
-             FROM account WHERE id='fixture-a' ON CONFLICT(id) DO NOTHING",
-        )
-        .bind(now)
-        .execute(p.system.control.raw())
-        .await
-        .unwrap();
-        let third_central = account::login(&p.system, "c@example.test", None).await;
-        let third = account::child(&p.system, &third_central, account::ACME).await;
-        sqlx::query(
-            "INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,version,scope_kind) \
-             VALUES('finance-fixture-c','fixture-c','custom_finance_review','[\"finance\"]','company',$1,$2,3,'holding')",
-        )
-        .bind(now - 1000)
-        .bind(expires)
-        .execute(pool.raw())
-        .await
-        .unwrap();
-        sqlx::query(
-            "INSERT INTO active_work_contexts(session_id,user_id,company_id,assignment_id,assignment_version,revision,expires_at,updated_at) \
-             VALUES($1,'fixture-c','company','finance-fixture-c',3,7,$2,$3)",
-        )
-        .bind(&third.result.session_id)
-        .bind(expires)
-        .bind(now)
-        .execute(pool.raw())
-        .await
-        .unwrap();
-        let third_proof = DeviceProof {
-            active: Some(SystemAuthenticationSecrets.digest(SecretPurpose::Session, &third.token)),
-            ..Default::default()
-        };
-        let third_selection = HoldingWorkspaceRequest {
-            company_id: CompanyId::new("company").unwrap(),
-            branch_slug: None,
-            department_slug: None,
-            expected: Some(ExpectedWorkSelection {
-                revision: 7,
-                assignment_id: AssignmentId::new("finance-fixture-c").unwrap(),
-                assignment_version: 3,
-            }),
-            mutation: true,
-        };
-        let bad_selection = third_selection.clone();
-        assert_business(
-            service(&p)
-                .void_supplier_bill(
-                    "acme.example.test",
-                    third_proof.clone(),
-                    move || Ok(bad_selection),
-                    CommandKey::new("supplier-bill-posted-void-bad-period").unwrap(),
-                    created.data.id.clone(),
-                    SupplierBillVoidInput {
-                        expected_version: 2,
-                        period_id: Some("missing-period".into()),
-                        entry_date: Some("2026-01-20".into()),
-                        memo: None,
-                    },
-                )
-                .await,
-            "SUPPLIER_BILL_PERIOD_INVALID",
-        );
+        let (third_proof, third_selection) = independent_void_actor(&p).await;
         let void_key = CommandKey::new("supplier-bill-posted-void-0001").unwrap();
         let input = SupplierBillVoidInput {
             expected_version: 2,

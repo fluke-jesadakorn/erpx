@@ -1630,13 +1630,13 @@ fn business_error(error: BusinessError) -> Response {
         FailureKind::Conflict => StatusCode::CONFLICT,
         FailureKind::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
     };
-    let body = Json(serde_json::json!({
-        "error": {"code": error.code, "message": error.message}
-    }))
-    .into_response();
-    let mut response = Response::new(body.into_body());
-    *response.status_mut() = status;
-    response
+    (
+        status,
+        Json(serde_json::json!({
+            "error": {"code": error.code, "message": error.message}
+        })),
+    )
+        .into_response()
 }
 
 fn no_store(response: &mut Response) {

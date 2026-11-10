@@ -11,6 +11,8 @@ pub struct CommerceFulfillmentPayableSource {
     pub invoice_id: Option<String>,
     pub order_id: String,
     pub order_kind: String,
+    pub journal_id: Option<String>,
+    pub completion_kind: String,
 }
 
 fn unavailable() -> BusinessError {
@@ -40,7 +42,7 @@ pub async fn load_commerce_payable_source(
         return Err(unavailable());
     }
     let row = sqlx::query(
-        "SELECT f.id,f.version,f.invoice_id,o.id order_id,o.kind order_kind \
+        "SELECT f.id,f.version,f.invoice_id,f.journal_id,f.completion_kind,o.id order_id,o.kind order_kind \
          FROM commerce_fulfillments f \
          JOIN commerce_orders o ON o.id=f.order_id \
          WHERE f.id=$1 AND o.company_id=$2",
@@ -57,7 +59,33 @@ pub async fn load_commerce_payable_source(
             invoice_id: row.try_get("invoice_id").map_err(|_| unavailable())?,
             order_id: row.try_get("order_id").map_err(|_| unavailable())?,
             order_kind: row.try_get("order_kind").map_err(|_| unavailable())?,
+            journal_id: row.try_get("journal_id").map_err(|_| unavailable())?,
+            completion_kind: row.try_get("completion_kind").map_err(|_| unavailable())?,
         })
     })
     .transpose()
+}
+
+/// Release the fulfillment link after Finance voids its payable. This is an
+/// owner command, not a Finance table write: the caller already holds the
+/// Commerce source fence in its serializable unit. A changed link is a no-op.
+pub async fn release_commerce_payable_source(
+    c: &mut PgConnection,
+    company_id: &str,
+    invoice_id: &str,
+) -> Result<(), BusinessError> {
+    if company_id.is_empty() || invoice_id.is_empty() || invoice_id.len() > 200 {
+        return Err(unavailable());
+    }
+    sqlx::query(
+        "UPDATE commerce_fulfillments f SET invoice_id=NULL,version=f.version+1 \
+         FROM commerce_orders o \
+         WHERE f.order_id=o.id AND o.company_id=$1 AND f.invoice_id=$2",
+    )
+    .bind(company_id)
+    .bind(invoice_id)
+    .execute(c)
+    .await
+    .map_err(|_| unavailable())?;
+    Ok(())
 }

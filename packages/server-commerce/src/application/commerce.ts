@@ -745,6 +745,7 @@ export type CommerceUnit<Effect> = {
         fact13: string | number | null;
         fact14: string | number | null;
         fulfillmentId: string;
+        sourceVersion: number;
         userId: string;
         fact17: number;
         fact18: number;
@@ -2233,7 +2234,7 @@ const{getOrder,allowed,scope,orderRow}=createCommerceOrderRead<Effect>(ports);
             await commerceMoney(write, actor, { sourceType: "commerce_invoice_source", sourceId: invoice, amountKind: "total", transactionDate: input.date, currency: invoiceCurrency, amountUnits: total }),
             ...(payable ? [await commerceMoney(write, actor, { sourceType: "finance_invoice", sourceId: invoice, amountKind: "draft:v1", transactionDate: input.date, currency: invoiceCurrency, amountUnits: total })] : []),
             ...sources.map(source => write.guardRule30({ key, guardId: `completion-${source.row.id}`, values: [String(source.row.id), source.version] })),
-            write.prepareFinanceInvoices4({ invoice, companyId: actor.companyId, party_id: order.party_id, fact3: payable ? "payable" : "receivable", fact4: `${payable ? "BILL" : "INV"}-${(await ports.hash(key)).slice(0, 24).toUpperCase()}`, date: input.date, dueDate: input.dueDate, invoiceCurrency, subtotal: totals.subtotal, tax: totals.tax, total, total2: total, fact12: payable ? matching?.bill.clearing_account_id ?? config.clearing_account_id : config.receivable_account_id, fact13: payable ? matching?.bill.payable_account_id ?? config.payable_account_id : config.revenue_account_id, fact14: payable ? matching?.bill.tax_account_id ?? config.input_tax_account_id : config.output_tax_account_id, fulfillmentId, userId: actor.userId, fact17: ports.clock.now(), fact18: ports.clock.now() }),
+            write.prepareFinanceInvoices4({ invoice, companyId: actor.companyId, party_id: order.party_id, fact3: payable ? "payable" : "receivable", fact4: `${payable ? "BILL" : "INV"}-${(await ports.hash(key)).slice(0, 24).toUpperCase()}`, date: input.date, dueDate: input.dueDate, invoiceCurrency, subtotal: totals.subtotal, tax: totals.tax, total, total2: total, fact12: payable ? matching?.bill.clearing_account_id ?? config.clearing_account_id : config.receivable_account_id, fact13: payable ? matching?.bill.payable_account_id ?? config.payable_account_id : config.revenue_account_id, fact14: payable ? matching?.bill.tax_account_id ?? config.input_tax_account_id : config.output_tax_account_id, fulfillmentId, sourceVersion: Number(sources[0].row.version) + 1, userId: actor.userId, fact17: ports.clock.now(), fact18: ports.clock.now() }),
             ...(matching?.steps ?? sources.map(source => write.prepareCommerceFulfillments4({ invoice, fulfillmentId: String(source.row.id) }))),
         ];
         return write.executeCommand(actor, key, "commerce.invoice.create", input, fulfillmentId, input.expectedVersion + 1, { id: String(order.id), invoiceId: invoice }, steps);

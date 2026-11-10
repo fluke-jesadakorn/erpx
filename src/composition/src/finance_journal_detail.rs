@@ -654,13 +654,33 @@ impl PgSupplierBillSource for FinanceSupplierBillSource {
                     )
                     .await
                     .map_err(PgTransactionError::Business)?;
-                    Ok(source.map(|source| SupplierBillSourceFacts {
-                        source_type: "commerce_fulfillment".into(),
-                        source_id: source.fulfillment_id,
-                        source_version: source.fulfillment_version,
-                        status: source.order_kind,
-                        invoice_id: source.invoice_id,
-                    }))
+                    match source {
+                        None => Ok(None),
+                        Some(source) => {
+                            let posted = if source.completion_kind == "service" {
+                                true
+                            } else if let Some(journal_id) = source.journal_id.as_deref() {
+                                sqlx::query_scalar::<_, bool>(
+                                    "SELECT EXISTS(SELECT 1 FROM finance_journals \
+                                     WHERE id=$1 AND company_id=$2 AND status='posted')",
+                                )
+                                .bind(journal_id)
+                                .bind(company_id)
+                                .fetch_one(&mut *c)
+                                .await?
+                            } else {
+                                false
+                            };
+                            Ok(Some(SupplierBillSourceFacts {
+                                source_type: "commerce_fulfillment".into(),
+                                source_id: source.fulfillment_id,
+                                source_version: source.fulfillment_version,
+                                status: source.order_kind,
+                                invoice_id: source.invoice_id,
+                                posted,
+                            }))
+                        }
+                    }
                 }
                 _ => Ok(None),
             }
@@ -2920,6 +2940,13 @@ impl<C: Clock + Send + Sync + 'static> FinanceJournalDetailService<C> {
                         } else {
                             void_supplier_bill(c, &actor, &command, &id, &body, now.get()).await?
                         };
+                        erpx_server_commerce::public::finance_payable_source::release_commerce_payable_source(
+                            c,
+                            &actor.company_id,
+                            &id,
+                        )
+                        .await
+                        .map_err(PgTransactionError::Business)?;
                         Ok(FinanceSupplierBillVoidResponse { data })
                     })
                 },

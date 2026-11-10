@@ -209,6 +209,7 @@ struct Invoice {
     version: i64,
     source_type: Option<String>,
     source_id: Option<String>,
+    source_version: Option<i64>,
     invoice_number: String,
     invoice_date: String,
     currency: String,
@@ -968,9 +969,9 @@ async fn existing_invoice(
     id: &str,
 ) -> Result<Option<Invoice>, Error> {
     let row = sqlx::query(
-        "SELECT id,kind,status,version,source_type,source_id,invoice_number,invoice_date,currency,\
-         subtotal_minor,tax_minor,total_minor,outstanding_minor,debit_account_id,\
-         credit_account_id,tax_account_id,line_revision,line_mode,created_by \
+        "SELECT id,kind,status,version,source_type,source_id,source_version,invoice_number,\
+         invoice_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,\
+         debit_account_id,credit_account_id,tax_account_id,line_revision,line_mode,created_by \
          FROM finance_invoices WHERE id=$1 AND company_id=$2 FOR UPDATE",
     )
     .bind(id)
@@ -987,6 +988,7 @@ async fn existing_invoice(
         version: row.try_get("version")?,
         source_type: row.try_get("source_type")?,
         source_id: row.try_get("source_id")?,
+        source_version: row.try_get("source_version")?,
         invoice_number: row.try_get("invoice_number")?,
         invoice_date: row.try_get("invoice_date")?,
         currency: row.try_get("currency")?,
@@ -1294,7 +1296,7 @@ pub async fn void_supplier_bill(
     let kind: String = row.try_get("kind")?;
     let source_type: String = row.try_get("source_type")?;
     let version: i64 = row.try_get("version")?;
-    if kind != "payable" || source_type != "standalone" {
+    if kind != "payable" || !matches!(source_type.as_str(), "standalone" | "commerce_fulfillment") {
         return Err(not_found("INVOICE_NOT_FOUND", "Supplier bill not found."));
     }
     if status != "draft" {
@@ -1385,6 +1387,7 @@ pub struct SupplierBillSourceFacts {
     pub source_version: i64,
     pub status: String,
     pub invoice_id: Option<String>,
+    pub posted: bool,
 }
 
 /// Owner-supplied read-only witness for a non-standalone payable source.
@@ -1532,7 +1535,7 @@ pub async fn void_posted_supplier_bill(
     let journal_id: Option<String> = row.try_get("journal_id")?;
     let created_by: String = row.try_get("created_by")?;
     let approved_by: Option<String> = row.try_get("approved_by")?;
-    if kind != "payable" || source_type != "standalone" {
+    if kind != "payable" || !matches!(source_type.as_str(), "standalone" | "commerce_fulfillment") {
         return Err(not_found("INVOICE_NOT_FOUND", "Supplier bill not found."));
     }
     if status != "posted" {
@@ -1684,7 +1687,7 @@ pub async fn void_posted_supplier_bill(
         ));
     }
     let updated = sqlx::query(
-        "UPDATE finance_invoices SET status='voided',outstanding_minor=0,         base_outstanding_minor=0,version=version+1,updated_at=$1          WHERE id=$2 AND company_id=$3 AND status='posted' AND version=$4          AND kind='payable' AND source_type='standalone'",
+        "UPDATE finance_invoices SET status='voided',outstanding_minor=0,         base_outstanding_minor=0,version=version+1,updated_at=$1          WHERE id=$2 AND company_id=$3 AND status='posted' AND version=$4          AND kind='payable' AND source_type IN ('standalone','commerce_fulfillment')",
     )
     .bind(now)
     .bind(id)
@@ -2200,7 +2203,9 @@ where
             || facts.source_id != source_id
             || facts.invoice_id.as_deref() != Some(id)
             || facts.source_version < 1
-            || (source_type == "commerce_fulfillment" && facts.status != "purchase")
+            || invoice.source_version != Some(facts.source_version)
+            || (source_type == "commerce_fulfillment"
+                && (facts.status != "purchase" || !facts.posted))
         {
             return Err(conflict(
                 "SUPPLIER_BILL_SOURCE_CHANGED",
