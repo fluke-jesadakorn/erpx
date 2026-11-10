@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 226,
+    "revision": 229,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g1",
       "agentId": "lead",
       "startedAt": "2026-11-10T16:01:48.750Z",
-      "heartbeatAt": "2026-11-10T17:54:04.953Z",
-      "expiresAt": "2026-11-10T18:24:04.953Z",
+      "heartbeatAt": "2026-11-10T18:09:16.428Z",
+      "expiresAt": "2026-11-10T18:39:16.428Z",
       "generation": 2,
       "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
     },
@@ -10201,13 +10201,13 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T17:47:32.605Z",
-          "heartbeatAt": "2026-11-10T17:54:04.953Z",
-          "expiresAt": "2026-11-10T18:24:04.953Z",
+          "heartbeatAt": "2026-11-10T18:09:16.428Z",
+          "expiresAt": "2026-11-10T18:39:16.428Z",
           "generation": 2
         },
         "baseSha": null,
@@ -10216,7 +10216,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the first inventoried customer_authority packet (migrate.customer_authority.duplicate_decisions), run the packet's cargo/suite checks, and report the exact mount request and retired consumers to the lead.",
+        "nextAction": "Lead mounts the duplicate/identity HTTP routers and switches the Sales customer-duplicates/identity routes; then retire the TS adapters",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-customer-authority",
@@ -10303,8 +10303,15 @@
         "resources": [
           "owner:support"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "claimedAt": "2026-11-10T18:08:37.873Z",
+          "heartbeatAt": "2026-11-10T18:09:16.428Z",
+          "expiresAt": "2026-11-10T18:39:16.428Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -11328,8 +11335,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T17:47:32.634Z",
-          "heartbeatAt": "2026-11-10T17:54:04.953Z",
-          "expiresAt": "2026-11-10T18:24:04.953Z",
+          "heartbeatAt": "2026-11-10T18:09:16.428Z",
+          "expiresAt": "2026-11-10T18:39:16.428Z",
           "generation": 2
         },
         "baseSha": null,
@@ -11885,8 +11892,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T17:27:02.192Z",
-          "heartbeatAt": "2026-11-10T17:54:04.953Z",
-          "expiresAt": "2026-11-10T18:24:04.953Z",
+          "heartbeatAt": "2026-11-10T18:09:16.428Z",
+          "expiresAt": "2026-11-10T18:39:16.428Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12075,8 +12082,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:27:02.162Z",
-          "heartbeatAt": "2026-11-10T17:54:04.953Z",
-          "expiresAt": "2026-11-10T18:24:04.953Z",
+          "heartbeatAt": "2026-11-10T18:09:16.428Z",
+          "expiresAt": "2026-11-10T18:39:16.428Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12173,8 +12180,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:53:28.777Z",
-          "heartbeatAt": "2026-11-10T17:54:04.953Z",
-          "expiresAt": "2026-11-10T18:24:04.953Z",
+          "heartbeatAt": "2026-11-10T18:09:16.428Z",
+          "expiresAt": "2026-11-10T18:39:16.428Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12752,8 +12759,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T17:05:17.831Z",
-          "heartbeatAt": "2026-11-10T17:54:04.953Z",
-          "expiresAt": "2026-11-10T18:24:04.953Z",
+          "heartbeatAt": "2026-11-10T18:09:16.428Z",
+          "expiresAt": "2026-11-10T18:39:16.428Z",
           "generation": 2
         },
         "baseSha": null,
@@ -14802,9 +14809,9 @@
       "totalPackets": 49,
       "migratedPackets": 4,
       "statusCounts": {
-        "pending": 37,
+        "pending": 36,
         "in_progress": 3,
-        "ready_for_integration": 3,
+        "ready_for_integration": 4,
         "integrating": 0,
         "migrated": 4,
         "blocked": 2,
@@ -14813,7 +14820,7 @@
       }
     },
     "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T17:54:04.953Z",
+    "updatedAt": "2026-11-10T18:09:16.429Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
