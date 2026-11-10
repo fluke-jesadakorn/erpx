@@ -496,6 +496,308 @@ impl BenefitElectionRow {
     }
 }
 
+pub const DETAIL_HISTORY_LIMIT: usize = 500;
+
+/// Election detail columns retained from the current owner row plus the joined
+/// published-plan facts. `employee_name` arrives through the People legal-name
+/// port; every other field is a Benefits-owned row.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BenefitElectionDetailSource {
+    pub election: BenefitElectionRow,
+    pub plan_current_version: i64,
+    pub plan_status: String,
+    pub created_by: String,
+    pub submitted_by: Option<String>,
+    pub provider_reference: Option<String>,
+    pub acknowledged_by: Option<String>,
+    pub released_by: Option<String>,
+    pub dependent_ids: Vec<String>,
+}
+
+impl BenefitElectionDetailSource {
+    pub fn validate(
+        &self,
+        actor: &BenefitsActor,
+        worker: Option<&BenefitsWorker>,
+        reviewer: bool,
+    ) -> Result<(), BusinessError> {
+        self.election.validate(actor, worker, reviewer)?;
+        let mut dependent_ids = BTreeSet::new();
+        if self.plan_current_version < 1
+            || !matches!(
+                self.plan_status.as_str(),
+                "draft" | "published" | "rejected" | "retired"
+            )
+            || self.plan_current_version < self.election.plan_version
+            || !valid_identifier(&self.created_by)
+            || self
+                .submitted_by
+                .as_deref()
+                .is_some_and(|value| !valid_identifier(value))
+            || self.provider_reference.as_deref().is_some_and(|value| {
+                let value = js_trim(value);
+                !(2..=160).contains(&value.encode_utf16().count()) || !valid_text(value, 160)
+            })
+            || self
+                .acknowledged_by
+                .as_deref()
+                .is_some_and(|value| !valid_identifier(value))
+            || self
+                .released_by
+                .as_deref()
+                .is_some_and(|value| !valid_identifier(value))
+            || self.dependent_ids.len() > 20
+            || self
+                .dependent_ids
+                .iter()
+                .any(|value| !valid_identifier(value) || !dependent_ids.insert(value.clone()))
+        {
+            return Err(source_invalid());
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct BenefitElectionDetailElection {
+    pub id: String,
+    pub company_id: String,
+    pub person_id: String,
+    pub engagement_id: String,
+    pub plan_id: String,
+    pub plan_name: String,
+    pub employee_name: String,
+    pub plan_version: i64,
+    pub plan_current_version: i64,
+    pub plan_status: String,
+    pub window_id: String,
+    pub window_version: i64,
+    pub coverage_type: String,
+    pub dependent_ids: Vec<String>,
+    pub currency: String,
+    pub employee_deduction_minor: i64,
+    pub employer_cost_minor: i64,
+    pub effective_from: String,
+    pub effective_to: Option<String>,
+    pub status: String,
+    pub created_by: String,
+    pub submitted_by: Option<String>,
+    pub provider_reference: Option<String>,
+    pub acknowledged_by: Option<String>,
+    pub released_by: Option<String>,
+    pub version: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+impl BenefitElectionDetailElection {
+    fn from_source(source: &BenefitElectionDetailSource) -> Self {
+        let election = &source.election;
+        Self {
+            id: election.id.clone(),
+            company_id: election.company_id.clone(),
+            person_id: election.person_id.clone(),
+            engagement_id: election.engagement_id.clone(),
+            plan_id: election.plan_id.clone(),
+            plan_name: election.plan_name.clone(),
+            employee_name: election.employee_name.clone(),
+            plan_version: election.plan_version,
+            plan_current_version: source.plan_current_version,
+            plan_status: source.plan_status.clone(),
+            window_id: election.window_id.clone(),
+            window_version: election.window_version,
+            coverage_type: election.coverage_type.clone(),
+            dependent_ids: source.dependent_ids.clone(),
+            currency: election.currency.clone(),
+            employee_deduction_minor: election.employee_deduction_minor,
+            employer_cost_minor: election.employer_cost_minor,
+            effective_from: election.effective_from.clone(),
+            effective_to: election.effective_to.clone(),
+            status: election.status.clone(),
+            created_by: source.created_by.clone(),
+            submitted_by: source.submitted_by.clone(),
+            provider_reference: source.provider_reference.clone(),
+            acknowledged_by: source.acknowledged_by.clone(),
+            released_by: source.released_by.clone(),
+            version: election.version,
+            created_at: election.created_at,
+            updated_at: election.updated_at,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct BenefitElectionEventRow {
+    pub id: String,
+    pub election_id: String,
+    pub version: i64,
+    pub action: String,
+    pub actor_id: String,
+    pub reason: String,
+    pub status: String,
+    pub created_at: i64,
+}
+
+impl BenefitElectionEventRow {
+    pub fn validate(&self, election: &BenefitElectionRow) -> Result<(), BusinessError> {
+        if !valid_identifier(&self.id)
+            || self.election_id != election.id
+            || self.version < 1
+            || !matches!(
+                self.action.as_str(),
+                "elect" | "submit" | "acknowledge" | "release" | "cancel"
+            )
+            || !valid_identifier(&self.actor_id)
+            || self.reason.is_empty()
+            || !valid_text(&self.reason, 3_000)
+            || !matches!(
+                self.status.as_str(),
+                "elected" | "submitted" | "acknowledged" | "released" | "cancelled"
+            )
+            || self.created_at < 0
+        {
+            return Err(source_invalid());
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct BenefitPayrollInputRow {
+    pub id: String,
+    pub election_id: String,
+    pub company_id: String,
+    pub person_id: String,
+    pub engagement_id: String,
+    pub currency: String,
+    pub employee_deduction_minor: i64,
+    pub employer_cost_minor: i64,
+    pub effective_from: String,
+    pub effective_to: Option<String>,
+    pub source_election_version: i64,
+    pub status: String,
+    pub released_by: String,
+    pub created_at: i64,
+}
+
+impl BenefitPayrollInputRow {
+    pub fn validate(
+        &self,
+        election: &BenefitElectionRow,
+        company: &CompanyId,
+    ) -> Result<(), BusinessError> {
+        if self.company_id != company.as_str()
+            || self.election_id != election.id
+            || self.company_id != election.company_id
+            || self.person_id != election.person_id
+            || self.engagement_id != election.engagement_id
+            || !valid_identifier(&self.id)
+            || !valid_identifier(&self.election_id)
+            || !valid_identifier(&self.person_id)
+            || !valid_identifier(&self.engagement_id)
+            || !valid_currency(&self.currency)
+            || self.currency != election.currency
+            || self.employee_deduction_minor < 0
+            || self.employer_cost_minor < 0
+            || self.employee_deduction_minor != election.employee_deduction_minor
+            || self.employer_cost_minor != election.employer_cost_minor
+            || self.effective_from != election.effective_from
+            || self.effective_to != election.effective_to
+            || self.status != "released"
+            || self.source_election_version < 1
+            || self.source_election_version > election.version
+            || (election.status == "released" && self.source_election_version != election.version)
+            || !valid_identifier(&self.released_by)
+            || self.created_at < 0
+        {
+            return Err(source_invalid());
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BenefitElectionDetail {
+    pub election: BenefitElectionDetailElection,
+    pub history: Vec<BenefitElectionEventRow>,
+    pub payroll: Option<BenefitPayrollInputRow>,
+    pub can_review: bool,
+    pub can_manage_documents: bool,
+    pub is_owner: bool,
+    pub actor_id: String,
+}
+
+fn detail_not_found() -> BusinessError {
+    BusinessError::new(
+        FailureKind::NotFound,
+        "BENEFIT_ELECTION_NOT_FOUND",
+        "Election not found.",
+    )
+}
+
+pub(crate) fn detail_missing() -> BusinessError {
+    detail_not_found()
+}
+
+/// Fill the detail employee name through the current People legal-name port.
+/// Exactly one current name for the election's Person is required.
+pub(crate) fn apply_detail_employee_name(
+    source: &mut BenefitElectionDetailSource,
+    names: Vec<(String, String)>,
+) -> Result<(), BusinessError> {
+    if names.len() != 1 {
+        return Err(source_invalid());
+    }
+    let (person_id, name) = names.into_iter().next().ok_or_else(source_invalid)?;
+    if person_id != source.election.person_id || !valid_name(&name, NAME_LIMIT) {
+        return Err(source_invalid());
+    }
+    source.election.employee_name = name;
+    Ok(())
+}
+
+pub(crate) fn validate_detail(
+    actor: &BenefitsActor,
+    worker: Option<&BenefitsWorker>,
+    reviewer: bool,
+    source: BenefitElectionDetailSource,
+    history: Vec<BenefitElectionEventRow>,
+    payroll: Option<BenefitPayrollInputRow>,
+) -> Result<BenefitElectionDetail, BusinessError> {
+    source.validate(actor, worker, reviewer)?;
+    if history.len() > DETAIL_HISTORY_LIMIT {
+        return Err(too_large());
+    }
+    let mut previous = 0;
+    for row in &history {
+        row.validate(&source.election)?;
+        if row.version <= previous {
+            return Err(source_invalid());
+        }
+        previous = row.version;
+    }
+    if let Some(row) = &payroll {
+        row.validate(&source.election, &actor.company_id)?;
+    }
+    if source.election.status == "released" && payroll.is_none() {
+        return Err(source_invalid());
+    }
+    if payroll.is_some() && source.election.status != "released" {
+        return Err(source_invalid());
+    }
+    let is_owner = worker.is_some_and(|value| value.person_id == source.election.person_id);
+    Ok(BenefitElectionDetail {
+        election: BenefitElectionDetailElection::from_source(&source),
+        history,
+        payroll,
+        can_review: reviewer,
+        can_manage_documents: actor.can_manage_documents(),
+        is_owner,
+        actor_id: actor.user_id.clone(),
+    })
+}
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BenefitsWorkspace {

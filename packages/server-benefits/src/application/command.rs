@@ -7,11 +7,12 @@
 //! independent review, persisted readback and the payroll handoff row.
 use crate::application::workspace::{BenefitsEntitlementPort, BenefitsPeoplePort};
 use crate::domain::command::{
-    BenefitCommandResult, BenefitElectionInput, BenefitPlanInput, BenefitRecordKind,
-    BenefitRecordState, BenefitTransitionChanges, BenefitTransitionInput, BenefitWindowInput,
-    BenefitsCommandActor, ChangeBenefit, CreateDependent, CreateElection, CreatePlan, CreateWindow,
-    StoredBenefitReceipt, command_incomplete, current_date, election_sources, idempotency_conflict,
-    require_independent_review, require_learning_port, require_submit_owner,
+    BenefitCommandResult, BenefitElectionInput, BenefitEvidenceRequest, BenefitLearningRequest,
+    BenefitPlanInput, BenefitRecordKind, BenefitRecordState, BenefitTransitionChanges,
+    BenefitTransitionInput, BenefitWindowInput, BenefitsCommandActor, ChangeBenefit,
+    CreateDependent, CreateElection, CreatePlan, CreateWindow, StoredBenefitReceipt,
+    benefit_evidence_binding_type, benefit_evidence_policy, command_incomplete, current_date,
+    election_sources, idempotency_conflict, require_independent_review, require_submit_owner,
     require_verified_dependents, transition_changes, transition_state, validate_hash,
 };
 use crate::domain::workspace::{BenefitPlanRow, BenefitWindowRow};
@@ -35,6 +36,22 @@ fn not_found() -> BusinessError {
 
 fn malformed() -> BusinessError {
     BusinessError::invalid("BENEFITS_VALIDATION_FAILED", "Review the Benefits request.")
+}
+
+fn evidence_port_required() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "BENEFIT_EVIDENCE_PORT_REQUIRED",
+        "Native Benefits evidence binding requires the current Files attachment port, which composition has not mounted.",
+    )
+}
+
+fn learning_port_required() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "BENEFIT_LEARNING_ELIGIBILITY_REQUIRED",
+        "Native Benefits election requires the current Learning eligibility consumption port, which composition has not mounted.",
+    )
 }
 
 pub trait BenefitsCommandRepository: Send {
@@ -99,6 +116,105 @@ pub trait BenefitsCommandRepository: Send {
         &'a mut self,
         command: &'a ChangeBenefit<'a>,
     ) -> BenefitsCommandFuture<'a, BenefitCommandResult, Self::Error>;
+
+    /// Required plan eligibility code for the election's current plan, read in
+    /// the same owner unit. `None` means the plan is not eligibility-gated.
+    fn learning_requirement<'a>(
+        &'a mut self,
+        id: &'a str,
+    ) -> BenefitsCommandFuture<'a, Option<String>, Self::Error>;
+}
+
+/// Current Records/Files business-evidence port bound to the same serializable
+/// owner unit. Composition implements it from the Files owner adapter; the
+/// prepared value stays opaque to Benefits and is re-read after the owner
+/// effect. It never grants Benefits authority.
+pub trait BenefitsEvidencePort: Send {
+    type Prepared: Send;
+
+    fn prepare<'a>(
+        &'a mut self,
+        request: BenefitEvidenceRequest,
+    ) -> BenefitsCommandFuture<'a, Option<Self::Prepared>, BusinessError>;
+
+    fn require_current<'a>(
+        &'a mut self,
+        prepared: &'a Self::Prepared,
+    ) -> BenefitsCommandFuture<'a, (), BusinessError>;
+}
+
+/// Current Learning benefit-consumption port. The Learning owner writes and
+/// re-reads the receipt inside the caller's election transaction; Benefits
+/// only states the required code/person/effective-date selection.
+pub trait BenefitsLearningPort: Send {
+    type Prepared: Send;
+
+    fn prepare<'a>(
+        &'a mut self,
+        request: BenefitLearningRequest,
+    ) -> BenefitsCommandFuture<'a, Self::Prepared, BusinessError>;
+
+    fn validate<'a>(
+        &'a mut self,
+        request: BenefitLearningRequest,
+    ) -> BenefitsCommandFuture<'a, Self::Prepared, BusinessError>;
+
+    fn require_current<'a>(
+        &'a mut self,
+        prepared: &'a Self::Prepared,
+    ) -> BenefitsCommandFuture<'a, (), BusinessError>;
+}
+
+pub struct BenefitCommandPorts<'a, V, L> {
+    pub evidence: &'a mut V,
+    pub learning: &'a mut L,
+}
+
+/// Fail-closed owner default used by the retained mounted command entrypoint.
+/// It binds no evidence and consumes no Learning receipt.
+pub struct NoBenefitPorts;
+
+impl BenefitsEvidencePort for NoBenefitPorts {
+    type Prepared = ();
+
+    fn prepare<'a>(
+        &'a mut self,
+        _request: BenefitEvidenceRequest,
+    ) -> BenefitsCommandFuture<'a, Option<Self::Prepared>, BusinessError> {
+        Box::pin(async { Err(evidence_port_required()) })
+    }
+
+    fn require_current<'a>(
+        &'a mut self,
+        _prepared: &'a Self::Prepared,
+    ) -> BenefitsCommandFuture<'a, (), BusinessError> {
+        Box::pin(async { Err(evidence_port_required()) })
+    }
+}
+
+impl BenefitsLearningPort for NoBenefitPorts {
+    type Prepared = ();
+
+    fn prepare<'a>(
+        &'a mut self,
+        _request: BenefitLearningRequest,
+    ) -> BenefitsCommandFuture<'a, Self::Prepared, BusinessError> {
+        Box::pin(async { Err(learning_port_required()) })
+    }
+
+    fn validate<'a>(
+        &'a mut self,
+        _request: BenefitLearningRequest,
+    ) -> BenefitsCommandFuture<'a, Self::Prepared, BusinessError> {
+        Box::pin(async { Err(learning_port_required()) })
+    }
+
+    fn require_current<'a>(
+        &'a mut self,
+        _prepared: &'a Self::Prepared,
+    ) -> BenefitsCommandFuture<'a, (), BusinessError> {
+        Box::pin(async { Err(learning_port_required()) })
+    }
 }
 
 #[derive(Serialize)]
@@ -296,6 +412,44 @@ where
     E: BenefitsEntitlementPort,
     R::Error: From<P::Error> + From<E::Error>,
 {
+    let mut evidence = NoBenefitPorts;
+    let mut learning = NoBenefitPorts;
+    let mut ports = BenefitCommandPorts {
+        evidence: &mut evidence,
+        learning: &mut learning,
+    };
+    create_election_with_ports(
+        actor,
+        raw,
+        key,
+        repository,
+        people,
+        entitlement,
+        &mut ports,
+        now,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn create_election_with_ports<R, P, E, V, L>(
+    actor: &BenefitsCommandActor,
+    raw: &Value,
+    key: &CommandKey,
+    repository: &mut R,
+    people: &mut P,
+    entitlement: &mut E,
+    ports: &mut BenefitCommandPorts<'_, V, L>,
+    now: TimestampMillis,
+) -> Result<BenefitCommandResult, R::Error>
+where
+    R: BenefitsCommandRepository,
+    P: BenefitsPeoplePort,
+    E: BenefitsEntitlementPort,
+    V: BenefitsEvidencePort,
+    L: BenefitsLearningPort,
+    R::Error: From<P::Error> + From<E::Error>,
+{
     actor.require_write(now)?;
     let input = BenefitElectionInput::parse(raw)?;
     let id = format!("benefit-election-{}", key.as_str());
@@ -323,7 +477,6 @@ where
         .await?;
     let (plan, window) =
         election_sources(plan.as_ref(), window.as_ref(), &current_date(now), &input)?;
-    require_learning_port(plan)?;
     if !input.dependent_ids.is_empty() {
         let verified = repository.verified_dependents(&worker.person_id).await?;
         require_verified_dependents(&input, &verified)?;
@@ -333,7 +486,24 @@ where
         .await
         .map_err(R::Error::from)?
         .require_new_work()?;
-    repository
+    let learning = match plan.required_eligibility_code.as_ref() {
+        Some(required_code) => Some(
+            ports
+                .learning
+                .prepare(BenefitLearningRequest {
+                    company_id: actor.company_id.as_str().to_owned(),
+                    person_id: worker.person_id.clone(),
+                    required_code: required_code.clone(),
+                    effective_date: window.effective_on.clone(),
+                    election_id: id.clone(),
+                    command_id: key.as_str().to_owned(),
+                    today: current_date(now),
+                })
+                .await?,
+        ),
+        None => None,
+    };
+    let result = repository
         .create_election(&CreateElection {
             id: &id,
             key: key.as_str(),
@@ -345,7 +515,11 @@ where
             window,
             now: now.get(),
         })
-        .await
+        .await?;
+    if let Some(prepared) = &learning {
+        ports.learning.require_current(prepared).await?;
+    }
+    Ok(result)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -364,6 +538,48 @@ where
     R: BenefitsCommandRepository,
     P: BenefitsPeoplePort,
     E: BenefitsEntitlementPort,
+    R::Error: From<P::Error> + From<E::Error>,
+{
+    let mut evidence = NoBenefitPorts;
+    let mut learning = NoBenefitPorts;
+    let mut ports = BenefitCommandPorts {
+        evidence: &mut evidence,
+        learning: &mut learning,
+    };
+    change_with_ports(
+        actor,
+        kind,
+        id,
+        raw,
+        key,
+        repository,
+        people,
+        entitlement,
+        &mut ports,
+        now,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn change_with_ports<R, P, E, V, L>(
+    actor: &BenefitsCommandActor,
+    kind: BenefitRecordKind,
+    id: &str,
+    raw: &Value,
+    key: &CommandKey,
+    repository: &mut R,
+    people: &mut P,
+    entitlement: &mut E,
+    ports: &mut BenefitCommandPorts<'_, V, L>,
+    now: TimestampMillis,
+) -> Result<BenefitCommandResult, R::Error>
+where
+    R: BenefitsCommandRepository,
+    P: BenefitsPeoplePort,
+    E: BenefitsEntitlementPort,
+    V: BenefitsEvidencePort,
+    L: BenefitsLearningPort,
     R::Error: From<P::Error> + From<E::Error>,
 {
     actor.require_write(now)?;
@@ -396,18 +612,6 @@ where
         require_submit_owner(worker.as_ref(), &state)?;
     }
     require_independent_review(&state, &input, &actor.user_id)?;
-    if !input.attachment_set_ids.is_empty()
-        && ((kind == BenefitRecordKind::Dependent && input.action == "verify")
-            || (kind == BenefitRecordKind::Election
-                && matches!(input.action.as_str(), "submit" | "acknowledge")))
-    {
-        return Err(BusinessError::new(
-            FailureKind::Unavailable,
-            "BENEFIT_EVIDENCE_PORT_REQUIRED",
-            "Native Benefits evidence binding requires the current Files attachment port, which composition has not mounted.",
-        )
-        .into());
-    }
     let entitlement = entitlement
         .entitlement(actor.company_id.as_str())
         .await
@@ -417,8 +621,56 @@ where
     } else {
         entitlement.require_settle_existing()?;
     }
+    let evidence = match benefit_evidence_policy(kind, &input.action) {
+        Some(policy) if !input.attachment_set_ids.is_empty() => Some(
+            ports
+                .evidence
+                .prepare(BenefitEvidenceRequest {
+                    attachment_set_ids: input.attachment_set_ids.clone(),
+                    target_type: policy.target_type.to_owned(),
+                    purpose: policy.purpose.to_owned(),
+                    component_ref: policy.component_ref.to_owned(),
+                    target_id: id.to_owned(),
+                    expected_target_version: input.expected_version,
+                    command_id: key.as_str().to_owned(),
+                    binding_type: benefit_evidence_binding_type(kind, &input.action),
+                    now: now.get(),
+                })
+                .await?
+                .ok_or_else(evidence_port_required)?,
+        ),
+        _ => None,
+    };
+    let learning = if kind == BenefitRecordKind::Election && input.action != "cancel" {
+        match repository.learning_requirement(id).await? {
+            Some(required_code) => {
+                let person_id = state.person_id.clone().ok_or_else(learning_port_required)?;
+                let effective_date = state
+                    .effective_from
+                    .clone()
+                    .ok_or_else(learning_port_required)?;
+                Some(
+                    ports
+                        .learning
+                        .validate(BenefitLearningRequest {
+                            company_id: actor.company_id.as_str().to_owned(),
+                            person_id,
+                            required_code,
+                            effective_date,
+                            election_id: id.to_owned(),
+                            command_id: key.as_str().to_owned(),
+                            today: current_date(now),
+                        })
+                        .await?,
+                )
+            }
+            None => None,
+        }
+    } else {
+        None
+    };
     let changes: BenefitTransitionChanges = transition_changes(&input, &actor.user_id);
-    repository
+    let result = repository
         .change(&ChangeBenefit {
             kind,
             id,
@@ -432,12 +684,20 @@ where
             release_payroll: kind == BenefitRecordKind::Election && input.action == "release",
             now: now.get(),
         })
-        .await
+        .await?;
+    if let Some(prepared) = &evidence {
+        ports.evidence.require_current(prepared).await?;
+    }
+    if let Some(prepared) = &learning {
+        ports.learning.require_current(prepared).await?;
+    }
+    Ok(result)
 }
 
 /// Dispatch the retained Benefits command envelope exactly once. `entity` and
 /// an optional `id` select the owner action; current Account/IAM resolution and
-/// the serializable transaction remain composition responsibilities.
+/// the serializable transaction remain composition responsibilities. This
+/// retained entrypoint binds no evidence and consumes no Learning receipt.
 pub async fn execute_benefits_command<R, P, E>(
     actor: &BenefitsCommandActor,
     raw: &Value,
@@ -453,6 +713,47 @@ where
     E: BenefitsEntitlementPort,
     R::Error: From<P::Error> + From<E::Error>,
 {
+    let mut evidence = NoBenefitPorts;
+    let mut learning = NoBenefitPorts;
+    let mut ports = BenefitCommandPorts {
+        evidence: &mut evidence,
+        learning: &mut learning,
+    };
+    execute_benefits_command_with_ports(
+        actor,
+        raw,
+        key,
+        repository,
+        people,
+        entitlement,
+        &mut ports,
+        now,
+    )
+    .await
+}
+
+/// Dispatch through the mounted Records/Files evidence and Learning
+/// consumption ports. Unregistered entities and malformed envelopes fail
+/// before any owner or port effect.
+#[allow(clippy::too_many_arguments)]
+pub async fn execute_benefits_command_with_ports<R, P, E, V, L>(
+    actor: &BenefitsCommandActor,
+    raw: &Value,
+    key: &CommandKey,
+    repository: &mut R,
+    people: &mut P,
+    entitlement: &mut E,
+    ports: &mut BenefitCommandPorts<'_, V, L>,
+    now: TimestampMillis,
+) -> Result<BenefitCommandResult, R::Error>
+where
+    R: BenefitsCommandRepository,
+    P: BenefitsPeoplePort,
+    E: BenefitsEntitlementPort,
+    V: BenefitsEvidencePort,
+    L: BenefitsLearningPort,
+    R::Error: From<P::Error> + From<E::Error>,
+{
     let object = raw.as_object().ok_or_else(malformed)?;
     let entity = object
         .get("entity")
@@ -466,7 +767,7 @@ where
     })?;
     match object.get("id") {
         Some(Value::String(id)) => {
-            change(
+            change_with_ports(
                 actor,
                 kind,
                 id,
@@ -475,6 +776,7 @@ where
                 repository,
                 people,
                 entitlement,
+                ports,
                 now,
             )
             .await
@@ -490,7 +792,17 @@ where
                 create_dependent(actor, raw, key, repository, people, entitlement, now).await
             }
             BenefitRecordKind::Election => {
-                create_election(actor, raw, key, repository, people, entitlement, now).await
+                create_election_with_ports(
+                    actor,
+                    raw,
+                    key,
+                    repository,
+                    people,
+                    entitlement,
+                    ports,
+                    now,
+                )
+                .await
             }
         },
         Some(_) => Err(malformed().into()),

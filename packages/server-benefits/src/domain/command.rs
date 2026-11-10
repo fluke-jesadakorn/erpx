@@ -650,6 +650,7 @@ pub struct BenefitRecordState {
     pub created_by: String,
     pub acknowledged_by: Option<String>,
     pub person_id: Option<String>,
+    pub effective_from: Option<String>,
 }
 
 pub fn transition_state(
@@ -806,17 +807,89 @@ pub fn require_submit_owner(
     Ok(())
 }
 
-pub fn require_learning_port(
-    plan: &crate::domain::workspace::BenefitPlanRow,
-) -> Result<(), BusinessError> {
-    if plan.required_eligibility_code.is_some() {
-        return Err(BusinessError::new(
-            FailureKind::Unavailable,
-            "BENEFIT_LEARNING_ELIGIBILITY_REQUIRED",
-            "Native Benefits election requires the current Learning eligibility consumption port, which composition has not mounted.",
-        ));
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct BenefitEvidencePolicy {
+    pub target_type: &'static str,
+    pub purpose: &'static str,
+    pub component_ref: &'static str,
+}
+
+/// Retained evidence policy: only dependent verification and election
+/// submission/provider acknowledgement bind Files evidence. Other actions
+/// ignore `attachmentSetIds`, matching the TypeScript owner.
+pub fn benefit_evidence_policy(
+    kind: BenefitRecordKind,
+    action: &str,
+) -> Option<BenefitEvidencePolicy> {
+    match (kind, action) {
+        (BenefitRecordKind::Dependent, "verify") => Some(BenefitEvidencePolicy {
+            target_type: "benefit_dependent",
+            purpose: "dependent_proof",
+            component_ref: "verification",
+        }),
+        (BenefitRecordKind::Election, "submit") => Some(BenefitEvidencePolicy {
+            target_type: "benefit_election",
+            purpose: "election_document",
+            component_ref: "employee-submit",
+        }),
+        (BenefitRecordKind::Election, "acknowledge") => Some(BenefitEvidencePolicy {
+            target_type: "benefit_election",
+            purpose: "provider_proof",
+            component_ref: "provider-acknowledgement",
+        }),
+        _ => None,
     }
-    Ok(())
+}
+
+pub fn benefit_evidence_binding_type(kind: BenefitRecordKind, action: &str) -> String {
+    format!("benefits_{}_{}", kind.as_str(), action)
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BenefitEvidenceRequest {
+    pub attachment_set_ids: Vec<String>,
+    pub target_type: String,
+    pub purpose: String,
+    pub component_ref: String,
+    pub target_id: String,
+    pub expected_target_version: i64,
+    pub command_id: String,
+    pub binding_type: String,
+    pub now: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BenefitLearningRequest {
+    pub company_id: String,
+    pub person_id: String,
+    pub required_code: String,
+    pub effective_date: String,
+    pub election_id: String,
+    pub command_id: String,
+    pub today: String,
+}
+
+/// Prepared Learning consumption receipt retained by the owner unit. The
+/// Learning owner writes the receipt and re-reads it after the Benefits effect;
+/// Benefits never writes a Learning row itself.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PreparedBenefitLearning {
+    pub certificate_id: String,
+    pub election_id: String,
+    pub command_id: String,
+}
+
+impl PreparedBenefitLearning {
+    pub fn validate(&self) -> Result<(), BusinessError> {
+        if !valid_identifier(&self.certificate_id)
+            || !valid_identifier(&self.election_id)
+            || self.command_id.is_empty()
+            || !valid_text(&self.command_id, 200)
+        {
+            return Err(unavailable());
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, serde::Deserialize)]
@@ -996,6 +1069,7 @@ mod tests {
             created_by: "author".into(),
             acknowledged_by: None,
             person_id: None,
+            effective_from: None,
         };
         let input = BenefitTransitionInput {
             action: "publish".into(),

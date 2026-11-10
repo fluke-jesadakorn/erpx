@@ -386,17 +386,17 @@ impl BenefitsCommandRepository for PgBenefitsCommand<'_> {
             self.ready().await?;
             let sql = match kind {
                 BenefitRecordKind::Plan | BenefitRecordKind::Window => format!(
-                    "SELECT id,status,version,created_by,NULL::text acknowledged_by,NULL::text person_id \
+                    "SELECT id,status,version,created_by,NULL::text acknowledged_by,NULL::text person_id,NULL::text effective_from \
                      FROM {} WHERE id=$1 AND company_id=$2",
                     kind.table()
                 ),
                 BenefitRecordKind::Dependent => format!(
-                    "SELECT id,status,version,created_by,NULL::text acknowledged_by,person_id \
+                    "SELECT id,status,version,created_by,NULL::text acknowledged_by,person_id,NULL::text effective_from \
                      FROM {} WHERE id=$1 AND company_id=$2",
                     kind.table()
                 ),
                 BenefitRecordKind::Election => format!(
-                    "SELECT id,status,version,created_by,acknowledged_by,person_id \
+                    "SELECT id,status,version,created_by,acknowledged_by,person_id,effective_from \
                      FROM {} WHERE id=$1 AND company_id=$2",
                     kind.table()
                 ),
@@ -414,6 +414,7 @@ impl BenefitsCommandRepository for PgBenefitsCommand<'_> {
                     created_by: row.try_get("created_by")?,
                     acknowledged_by: row.try_get("acknowledged_by")?,
                     person_id: row.try_get("person_id")?,
+                    effective_from: row.try_get("effective_from")?,
                 })
             })
             .transpose()
@@ -478,6 +479,28 @@ impl BenefitsCommandRepository for PgBenefitsCommand<'_> {
             .bind(person_id)
             .fetch_all(&mut *self.connection)
             .await?)
+        })
+    }
+
+    fn learning_requirement<'a>(
+        &'a mut self,
+        id: &'a str,
+    ) -> BenefitsCommandFuture<'a, Option<String>, Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            let row = sqlx::query(
+                "SELECT p.required_eligibility_code FROM benefit_elections e \
+                 JOIN benefit_plans p ON p.id=e.plan_id AND p.company_id=e.company_id \
+                 WHERE e.id=$1 AND e.company_id=$2",
+            )
+            .bind(id)
+            .bind(self.company.as_str())
+            .fetch_optional(&mut *self.connection)
+            .await?;
+            Ok(row
+                .map(|row| row.try_get::<Option<String>, _>("required_eligibility_code"))
+                .transpose()?
+                .flatten())
         })
     }
 

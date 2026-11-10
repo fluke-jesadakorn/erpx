@@ -7,9 +7,12 @@
 //! package history entitlement, worker scope and every bounded
 //! plan/window/dependent/enrollment row before presentation.
 use crate::domain::workspace::{
-    BenefitDependentRow, BenefitElectionRow, BenefitPlanRow, BenefitWindowRow, BenefitsActor,
-    BenefitsEntitlement, BenefitsWorker, BenefitsWorkspace, DEPENDENT_LIMIT, ELECTION_LIMIT,
-    PLAN_LIMIT, WINDOW_LIMIT, apply_employee_names, validate_workspace,
+    BenefitDependentRow, BenefitElectionDetail, BenefitElectionDetailSource,
+    BenefitElectionEventRow, BenefitElectionRow, BenefitPayrollInputRow, BenefitPlanRow,
+    BenefitWindowRow, BenefitsActor, BenefitsEntitlement, BenefitsWorker, BenefitsWorkspace,
+    DEPENDENT_LIMIT, DETAIL_HISTORY_LIMIT, ELECTION_LIMIT, PLAN_LIMIT, WINDOW_LIMIT,
+    apply_detail_employee_name, apply_employee_names, detail_missing, validate_detail,
+    validate_workspace,
 };
 use erpx_server_shared::public::{BusinessError, CompanyId, TimestampMillis};
 use std::collections::BTreeSet;
@@ -47,6 +50,34 @@ pub trait BenefitsWorkspaceRepository: Send {
         reviewer: bool,
         limit: usize,
     ) -> BenefitsFuture<'a, Vec<BenefitElectionRow>, Self::Error>;
+}
+
+/// Election detail reads for the retained employee/reviewer record page.
+/// Implementations read only Benefits rows; People names arrive through
+/// [`BenefitsPeoplePort`] in the caller's unit.
+pub trait BenefitsDetailRepository: Send {
+    type Error: From<BusinessError> + Send;
+
+    fn election_detail<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        id: &'a str,
+        person_id: Option<&'a str>,
+        reviewer: bool,
+    ) -> BenefitsFuture<'a, Option<BenefitElectionDetailSource>, Self::Error>;
+
+    fn election_history<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        election_id: &'a str,
+        limit: usize,
+    ) -> BenefitsFuture<'a, Vec<BenefitElectionEventRow>, Self::Error>;
+
+    fn payroll_input<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        election_id: &'a str,
+    ) -> BenefitsFuture<'a, Option<BenefitPayrollInputRow>, Self::Error>;
 }
 
 /// Current People/Payroll facts. The worker lookup is the retained active
@@ -155,4 +186,61 @@ where
     )?;
     workspace.purchase = entitlement.purchase();
     Ok(workspace)
+}
+
+/// Read one current Company election detail with its immutable event history
+/// and released payroll input. Reviewer scope reads any Company election; an
+/// employee reads only their own. Package history admission, current worker
+/// facts and the exact People legal-name projection are rechecked in this unit.
+pub async fn benefits_election_detail<R, P, E>(
+    actor: &BenefitsActor,
+    id: &str,
+    repository: &mut R,
+    people: &mut P,
+    entitlement: &mut E,
+    now: TimestampMillis,
+) -> Result<BenefitElectionDetail, R::Error>
+where
+    R: BenefitsDetailRepository,
+    P: BenefitsPeoplePort,
+    E: BenefitsEntitlementPort,
+    R::Error: From<P::Error> + From<E::Error>,
+{
+    actor.require_workspace(now)?;
+    entitlement
+        .entitlement(actor.company_id.as_str())
+        .await
+        .map_err(R::Error::from)?
+        .require_history()?;
+    let worker = people
+        .worker(&actor.company_id, &actor.user_id)
+        .await
+        .map_err(R::Error::from)?;
+    if let Some(worker) = &worker {
+        worker.validate()?;
+    }
+    let reviewer = actor.can_review();
+    let Some(mut source) = repository
+        .election_detail(
+            &actor.company_id,
+            id,
+            worker.as_ref().map(|value| value.person_id.as_str()),
+            reviewer,
+        )
+        .await?
+    else {
+        return Err(R::Error::from(detail_missing()));
+    };
+    let person_ids = vec![source.election.person_id.clone()];
+    let names = people
+        .employee_names(&actor.company_id, &person_ids)
+        .await
+        .map_err(R::Error::from)?;
+    apply_detail_employee_name(&mut source, names)?;
+    let history = repository
+        .election_history(&actor.company_id, id, DETAIL_HISTORY_LIMIT + 1)
+        .await?;
+    let payroll = repository.payroll_input(&actor.company_id, id).await?;
+    validate_detail(actor, worker.as_ref(), reviewer, source, history, payroll)
+        .map_err(R::Error::from)
 }
