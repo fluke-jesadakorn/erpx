@@ -5,6 +5,7 @@
 //! availability fact; they perform no SQL, authority or command work.
 
 use crate::domain::work_card_availability::{WorkItemFact, WorkQueue};
+use erpx_server_benefits::public::workspace::BenefitElectionRow;
 use erpx_server_collaboration::public::collaboration_work::ActionWork;
 use erpx_server_field_service::public::work::FieldServiceWorkItem;
 use erpx_server_learning::public::learning::AssignmentRow;
@@ -598,6 +599,60 @@ pub fn organization_change_items(
         .collect()
 }
 
+pub struct BenefitElectionWorkRow {
+    pub election: BenefitElectionRow,
+    /// Owner read fact; the workspace election row does not carry it.
+    pub acknowledged_by: Option<String>,
+}
+
+/// Mirrors `benefitWorkItems` for the workspace election rows.
+pub fn benefit_election_items(
+    rows: &[BenefitElectionWorkRow],
+    actor_person_id: &str,
+    actor_user_id: &str,
+    can_review: bool,
+) -> Vec<WorkItemFact> {
+    rows.iter()
+        .map(|row| {
+            let election = &row.election;
+            let review = matches!(election.status.as_str(), "submitted" | "acknowledged");
+            let own = election.person_id == actor_person_id;
+            let can_act = if review {
+                can_review
+                    && (election.status != "acknowledged"
+                        || row.acknowledged_by.as_deref() != Some(actor_user_id))
+            } else {
+                own
+            };
+            WorkItemFact {
+                id: format!("benefit_enrollment:{}", election.id),
+                kind: "benefit_enrollment".into(),
+                queue: if can_act {
+                    WorkQueue::Todo
+                } else {
+                    WorkQueue::Waiting
+                },
+                can_act: Some(can_act),
+                action_kind: None,
+                relationships: {
+                    let mut values = vec![if own {
+                        "requested".to_owned()
+                    } else {
+                        "team".to_owned()
+                    }];
+                    if review {
+                        values.push("approval".to_owned());
+                    }
+                    values
+                },
+                updated_at: election.updated_at,
+                source_id: Some(election.id.clone()),
+                href: format!("/benefits/{}", election.id),
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -923,6 +978,59 @@ mod tests {
             reviewed_at: None,
             applied_at: None,
         }
+    }
+
+    fn benefit_election(
+        status: &str,
+        person_id: &str,
+    ) -> erpx_server_benefits::public::workspace::BenefitElectionRow {
+        erpx_server_benefits::public::workspace::BenefitElectionRow {
+            id: "election-1".into(),
+            company_id: "company".into(),
+            person_id: person_id.into(),
+            engagement_id: "engagement".into(),
+            plan_id: "plan".into(),
+            plan_name: "Health".into(),
+            employee_name: "Fictional employee".into(),
+            plan_version: 1,
+            window_id: "window".into(),
+            window_version: 1,
+            coverage_type: "employee".into(),
+            currency: "THB".into(),
+            employee_deduction_minor: 100,
+            employer_cost_minor: 200,
+            effective_from: "2026-11-01".into(),
+            effective_to: None,
+            status: status.into(),
+            version: 1,
+            created_at: 1,
+            updated_at: 9,
+        }
+    }
+
+    #[test]
+    fn benefit_elections_keep_employee_submit_and_independent_review() {
+        let row = BenefitElectionWorkRow {
+            election: benefit_election("elected", "person-1"),
+            acknowledged_by: None,
+        };
+        let own = benefit_election_items(&[row], "person-1", "user-1", false);
+        assert_eq!(own[0].queue, WorkQueue::Todo);
+        assert_eq!(own[0].relationships, ["requested"]);
+        let row = BenefitElectionWorkRow {
+            election: benefit_election("submitted", "person-2"),
+            acknowledged_by: None,
+        };
+        let reviewer = benefit_election_items(&[row], "person-1", "reviewer", true);
+        assert_eq!(reviewer[0].queue, WorkQueue::Todo);
+        assert_eq!(reviewer[0].relationships, ["team", "approval"]);
+        let row = BenefitElectionWorkRow {
+            election: benefit_election("acknowledged", "person-2"),
+            acknowledged_by: Some("reviewer".into()),
+        };
+        let same_reviewer = benefit_election_items(&[row], "person-1", "reviewer", true);
+        assert_eq!(same_reviewer[0].queue, WorkQueue::Waiting);
+        assert_eq!(same_reviewer[0].can_act, Some(false));
     }
 
     #[test]
