@@ -1,7 +1,7 @@
 {
-  "schema": "erpx.evidence/finance-payables-bundle/v7",
-  "recorded_at": "2026-11-10T15:55:00+07:00",
-  "head": "410ea2551fe70e6a2b9ba229ec4c9f879d92afc7",
+  "schema": "erpx.evidence/finance-payables-bundle/v8",
+  "recorded_at": "2026-11-10T16:40:00+07:00",
+  "head": "fcd1c2da8b2c85f1b8134ecdbd710aac661d196e",
   "owner": "finance",
   "workflow": "finance/payables",
   "status": "review-rejected",
@@ -10,16 +10,16 @@
     "procurement_match": "packages/server-procurement/src/adapters/finance_supplier_bill_match.rs: lock/load the reviewed match, stage posted with an event, and return on void with receipt deactivation. Finance validates match status/version/invoice link, supplier, dates, accounts, totals, primary fulfillment and every active receipt version.",
     "variance_lines": "Matched bills debit clearing at expected subtotal, post the price variance to the approved variance account, debit input tax and credit payable at the actual total.",
     "source_version": "migrations/postgres/holding-write/1100_finance_invoice_source_version.sql retains the post-link Commerce version; Finance compares it at post time.",
-    "repair": "migrations/postgres/holding-write/1101_procurement_bill_match_repair.sql repairs pre-port matches stranded by earlier native posts/voids, with events and receipt deactivation.",
+    "repair": "migrations/postgres/holding-write/1101_procurement_bill_match_repair.sql repairs pre-port matches stranded by earlier native posts/voids, with events and receipt deactivation; the new test executes the migration against synthetic posted/voided rows.",
     "matched_void": "Finance allows commerce_fulfillment in draft/posted void; the composition releases the Commerce fulfillment link and returns the Procurement match (status returned, invoice_id null, version+1, event). Posted void keeps the exact reversal, independent approver, period/allocation guards and receipt.",
-    "fx_gate": "Native Finance rejects a foreign-currency commerce invoice with SUPPLIER_BILL_GOODS_FX_UNSUPPORTED before writes; the native client falls back only for that scoped code to the retained Commerce goods-carrying FX posting path.",
+    "fx_gate": "Native Finance rejects a foreign-currency commerce invoice with SUPPLIER_BILL_GOODS_FX_UNSUPPORTED before writes; the native client falls back only for the post command to the retained Commerce goods-carrying FX posting path. The matched-void guard surfaces its 409 instead of a 404.",
     "ui": "packages/feature-finance/src/components/invoice-controls.tsx exposes draft/posted void for commerce_fulfillment payables as well as standalone.",
     "http": "Private HTTP 4xx responses preserve application/json; the app route surfaces the native business code."
   },
   "gates": {
-    "finance.rust-supplier-bill-postgres.integration": "14/14 pass in 69.34 s (matched post, variance, receipt versions, draft/posted void, replay, re-match, bad period, non-purchase, stale/unposted source)",
+    "finance.rust-supplier-bill-postgres.integration": "16/16 pass in 88.31 s (matched post, variance, receipt versions, consolidated stale secondary rejection, migration-1101 repair, draft/posted void, replay, re-match activation, bad period, non-purchase, stale/unposted source)",
     "sales.commerce-foreign-goods.integration": "5/5 pass; Commerce retains the finance_invoice draft:v1 snapshot",
-    "finance.generic-payments.integration": "17/17 pass (heavy inbox case timeout raised to 60 s; assertions unchanged)",
+    "finance.generic-payments.integration": "17/17 pass (heavy inbox case timeout 60 s; assertions unchanged)",
     "finance unit suites": "149/149 pass (8 files; InvoiceActions harness supports React.Fragment)",
     "cargo test -p erpx-server-finance": "131 tests across binaries, 0 failed",
     "cargo test -p erpx-server-procurement": "35 tests, 0 failed",
@@ -35,26 +35,26 @@
     "logs": [
       ".scratch/dev/rust-migration/current/finance-procurement-match-runtime.log",
       ".scratch/dev/rust-migration/current/finance-procurement-void-runtime.log",
-      ".scratch/dev/rust-migration/current/finance-procurement-fxgate-suite.log"
+      ".scratch/dev/rust-migration/current/finance-procurement-final2-suite.log"
     ]
   },
   "review": {
-    "verdict": "REJECT (previous review, before the receipt/repair/FX-gate fixes)",
+    "verdict": "REJECT (previous review; the latest fixes close the FX fallback scoping and add the migration/consolidated tests)",
     "fixed_after_review": [
       "Procurement match post/void lifecycle with events and receipt deactivation.",
       "Price-variance journal lines and variance test.",
-      "Receipt-version validation for every active match receipt (consolidated matches).",
-      "Migration 1101 repairs stranded pre-port matches.",
-      "FX matched void fails closed; FX native post is scoped to the retained goods-FX path.",
+      "Receipt-version validation for every active match receipt (consolidated matches), with a stale-secondary test.",
+      "Migration 1101 repairs stranded pre-port matches, with an executable repair test.",
+      "FX matched void fails closed; FX native post is scoped to the retained goods-FX path; the fallback is limited to the post command so void surfaces 409.",
       "Matched void is exposed in the Finance UI.",
-      "Event, replay and re-match-after-return assertions."
+      "Event, replay and re-match-activation assertions."
     ],
     "remaining_blockers": [
-      "Native foreign-currency Commerce posting is still not implemented; the retained legacy goods-carrying FX path handles it via a scoped fallback.",
+      "Native foreign-currency Commerce posting/void is still not implemented; the retained legacy goods-carrying FX path handles posting via a scoped fallback.",
       "Browser acceptance for matched void has not been run after the UI change.",
       "Procurement notifications are not written by the native match port (event only); retained Collaboration consumer.",
-      "Consolidated multi-receipt validation is implemented but has no dedicated test.",
-      "Stale match-version CAS and negative-variance tests are not present."
+      "Stale match-version CAS and negative-variance tests are not present.",
+      "The re-match test proves receipt activation, not a posted re-match."
     ]
   },
   "remaining": [
