@@ -191,15 +191,15 @@
     {
       "id": "maintenance",
       "package": "erpx-server-maintenance",
-      "phase": "partial",
-      "businessMigrationComplete": false,
+      "phase": "active",
+      "businessMigrationComplete": true,
       "surfaces": {
         "domain": "active",
         "application": "active",
-        "http": "partial",
-        "ssr": "partial",
-        "jobs": "pending",
-        "providers": "pending"
+        "http": "active",
+        "ssr": "active",
+        "jobs": "not-applicable",
+        "providers": "not-applicable"
       }
     },
     {

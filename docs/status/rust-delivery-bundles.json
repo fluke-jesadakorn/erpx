@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-10T18:46:45+07:00",
+  "updatedAt": "2026-11-10T21:20:29+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -19,10 +19,10 @@
     "qualifiedBusinessFlows": 112,
     "qualifiedEntryFlows": 1,
     "additionalInteropEvidence": 2,
-    "workflowsPartial": 55,
-    "workflowsVerified": 69,
-    "workflowsMerged": 69,
-    "ownersComplete": 6,
+    "workflowsPartial": 51,
+    "workflowsVerified": 73,
+    "workflowsMerged": 73,
+    "ownersComplete": 7,
     "bundleChecklistComplete": 18,
     "bundleChecklistTotal": 18
   },
@@ -3655,6 +3655,15 @@
       "sourceIdentity": "working tree on 4fa8bdd9a28cdc16c6b9dff113c743547b590a07",
       "evidenceRef": "docs/testing/evidence/2026-11-10-finance-owner-certification.json",
       "durableContractRefs": []
+    },
+    {
+      "id": "maintenance-owner-certification",
+      "kind": "owner-certification",
+      "status": "owner-complete",
+      "scope": "Maintenance owner: 5/5 registered workflows certified on the native owner route. Native workspace/detail reads and work-order create/schedule/start/block/resume/complete/cancel are mounted through maintenanceCompanies and existing-business with no TypeScript fallback. Browser create 200 v1; native lifecycle start v2, block v3, resume v4, complete v5 with PostgreSQL downtime, evidence and condition readback; 45 Rust PostgreSQL integration tests, 8 Rust unit tests, 17 native transport unit tests and 8 TS integration tests pass. Preventive-plan POST writes remain a named retained TypeScript consumer outside the five registered workflows; removal condition is the native plan command composition.",
+      "sourceIdentity": "working tree on e49e5b8784886aeb9e14545af7f938ba8972652c",
+      "evidenceRef": "docs/testing/evidence/2026-11-10-maintenance-owner-certification.json",
+      "durableContractRefs": []
     }
   ],
   "workflows": [
@@ -4750,60 +4759,60 @@
       "kind": "module",
       "owner": "maintenance",
       "scope": "Work orders",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "maintenance-native-read",
         "maintenance-native-http"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Historical native slice. Native work-order create is mounted and browser verified: the create form returned 200 {id:maintenance-eaaf2f20\u2026, version:1, status:open}; the list shows AST-ACCEPT \u00b7 Native created inspection (high, Mali Srisai) and the detail history shows Version 1 \u00b7 create. Create validates the Asset version, active-work vacancy, operational owner, Commercial new-work purchase and writes the Workflow receipt/audit, create event and notification in one serializable unit. Schedule/start/block/resume/complete/cancel were already native and browser verified. Correction at e208578b4: The product Maintenance create route directly invokes the TypeScript writer; preventive-plan writes also remain TypeScript. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
+      "gap": "Closed. The product Maintenance GET/POST route is native-only with no TypeScript fallback: workspace/detail reads and create/start/block/resume/complete/cancel/schedule commands use the native owner transport; unset configuration fails closed with 503 NATIVE_MAINTENANCE_UNAVAILABLE. Browser create returned 200 {id, version:1, status:open}; the native lifecycle returned start v2, block v3, resume v4, complete v5 and PostgreSQL readback persisted downtime, completion evidence and condition good. Rust work-source (12), HTTP (1), issue-part (5), transitions (18), read (6), settlement (3) and unit policy/wire/command/schedule suites pass. Preventive-plan POST writes remain a named retained TypeScript consumer outside the five registered workflows."
     },
     {
       "id": "maintenance/downtime",
       "kind": "module",
       "owner": "maintenance",
       "scope": "Downtime",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "maintenance-native-read",
         "maintenance-native-http"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Historical native slice. Downtime is captured by the native start/complete transitions and browser verified: start 200 v2 persisted downtime_started_at, complete 200 v5 persisted downtime_ended_at for the same work order; no separate downtime UI writer exists in this scope. Correction at e208578b4: The product Maintenance transition route retains TypeScript fallback for start/complete. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
+      "gap": "Closed. Downtime is captured by the native start/complete transitions on the same work order: start v2 persisted downtime_started_at, complete v5 persisted downtime_ended_at; no separate downtime UI writer exists in this scope. The product route is native-only and fails closed without transport. Historical browser verification of start/complete plus the 2026-11-10 native lifecycle/DB readback cover the workflow."
     },
     {
       "id": "maintenance/feature-blocked-work",
       "kind": "module",
       "owner": "maintenance",
       "scope": "Blocked work",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "maintenance-native-read",
         "maintenance-native-http"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Historical native slice. Native block/resume transitions are browser verified on work-acceptance: block 200 v3 (status blocked, blocked_reason persisted) and resume 200 v4 (status in_progress); the immutable history shows both events. Create belongs to the separate work-orders workflow and remains retained. Correction at e208578b4: The product Maintenance transition route retains TypeScript fallback for block/resume. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
+      "gap": "Closed. Native block/resume transitions returned block v3 (status blocked, blocked_reason persisted) and resume v4 (status in_progress) with immutable history; the product route is native-only with no TypeScript fallback. Rust transitions (18), HTTP (1) and work-source (12) suites pass. Historical browser verification of block/resume is retained in this register."
     },
     {
       "id": "maintenance/feature-completion",
       "kind": "module",
       "owner": "maintenance",
       "scope": "Completion",
-      "partial": true,
-      "verified": false,
-      "merged": false,
+      "partial": false,
+      "verified": true,
+      "merged": true,
       "evidenceFlows": [
         "maintenance-native-read",
         "maintenance-native-http"
       ],
       "sourceRef": "packages/server-assets/src/public/asset-maintenance.ts",
-      "gap": "Historical native slice. Native completion is browser verified on work-acceptance: complete 200 v5 with completion evidence and resulting condition good; the work order is completed and the immutable history records version 5. Create belongs to the separate work-orders workflow and remains retained. Correction at e208578b4: The product Maintenance transition route retains TypeScript completion fallback. Historical native slice evidence is retained, but the whole workflow and legacy-retirement gates remain open."
+      "gap": "Closed. Native complete returned v5 with completion evidence and resulting condition good; the work order is completed and immutable history records version 5. The product route is native-only with no TypeScript fallback. Rust transitions (18), HTTP (1) and work-source (12) suites pass. Historical browser verification of completion is retained in this register."
     },
     {
       "id": "maintenance/feature-maintenance-history",
@@ -6732,8 +6741,8 @@
     }
   ],
   "executionPlan": {
-    "generatedAt": "2026-11-10T18:46:45+07:00",
-    "sourceHead": "4fa8bdd9a28cdc16c6b9dff113c743547b590a07",
+    "generatedAt": "2026-11-10T21:20:29+07:00",
+    "sourceHead": "e49e5b8784886aeb9e14545af7f938ba8972652c",
     "interpretation": "ownerTotals includes the 41 register owners plus the seven catalogue surface owners (account, admin, apps, booking, forms, legal-portal, portal); surface owners are counted in the 206 workflows and are not part of the 41-owner strict certification denominator. A workflow is closed only when its scope is native, frontend, legacy-retired, gated, reviewed, integrated and pushed.",
     "ownerTotals": {
       "brand": {
@@ -6842,11 +6851,11 @@
       },
       "maintenance": {
         "workflows": 5,
-        "verified": 1,
-        "partial": 4,
+        "verified": 5,
+        "partial": 0,
         "unstarted": 0,
-        "phase": "partial",
-        "businessMigrationComplete": false
+        "phase": "active",
+        "businessMigrationComplete": true
       },
       "operations": {
         "workflows": 6,
