@@ -152,3 +152,72 @@ pub async fn read_native_work_snapshot(
         unavailable_sources,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The retained TypeScript work reader union. Composed sources are removed
+    /// from the unavailable list; every other source must stay explicit.
+    const ALL_SOURCES: &[&str] = &[
+        "fieldFinancialWork",
+        "financeExpansionWork",
+        "legalWork",
+        "organizationChangeWork",
+        "companyBusinessAcceptanceWork",
+        "posWork",
+        "crmWork",
+        "supportAlertWork",
+        "incidentWork",
+        "supportPolicyWork",
+        "supportWork",
+        "supportSessionWork",
+        "maintenanceWork",
+        "preventivePlanWork",
+        "projectHandoffWork",
+        "fieldServiceWork",
+        "collaborationActionWork",
+        "operationsExceptionWork",
+        "learningWork",
+        "benefitWork",
+        "talentWork",
+        "marketingWork",
+        "manufacturingWork",
+        "customerAccessWork",
+        "customerDuplicateWork",
+        "customerIdentityWork",
+        "customerFollowupWork",
+        "supplierBillWork",
+        "landedCostWork",
+        "rfqWork",
+        "supplierPromiseWork",
+        "transitWork",
+        "qualityWork",
+        "qualityAlertWork",
+        "supplierBatchWork",
+        "refundWork",
+        "overtimeWork",
+        "pmsWork",
+        "employeeRequestWork",
+        "departmentOverrideWork",
+        "retirementWork",
+        "peopleLifecycleWork",
+        "otherFlowWork",
+    ];
+
+    #[test]
+    fn unavailable_sources_are_exactly_the_non_composed_reader_union() {
+        let expected = ALL_SOURCES
+            .iter()
+            .copied()
+            .filter(|source| !matches!(*source, "maintenanceWork" | "preventivePlanWork"))
+            .collect::<Vec<_>>();
+        assert_eq!(UNAVAILABLE_SOURCES, expected.as_slice());
+        let mut unique = std::collections::BTreeSet::new();
+        assert!(
+            UNAVAILABLE_SOURCES
+                .iter()
+                .all(|source| unique.insert(*source))
+        );
+    }
+}
