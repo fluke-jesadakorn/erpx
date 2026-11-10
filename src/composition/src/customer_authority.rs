@@ -11,6 +11,22 @@ use erpx_server_customer_authority::public::access_http::{
     CustomerAccessHttpBackend, CustomerAccessHttpCommand, CustomerAccessHttpFuture,
     CustomerAccessHttpRequest, CustomerAccessHttpResponse, CustomerAccessHttpTarget,
 };
+use erpx_server_customer_authority::public::duplicates::{
+    DuplicateChange, DuplicateReviewRequest, PgCustomerDuplicateReview, change_duplicate_review,
+    duplicate_review_detail, duplicate_review_workspace, request_duplicate_review,
+};
+use erpx_server_customer_authority::public::duplicates_http::{
+    CustomerDuplicateHttpBackend, CustomerDuplicateHttpCommand, CustomerDuplicateHttpFuture,
+    CustomerDuplicateHttpRequest, CustomerDuplicateHttpResponse, CustomerDuplicateHttpTarget,
+};
+use erpx_server_customer_authority::public::identity::{
+    IdentityChange, IdentityRequest, PgCustomerIdentity, change_customer_identity,
+    identity_detail, identity_workspace, request_customer_identity_change,
+};
+use erpx_server_customer_authority::public::identity_http::{
+    CustomerIdentityHttpBackend, CustomerIdentityHttpCommand, CustomerIdentityHttpFuture,
+    CustomerIdentityHttpRequest, CustomerIdentityHttpResponse, CustomerIdentityHttpTarget,
+};
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
     account_inbound_http::parse_inbound_account_request,
@@ -384,6 +400,216 @@ impl<C: Clock + Send + Sync + 'static> CustomerAuthorityService<C> {
             )
             .await
     }
+
+    pub async fn duplicates_workspace<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+    ) -> Result<CustomerDuplicateHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                CustomerAuthoritySources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let actor = access_actor(current)?;
+                        let now = clock.now().get();
+                        let mut repository = PgCustomerDuplicateReview::new(connection);
+                        let data =
+                            duplicate_review_workspace(&mut repository, &actor, now).await?;
+                        Ok(CustomerDuplicateHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn duplicates_detail<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        review_id: String,
+    ) -> Result<CustomerDuplicateHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                CustomerAuthoritySources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let review_id = review_id.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let actor = access_actor(current)?;
+                        let now = clock.now().get();
+                        let mut repository = PgCustomerDuplicateReview::new(connection);
+                        let data =
+                            duplicate_review_detail(&mut repository, &actor, &review_id, now)
+                                .await?;
+                        Ok(CustomerDuplicateHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn duplicates_request<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command_input: DuplicateReviewRequest,
+        idempotency_key: String,
+    ) -> Result<CustomerDuplicateHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                CustomerAuthoritySources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command_input = command_input.clone();
+                    let idempotency_key = idempotency_key.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let actor = access_actor(current)?;
+                        let key = CommandKey::new(idempotency_key)
+                            .map_err(PgTransactionError::Business)?;
+                        let now = clock.now().get();
+                        let mut repository = PgCustomerDuplicateReview::new(connection);
+                        let data = request_duplicate_review(
+                            &mut repository,
+                            &actor,
+                            &key,
+                            &command_input,
+                            now,
+                        )
+                        .await?;
+                        Ok(CustomerDuplicateHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn duplicates_change<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        review_id: String,
+        command_input: DuplicateChange,
+        idempotency_key: String,
+    ) -> Result<CustomerDuplicateHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                CustomerAuthoritySources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let review_id = review_id.clone();
+                    let command_input = command_input.clone();
+                    let idempotency_key = idempotency_key.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let actor = access_actor(current)?;
+                        let key = CommandKey::new(idempotency_key)
+                            .map_err(PgTransactionError::Business)?;
+                        let now = clock.now().get();
+                        let mut repository = PgCustomerDuplicateReview::new(connection);
+                        let data = change_duplicate_review(
+                            &mut repository,
+                            &actor,
+                            &key,
+                            &review_id,
+                            &command_input,
+                            now,
+                        )
+                        .await?;
+                        Ok(CustomerDuplicateHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
 }
 
 pub struct CustomerAuthorityBackend<C> {
@@ -424,6 +650,75 @@ impl<C: Clock + Send + Sync + 'static> CustomerAuthorityBackend<C> {
                 mutation: false,
             },
         ))
+    }
+}
+
+
+fn duplicate_invalid() -> BusinessError {
+    BusinessError::invalid(
+        "VALIDATION_FAILED",
+        "Provide a complete duplicate review request.",
+    )
+}
+
+impl<C: Clock + Send + Sync + 'static> CustomerDuplicateHttpBackend
+    for CustomerAuthorityBackend<C>
+{
+    fn execute<'a>(
+        &'a self,
+        request: CustomerDuplicateHttpRequest<'a>,
+    ) -> CustomerDuplicateHttpFuture<'a, CustomerDuplicateHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            match request.command {
+                CustomerDuplicateHttpCommand::Workspace => self
+                    .service
+                    .duplicates_workspace(request.host, proof, move || Ok(selection))
+                    .await
+                    .map_err(business),
+                CustomerDuplicateHttpCommand::Detail { review_id } => self
+                    .service
+                    .duplicates_detail(request.host, proof, move || Ok(selection), review_id)
+                    .await
+                    .map_err(business),
+                CustomerDuplicateHttpCommand::Request {
+                    body,
+                    idempotency_key,
+                } => {
+                    let command_input: DuplicateReviewRequest =
+                        serde_json::from_value(body).map_err(|_| duplicate_invalid())?;
+                    self.service
+                        .duplicates_request(
+                            request.host,
+                            proof,
+                            move || Ok(selection),
+                            command_input,
+                            idempotency_key,
+                        )
+                        .await
+                        .map_err(business)
+                }
+                CustomerDuplicateHttpCommand::Change {
+                    review_id,
+                    body,
+                    idempotency_key,
+                } => {
+                    let command_input: DuplicateChange =
+                        serde_json::from_value(body).map_err(|_| duplicate_invalid())?;
+                    self.service
+                        .duplicates_change(
+                            request.host,
+                            proof,
+                            move || Ok(selection),
+                            review_id,
+                            command_input,
+                            idempotency_key,
+                        )
+                        .await
+                        .map_err(business)
+                }
+            }
+        })
     }
 }
 
