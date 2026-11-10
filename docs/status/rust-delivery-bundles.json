@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 205,
+    "revision": 214,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g1",
       "agentId": "lead",
       "startedAt": "2026-11-10T16:01:48.750Z",
-      "heartbeatAt": "2026-11-10T17:05:30.409Z",
-      "expiresAt": "2026-11-10T17:35:30.409Z",
+      "heartbeatAt": "2026-11-10T17:26:50.821Z",
+      "expiresAt": "2026-11-10T17:56:50.821Z",
       "generation": 2,
       "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
     },
@@ -9915,23 +9915,23 @@
         "resources": [
           "owner:organization"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-a",
-          "claimedAt": "2026-11-10T16:43:00.443Z",
-          "heartbeatAt": "2026-11-10T17:05:30.409Z",
-          "expiresAt": "2026-11-10T17:35:30.409Z",
-          "generation": 2
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement the first inventoried organization packet (migrate.organization.access_projection), run the packet's cargo/suite checks, and report the exact mount request and retired consumers to the lead.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Native access/position-move contracts are frozen and tested; bind after migrate.organization.position_moves_apply lands and lead mounts the routers",
+        "handoff": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-a",
+          "at": "2026-11-10T17:06:47.987Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Native access/position-move contracts are frozen and tested; bind after migrate.organization.position_moves_apply lands and lead mounts the routers"
+        },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-organization",
         "plannedPackage": "erpx-server-organization",
@@ -11187,22 +11187,51 @@
         "resources": [
           "owner:quality"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-10T16:38:48.134Z",
-          "heartbeatAt": "2026-11-10T17:05:30.409Z",
-          "expiresAt": "2026-11-10T17:35:30.409Z",
-          "generation": 2
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "a61e4067b177c3b185ad4d76af5a7b2cb77c6c57",
+        "lastPushedSha": "a61e4067b177c3b185ad4d76af5a7b2cb77c6c57",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-quality --locked",
+            "result": "passed",
+            "sourceSha": "a61e4067b177c3b185ad4d76af5a7b2cb77c6c57",
+            "sourceKind": "committed",
+            "note": "Quality crate compiles with hold-create and enriched reads."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business --locked",
+            "result": "passed",
+            "sourceSha": "a61e4067b177c3b185ad4d76af5a7b2cb77c6c57",
+            "sourceKind": "committed",
+            "note": "Composition hold_create backend and quality command executor compile."
+          },
+          {
+            "command": "bun run test:unit -- --suite=quality.rust-quality-hold.unit",
+            "result": "passed",
+            "sourceSha": "a61e4067b177c3b185ad4d76af5a7b2cb77c6c57",
+            "sourceKind": "committed",
+            "note": "5/5 hold-create unit cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=quality.rust-quality-hold-create-postgres.integration",
+            "result": "passed",
+            "sourceSha": "a61e4067b177c3b185ad4d76af5a7b2cb77c6c57",
+            "sourceKind": "committed",
+            "note": "4/4 PostgreSQL hold-create cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=quality.rust-quality-decisions.unit",
+            "result": "passed",
+            "sourceSha": "a61e4067b177c3b185ad4d76af5a7b2cb77c6c57",
+            "sourceKind": "committed",
+            "note": "10/10 decision cases pass after the shared command refactor."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the first inventoried quality packet (migrate.quality.hold-create), run the packet's cargo/suite checks, and report the exact mount request and retired consumers to the lead.",
+        "nextAction": "Remaining Quality auxiliary gap: alert acknowledge; Supply route selection must prefer the native reads (lead/frontend follow-up)",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-quality",
@@ -12688,8 +12717,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T17:05:17.831Z",
-          "heartbeatAt": "2026-11-10T17:05:30.409Z",
-          "expiresAt": "2026-11-10T17:35:30.409Z",
+          "heartbeatAt": "2026-11-10T17:26:50.821Z",
+          "expiresAt": "2026-11-10T17:56:50.821Z",
           "generation": 2
         },
         "baseSha": null,
@@ -14671,6 +14700,62 @@
         "nextAction": "Remain deferred during migration; start only under the separate acceptance/production-preparation instruction.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure"
+      },
+      {
+        "id": "migrate.organization.position_moves_apply",
+        "goalId": "G3",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "organization",
+        "workflowIds": [
+          "organization/organization-tree",
+          "organization/sharing",
+          "organization/feature-node-lifecycle",
+          "organization/feature-business-units"
+        ],
+        "workstream": "S02",
+        "kind": "migration",
+        "title": "Port position-move apply/drain and bind the native command",
+        "scope": "Port the position-move apply/drain worker to Rust so a native-scheduled move is applied atomically (positions/holders/leave recommendation/staff history/receipt/outbox) with the exact reviewed preview and snapshot hash, then retire the TS drain. Preserve fail-closed review-changed behavior and one authoritative applier.",
+        "dependsOn": [
+          "inventory.organization",
+          "ports.authority"
+        ],
+        "requiredPorts": [
+          "identity_access"
+        ],
+        "allowedPaths": [
+          "packages/server-organization/src/**",
+          "packages/server-organization/Cargo.toml",
+          "packages/server-people_payroll/src/adapters/people-lifecycle-jobs.ts",
+          "packages/server-people_payroll/src/application/people-lifecycle-jobs.ts",
+          "tests/unit/organization/**",
+          "tests/integration/organization/**"
+        ],
+        "resources": [
+          "owner:organization"
+        ],
+        "status": "blocked",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Lead mounts drain_due_position_moves in the native jobs tick for each Holding pool; then retire the TS drain oracle and the People catch-all branches",
+        "handoff": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-a",
+          "at": "2026-11-10T17:26:46.367Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Lead mounts drain_due_position_moves in the native jobs tick for each Holding pool; then retire the TS drain oracle and the People catch-all branches"
+        },
+        "procedureRef": "executionPlan.sliceProcedure",
+        "registeredPackage": "erpx-server-organization",
+        "plannedPackage": "erpx-server-organization",
+        "scopeRefinementRequired": false,
+        "pathPolicy": "Shared product shells/app routes, root Cargo/lock, contracts, composition and catalogue need exact lead integration. Refine/add bounded tasks before editing; do not grant an entire sibling product shell."
       }
     ],
     "migrationProgress": {
@@ -14679,21 +14764,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 48,
-      "migratedPackets": 3,
+      "totalPackets": 49,
+      "migratedPackets": 4,
       "statusCounts": {
         "pending": 42,
-        "in_progress": 3,
+        "in_progress": 1,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 3,
-        "blocked": 0,
+        "migrated": 4,
+        "blocked": 2,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T17:05:30.410Z",
+    "updatedAt": "2026-11-10T17:26:50.821Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
