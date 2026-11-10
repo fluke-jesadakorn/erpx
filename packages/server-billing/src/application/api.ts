@@ -227,7 +227,7 @@ function billingHandler(platform: boolean) {
       const key = request.headers.get("Idempotency-Key") ?? "";
       if (
         ports.nativeCostCommand &&
-        ["cost", "delete-cost", "complete-costs", "approve-target-rollout"].includes(
+        ["cost", "delete-cost", "complete-costs", "approve-target-rollout", "verify-provider-cost", "verify-statement"].includes(
           input.action,
         )
       ) {

@@ -406,6 +406,58 @@ describe('native Billing transport', () => {
     });
   });
 
+  it('posts the exact target provider cost and statement routes and bodies', async () => {
+    const calls: Parameters<NativeBillingTransport>[] = [];
+    const client = createNativeBillingClient(configuration, async (...args) => {
+      calls.push(args);
+      return response({ data: { ok: true }, context: context() });
+    });
+    const cost = {
+      holdingId: 'h001',
+      holdingSlug: 'acme',
+      action: 'verify-provider-cost' as const,
+      key: 'billing-provider-cost-0001',
+      body: {
+        version: 2,
+        reason: 'Reviewed provider invoice and FX',
+        targetMonth: '2026-12',
+        sourceKey: 'a'.repeat(64),
+        provider: 'openai',
+        statementId: 'stmt-1',
+        originalCurrency: 'USD',
+        originalMinor: 1000,
+        fxNumerator: 36,
+        fxDenominator: 1,
+        providerCostSatang: 36000,
+        evidenceId: 'evidence-1',
+      },
+    };
+    const statement = {
+      holdingId: 'h001',
+      holdingSlug: 'acme',
+      action: 'verify-statement' as const,
+      key: 'billing-provider-statement-0001',
+      body: {
+        version: 2,
+        reason: 'Reviewed provider statement',
+        targetMonth: '2026-12',
+        provider: 'openai',
+        statementId: 'stmt-1',
+        originalCurrency: 'USD',
+        providerTotalMinor: 1000,
+        evidenceId: 'evidence-1',
+      },
+    };
+    expect(await client.command(headers(), actor, cost)).toEqual({ ok: true });
+    expect(await client.command(headers(), actor, statement)).toEqual({ ok: true });
+    expect(calls.map(([, url]) => String(url))).toEqual([
+      'http://127.0.0.1:3110/api/v1/holdings/acme/billing/target/provider/cost',
+      'http://127.0.0.1:3110/api/v1/holdings/acme/billing/target/provider/statement',
+    ]);
+    expect(JSON.parse(calls[0]![3]!)).toEqual(cost.body);
+    expect(JSON.parse(calls[1]![3]!)).toEqual(statement.body);
+  });
+
   it('posts the exact target-rollout approval route and body', async () => {
     const calls: Parameters<NativeBillingTransport>[] = [];
     const client = createNativeBillingClient(configuration, async (...args) => {

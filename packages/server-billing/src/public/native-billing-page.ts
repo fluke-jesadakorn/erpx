@@ -134,6 +134,34 @@ export async function nativeBillingCostCommand(
       targetMonth: input.targetMonth,
       minimumMarginBps: input.minimumMarginBps,
     };
+  } else if (input.action === 'verify-provider-cost') {
+    action = 'verify-provider-cost';
+    body = {
+      version: input.version,
+      reason: input.reason,
+      targetMonth: input.targetMonth,
+      sourceKey: input.sourceKey,
+      provider: input.provider,
+      statementId: input.statementId,
+      originalCurrency: input.originalCurrency,
+      originalMinor: input.originalMinor,
+      fxNumerator: input.fxNumerator,
+      fxDenominator: input.fxDenominator,
+      providerCostSatang: input.providerCostSatang,
+      evidenceId: input.evidenceId,
+    };
+  } else if (input.action === 'verify-statement') {
+    action = 'verify-statement';
+    body = {
+      version: input.version,
+      reason: input.reason,
+      targetMonth: input.targetMonth,
+      provider: input.provider,
+      statementId: input.statementId,
+      originalCurrency: input.originalCurrency,
+      providerTotalMinor: input.providerTotalMinor,
+      evidenceId: input.evidenceId,
+    };
   } else {
     return undefined;
   }

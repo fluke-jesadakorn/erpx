@@ -90,7 +90,9 @@ use erpx_server_runtime::public::{
     },
     validate_foundation_address,
 };
-use erpx_server_shared::public::{BusinessError, Clock, CompanyId, FailureKind, HoldingId, TimestampMillis};
+use erpx_server_shared::public::{
+    BusinessError, Clock, CompanyId, FailureKind, HoldingId, TimestampMillis,
+};
 use erpx_server_support::public::sla_drain::{
     DEFAULT_INTERVAL_MS, SlaDrainSchedule, run_sla_drain_tick,
 };
@@ -1889,9 +1891,7 @@ async fn legal_enrollment_inner(
 ) -> Result<serde_json::Value, BusinessError> {
     let now = state.clock.now().get();
     let (slug, share_id) = verify_legal_enrollment_token(&state.secret, &body.token, now)?;
-    if !body.continuation.starts_with("/legal-portal/continue?")
-        || body.continuation.len() > 4096
-    {
+    if !body.continuation.starts_with("/legal-portal/continue?") || body.continuation.len() > 4096 {
         return Err(BusinessError::invalid(
             "LEGAL_ENROLLMENT_CONTINUATION_INVALID",
             "This Legal invitation return is unavailable.",
@@ -2448,6 +2448,7 @@ async fn assemble_checked(
         let mut identity_access_targets = Vec::new();
         let mut billing_targets = Vec::new();
         let mut billing_rollout_targets = Vec::new();
+        let mut billing_provider_targets = Vec::new();
         let mut pos_targets = Vec::new();
         let mut pos_command_targets = Vec::new();
         let mut commercial_targets = Vec::new();
@@ -3328,6 +3329,14 @@ async fn assemble_checked(
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
+                        backend: billing_backend.clone(),
+                    },
+                );
+                billing_provider_targets.push(
+                    erpx_server_billing::public::target_provider_http::BillingTargetProviderHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
                         backend: billing_backend,
                     },
                 );
@@ -3968,6 +3977,14 @@ async fn assemble_checked(
                     billing_rollout_targets,
                 )
                 .map_err(|_| "PRIVATE_API_BILLING_ROLLOUT_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !billing_provider_targets.is_empty() {
+            router = router.merge(
+                erpx_server_billing::public::target_provider_http::billing_target_provider_router(
+                    billing_provider_targets,
+                )
+                .map_err(|_| "PRIVATE_API_BILLING_PROVIDER_CONFIGURATION_INVALID")?,
             );
         }
         if !pos_targets.is_empty() {
@@ -6734,10 +6751,9 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 | "/api/v1/account/device-accounts/active"
                 | "/api/v1/account/device-accounts/sign-in",
             ) => host == state.policy.account_host,
-            (
-                &axum::http::Method::POST,
-                "/api/v1/account/legal-enrollment",
-            ) => host == state.policy.account_host,
+            (&axum::http::Method::POST, "/api/v1/account/legal-enrollment") => {
+                host == state.policy.account_host
+            }
             (&axum::http::Method::GET, "/api/auth/verify-email") => {
                 host == state.policy.account_host
             }

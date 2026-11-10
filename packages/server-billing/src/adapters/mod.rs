@@ -9,3 +9,4 @@ pub mod target_provider_command;
 pub mod target_rollout;
 pub mod workspace;
 pub mod target_rollout_http;
+pub mod target_provider_http;
