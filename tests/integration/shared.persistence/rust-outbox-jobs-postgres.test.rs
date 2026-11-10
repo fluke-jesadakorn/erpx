@@ -6,8 +6,8 @@ mod fixture;
 
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, OutboxJob, OutboxJobHandler, PgTransactionError, WorkerFuture,
-    WorkerSupervisor, WorkerTarget, claim, complete, fail, load_migrations, migrate_database,
-    renew, requeue_dead_letter, worker_failure,
+    WorkerOutcome, WorkerSupervisor, WorkerTarget, claim, complete, fail, load_migrations,
+    migrate_database, renew, requeue_dead_letter, worker_failure,
 };
 use erpx_server_shared::public::BusinessError;
 use sqlx::PgPool;
@@ -187,7 +187,7 @@ impl OutboxJobHandler for Handler {
             if self.fail {
                 Err(worker_failure("SYNTHETIC_WORKER_FAILURE"))
             } else {
-                Ok(())
+                Ok(WorkerOutcome::Complete)
             }
         })
     }

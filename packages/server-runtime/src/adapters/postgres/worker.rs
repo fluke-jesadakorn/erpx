@@ -20,7 +20,16 @@ use std::{
     time::Duration,
 };
 
-pub type WorkerFuture<'a> = Pin<Box<dyn Future<Output = Result<(), BusinessError>> + Send + 'a>>;
+/// The exact durable result of one handled event.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WorkerOutcome {
+    Complete,
+    /// Record a failed attempt and continue with the next target.
+    Fail(&'static str),
+}
+
+pub type WorkerFuture<'a> =
+    Pin<Box<dyn Future<Output = Result<WorkerOutcome, BusinessError>> + Send + 'a>>;
 
 /// One handler for one selected Holding partition.
 pub trait OutboxJobHandler: Send + Sync {
@@ -116,11 +125,16 @@ impl WorkerSupervisor {
             let clock = now.saturating_add(elapsed_millis(started));
             let mut connection = target.write.acquire().await?;
             match result {
-                Ok(()) => {
+                Ok(WorkerOutcome::Complete) => {
                     if !complete(&mut connection, &job.id, &token, clock).await? {
                         return Err(lease_lost().into());
                     }
                     completed = completed.saturating_add(1);
+                }
+                Ok(WorkerOutcome::Fail(code)) => {
+                    if !fail(&mut connection, &job.id, &token, job.attempts, clock, code).await? {
+                        return Err(lease_lost().into());
+                    }
                 }
                 Err(error) => {
                     if !fail(

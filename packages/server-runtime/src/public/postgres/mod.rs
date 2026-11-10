@@ -13,7 +13,7 @@ pub use crate::adapters::postgres::unit_of_work::{
 
 pub use crate::adapters::postgres::jobs::{claim, complete, fail, renew, requeue_dead_letter};
 pub use crate::adapters::postgres::worker::{
-    OutboxJobHandler, WorkerFuture, WorkerSupervisor, WorkerTarget, worker_failure,
+    OutboxJobHandler, WorkerFuture, WorkerOutcome, WorkerSupervisor, WorkerTarget, worker_failure,
 };
 pub use crate::domain::jobs::{
     DEFAULT_LEASE_MILLIS, MAX_ATTEMPTS, OutboxJob, retry_delay_millis, truncate_error_code,

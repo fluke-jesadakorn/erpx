@@ -43,7 +43,7 @@ if busy.try_wait().unwrap().is_some(){panic!("busy worker exited early");}tokio:
    let still_unacked:bool=sqlx::query_scalar("SELECT processed_at IS NULL FROM outbox_events WHERE id='worker-event'").fetch_one(&mut *lock).await.unwrap();
    let blocker_alive:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=pg_backend_pid() AND relation='outbox_events'::regclass AND mode='AccessExclusiveLock' AND granted)").fetch_one(&mut *lock).await.unwrap();
    lock.rollback().await.unwrap();assert!(blocked.is_ok(),"worker never entered blocked SQL");assert!(stopped.is_ok(),"worker shutdown waited for blocked SQL");assert!(stopped.unwrap().unwrap().success());assert!(blocker_alive);assert!(still_unacked);
-   let mut c=db.acquire().await.unwrap();let recovered=erpx_server_workflow::public::service_count_outbox::claim(&mut c,erpx_server_inventory::public::service_count_outbox::SERVICE_COUNT_OUTBOX_QUARANTINE,"recovery",i64::MAX-100_000).await.unwrap();assert_eq!(recovered.unwrap().id,"worker-event");
+   let mut c=db.acquire().await.unwrap();let recovered=erpx_server_workflow::public::service_count_outbox::claim(&mut c,erpx_server_inventory::public::service_count_outbox::SERVICE_COUNT_OUTBOX_QUARANTINE,"recovery",9_007_199_254_740_991).await.unwrap();assert_eq!(recovered.unwrap().id,"worker-event");
 
   }).await;
  }).await;
