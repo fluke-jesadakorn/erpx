@@ -1,8 +1,8 @@
 {
   "version": 1,
   "planRef": "docs/production-plan.md#rust-migration-current",
-  "sourceSha": "97109f7dafc95235f5faf7a65c6c957638afd8f6",
-  "generatedAt": "2026-11-10T16:33:45+00:00",
+  "sourceSha": "8891b95ca6f2c9b21c756a2d205b2b1322bd073d",
+  "generatedAt": "2026-11-10T16:38:47+00:00",
   "interpretation": "G1 source inventory. Task records are read-only source findings; proposed packets are not implementation evidence. Catalogue qualification state is unchanged and acceptance stays deferred.",
   "owners": {
     "agent": {
@@ -10427,6 +10427,1161 @@
         "sourceSha is the HEAD at audit completion; the read-only audit began at 1631f623 and git diff of the six owner packages, src/composition and tests/catalogue shows no in-scope source change through 97109f7da (only docs/status advancement by the lead)."
       ]
     },
+    "account": {
+      "taskId": "inventory.surface.account",
+      "owner": "account",
+      "sourceSha": "3b56fa4a357106894777f35d79c677ed4333e3dd",
+      "nativePresent": true,
+      "workflows": [
+        {
+          "id": "account:central-login-and-directory-link",
+          "qualification": "partial",
+          "native": [
+            "packages/server-identity_access/src/adapters/account_sso_http.rs:21",
+            "packages/server-identity_access/src/adapters/product-sso.ts",
+            "packages/workplace/src/routes/sso/[action]/route.ts",
+            "packages/workplace/src/routes/api/auth/[...all]/route.ts",
+            "packages/native-sdk/src/session.ts:216"
+          ],
+          "tsAuthoritative": [
+            "packages/feature-account/src/routes/api/v1/account-invitations/route.ts",
+            "packages/server-identity_access/src/adapters/account-access.ts:108",
+            "packages/server-identity_access/src/adapters/directory-lookup.ts",
+            "packages/workplace/src/routes/login/page.tsx"
+          ],
+          "gap": "SSO start/authorize/callback and sign-in are native. Invitation inspect/accept still runs TS owner code with direct CONTROL_DB/Company SQL even though the native router already serves the same /api/v1/account-invitations path and is mounted by the production API assembly; that is a stale shadowing transport, not a missing port. Two Better Auth endpoints (list-sessions, update-user) and the directory connection lookup read remain TS."
+        },
+        {
+          "id": "account:profile-language-theme",
+          "qualification": "unstarted",
+          "native": [],
+          "tsAuthoritative": [
+            "packages/feature-account/src/routes/api/v1/account/profile/route.ts",
+            "packages/workplace/src/routes/api/v1/account/preferences/route.ts",
+            "packages/workplace/src/routes/api/v1/account/time-preference/route.ts",
+            "packages/server-identity_access/src/adapters/account-preferences.ts:57",
+            "packages/server-identity_access/src/adapters/account-profile.ts",
+            "packages/server-identity_access/src/application/account-preferences.ts",
+            "packages/server-identity_access/src/domain/account-preferences.ts"
+          ],
+          "gap": "No Rust Account profile/preferences port. Name, language and appearance are read and written by x-www/JSON handlers that SELECT/INSERT/UPDATE user and account_preferences in CONTROL_DB with TS version checks. The same adapter feeds AccountHome, my-profile and the account preference snapshot used for SSR language/theme."
+        },
+        {
+          "id": "account:role-company-account-switch",
+          "qualification": "partial",
+          "native": [
+            "src/composition/src/native_work_roles_http.rs:39",
+            "src/composition/src/native_work_roles.rs",
+            "src/composition/src/native_account_preferences.rs:47",
+            "packages/server-identity_access/src/adapters/account_device_http.rs:20",
+            "packages/server-work_projection/src/adapters/work-role-store.ts"
+          ],
+          "tsAuthoritative": [
+            "packages/server-work_projection/src/adapters/account-switcher.ts:66",
+            "packages/server-identity_access/src/adapters/admin-workspace.ts",
+            "packages/server-identity_access/src/application/admin-workspace.ts",
+            "packages/server-identity_access/src/adapters/product-workspace.ts",
+            "packages/workplace/src/routes/api/v1/account/work-context/route.ts"
+          ],
+          "gap": "Work-role selection, workspace/company preference persistence and saved-device account switching are native (native work-roles router plus native account-preferences service). Workspace/role enumeration, admin/platform assignment reads and the switcher-context projection are still TS application code reading CONTROL_DB, so only the command half is native."
+        },
+        {
+          "id": "account:mfa-expiry-replay-family-all-device-revocation",
+          "qualification": "partial",
+          "native": [
+            "packages/server-identity_access/src/adapters/account_security_http.rs:24",
+            "packages/server-identity_access/src/adapters/account_security_postgres.rs",
+            "packages/server-identity_access/src/adapters/account_mfa_postgres.rs",
+            "packages/server-identity_access/src/adapters/account_revocation_postgres.rs",
+            "packages/feature-account/src/routes/api/v1/account/security/route.ts",
+            "packages/server-identity_access/src/adapters/account-security.ts"
+          ],
+          "tsAuthoritative": [
+            "packages/workplace/src/routes/api/auth/[...all]/route.ts",
+            "packages/server-identity_access/src/adapters/iam-recovery.ts"
+          ],
+          "gap": "The security read/revoke route is a strict native-only delegate (currentAccountSecurity has no retained DB fallback). Residuals are the two Better Auth endpoints kept on the legacy handler and the Identity-owned emergency-access read. Ledger records registered iam.test.ts/product-sso-auth.ts still blocked by missing ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG in the host test runner."
+        },
+        {
+          "id": "account:authorized-package-area",
+          "qualification": "partial",
+          "native": [
+            "packages/server-identity_access/src/adapters/native-account-companies.ts",
+            "packages/server-work_projection/src/adapters/account_workspace_preferences.rs"
+          ],
+          "tsAuthoritative": [
+            "packages/workplace/src/routes/product-entry/page.tsx",
+            "packages/server-work_projection/src/adapters/product-launcher.ts",
+            "packages/server-identity_access/src/adapters/account-quick-access-request.ts",
+            "packages/server-identity_access/src/adapters/private-session-preferences.ts",
+            "packages/server-identity_access/src/adapters/iam-my-access.ts"
+          ],
+          "gap": "Account host product entry renders AccountHome and the authorized product/workspace area from TS product selection plus quick-access, self-access and profile reads. quick_access_preferences.rs exists with a registered PostgreSQL suite but has no composition mount and no TS client, so the account quick-access route still commits personal shortcuts in TS."
+        }
+      ],
+      "publicPorts": [
+        {
+          "name": "account_auth_router (sign-in/session/sign-out/device accounts)",
+          "path": "packages/server-identity_access/src/adapters/account_http.rs:32",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:2261"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "account_sso_router",
+          "path": "packages/server-identity_access/src/adapters/account_sso_http.rs:19",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:2262"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "account_security_router",
+          "path": "packages/server-identity_access/src/adapters/account_security_http.rs:20",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:2156"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "account_invitations_router",
+          "path": "packages/server-identity_access/src/adapters/account_invitations_http.rs:34",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:2218"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "native work-role + workspace/company preference router",
+          "path": "src/composition/src/native_work_roles_http.rs:39",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:4845"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "NativeAccountProfile/Preferences (Rust)",
+          "path": "packages/server-identity_access/src/adapters/account_preferences.rs",
+          "mountedAt": [],
+          "status": "missing"
+        },
+        {
+          "name": "quick_access_preferences_port",
+          "path": "packages/server-work_projection/src/public/quick_access_preferences.rs",
+          "mountedAt": [],
+          "status": "missing"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "account-invitation-stale-transport",
+          "kind": "retirement",
+          "detail": "The Next route serves TS inspectInvitation/acceptInvitation instead of the already-mounted native /api/v1/account-invitations. Proxy the public route to the native service, add the path to the native-session allowlist, and delete the TS invitation accept/activation branch only after the native suite proves token/tenant/authority semantics.",
+          "suggestedPaths": [
+            "packages/feature-account/src/routes/api/v1/account-invitations/route.ts",
+            "packages/native-sdk/src/session.ts",
+            "packages/server-identity_access/src/adapters/account-access.ts"
+          ]
+        },
+        {
+          "id": "account-profile-preferences-port",
+          "kind": "command",
+          "detail": "No native owner port for profile name/language/appearance or time preference; both are TS handlers with direct CONTROL_DB SQL and TS version/CAS checks. Because the same read backs SSR language/theme, a native read+write port is required before retiring the TS application.",
+          "suggestedPaths": [
+            "packages/server-identity_access/src/domain/account_preferences.rs",
+            "packages/server-identity_access/src/application/account_preferences.rs",
+            "packages/server-identity_access/src/adapters/account_preferences_postgres.rs",
+            "packages/server-identity_access/src/adapters/account_preferences_http.rs",
+            "packages/feature-account/src/routes/api/v1/account/profile/route.ts",
+            "packages/workplace/src/routes/api/v1/account/preferences/route.ts"
+          ]
+        },
+        {
+          "id": "account-better-auth-residual",
+          "kind": "retirement",
+          "detail": "Two endpoints (/api/auth/list-sessions, /api/auth/update-user) stay on Better Auth by explicit comment because their native commands do not exist. Native session listing and profile update would let the whole /api/auth handler delegate to the native service.",
+          "suggestedPaths": [
+            "packages/workplace/src/routes/api/auth/[...all]/route.ts",
+            "packages/server-identity_access/src/adapters/account_sessions.rs",
+            "packages/server-identity_access/src/adapters/account_http.rs"
+          ]
+        },
+        {
+          "id": "account-quick-access-mount",
+          "kind": "mount",
+          "detail": "quick_access_preferences.rs and shared.work.rust-quick-access-preferences-postgres.integration exist, but no composition route or TS client is wired; account quick-access still writes TS preferences with SQL. Mount the port and switch accountQuickAccessRequest, or explicitly retire the unused native slice.",
+          "suggestedPaths": [
+            "src/composition/src/private_development_api.rs",
+            "packages/server-work_projection/src/adapters/quick_access_preferences.rs",
+            "packages/server-identity_access/src/adapters/account-quick-access-request.ts"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-identity_access/src/adapters/account-access.ts",
+          "reason": "Authoritative invitation inspect/accept, credential creation, claims, assignment and revocation with direct SQL.",
+          "removalCondition": "Native invitation accept/inspect is the public route, the TS integration/unit cases move to native, and no TS caller imports acceptInvitation/inspectInvitation."
+        },
+        {
+          "path": "packages/server-identity_access/src/adapters/account-preferences.ts",
+          "reason": "Authoritative profile/preferences read+write with CONTROL_DB SQL and TS CAS; consumed by profile/preferences routes and AccountHome.",
+          "removalCondition": "Native account preference read/write is mounted and every caller (profile, preferences, snapshot, AccountHome) reads it; TS handlers deleted."
+        },
+        {
+          "path": "packages/server-identity_access/src/adapters/iam-my-access.ts",
+          "reason": "Authoritative self-access read over assignments/platform_assignments with SQL.",
+          "removalCondition": "Native self-access read covers assignments and platform roles for the signed-in account and the my-access page consumes it."
+        },
+        {
+          "path": "packages/workplace/src/routes/api/auth/[...all]/route.ts",
+          "reason": "Keeps list-sessions/update-user on Better Auth for declared installed consumers.",
+          "removalCondition": "Native session-list and user-update endpoints exist and pass the product-sso unit/integration cases; the legacy set becomes empty."
+        },
+        {
+          "path": "packages/server-work_projection/src/adapters/account-switcher.ts",
+          "reason": "Workspace/role enumeration, provider-context injection and switcher projection are TS; only selectWorkRole/selectAdminWorkRole reach native commands.",
+          "removalCondition": "Native Account entry projection returns authorized workspaces/roles and selection; TS enumeration branches removed while page-level presentation stays."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.surface.account.invitation-transport",
+          "title": "Route Account invitations through the mounted native owner port",
+          "paths": [
+            "packages/feature-account/src/routes/api/v1/account-invitations/route.ts",
+            "packages/native-sdk/src/session.ts",
+            "packages/feature-identity_access/src/adapters/http/account-auth.ts"
+          ],
+          "resources": [
+            "surface:account"
+          ],
+          "dependsOn": [
+            "inventory.surface.account",
+            "migrate.identity_access"
+          ],
+          "requiredPorts": [
+            "identity_access:account.invitation"
+          ],
+          "checks": [
+            "bun run test:integration -- --suite=identity_access.rust-account-invitation-activation-postgres.integration",
+            "bun run test:integration -- --suite=identity_access.rust-invitation-authority-postgres.integration",
+            "bun run test:unit -- --suite=identity_access.product-sso.unit",
+            "cargo check -p erpx-service --features existing-business"
+          ]
+        },
+        {
+          "id": "migrate.surface.account.profile-preferences",
+          "title": "Native Account profile, language/theme and time-preference port",
+          "paths": [
+            "packages/server-identity_access/src/domain/account_preferences.rs",
+            "packages/server-identity_access/src/application/account_preferences.rs",
+            "packages/server-identity_access/src/adapters/account_preferences_postgres.rs",
+            "packages/server-identity_access/src/adapters/account_preferences_http.rs",
+            "packages/feature-account/src/routes/api/v1/account/profile/route.ts",
+            "packages/workplace/src/routes/api/v1/account/preferences/route.ts",
+            "packages/workplace/src/routes/api/v1/account/time-preference/route.ts",
+            "packages/server-identity_access/src/adapters/account-preferences.ts",
+            "packages/server-identity_access/src/adapters/account-profile.ts",
+            "tests/unit/identity_access/rust-account-preferences.test.rs",
+            "tests/integration/identity_access/rust-account-preferences-postgres.test.rs"
+          ],
+          "resources": [
+            "surface:account"
+          ],
+          "dependsOn": [
+            "inventory.surface.account",
+            "migrate.identity_access",
+            "ports.authority"
+          ],
+          "requiredPorts": [
+            "identity_access:account.profile.preferences"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-identity-access",
+            "cargo check -p erpx-service --features existing-business",
+            "bun run test:unit -- --suite=identity_access.account-preferences.unit",
+            "bun run test:integration -- --suite=identity_access.rust-account-security-postgres.integration"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Authenticated browser sign-in, directory/SSO and invitation-accept journeys on a frozen candidate (normal Account login; no bypass).",
+        "Real directory provider/LDAP and mail delivery acceptance for invitation and sign-in links.",
+        "Desktop and mobile visual checks for my-profile, security, my-access and account product entry."
+      ],
+      "limitations": [
+        "Read-only inventory: no cargo, bun, typecheck or browser command was executed.",
+        "Source inspection only; partial means at least one native port exists for the workflow but a TS authority or fallback remains.",
+        "packages/workplace and packages/native-sdk are shared shells; any packet touching them needs the lead's shared-package co-sign, and src/composition mounts remain lead-owned.",
+        "The checkout already had unrelated modified tracked files (globals.css and Rust owner files) at this SHA; none were changed by this inventory."
+      ]
+    },
+    "forms": {
+      "taskId": "inventory.surface.forms",
+      "owner": "forms",
+      "sourceSha": "c717cef77ab54d150351f44f078a046f282f1b13",
+      "nativePresent": false,
+      "workflows": [
+        {
+          "id": "forms:tenant-published-version-consent-submit-and-replay",
+          "qualification": "unstarted",
+          "native": [],
+          "tsAuthoritative": [
+            "packages/server-marketing/src/application/public-form.ts",
+            "packages/server-marketing/src/application/public-submission.ts",
+            "packages/server-marketing/src/domain/public-submission.ts",
+            "packages/server-marketing/src/adapters/public-form.ts",
+            "packages/server-marketing/src/adapters/public-form-read.ts",
+            "packages/server-marketing/src/adapters/public-form-body.ts",
+            "packages/server-marketing/src/adapters/public-submission.ts",
+            "packages/server-marketing/src/adapters/presentation-queries.ts",
+            "packages/server-files/src/application/attachments/service.ts (publicAttachmentPublication)",
+            "packages/server-files/src/adapters/publication-content-read.ts",
+            "packages/server-files/src/adapters/marketing-creative.ts",
+            "packages/feature-marketing/src/lib/public-form-command.ts"
+          ],
+          "gap": "Routes: apps/forms/src/app/forms/[holdingSlug]/[formId]/page.tsx (SSR published form), apps/forms/src/app/api/public/marketing/[holdingSlug]/[formId]/route.ts (GET published profile, POST consenting submission), apps/forms/src/app/api/public/holdings/[holdingSlug]/media-publications/[publicationId]/content/route.ts (approved presentation media), plus shared page/product-entry/sso. Owners called: marketing (form asset/read/submission), files (marketing creative/publication read), manage_erpx (origin), work_projection (canonical links), feature-marketing (presentation). State: both read and submission are TS business logic with direct SQL. loadPublicMarketingForm owns approved-version/consent/publication/receipt replay guards; submitPublicMarketingForm owns bounded body, rate limit, version pin, consent evidence, candidate/engagement insert and receipt/outbox. Native Marketing only has authenticated campaign/asset/lead candidate commands; no public-form module, router or mount exists."
+        }
+      ],
+      "publicPorts": [
+        {
+          "name": "marketing.lead-candidate read",
+          "path": "packages/server-marketing/src/public/lead_candidate_http.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:4213",
+            "src/composition/src/marketing.rs"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "marketing.lead engagement command",
+          "path": "packages/server-marketing/src/public/lead_candidate_command_http.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:4222",
+            "src/composition/src/marketing.rs"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "marketing.campaign/attribution read",
+          "path": "packages/server-marketing/src/public/campaign_attribution.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:4206",
+            "src/composition/src/marketing.rs"
+          ],
+          "status": "partial"
+        },
+        {
+          "name": "marketing.public published-form read",
+          "path": "packages/server-marketing/src/adapters/public-form.ts",
+          "mountedAt": [],
+          "status": "missing"
+        },
+        {
+          "name": "marketing.public consenting submission",
+          "path": "packages/server-marketing/src/adapters/public-submission.ts",
+          "mountedAt": [],
+          "status": "missing"
+        },
+        {
+          "name": "files.marketing creative/publication read",
+          "path": "packages/server-files/src/public/marketing-creative.ts",
+          "mountedAt": [],
+          "status": "missing"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "forms.published-form-read",
+          "kind": "read",
+          "detail": "SSR forms page calls marketingPresentationQueries(loadPublicMarketingForm) and GET api/public/marketing returns id/name/version/preview_json/presentation/consentRequired. adapters/public-form.ts owns active form + consentRequired + content asset + media publication + receipt replay guards and rechecks the source image inside one transaction. No native public read exists.",
+          "suggestedPaths": [
+            "packages/server-marketing/src/domain/public_form.rs",
+            "packages/server-marketing/src/application/public_form.rs",
+            "packages/server-marketing/src/adapters/public_form.rs",
+            "packages/server-marketing/src/public/public_form.rs",
+            "packages/server-marketing/src/public/mod.rs"
+          ]
+        },
+        {
+          "id": "forms.media-read",
+          "kind": "read",
+          "detail": "apps/forms media-publications content route re-exports workplace GET, which calls server-files publicAttachmentPublication (TS application attachments service, publication-content-read and marketing-creative guards). The native files read port covers generic attachment metadata only, not approved public marketing creative.",
+          "suggestedPaths": [
+            "packages/server-files/src/application/attachments/service.ts",
+            "packages/server-files/src/adapters/publication-content-read.ts",
+            "packages/server-files/src/adapters/marketing-creative.ts",
+            "packages/server-files/src/public/marketing-creative.ts"
+          ]
+        },
+        {
+          "id": "forms.public-submission",
+          "kind": "command",
+          "detail": "POST api/public/marketing/[holdingSlug]/[formId]/route.ts validates same origin and Idempotency-Key, parses a bounded body, selects submitVersionedPublicMarketingForm only on the forms host, then inserts marketing_lead_candidates, engagement event, public receipt and audit/outbox while enforcing consent and rate limits. This whole anonymous writer is TS+SQL.",
+          "suggestedPaths": [
+            "packages/server-marketing/src/domain/public_submission.rs",
+            "packages/server-marketing/src/application/public_submission.rs",
+            "packages/server-marketing/src/adapters/public_submission.rs",
+            "packages/server-marketing/src/public/public_submission.rs",
+            "packages/server-marketing/src/adapters/public-form-body.ts"
+          ]
+        },
+        {
+          "id": "forms.mount",
+          "kind": "mount",
+          "detail": "No native public forms-host route is registered. Marketing's mounted routers require an authenticated WorkContext and holdings target, so they cannot serve anonymous published-form reads or consenting submissions.",
+          "suggestedPaths": [
+            "src/composition/src/private_development_api.rs",
+            "src/composition/src/marketing.rs"
+          ]
+        },
+        {
+          "id": "forms.retirement",
+          "kind": "retirement",
+          "detail": "After the native public-form port lands, the forms page/API must call it and the TS public-form/read/submission modules plus the forms-host version-selection branch must be deleted; the browser retry client remains as transport.",
+          "suggestedPaths": [
+            "packages/feature-forms/src/routes",
+            "packages/server-marketing/src/adapters/public-form.ts",
+            "packages/server-marketing/src/adapters/public-form-read.ts",
+            "packages/server-marketing/src/adapters/public-submission.ts"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "apps/forms/src/app/{page.tsx,product-entry/page.tsx,sso/[action]/route.ts}",
+          "reason": "Public product entry, launch and shared SSO transport.",
+          "removalCondition": "Apps/account native entry and session selection replaces the shared entries; not a forms packet."
+        },
+        {
+          "path": "apps/forms/src/app/api/v1/account/{preferences,time-preference}/route.ts",
+          "reason": "Shared account-preference transport.",
+          "removalCondition": "Account surface native preference port is mounted and the shared route is retired by that owner."
+        },
+        {
+          "path": "packages/feature-marketing/src/components/public-marketing-form.tsx",
+          "reason": "Published-form presentation and validation UI.",
+          "removalCondition": "Never remove presentation; retarget the submit endpoint when the native port lands."
+        },
+        {
+          "path": "packages/feature-marketing/src/lib/public-form-command.ts",
+          "reason": "Browser uncertain-result retry that preserves the exact body/key and rejects edits under an old key.",
+          "removalCondition": "Retain as transport; remove only if uncertain retries stop being supported."
+        },
+        {
+          "path": "packages/feature-marketing/src/components/public-form-draft-boundary.tsx",
+          "reason": "Browser draft/context guard for the public form.",
+          "removalCondition": "Retain as presentation; delete only if the form flow is removed."
+        },
+        {
+          "path": "apps/forms/src/app/api/public/holdings/[holdingSlug]/media-publications/[publicationId]/content/route.ts",
+          "reason": "Thin app re-export of the shared workplace publication-content route.",
+          "removalCondition": "Keep the app-owned export; the underlying native media-read cutover is owned by files/workplace, not forms."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.surface.forms.published-form-read",
+          "title": "Cut the Forms host published-form and approved-media read over to the native Marketing port",
+          "paths": [
+            "apps/forms/src/app/forms/[holdingSlug]/[formId]/page.tsx",
+            "apps/forms/src/app/api/public/marketing/[holdingSlug]/[formId]/route.ts",
+            "apps/forms/src/app/api/public/holdings/[holdingSlug]/media-publications/[publicationId]/content/route.ts",
+            "packages/feature-forms/src/routes/forms/[holdingSlug]/[formId]/page.tsx",
+            "packages/feature-forms/src/routes/api/public/marketing/[holdingSlug]/[formId]/route.ts",
+            "packages/feature-forms/src/public/native-public-form.ts",
+            "packages/server-marketing/src/adapters/presentation-queries.ts",
+            "packages/server-marketing/src/public/marketing-public-form.ts",
+            "tests/integration/marketing/public-marketing-form.test.ts"
+          ],
+          "resources": [
+            "surface:forms"
+          ],
+          "dependsOn": [
+            "inventory.surface.forms",
+            "migrate.marketing.public-forms"
+          ],
+          "requiredPorts": [
+            "marketing.public-form-read",
+            "files.marketing-creative-read"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-marketing --locked",
+            "cargo check -p erpx-service --features existing-business --locked",
+            "bun run test:integration -- --suite=marketing.public-marketing-form.integration",
+            "bun run typecheck"
+          ]
+        },
+        {
+          "id": "migrate.surface.forms.public-submission",
+          "title": "Cut versioned consenting public submission and receipt replay over to the native Marketing command",
+          "paths": [
+            "apps/forms/src/app/api/public/marketing/[holdingSlug]/[formId]/route.ts",
+            "packages/feature-forms/src/routes/api/public/marketing/[holdingSlug]/[formId]/route.ts",
+            "packages/feature-forms/src/public/native-public-form.ts",
+            "packages/server-marketing/src/adapters/public-submission.ts",
+            "packages/server-marketing/src/application/public-submission.ts",
+            "packages/server-marketing/src/domain/public-submission.ts",
+            "packages/server-marketing/src/public/public-submission.ts",
+            "packages/server-marketing/src/public/public-form-body.ts",
+            "packages/server-marketing/src/adapters/public-form-body.ts",
+            "tests/integration/marketing/public-marketing-form.test.ts"
+          ],
+          "resources": [
+            "surface:forms"
+          ],
+          "dependsOn": [
+            "inventory.surface.forms",
+            "migrate.marketing.public-forms",
+            "migrate.surface.forms.published-form-read"
+          ],
+          "requiredPorts": [
+            "marketing.public-form-submit"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-marketing --locked",
+            "cargo check -p erpx-service --features existing-business --locked",
+            "bun run test:integration -- --suite=marketing.public-marketing-form.integration",
+            "bun run test:unit -- --suite=marketing.editor.unit",
+            "bun run typecheck"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Desktop and mobile Forms host browser journeys for published version, consent and exact receipt replay.",
+        "Unicode receipt compatibility and attribution to a real posted Finance cost.",
+        "Marketing creative/media generation and publication approval provider acceptance.",
+        "Edge rate-limit and Cloudflare client-IP behavior."
+      ],
+      "limitations": [
+        "Read-only inventory; no cargo, bun or browser check was run and no build was attempted.",
+        "migrate.marketing.public-forms is an owner packet proposed by inventory.marketing, not a claimed ledger task; the lead must refine it before these surface cutovers can run.",
+        "The approved-media implementation lives in packages/workplace/server-files shared code; only the app-owned export is a forms surface path.",
+        "Native Marketing routers require an authenticated WorkContext, so anonymous public read/submit needs a new public owner port rather than reusing the existing mounts."
+      ]
+    },
+    "legal-portal": {
+      "taskId": "inventory.surface.legal-portal",
+      "owner": "legal-portal",
+      "sourceSha": "c717cef77ab54d150351f44f078a046f282f1b13",
+      "nativePresent": true,
+      "workflows": [
+        {
+          "id": "legal-portal:scoped-shared-version-access-and-revocation",
+          "qualification": "partial",
+          "native": [
+            "src/composition/src/private_development_api.rs:1889 (native Legal enrollment validates the share JWT/state and signs up the external account via POST /api/v1/account/legal-enrollment)",
+            "packages/server-legal/src/domain/legal_records.rs:280 (LegalShareView in native record detail)",
+            "packages/server-legal/src/public/legal_records.rs"
+          ],
+          "tsAuthoritative": [
+            "packages/server-legal/src/application/portal.ts",
+            "packages/server-legal/src/application/portal-attachments.ts",
+            "packages/server-legal/src/adapters/legal/portal.ts",
+            "packages/server-legal/src/adapters/legal/portal-attachments.ts",
+            "packages/server-legal/src/adapters/portal-snapshot-request.ts",
+            "packages/server-legal/src/adapters/portal-snapshot-read.ts",
+            "packages/server-legal/src/adapters/portal-detail-request.ts",
+            "packages/server-legal/src/adapters/portal-command-request.ts",
+            "packages/server-legal/src/adapters/portal-upload-request.ts",
+            "packages/server-legal/src/adapters/portal-purchases.ts",
+            "packages/server-legal/src/domain/portal.ts",
+            "packages/feature-legal/src/lib/portal-command-client.ts",
+            "packages/feature-legal/src/lib/portal-snapshot.ts"
+          ],
+          "gap": "Routes: apps/legal-portal/src/app/legal-portal/[holdingSlug]/page.tsx (SSR list/detail), apps/legal-portal/src/app/api/legal-portal/[holdingSlug]/[[...path]]/route.ts (GET list/detail, POST accept/comment/view/billing.submit and POST {shareId}/upload), apps/legal-portal/src/app/api/legal-portal/[holdingSlug]/quick-access/route.ts, plus apps/legal-portal/src/app/legal-portal/enroll/page.tsx and the shared login/sso/launch entries. Owner packages: server-legal (portal application/adapters), server-files (legal_portal binding/repository and private original), work_projection (quick access), identity_access/manage_erpx (session/origin). State: enrollment token/account creation is partly native, but scoped share list/detail, revocation filtering, external comments/envelope views, counsel submission and uploads are retained TS business logic with direct SQL in adapters/legal/portal.ts; no legal-portal HTTP target is registered and the native legal record router requires staff legal.read, not an external share actor."
+        },
+        {
+          "id": "legal-portal:private-document-download-and-access-history",
+          "qualification": "unstarted",
+          "native": [
+            "packages/server-files/src/adapters/postgres_original.rs (canonical original read exists for the owner workspace)",
+            "packages/server-legal/src/public/mod.rs (offline PDF verification/processing ports, feature-gated)"
+          ],
+          "tsAuthoritative": [
+            "packages/server-legal/src/application/portal.ts (portalDownload and downloadRead)",
+            "packages/server-legal/src/adapters/portal-download-request.ts",
+            "packages/server-legal/src/adapters/portal-original-read.ts",
+            "packages/server-legal/src/adapters/legal/portal.ts (document/downloadRead SQL)",
+            "packages/server-files/src/adapters/legal-portal-binding.ts",
+            "packages/server-files/src/adapters/legal-portal-repository.ts",
+            "packages/feature-legal/src/components/legal-portal.tsx"
+          ],
+          "gap": "GET api/legal-portal/[holdingSlug]/[shareId]/download returns private original bytes from the TS portal application after a share/email/retention/purchase check and writes legal_access_events portal.download; detail writes portal.view. The canonical-original reader and PDF verifier exist natively for the Legal owner, but there is no native external-share authorization or access-history write, and no legal-portal mount. Offline PDF trust/revocation/timestamp/modification/DocMDP stays a native owner boundary (server-legal pdf_validation under pdf-verifier); the portal must not reintroduce TS PDF trust, and portal download remains exact original bytes."
+        }
+      ],
+      "publicPorts": [
+        {
+          "name": "legal.external enrollment token/account",
+          "path": "src/composition/src/private_development_api.rs:1889",
+          "mountedAt": [
+            "POST /api/v1/account/legal-enrollment"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "legal.records register/detail/export/commands (staff legal.read)",
+          "path": "packages/server-legal/src/public/legal_records.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:4156"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "legal.offline PDF verify/OCR (feature-gated)",
+          "path": "packages/server-legal/src/public/mod.rs",
+          "mountedAt": [
+            "src/composition/src/business_http.rs:120",
+            "src/composition/src/business_http.rs:124"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "files.canonical-original read (owner workspace)",
+          "path": "packages/server-files/src/public/canonical_original.rs",
+          "mountedAt": [
+            "src/composition/src/legal_owner_bridge.rs:393",
+            "src/composition/src/legal_owner_bridge.rs:443"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "work_projection.quick-access preferences (functions, no HTTP mount)",
+          "path": "packages/server-work_projection/src/public/quick_access_preferences.rs",
+          "mountedAt": [],
+          "status": "partial"
+        },
+        {
+          "name": "legal.portal share-authorized list/detail/command",
+          "path": "packages/server-legal/src/application/portal.ts",
+          "mountedAt": [],
+          "status": "missing"
+        },
+        {
+          "name": "files.legal-portal private original authorization",
+          "path": "packages/server-files/src/adapters/legal-portal-repository.ts",
+          "mountedAt": [],
+          "status": "missing"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "legal-portal.share-read",
+          "kind": "read",
+          "detail": "portalSnapshot/portalDetail call application/portal.ts over legal_shares/legal_items/legal_documents with email+actor+expiry+revocation and purchase predicates, plus comments/envelopes/billing and portal.view audit. Native legal record detail has share views and a canonical original reader but authorizes staff legal.read and does not model the external share actor.",
+          "suggestedPaths": [
+            "packages/server-legal/src/domain/portal.rs",
+            "packages/server-legal/src/application/portal.rs",
+            "packages/server-legal/src/adapters/portal_snapshot_request.rs",
+            "packages/server-legal/src/adapters/portal_detail_request.rs",
+            "packages/server-legal/src/public/mod.rs"
+          ]
+        },
+        {
+          "id": "legal-portal.command",
+          "kind": "command",
+          "detail": "Accept share, external comment, envelope view consent and counsel submission execute portalCommand with receipts/outbox/audit in TS. Upload stages bytes through stagePortalAttachment and legal_portal receipt/binding writes in server-files TS. No native portal command exists.",
+          "suggestedPaths": [
+            "packages/server-legal/src/application/portal.ts",
+            "packages/server-legal/src/application/portal-attachments.ts",
+            "packages/server-legal/src/adapters/portal_command_request.ts",
+            "packages/server-legal/src/adapters/portal_upload_request.rs",
+            "packages/server-files/src/adapters/legal-portal-binding.ts"
+          ]
+        },
+        {
+          "id": "legal-portal.private-download",
+          "kind": "read",
+          "detail": "portalDownload buffers the original through files adapter, applies share/retention/purchase gates, writes portal.download and returns attachment headers. This is the mandatory private-file authority boundary; TS still owns it and no native port accepts an external share actor.",
+          "suggestedPaths": [
+            "packages/server-legal/src/adapters/portal_download_request.rs",
+            "packages/server-legal/src/adapters/portal_original_read.rs",
+            "packages/server-legal/src/application/portal.rs",
+            "packages/server-files/src/adapters/legal-portal-repository.ts"
+          ]
+        },
+        {
+          "id": "legal-portal.mount",
+          "kind": "mount",
+          "detail": "No legal-portal HTTP target or router is registered. Only the account legal-enrollment endpoint and the staff legal records/verify/OCR routes are native; the portal host still selects the TS route for list/detail/download/upload.",
+          "suggestedPaths": [
+            "src/composition/src/private_development_api.rs"
+          ]
+        },
+        {
+          "id": "legal-portal.retirement",
+          "kind": "retirement",
+          "detail": "After the native share-authorized port lands, delete the TS portal application/adapters and re-point the feature-legal portal command transport; keep the browser uncertain-retry/upload-recovery state machine as presentation transport and keep offline PDF trust/verification in server-legal.",
+          "suggestedPaths": [
+            "packages/feature-legal-portal/src/routes",
+            "packages/server-legal/src/application/portal.ts",
+            "packages/server-legal/src/adapters/legal/portal.ts",
+            "packages/server-legal/src/adapters/portal-*-request.ts"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "apps/legal-portal/src/app/legal-portal/enroll/page.tsx",
+          "reason": "Presentation shell that links to the native /api/v1/account/legal-enrollment flow.",
+          "removalCondition": "Keep as presentation; delete only if the enrollment journey is removed."
+        },
+        {
+          "path": "apps/legal-portal/src/app/{login/page.tsx,sso/[action]/route.ts,public/launch/route.ts,page.tsx,product-entry/page.tsx}",
+          "reason": "Shared workplace login/SSO/launch and public entry composition.",
+          "removalCondition": "Account/apps native session and launch selection replaces the shared entries; not a legal-portal packet."
+        },
+        {
+          "path": "apps/legal-portal/src/app/api/v1/account/{preferences,time-preference}/route.ts",
+          "reason": "Shared account-preference transport.",
+          "removalCondition": "Account surface native preference port is mounted and the shared route is retired by that owner."
+        },
+        {
+          "path": "packages/feature-legal/src/components/legal-portal.tsx",
+          "reason": "Legal Portal presentation and interaction UI.",
+          "removalCondition": "Never remove presentation; retarget only the command endpoints when the native port lands."
+        },
+        {
+          "path": "packages/feature-legal/src/lib/portal-command-client.ts",
+          "reason": "Browser-side uncertain-retry and upload-recovery transport that preserves exact keys and checksums.",
+          "removalCondition": "Retain as transport after native cutover; remove only if the portal stops supporting uncertain retries, which is not planned."
+        },
+        {
+          "path": "packages/server-work_projection/src/domain/portal-quick-access.ts",
+          "reason": "Presentation-only share-to-quick-access selector.",
+          "removalCondition": "Keep while surface-scoped quick access exists."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.surface.legal-portal.shared-access",
+          "title": "Native scoped Legal share list/detail/upload/command port and portal cutover",
+          "paths": [
+            "apps/legal-portal/src/app/legal-portal/[holdingSlug]/page.tsx",
+            "apps/legal-portal/src/app/api/legal-portal/[holdingSlug]/[[...path]]/route.ts",
+            "apps/legal-portal/src/app/api/legal-portal/[holdingSlug]/quick-access/route.ts",
+            "packages/feature-legal-portal/src/routes/legal-portal/[holdingSlug]/page.tsx",
+            "packages/feature-legal-portal/src/routes/api/legal-portal/[holdingSlug]/[[...path]]/route.ts",
+            "packages/feature-legal-portal/src/routes/api/legal-portal/[holdingSlug]/quick-access/route.ts",
+            "packages/server-legal/src/domain/portal.rs",
+            "packages/server-legal/src/application/portal.rs",
+            "packages/server-legal/src/application/portal_attachments.rs",
+            "packages/server-legal/src/adapters/legal/portal.rs",
+            "packages/server-legal/src/adapters/portal_http.rs",
+            "packages/server-legal/src/adapters/portal-snapshot-request.ts",
+            "packages/server-legal/src/adapters/portal-snapshot-read.ts",
+            "packages/server-legal/src/adapters/portal-detail-request.ts",
+            "packages/server-legal/src/adapters/portal-command-request.ts",
+            "packages/server-legal/src/adapters/portal-upload-request.ts",
+            "packages/server-legal/src/adapters/portal-purchases.ts",
+            "packages/server-legal/src/adapters/portal-quick-access-request.ts",
+            "packages/server-legal/src/public/mod.rs",
+            "packages/server-legal/src/adapters/mod.rs",
+            "packages/server-legal/src/lib.rs",
+            "packages/server-legal/Cargo.toml",
+            "packages/server-files/src/adapters/legal-portal-binding.ts",
+            "packages/server-files/src/adapters/legal-portal-repository.ts",
+            "packages/server-files/src/public/legal-portal-binding.ts",
+            "packages/server-files/src/public/legal-portal-repository.ts",
+            "tests/unit/legal/legal-portal-page.test.ts",
+            "tests/integration/legal/legal-portal-quick-access-session.test.ts",
+            "tests/integration/legal/legal-portal-upload-session.test.ts"
+          ],
+          "resources": [
+            "surface:legal-portal",
+            "owner:legal",
+            "owner:files"
+          ],
+          "dependsOn": [
+            "inventory.surface.legal-portal"
+          ],
+          "requiredPorts": [
+            "legal.portal-share",
+            "files.legal-portal-private-read",
+            "work_projection.quick-access-preferences"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-legal --locked",
+            "cargo check -p erpx-server-files --locked",
+            "cargo check -p erpx-service --features existing-business --locked",
+            "bun run test:unit -- --suite=legal.application.unit",
+            "bun run test:integration -- --suite=legal.download-route.integration",
+            "bun run typecheck"
+          ]
+        },
+        {
+          "id": "migrate.surface.legal-portal.private-download",
+          "title": "Native share-authorized Legal original download and portal.download access history",
+          "paths": [
+            "apps/legal-portal/src/app/api/legal-portal/[holdingSlug]/[[...path]]/route.ts",
+            "packages/feature-legal-portal/src/routes/api/legal-portal/[holdingSlug]/[[...path]]/route.ts",
+            "packages/server-legal/src/application/portal.rs",
+            "packages/server-legal/src/adapters/legal/portal.rs",
+            "packages/server-legal/src/adapters/portal_http.rs",
+            "packages/server-legal/src/adapters/portal-download-request.ts",
+            "packages/server-legal/src/adapters/portal-original-read.ts",
+            "packages/server-legal/src/adapters/portal-purchases.ts",
+            "packages/server-legal/src/public/mod.rs",
+            "packages/server-legal/src/adapters/mod.rs",
+            "packages/server-legal/src/lib.rs",
+            "packages/server-legal/Cargo.toml",
+            "packages/server-files/src/adapters/legal-portal-repository.ts",
+            "packages/server-files/src/adapters/postgres_original.rs",
+            "packages/server-files/src/public/canonical_original.rs",
+            "packages/feature-legal/src/components/legal-portal.tsx",
+            "tests/integration/legal/legal-download-route.test.ts",
+            "tests/integration/legal/legal-portal-download-session.test.ts"
+          ],
+          "resources": [
+            "surface:legal-portal",
+            "owner:legal",
+            "owner:files"
+          ],
+          "dependsOn": [
+            "inventory.surface.legal-portal",
+            "migrate.surface.legal-portal.shared-access"
+          ],
+          "requiredPorts": [
+            "legal.portal-share",
+            "files.legal-portal-private-read",
+            "files.canonical-original"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-legal --locked",
+            "cargo check -p erpx-server-files --locked",
+            "cargo check -p erpx-service --features existing-business --locked",
+            "bun run test:integration -- --suite=legal.download-route.integration",
+            "bun run typecheck"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Legal enrollment email delivery, credential/device-cookie handoff and normal SSO acceptance.",
+        "Desktop and mobile Legal Portal browser journeys, including selected-version-only, revocation and access-history evidence.",
+        "Offline PDF trust material provenance/approval, CRL/OCSP, trusted timestamps, DocMDP and three-state acceptance (native code exists; operator trust config is A1).",
+        "External counsel billing request/provider handoff acceptance."
+      ],
+      "limitations": [
+        "Read-only inventory; no cargo, bun or browser check was run and no build was attempted.",
+        "nativePresent=true records that native Legal enrollment, record/share read and offline PDF ports exist; it does not mean any legal-portal route is native.",
+        "Packets include server-legal/server-files owner-local paths because no sibling inventory packet covers the Legal Portal; the lead must decide whether to split them into migrate.legal portal-* owner tasks.",
+        "The two packets share the API route file and must run sequentially.",
+        "Offline PDF verification is feature-gated (pdf-verifier/legal-pdf-worker); the portal download path does not require PDF validation and must not add TS trust logic."
+      ]
+    },
+    "portal": {
+      "taskId": "inventory.surface.portal",
+      "owner": "portal",
+      "sourceSha": "c717cef77ab54d150351f44f078a046f282f1b13",
+      "nativePresent": false,
+      "workflows": [
+        {
+          "id": "portal:tenant-token-invitation-document-and-private-files",
+          "qualification": "unstarted",
+          "native": [],
+          "tsAuthoritative": [
+            "packages/server-customer_360/src/domain/portal.ts",
+            "packages/server-customer_360/src/application/portal.ts",
+            "packages/server-customer_360/src/application/portal-attachments.ts",
+            "packages/server-customer_360/src/application/portal-session.ts",
+            "packages/server-customer_360/src/adapters/portal.ts",
+            "packages/server-customer_360/src/adapters/portal-attachments.ts",
+            "packages/server-customer_360/src/adapters/portal-projection-request.ts",
+            "packages/server-customer_360/src/adapters/portal-command-request.ts",
+            "packages/server-customer_360/src/adapters/portal-quick-access-request.ts",
+            "packages/server-customer_authority/src/adapters/portal-enrollment.ts",
+            "packages/server-customer_authority/src/adapters/portal-invitations.ts",
+            "packages/server-customer_authority/src/adapters/portal-invitation-crypto.ts",
+            "packages/server-customer_authority/src/adapters/portal-support.ts",
+            "packages/server-support/src/adapters/ticket-portal-customer.ts",
+            "packages/server-support/src/adapters/ticket-portal-request.ts",
+            "packages/server-support/src/adapters/ticket-portal.ts",
+            "packages/server-files/src/adapters/customer-portal-files.ts",
+            "packages/server-work_projection/src/adapters/quick-access-preferences.ts"
+          ],
+          "gap": "Routes: apps/portal/src/app/{page.tsx,product-entry/page.tsx,login/page.tsx,customer-portal/[holdingSlug]/page.tsx,customer-portal/[holdingSlug]/tickets/page.tsx,customer-portal/enroll/page.tsx,api/customer-portal/[holdingSlug]/{route.ts,quick-access/route.ts,tickets/route.ts,tickets/[bindingId]/acknowledgements/route.ts,tickets/[bindingId]/files/[linkId]/content/route.ts,attachments/[[...path]]/route.ts},api/customer-portal/enroll/route.ts}, with feature-portal route files as the shared implementations. Owners called: customer_360 (projection/command/attachments), customer_authority (invitation token/enrollment/access/support thread), support (ticket portal), files (customer_portal_files SQL), work_projection (quick-access), identity_access/manage_erpx (session/origin). State: every API/page is a Next transport wrapper over retained TS business logic that runs SQL; no customer-portal router, target or composition mount exists in src/composition, and lib.rs of customer_360/customer_authority/support explicitly puts portal on retained TS. The tenant token, document projection, ticket acknowledgement and private-file preview are all TS-authoritative."
+        }
+      ],
+      "publicPorts": [
+        {
+          "name": "customer_authority.customer-access HTTP (staff decision only)",
+          "path": "packages/server-customer_authority/src/public/access_http.rs",
+          "mountedAt": [
+            "src/composition/src/customer_authority.rs:492",
+            "src/composition/src/private_development_api.rs:4107"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "files.attachment-read HTTP (generic metadata/status only)",
+          "path": "packages/server-files/src/adapters/attachment_http.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:4279"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "work_projection.quick-access preferences (functions, no HTTP mount)",
+          "path": "packages/server-work_projection/src/public/quick_access_preferences.rs",
+          "mountedAt": [],
+          "status": "partial"
+        },
+        {
+          "name": "customer_360.customer-portal projection/command",
+          "path": "packages/server-customer_360/src/application/portal.ts",
+          "mountedAt": [],
+          "status": "missing"
+        },
+        {
+          "name": "customer_authority.customer-portal invitation enrollment",
+          "path": "packages/server-customer_authority/src/adapters/portal-enrollment.ts",
+          "mountedAt": [],
+          "status": "missing"
+        },
+        {
+          "name": "support.ticket-portal projection/ack/preview",
+          "path": "packages/server-support/src/adapters/ticket-portal-customer.ts",
+          "mountedAt": [],
+          "status": "missing"
+        },
+        {
+          "name": "files.customer-portal private preview/access authority",
+          "path": "packages/server-files/src/adapters/customer-portal-files.ts",
+          "mountedAt": [],
+          "status": "missing"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "portal.document-projection",
+          "kind": "read",
+          "detail": "customerPortalProjectionRequest feeds both the portal page SSR (customerPortalPresentationQueries) and GET api/customer-portal/[holdingSlug]/route.ts. application/portal.ts owns approved-binding selection, state gating, read-audit insert and shared-file composition in one SQL repository; no Rust module exists in server-customer_360 for portal.",
+          "suggestedPaths": [
+            "packages/server-customer_360/src/domain/portal.rs",
+            "packages/server-customer_360/src/application/portal.rs",
+            "packages/server-customer_360/src/adapters/portal.rs",
+            "packages/server-customer_360/src/adapters/portal-projection-request.ts",
+            "packages/server-customer_360/src/public/mod.rs"
+          ]
+        },
+        {
+          "id": "portal.command",
+          "kind": "command",
+          "detail": "POST api/customer-portal/[holdingSlug]/route.ts and the acknowledge_support branch execute customerPortalCommand (idempotent receipt, binding/identity/state guards, attachment evidence, notify/audit/outbox) in TS; nothing about that transaction is native.",
+          "suggestedPaths": [
+            "packages/server-customer_360/src/application/portal.ts",
+            "packages/server-customer_360/src/adapters/portal-command-request.ts",
+            "packages/server-customer_360/src/domain/portal.ts",
+            "packages/server-support/src/adapters/ticket-portal-customer.ts"
+          ]
+        },
+        {
+          "id": "portal.invitation-enrollment",
+          "kind": "command",
+          "detail": "api/customer-portal/enroll/route.ts verifies the tenant token through portal-enrollment.ts, reserves/releases enrollment attempts, creates the Better Auth account and accepts the invitation through acceptCustomerPortalInvitation. This is TS+SQL and depends on provider email; no native customer-portal invitation writer/accept exists.",
+          "suggestedPaths": [
+            "packages/server-customer_authority/src/domain/portal-invitation.ts",
+            "packages/server-customer_authority/src/application/portal-invitation-delivery.ts",
+            "packages/server-customer_authority/src/adapters/portal-invitations.ts",
+            "packages/server-customer_authority/src/adapters/portal-enrollment.ts",
+            "packages/server-customer_authority/src/public/portal-invitation-enrollment.ts"
+          ]
+        },
+        {
+          "id": "portal.ticket-portal",
+          "kind": "read",
+          "detail": "GET tickets, POST acknowledgements and GET sanitized file content call supportTicketPortalProjectionRequest/CommandRequest/PreviewRequest; adapters/ticket-portal-customer.ts owns current-identity binding, purchase capability, read audit, acknowledgement and preview byte access with direct SQL. Native Support HTTP covers staff tickets only.",
+          "suggestedPaths": [
+            "packages/server-support/src/domain/ticket-portal.rs",
+            "packages/server-support/src/adapters/ticket_portal.rs",
+            "packages/server-support/src/public/ticket_portal.rs"
+          ]
+        },
+        {
+          "id": "portal.private-file-authority",
+          "kind": "read",
+          "detail": "attachments/[[...path]]/route.ts creates sets, reserves/uploads/withdraws files and serves shared/private previews through customer_360 application/portal-attachments.ts plus files adapters/customer-portal-files.ts. The files owner has generic native attachment read/scan, but no portal-purpose authorization or private-preview port, and the route emits its own attachment metadata shape.",
+          "suggestedPaths": [
+            "packages/server-files/src/adapters/customer-portal-files.ts",
+            "packages/server-files/src/public/customer-portal-files.ts",
+            "packages/server-customer_360/src/application/portal-attachments.ts"
+          ]
+        },
+        {
+          "id": "portal.mount",
+          "kind": "mount",
+          "detail": "No native customer-portal target/router is registered for the portal host. The only related native mounts are the staff customer-access router and generic attachment read. The surface therefore cannot select native at runtime even if owner code were added.",
+          "suggestedPaths": [
+            "src/composition/src/private_development_api.rs"
+          ]
+        },
+        {
+          "id": "portal.retirement",
+          "kind": "retirement",
+          "detail": "After the native ports land, feature-portal API/page files must call them and the TS projections/commands/session/invitation/ticket/private-file adapters must be removed together with their SQL tests. Presentation selectors and Better Auth/SSO transport stay.",
+          "suggestedPaths": [
+            "packages/feature-portal/src/routes",
+            "packages/server-customer_360/src/adapters/portal.ts",
+            "packages/server-customer_authority/src/adapters/portal-invitations.ts",
+            "packages/server-support/src/adapters/ticket-portal-customer.ts"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "apps/portal/src/app/api/auth/[...all]/route.ts",
+          "reason": "Better Auth transport for normal sign-in/sign-up and email verification.",
+          "removalCondition": "Account surface owns a native session/auth provider port and A1 SSO/provider acceptance is complete; not a portal packet."
+        },
+        {
+          "path": "apps/portal/src/app/{login/page.tsx,sso/[action]/route.ts,public/launch/route.ts,page.tsx,product-entry/page.tsx}",
+          "reason": "Shared workplace login, SSO/launch and public product-entry composition; transport/presentation only.",
+          "removalCondition": "Account/apps surface native session and launch selection replaces the shared workplace entries; portal keeps only its host composition."
+        },
+        {
+          "path": "apps/portal/src/app/api/v1/account/{preferences,time-preference}/route.ts",
+          "reason": "Workplace account preference transport shared by all product hosts.",
+          "removalCondition": "Account surface native preference port is mounted and the shared workplace route is retired by that owner."
+        },
+        {
+          "path": "packages/feature-customer_authority/src/components/{customer-portal-actions.tsx,customer-portal-enrollment.tsx,portal-support-acknowledgement.tsx,support-ticket-portal.tsx}",
+          "reason": "Customer presentation and browser retry/uncertainty UI.",
+          "removalCondition": "Never remove presentation; retarget fetch paths to native ports when the surface cutover lands."
+        },
+        {
+          "path": "packages/server-work_projection/src/domain/portal-quick-access.ts",
+          "reason": "Presentation-only selector from already-authorized documents/shares to quick-access links.",
+          "removalCondition": "Keep as presentation; only delete if the UI stops using surface-scoped quick access."
+        },
+        {
+          "path": "packages/feature-portal/src/routes/customer-portal/enroll/page.tsx",
+          "reason": "Invitation-acceptance page shell and metadata; no business write.",
+          "removalCondition": "Keep while the invitation journey exists; the POST stays with enrollment until native."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.surface.portal.customer-documents-private-files",
+          "title": "Bind portal document projection and scoped private-file read to native customer_360/files ports",
+          "paths": [
+            "apps/portal/src/app/customer-portal/[holdingSlug]/page.tsx",
+            "apps/portal/src/app/api/customer-portal/[holdingSlug]/route.ts",
+            "apps/portal/src/app/api/customer-portal/[holdingSlug]/attachments/[[...path]]/route.ts",
+            "packages/feature-portal/src/routes/customer-portal/[holdingSlug]/page.tsx",
+            "packages/feature-portal/src/routes/api/customer-portal/[holdingSlug]/route.ts",
+            "packages/feature-portal/src/routes/api/customer-portal/[holdingSlug]/attachments/[[...path]]/route.ts",
+            "packages/server-customer_360/src/domain/portal.rs",
+            "packages/server-customer_360/src/application/portal.rs",
+            "packages/server-customer_360/src/application/portal_attachments.rs",
+            "packages/server-customer_360/src/adapters/portal.rs",
+            "packages/server-customer_360/src/adapters/portal_http.rs",
+            "packages/server-customer_360/src/public/portal.rs",
+            "packages/server-customer_360/src/public/mod.rs",
+            "packages/server-customer_360/src/adapters/mod.rs",
+            "packages/server-customer_360/src/lib.rs",
+            "packages/server-customer_360/Cargo.toml",
+            "packages/server-files/src/adapters/customer_portal_files.rs",
+            "packages/server-files/src/public/customer_portal_files.rs",
+            "packages/server-files/src/public/mod.rs",
+            "packages/server-files/src/adapters/mod.rs",
+            "packages/server-files/src/lib.rs",
+            "packages/server-files/Cargo.toml",
+            "packages/server-customer_360/src/adapters/portal.ts",
+            "packages/server-customer_360/src/application/portal-attachments.ts",
+            "packages/server-files/src/adapters/customer-portal-files.ts",
+            "tests/unit/shared.business-contracts/customer-portal-application.test.ts",
+            "tests/unit/shared.business-contracts/customer-portal-page.test.ts"
+          ],
+          "resources": [
+            "surface:portal",
+            "owner:customer_360",
+            "owner:files"
+          ],
+          "dependsOn": [
+            "inventory.surface.portal",
+            "migrate.customer_360.customer-portal"
+          ],
+          "requiredPorts": [
+            "customer_360.customer-portal",
+            "files.customer-portal-private-read"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-customer-360 --locked",
+            "cargo check -p erpx-server-files --locked",
+            "cargo check -p erpx-service --features existing-business --locked",
+            "bun run test:unit -- --suite=customer_360.portal-application.unit",
+            "bun run typecheck"
+          ]
+        },
+        {
+          "id": "migrate.surface.portal.invitation-and-tickets",
+          "title": "Bind tenant-token invitation acceptance and verified ticket portal to native customer_authority/support ports",
+          "paths": [
+            "apps/portal/src/app/customer-portal/enroll/page.tsx",
+            "apps/portal/src/app/api/customer-portal/enroll/route.ts",
+            "apps/portal/src/app/customer-portal/[holdingSlug]/tickets/page.tsx",
+            "apps/portal/src/app/api/customer-portal/[holdingSlug]/tickets/route.ts",
+            "apps/portal/src/app/api/customer-portal/[holdingSlug]/tickets/[bindingId]/acknowledgements/route.ts",
+            "apps/portal/src/app/api/customer-portal/[holdingSlug]/tickets/[bindingId]/files/[linkId]/content/route.ts",
+            "packages/feature-portal/src/routes/customer-portal/enroll/page.tsx",
+            "packages/feature-portal/src/routes/api/customer-portal/enroll/route.ts",
+            "packages/feature-portal/src/routes/customer-portal/[holdingSlug]/tickets/page.tsx",
+            "packages/feature-portal/src/routes/api/customer-portal/[holdingSlug]/tickets/route.ts",
+            "packages/feature-portal/src/routes/api/customer-portal/[holdingSlug]/tickets/[bindingId]/acknowledgements/route.ts",
+            "packages/feature-portal/src/routes/api/customer-portal/[holdingSlug]/tickets/[bindingId]/files/[linkId]/content/route.ts",
+            "packages/server-customer_authority/src/domain/portal_invitation.rs",
+            "packages/server-customer_authority/src/application/portal_invitation_delivery.rs",
+            "packages/server-customer_authority/src/adapters/portal_invitations.rs",
+            "packages/server-customer_authority/src/adapters/portal_enrollment.rs",
+            "packages/server-customer_authority/src/public/portal_invitation_enrollment.rs",
+            "packages/server-customer_authority/src/public/mod.rs",
+            "packages/server-customer_authority/src/adapters/mod.rs",
+            "packages/server-customer_authority/src/lib.rs",
+            "packages/server-customer_authority/Cargo.toml",
+            "packages/server-customer_authority/src/adapters/portal-invitations.ts",
+            "packages/server-customer_authority/src/adapters/portal-enrollment.ts",
+            "packages/server-customer_authority/src/domain/portal-invitation.ts",
+            "tests/unit/customer_authority/portal-invitations.test.ts"
+          ],
+          "resources": [
+            "surface:portal",
+            "owner:customer_authority"
+          ],
+          "dependsOn": [
+            "inventory.surface.portal",
+            "migrate.support.ticket-portal",
+            "migrate.customer_authority"
+          ],
+          "requiredPorts": [
+            "customer_authority.customer-portal-enrollment",
+            "support.ticket-portal",
+            "identity_access.private-session-read"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-customer-authority --locked",
+            "cargo check -p erpx-service --features existing-business --locked",
+            "bun run test:unit -- --suite=customer_authority.application.unit",
+            "bun run test:integration -- --suite=customer_authority.customer-access.integration",
+            "bun run typecheck"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Browser journeys for external invitation signup, desktop and mobile document/ticket views, revocation and immutable history.",
+        "Normal SSO/Better Auth sign-in and email-verification delivery (RESEND provider) acceptance.",
+        "Invitation email delivery provider and rate-limit behavior at the real edge.",
+        "Private file store, sanitized preview rendering and scanner/provider parity."
+      ],
+      "limitations": [
+        "Read-only inventory; no cargo, bun or browser check was run and no build was attempted.",
+        "nativePresent=false means no native portal route/read/command is mounted; adjacent native customer-access and generic attachment reads are not treated as portal implementations.",
+        "The working tree has unrelated modified app globals.css files; no in-scope portal source was changed.",
+        "migrate.customer_360.customer-portal and migrate.support.ticket-portal are owner packets proposed by sibling inventories, not yet claimed ledger tasks; the lead must refine IDs/paths before dispatch.",
+        "Portal attachments create/reserve/upload/withdraw are included in the private-file capability but the upload PUT path may need a separate bounded packet if scope grows."
+      ]
+    },
     "talent": {
       "taskId": "inventory.talent",
       "owner": "talent",
@@ -14267,6 +15422,353 @@
       ]
     },
     {
+      "owner": "account",
+      "taskId": "inventory.surface.account",
+      "id": "migrate.surface.account.invitation-transport",
+      "title": "Route Account invitations through the mounted native owner port",
+      "paths": [
+        "packages/feature-account/src/routes/api/v1/account-invitations/route.ts",
+        "packages/native-sdk/src/session.ts",
+        "packages/feature-identity_access/src/adapters/http/account-auth.ts"
+      ],
+      "resources": [
+        "surface:account"
+      ],
+      "dependsOn": [
+        "inventory.surface.account",
+        "migrate.identity_access"
+      ],
+      "requiredPorts": [
+        "identity_access:account.invitation"
+      ],
+      "checks": [
+        "bun run test:integration -- --suite=identity_access.rust-account-invitation-activation-postgres.integration",
+        "bun run test:integration -- --suite=identity_access.rust-invitation-authority-postgres.integration",
+        "bun run test:unit -- --suite=identity_access.product-sso.unit",
+        "cargo check -p erpx-service --features existing-business"
+      ]
+    },
+    {
+      "owner": "account",
+      "taskId": "inventory.surface.account",
+      "id": "migrate.surface.account.profile-preferences",
+      "title": "Native Account profile, language/theme and time-preference port",
+      "paths": [
+        "packages/server-identity_access/src/domain/account_preferences.rs",
+        "packages/server-identity_access/src/application/account_preferences.rs",
+        "packages/server-identity_access/src/adapters/account_preferences_postgres.rs",
+        "packages/server-identity_access/src/adapters/account_preferences_http.rs",
+        "packages/feature-account/src/routes/api/v1/account/profile/route.ts",
+        "packages/workplace/src/routes/api/v1/account/preferences/route.ts",
+        "packages/workplace/src/routes/api/v1/account/time-preference/route.ts",
+        "packages/server-identity_access/src/adapters/account-preferences.ts",
+        "packages/server-identity_access/src/adapters/account-profile.ts",
+        "tests/unit/identity_access/rust-account-preferences.test.rs",
+        "tests/integration/identity_access/rust-account-preferences-postgres.test.rs"
+      ],
+      "resources": [
+        "surface:account"
+      ],
+      "dependsOn": [
+        "inventory.surface.account",
+        "migrate.identity_access",
+        "ports.authority"
+      ],
+      "requiredPorts": [
+        "identity_access:account.profile.preferences"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-identity-access",
+        "cargo check -p erpx-service --features existing-business",
+        "bun run test:unit -- --suite=identity_access.account-preferences.unit",
+        "bun run test:integration -- --suite=identity_access.rust-account-security-postgres.integration"
+      ]
+    },
+    {
+      "owner": "forms",
+      "taskId": "inventory.surface.forms",
+      "id": "migrate.surface.forms.published-form-read",
+      "title": "Cut the Forms host published-form and approved-media read over to the native Marketing port",
+      "paths": [
+        "apps/forms/src/app/forms/[holdingSlug]/[formId]/page.tsx",
+        "apps/forms/src/app/api/public/marketing/[holdingSlug]/[formId]/route.ts",
+        "apps/forms/src/app/api/public/holdings/[holdingSlug]/media-publications/[publicationId]/content/route.ts",
+        "packages/feature-forms/src/routes/forms/[holdingSlug]/[formId]/page.tsx",
+        "packages/feature-forms/src/routes/api/public/marketing/[holdingSlug]/[formId]/route.ts",
+        "packages/feature-forms/src/public/native-public-form.ts",
+        "packages/server-marketing/src/adapters/presentation-queries.ts",
+        "packages/server-marketing/src/public/marketing-public-form.ts",
+        "tests/integration/marketing/public-marketing-form.test.ts"
+      ],
+      "resources": [
+        "surface:forms"
+      ],
+      "dependsOn": [
+        "inventory.surface.forms",
+        "migrate.marketing.public-forms"
+      ],
+      "requiredPorts": [
+        "marketing.public-form-read",
+        "files.marketing-creative-read"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-marketing --locked",
+        "cargo check -p erpx-service --features existing-business --locked",
+        "bun run test:integration -- --suite=marketing.public-marketing-form.integration",
+        "bun run typecheck"
+      ]
+    },
+    {
+      "owner": "forms",
+      "taskId": "inventory.surface.forms",
+      "id": "migrate.surface.forms.public-submission",
+      "title": "Cut versioned consenting public submission and receipt replay over to the native Marketing command",
+      "paths": [
+        "apps/forms/src/app/api/public/marketing/[holdingSlug]/[formId]/route.ts",
+        "packages/feature-forms/src/routes/api/public/marketing/[holdingSlug]/[formId]/route.ts",
+        "packages/feature-forms/src/public/native-public-form.ts",
+        "packages/server-marketing/src/adapters/public-submission.ts",
+        "packages/server-marketing/src/application/public-submission.ts",
+        "packages/server-marketing/src/domain/public-submission.ts",
+        "packages/server-marketing/src/public/public-submission.ts",
+        "packages/server-marketing/src/public/public-form-body.ts",
+        "packages/server-marketing/src/adapters/public-form-body.ts",
+        "tests/integration/marketing/public-marketing-form.test.ts"
+      ],
+      "resources": [
+        "surface:forms"
+      ],
+      "dependsOn": [
+        "inventory.surface.forms",
+        "migrate.marketing.public-forms",
+        "migrate.surface.forms.published-form-read"
+      ],
+      "requiredPorts": [
+        "marketing.public-form-submit"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-marketing --locked",
+        "cargo check -p erpx-service --features existing-business --locked",
+        "bun run test:integration -- --suite=marketing.public-marketing-form.integration",
+        "bun run test:unit -- --suite=marketing.editor.unit",
+        "bun run typecheck"
+      ]
+    },
+    {
+      "owner": "legal-portal",
+      "taskId": "inventory.surface.legal-portal",
+      "id": "migrate.surface.legal-portal.shared-access",
+      "title": "Native scoped Legal share list/detail/upload/command port and portal cutover",
+      "paths": [
+        "apps/legal-portal/src/app/legal-portal/[holdingSlug]/page.tsx",
+        "apps/legal-portal/src/app/api/legal-portal/[holdingSlug]/[[...path]]/route.ts",
+        "apps/legal-portal/src/app/api/legal-portal/[holdingSlug]/quick-access/route.ts",
+        "packages/feature-legal-portal/src/routes/legal-portal/[holdingSlug]/page.tsx",
+        "packages/feature-legal-portal/src/routes/api/legal-portal/[holdingSlug]/[[...path]]/route.ts",
+        "packages/feature-legal-portal/src/routes/api/legal-portal/[holdingSlug]/quick-access/route.ts",
+        "packages/server-legal/src/domain/portal.rs",
+        "packages/server-legal/src/application/portal.rs",
+        "packages/server-legal/src/application/portal_attachments.rs",
+        "packages/server-legal/src/adapters/legal/portal.rs",
+        "packages/server-legal/src/adapters/portal_http.rs",
+        "packages/server-legal/src/adapters/portal-snapshot-request.ts",
+        "packages/server-legal/src/adapters/portal-snapshot-read.ts",
+        "packages/server-legal/src/adapters/portal-detail-request.ts",
+        "packages/server-legal/src/adapters/portal-command-request.ts",
+        "packages/server-legal/src/adapters/portal-upload-request.ts",
+        "packages/server-legal/src/adapters/portal-purchases.ts",
+        "packages/server-legal/src/adapters/portal-quick-access-request.ts",
+        "packages/server-legal/src/public/mod.rs",
+        "packages/server-legal/src/adapters/mod.rs",
+        "packages/server-legal/src/lib.rs",
+        "packages/server-legal/Cargo.toml",
+        "packages/server-files/src/adapters/legal-portal-binding.ts",
+        "packages/server-files/src/adapters/legal-portal-repository.ts",
+        "packages/server-files/src/public/legal-portal-binding.ts",
+        "packages/server-files/src/public/legal-portal-repository.ts",
+        "tests/unit/legal/legal-portal-page.test.ts",
+        "tests/integration/legal/legal-portal-quick-access-session.test.ts",
+        "tests/integration/legal/legal-portal-upload-session.test.ts"
+      ],
+      "resources": [
+        "surface:legal-portal",
+        "owner:legal",
+        "owner:files"
+      ],
+      "dependsOn": [
+        "inventory.surface.legal-portal"
+      ],
+      "requiredPorts": [
+        "legal.portal-share",
+        "files.legal-portal-private-read",
+        "work_projection.quick-access-preferences"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-legal --locked",
+        "cargo check -p erpx-server-files --locked",
+        "cargo check -p erpx-service --features existing-business --locked",
+        "bun run test:unit -- --suite=legal.application.unit",
+        "bun run test:integration -- --suite=legal.download-route.integration",
+        "bun run typecheck"
+      ]
+    },
+    {
+      "owner": "legal-portal",
+      "taskId": "inventory.surface.legal-portal",
+      "id": "migrate.surface.legal-portal.private-download",
+      "title": "Native share-authorized Legal original download and portal.download access history",
+      "paths": [
+        "apps/legal-portal/src/app/api/legal-portal/[holdingSlug]/[[...path]]/route.ts",
+        "packages/feature-legal-portal/src/routes/api/legal-portal/[holdingSlug]/[[...path]]/route.ts",
+        "packages/server-legal/src/application/portal.rs",
+        "packages/server-legal/src/adapters/legal/portal.rs",
+        "packages/server-legal/src/adapters/portal_http.rs",
+        "packages/server-legal/src/adapters/portal-download-request.ts",
+        "packages/server-legal/src/adapters/portal-original-read.ts",
+        "packages/server-legal/src/adapters/portal-purchases.ts",
+        "packages/server-legal/src/public/mod.rs",
+        "packages/server-legal/src/adapters/mod.rs",
+        "packages/server-legal/src/lib.rs",
+        "packages/server-legal/Cargo.toml",
+        "packages/server-files/src/adapters/legal-portal-repository.ts",
+        "packages/server-files/src/adapters/postgres_original.rs",
+        "packages/server-files/src/public/canonical_original.rs",
+        "packages/feature-legal/src/components/legal-portal.tsx",
+        "tests/integration/legal/legal-download-route.test.ts",
+        "tests/integration/legal/legal-portal-download-session.test.ts"
+      ],
+      "resources": [
+        "surface:legal-portal",
+        "owner:legal",
+        "owner:files"
+      ],
+      "dependsOn": [
+        "inventory.surface.legal-portal",
+        "migrate.surface.legal-portal.shared-access"
+      ],
+      "requiredPorts": [
+        "legal.portal-share",
+        "files.legal-portal-private-read",
+        "files.canonical-original"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-legal --locked",
+        "cargo check -p erpx-server-files --locked",
+        "cargo check -p erpx-service --features existing-business --locked",
+        "bun run test:integration -- --suite=legal.download-route.integration",
+        "bun run typecheck"
+      ]
+    },
+    {
+      "owner": "portal",
+      "taskId": "inventory.surface.portal",
+      "id": "migrate.surface.portal.customer-documents-private-files",
+      "title": "Bind portal document projection and scoped private-file read to native customer_360/files ports",
+      "paths": [
+        "apps/portal/src/app/customer-portal/[holdingSlug]/page.tsx",
+        "apps/portal/src/app/api/customer-portal/[holdingSlug]/route.ts",
+        "apps/portal/src/app/api/customer-portal/[holdingSlug]/attachments/[[...path]]/route.ts",
+        "packages/feature-portal/src/routes/customer-portal/[holdingSlug]/page.tsx",
+        "packages/feature-portal/src/routes/api/customer-portal/[holdingSlug]/route.ts",
+        "packages/feature-portal/src/routes/api/customer-portal/[holdingSlug]/attachments/[[...path]]/route.ts",
+        "packages/server-customer_360/src/domain/portal.rs",
+        "packages/server-customer_360/src/application/portal.rs",
+        "packages/server-customer_360/src/application/portal_attachments.rs",
+        "packages/server-customer_360/src/adapters/portal.rs",
+        "packages/server-customer_360/src/adapters/portal_http.rs",
+        "packages/server-customer_360/src/public/portal.rs",
+        "packages/server-customer_360/src/public/mod.rs",
+        "packages/server-customer_360/src/adapters/mod.rs",
+        "packages/server-customer_360/src/lib.rs",
+        "packages/server-customer_360/Cargo.toml",
+        "packages/server-files/src/adapters/customer_portal_files.rs",
+        "packages/server-files/src/public/customer_portal_files.rs",
+        "packages/server-files/src/public/mod.rs",
+        "packages/server-files/src/adapters/mod.rs",
+        "packages/server-files/src/lib.rs",
+        "packages/server-files/Cargo.toml",
+        "packages/server-customer_360/src/adapters/portal.ts",
+        "packages/server-customer_360/src/application/portal-attachments.ts",
+        "packages/server-files/src/adapters/customer-portal-files.ts",
+        "tests/unit/shared.business-contracts/customer-portal-application.test.ts",
+        "tests/unit/shared.business-contracts/customer-portal-page.test.ts"
+      ],
+      "resources": [
+        "surface:portal",
+        "owner:customer_360",
+        "owner:files"
+      ],
+      "dependsOn": [
+        "inventory.surface.portal",
+        "migrate.customer_360.customer-portal"
+      ],
+      "requiredPorts": [
+        "customer_360.customer-portal",
+        "files.customer-portal-private-read"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-customer-360 --locked",
+        "cargo check -p erpx-server-files --locked",
+        "cargo check -p erpx-service --features existing-business --locked",
+        "bun run test:unit -- --suite=customer_360.portal-application.unit",
+        "bun run typecheck"
+      ]
+    },
+    {
+      "owner": "portal",
+      "taskId": "inventory.surface.portal",
+      "id": "migrate.surface.portal.invitation-and-tickets",
+      "title": "Bind tenant-token invitation acceptance and verified ticket portal to native customer_authority/support ports",
+      "paths": [
+        "apps/portal/src/app/customer-portal/enroll/page.tsx",
+        "apps/portal/src/app/api/customer-portal/enroll/route.ts",
+        "apps/portal/src/app/customer-portal/[holdingSlug]/tickets/page.tsx",
+        "apps/portal/src/app/api/customer-portal/[holdingSlug]/tickets/route.ts",
+        "apps/portal/src/app/api/customer-portal/[holdingSlug]/tickets/[bindingId]/acknowledgements/route.ts",
+        "apps/portal/src/app/api/customer-portal/[holdingSlug]/tickets/[bindingId]/files/[linkId]/content/route.ts",
+        "packages/feature-portal/src/routes/customer-portal/enroll/page.tsx",
+        "packages/feature-portal/src/routes/api/customer-portal/enroll/route.ts",
+        "packages/feature-portal/src/routes/customer-portal/[holdingSlug]/tickets/page.tsx",
+        "packages/feature-portal/src/routes/api/customer-portal/[holdingSlug]/tickets/route.ts",
+        "packages/feature-portal/src/routes/api/customer-portal/[holdingSlug]/tickets/[bindingId]/acknowledgements/route.ts",
+        "packages/feature-portal/src/routes/api/customer-portal/[holdingSlug]/tickets/[bindingId]/files/[linkId]/content/route.ts",
+        "packages/server-customer_authority/src/domain/portal_invitation.rs",
+        "packages/server-customer_authority/src/application/portal_invitation_delivery.rs",
+        "packages/server-customer_authority/src/adapters/portal_invitations.rs",
+        "packages/server-customer_authority/src/adapters/portal_enrollment.rs",
+        "packages/server-customer_authority/src/public/portal_invitation_enrollment.rs",
+        "packages/server-customer_authority/src/public/mod.rs",
+        "packages/server-customer_authority/src/adapters/mod.rs",
+        "packages/server-customer_authority/src/lib.rs",
+        "packages/server-customer_authority/Cargo.toml",
+        "packages/server-customer_authority/src/adapters/portal-invitations.ts",
+        "packages/server-customer_authority/src/adapters/portal-enrollment.ts",
+        "packages/server-customer_authority/src/domain/portal-invitation.ts",
+        "tests/unit/customer_authority/portal-invitations.test.ts"
+      ],
+      "resources": [
+        "surface:portal",
+        "owner:customer_authority"
+      ],
+      "dependsOn": [
+        "inventory.surface.portal",
+        "migrate.support.ticket-portal",
+        "migrate.customer_authority"
+      ],
+      "requiredPorts": [
+        "customer_authority.customer-portal-enrollment",
+        "support.ticket-portal",
+        "identity_access.private-session-read"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-customer-authority --locked",
+        "cargo check -p erpx-service --features existing-business --locked",
+        "bun run test:unit -- --suite=customer_authority.application.unit",
+        "bun run test:integration -- --suite=customer_authority.customer-access.integration",
+        "bun run typecheck"
+      ]
+    },
+    {
       "owner": "talent",
       "taskId": "inventory.talent",
       "id": "migrate.talent.candidates-privacy",
@@ -14506,7 +16008,7 @@
     }
   ],
   "summary": {
-    "ownersInventoried": 41,
-    "packetsProposed": 112
+    "ownersInventoried": 45,
+    "packetsProposed": 120
   }
 }

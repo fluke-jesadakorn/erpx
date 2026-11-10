@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 176,
+    "revision": 184,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g1",
       "agentId": "lead",
       "startedAt": "2026-11-10T16:01:48.750Z",
-      "heartbeatAt": "2026-11-10T16:34:19.898Z",
-      "expiresAt": "2026-11-10T17:04:19.898Z",
+      "heartbeatAt": "2026-11-10T16:39:16.795Z",
+      "expiresAt": "2026-11-10T17:09:16.795Z",
       "generation": 2,
       "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
     },
@@ -10764,8 +10764,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T16:33:49.612Z",
-          "heartbeatAt": "2026-11-10T16:34:19.898Z",
-          "expiresAt": "2026-11-10T17:04:19.898Z",
+          "heartbeatAt": "2026-11-10T16:39:16.795Z",
+          "expiresAt": "2026-11-10T17:09:16.795Z",
           "generation": 2
         },
         "baseSha": null,
@@ -11137,8 +11137,15 @@
         "resources": [
           "owner:quality"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-10T16:38:48.134Z",
+          "heartbeatAt": "2026-11-10T16:39:16.795Z",
+          "expiresAt": "2026-11-10T17:09:16.795Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -13307,8 +13314,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T16:27:32.314Z",
-          "heartbeatAt": "2026-11-10T16:34:19.898Z",
-          "expiresAt": "2026-11-10T17:04:19.898Z",
+          "heartbeatAt": "2026-11-10T16:39:16.795Z",
+          "expiresAt": "2026-11-10T17:09:16.795Z",
           "generation": 2
         },
         "baseSha": null,
@@ -13390,8 +13397,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T16:27:32.342Z",
-          "heartbeatAt": "2026-11-10T16:34:19.898Z",
-          "expiresAt": "2026-11-10T17:04:19.898Z",
+          "heartbeatAt": "2026-11-10T16:39:16.795Z",
+          "expiresAt": "2026-11-10T17:09:16.795Z",
           "generation": 2
         },
         "baseSha": null,
@@ -13471,8 +13478,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T16:27:32.368Z",
-          "heartbeatAt": "2026-11-10T16:34:19.898Z",
-          "expiresAt": "2026-11-10T17:04:19.898Z",
+          "heartbeatAt": "2026-11-10T16:39:16.795Z",
+          "expiresAt": "2026-11-10T17:09:16.795Z",
           "generation": 2
         },
         "baseSha": null,
@@ -13550,8 +13557,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T16:27:32.396Z",
-          "heartbeatAt": "2026-11-10T16:34:19.898Z",
-          "expiresAt": "2026-11-10T17:04:19.898Z",
+          "heartbeatAt": "2026-11-10T16:39:16.795Z",
+          "expiresAt": "2026-11-10T17:09:16.795Z",
           "generation": 2
         },
         "baseSha": null,
@@ -13621,22 +13628,15 @@
         "resources": [
           "inventory:surface:portal"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-10T16:28:45.994Z",
-          "heartbeatAt": "2026-11-10T16:34:19.898Z",
-          "expiresAt": "2026-11-10T17:04:19.898Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/feature-portal/src and apps/portal/src; map native owner dependencies and refine exact wiring paths excluding external CSS WIP.",
+        "nextAction": "Surface inventory recorded; refine the surface packet after the owner ports it consumes are migrated",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -13651,15 +13651,20 @@
         "workstream": "S16",
         "kind": "migration",
         "title": "Wire portal surface to native owners",
-        "scope": "Migrate central login/profile/switch/security/package entry, Admin settings/account/provisioning and Apps entry/Work/Executive routing; finish Booking reservation/payment callbacks and tenant/token/invitation/private-file/document/published-form consumers through their owner ports. Surfaces belong to the 206 workflow denominator, not seven additional certified owners. Keep presentation/transport; no UI redesign.",
+        "scope": "Bind the portal page/API to native customer_360 portal projection/command, customer_authority tenant-token enrollment, support ticket portal and Files private-preview ports. Surface files only: apps/portal/src/** and packages/feature-portal/src/**; owner implementation and composition mounts belong to the owner/lead packets. No local TS fallback once the native port is selected; fail closed with an explicit 503 when the owner port is unavailable.",
         "dependsOn": [
-          "inventory.surface.portal"
+          "inventory.surface.portal",
+          "migrate.customer_360",
+          "migrate.support",
+          "migrate.customer_authority",
+          "migrate.files"
         ],
         "requiredPorts": [],
         "allowedPaths": [
+          "apps/portal/src/**",
+          "packages/feature-portal/src/**",
           "apps/portal/src/app/page.tsx",
-          "apps/portal/src/app/layout.tsx",
-          "packages/feature-portal/src/**"
+          "apps/portal/src/app/layout.tsx"
         ],
         "resources": [
           "surface:portal"
@@ -13672,10 +13677,10 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Refine exact HTTP/SSR files with lead, connect native owner ports, remove fallback and check tenant/token/private-file authority through focused transport/browser verification.",
+        "nextAction": "After its owner packets complete, bind the portal surface routes to the native owner ports, run the surface transport tests/typecheck and report the exact diff to the lead.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
-        "scopeRefinementRequired": true
+        "scopeRefinementRequired": false
       },
       {
         "id": "inventory.surface.legal-portal",
@@ -13698,22 +13703,15 @@
         "resources": [
           "inventory:surface:legal-portal"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-10T16:28:46.019Z",
-          "heartbeatAt": "2026-11-10T16:34:19.898Z",
-          "expiresAt": "2026-11-10T17:04:19.898Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/feature-legal-portal/src and apps/legal-portal/src; map native owner dependencies and refine exact wiring paths excluding external CSS WIP.",
+        "nextAction": "Surface inventory recorded; refine the surface packet after the owner ports it consumes are migrated",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -13729,15 +13727,18 @@
         "workstream": "S16",
         "kind": "migration",
         "title": "Wire legal-portal surface to native owners",
-        "scope": "Migrate central login/profile/switch/security/package entry, Admin settings/account/provisioning and Apps entry/Work/Executive routing; finish Booking reservation/payment callbacks and tenant/token/invitation/private-file/document/published-form consumers through their owner ports. Surfaces belong to the 206 workflow denominator, not seven additional certified owners. Keep presentation/transport; no UI redesign.",
+        "scope": "Bind the legal-portal share list/detail/upload/command, share-authorized original download and portal.download history to native Legal + Files ports. Surface files only: apps/legal-portal/src/** and packages/feature-legal-portal/src/**; preserve exact original bytes and offline PDF trust boundaries owned by Legal. No local TS fallback once the native port is selected; fail closed with an explicit 503 when the owner port is unavailable.",
         "dependsOn": [
-          "inventory.surface.legal-portal"
+          "inventory.surface.legal-portal",
+          "migrate.legal",
+          "migrate.files"
         ],
         "requiredPorts": [],
         "allowedPaths": [
+          "apps/legal-portal/src/**",
+          "packages/feature-legal-portal/src/**",
           "apps/legal-portal/src/app/page.tsx",
-          "apps/legal-portal/src/app/layout.tsx",
-          "packages/feature-legal-portal/src/**"
+          "apps/legal-portal/src/app/layout.tsx"
         ],
         "resources": [
           "surface:legal-portal"
@@ -13750,10 +13751,10 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Refine exact HTTP/SSR files with lead, connect native owner ports, remove fallback and check tenant/token/private-file authority through focused transport/browser verification.",
+        "nextAction": "After its owner packets complete, bind the legal-portal surface routes to the native owner ports, run the surface transport tests/typecheck and report the exact diff to the lead.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
-        "scopeRefinementRequired": true
+        "scopeRefinementRequired": false
       },
       {
         "id": "inventory.surface.forms",
@@ -13775,22 +13776,15 @@
         "resources": [
           "inventory:surface:forms"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-10T16:28:46.046Z",
-          "heartbeatAt": "2026-11-10T16:34:19.898Z",
-          "expiresAt": "2026-11-10T17:04:19.898Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/feature-forms/src and apps/forms/src; map native owner dependencies and refine exact wiring paths excluding external CSS WIP.",
+        "nextAction": "Surface inventory recorded; refine the surface packet after the owner ports it consumes are migrated",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -13805,15 +13799,18 @@
         "workstream": "S16",
         "kind": "migration",
         "title": "Wire forms surface to native owners",
-        "scope": "Migrate central login/profile/switch/security/package entry, Admin settings/account/provisioning and Apps entry/Work/Executive routing; finish Booking reservation/payment callbacks and tenant/token/invitation/private-file/document/published-form consumers through their owner ports. Surfaces belong to the 206 workflow denominator, not seven additional certified owners. Keep presentation/transport; no UI redesign.",
+        "scope": "Bind the anonymous published-form read, approved-media read, versioned consenting submission and receipt replay to native Marketing public-form ports. Surface files only: apps/forms/src/** and packages/feature-forms/src/**; Marketing public ports must not require an authenticated WorkContext. No local TS fallback once the native port is selected; fail closed with an explicit 503 when the owner port is unavailable.",
         "dependsOn": [
-          "inventory.surface.forms"
+          "inventory.surface.forms",
+          "migrate.marketing",
+          "migrate.files"
         ],
         "requiredPorts": [],
         "allowedPaths": [
+          "apps/forms/src/**",
+          "packages/feature-forms/src/**",
           "apps/forms/src/app/page.tsx",
-          "apps/forms/src/app/layout.tsx",
-          "packages/feature-forms/src/**"
+          "apps/forms/src/app/layout.tsx"
         ],
         "resources": [
           "surface:forms"
@@ -13826,10 +13823,10 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Refine exact HTTP/SSR files with lead, connect native owner ports, remove fallback and check tenant/token/private-file authority through focused transport/browser verification.",
+        "nextAction": "After its owner packets complete, bind the forms surface routes to the native owner ports, run the surface transport tests/typecheck and report the exact diff to the lead.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
-        "scopeRefinementRequired": true
+        "scopeRefinementRequired": false
       },
       {
         "id": "ports.common",
@@ -14577,8 +14574,8 @@
       "totalPackets": 48,
       "migratedPackets": 1,
       "statusCounts": {
-        "pending": 46,
-        "in_progress": 1,
+        "pending": 45,
+        "in_progress": 2,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 1,
@@ -14588,7 +14585,7 @@
       }
     },
     "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T16:34:19.899Z",
+    "updatedAt": "2026-11-10T16:39:16.795Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
