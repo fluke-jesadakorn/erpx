@@ -2490,6 +2490,8 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut support_auxiliary_targets = Vec::new();
         #[cfg(feature = "existing-business")]
+        let mut support_ticket_portal_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut legal_auxiliary_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut legal_retention_targets = Vec::new();
@@ -2913,12 +2915,23 @@ async fn assemble_checked(
                                     authorizer.clone(),
                                     crate::support_workspace::SupportWorkspaceConfiguration::new(
                                         holding.registration.holding_id.clone(),
+                                        holding.registration.slug.clone(),
                                         company.clone(),
                                     ),
+                                    pools[0].clone(),
+                                    pools[i + 1].clone(),
                                     Arc::new(SharedClock(clock.clone())),
                                 ),
                             ),
                         ));
+                    support_ticket_portal_targets.push(
+                        erpx_server_support::public::ticket_portal_http::TicketPortalHttpTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: format!("https://{}", holding.host),
+                            backend: support_workspace_backend.clone(),
+                        },
+                    );
                     support_service_team_targets.push(
                         erpx_server_support::public::service_teams_http::ServiceTeamHttpTarget {
                             host: holding.host.clone(),
@@ -4383,6 +4396,15 @@ async fn assemble_checked(
             );
         }
         #[cfg(feature = "existing-business")]
+        #[cfg(feature = "existing-business")]
+        if !support_ticket_portal_targets.is_empty() {
+            router = router.merge(
+                erpx_server_support::public::ticket_portal_http::ticket_portal_http_router(
+                    support_ticket_portal_targets,
+                )
+                .map_err(|_| "PRIVATE_API_SUPPORT_CONFIGURATION_INVALID")?,
+            );
+        }
         #[cfg(feature = "existing-business")]
         if !support_service_team_targets.is_empty() {
             router = router.merge(
