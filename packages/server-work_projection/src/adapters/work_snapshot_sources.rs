@@ -193,7 +193,7 @@ pub fn collaboration_action_items(items: &[ActionWork]) -> Vec<WorkItemFact> {
         .collect()
 }
 
-pub fn field_financial_items(values: &[serde_json::Value]) -> Vec<WorkItemFact> {
+fn json_work_items(values: &[serde_json::Value], prefix: &str) -> Vec<WorkItemFact> {
     values
         .iter()
         .filter_map(|value| {
@@ -202,16 +202,8 @@ pub fn field_financial_items(values: &[serde_json::Value]) -> Vec<WorkItemFact> 
             let queue_value = value.get("queue")?.as_str()?;
             let can_act = value.get("canAct")?.as_bool()?;
             let updated_at = value.get("updatedAt")?.as_i64()?;
-            let href = value.get("href")?.as_str().unwrap_or("");
-            let mut fact = item(
-                "field_financial",
-                kind,
-                id,
-                href,
-                queue_value,
-                can_act,
-                updated_at,
-            );
+            let href = value.get("href").and_then(|v| v.as_str()).unwrap_or("");
+            let mut fact = item(prefix, kind, id, href, queue_value, can_act, updated_at);
             if let Some(action) = value.get("actionKind").and_then(|v| v.as_str()) {
                 fact.action_kind = Some(action.to_owned());
             }
@@ -224,6 +216,14 @@ pub fn field_financial_items(values: &[serde_json::Value]) -> Vec<WorkItemFact> 
             Some(fact)
         })
         .collect()
+}
+
+pub fn field_financial_items(values: &[serde_json::Value]) -> Vec<WorkItemFact> {
+    json_work_items(values, "field_financial")
+}
+
+pub fn customer_access_items(values: &[serde_json::Value]) -> Vec<WorkItemFact> {
+    json_work_items(values, "customer_access")
 }
 
 #[cfg(test)]
@@ -286,6 +286,14 @@ mod tests {
         assert_eq!(financial[0].kind, "invoice");
         assert_eq!(financial[0].action_kind.as_deref(), Some("work"));
         assert_eq!(financial[0].relationships, ["requested", "assigned"]);
+        let access = customer_access_items(&[serde_json::json!({
+            "id":"access-1","type":"customer_access","title":"Customer access",
+            "href":"/customer-access/access-1","status":"pending","updatedAt":41,
+            "queue":"todo","canAct":true,"relationships":["approval"]
+        })]);
+        assert_eq!(access[0].id, "customer_access:access-1");
+        assert_eq!(access[0].relationships, ["approval"]);
+        assert_eq!(access[0].queue, WorkQueue::Todo);
     }
 
     #[test]
