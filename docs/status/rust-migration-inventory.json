@@ -1,8 +1,8 @@
 {
   "version": 1,
   "planRef": "docs/production-plan.md#rust-migration-current",
-  "sourceSha": "3b56fa4a357106894777f35d79c677ed4333e3dd",
-  "generatedAt": "2026-11-10T16:27:26+00:00",
+  "sourceSha": "97109f7dafc95235f5faf7a65c6c957638afd8f6",
+  "generatedAt": "2026-11-10T16:33:45+00:00",
   "interpretation": "G1 source inventory. Task records are read-only source findings; proposed packets are not implementation evidence. Catalogue qualification state is unchanged and acceptance stays deferred.",
   "owners": {
     "agent": {
@@ -1090,6 +1090,231 @@
         "No cargo/test was run during inventory."
       ]
     },
+    "brand": {
+      "taskId": "inventory.brand",
+      "owner": "brand",
+      "sourceSha": "97109f7dafc95235f5faf7a65c6c957638afd8f6",
+      "nativePresent": true,
+      "workflows": [
+        {
+          "id": "brand/feature-draft-workspace",
+          "qualification": "verified",
+          "native": [
+            "packages/server-brand/src/domain/identity.rs",
+            "packages/server-brand/src/adapters/identity_use_cases.rs",
+            "src/composition/src/brand_identity.rs",
+            "src/composition/src/brand_identity_http.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only"
+        },
+        {
+          "id": "brand/feature-category-locks",
+          "qualification": "verified",
+          "native": [
+            "packages/server-brand/src/domain/identity.rs",
+            "packages/server-brand/src/adapters/identity_use_cases.rs",
+            "src/composition/src/brand_identity.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only"
+        },
+        {
+          "id": "brand/feature-published-identity",
+          "qualification": "verified",
+          "native": [
+            "packages/server-brand/src/domain/identity.rs",
+            "packages/server-brand/src/adapters/identity_read_use_cases.rs",
+            "src/composition/src/brand_identity.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only; TS publishedBrandIdentity read is residual (see gaps)"
+        }
+      ],
+      "publicPorts": [
+        {
+          "name": "brand identity read/command (native account-activation)",
+          "path": "src/composition/src/brand_identity_http.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:3878"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "Branding profile/storefront workspace read + update/media command",
+          "path": "packages/server-brand/src/adapters/branding_http.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:3890",
+            "src/composition/src/private_development_api.rs:3053"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "published/active brand identity + workspace projection read",
+          "path": "packages/server-brand/src/adapters/identity_read.rs",
+          "mountedAt": [],
+          "status": "missing"
+        },
+        {
+          "name": "workspace/document brand + brand-profile presentation read",
+          "path": "packages/server-brand/src/adapters/branding.ts",
+          "mountedAt": [],
+          "status": "missing"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "brand.presentation-reads",
+          "kind": "read",
+          "detail": "resolveWorkspaceBrand, resolveDocumentBrand, listBrandProfiles, recordBranchId, requireBrandManagement, brandProfileEvidenceRow and businessDocumentBrand are authoritative TS SQL in packages/server-brand/src/adapters/branding.ts (organization_brand_profiles, storefront_app_brands, organization_nodes) with sharp media handling. Live consumers: packages/workplace/src/routes/holdings/[holdingSlug]/layout.tsx:193, packages/workplace/src/routes/holdings/[holdingSlug]/administration/brand/media/_screen.tsx:70, packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/pms/documents/[id]/screen.tsx:50, packages/server-operations/src/adapters/presentation-queries.ts:18, packages/server-people_payroll/src/adapters/people-explorer-detail.ts:22, packages/server-runtime/src/adapters/executive/brand-evidence.ts:23, packages/server-pms/src/adapters/presentation-queries.ts:5. Native only exposes the branding workspace read (read_branding_workspace) and update commands; no native workspace/document brand projection port exists.",
+          "suggestedPaths": [
+            "packages/server-brand/src/domain/branding.rs",
+            "packages/server-brand/src/adapters/branding.rs",
+            "packages/server-brand/src/public/branding.rs"
+          ]
+        },
+        {
+          "id": "brand.storefront-front-projection",
+          "kind": "read",
+          "detail": "storefrontBrandColumns/storefrontBrandJoin and workspaceChoiceBrands are TS SQL projection constants (packages/server-brand/src/adapters/front-brand-projection.ts, adapters/workspace-choice-brand.ts) consumed by packages/server-organization/src/adapters/front-company-facts.ts:2 and adapters/workspace-choices.ts:63 for the front-app shell. The Rust domain models storefront branding (domain/branding.rs BrandingStorefront) but no native front-app projection port is exported.",
+          "suggestedPaths": [
+            "packages/server-brand/src/adapters/front-brand-projection.ts",
+            "packages/server-brand/src/adapters/workspace-choice-brand.ts",
+            "packages/server-brand/src/domain/branding.rs"
+          ]
+        },
+        {
+          "id": "brand.identity-ssr-read",
+          "kind": "retirement",
+          "detail": "publishedBrandIdentity/brandIdentityWorkspace still read brand_identity_active/brand_identity_versions/brand_identity_drafts directly in packages/server-brand/src/adapters/identity.ts and are called from packages/server-work_projection/src/adapters/front-app.ts:21 (publishedBrand), packages/server-records/src/adapters/record-domain-details.ts:27 and the feature-brand screens. Native identity read use cases (adapters/identity_read.rs, adapters/identity_read_use_cases.rs) exist but have no consumer port.",
+          "suggestedPaths": [
+            "packages/server-brand/src/adapters/identity.ts",
+            "packages/server-brand/src/adapters/identity_read.rs",
+            "packages/server-brand/src/public/identity.rs",
+            "packages/server-brand/src/public/brand-identity.ts"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-brand/src/adapters/branding.ts",
+          "reason": "TS workspace/document brand, profile list, storefront and attachment-content reads used by workplace shell, PMS documents, people explorer and executive evidence.",
+          "removalCondition": "Native brand presentation read port (workspace/document/profile/storefront) is mounted in the workplace layout, PMS document and settings screens and every listed cross-owner import is removed."
+        },
+        {
+          "path": "packages/server-brand/src/adapters/identity.ts",
+          "reason": "TS published identity and identity-workspace reads for Work Projection, Records record details and feature-brand screens.",
+          "removalCondition": "Native identity read port serves front-app publishedBrand and Records brand detail, and no consumer imports @erpx/server-brand/public/brand-identity."
+        },
+        {
+          "path": "packages/server-brand/src/adapters/front-brand-projection.ts",
+          "reason": "TS SQL projection constants for the organization front-app company/branch facts.",
+          "removalCondition": "Native front-app brand projection replaces front-company-facts SQL and server-organization stops importing the TS constants."
+        },
+        {
+          "path": "packages/server-files/src/adapters/attachments/policy.ts",
+          "reason": "Dynamic TS import of requireBrandManagement for brand-managed attachment authorization.",
+          "removalCondition": "Native attachment policy consumes the native brand authorization port and the dynamic @erpx/server-brand/public/branding import is deleted."
+        },
+        {
+          "path": "packages/feature-brand/src/components/business-document.tsx",
+          "reason": "Presentation component that awaits businessDocumentBrand for document headers.",
+          "removalCondition": "Presentation-only, retained while the SSR document shell exists; reads must come from the native brand presentation port."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.brand.presentation-reads",
+          "title": "Native workspace/document brand, profile list, storefront and brand evidence reads",
+          "paths": [
+            "packages/server-brand/src/domain/branding.rs",
+            "packages/server-brand/src/adapters/branding.rs",
+            "packages/server-brand/src/adapters/branding_use_cases.rs",
+            "packages/server-brand/src/public/branding.rs",
+            "packages/server-brand/src/public/mod.rs",
+            "tests/integration/brand/rust-branding-postgres.test.rs",
+            "tests/integration/brand/branding.test.ts"
+          ],
+          "resources": [
+            "owner:brand"
+          ],
+          "dependsOn": [
+            "coordination.bootstrap"
+          ],
+          "requiredPorts": [
+            "ports.authority",
+            "ports.common"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-brand",
+            "bun run test:integration -- --suite=brand.rust-branding-postgres.integration",
+            "bun run test:integration -- --suite=brand.branding.integration"
+          ]
+        },
+        {
+          "id": "migrate.brand.identity-read-port",
+          "title": "Mount native published identity and identity-workspace reads for front-app/Records",
+          "paths": [
+            "packages/server-brand/src/adapters/identity_read.rs",
+            "packages/server-brand/src/adapters/identity_read_use_cases.rs",
+            "packages/server-brand/src/public/identity.rs",
+            "packages/server-brand/src/public/brand-identity.ts",
+            "tests/integration/brand/rust-brand-identity-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:brand"
+          ],
+          "dependsOn": [
+            "coordination.bootstrap"
+          ],
+          "requiredPorts": [
+            "ports.authority"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-brand",
+            "bun run test:integration -- --suite=brand.rust-brand-identity-postgres.integration",
+            "bun run test:unit -- --suite=brand.rust-brand-identity-policy.unit"
+          ]
+        },
+        {
+          "id": "migrate.brand.storefront-front-projection",
+          "title": "Native storefront/workspace-choice projection for the front-app shell",
+          "paths": [
+            "packages/server-brand/src/adapters/front-brand-projection.ts",
+            "packages/server-brand/src/adapters/workspace-choice-brand.ts",
+            "packages/server-brand/src/domain/branding.rs",
+            "packages/server-brand/src/public/front-brand-projection.ts",
+            "packages/server-brand/src/public/workspace-choice-brand.ts",
+            "tests/integration/brand/front-logo.test.ts"
+          ],
+          "resources": [
+            "owner:brand"
+          ],
+          "dependsOn": [
+            "coordination.bootstrap"
+          ],
+          "requiredPorts": [
+            "ports.authority"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-brand",
+            "bun run test:integration -- --suite=brand.front-logo.integration",
+            "bun run test:integration -- --suite=brand.rust-branding-http.integration"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Storefront preview chooser presentation gap recorded in brand/feature-published-identity remains A1 presentation.",
+        "Brand media rendering fidelity (sharp webp/alpha limits) needs browser/provider acceptance.",
+        "Brand media CDN/attachment delivery and SSO hosts are acceptance/environment items."
+      ],
+      "limitations": [
+        "Read-only inventory; no cargo/bun command was executed.",
+        "Line numbers are current-source evidence anchors, not part of any contract.",
+        "Shared composition mounts (src/composition) and cross-owner consumers require lead-owned changes.",
+        "sourceSha is the HEAD at audit completion; the read-only audit began at 1631f623 and git diff of the six owner packages, src/composition and tests/catalogue shows no in-scope source change through 97109f7da (only docs/status advancement by the lead)."
+      ]
+    },
     "collaboration": {
       "taskId": "inventory.collaboration",
       "owner": "collaboration",
@@ -1107,7 +1332,7 @@
             "tests/integration/collaboration/rust-messaging-postgres.test.rs"
           ],
           "tsAuthoritative": [
-            "packages/server-collaboration/src/adapters/messaging.ts:177",
+            "packages/server-collaboration/src/adapters/messaging.ts:184",
             "packages/server-collaboration/src/application/messaging.ts",
             "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/messaging/[[...path]]/route.ts"
           ],
@@ -2335,6 +2560,228 @@
         "Composition route merges at src/composition/src/private_development_api.rs are lead integration."
       ]
     },
+    "customer_360": {
+      "taskId": "inventory.customer_360",
+      "owner": "customer_360",
+      "sourceSha": "97109f7dafc95235f5faf7a65c6c957638afd8f6",
+      "nativePresent": true,
+      "workflows": [
+        {
+          "id": "customer_360/sales-summary",
+          "qualification": "verified",
+          "native": [
+            "packages/server-customer_360/src/domain/timeline.rs",
+            "packages/server-customer_360/src/application/timeline.rs",
+            "packages/server-customer_360/src/adapters/timeline_http.rs",
+            "src/composition/src/customer_360.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only; registered gap text names the remaining Executive customer-activity TS source"
+        },
+        {
+          "id": "customer_360/service-timeline",
+          "qualification": "verified",
+          "native": [
+            "packages/server-customer_360/src/domain/timeline.rs",
+            "packages/server-customer_360/src/adapters/timeline_http.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only; profile summary/notes/related surfaces remain on retained paths"
+        },
+        {
+          "id": "customer_360/feature-customer-profile",
+          "qualification": "verified",
+          "native": [
+            "packages/server-customer_360/src/domain/directory.rs",
+            "packages/server-customer_360/src/adapters/directory.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only; native directory read is not mounted"
+        },
+        {
+          "id": "customer_360/feature-customer-notes",
+          "qualification": "verified",
+          "native": [
+            "packages/server-customer_360/src/adapters/notes_http.rs",
+            "packages/server-customer_360/src/domain/notes.rs",
+            "src/composition/src/customer_360_notes.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only"
+        }
+      ],
+      "publicPorts": [
+        {
+          "name": "Customer timeline HTTP read (cursor/limit)",
+          "path": "packages/server-customer_360/src/adapters/timeline_http.rs",
+          "mountedAt": [
+            "src/composition/src/customer_360.rs:441",
+            "src/composition/src/private_development_api.rs:4080"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "Customer activity HTTP read",
+          "path": "packages/server-customer_360/src/adapters/activity_http.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:4098"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "Customer notes HTTP read/command",
+          "path": "packages/server-customer_360/src/adapters/notes_http.rs",
+          "mountedAt": [
+            "src/composition/src/customer_360_notes.rs"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "Customer directory read",
+          "path": "packages/server-customer_360/src/adapters/directory.rs",
+          "mountedAt": [],
+          "status": "missing"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "customer_360.directory-mount",
+          "kind": "mount",
+          "detail": "Native customer directory read is exported (public/directory.rs, application/directory.rs, adapters/directory.rs) but no router/target mounts it. packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customers/route.ts:3 still calls the TS customerDirectory from public/customer-timeline.ts for the list view while only detail uses the native timeline.",
+          "suggestedPaths": [
+            "packages/server-customer_360/src/adapters/directory.rs",
+            "packages/server-customer_360/src/public/directory.rs",
+            "packages/server-customer_360/src/domain/directory.rs"
+          ]
+        },
+        {
+          "id": "customer_360.customer-portal",
+          "kind": "command",
+          "detail": "The customer-facing portal is authoritative TS SQL: packages/server-customer_360/src/adapters/portal.ts (transactional PortalRepository over customer_portal_actions/bindings, purchase enforcement, finance deferred effects), application/portal.ts, application/portal-session.ts and portal-*-request adapters. Live consumers: packages/feature-portal/src/routes/api/customer-portal/[holdingSlug]/route.ts, .../quick-access/route.ts, .../attachments/[[...path]]/route.ts, routes/customer-portal/[holdingSlug]/page.tsx. No Rust portal module exists in this owner crate.",
+          "suggestedPaths": [
+            "packages/server-customer_360/src/adapters/portal.ts",
+            "packages/server-customer_360/src/application/portal.ts",
+            "packages/server-customer_360/src/application/portal-session.ts",
+            "packages/server-customer_360/src/domain/portal.rs"
+          ]
+        },
+        {
+          "id": "customer_360.auxiliary-timeline-sources",
+          "kind": "read",
+          "detail": "The TS timeline adapter still owns customerTimelineEvents and customerDirectory: packages/server-commerce/src/adapters/executive-metric-projections.ts:7 imports customerTimelineEvents, and packages/server-runtime/src/application/executive/evidence.ts:7 imports the CustomerActivityItem type path. packages/server-customer_360/src/adapters/timeline.ts also composes supportTicketReadPredicate/supportWorkspacePurchaseAccess plus seven final-root-owner projection sources, so the auxiliary timeline SQL remains the metric-source authority even though the product timeline is native.",
+          "suggestedPaths": [
+            "packages/server-customer_360/src/adapters/timeline.ts",
+            "packages/server-customer_360/src/public/customer-timeline.ts",
+            "packages/server-customer_360/src/domain/timeline.rs"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-customer_360/src/adapters/timeline.ts",
+          "reason": "TS customerDirectory list read and customerTimelineEvents executive metric source.",
+          "removalCondition": "Native directory router is mounted for the customers list and the executive metric engine reads a native activity/timeline source instead of customerTimelineEvents."
+        },
+        {
+          "path": "packages/server-customer_360/src/adapters/portal.ts",
+          "reason": "TS authoritative customer-portal projection and command transaction.",
+          "removalCondition": "Native customer-portal projection/command/session ports own the customer_portal_actions transaction and feature-portal routes stop importing the TS portal requests."
+        },
+        {
+          "path": "packages/server-customer_360/src/adapters/presentation-context-queries.ts",
+          "reason": "SSR portal page still resolves customerPortalPresentationQueries through this TS adapter.",
+          "removalCondition": "Native customer-portal projection request is bound for the portal SSR page and the presentation-context wrapper is deleted."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.customer_360.directory-read-mount",
+          "title": "Mount native customer directory read for the customers list",
+          "paths": [
+            "packages/server-customer_360/src/adapters/directory.rs",
+            "packages/server-customer_360/src/application/directory.rs",
+            "packages/server-customer_360/src/public/directory.rs",
+            "tests/integration/customer_360/rust-customer-directory-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:customer_360"
+          ],
+          "dependsOn": [
+            "coordination.bootstrap"
+          ],
+          "requiredPorts": [
+            "ports.authority",
+            "ports.common"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-customer-360",
+            "bun run test:integration -- --suite=customer_360.rust-customer-directory-postgres.integration",
+            "bun run test:unit -- --suite=customer_360.rust-customer-directory.unit"
+          ]
+        },
+        {
+          "id": "migrate.customer_360.customer-portal",
+          "title": "Native customer-portal projection, command and session owner port",
+          "paths": [
+            "packages/server-customer_360/src/domain/portal.rs",
+            "packages/server-customer_360/src/application/portal.rs",
+            "packages/server-customer_360/src/application/portal_session.rs",
+            "packages/server-customer_360/src/adapters/portal.rs",
+            "packages/server-customer_360/src/public/customer-portal.ts",
+            "tests/unit/shared.business-contracts/customer-portal-application.test.ts"
+          ],
+          "resources": [
+            "owner:customer_360"
+          ],
+          "dependsOn": [
+            "coordination.bootstrap"
+          ],
+          "requiredPorts": [
+            "ports.authority",
+            "ports.trade"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-customer-360",
+            "bun run test:unit -- --suite=customer_360.portal-application.unit"
+          ]
+        },
+        {
+          "id": "migrate.customer_360.executive-timeline-source",
+          "title": "Native customer activity/timeline source for the executive metric engine",
+          "paths": [
+            "packages/server-customer_360/src/adapters/timeline.ts",
+            "packages/server-customer_360/src/public/customer-timeline.ts",
+            "packages/server-customer_360/src/domain/timeline.rs",
+            "tests/integration/customer_360/rust-customer-timeline-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:customer_360"
+          ],
+          "dependsOn": [
+            "migrate.customer_360.directory-read-mount"
+          ],
+          "requiredPorts": [
+            "ports.common"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-customer-360",
+            "bun run test:unit -- --suite=customer_360.rust-customer-timeline.unit",
+            "bun run test:integration -- --suite=customer_360.rust-customer-timeline-postgres.integration"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Customer portal external sign-in/SSO journey acceptance (browser) stays A1.",
+        "Support portal acknowledgement (customer_authority portal-support) is a cross-owner acceptance path.",
+        "Portal purchase enforcement needs commercial release/acceptance evidence."
+      ],
+      "limitations": [
+        "Read-only inventory; no command executed.",
+        "Customer portal ownership overlaps customer_authority portal-support; the lead must freeze that seam before the portal packet.",
+        "Public route/page paths in apps/ and packages/feature-* are consumer evidence, not customer_360 write scope.",
+        "sourceSha is the HEAD at audit completion; the read-only audit began at 1631f623 and git diff of the six owner packages, src/composition and tests/catalogue shows no in-scope source change through 97109f7da (only docs/status advancement by the lead)."
+      ]
+    },
     "customer_authority": {
       "taskId": "inventory.customer_authority",
       "owner": "customer_authority",
@@ -2852,6 +3299,258 @@
         "New suite ids for cart/checkout/return cases are not registered; the lead must add them to tests/catalogue/suite-manifest.json before claiming.",
         "The ecommerce Next transport lives in packages/feature-sales (Sales owner), and the workplace presenter plus composition assembly are outside migrate.ecommerce.allowedPaths; the lead must scope or split them.",
         "Native ecommerce commands cannot complete before Commerce reservation/return are native; ports.trade is still pending, so this owner is sequenced, not fully parallel."
+      ]
+    },
+    "field_service": {
+      "taskId": "inventory.field_service",
+      "owner": "field_service",
+      "sourceSha": "97109f7dafc95235f5faf7a65c6c957638afd8f6",
+      "nativePresent": true,
+      "workflows": [
+        {
+          "id": "field_service/service-orders",
+          "qualification": "verified",
+          "native": [
+            "packages/server-field_service/src/domain/work.rs",
+            "packages/server-field_service/src/adapters/source_record.rs",
+            "src/composition/src/field_service_http.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only"
+        },
+        {
+          "id": "field_service/feature-agreements",
+          "qualification": "verified",
+          "native": [
+            "packages/server-field_service/src/domain/agreement_review.rs",
+            "packages/server-field_service/src/adapters/agreement_create.rs",
+            "packages/server-field_service/src/adapters/agreement_review.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only"
+        },
+        {
+          "id": "field_service/feature-dispatch",
+          "qualification": "verified",
+          "native": [
+            "packages/server-field_service/src/domain/visit.rs",
+            "packages/server-field_service/src/adapters/parts/visit.rs",
+            "src/composition/src/field_service_parts/visit.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only"
+        },
+        {
+          "id": "field_service/feature-visits",
+          "qualification": "verified",
+          "native": [
+            "packages/server-field_service/src/domain/visit.rs",
+            "packages/server-field_service/src/adapters/detail.rs",
+            "src/composition/src/field_service_detail.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only"
+        },
+        {
+          "id": "field_service/feature-exceptions",
+          "qualification": "verified",
+          "native": [
+            "packages/server-field_service/src/domain/detail.rs",
+            "packages/server-field_service/src/adapters/detail.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only"
+        },
+        {
+          "id": "field_service/feature-billing-release",
+          "qualification": "verified",
+          "native": [
+            "packages/server-field_service/src/domain/package_settlement.rs",
+            "packages/server-field_service/src/adapters/package_settlement.rs",
+            "src/composition/src/field_service_package_settlement.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only"
+        }
+      ],
+      "publicPorts": [
+        {
+          "name": "Field workspace/detail/source-record HTTP + parts commands",
+          "path": "src/composition/src/field_service_http.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:6310",
+            "src/composition/src/private_development_api.rs:5963"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "Field package settlement + Finance handoff",
+          "path": "src/composition/src/field_service_package_settlement.rs",
+          "mountedAt": [
+            "src/composition/src/field_service_package_settlement.rs"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "Field Work contributions (workspace/operations/collaboration work)",
+          "path": "packages/server-field_service/src/public/native-work.ts",
+          "mountedAt": [
+            "packages/server-work_projection/src/adapters/work-items.ts"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "Field executive report read",
+          "path": "packages/server-field_service/src/adapters/native-executive.ts",
+          "mountedAt": [
+            "packages/server-field_service/src/adapters/executive-metric-projections.ts"
+          ],
+          "status": "partial"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "field_service.executive-metric-projection",
+          "kind": "retirement",
+          "detail": "The executive metric bridge is TS: packages/server-field_service/src/adapters/executive-metric-projections.ts calls readNativeFieldReport but remains the projection adapter consumed by packages/server-runtime/src/adapters/executive/metrics.ts:50 (three metrics: open-service-orders, service-billing-releases, field-visit-completion). Its own header names the removal condition: retire the generic metric engine or give it native report sources directly.",
+          "suggestedPaths": [
+            "packages/server-field_service/src/adapters/executive-metric-projections.ts",
+            "packages/server-field_service/src/public/executive-metric-projections.ts",
+            "packages/server-field_service/src/adapters/native-executive.ts",
+            "src/composition/src/field_executive_read.rs"
+          ]
+        },
+        {
+          "id": "field_service.shared-projection-sources",
+          "kind": "read",
+          "detail": "Two public TS exports remain authoritative SQL shared with other owners: packages/server-field_service/src/public/final-root-owner-projection-sources.ts (field_service_agreements/orders) is imported by packages/server-customer_360/src/adapters/timeline.ts:1 and packages/server-customer_authority/src/adapters/duplicates.ts, and packages/server-field_service/src/public/record-purchases.ts is the fail-closed generic Records partition adapter (nativeIds over field_service_agreements/orders) whose comment requires removal with the generic Records engine.",
+          "suggestedPaths": [
+            "packages/server-field_service/src/public/final-root-owner-projection-sources.ts",
+            "packages/server-field_service/src/public/record-purchases.ts",
+            "packages/server-field_service/src/adapters/finance_lineage.rs"
+          ]
+        },
+        {
+          "id": "field_service.compat-and-test-consumers",
+          "kind": "retirement",
+          "detail": "Residual export/test consumers outside the certified workflows: apps/compat re-exports every field-service API and page (apps/compat/src/app/api/v1/holdings/[holdingSlug]/field-service/**.ts, apps/compat/src/app/holdings/[holdingSlug]/**/field-service/**) in addition to apps/service, and the TS integration suite imports a legacy count oracle (tests/support/field_service/legacy-count-oracle.ts) plus legacy parts schema oracles under tests/support/field_service/. These are non-product compatibility/test oracles, not native business writers.",
+          "suggestedPaths": [
+            "apps/compat/src/app/api/v1/holdings/[holdingSlug]/field-service/route.ts",
+            "tests/support/field_service/legacy-count-oracle.ts",
+            "tests/integration/field_service/field-service.test.ts"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-field_service/src/adapters/executive-metric-projections.ts",
+          "reason": "TS projection bridge from the native Field report into the generic Runtime executive metric engine.",
+          "removalCondition": "Runtime executive metrics read the native Field report source directly (or the generic metric engine is retired) and this adapter is deleted."
+        },
+        {
+          "path": "packages/server-field_service/src/public/final-root-owner-projection-sources.ts",
+          "reason": "TS projection SQL shared with Customer 360 timeline and customer-authority duplicate review.",
+          "removalCondition": "Native Field projection source port serves those consumers and both cross-owner imports are removed."
+        },
+        {
+          "path": "packages/server-field_service/src/public/record-purchases.ts",
+          "reason": "Fail-closed partition adapter keeping the generic Records engine away from Field records; read-only, no writes.",
+          "removalCondition": "Removed together with the remaining generic Records engine (CSV note in the adapter)."
+        },
+        {
+          "path": "tests/support/field_service/legacy-count-oracle.ts",
+          "reason": "Legacy initial-count test oracle used by tests/integration/field_service/field-service.test.ts.",
+          "removalCondition": "Registered Field suites use native count fixtures and the legacy oracle plus legacy parts schema helpers are deleted."
+        },
+        {
+          "path": "apps/compat/src/app/api/v1/holdings/[holdingSlug]/field-service/route.ts",
+          "reason": "Non-product compatibility app re-export of the Field route/handlers.",
+          "removalCondition": "Compat app field-service API/pages are retired when no compatibility consumer remains; product traffic already uses apps/service."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.field_service.executive-report-read",
+          "title": "Bind the executive metric engine to the native Field report read and retire the TS projection",
+          "paths": [
+            "packages/server-field_service/src/adapters/executive-metric-projections.ts",
+            "packages/server-field_service/src/public/executive-metric-projections.ts",
+            "packages/server-field_service/src/adapters/native-executive.ts",
+            "packages/server-field_service/src/adapters/native-executive-evidence.ts",
+            "tests/unit/field_service/rust-executive-policy.test.rs"
+          ],
+          "resources": [
+            "owner:field_service"
+          ],
+          "dependsOn": [
+            "coordination.bootstrap"
+          ],
+          "requiredPorts": [
+            "ports.common"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-field-service",
+            "bun run test:unit -- --suite=field_service.rust-executive-policy.unit"
+          ]
+        },
+        {
+          "id": "migrate.field_service.shared-projection-sources",
+          "title": "Native Field projection sources for Customer 360 and customer-authority consumers",
+          "paths": [
+            "packages/server-field_service/src/public/final-root-owner-projection-sources.ts",
+            "packages/server-field_service/src/public/record-purchases.ts",
+            "packages/server-field_service/src/adapters/finance_lineage.rs",
+            "packages/server-field_service/src/adapters/source_record.rs",
+            "tests/integration/field_service/rust-http-parity-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:field_service"
+          ],
+          "dependsOn": [
+            "coordination.bootstrap"
+          ],
+          "requiredPorts": [
+            "ports.authority",
+            "ports.common"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-field-service",
+            "bun run test:integration -- --suite=field_service.rust-http-parity-postgres.integration"
+          ]
+        },
+        {
+          "id": "migrate.field_service.compat-test-retirement",
+          "title": "Retire compat field-service exports and legacy TS count/parts oracles",
+          "paths": [
+            "tests/support/field_service/legacy-count-oracle.ts",
+            "tests/support/field_service/legacy-count-oracle-plugin.ts",
+            "tests/support/field_service/legacy-service-parts-posting-schemas.ts",
+            "tests/integration/field_service/field-service.test.ts",
+            "tests/e2e/field_service/workspace-smoke.spec.ts"
+          ],
+          "resources": [
+            "owner:field_service"
+          ],
+          "dependsOn": [
+            "migrate.field_service.shared-projection-sources"
+          ],
+          "requiredPorts": [],
+          "checks": [
+            "bun run test:integration -- --suite=field_service.field-service.integration",
+            "bun run test:unit -- --suite=field_service.native-count-next-entry.unit"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Authenticated desktop/mobile Field workspace browser gate is development verification, not blocking this inventory.",
+        "Files provider (ClamAV/preview) parity and real file bytes are provider acceptance.",
+        "Finance production release/Company acceptance remains the Finance owner dependency for Field billing."
+      ],
+      "limitations": [
+        "Read-only inventory; no command executed.",
+        "apps/compat and src/composition are shared/lead-owned; the retirement packet must be proposed to the lead, not claimed wholesale.",
+        "Legacy count oracle is test-only; it is not runtime business execution.",
+        "sourceSha is the HEAD at audit completion; the read-only audit began at 1631f623 and git diff of the six owner packages, src/composition and tests/catalogue shows no in-scope source change through 97109f7da (only docs/status advancement by the lead)."
       ]
     },
     "files": {
@@ -4272,6 +4971,270 @@
         "Learning eligibility facts intentionally read People status directly today; changing that to packages/server-people_payroll/src/public/learning_person.rs is a seam decision."
       ]
     },
+    "legal": {
+      "taskId": "inventory.legal",
+      "owner": "legal",
+      "sourceSha": "97109f7dafc95235f5faf7a65c6c957638afd8f6",
+      "nativePresent": true,
+      "workflows": [
+        {
+          "id": "legal/contracts",
+          "qualification": "verified",
+          "native": [
+            "packages/server-legal/src/domain/legal_records.rs",
+            "packages/server-legal/src/adapters/legal_http.rs",
+            "packages/server-legal/src/adapters/legal_records_use_cases.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only; electronic signing intentionally gated"
+        },
+        {
+          "id": "legal/feature-documents",
+          "qualification": "verified",
+          "native": [
+            "packages/server-legal/src/domain/document_processing.rs",
+            "packages/server-legal/src/adapters/pdf_process.rs",
+            "packages/server-legal/src/adapters/document_docx.rs",
+            "packages/server-legal/src/adapters/pdf_validation/mod.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only; authored PDF/DOCX render and external submission were outside catalogue scope"
+        },
+        {
+          "id": "legal/feature-legal-holds",
+          "qualification": "verified",
+          "native": [
+            "packages/server-legal/src/domain/legal_records.rs",
+            "packages/server-legal/src/adapters/legal_http.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only"
+        },
+        {
+          "id": "legal/feature-document-access",
+          "qualification": "verified",
+          "native": [
+            "packages/server-legal/src/domain/legal_records.rs",
+            "packages/server-legal/src/adapters/legal_http.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only"
+        },
+        {
+          "id": "legal/feature-archive",
+          "qualification": "verified",
+          "native": [
+            "packages/server-legal/src/domain/legal_records.rs",
+            "packages/server-legal/src/adapters/legal_http.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only"
+        }
+      ],
+      "publicPorts": [
+        {
+          "name": "Legal records register/detail/export/command HTTP",
+          "path": "packages/server-legal/src/adapters/legal_http.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:4156"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "Legal queued PDF/document processing worker",
+          "path": "src/composition/src/legal_pdf_worker.rs",
+          "mountedAt": [
+            "src/composition/src/legal_pdf_worker.rs",
+            "src/composition/src/legal_system_worker.rs",
+            "src/composition/src/legal_runtime_worker.rs",
+            "src/composition/src/legal_worker_bootstrap.rs"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "Legal trust material command (prepare/commit)",
+          "path": "packages/server-legal/src/adapters/postgres_trust_commands.rs",
+          "mountedAt": [],
+          "status": "missing"
+        },
+        {
+          "name": "Legal auxiliary knowledge/corpus/reports/governance/retention reads",
+          "path": "packages/server-legal/src/application/knowledge.ts",
+          "mountedAt": [],
+          "status": "missing"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "legal.auxiliary-reads",
+          "kind": "read",
+          "detail": "The auxiliary Legal GET surface is still TS: packages/feature-legal/src/routes/api/v1/holdings/[holdingSlug]/legal/[[...path]]/route.ts calls TS legalKnowledge/lawCitation/lawCorpusView (public/legal/knowledge.ts, public/legal/law-corpus.ts), legalReferences, legalWorkspaceView, legalRuntimeHealth, governanceView, legalReports, legalApprovalView, featureDetail, retentionView, processingStatus, trustView, savedViews and legalAiHistory. Rust has only domain/knowledge.rs, domain/law-corpus.rs, domain/record_policy.rs types for these; no native query port.",
+          "suggestedPaths": [
+            "packages/server-legal/src/application/knowledge.ts",
+            "packages/server-legal/src/application/law-corpus.ts",
+            "packages/server-legal/src/application/reports.ts",
+            "packages/server-legal/src/application/governance.ts",
+            "packages/server-legal/src/application/retention.ts"
+          ]
+        },
+        {
+          "id": "legal.trust-command-mount",
+          "kind": "mount",
+          "detail": "Native trust management is implemented but unmounted: packages/server-legal/src/adapters/postgres_trust_commands.rs:148 execute_legal_trust_command, application/trust_management.rs, adapters/postgres_trust.rs and adapters/trust_material_inspector.rs are exported from public/mod.rs yet have no caller outside the crate. trustView/trustCommand in adapters/legal/trust.ts remain TS SQL (legal_trust_material) and the route dispatches trust.* there. The PDF upload provider (adapters/legal/document-provider.ts:71 -> adapters/legal/pdf-validation.ts) loads approved trust material in TS, writes roots/intermediates/revocation and then shells to erpx-verify-pdf; offline trust/revocation/timestamp/modification three-state verification is native and tested.",
+          "suggestedPaths": [
+            "packages/server-legal/src/adapters/postgres_trust_commands.rs",
+            "packages/server-legal/src/application/trust_management.rs",
+            "packages/server-legal/src/adapters/legal/trust.ts",
+            "packages/server-legal/src/adapters/legal/pdf-validation.ts"
+          ]
+        },
+        {
+          "id": "legal.auxiliary-commands",
+          "kind": "command",
+          "detail": "Remaining Legal POST actions are TS: retentionCommand, governanceCommand (form/intake/authority), featureCommand, legalApprovalCommand fallback, reviewExecutedCopy, addLegalReference, startRevision, preserveAttachment, prepareCounselPurchase, importPreview/importCommit, saveView, applyTemplate, convertRequest, applyAiDraft, queueLegalAi and sendEnvelope/signingAction. Native COMMANDS set in packages/feature-legal/src/lib/native-legal.ts:137-152 covers document/hold/transition/share/member/executed.review/approval.*; the rest fall through to the TS dispatcher at route lines 421-505.",
+          "suggestedPaths": [
+            "packages/server-legal/src/application/retention.ts",
+            "packages/server-legal/src/application/governance.ts",
+            "packages/server-legal/src/application/operations.ts",
+            "packages/server-legal/src/application/jobs.ts",
+            "packages/server-legal/src/application/signing.ts"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-legal/src/adapters/legal/trust.ts",
+          "reason": "TS authoritative trust material view/add/approve/retire SQL with node X509 parsing.",
+          "removalCondition": "execute_legal_trust_command is mounted and the legal route trust.* branch calls the native port; TS trust view/command deleted."
+        },
+        {
+          "path": "packages/server-legal/src/adapters/legal/pdf-validation.ts",
+          "reason": "TS loads approved trust material and invokes the native erpx-verify-pdf binary for upload-path verification.",
+          "removalCondition": "Native PDF verification/readiness port selects trust material inside the owner transaction and the TS file-writing marshaller is deleted while three-state tests stay green."
+        },
+        {
+          "path": "packages/server-legal/src/adapters/legal/knowledge.ts",
+          "reason": "TS knowledge/citation read for the Legal workspace and components.",
+          "removalCondition": "Native knowledge/corpus read port serves GET legal/knowledge and legal/law-citations and the TS adapter is removed."
+        },
+        {
+          "path": "packages/server-legal/src/adapters/legal/retention.ts",
+          "reason": "TS retention view/command and destruction sources.",
+          "removalCondition": "Native retention read/command (including record policy) is mounted and retentionView/retentionCommand imports disappear."
+        },
+        {
+          "path": "packages/server-legal/src/adapters/legal/documents.ts",
+          "reason": "TS authored document provider/export orchestration for uploads and authored render paths.",
+          "removalCondition": "Authored render stays provider-deferred; native document command/export covers the registered scope and the TS provider remains only as an A1 provider adapter."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.legal.auxiliary-reads",
+          "title": "Native Legal knowledge, corpus, references, governance, reports, retention and workspace reads",
+          "paths": [
+            "packages/server-legal/src/adapters/legal_http.rs",
+            "packages/server-legal/src/application/knowledge.rs",
+            "packages/server-legal/src/application/law_corpus.rs",
+            "packages/server-legal/src/application/reports.rs",
+            "packages/server-legal/src/application/governance.rs",
+            "packages/server-legal/src/application/retention.rs",
+            "packages/server-legal/src/adapters/legal/knowledge.ts",
+            "packages/server-legal/src/adapters/legal/law-corpus.ts",
+            "tests/integration/legal/legal-law-corpus.test.ts",
+            "tests/integration/legal/legal.test.ts"
+          ],
+          "resources": [
+            "owner:legal"
+          ],
+          "dependsOn": [
+            "coordination.bootstrap"
+          ],
+          "requiredPorts": [
+            "ports.authority",
+            "ports.common"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-legal",
+            "bun run test:integration -- --suite=legal.law-corpus.integration",
+            "bun run test:integration -- --suite=legal.legal.integration"
+          ]
+        },
+        {
+          "id": "migrate.legal.trust-pdf-runtime",
+          "title": "Mount native trust material command and move PDF trust selection into the owner",
+          "paths": [
+            "packages/server-legal/src/adapters/postgres_trust_commands.rs",
+            "packages/server-legal/src/application/trust_management.rs",
+            "packages/server-legal/src/adapters/postgres_trust.rs",
+            "packages/server-legal/src/adapters/trust_material_inspector.rs",
+            "packages/server-legal/src/adapters/legal/trust.ts",
+            "packages/server-legal/src/adapters/legal/pdf-validation.ts",
+            "tests/integration/legal/rust-trust-postgres.test.rs",
+            "tests/unit/legal/rust-pdf-validation.test.rs"
+          ],
+          "resources": [
+            "owner:legal"
+          ],
+          "dependsOn": [
+            "migrate.legal.auxiliary-reads"
+          ],
+          "requiredPorts": [
+            "ports.authority",
+            "ports.common"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-legal",
+            "bun run test:integration -- --suite=legal.rust-trust-postgres.integration",
+            "bun run test:unit -- --suite=legal.rust-pdf-validation.unit"
+          ]
+        },
+        {
+          "id": "migrate.legal.auxiliary-commands",
+          "title": "Native retention/governance/feature/operations/AI/signing Legal commands",
+          "paths": [
+            "packages/server-legal/src/application/retention.rs",
+            "packages/server-legal/src/application/governance.rs",
+            "packages/server-legal/src/application/operations.rs",
+            "packages/server-legal/src/application/jobs.rs",
+            "packages/server-legal/src/application/signing.rs",
+            "packages/server-legal/src/adapters/legal/retention.ts",
+            "packages/server-legal/src/adapters/legal/governance.ts",
+            "packages/server-legal/src/adapters/legal/operations.ts",
+            "tests/integration/legal/legal-retention-writers.test.ts",
+            "tests/integration/legal/legal-governance-writers.test.ts"
+          ],
+          "resources": [
+            "owner:legal"
+          ],
+          "dependsOn": [
+            "migrate.legal.auxiliary-reads"
+          ],
+          "requiredPorts": [
+            "ports.authority",
+            "ports.common"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-legal",
+            "bun run test:integration -- --suite=legal.legal.integration",
+            "bun run test:unit -- --suite=legal.rust-record-policy.unit"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Electronic signing provider/envelope credentials and delivery remain A1; signed-original import is the supported path.",
+        "Authored PDF/DOCX rendering provider (LibreOffice/office provider) acceptance is A1.",
+        "Legal AI provider credentials, governance review of AI output and external submission portals are A1.",
+        "Operator-supplied trust material provenance/approval and release gates are A1 acceptance."
+      ],
+      "limitations": [
+        "Read-only inventory; no command executed; no build.",
+        "Native trust command existence was verified by exported symbols/public/mod.rs and absence of callers in src/composition, not by running it.",
+        "Offline PDF three-state verification is native (adapters/pdf_validation/mod.rs, tests/unit/legal/rust-pdf-process.test.rs:240, tests/integration/legal/rust-queued-authority-composition.test.rs:389); residual is trust management/marshalling, not the verifier.",
+        "sourceSha is the HEAD at audit completion; the read-only audit began at 1631f623 and git diff of the six owner packages, src/composition and tests/catalogue shows no in-scope source change through 97109f7da (only docs/status advancement by the lead).",
+        "Python exists only under tests/support/legal/pdf-oracle (generate*.py, validate_pdf.py) and is a development/test oracle; no Python business runtime path is imported by packages/server-legal or src/composition."
+      ]
+    },
     "maintenance": {
       "taskId": "inventory.maintenance",
       "owner": "maintenance",
@@ -5439,6 +6402,274 @@
         "Read-only inventory; no cargo/bun/browser check executed; qualifications are source determinations, not certification.",
         "Composition marketing mount and entitlement wiring are lead-shared (src/composition/src/marketing.rs) and excluded from worker packet paths.",
         "Asset review/approval transitions have no native domain rule yet; packet scope is creation plus ingress, not full certification."
+      ]
+    },
+    "operations": {
+      "taskId": "inventory.operations",
+      "owner": "operations",
+      "sourceSha": "97109f7dafc95235f5faf7a65c6c957638afd8f6",
+      "nativePresent": true,
+      "workflows": [
+        {
+          "id": "operations/feature-exception-queue",
+          "qualification": "verified",
+          "native": [
+            "packages/server-operations/src/domain/operations_commands.rs",
+            "packages/server-operations/src/application/operations_commands.rs",
+            "packages/server-operations/src/adapters/operations_http.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only"
+        },
+        {
+          "id": "operations/feature-escalations",
+          "qualification": "verified",
+          "native": [
+            "packages/server-operations/src/domain/operations_commands.rs",
+            "packages/server-operations/src/application/operations_commands.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only"
+        },
+        {
+          "id": "operations/feature-approval-decisions",
+          "qualification": "verified",
+          "native": [
+            "packages/server-operations/src/domain/operations_commands.rs",
+            "packages/server-operations/src/application/operations_commands.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only"
+        },
+        {
+          "id": "operations/feature-resolution",
+          "qualification": "verified",
+          "native": [
+            "packages/server-operations/src/domain/operations_commands.rs",
+            "packages/server-operations/src/application/operations_commands.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only"
+        },
+        {
+          "id": "operations/feature-queue-policies",
+          "qualification": "verified",
+          "native": [
+            "packages/server-operations/src/domain/field_policy.rs",
+            "packages/server-operations/src/adapters/field_policy.rs",
+            "packages/server-operations/src/adapters/operations_http.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only"
+        },
+        {
+          "id": "operations/feature-operations-summary",
+          "qualification": "verified",
+          "native": [
+            "packages/server-operations/src/domain/queue_read.rs",
+            "packages/server-operations/src/application/queue_read.rs",
+            "packages/server-operations/src/adapters/queue_read.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only"
+        }
+      ],
+      "publicPorts": [
+        {
+          "name": "Operations exception queue read + policy/exception commands",
+          "path": "packages/server-operations/src/adapters/operations_http.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:4316"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "Field-owned exception/policy source port",
+          "path": "packages/server-operations/src/adapters/field_exceptions.rs",
+          "mountedAt": [
+            "src/composition/src/field_operations_command.rs:25",
+            "src/composition/src/field_inbox_read.rs:58"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "Operations summary/queue read (native)",
+          "path": "packages/server-operations/src/adapters/queue_read.rs",
+          "mountedAt": [
+            "src/composition/src/operations.rs:29",
+            "src/composition/src/operations.rs:491"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "Staff work (tasks/alerts/routines/handover) public export",
+          "path": "packages/server-operations/src/public/staff-tasks.ts",
+          "mountedAt": [],
+          "status": "missing"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "operations.staff-work",
+          "kind": "command",
+          "detail": "Staff Work tasks are authoritative TS: packages/server-operations/src/domain/staff-tasks.ts, application/staff-tasks.ts, adapters/staff-tasks.ts, adapters/staff-task-read.ts and adapters/staff-task-alerts.ts contain the task/alert writes and reads with no Rust equivalent in this crate (Rust covers only queue_read/operations_commands/field_exceptions/field_policy). Live consumers: packages/feature-work_projection/src/components/staff-work-controls.tsx:22, packages/server-agent/src/adapters/workspace-assistant.ts:26, packages/server-collaboration/src/adapters/social-home.ts:20 and staff-notifications.ts:84 (getTask).",
+          "suggestedPaths": [
+            "packages/server-operations/src/domain/staff-tasks.ts",
+            "packages/server-operations/src/application/staff-tasks.ts",
+            "packages/server-operations/src/adapters/staff-tasks.ts",
+            "packages/server-operations/src/adapters/staff-task-read.ts",
+            "packages/server-operations/src/adapters/staff-task-alerts.ts"
+          ]
+        },
+        {
+          "id": "operations.routines-handover",
+          "kind": "command",
+          "detail": "Routine templates/schedules and Handover remain TS: packages/server-operations/src/domain/routines.ts, adapters/routines.ts (2 SQL statements plus schedule state), application/routines.ts, domain/handover.ts and adapters/handover.ts; adapters/work-cache-deadlines.ts and the binder/write/routing facts hang off them. There is no Rust handover or routine module in this crate (Rust has only field_exceptions/field_policy/operations_commands/queue_read). Live routes: packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/handover/route.ts and .../handover/[postId]/acknowledgement/route.ts.",
+          "suggestedPaths": [
+            "packages/server-operations/src/domain/routines.ts",
+            "packages/server-operations/src/adapters/routines.ts",
+            "packages/server-operations/src/domain/handover.ts",
+            "packages/server-operations/src/adapters/handover.ts"
+          ]
+        },
+        {
+          "id": "operations.public-export-facts",
+          "kind": "read",
+          "detail": "Shared TS SQL/facts exports remain the cross-owner authority: adapters/staff-policy.ts (90 lines; people/agent/billing/brand/collaboration imports), adapters/record-purchases.ts (80 lines), adapters/work-package-obligation-sources.ts (imported by 19 package files under packages/*), adapters/project-read-projections.ts, adapters/project-task-record-policy.ts, adapters/presentation-queries.ts and adapters/people-evaluation-work-facts.ts (evaluation assessment projections consumed by packages/server-people_payroll/src/adapters/people-evaluation.ts). There is no native projection/facts port.",
+          "suggestedPaths": [
+            "packages/server-operations/src/adapters/staff-policy.ts",
+            "packages/server-operations/src/adapters/record-purchases.ts",
+            "packages/server-operations/src/adapters/work-package-obligation-sources.ts",
+            "packages/server-operations/src/adapters/project-read-projections.ts",
+            "packages/server-operations/src/adapters/people-evaluation-work-facts.ts"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-operations/src/adapters/staff-tasks.ts",
+          "reason": "TS staff task/alert writer and read behind Work Projection, Agent and Collaboration.",
+          "removalCondition": "Native staff task/alert commands and reads are mounted and the TS application/staff-tasks imports disappear."
+        },
+        {
+          "path": "packages/server-operations/src/adapters/routines.ts",
+          "reason": "TS routine template/schedule writer used by Workplace routine screens.",
+          "removalCondition": "Native routine command owns templates/schedules/deadlines and the workplace routine routes call it."
+        },
+        {
+          "path": "packages/server-operations/src/adapters/handover.ts",
+          "reason": "TS handover publish/acknowledgement behind the Apps handover routes.",
+          "removalCondition": "Native handover domain/application/adapter is bound and the handover routes stop importing public/handover."
+        },
+        {
+          "path": "packages/server-operations/src/adapters/staff-policy.ts",
+          "reason": "TS staff authority/people facts used by many owners' notification and command paths.",
+          "removalCondition": "Native staff-policy/facts port is mounted and all @erpx/server-operations/public/staff-policy imports are retired."
+        },
+        {
+          "path": "packages/server-operations/src/adapters/work-package-obligation-sources.ts",
+          "reason": "TS settlement source locks/facts shared with Collaboration and Work Projection.",
+          "removalCondition": "Native work package obligation source port replaces the SQL fragments and the 19 consumers import the native port."
+        },
+        {
+          "path": "packages/server-operations/src/adapters/operations-exceptions.ts",
+          "reason": "Retained TS application/repository for Field-owned exceptions plus native wrappers; non-Field fallback was removed.",
+          "removalCondition": "Field-owned exception reads/commands move fully to the Field native transaction and this adapter is deleted."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.operations.staff-work",
+          "title": "Native staff task/alert commands and Work reads",
+          "paths": [
+            "packages/server-operations/src/domain/staff-tasks.rs",
+            "packages/server-operations/src/application/staff_tasks.rs",
+            "packages/server-operations/src/adapters/staff_tasks.rs",
+            "packages/server-operations/src/public/staff_tasks.rs",
+            "packages/server-operations/src/adapters/staff-tasks.ts",
+            "packages/server-operations/src/adapters/staff-task-read.ts",
+            "tests/integration/operations/staff-work.test.ts",
+            "tests/integration/operations/staff-task-alerts.test.ts"
+          ],
+          "resources": [
+            "owner:operations"
+          ],
+          "dependsOn": [
+            "coordination.bootstrap"
+          ],
+          "requiredPorts": [
+            "ports.authority",
+            "ports.common"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-operations",
+            "bun run test:integration -- --suite=operations.staff-work.integration",
+            "bun run test:integration -- --suite=operations.staff-task-alerts.integration"
+          ]
+        },
+        {
+          "id": "migrate.operations.routines-handover",
+          "title": "Native routine schedule/deadline and handover acknowledgement",
+          "paths": [
+            "packages/server-operations/src/domain/routines.ts",
+            "packages/server-operations/src/adapters/routines.ts",
+            "packages/server-operations/src/adapters/handover.ts",
+            "packages/server-operations/src/public/handover-contract.ts",
+            "tests/integration/operations/handover.test.ts",
+            "tests/integration/operations/staff-work.test.ts"
+          ],
+          "resources": [
+            "owner:operations"
+          ],
+          "dependsOn": [
+            "migrate.operations.staff-work"
+          ],
+          "requiredPorts": [
+            "ports.authority"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-operations",
+            "bun run test:integration -- --suite=operations.handover.integration"
+          ]
+        },
+        {
+          "id": "migrate.operations.shared-facts-ports",
+          "title": "Native staff-policy, record-purchase, work-obligation, project-read and evaluation fact ports",
+          "paths": [
+            "packages/server-operations/src/adapters/staff-policy.ts",
+            "packages/server-operations/src/adapters/record-purchases.ts",
+            "packages/server-operations/src/adapters/work-package-obligation-sources.ts",
+            "packages/server-operations/src/adapters/project-read-projections.ts",
+            "packages/server-operations/src/adapters/people-evaluation-work-facts.ts",
+            "packages/server-operations/src/public/presentation-queries.ts"
+          ],
+          "resources": [
+            "owner:operations"
+          ],
+          "dependsOn": [
+            "coordination.bootstrap"
+          ],
+          "requiredPorts": [
+            "ports.authority",
+            "ports.common"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-operations",
+            "bun run test:integration -- --suite=operations.work-projections.integration",
+            "bun run test:integration -- --suite=operations.rust-operations-commands-postgres.integration"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Routine alert delivery and notification provider credentials are A1 provider items.",
+        "Agent consumption of staff task facts needs Agent owner port acceptance.",
+        "People evaluation (assessment) provider/AI scoring is A1."
+      ],
+      "limitations": [
+        "Read-only inventory; no command executed.",
+        "Operations HTTP/config mounting is lead-owned (src/composition); owner packets must request mounts.",
+        "ops/staff projection consumers live in other owners (collaboration, work_projection, agent, people_payroll) and need lead-coordinated consumer updates.",
+        "sourceSha is the HEAD at audit completion; the read-only audit began at 1631f623 and git diff of the six owner packages, src/composition and tests/catalogue shows no in-scope source change through 97109f7da (only docs/status advancement by the lead)."
       ]
     },
     "organization": {
@@ -6616,6 +7847,464 @@
         "Shared composition mount and feature-admin route retirement are lead integration.",
         "erpxctl.py backup/restore is Python Ops tooling; migration must not claim it as native backend without a scoped task.",
         "No cargo/test was run during inventory."
+      ]
+    },
+    "pms": {
+      "taskId": "inventory.pms",
+      "owner": "pms",
+      "sourceSha": "603a4aa3e3e39a0a65651d839a6cdab04631b742",
+      "nativePresent": true,
+      "workflows": [
+        {
+          "id": "pms/dashboard",
+          "qualification": "unstarted",
+          "native": [
+            "packages/server-pms/src/adapters/room_board.rs:66",
+            "packages/server-pms/src/adapters/room_board.rs:299"
+          ],
+          "tsAuthoritative": [
+            "packages/server-pms/src/application/pms.ts:1356",
+            "packages/server-pms/src/adapters/pms.ts:808",
+            "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/pms/[[...section]]/screen.tsx"
+          ],
+          "gap": "No native dashboard projection. Room board exposes property/room counts only; dashboard totals/history/readiness still come from TS pmsWorkspace (complete/read selection)."
+        },
+        {
+          "id": "pms/reservations",
+          "qualification": "unstarted",
+          "native": [],
+          "tsAuthoritative": [
+            "packages/server-pms/src/application/pms-booking.ts",
+            "packages/server-pms/src/adapters/pms-booking.ts",
+            "packages/server-pms/src/application/pms.ts:1067",
+            "packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/[action]/route.ts"
+          ],
+          "gap": "Quote/confirm/cancel/no-show/change-dates and atomic room availability are TS (reservation.*, booking changes). No Rust reservation aggregate, availability lock or booking command."
+        },
+        {
+          "id": "pms/front-desk",
+          "qualification": "partial",
+          "native": [
+            "packages/server-pms/src/domain/front_desk.rs",
+            "packages/server-pms/src/application/front_desk.rs:33",
+            "packages/server-pms/src/adapters/front_desk.rs:186",
+            "packages/server-pms/src/adapters/pms_http.rs:306",
+            "packages/server-pms/src/application/stay_room.rs:54"
+          ],
+          "tsAuthoritative": [
+            "packages/server-pms/src/application/pms.ts:1067",
+            "packages/server-pms/src/adapters/pms.ts:819",
+            "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/pms/route.ts"
+          ],
+          "gap": "Native front-desk read is mounted. stay.assign/stay.move planner exists only as crate-private application+unit test (no repository adapter, HTTP, composition port). check-in/check-out, room move/upgrade, date change and guest routing are TS pmsCommand."
+        },
+        {
+          "id": "pms/rooms",
+          "qualification": "partial",
+          "native": [
+            "packages/server-pms/src/domain/room_board.rs:226",
+            "packages/server-pms/src/application/room_board.rs:54",
+            "packages/server-pms/src/adapters/room_board.rs:299",
+            "packages/server-pms/src/adapters/pms_http.rs:323"
+          ],
+          "tsAuthoritative": [
+            "packages/server-pms/src/application/pms.ts",
+            "packages/server-pms/src/adapters/pms.ts:819"
+          ],
+          "gap": "Native room board read is mounted (rooms/housekeeping sections). room.save, room.observe, room.dnd, room-type/setup and maintenance status commands remain TS."
+        },
+        {
+          "id": "pms/housekeeping",
+          "qualification": "partial",
+          "native": [
+            "packages/server-pms/src/adapters/room_board.rs:299",
+            "packages/server-pms/src/adapters/pms_http.rs:324",
+            "tests/unit/pms/rust-pms-room-board.test.rs"
+          ],
+          "tsAuthoritative": [
+            "packages/server-pms/src/application/pms.ts",
+            "packages/server-pms/src/adapters/pms.ts:819"
+          ],
+          "gap": "Native housekeeping board read only. task.create/assign/start/complete/inspect, stale-cycle protection and linen flows remain TS commands (task.*, linen.*)."
+        },
+        {
+          "id": "pms/guest-accounts",
+          "qualification": "unstarted",
+          "native": [
+            "packages/server-pms/src/domain/room_board.rs:156"
+          ],
+          "tsAuthoritative": [
+            "packages/server-pms/src/application/pms.ts",
+            "packages/server-pms/src/adapters/pms.ts:819"
+          ],
+          "gap": "No Rust guest-account command. charge.add/reverse, guest_account.transfer/merge/close and charge ownership split are TS; native board only renders related guest-account rows read-only."
+        },
+        {
+          "id": "pms/cashier",
+          "qualification": "unstarted",
+          "native": [],
+          "tsAuthoritative": [
+            "packages/server-pms/src/application/pms.ts",
+            "packages/server-pms/src/application/pms-stripe.ts",
+            "packages/server-pms/src/adapters/pms-stripe.ts:269",
+            "packages/feature-pms/src/routes/api/v1/holdings/[holdingSlug]/pms/stripe-payments/route.ts"
+          ],
+          "gap": "No Rust payment/shift/refund settlement. payment.*, shift.open/close/review, refund.* and Stripe payment/refund drain are TS with Finance reconciliation."
+        },
+        {
+          "id": "pms/inventory",
+          "qualification": "unstarted",
+          "native": [],
+          "tsAuthoritative": [
+            "packages/server-pms/src/application/pms.ts",
+            "packages/server-pms/src/adapters/pms.ts:819"
+          ],
+          "gap": "No native minibar/linen stock command. minibar charge, COGS consumption, insufficient-stock rollback and linen return/wash/loss are TS; no stock owner port."
+        },
+        {
+          "id": "pms/guests",
+          "qualification": "unstarted",
+          "native": [
+            "packages/server-pms/src/adapters/room_board.rs:336",
+            "packages/server-pms/src/adapters/front_desk.rs:56"
+          ],
+          "tsAuthoritative": [
+            "packages/server-pms/src/adapters/entrypoint-queries.ts",
+            "packages/server-pms/src/application/pms.ts:1213"
+          ],
+          "gap": "Native boards expose bounded guest/guest-account related rows only; they are not a guest read model. Guest directory/search, identity/scope and profile queries remain TS entrypoint queries, so the workflow stays without a whole-scope native qualification."
+        },
+        {
+          "id": "pms/reports",
+          "qualification": "unstarted",
+          "native": [],
+          "tsAuthoritative": [
+            "packages/server-pms/src/application/reports.ts",
+            "packages/server-pms/src/adapters/pms/reports.ts",
+            "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/pms/[[...section]]/screen.tsx"
+          ],
+          "gap": "No Rust report projection (occupancy/revenue/range reports). TS reports read pms records; native board totals are insufficient for the workflow."
+        },
+        {
+          "id": "pms/night-audit",
+          "qualification": "unstarted",
+          "native": [],
+          "tsAuthoritative": [
+            "packages/server-pms/src/application/pms.ts:1092",
+            "packages/server-pms/src/adapters/pms.ts:820",
+            "packages/server-runtime/src/adapters/runtime/jobs.ts:165"
+          ],
+          "gap": "Night audit start/resume/step, durable chunk progress, one-worker close and no-repost behaviour are TS drainPms. No native job, lease or restart path."
+        },
+        {
+          "id": "pms/settings",
+          "qualification": "unstarted",
+          "native": [],
+          "tsAuthoritative": [
+            "packages/server-pms/src/application/pms.ts",
+            "packages/server-pms/src/adapters/pms.ts:819"
+          ],
+          "gap": "Property/room-type/rate/accounting mapping setup, independent review/activation and readiness evidence remain TS commands; native initial_count_modules/scheduled_legal are unrelated auxiliary reads."
+        }
+      ],
+      "publicPorts": [
+        {
+          "name": "pms_http_router",
+          "path": "packages/server-pms/src/adapters/pms_http.rs:306",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:4162"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "native PMS board/front-desk SSR transport",
+          "path": "packages/feature-pms/src/adapters/server/native-pms.ts:810",
+          "mountedAt": [
+            "packages/workplace/src/lib/native-pms.ts:69",
+            "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/pms/[[...section]]/screen.tsx"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "pms_stay_room_command",
+          "path": "packages/server-pms/src/application/stay_room.rs:54",
+          "mountedAt": [],
+          "status": "missing"
+        },
+        {
+          "name": "pms_command_router",
+          "path": "packages/server-pms/src/adapters/pms.ts:819",
+          "mountedAt": [
+            "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/pms/route.ts"
+          ],
+          "status": "missing"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "stay-frontdesk-commands",
+          "kind": "command",
+          "detail": "Expose the existing stay.assign/stay.move planner with a Postgres repository and HTTP ingress; add check-in/check-out, date change, upgrade and guest routing under the occupancy/version/lock rules. Native room status/housekeeping task commands are missing entirely.",
+          "suggestedPaths": [
+            "packages/server-pms/src/adapters/stay_room_postgres.rs",
+            "packages/server-pms/src/adapters/stay_room_http.rs",
+            "packages/server-pms/src/public/stay_room.rs",
+            "packages/server-pms/src/domain/room_command.rs",
+            "packages/server-pms/src/application/room_command.rs",
+            "packages/server-pms/src/adapters/room_command_postgres.rs",
+            "packages/server-pms/src/adapters/room_command_http.rs"
+          ]
+        },
+        {
+          "id": "reservation-booking-commands",
+          "kind": "command",
+          "detail": "Native reservation quote/confirm/cancel/no-show/change-dates with availability lock, rate/policy source and booking confirmation notice. Provider email delivery remains an adapter with fail-closed configuration.",
+          "suggestedPaths": [
+            "packages/server-pms/src/domain/reservation.rs",
+            "packages/server-pms/src/application/reservation.rs",
+            "packages/server-pms/src/adapters/reservation_postgres.rs",
+            "packages/server-pms/src/adapters/reservation_http.rs",
+            "packages/server-pms/src/adapters/booking_email_provider.rs"
+          ]
+        },
+        {
+          "id": "guest-cashier-stock-commands",
+          "kind": "command",
+          "detail": "Guest-account charge/transfer/merge/close, payment request/verify/apply, shift open/close/review/refund and minibar/linen stock effects. Consume Finance posting and Inventory stock ports; no duplicate GL or stock writer.",
+          "suggestedPaths": [
+            "packages/server-pms/src/domain/guest_account.rs",
+            "packages/server-pms/src/application/guest_account.rs",
+            "packages/server-pms/src/adapters/guest_account_postgres.rs",
+            "packages/server-pms/src/adapters/guest_account_http.rs",
+            "packages/server-pms/src/domain/minibar.rs",
+            "packages/server-pms/src/application/minibar.rs",
+            "packages/server-pms/src/adapters/minibar_postgres.rs"
+          ]
+        },
+        {
+          "id": "night-audit-worker",
+          "kind": "job",
+          "detail": "Durable night start/resume/step with committed chunk progress, one concurrent closer, lease/retry and no revenue repost after restart. Currently TS drainPms invoked by server-runtime jobs.ts:165.",
+          "suggestedPaths": [
+            "packages/server-pms/src/domain/night_audit.rs",
+            "packages/server-pms/src/application/night_audit.rs",
+            "packages/server-pms/src/adapters/night_audit_postgres.rs",
+            "packages/server-pms/src/adapters/night_audit_worker.rs"
+          ]
+        },
+        {
+          "id": "reports-dashboard-read",
+          "kind": "read",
+          "detail": "Native dashboard/report projections (occupancy, revenue, range comparisons) with authorized source rows; board totals do not satisfy pms/dashboard or pms/reports.",
+          "suggestedPaths": [
+            "packages/server-pms/src/domain/report_projection.rs",
+            "packages/server-pms/src/application/report_projection.rs",
+            "packages/server-pms/src/adapters/report_projection.rs",
+            "packages/server-pms/src/adapters/report_http.rs"
+          ]
+        },
+        {
+          "id": "settings-setup-commands",
+          "kind": "command",
+          "detail": "Property/room-type/rate/accounting mapping setup with independent review+activation and immutable readiness evidence remains TS.",
+          "suggestedPaths": [
+            "packages/server-pms/src/domain/hospitality_setup.rs",
+            "packages/server-pms/src/application/hospitality_setup.rs",
+            "packages/server-pms/src/adapters/hospitality_setup_postgres.rs",
+            "packages/server-pms/src/adapters/hospitality_setup_http.rs"
+          ]
+        },
+        {
+          "id": "composition-mount",
+          "kind": "mount",
+          "detail": "Lead mounts new PMS command/job routers and runtime selection; owner cannot edit src/composition. Provider credentials and Stripe/email sandbox stay A1.",
+          "suggestedPaths": [
+            "src/composition/src/private_development_api.rs",
+            "src/composition/src/pms.rs"
+          ]
+        },
+        {
+          "id": "ts-pms-retirement",
+          "kind": "retirement",
+          "detail": "TS pmsCommand/drainPms and routes keep authoritative business logic; retire per native command slice, preserving TS integration oracles until replaced.",
+          "suggestedPaths": [
+            "packages/server-pms/src/adapters/pms.ts",
+            "packages/server-pms/src/application/pms.ts",
+            "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/pms/route.ts"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-pms/src/application/pms.ts",
+          "reason": "Authoritative reservation/stay/room/housekeeping/guest/cashier/minibar/night/settings command engine and workspace read selection.",
+          "removalCondition": "Native command routers cover each operation and the workplace PMS route selects them; delete the TS operation branches and command dispatch."
+        },
+        {
+          "path": "packages/server-pms/src/adapters/pms.ts",
+          "reason": "SQL/repository unit, pmsCommand, drainPms and pmsWorkspace adapter used by Next routes and socket/front workspace.",
+          "removalCondition": "Native Postgres repositories + runtime job replace every export; Next routes proxy native only."
+        },
+        {
+          "path": "packages/server-pms/src/application/pms-booking.ts",
+          "reason": "Reservation booking changes, refunds and notification/payment effects.",
+          "removalCondition": "Native reservation command and booking ref provide the same lifecycle and booking/public routes select it."
+        },
+        {
+          "path": "packages/server-pms/src/application/pms-stripe.ts",
+          "reason": "Stripe payment/refund reconciliation and guest-account settlement.",
+          "removalCondition": "Native provider adapter and guest/cashier command replace it and pms-stripe routes become transport; real keys remain A1."
+        },
+        {
+          "path": "packages/server-pms/src/application/reports.ts",
+          "reason": "Occupancy/revenue and range report business projections.",
+          "removalCondition": "Native report projection passes pms.read-model/reports suites and PMS report screens select it."
+        },
+        {
+          "path": "packages/server-runtime/src/adapters/runtime/jobs.ts",
+          "reason": "TS job loop invokes drainPms and pms stripe drains at lines 165-167.",
+          "removalCondition": "Native night-audit/payment job executor is registered and the TS drain imports are removed."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.pms.stay_front_desk_commands",
+          "title": "Native stay, front-desk, room and housekeeping commands",
+          "paths": [
+            "packages/server-pms/src/domain/stay_room.rs",
+            "packages/server-pms/src/application/stay_room.rs",
+            "packages/server-pms/src/adapters/stay_room_postgres.rs",
+            "packages/server-pms/src/adapters/stay_room_http.rs",
+            "packages/server-pms/src/public/stay_room.rs",
+            "packages/server-pms/src/domain/room_command.rs",
+            "packages/server-pms/src/application/room_command.rs",
+            "packages/server-pms/src/adapters/room_command_postgres.rs",
+            "packages/server-pms/src/adapters/room_command_http.rs",
+            "tests/unit/pms/rust-pms-stay-room.test.rs",
+            "tests/integration/pms/rust-pms-stay-room-postgres.test.rs",
+            "tests/unit/pms/rust-pms-room-command.test.rs"
+          ],
+          "resources": [
+            "owner:pms"
+          ],
+          "dependsOn": [
+            "ports.trade"
+          ],
+          "requiredPorts": [
+            "ports.trade"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-pms",
+            "bun run test:unit --suite=pms.rust-pms-stay-room.unit",
+            "bun run test:integration --suite=pms.rust-pms-http.integration",
+            "bun run test:integration --suite=pms.pms.integration"
+          ]
+        },
+        {
+          "id": "migrate.pms.reservations_booking",
+          "title": "Native reservation/booking lifecycle and confirmation provider",
+          "paths": [
+            "packages/server-pms/src/domain/reservation.rs",
+            "packages/server-pms/src/application/reservation.rs",
+            "packages/server-pms/src/adapters/reservation_postgres.rs",
+            "packages/server-pms/src/adapters/reservation_http.rs",
+            "packages/server-pms/src/adapters/booking_email_provider.rs",
+            "packages/server-pms/src/public/reservation.rs",
+            "tests/unit/pms/rust-pms-reservation.test.rs",
+            "tests/integration/pms/rust-pms-reservation-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:pms"
+          ],
+          "dependsOn": [
+            "ports.growth"
+          ],
+          "requiredPorts": [
+            "ports.growth"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-pms",
+            "bun run test:unit --suite=pms.rust-pms-front-desk.unit",
+            "bun run test:integration --suite=pms.booking.integration",
+            "bun run typecheck"
+          ]
+        },
+        {
+          "id": "migrate.pms.guest_cashier_stock",
+          "title": "Native guest accounts, cashier settlement and minibar/linen stock",
+          "paths": [
+            "packages/server-pms/src/domain/guest_account.rs",
+            "packages/server-pms/src/application/guest_account.rs",
+            "packages/server-pms/src/adapters/guest_account_postgres.rs",
+            "packages/server-pms/src/adapters/guest_account_http.rs",
+            "packages/server-pms/src/domain/minibar.rs",
+            "packages/server-pms/src/application/minibar.rs",
+            "packages/server-pms/src/adapters/minibar_postgres.rs",
+            "packages/server-pms/src/public/guest_account.rs",
+            "tests/unit/pms/rust-pms-guest-accounts.test.rs",
+            "tests/integration/pms/rust-pms-guest-accounts-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:pms"
+          ],
+          "dependsOn": [
+            "ports.trade"
+          ],
+          "requiredPorts": [
+            "ports.trade"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-pms",
+            "bun run test:integration --suite=pms.rust-pms-http.integration",
+            "bun run test:integration --suite=pms.pms.integration",
+            "bun run test:integration --suite=pms.reports.integration"
+          ]
+        },
+        {
+          "id": "migrate.pms.night_audit_reports_settings",
+          "title": "Native night-audit worker, dashboard/report reads and settings commands",
+          "paths": [
+            "packages/server-pms/src/domain/night_audit.rs",
+            "packages/server-pms/src/application/night_audit.rs",
+            "packages/server-pms/src/adapters/night_audit_postgres.rs",
+            "packages/server-pms/src/adapters/night_audit_worker.rs",
+            "packages/server-pms/src/domain/report_projection.rs",
+            "packages/server-pms/src/application/report_projection.rs",
+            "packages/server-pms/src/adapters/report_http.rs",
+            "packages/server-pms/src/domain/hospitality_setup.rs",
+            "packages/server-pms/src/application/hospitality_setup.rs",
+            "packages/server-pms/src/adapters/hospitality_setup_http.rs",
+            "tests/unit/pms/rust-pms-night-audit.test.rs",
+            "tests/integration/pms/rust-pms-night-audit-postgres.test.rs"
+          ],
+          "resources": [
+            "owner:pms"
+          ],
+          "dependsOn": [
+            "ports.trade"
+          ],
+          "requiredPorts": [
+            "ports.trade"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-pms",
+            "bun run test:unit --suite=pms.rust-pms-room-board-postgres.integration",
+            "bun run test:integration --suite=pms.read-model.integration",
+            "bun run test:integration --suite=pms.reports.integration"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Stripe sandbox/live credentials and real payment/refund settlement verification.",
+        "Real booking-confirmation email/SMS provider credentials and delivery receipts.",
+        "Authenticated browser journeys for front desk, housekeeping, cashier, night audit, reports and settings on the frozen candidate.",
+        "Night-audit restart against a real durable PostgreSQL job service and production-volume properties."
+      ],
+      "limitations": [
+        "Source inspection only; no cargo/bun test or typecheck executed.",
+        "Room-board/front-desk read is mounted and browser-verified per ledger, but this inventory does not credit it as command migration.",
+        "stay_room planner is crate-private (application/mod.rs:6, domain/mod.rs:8) and imported by its unit test via #[path]; it has no public port, adapter, receipt persistence or HTTP at this SHA.",
+        "Catalogue counts (9 unstarted, 3 partial) were re-derived from docs/status/rust-delivery-bundles.json workflows, not inferred from crate presence."
       ]
     },
     "pos": {
@@ -8457,6 +10146,287 @@
         "Line numbers are from the current working tree at the recorded sourceSha."
       ]
     },
+    "support": {
+      "taskId": "inventory.support",
+      "owner": "support",
+      "sourceSha": "97109f7dafc95235f5faf7a65c6c957638afd8f6",
+      "nativePresent": true,
+      "workflows": [
+        {
+          "id": "support/tickets",
+          "qualification": "verified",
+          "native": [
+            "packages/server-support/src/domain/ticket.rs",
+            "packages/server-support/src/application/ticket.rs",
+            "packages/server-support/src/public/support_ticket_read.rs",
+            "src/composition/src/support_ticket_http.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only"
+        },
+        {
+          "id": "support/sla-watch",
+          "qualification": "verified",
+          "native": [
+            "packages/server-support/src/domain/sla.rs",
+            "packages/server-support/src/application/sla_drain.rs",
+            "src/composition/src/support_sla_command.rs",
+            "src/composition/src/support_sla_http.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only"
+        },
+        {
+          "id": "support/incidents",
+          "qualification": "verified",
+          "native": [
+            "packages/server-support/src/domain/incident.rs",
+            "packages/server-support/src/application/incident.rs",
+            "packages/server-support/src/public/incident.rs",
+            "src/composition/src/support_incident_http.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only"
+        },
+        {
+          "id": "support/feature-support-sessions",
+          "qualification": "verified",
+          "native": [
+            "packages/server-support/src/domain/session.rs",
+            "packages/server-support/src/application/session.rs",
+            "packages/server-support/src/public/session.rs",
+            "src/composition/src/support_session_http.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only; Sales customer view still calls the TS support workspace read"
+        },
+        {
+          "id": "support/feature-capabilities",
+          "qualification": "verified",
+          "native": [
+            "packages/server-support/src/domain/session.rs",
+            "packages/server-support/src/application/session.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only"
+        },
+        {
+          "id": "support/feature-attachments",
+          "qualification": "verified",
+          "native": [
+            "packages/server-support/src/application/support_evidence.rs",
+            "packages/server-support/src/public/support_evidence.rs",
+            "src/composition/src/support_evidence_command.rs",
+            "src/composition/src/support_evidence_http.rs"
+          ],
+          "tsAuthoritative": [],
+          "gap": "certified workflow; residual only"
+        }
+      ],
+      "publicPorts": [
+        {
+          "name": "Support ticket read (workspace/detail/recipients/evidence)",
+          "path": "src/composition/src/support_read_http.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:4931",
+            "src/composition/src/private_development_api.rs:4963"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "Support ticket command",
+          "path": "src/composition/src/support_ticket_http.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:4955"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "Support evidence bind/revoke command",
+          "path": "src/composition/src/support_evidence_http.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:5009"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "Support SLA policy/ack command + drain",
+          "path": "src/composition/src/support_sla_http.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:5054"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "Support session/incident commands",
+          "path": "src/composition/src/support_session_http.rs",
+          "mountedAt": [
+            "src/composition/src/private_development_api.rs:5099",
+            "src/composition/src/private_development_api.rs:5144"
+          ],
+          "status": "frozen"
+        },
+        {
+          "name": "Ticket portal projection/command",
+          "path": "packages/server-support/src/adapters/ticket-portal.ts",
+          "mountedAt": [],
+          "status": "missing"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "support.ticket-portal",
+          "kind": "command",
+          "detail": "Verified customer ticket access is authoritative TS SQL: packages/server-support/src/adapters/ticket-portal.ts prepares/decides/responds over support_ticket_portal_bindings/responses with replay/authority and portal portal-SSO composition. Live consumers: packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/support/ticket-portal/[[...path]]/route.ts, the workspace pages under customers-sales/customers/service/portal, and packages/feature-portal/src/routes/api/customer-portal/[holdingSlug]/tickets/**. There is no Rust ticket_portal module; only domain/ticket-portal.ts and ticket-portal-entry.ts exist.",
+          "suggestedPaths": [
+            "packages/server-support/src/adapters/ticket-portal.ts",
+            "packages/server-support/src/domain/ticket-portal.rs",
+            "packages/server-support/src/application/ticket_portal.rs",
+            "packages/server-support/src/public/ticket_portal.rs"
+          ]
+        },
+        {
+          "id": "support.service-teams",
+          "kind": "command",
+          "detail": "Service team create/update writes are TS authoritative in packages/server-support/src/adapters/service-teams.ts (service_teams, service_team_revisions, service_team_members, service_team_coverage) with TS scope validation in adapters/service-access.ts. Consumer: packages/feature-support/src/routes/api/v1/holdings/[holdingSlug]/service-teams/[[...path]]/route.ts:8 and .../preview/route.ts:4. The Rust crate has only domain/service_teams.rs (no Rust application/adapter).",
+          "suggestedPaths": [
+            "packages/server-support/src/adapters/service-teams.ts",
+            "packages/server-support/src/adapters/service-access.ts",
+            "packages/server-support/src/domain/service_teams.rs",
+            "packages/server-support/src/application/service-teams.rs"
+          ]
+        },
+        {
+          "id": "support.notification-and-workspace-reads",
+          "kind": "read",
+          "detail": "Auxiliary reads remain TS: packages/server-support/src/adapters/support.ts still builds the Sales customer support workspace (packages/feature-sales/src/components/customers/customer-views.tsx:45 calls supportWorkspace) and exports getSupportTicket/supportWorkspacePurchaseAccess/supportTicketReadPredicate; packages/server-collaboration/src/adapters/staff-notifications.ts:84 imports getSupportTicket, getSupportPolicy, getSupportAlert, getSupportIncident and supportSessionDetail from four TS adapters for notification payloads. The native read router exists but these consumers bypass it.",
+          "suggestedPaths": [
+            "packages/server-support/src/adapters/support.ts",
+            "packages/server-support/src/adapters/support-sla-alerts.ts",
+            "packages/server-support/src/adapters/support-sessions.ts",
+            "packages/server-support/src/adapters/support-ticket-read.ts"
+          ]
+        }
+      ],
+      "retainedLegacy": [
+        {
+          "path": "packages/server-support/src/adapters/ticket-portal.ts",
+          "reason": "TS authoritative customer ticket-access prepare/decide/respond writer and portal projection.",
+          "removalCondition": "Native ticket-portal command/read is mounted for staff and customer-portal routes and supportTicketPortal*/prepare/decide/respond imports are removed."
+        },
+        {
+          "path": "packages/server-support/src/adapters/service-teams.ts",
+          "reason": "TS authoritative service-team and membership/coverage writer.",
+          "removalCondition": "Native service-team command owns service_teams/revisions/members/coverage writes and the service-teams routes call it."
+        },
+        {
+          "path": "packages/server-support/src/adapters/support.ts",
+          "reason": "TS support workspace/detail reads, purchase access and ticket predicates used by Sales and Cross-owner notification payloads.",
+          "removalCondition": "Sales customer view and Collaboration notifications consume the native support read/source ports and the TS predicates are deleted."
+        },
+        {
+          "path": "packages/server-support/src/adapters/support-sla-alerts.ts",
+          "reason": "TS alert read used by Collaboration staff notification targets.",
+          "removalCondition": "Native SLA alert read is bound into staff-notification targets and getSupportAlert is removed."
+        },
+        {
+          "path": "packages/server-support/src/adapters/support-sessions.ts",
+          "reason": "TS session workspace/detail read and notification source.",
+          "removalCondition": "Native session read router serves the session detail/workspace and supportSessionDetail notifications."
+        }
+      ],
+      "packets": [
+        {
+          "id": "migrate.support.ticket-portal",
+          "title": "Native verified customer ticket-access projection and prepare/decide/respond commands",
+          "paths": [
+            "packages/server-support/src/domain/ticket-portal.rs",
+            "packages/server-support/src/application/ticket_portal.rs",
+            "packages/server-support/src/adapters/ticket_portal.rs",
+            "packages/server-support/src/public/ticket_portal.rs",
+            "packages/server-support/src/adapters/ticket-portal.ts",
+            "tests/integration/support/support.test.ts"
+          ],
+          "resources": [
+            "owner:support"
+          ],
+          "dependsOn": [
+            "coordination.bootstrap"
+          ],
+          "requiredPorts": [
+            "ports.authority",
+            "ports.common"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-support",
+            "bun run test:integration -- --suite=support.support.integration",
+            "bun run test:unit -- --suite=support.services.unit"
+          ]
+        },
+        {
+          "id": "migrate.support.service-teams",
+          "title": "Native service team, membership and coverage writer",
+          "paths": [
+            "packages/server-support/src/domain/service_teams.rs",
+            "packages/server-support/src/application/service_teams.rs",
+            "packages/server-support/src/adapters/service_teams.rs",
+            "packages/server-support/src/public/service-teams.rs",
+            "packages/server-support/src/adapters/service-teams.ts",
+            "tests/integration/support/support-sessions.test.ts"
+          ],
+          "resources": [
+            "owner:support"
+          ],
+          "dependsOn": [
+            "coordination.bootstrap"
+          ],
+          "requiredPorts": [
+            "ports.authority"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-support",
+            "bun run test:integration -- --suite=support.sessions.integration"
+          ]
+        },
+        {
+          "id": "migrate.support.auxiliary-reads",
+          "title": "Native support workspace/notification reads for Sales and Collaboration consumers",
+          "paths": [
+            "packages/server-support/src/adapters/support_ticket_read.rs",
+            "packages/server-support/src/public/support_ticket_read.rs",
+            "packages/server-support/src/adapters/support.ts",
+            "packages/server-support/src/adapters/support-sla-alerts.ts",
+            "packages/server-support/src/adapters/support-sessions.ts"
+          ],
+          "resources": [
+            "owner:support"
+          ],
+          "dependsOn": [
+            "coordination.bootstrap"
+          ],
+          "requiredPorts": [
+            "ports.authority",
+            "ports.common"
+          ],
+          "checks": [
+            "cargo check -p erpx-server-support",
+            "bun run test:unit -- --suite=support.native-support-read.unit",
+            "bun run test:unit -- --suite=support.native-support-transport.unit"
+          ]
+        }
+      ],
+      "a1Deferred": [
+        "Customer portal ticket-acceptance browser journey and SSO/session revocation acceptance remain A1.",
+        "Support SLA business-time calendar provider acceptance (holiday calendars) remains A1.",
+        "Incident notification delivery/provider credentials are A1."
+      ],
+      "limitations": [
+        "Read-only inventory; no command executed.",
+        "Support HTTP routers live in src/composition (lead-owned); the owner packets must request mounts rather than edit them.",
+        "feature-support route/component paths are consumer evidence.",
+        "sourceSha is the HEAD at audit completion; the read-only audit began at 1631f623 and git diff of the six owner packages, src/composition and tests/catalogue shows no in-scope source change through 97109f7da (only docs/status advancement by the lead)."
+      ]
+    },
     "talent": {
       "taskId": "inventory.talent",
       "owner": "talent",
@@ -9467,6 +11437,91 @@
       ]
     },
     {
+      "owner": "brand",
+      "taskId": "inventory.brand",
+      "id": "migrate.brand.presentation-reads",
+      "title": "Native workspace/document brand, profile list, storefront and brand evidence reads",
+      "paths": [
+        "packages/server-brand/src/domain/branding.rs",
+        "packages/server-brand/src/adapters/branding.rs",
+        "packages/server-brand/src/adapters/branding_use_cases.rs",
+        "packages/server-brand/src/public/branding.rs",
+        "packages/server-brand/src/public/mod.rs",
+        "tests/integration/brand/rust-branding-postgres.test.rs",
+        "tests/integration/brand/branding.test.ts"
+      ],
+      "resources": [
+        "owner:brand"
+      ],
+      "dependsOn": [
+        "coordination.bootstrap"
+      ],
+      "requiredPorts": [
+        "ports.authority",
+        "ports.common"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-brand",
+        "bun run test:integration -- --suite=brand.rust-branding-postgres.integration",
+        "bun run test:integration -- --suite=brand.branding.integration"
+      ]
+    },
+    {
+      "owner": "brand",
+      "taskId": "inventory.brand",
+      "id": "migrate.brand.identity-read-port",
+      "title": "Mount native published identity and identity-workspace reads for front-app/Records",
+      "paths": [
+        "packages/server-brand/src/adapters/identity_read.rs",
+        "packages/server-brand/src/adapters/identity_read_use_cases.rs",
+        "packages/server-brand/src/public/identity.rs",
+        "packages/server-brand/src/public/brand-identity.ts",
+        "tests/integration/brand/rust-brand-identity-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:brand"
+      ],
+      "dependsOn": [
+        "coordination.bootstrap"
+      ],
+      "requiredPorts": [
+        "ports.authority"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-brand",
+        "bun run test:integration -- --suite=brand.rust-brand-identity-postgres.integration",
+        "bun run test:unit -- --suite=brand.rust-brand-identity-policy.unit"
+      ]
+    },
+    {
+      "owner": "brand",
+      "taskId": "inventory.brand",
+      "id": "migrate.brand.storefront-front-projection",
+      "title": "Native storefront/workspace-choice projection for the front-app shell",
+      "paths": [
+        "packages/server-brand/src/adapters/front-brand-projection.ts",
+        "packages/server-brand/src/adapters/workspace-choice-brand.ts",
+        "packages/server-brand/src/domain/branding.rs",
+        "packages/server-brand/src/public/front-brand-projection.ts",
+        "packages/server-brand/src/public/workspace-choice-brand.ts",
+        "tests/integration/brand/front-logo.test.ts"
+      ],
+      "resources": [
+        "owner:brand"
+      ],
+      "dependsOn": [
+        "coordination.bootstrap"
+      ],
+      "requiredPorts": [
+        "ports.authority"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-brand",
+        "bun run test:integration -- --suite=brand.front-logo.integration",
+        "bun run test:integration -- --suite=brand.rust-branding-http.integration"
+      ]
+    },
+    {
       "owner": "collaboration",
       "taskId": "inventory.collaboration",
       "id": "migrate.collaboration.social_http",
@@ -9891,6 +11946,87 @@
       ]
     },
     {
+      "owner": "customer_360",
+      "taskId": "inventory.customer_360",
+      "id": "migrate.customer_360.directory-read-mount",
+      "title": "Mount native customer directory read for the customers list",
+      "paths": [
+        "packages/server-customer_360/src/adapters/directory.rs",
+        "packages/server-customer_360/src/application/directory.rs",
+        "packages/server-customer_360/src/public/directory.rs",
+        "tests/integration/customer_360/rust-customer-directory-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:customer_360"
+      ],
+      "dependsOn": [
+        "coordination.bootstrap"
+      ],
+      "requiredPorts": [
+        "ports.authority",
+        "ports.common"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-customer-360",
+        "bun run test:integration -- --suite=customer_360.rust-customer-directory-postgres.integration",
+        "bun run test:unit -- --suite=customer_360.rust-customer-directory.unit"
+      ]
+    },
+    {
+      "owner": "customer_360",
+      "taskId": "inventory.customer_360",
+      "id": "migrate.customer_360.customer-portal",
+      "title": "Native customer-portal projection, command and session owner port",
+      "paths": [
+        "packages/server-customer_360/src/domain/portal.rs",
+        "packages/server-customer_360/src/application/portal.rs",
+        "packages/server-customer_360/src/application/portal_session.rs",
+        "packages/server-customer_360/src/adapters/portal.rs",
+        "packages/server-customer_360/src/public/customer-portal.ts",
+        "tests/unit/shared.business-contracts/customer-portal-application.test.ts"
+      ],
+      "resources": [
+        "owner:customer_360"
+      ],
+      "dependsOn": [
+        "coordination.bootstrap"
+      ],
+      "requiredPorts": [
+        "ports.authority",
+        "ports.trade"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-customer-360",
+        "bun run test:unit -- --suite=customer_360.portal-application.unit"
+      ]
+    },
+    {
+      "owner": "customer_360",
+      "taskId": "inventory.customer_360",
+      "id": "migrate.customer_360.executive-timeline-source",
+      "title": "Native customer activity/timeline source for the executive metric engine",
+      "paths": [
+        "packages/server-customer_360/src/adapters/timeline.ts",
+        "packages/server-customer_360/src/public/customer-timeline.ts",
+        "packages/server-customer_360/src/domain/timeline.rs",
+        "tests/integration/customer_360/rust-customer-timeline-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:customer_360"
+      ],
+      "dependsOn": [
+        "migrate.customer_360.directory-read-mount"
+      ],
+      "requiredPorts": [
+        "ports.common"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-customer-360",
+        "bun run test:unit -- --suite=customer_360.rust-customer-timeline.unit",
+        "bun run test:integration -- --suite=customer_360.rust-customer-timeline-postgres.integration"
+      ]
+    },
+    {
       "owner": "customer_authority",
       "taskId": "inventory.customer_authority",
       "id": "migrate.customer_authority.duplicate_decisions",
@@ -10045,6 +12181,83 @@
         "cargo check -p erpx-server-ecommerce",
         "bun run test:unit -- --suite=ecommerce.rust-ecommerce-commands.unit",
         "bun run test:integration -- --suite=ecommerce.rust-ecommerce-postgres.integration"
+      ]
+    },
+    {
+      "owner": "field_service",
+      "taskId": "inventory.field_service",
+      "id": "migrate.field_service.executive-report-read",
+      "title": "Bind the executive metric engine to the native Field report read and retire the TS projection",
+      "paths": [
+        "packages/server-field_service/src/adapters/executive-metric-projections.ts",
+        "packages/server-field_service/src/public/executive-metric-projections.ts",
+        "packages/server-field_service/src/adapters/native-executive.ts",
+        "packages/server-field_service/src/adapters/native-executive-evidence.ts",
+        "tests/unit/field_service/rust-executive-policy.test.rs"
+      ],
+      "resources": [
+        "owner:field_service"
+      ],
+      "dependsOn": [
+        "coordination.bootstrap"
+      ],
+      "requiredPorts": [
+        "ports.common"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-field-service",
+        "bun run test:unit -- --suite=field_service.rust-executive-policy.unit"
+      ]
+    },
+    {
+      "owner": "field_service",
+      "taskId": "inventory.field_service",
+      "id": "migrate.field_service.shared-projection-sources",
+      "title": "Native Field projection sources for Customer 360 and customer-authority consumers",
+      "paths": [
+        "packages/server-field_service/src/public/final-root-owner-projection-sources.ts",
+        "packages/server-field_service/src/public/record-purchases.ts",
+        "packages/server-field_service/src/adapters/finance_lineage.rs",
+        "packages/server-field_service/src/adapters/source_record.rs",
+        "tests/integration/field_service/rust-http-parity-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:field_service"
+      ],
+      "dependsOn": [
+        "coordination.bootstrap"
+      ],
+      "requiredPorts": [
+        "ports.authority",
+        "ports.common"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-field-service",
+        "bun run test:integration -- --suite=field_service.rust-http-parity-postgres.integration"
+      ]
+    },
+    {
+      "owner": "field_service",
+      "taskId": "inventory.field_service",
+      "id": "migrate.field_service.compat-test-retirement",
+      "title": "Retire compat field-service exports and legacy TS count/parts oracles",
+      "paths": [
+        "tests/support/field_service/legacy-count-oracle.ts",
+        "tests/support/field_service/legacy-count-oracle-plugin.ts",
+        "tests/support/field_service/legacy-service-parts-posting-schemas.ts",
+        "tests/integration/field_service/field-service.test.ts",
+        "tests/e2e/field_service/workspace-smoke.spec.ts"
+      ],
+      "resources": [
+        "owner:field_service"
+      ],
+      "dependsOn": [
+        "migrate.field_service.shared-projection-sources"
+      ],
+      "requiredPorts": [],
+      "checks": [
+        "bun run test:integration -- --suite=field_service.field-service.integration",
+        "bun run test:unit -- --suite=field_service.native-count-next-entry.unit"
       ]
     },
     {
@@ -10428,6 +12641,103 @@
       ]
     },
     {
+      "owner": "legal",
+      "taskId": "inventory.legal",
+      "id": "migrate.legal.auxiliary-reads",
+      "title": "Native Legal knowledge, corpus, references, governance, reports, retention and workspace reads",
+      "paths": [
+        "packages/server-legal/src/adapters/legal_http.rs",
+        "packages/server-legal/src/application/knowledge.rs",
+        "packages/server-legal/src/application/law_corpus.rs",
+        "packages/server-legal/src/application/reports.rs",
+        "packages/server-legal/src/application/governance.rs",
+        "packages/server-legal/src/application/retention.rs",
+        "packages/server-legal/src/adapters/legal/knowledge.ts",
+        "packages/server-legal/src/adapters/legal/law-corpus.ts",
+        "tests/integration/legal/legal-law-corpus.test.ts",
+        "tests/integration/legal/legal.test.ts"
+      ],
+      "resources": [
+        "owner:legal"
+      ],
+      "dependsOn": [
+        "coordination.bootstrap"
+      ],
+      "requiredPorts": [
+        "ports.authority",
+        "ports.common"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-legal",
+        "bun run test:integration -- --suite=legal.law-corpus.integration",
+        "bun run test:integration -- --suite=legal.legal.integration"
+      ]
+    },
+    {
+      "owner": "legal",
+      "taskId": "inventory.legal",
+      "id": "migrate.legal.trust-pdf-runtime",
+      "title": "Mount native trust material command and move PDF trust selection into the owner",
+      "paths": [
+        "packages/server-legal/src/adapters/postgres_trust_commands.rs",
+        "packages/server-legal/src/application/trust_management.rs",
+        "packages/server-legal/src/adapters/postgres_trust.rs",
+        "packages/server-legal/src/adapters/trust_material_inspector.rs",
+        "packages/server-legal/src/adapters/legal/trust.ts",
+        "packages/server-legal/src/adapters/legal/pdf-validation.ts",
+        "tests/integration/legal/rust-trust-postgres.test.rs",
+        "tests/unit/legal/rust-pdf-validation.test.rs"
+      ],
+      "resources": [
+        "owner:legal"
+      ],
+      "dependsOn": [
+        "migrate.legal.auxiliary-reads"
+      ],
+      "requiredPorts": [
+        "ports.authority",
+        "ports.common"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-legal",
+        "bun run test:integration -- --suite=legal.rust-trust-postgres.integration",
+        "bun run test:unit -- --suite=legal.rust-pdf-validation.unit"
+      ]
+    },
+    {
+      "owner": "legal",
+      "taskId": "inventory.legal",
+      "id": "migrate.legal.auxiliary-commands",
+      "title": "Native retention/governance/feature/operations/AI/signing Legal commands",
+      "paths": [
+        "packages/server-legal/src/application/retention.rs",
+        "packages/server-legal/src/application/governance.rs",
+        "packages/server-legal/src/application/operations.rs",
+        "packages/server-legal/src/application/jobs.rs",
+        "packages/server-legal/src/application/signing.rs",
+        "packages/server-legal/src/adapters/legal/retention.ts",
+        "packages/server-legal/src/adapters/legal/governance.ts",
+        "packages/server-legal/src/adapters/legal/operations.ts",
+        "tests/integration/legal/legal-retention-writers.test.ts",
+        "tests/integration/legal/legal-governance-writers.test.ts"
+      ],
+      "resources": [
+        "owner:legal"
+      ],
+      "dependsOn": [
+        "migrate.legal.auxiliary-reads"
+      ],
+      "requiredPorts": [
+        "ports.authority",
+        "ports.common"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-legal",
+        "bun run test:integration -- --suite=legal.legal.integration",
+        "bun run test:unit -- --suite=legal.rust-record-policy.unit"
+      ]
+    },
+    {
       "owner": "maintenance",
       "taskId": "inventory.maintenance",
       "id": "migrate.maintenance.preventive-plan-command",
@@ -10783,6 +13093,93 @@
       ]
     },
     {
+      "owner": "operations",
+      "taskId": "inventory.operations",
+      "id": "migrate.operations.staff-work",
+      "title": "Native staff task/alert commands and Work reads",
+      "paths": [
+        "packages/server-operations/src/domain/staff-tasks.rs",
+        "packages/server-operations/src/application/staff_tasks.rs",
+        "packages/server-operations/src/adapters/staff_tasks.rs",
+        "packages/server-operations/src/public/staff_tasks.rs",
+        "packages/server-operations/src/adapters/staff-tasks.ts",
+        "packages/server-operations/src/adapters/staff-task-read.ts",
+        "tests/integration/operations/staff-work.test.ts",
+        "tests/integration/operations/staff-task-alerts.test.ts"
+      ],
+      "resources": [
+        "owner:operations"
+      ],
+      "dependsOn": [
+        "coordination.bootstrap"
+      ],
+      "requiredPorts": [
+        "ports.authority",
+        "ports.common"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-operations",
+        "bun run test:integration -- --suite=operations.staff-work.integration",
+        "bun run test:integration -- --suite=operations.staff-task-alerts.integration"
+      ]
+    },
+    {
+      "owner": "operations",
+      "taskId": "inventory.operations",
+      "id": "migrate.operations.routines-handover",
+      "title": "Native routine schedule/deadline and handover acknowledgement",
+      "paths": [
+        "packages/server-operations/src/domain/routines.ts",
+        "packages/server-operations/src/adapters/routines.ts",
+        "packages/server-operations/src/adapters/handover.ts",
+        "packages/server-operations/src/public/handover-contract.ts",
+        "tests/integration/operations/handover.test.ts",
+        "tests/integration/operations/staff-work.test.ts"
+      ],
+      "resources": [
+        "owner:operations"
+      ],
+      "dependsOn": [
+        "migrate.operations.staff-work"
+      ],
+      "requiredPorts": [
+        "ports.authority"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-operations",
+        "bun run test:integration -- --suite=operations.handover.integration"
+      ]
+    },
+    {
+      "owner": "operations",
+      "taskId": "inventory.operations",
+      "id": "migrate.operations.shared-facts-ports",
+      "title": "Native staff-policy, record-purchase, work-obligation, project-read and evaluation fact ports",
+      "paths": [
+        "packages/server-operations/src/adapters/staff-policy.ts",
+        "packages/server-operations/src/adapters/record-purchases.ts",
+        "packages/server-operations/src/adapters/work-package-obligation-sources.ts",
+        "packages/server-operations/src/adapters/project-read-projections.ts",
+        "packages/server-operations/src/adapters/people-evaluation-work-facts.ts",
+        "packages/server-operations/src/public/presentation-queries.ts"
+      ],
+      "resources": [
+        "owner:operations"
+      ],
+      "dependsOn": [
+        "coordination.bootstrap"
+      ],
+      "requiredPorts": [
+        "ports.authority",
+        "ports.common"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-operations",
+        "bun run test:integration -- --suite=operations.work-projections.integration",
+        "bun run test:integration -- --suite=operations.rust-operations-commands-postgres.integration"
+      ]
+    },
+    {
       "owner": "organization",
       "taskId": "inventory.organization",
       "id": "migrate.organization.access_projection",
@@ -11127,6 +13524,140 @@
         "cargo check -p erpx-server-platform-administration",
         "cargo test -p erpx-server-platform-administration --test platform_administration_postgres",
         "bun run test:unit --suite=platform_administration.rust-legal-release.unit"
+      ]
+    },
+    {
+      "owner": "pms",
+      "taskId": "inventory.pms",
+      "id": "migrate.pms.stay_front_desk_commands",
+      "title": "Native stay, front-desk, room and housekeeping commands",
+      "paths": [
+        "packages/server-pms/src/domain/stay_room.rs",
+        "packages/server-pms/src/application/stay_room.rs",
+        "packages/server-pms/src/adapters/stay_room_postgres.rs",
+        "packages/server-pms/src/adapters/stay_room_http.rs",
+        "packages/server-pms/src/public/stay_room.rs",
+        "packages/server-pms/src/domain/room_command.rs",
+        "packages/server-pms/src/application/room_command.rs",
+        "packages/server-pms/src/adapters/room_command_postgres.rs",
+        "packages/server-pms/src/adapters/room_command_http.rs",
+        "tests/unit/pms/rust-pms-stay-room.test.rs",
+        "tests/integration/pms/rust-pms-stay-room-postgres.test.rs",
+        "tests/unit/pms/rust-pms-room-command.test.rs"
+      ],
+      "resources": [
+        "owner:pms"
+      ],
+      "dependsOn": [
+        "ports.trade"
+      ],
+      "requiredPorts": [
+        "ports.trade"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-pms",
+        "bun run test:unit --suite=pms.rust-pms-stay-room.unit",
+        "bun run test:integration --suite=pms.rust-pms-http.integration",
+        "bun run test:integration --suite=pms.pms.integration"
+      ]
+    },
+    {
+      "owner": "pms",
+      "taskId": "inventory.pms",
+      "id": "migrate.pms.reservations_booking",
+      "title": "Native reservation/booking lifecycle and confirmation provider",
+      "paths": [
+        "packages/server-pms/src/domain/reservation.rs",
+        "packages/server-pms/src/application/reservation.rs",
+        "packages/server-pms/src/adapters/reservation_postgres.rs",
+        "packages/server-pms/src/adapters/reservation_http.rs",
+        "packages/server-pms/src/adapters/booking_email_provider.rs",
+        "packages/server-pms/src/public/reservation.rs",
+        "tests/unit/pms/rust-pms-reservation.test.rs",
+        "tests/integration/pms/rust-pms-reservation-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:pms"
+      ],
+      "dependsOn": [
+        "ports.growth"
+      ],
+      "requiredPorts": [
+        "ports.growth"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-pms",
+        "bun run test:unit --suite=pms.rust-pms-front-desk.unit",
+        "bun run test:integration --suite=pms.booking.integration",
+        "bun run typecheck"
+      ]
+    },
+    {
+      "owner": "pms",
+      "taskId": "inventory.pms",
+      "id": "migrate.pms.guest_cashier_stock",
+      "title": "Native guest accounts, cashier settlement and minibar/linen stock",
+      "paths": [
+        "packages/server-pms/src/domain/guest_account.rs",
+        "packages/server-pms/src/application/guest_account.rs",
+        "packages/server-pms/src/adapters/guest_account_postgres.rs",
+        "packages/server-pms/src/adapters/guest_account_http.rs",
+        "packages/server-pms/src/domain/minibar.rs",
+        "packages/server-pms/src/application/minibar.rs",
+        "packages/server-pms/src/adapters/minibar_postgres.rs",
+        "packages/server-pms/src/public/guest_account.rs",
+        "tests/unit/pms/rust-pms-guest-accounts.test.rs",
+        "tests/integration/pms/rust-pms-guest-accounts-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:pms"
+      ],
+      "dependsOn": [
+        "ports.trade"
+      ],
+      "requiredPorts": [
+        "ports.trade"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-pms",
+        "bun run test:integration --suite=pms.rust-pms-http.integration",
+        "bun run test:integration --suite=pms.pms.integration",
+        "bun run test:integration --suite=pms.reports.integration"
+      ]
+    },
+    {
+      "owner": "pms",
+      "taskId": "inventory.pms",
+      "id": "migrate.pms.night_audit_reports_settings",
+      "title": "Native night-audit worker, dashboard/report reads and settings commands",
+      "paths": [
+        "packages/server-pms/src/domain/night_audit.rs",
+        "packages/server-pms/src/application/night_audit.rs",
+        "packages/server-pms/src/adapters/night_audit_postgres.rs",
+        "packages/server-pms/src/adapters/night_audit_worker.rs",
+        "packages/server-pms/src/domain/report_projection.rs",
+        "packages/server-pms/src/application/report_projection.rs",
+        "packages/server-pms/src/adapters/report_http.rs",
+        "packages/server-pms/src/domain/hospitality_setup.rs",
+        "packages/server-pms/src/application/hospitality_setup.rs",
+        "packages/server-pms/src/adapters/hospitality_setup_http.rs",
+        "tests/unit/pms/rust-pms-night-audit.test.rs",
+        "tests/integration/pms/rust-pms-night-audit-postgres.test.rs"
+      ],
+      "resources": [
+        "owner:pms"
+      ],
+      "dependsOn": [
+        "ports.trade"
+      ],
+      "requiredPorts": [
+        "ports.trade"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-pms",
+        "bun run test:unit --suite=pms.rust-pms-room-board-postgres.integration",
+        "bun run test:integration --suite=pms.read-model.integration",
+        "bun run test:integration --suite=pms.reports.integration"
       ]
     },
     {
@@ -11652,6 +14183,90 @@
       ]
     },
     {
+      "owner": "support",
+      "taskId": "inventory.support",
+      "id": "migrate.support.ticket-portal",
+      "title": "Native verified customer ticket-access projection and prepare/decide/respond commands",
+      "paths": [
+        "packages/server-support/src/domain/ticket-portal.rs",
+        "packages/server-support/src/application/ticket_portal.rs",
+        "packages/server-support/src/adapters/ticket_portal.rs",
+        "packages/server-support/src/public/ticket_portal.rs",
+        "packages/server-support/src/adapters/ticket-portal.ts",
+        "tests/integration/support/support.test.ts"
+      ],
+      "resources": [
+        "owner:support"
+      ],
+      "dependsOn": [
+        "coordination.bootstrap"
+      ],
+      "requiredPorts": [
+        "ports.authority",
+        "ports.common"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-support",
+        "bun run test:integration -- --suite=support.support.integration",
+        "bun run test:unit -- --suite=support.services.unit"
+      ]
+    },
+    {
+      "owner": "support",
+      "taskId": "inventory.support",
+      "id": "migrate.support.service-teams",
+      "title": "Native service team, membership and coverage writer",
+      "paths": [
+        "packages/server-support/src/domain/service_teams.rs",
+        "packages/server-support/src/application/service_teams.rs",
+        "packages/server-support/src/adapters/service_teams.rs",
+        "packages/server-support/src/public/service-teams.rs",
+        "packages/server-support/src/adapters/service-teams.ts",
+        "tests/integration/support/support-sessions.test.ts"
+      ],
+      "resources": [
+        "owner:support"
+      ],
+      "dependsOn": [
+        "coordination.bootstrap"
+      ],
+      "requiredPorts": [
+        "ports.authority"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-support",
+        "bun run test:integration -- --suite=support.sessions.integration"
+      ]
+    },
+    {
+      "owner": "support",
+      "taskId": "inventory.support",
+      "id": "migrate.support.auxiliary-reads",
+      "title": "Native support workspace/notification reads for Sales and Collaboration consumers",
+      "paths": [
+        "packages/server-support/src/adapters/support_ticket_read.rs",
+        "packages/server-support/src/public/support_ticket_read.rs",
+        "packages/server-support/src/adapters/support.ts",
+        "packages/server-support/src/adapters/support-sla-alerts.ts",
+        "packages/server-support/src/adapters/support-sessions.ts"
+      ],
+      "resources": [
+        "owner:support"
+      ],
+      "dependsOn": [
+        "coordination.bootstrap"
+      ],
+      "requiredPorts": [
+        "ports.authority",
+        "ports.common"
+      ],
+      "checks": [
+        "cargo check -p erpx-server-support",
+        "bun run test:unit -- --suite=support.native-support-read.unit",
+        "bun run test:unit -- --suite=support.native-support-transport.unit"
+      ]
+    },
+    {
       "owner": "talent",
       "taskId": "inventory.talent",
       "id": "migrate.talent.candidates-privacy",
@@ -11891,7 +14506,7 @@
     }
   ],
   "summary": {
-    "ownersInventoried": 34,
-    "packetsProposed": 90
+    "ownersInventoried": 41,
+    "packetsProposed": 112
   }
 }
