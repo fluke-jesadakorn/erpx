@@ -12,6 +12,6 @@ pub use crate::adapters::trust_workflow_bridge::{
 };
 pub use crate::adapters::legal_trust_http::{
     LegalTrustCommandReply, LegalTrustCommandWire, LegalTrustHttpBackend,
-    LegalTrustHttpCommandRequest, LegalTrustHttpService, LegalTrustHttpTarget,
-    authorize_trust_actor, legal_trust_router, parse_trust_command,
+    LegalTrustHttpCommandRequest, LegalTrustHttpFuture, LegalTrustHttpService,
+    LegalTrustHttpTarget, authorize_trust_actor, legal_trust_router, parse_trust_command,
 };

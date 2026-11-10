@@ -2487,6 +2487,10 @@ async fn assemble_checked(
         let mut legal_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut legal_auxiliary_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
+        let mut legal_retention_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
+        let mut legal_trust_targets = Vec::new();
         let mut benefits_targets = Vec::new();
         let mut benefits_command_targets: Vec<
             erpx_server_benefits::public::command_http::BenefitsCommandHttpTarget,
@@ -2837,6 +2841,36 @@ async fn assemble_checked(
                             Arc::new(SharedClock(clock.clone())),
                         )),
                     ));
+                    legal_trust_targets.push(
+                        erpx_server_legal::public::trust_http::LegalTrustHttpTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: format!("https://{}", holding.host),
+                            backend: legal_backend.clone(),
+                        },
+                    );
+                    legal_retention_targets.push(
+                        erpx_server_legal::public::auxiliary::LegalRetentionHttpTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: format!("https://{}", holding.host),
+                            pool: pools[i + 1].clone(),
+                            clock: Arc::new(SharedClock(clock.clone())),
+                            backend: Arc::new(
+                                crate::legal::LegalRetentionBackend::new(
+                                    config.policy.clone(),
+                                    Arc::new(FinanceJournalReadScopeHeaders),
+                                    authorizer.clone(),
+                                    crate::legal::LegalConfiguration::new(
+                                        holding.registration.holding_id.clone(),
+                                        holding.registration.slug.clone(),
+                                        company.clone(),
+                                    ),
+                                    Arc::new(SharedClock(clock.clone())),
+                                ),
+                            ),
+                        },
+                    );
                     legal_auxiliary_targets.push(
                         erpx_server_legal::public::auxiliary::LegalAuxiliaryHttpTarget {
                             host: holding.host.clone(),
@@ -4312,6 +4346,22 @@ async fn assemble_checked(
             );
         }
         #[cfg(feature = "existing-business")]
+        #[cfg(feature = "existing-business")]
+        if !legal_trust_targets.is_empty() {
+            router = router.merge(
+                erpx_server_legal::public::trust_http::legal_trust_router(legal_trust_targets)
+                    .map_err(|_| "PRIVATE_API_LEGAL_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !legal_retention_targets.is_empty() {
+            router = router.merge(
+                erpx_server_legal::public::auxiliary::legal_retention_router(
+                    legal_retention_targets,
+                )
+                .map_err(|_| "PRIVATE_API_LEGAL_CONFIGURATION_INVALID")?,
+            );
+        }
         #[cfg(feature = "existing-business")]
         if !legal_auxiliary_targets.is_empty() {
             router = router.merge(
