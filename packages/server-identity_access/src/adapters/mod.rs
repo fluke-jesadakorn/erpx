@@ -10,6 +10,7 @@ pub(crate) mod account_mail_postgres;
 pub(crate) mod account_mail_transport;
 pub(crate) mod account_postgres;
 pub(crate) mod account_sessions;
+pub(crate) mod portal_session;
 pub(crate) mod account_sso_crypto;
 pub(crate) mod account_sso_http;
 pub(crate) mod account_sso_postgres;

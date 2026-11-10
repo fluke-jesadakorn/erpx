@@ -3,6 +3,7 @@ pub(crate) mod environment;
 pub(crate) mod account_credentials;
 pub(crate) mod account_mail;
 pub(crate) mod account_sso;
+pub(crate) mod portal_session;
 pub(crate) mod invitation_authority;
 pub(crate) mod work_context;
 

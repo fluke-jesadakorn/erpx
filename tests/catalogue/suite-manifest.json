@@ -88756,6 +88756,91 @@
         "rust-toolchain.toml",
         "packages/server-support/Cargo.toml"
       ]
+    },
+    {
+      "id": "customer_authority.rust-portal-session.unit",
+      "lane": "unit",
+      "owner": "customer_authority",
+      "modules": [
+        "customer_authority",
+        "support"
+      ],
+      "files": [
+        "tests/unit/customer_authority/rust-portal-session.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Portal session proof retains tenant/holding/email verification and fail-closed access."
+      },
+      "apps": [
+        "portal"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-customer-authority",
+        "targets": [
+          "portal_session"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-customer_authority/Cargo.toml"
+      ]
+    },
+    {
+      "id": "customer_authority.rust-portal-session-postgres.integration",
+      "lane": "integration",
+      "owner": "customer_authority",
+      "modules": [
+        "customer_authority",
+        "support"
+      ],
+      "files": [
+        "tests/integration/customer_authority/rust-portal-session-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Portal session proof retains tenant/holding/email verification and fail-closed access."
+      },
+      "apps": [
+        "portal"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-customer-authority",
+        "targets": [
+          "portal_session_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-customer_authority/Cargo.toml"
+      ],
+      "postgres": {
+        "mode": "template",
+        "slots": [
+          "CONTROL_DB",
+          "H001_DB",
+          "H001_READ_DB"
+        ],
+        "migratedSlots": [
+          "H001_DB"
+        ]
+      }
     }
   ]
 }

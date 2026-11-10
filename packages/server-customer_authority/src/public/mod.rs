@@ -3,4 +3,5 @@ pub mod access_http;
 pub mod duplicates;
 pub mod duplicates_http;
 pub mod identity;
+pub mod portal_session;
 pub mod identity_http;

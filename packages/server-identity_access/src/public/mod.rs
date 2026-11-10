@@ -2,6 +2,7 @@ pub mod account_contracts;
 pub mod account_mail;
 pub mod account_sessions;
 pub mod account_sso;
+pub mod portal_session;
 pub use crate::adapters::account_crypto::{
     Argon2Passwords, SystemAccountClock, SystemAuthenticationSecrets,
 };
