@@ -26,6 +26,30 @@ name = "customer_directory"
 path = "../../tests/unit/customer_360/rust-customer-directory.test.rs"
 
 [[test]]
+name = "customer_directory_page"
+path = "../../tests/unit/customer_360/rust-customer-directory-page.test.rs"
+
+[[test]]
+name = "customer_portal"
+path = "../../tests/unit/customer_360/rust-customer-portal.test.rs"
+
+[[test]]
+name = "customer_activity_metric"
+path = "../../tests/unit/customer_360/rust-customer-activity-metric.test.rs"
+
+[[test]]
+name = "customer_activity_metric_http"
+path = "../../tests/integration/customer_360/rust-customer-activity-metric-http.test.rs"
+
+[[test]]
+name = "customer_directory_http"
+path = "../../tests/integration/customer_360/rust-customer-directory-http.test.rs"
+
+[[test]]
+name = "customer_portal_http"
+path = "../../tests/integration/customer_360/rust-customer-portal-http.test.rs"
+
+[[test]]
 name = "customer_timeline"
 path = "../../tests/unit/customer_360/rust-customer-timeline.test.rs"
 

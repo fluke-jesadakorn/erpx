@@ -1,6 +1,8 @@
 //! PostgreSQL read adapter for the native Customer 360 customer directory.
 use crate::application::directory::{CustomerDirectoryFuture, CustomerDirectoryRepository};
-use crate::domain::directory::{CustomerDirectoryEntry, CustomerDirectoryView, directory_invalid};
+use crate::domain::directory::{
+    CustomerDirectoryCursor, CustomerDirectoryEntry, CustomerDirectoryView, MAX_DIRECTORY,
+};
 use crate::domain::timeline::CustomerTimelineActor;
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::BusinessError;
@@ -36,6 +38,16 @@ impl<'a> PgCustomerDirectoryRead<'a> {
         actor: &CustomerTimelineActor,
         view: CustomerDirectoryView,
     ) -> Result<Vec<CustomerDirectoryEntry>, Error> {
+        self.customers_page(actor, view, None, MAX_DIRECTORY).await
+    }
+
+    pub async fn customers_page(
+        &mut self,
+        actor: &CustomerTimelineActor,
+        view: CustomerDirectoryView,
+        cursor: Option<&CustomerDirectoryCursor>,
+        limit: usize,
+    ) -> Result<Vec<CustomerDirectoryEntry>, Error> {
         serializable(&mut *self.connection).await?;
         let rows = sqlx::query(
             "WITH scoped_orders AS (\
@@ -70,7 +82,8 @@ impl<'a> PgCustomerDirectoryRead<'a> {
                OR EXISTS(SELECT 1 FROM scoped_service g WHERE g.customer_id=p.id) \
                OR EXISTS(SELECT 1 FROM scoped_invoices i WHERE i.party_id=p.id) \
                OR EXISTS(SELECT 1 FROM scoped_legal lg WHERE lg.order_id IN (SELECT id FROM scoped_orders so WHERE so.party_id=p.id))) \
-             ORDER BY p.name,p.id LIMIT 201",
+             AND ($9::text IS NULL OR (p.name,p.id)>($9,$10)) \
+             ORDER BY p.name,p.id LIMIT $11",
         )
         .bind(actor.company_id.as_str())
         .bind(actor.branch_id.as_ref().map(|value| value.as_str()))
@@ -80,6 +93,9 @@ impl<'a> PgCustomerDirectoryRead<'a> {
         .bind(view.legal)
         .bind(actor.user_id.as_str())
         .bind(actor.role.as_str())
+        .bind(cursor.map(|value| value.name.as_str()))
+        .bind(cursor.map(|value| value.id.as_str()))
+        .bind(limit as i64)
         .fetch_all(&mut *self.connection)
         .await?;
         let mut entries = Vec::with_capacity(rows.len());
@@ -91,9 +107,6 @@ impl<'a> PgCustomerDirectoryRead<'a> {
             };
             entry.validate().map_err(PgTransactionError::Business)?;
             entries.push(entry);
-        }
-        if entries.len() > 201 {
-            return Err(directory_invalid().into());
         }
         Ok(entries)
     }
@@ -108,5 +121,17 @@ impl CustomerDirectoryRepository for PgCustomerDirectoryRead<'_> {
         view: CustomerDirectoryView,
     ) -> CustomerDirectoryFuture<'a, Vec<CustomerDirectoryEntry>, Self::Error> {
         Box::pin(async move { PgCustomerDirectoryRead::customers(self, actor, view).await })
+    }
+
+    fn customers_page<'a>(
+        &'a mut self,
+        actor: &'a CustomerTimelineActor,
+        view: CustomerDirectoryView,
+        cursor: Option<&'a CustomerDirectoryCursor>,
+        limit: usize,
+    ) -> CustomerDirectoryFuture<'a, Vec<CustomerDirectoryEntry>, Self::Error> {
+        Box::pin(async move {
+            PgCustomerDirectoryRead::customers_page(self, actor, view, cursor, limit).await
+        })
     }
 }

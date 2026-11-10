@@ -313,18 +313,17 @@ impl ExecutiveCustomerActivityQuery {
     pub fn validate(&self) -> Result<(), BusinessError> {
         self.normalized_limit()?;
         const MAX_RANGE: i64 = 366 * 24 * 60 * 60 * 1000;
-        if self.from < 0
-            || self.to <= self.from
-            || self.to - self.from > MAX_RANGE
-        {
+        if self.from < 0 || self.to <= self.from || self.to - self.from > MAX_RANGE {
             return Err(BusinessError::invalid(
                 "CUSTOMER_ACTIVITY_RANGE_INVALID",
                 "Choose a customer activity range within one year.",
             ));
         }
-        if self.query.as_deref().is_some_and(|value| {
-            value.len() > 200 || value.chars().any(char::is_control)
-        }) {
+        if self
+            .query
+            .as_deref()
+            .is_some_and(|value| value.len() > 200 || value.chars().any(char::is_control))
+        {
             return Err(BusinessError::invalid(
                 "CUSTOMER_ACTIVITY_QUERY_INVALID",
                 "Use a bounded customer activity search.",

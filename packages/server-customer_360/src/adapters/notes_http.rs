@@ -264,8 +264,7 @@ async fn command(
         {
             return Err(malformed());
         }
-        let value: serde_json::Value =
-            serde_json::from_slice(&body).map_err(|_| malformed())?;
+        let value: serde_json::Value = serde_json::from_slice(&body).map_err(|_| malformed())?;
         // Parse both shapes here so an unknown or extra field never reaches the
         // owner unit. The owner revalidates every value against current facts.
         if value.get("id").is_some() {
@@ -330,10 +329,7 @@ pub fn customer_notes_http_router(
             || !valid_slug(&target.holding_slug)
             || !valid_origin(&target.origin)
             || map
-                .insert(
-                    (target.host.clone(), target.holding_slug.clone()),
-                    target,
-                )
+                .insert((target.host.clone(), target.holding_slug.clone()), target)
                 .is_some()
         {
             return Err(configuration_invalid());

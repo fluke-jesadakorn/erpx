@@ -6,8 +6,7 @@
 //! serializable owner unit remain composition responsibilities behind the
 //! backend trait.
 use crate::domain::timeline::{
-    CustomerTimelineCursor, ExecutiveCustomerActivityQuery, ExecutiveCustomerActivityRow,
-    MAX_LIMIT,
+    CustomerTimelineCursor, ExecutiveCustomerActivityQuery, ExecutiveCustomerActivityRow, MAX_LIMIT,
 };
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
@@ -276,10 +275,7 @@ pub fn customer_activity_http_router(
             || !valid_slug(&target.holding_slug)
             || !valid_origin(&target.origin)
             || map
-                .insert(
-                    (target.host.clone(), target.holding_slug.clone()),
-                    target,
-                )
+                .insert((target.host.clone(), target.holding_slug.clone()), target)
                 .is_some()
         {
             return Err(configuration_invalid());

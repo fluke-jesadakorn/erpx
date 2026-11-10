@@ -10,9 +10,9 @@ use crate::application::timeline::{
     CustomerTimelineFuture, CustomerTimelineRepository, ExecutiveCustomerActivityRepository,
 };
 use crate::domain::timeline::{
-    source_invalid, CustomerAccount, CustomerTimelineActor, CustomerTimelineCursor,
-    CustomerTimelineItem, CustomerTimelineView, ExecutiveCustomerActivityQuery,
-    ExecutiveCustomerActivityRow,
+    CustomerAccount, CustomerTimelineActor, CustomerTimelineCursor, CustomerTimelineItem,
+    CustomerTimelineView, ExecutiveCustomerActivityQuery, ExecutiveCustomerActivityRow,
+    source_invalid,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::BusinessError;
@@ -168,7 +168,9 @@ impl<'a> PgCustomerTimelineRead<'a> {
         let mut ordered = Vec::with_capacity(slots.len());
         for ordinal in ordinals {
             let index = usize::try_from(ordinal).ok().and_then(|n| n.checked_sub(1));
-            let item = index.and_then(|n| slots.get_mut(n)).and_then(Option::take)
+            let item = index
+                .and_then(|n| slots.get_mut(n))
+                .and_then(Option::take)
                 .ok_or_else(|| PgTransactionError::Business(source_invalid()))?;
             ordered.push(item);
         }
@@ -763,7 +765,8 @@ impl ExecutiveCustomerActivityRepository for PgCustomerTimelineRead<'_> {
         limit: usize,
     ) -> CustomerTimelineFuture<'a, Vec<ExecutiveCustomerActivityRow>, Self::Error> {
         Box::pin(async move {
-            PgCustomerTimelineRead::executive_activity(self, actor, view, query, cursor, limit).await
+            PgCustomerTimelineRead::executive_activity(self, actor, view, query, cursor, limit)
+                .await
         })
     }
 }
@@ -801,8 +804,11 @@ impl CustomerTimelineRepository for PgCustomerTimelineRead<'_> {
             .bind(cursor.map(|value| value.at))
             .bind(cursor.map(|value| value.id.as_str()))
             .fetch_all(&mut *self.connection).await?;
-            Ok(ordinals.len() == rows.len() && ordinals.iter().enumerate()
-                .all(|(index, ordinal)| *ordinal == index as i64 + 1))
+            Ok(ordinals.len() == rows.len()
+                && ordinals
+                    .iter()
+                    .enumerate()
+                    .all(|(index, ordinal)| *ordinal == index as i64 + 1))
         })
     }
 

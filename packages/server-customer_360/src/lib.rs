@@ -1,8 +1,8 @@
-//! Native Customer 360 owner. The qualified slice is the bounded federated
-//! customer timeline read and its owner-local HTTP ingress. Customer portal,
-//! portal attachments, customer notes, customer authority and every source
-//! owner command remain in the retained TypeScript owners until their native
-//! slices are implemented.
+//! Native Customer 360 owner: bounded federated timeline and Executive activity
+//! reads, customer notes, customer directory read/pagination, and the customer
+//! portal projection/acknowledgement transaction. Every source owner remains
+//! authoritative; portal sessions, purchases, private files, notifications and
+//! workflow receipts are consumed through composition ports.
 mod adapters;
 mod application;
 mod domain;

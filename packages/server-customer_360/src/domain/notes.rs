@@ -89,7 +89,10 @@ pub struct ChangeCustomerNoteInput {
 impl ChangeCustomerNoteInput {
     pub fn validate(&self) -> Result<(), BusinessError> {
         if self.id.is_empty() || self.id.len() > 200 || self.id.chars().any(char::is_control) {
-            return Err(invalid("NOTE_ID_INVALID", "Choose an available contact note."));
+            return Err(invalid(
+                "NOTE_ID_INVALID",
+                "Choose an available contact note.",
+            ));
         }
         if self.expected_version < 1 || self.expected_version > 9_007_199_254_740_991 {
             return Err(invalid(

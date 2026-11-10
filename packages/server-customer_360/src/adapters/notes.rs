@@ -206,10 +206,7 @@ pub async fn read_customer_notes(
         customer,
         order,
         notes: notes.iter().map(note_row).collect::<Result<_, _>>()?,
-        history: history
-            .iter()
-            .map(history_row)
-            .collect::<Result<_, _>>()?,
+        history: history.iter().map(history_row).collect::<Result<_, _>>()?,
         can_create: actor.can_create,
     })
 }
