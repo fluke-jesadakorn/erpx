@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 142,
+    "revision": 158,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g1",
       "agentId": "lead",
       "startedAt": "2026-11-10T16:01:48.750Z",
-      "heartbeatAt": "2026-11-10T16:28:17.239Z",
-      "expiresAt": "2026-11-10T16:58:17.239Z",
+      "heartbeatAt": "2026-11-10T16:30:58.769Z",
+      "expiresAt": "2026-11-10T17:00:58.769Z",
       "generation": 2,
       "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
     },
@@ -9329,7 +9329,7 @@
         "id": "G2",
         "title": "Freeze producer public ports",
         "planRef": "docs/production-plan.md#rust-migration-current",
-        "status": "pending",
+        "status": "done",
         "successCriteria": "Bounded public authority/effect/transaction seams unlock consumer implementation without waiting for whole owners.",
         "acceptance": false,
         "category": "migration"
@@ -9601,8 +9601,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T16:22:24.252Z",
-          "heartbeatAt": "2026-11-10T16:28:17.239Z",
-          "expiresAt": "2026-11-10T16:58:17.239Z",
+          "heartbeatAt": "2026-11-10T16:30:58.769Z",
+          "expiresAt": "2026-11-10T17:00:58.769Z",
           "generation": 2
         },
         "baseSha": null,
@@ -10064,8 +10064,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T16:22:24.279Z",
-          "heartbeatAt": "2026-11-10T16:28:17.239Z",
-          "expiresAt": "2026-11-10T16:58:17.239Z",
+          "heartbeatAt": "2026-11-10T16:30:58.769Z",
+          "expiresAt": "2026-11-10T17:00:58.769Z",
           "generation": 2
         },
         "baseSha": null,
@@ -10251,8 +10251,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T16:22:24.304Z",
-          "heartbeatAt": "2026-11-10T16:28:17.239Z",
-          "expiresAt": "2026-11-10T16:58:17.239Z",
+          "heartbeatAt": "2026-11-10T16:30:58.769Z",
+          "expiresAt": "2026-11-10T17:00:58.769Z",
           "generation": 2
         },
         "baseSha": null,
@@ -10913,8 +10913,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T16:22:24.328Z",
-          "heartbeatAt": "2026-11-10T16:28:17.239Z",
-          "expiresAt": "2026-11-10T16:58:17.239Z",
+          "heartbeatAt": "2026-11-10T16:30:58.769Z",
+          "expiresAt": "2026-11-10T17:00:58.769Z",
           "generation": 2
         },
         "baseSha": null,
@@ -11197,8 +11197,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T16:22:24.353Z",
-          "heartbeatAt": "2026-11-10T16:28:17.239Z",
-          "expiresAt": "2026-11-10T16:58:17.239Z",
+          "heartbeatAt": "2026-11-10T16:30:58.769Z",
+          "expiresAt": "2026-11-10T17:00:58.769Z",
           "generation": 2
         },
         "baseSha": null,
@@ -11748,22 +11748,15 @@
         "resources": [
           "inventory:projects"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-10T16:17:54.671Z",
-          "heartbeatAt": "2026-11-10T16:28:17.239Z",
-          "expiresAt": "2026-11-10T16:58:17.239Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-projects/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.projects to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine after ports.growth/ports.agent and the missing-crate integration decision",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -12220,8 +12213,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T16:22:24.378Z",
-          "heartbeatAt": "2026-11-10T16:28:17.239Z",
-          "expiresAt": "2026-11-10T16:58:17.239Z",
+          "heartbeatAt": "2026-11-10T16:30:58.769Z",
+          "expiresAt": "2026-11-10T17:00:58.769Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12318,22 +12311,15 @@
         "resources": [
           "inventory:agent"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-10T16:17:54.725Z",
-          "heartbeatAt": "2026-11-10T16:28:17.239Z",
-          "expiresAt": "2026-11-10T16:58:17.239Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-agent/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.agent to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine after ports.growth/ports.agent and the missing-crate integration decision",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -12417,22 +12403,15 @@
         "resources": [
           "inventory:collaboration"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-10T16:17:54.699Z",
-          "heartbeatAt": "2026-11-10T16:28:17.239Z",
-          "expiresAt": "2026-11-10T16:58:17.239Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-collaboration/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.collaboration to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine after ports.growth/ports.agent and the missing-crate integration decision",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -12524,22 +12503,15 @@
         "resources": [
           "inventory:pms"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-10T16:17:54.752Z",
-          "heartbeatAt": "2026-11-10T16:28:17.239Z",
-          "expiresAt": "2026-11-10T16:58:17.239Z",
-          "generation": 2
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Inspect packages/server-pms/src and workflow gaps; map HTTP/SSR/internal/job/provider consumers, existing native code and retained legacy. Refine migrate.pms to exact bounded paths/ports and targeted suite IDs.",
+        "nextAction": "Inventory recorded in docs/status/rust-migration-inventory.json; refine after ports.growth/ports.agent and the missing-crate integration decision",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "deliverables": [
@@ -13357,8 +13329,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T16:27:32.314Z",
-          "heartbeatAt": "2026-11-10T16:28:17.239Z",
-          "expiresAt": "2026-11-10T16:58:17.239Z",
+          "heartbeatAt": "2026-11-10T16:30:58.769Z",
+          "expiresAt": "2026-11-10T17:00:58.769Z",
           "generation": 2
         },
         "baseSha": null,
@@ -13440,8 +13412,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T16:27:32.342Z",
-          "heartbeatAt": "2026-11-10T16:28:17.239Z",
-          "expiresAt": "2026-11-10T16:58:17.239Z",
+          "heartbeatAt": "2026-11-10T16:30:58.769Z",
+          "expiresAt": "2026-11-10T17:00:58.769Z",
           "generation": 2
         },
         "baseSha": null,
@@ -13521,8 +13493,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T16:27:32.368Z",
-          "heartbeatAt": "2026-11-10T16:28:17.239Z",
-          "expiresAt": "2026-11-10T16:58:17.239Z",
+          "heartbeatAt": "2026-11-10T16:30:58.769Z",
+          "expiresAt": "2026-11-10T17:00:58.769Z",
           "generation": 2
         },
         "baseSha": null,
@@ -13600,8 +13572,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T16:27:32.396Z",
-          "heartbeatAt": "2026-11-10T16:28:17.239Z",
-          "expiresAt": "2026-11-10T16:58:17.239Z",
+          "heartbeatAt": "2026-11-10T16:30:58.769Z",
+          "expiresAt": "2026-11-10T17:00:58.769Z",
           "generation": 2
         },
         "baseSha": null,
@@ -13671,8 +13643,15 @@
         "resources": [
           "inventory:surface:portal"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-10T16:28:45.994Z",
+          "heartbeatAt": "2026-11-10T16:30:58.769Z",
+          "expiresAt": "2026-11-10T17:00:58.769Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -13741,8 +13720,15 @@
         "resources": [
           "inventory:surface:legal-portal"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-10T16:28:46.019Z",
+          "heartbeatAt": "2026-11-10T16:30:58.769Z",
+          "expiresAt": "2026-11-10T17:00:58.769Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -13811,8 +13797,15 @@
         "resources": [
           "inventory:surface:forms"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-b",
+          "claimedAt": "2026-11-10T16:28:46.046Z",
+          "heartbeatAt": "2026-11-10T16:30:58.769Z",
+          "expiresAt": "2026-11-10T17:00:58.769Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -14218,15 +14211,79 @@
         "resources": [
           "shared-integration"
         ],
-        "status": "pending",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "a3ab7b5e290532c8f3c9f944e7ec49bf44b0104d",
+        "lastPushedSha": "a3ab7b5e290532c8f3c9f944e7ec49bf44b0104d",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-crm --locked",
+            "result": "passed",
+            "sourceSha": "a3ab7b5e290532c8f3c9f944e7ec49bf44b0104d",
+            "sourceKind": "committed",
+            "note": "Growth/agent provider compiles at the frozen source."
+          },
+          {
+            "command": "cargo check -p erpx-server-marketing --locked",
+            "result": "passed",
+            "sourceSha": "a3ab7b5e290532c8f3c9f944e7ec49bf44b0104d",
+            "sourceKind": "committed",
+            "note": "Growth/agent provider compiles at the frozen source."
+          },
+          {
+            "command": "cargo check -p erpx-server-sales --locked",
+            "result": "passed",
+            "sourceSha": "a3ab7b5e290532c8f3c9f944e7ec49bf44b0104d",
+            "sourceKind": "committed",
+            "note": "Growth/agent provider compiles at the frozen source."
+          },
+          {
+            "command": "cargo check -p erpx-server-pms --locked",
+            "result": "passed",
+            "sourceSha": "a3ab7b5e290532c8f3c9f944e7ec49bf44b0104d",
+            "sourceKind": "committed",
+            "note": "Growth/agent provider compiles at the frozen source."
+          },
+          {
+            "command": "cargo check -p erpx-server-platform-administration --locked",
+            "result": "passed",
+            "sourceSha": "a3ab7b5e290532c8f3c9f944e7ec49bf44b0104d",
+            "sourceKind": "committed",
+            "note": "Growth/agent provider compiles at the frozen source."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business --locked",
+            "result": "passed",
+            "sourceSha": "a3ab7b5e290532c8f3c9f944e7ec49bf44b0104d",
+            "sourceKind": "committed",
+            "note": "Growth/agent composition mounts compile."
+          },
+          {
+            "command": "bun run test:unit -- --suite=crm.rust-crm-activities.unit",
+            "result": "passed",
+            "sourceSha": "a3ab7b5e290532c8f3c9f944e7ec49bf44b0104d",
+            "sourceKind": "committed",
+            "note": "15/15 registered CRM activity cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=pms.rust-pms-stay-room.unit",
+            "result": "passed",
+            "sourceSha": "a3ab7b5e290532c8f3c9f944e7ec49bf44b0104d",
+            "sourceKind": "committed",
+            "note": "10/10 registered PMS stay-room planner cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=marketing.rust-marketing-campaigns.unit",
+            "result": "passed",
+            "sourceSha": "a3ab7b5e290532c8f3c9f944e7ec49bf44b0104d",
+            "sourceKind": "committed",
+            "note": "19/19 registered Marketing campaign cases pass."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Choose the smallest public seam a ready consumer needs; freeze exact port/mount/lock order without broadening authority or creating an owner cycle.",
+        "nextAction": "Growth/agent consumer packets may proceed; tails remain in their migrate.* packets",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -14254,15 +14311,79 @@
         "resources": [
           "shared-integration"
         ],
-        "status": "pending",
+        "status": "migrated",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "a3ab7b5e290532c8f3c9f944e7ec49bf44b0104d",
+        "lastPushedSha": "a3ab7b5e290532c8f3c9f944e7ec49bf44b0104d",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-crm --locked",
+            "result": "passed",
+            "sourceSha": "a3ab7b5e290532c8f3c9f944e7ec49bf44b0104d",
+            "sourceKind": "committed",
+            "note": "Growth/agent provider compiles at the frozen source."
+          },
+          {
+            "command": "cargo check -p erpx-server-marketing --locked",
+            "result": "passed",
+            "sourceSha": "a3ab7b5e290532c8f3c9f944e7ec49bf44b0104d",
+            "sourceKind": "committed",
+            "note": "Growth/agent provider compiles at the frozen source."
+          },
+          {
+            "command": "cargo check -p erpx-server-sales --locked",
+            "result": "passed",
+            "sourceSha": "a3ab7b5e290532c8f3c9f944e7ec49bf44b0104d",
+            "sourceKind": "committed",
+            "note": "Growth/agent provider compiles at the frozen source."
+          },
+          {
+            "command": "cargo check -p erpx-server-pms --locked",
+            "result": "passed",
+            "sourceSha": "a3ab7b5e290532c8f3c9f944e7ec49bf44b0104d",
+            "sourceKind": "committed",
+            "note": "Growth/agent provider compiles at the frozen source."
+          },
+          {
+            "command": "cargo check -p erpx-server-platform-administration --locked",
+            "result": "passed",
+            "sourceSha": "a3ab7b5e290532c8f3c9f944e7ec49bf44b0104d",
+            "sourceKind": "committed",
+            "note": "Growth/agent provider compiles at the frozen source."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business --locked",
+            "result": "passed",
+            "sourceSha": "a3ab7b5e290532c8f3c9f944e7ec49bf44b0104d",
+            "sourceKind": "committed",
+            "note": "Growth/agent composition mounts compile."
+          },
+          {
+            "command": "bun run test:unit -- --suite=crm.rust-crm-activities.unit",
+            "result": "passed",
+            "sourceSha": "a3ab7b5e290532c8f3c9f944e7ec49bf44b0104d",
+            "sourceKind": "committed",
+            "note": "15/15 registered CRM activity cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=pms.rust-pms-stay-room.unit",
+            "result": "passed",
+            "sourceSha": "a3ab7b5e290532c8f3c9f944e7ec49bf44b0104d",
+            "sourceKind": "committed",
+            "note": "10/10 registered PMS stay-room planner cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=marketing.rust-marketing-campaigns.unit",
+            "result": "passed",
+            "sourceSha": "a3ab7b5e290532c8f3c9f944e7ec49bf44b0104d",
+            "sourceKind": "committed",
+            "note": "19/19 registered Marketing campaign cases pass."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Choose the smallest public seam a ready consumer needs; freeze exact port/mount/lock order without broadening authority or creating an owner cycle.",
+        "nextAction": "Growth/agent consumer packets may proceed; tails remain in their migrate.* packets",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -14489,7 +14610,7 @@
       }
     },
     "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T16:28:17.239Z",
+    "updatedAt": "2026-11-10T16:30:58.770Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
