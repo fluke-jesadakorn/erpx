@@ -79,6 +79,12 @@ export async function setupDatabases(){
     }else for(const name of names){const database=`${prefix}_${name.toLowerCase()}`;await admin.query(`CREATE DATABASE "${database}" TEMPLATE template0`);legacyCreatedNames.push(database);}
   }
   finally {await admin.end();}
+  // The native test service verifies the full reviewed migration inventory.
+  // Disposable suite databases start at baseline, so apply every current
+  // migration before the proxy starts; production schema checks stay exact.
+  if (process.env.ERPX_NATIVE_ACCOUNT_TEST_PROXY === '1') {
+    for (const name of selectedNames) await migrateDatabase(databases[name], databaseTracks[name]);
+  }
   const manifestPath=join(directory,'databases.json'),manifestDatabases=Object.fromEntries(selectedNames.map(name=>{const url=new URL(adminUrl);url.pathname=`${prefix}_${name.toLowerCase()}`;return [name,url.href];}));
   const slots=['h001','h002','h003'].filter(id=>selectedNames.includes(`${id.toUpperCase()}_DB` as DatabaseSlot)&&selectedNames.includes(`${id.toUpperCase()}_READ_DB` as DatabaseSlot)).map(id=>({id,write:`${id.toUpperCase()}_DB`,read:`${id.toUpperCase()}_READ_DB`,files:`${id.toUpperCase()}_FILES`}));
   await writeFile(manifestPath,JSON.stringify({version:1,databases:manifestDatabases,slots},null,2)+'\n',{mode:0o600});
