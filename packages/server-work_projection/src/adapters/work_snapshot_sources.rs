@@ -339,6 +339,49 @@ pub fn preventive_plan_items(
         .collect()
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LegalWorkRow {
+    pub id: String,
+    pub title: String,
+    pub kind: String,
+    pub state: String,
+    pub owner_id: String,
+    pub updated_at: i64,
+}
+
+/// Records branch of `legalWork` after the owner has applied its visibility
+/// and purchase filters.
+pub fn legal_work_items(
+    rows: &[LegalWorkRow],
+    actor_user_id: &str,
+    can_edit: bool,
+) -> Vec<WorkItemFact> {
+    rows.iter()
+        .map(|row| {
+            let own = row.owner_id == actor_user_id;
+            WorkItemFact {
+                id: format!("legal:{}", row.id),
+                kind: "legal".into(),
+                queue: if own {
+                    WorkQueue::Todo
+                } else {
+                    WorkQueue::Waiting
+                },
+                can_act: Some(own && can_edit),
+                action_kind: None,
+                relationships: vec![if own {
+                    "assigned".to_owned()
+                } else {
+                    "requested".to_owned()
+                }],
+                updated_at: row.updated_at,
+                source_id: Some(row.id.clone()),
+                href: format!("/legal?record={}", row.id),
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -346,6 +389,28 @@ mod tests {
     use erpx_server_support::public::incident::IncidentWorkItem;
     use erpx_server_support::public::session::SessionWorkItem;
     use erpx_server_support::public::ticket::TicketWorkItem;
+
+    #[test]
+    fn legal_records_follow_owner_and_edit_rules() {
+        let row = LegalWorkRow {
+            id: "legal-1".into(),
+            title: "Contract".into(),
+            kind: "contract".into(),
+            state: "draft".into(),
+            owner_id: "owner".into(),
+            updated_at: 11,
+        };
+        let own = legal_work_items(&[row.clone()], "owner", true);
+        assert_eq!(own[0].id, "legal:legal-1");
+        assert_eq!(own[0].queue, WorkQueue::Todo);
+        assert_eq!(own[0].can_act, Some(true));
+        assert_eq!(own[0].relationships, ["assigned"]);
+        assert_eq!(own[0].href, "/legal?record=legal-1");
+        let other = legal_work_items(&[row], "someone", true);
+        assert_eq!(other[0].queue, WorkQueue::Waiting);
+        assert_eq!(other[0].can_act, Some(false));
+        assert_eq!(other[0].relationships, ["requested"]);
+    }
 
     #[test]
     fn preventive_plans_follow_due_review_and_edited_by_rules() {
