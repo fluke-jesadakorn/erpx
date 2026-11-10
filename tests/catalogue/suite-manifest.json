@@ -88493,6 +88493,42 @@
         "rust-toolchain.toml",
         "packages/server-organization/Cargo.toml"
       ]
+    },
+    {
+      "id": "manage_erpx.rust-onboarding-command.unit",
+      "lane": "unit",
+      "owner": "manage_erpx",
+      "modules": [
+        "manage_erpx"
+      ],
+      "files": [
+        "tests/unit/manage_erpx/rust-onboarding-command.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native onboarding command retains authority, idempotent receipt and bootstrap effects."
+      },
+      "apps": [
+        "admin"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-manage-erpx",
+        "targets": [
+          "onboarding_command_unit"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-manage_erpx/Cargo.toml"
+      ]
     }
   ]
 }

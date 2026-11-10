@@ -17,3 +17,5 @@ pub use crate::application::onboarding::{OnboardingViewReadPort, onboarding_view
 pub use crate::domain::onboarding::{
     CompanySlot, CompanySlotState, OnboardingActor, OnboardingView,
 };
+pub mod onboarding_command;
+pub mod onboarding_command_http;

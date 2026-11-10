@@ -23,3 +23,7 @@ workspace = true
 [[test]]
 name = "onboarding_postgres"
 path = "../../tests/integration/manage_erpx/rust-onboarding-postgres.test.rs"
+
+[[test]]
+name = "onboarding_command_unit"
+path = "../../tests/unit/manage_erpx/rust-onboarding-command.test.rs"

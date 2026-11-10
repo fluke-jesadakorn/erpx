@@ -48,18 +48,18 @@ struct ManageErpxHttpState {
     targets: BTreeMap<String, ManageErpxHttpTarget>,
 }
 
-fn missing() -> BusinessError {
+pub(crate) fn missing() -> BusinessError {
     BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.")
 }
 
-fn invalid_request() -> BusinessError {
+pub(crate) fn invalid_request() -> BusinessError {
     BusinessError::invalid(
         "MANAGE_ERPX_REQUEST_INVALID",
         "Use one exact registered application host.",
     )
 }
 
-fn unique_header(headers: &HeaderMap, name: HeaderName) -> Result<Option<&str>, BusinessError> {
+pub(crate) fn unique_header(headers: &HeaderMap, name: HeaderName) -> Result<Option<&str>, BusinessError> {
     let mut values = headers.get_all(name).iter();
     let first = values.next();
     if values.next().is_some() {
@@ -70,7 +70,7 @@ fn unique_header(headers: &HeaderMap, name: HeaderName) -> Result<Option<&str>, 
         .transpose()
 }
 
-fn valid_host(host: &str) -> bool {
+pub(crate) fn valid_host(host: &str) -> bool {
     !host.is_empty()
         && host.len() <= 255
         && host.bytes().all(|byte| {
@@ -78,7 +78,7 @@ fn valid_host(host: &str) -> bool {
         })
 }
 
-fn status(kind: FailureKind) -> StatusCode {
+pub(crate) fn status(kind: FailureKind) -> StatusCode {
     match kind {
         FailureKind::InvalidInput => StatusCode::UNPROCESSABLE_ENTITY,
         FailureKind::Unauthenticated => StatusCode::UNAUTHORIZED,
@@ -89,7 +89,7 @@ fn status(kind: FailureKind) -> StatusCode {
     }
 }
 
-fn error_response(error: BusinessError) -> Response {
+pub(crate) fn error_response(error: BusinessError) -> Response {
     (
         status(error.kind),
         Json(serde_json::json!({"error":{"code":error.code,"message":error.message}})),
@@ -97,7 +97,7 @@ fn error_response(error: BusinessError) -> Response {
         .into_response()
 }
 
-fn bounded(body: serde_json::Value) -> Response {
+pub(crate) fn bounded(body: serde_json::Value) -> Response {
     let mut response = (StatusCode::OK, Json(body)).into_response();
     for (name, value) in [
         (header::CACHE_CONTROL, "private, no-store"),
