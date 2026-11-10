@@ -38,6 +38,10 @@ name = "supplier_promise_command"
 path = "../../tests/unit/procurement/rust-supplier-promise-command.test.rs"
 
 [[test]]
+name = "supplier_promise_command_http"
+path = "../../tests/unit/procurement/rust-supplier-promise-command-http.test.rs"
+
+[[test]]
 name = "supplier_promise_command_postgres"
 path = "../../tests/integration/procurement/rust-supplier-promise-command-postgres.test.rs"
 

@@ -8,13 +8,14 @@ use erpx_server_procurement::public::supplier_promise_command::{
     SupplierPromiseCommandRepository, SupplierPromiseLineCommand, SupplierPromiseRecordReceipt,
     record_supplier_promise, inspect_supplier_promise_history, lock_supplier_promise_history_writes,
 };
+use erpx_server_procurement::public::supplier_promise_command_http::record_supplier_promise_in_transaction;
 use sqlx::Connection;
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
 use erpx_server_shared::public::{
-    BusinessError, CompanyId, RecordId, TimestampMillis,
+    BusinessError, CommandKey, CompanyId, RecordId, TimestampMillis,
 };
 
 const NOW: TimestampMillis = TimestampMillis::new(1_800_000_000_000);
@@ -226,8 +227,8 @@ async fn run_command(
             let key = key.to_owned();
             let order_id = order_id.to_owned();
             Box::pin(async move {
-                let mut repo = PgSupplierPromiseCommand::new(connection);
-                record_supplier_promise(&actor, &mut repo, &order_id, &input, &key, NOW).await
+                let key = CommandKey::new(key)?;
+                record_supplier_promise_in_transaction(connection, &actor, &order_id, &input, &key, NOW).await
             })
         })
         .await

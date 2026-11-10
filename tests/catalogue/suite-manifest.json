@@ -89061,6 +89061,42 @@
           "H001_DB"
         ]
       }
+    },
+    {
+      "id": "procurement.rust-supplier-promise-command-http.unit",
+      "lane": "unit",
+      "owner": "procurement",
+      "modules": [
+        "procurement"
+      ],
+      "files": [
+        "tests/unit/procurement/rust-supplier-promise-command-http.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native supplier-promise command ingress retains authority, idempotency and bounded input."
+      },
+      "apps": [
+        "supply"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-procurement",
+        "targets": [
+          "supplier_promise_command_http"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-procurement/Cargo.toml"
+      ]
     }
   ]
 }
