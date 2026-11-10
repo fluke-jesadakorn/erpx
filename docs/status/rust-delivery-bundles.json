@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-10T06:42:19+07:00",
+  "updatedAt": "2026-11-10T07:51:43+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -3619,6 +3619,15 @@
       "sourceIdentity": "working tree on 4fa245d3187d1abda2269936773145551c0452a2",
       "evidenceRef": "docs/testing/evidence/2026-11-10-finance-payables-native-void-attachments.json",
       "durableContractRefs": []
+    },
+    {
+      "id": "finance-payables-cross-owner-bundle-request",
+      "kind": "dependency-graph",
+      "status": "blocked",
+      "scope": "Exact cross-owner bundle request for Finance payables: Commerce fulfillment snapshot, Procurement bill-match snapshot, People expense-claim snapshot, Files policy confirmation and Work Projection/Account Finance browser access. Finance-owned posted void and payable attachments are already closed and gated 8/8. No owner files were edited without the frozen bundle; Finance remains partial.",
+      "sourceIdentity": "working tree on 5f1c0ae9d41218402675ff595cf73096504618e0",
+      "evidenceRef": "docs/status/finance-payables-cross-owner-bundle.md",
+      "durableContractRefs": []
     }
   ],
   "workflows": [
@@ -4258,7 +4267,7 @@
         "finance-native-supplier-bill-void"
       ],
       "sourceRef": "packages/server-finance/src/public/finance.ts",
-      "gap": "Native standalone payable create/edit/post/void/detail, AP journal, Money snapshots, line revisions, replay/version/Company guards and private API admission are PostgreSQL/HTTP-qualified. Finance-owned posted void now posts an exact reversing journal with an independent approver, period/date/reason, replay and audit/outbox; native payable attachments bind supplier_bill/bill_match_support evidence sets in the posting unit. Remaining: matched supplier bills (Procurement/Commerce), expense claims (People Payroll), and the Finance company-workspace browser route (the company launch lands on the product-entry chooser)."
+      "gap": "Native standalone payable create/edit/post/void/detail, AP journal, Money snapshots, line revisions, replay/version/Company guards and private API admission are PostgreSQL/HTTP-qualified. Finance-owned posted void (exact reversing journal, independent approver, replay) and native payable attachment binding are closed with 8/8 supplier-bill gates. Remaining matched supplier bills, Procurement bill matches, People expense claims and company Finance browser access require the frozen owner bundles listed in docs/status/finance-payables-cross-owner-bundle.md. The available dev account reports no Finance role/package for the company invoice detail."
     },
     {
       "id": "finance/feature-chart-of-accounts",
