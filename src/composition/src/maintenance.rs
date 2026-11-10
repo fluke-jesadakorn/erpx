@@ -30,6 +30,9 @@ use erpx_server_maintenance::public::{
     work_wire::MaintenanceChangeAction,
 };
 use erpx_server_runtime::public::http_support::HeaderMap;
+use erpx_server_maintenance::public::preventive_plan::{
+    PreventivePlanAccess, PreventivePlanCommand, execute_preventive_plan_command,
+};
 use erpx_server_runtime::public::postgres::{PgTransactionError, PgWorkFuture};
 use erpx_server_shared::public::{
     AssignmentId, BusinessError, Clock, CompanyId, FailureKind, HoldingId,
@@ -549,6 +552,94 @@ fn run_maintenance_command<'c, C: Clock + Send + Sync + 'static>(
     })
 }
 
+
+impl<C: Clock + Send + Sync + 'static> MaintenanceService<C> {
+    pub async fn preventive<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        command: PreventivePlanCommand,
+    ) -> Result<MaintenanceHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let expected = company.clone();
+        let input = move || {
+            let mut request = input()?;
+            if request.company_id != expected {
+                return Err(scope());
+            }
+            request.mutation = true;
+            Ok(request)
+        };
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                input,
+                WorkAuthorizationRequest {
+                    permission: "records.write".into(),
+                    module: Some("maintenance".into()),
+                    destination: "maintenance".into(),
+                    api: true,
+                },
+                MaintenanceSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let command = command.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.write")?;
+                        let access = PreventivePlanAccess {
+                            holding_id: current.holding_id().clone(),
+                            actor_id: current.user_id().as_str().to_owned(),
+                            can_review: current.has_permission("records.review"),
+                            expires_at: current.expires_at(),
+                        };
+                        let catalogue = erpx_server_commercial::public::purchases::current_package_catalogue()
+                            .map_err(Error::Business)?;
+                        let mut authority = PreventiveAuthority {
+                            current,
+                            command: &command,
+                            clock: clock.as_ref(),
+                            mode: PackageEnforcementMode::Enforced,
+                            catalogue,
+                            purchase: None,
+                        };
+                        let mut identifiers = MaintenanceIds;
+                        let outcome = execute_preventive_plan_command(
+                            company,
+                            connection,
+                            &access,
+                            &mut authority,
+                            clock.as_ref(),
+                            &mut identifiers,
+                            &command,
+                        )
+                        .await?;
+                        let data: serde_json::Value = serde_json::from_str(outcome.result.as_str())
+                            .map_err(|_| unavailable())?;
+                        Ok(MaintenanceHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+}
+
 struct MaintenanceIds;
 impl IdentifierSource for MaintenanceIds {
     fn next(&mut self) -> RecordId {
@@ -648,6 +739,112 @@ impl<C: Clock + Send + Sync + 'static> MaintenanceBackend<C> {
     }
 }
 
+
+struct PreventiveAuthority<'a, C> {
+    current: &'a AuthorizedWorkContext,
+    command: &'a PreventivePlanCommand,
+    clock: &'a C,
+    mode: erpx_server_commercial::public::purchases::PackageEnforcementMode,
+    catalogue: erpx_server_commercial::public::purchases::CommercialCatalogue,
+    purchase: Option<erpx_server_commercial::public::purchases::PurchaseWitness>,
+}
+
+impl<C: Clock + Sync + Send + Sync> erpx_server_workflow::public::commands::PgCommandAuthority
+    for PreventiveAuthority<'_, C>
+{
+    async fn lock_sources(
+        &mut self,
+        c: &mut PgConnection,
+        _: &erpx_server_workflow::public::commands::WorkflowRequest,
+    ) -> Result<(), Error> {
+        erpx_server_commercial::public::purchases::lock_commercial_authority_sources(c).await
+    }
+
+    async fn authorize(
+        &mut self,
+        _: &mut PgConnection,
+        r: &erpx_server_workflow::public::commands::WorkflowRequest,
+    ) -> Result<erpx_server_workflow::public::commands::CommandActor, Error> {
+        self.bind(r)
+    }
+
+    async fn verify_command(
+        &mut self,
+        c: &mut PgConnection,
+        actor: &erpx_server_workflow::public::commands::CommandActor,
+        r: &erpx_server_workflow::public::commands::WorkflowRequest,
+        disposition: erpx_server_workflow::public::commands::CommandDisposition,
+    ) -> Result<(), Error> {
+        if &self.bind(r)? != actor {
+            return Err(Error::Business(BusinessError::new(
+                FailureKind::Conflict,
+                "MAINTENANCE_PLAN_CHANGED",
+                "The preventive plan changed. Reload and retry.",
+            )));
+        }
+        use erpx_server_commercial::public::purchases::{
+            CapabilityPurpose, PackageEnforcementMode, PgCompanyPurchaseReader, PurchaseRequest,
+        };
+        let mut purchases = PgCompanyPurchaseReader::new(
+            self.current.holding_id().clone(),
+            actor.company_id.clone(),
+            c,
+            &self.catalogue,
+        );
+        let purpose = match disposition {
+            erpx_server_workflow::public::commands::CommandDisposition::Execute => {
+                CapabilityPurpose::NewWork
+            }
+            erpx_server_workflow::public::commands::CommandDisposition::Replay => {
+                CapabilityPurpose::History
+            }
+        };
+        if let Some(witness) = &self.purchase {
+            purchases
+                .revalidate(witness, self.clock.now())
+                .await?
+                .require_allowed()?;
+        } else {
+            self.purchase = Some(
+                purchases
+                    .inspect(
+                        &PurchaseRequest {
+                            capabilities: vec!["assets.maintenance".into()],
+                            purpose,
+                            mode: PackageEnforcementMode::Enforced,
+                        },
+                        self.clock.now(),
+                    )
+                    .await?
+                    .require_allowed()?
+                    .clone(),
+            );
+        }
+        Ok(())
+    }
+}
+
+impl<C: Clock + Sync> PreventiveAuthority<'_, C> {
+    fn bind(
+        &self,
+        r: &erpx_server_workflow::public::commands::WorkflowRequest,
+    ) -> Result<erpx_server_workflow::public::commands::CommandActor, Error> {
+        self.current.require_permission("records.write")?;
+        if r.key != self.command.key().as_str()
+            || r.operation != self.command.operation_name()
+            || r.record_id != self.command.id().as_str()
+            || r.input.as_str() != self.command.receipt_input().as_str()
+        {
+            return Err(Error::Business(BusinessError::new(
+                FailureKind::Conflict,
+                "MAINTENANCE_PLAN_CHANGED",
+                "The preventive plan changed. Reload and retry.",
+            )));
+        }
+        crate::maintenance_parts::command_actor(self.current).map_err(Error::Business)
+    }
+}
+
 impl<C: Clock + Send + Sync + 'static> MaintenanceHttpBackend for MaintenanceBackend<C> {
     fn read<'a>(
         &'a self,
@@ -677,6 +874,24 @@ impl<C: Clock + Send + Sync + 'static> MaintenanceHttpBackend for MaintenanceBac
                     .await
                     .map_err(business),
             }
+        })
+    }
+
+    fn preventive_command<'a>(
+        &'a self,
+        request: erpx_server_maintenance::public::http::PreventiveHttpCommandRequest<'a>,
+    ) -> MaintenanceHttpFuture<'a, MaintenanceHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.command_context(request.headers)?;
+            self.service
+                .preventive(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.command.clone(),
+                )
+                .await
+                .map_err(business)
         })
     }
 
