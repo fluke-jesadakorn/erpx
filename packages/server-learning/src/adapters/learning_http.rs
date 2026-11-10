@@ -5,7 +5,7 @@
 //! session resolution, selected Company/branch/department scope, purchase
 //! admission and the serializable owner unit remain composition
 //! responsibilities behind [`LearningHttpBackend`].
-use crate::domain::eligibility_facts::EligibilityQuery;
+use crate::domain::eligibility_facts::{BenefitConsumptionCommand, EligibilityQuery};
 use crate::domain::learning::{
     AssignmentChange, AssignmentRequest, CertificateRevocation, CourseChange, CourseRequest,
     request_invalid,
@@ -60,6 +60,10 @@ pub enum LearningHttpCommand {
     RevokeCertificate {
         certificate_id: String,
         input: CertificateRevocation,
+        idempotency_key: String,
+    },
+    ConsumeBenefit {
+        input: BenefitConsumptionCommand,
         idempotency_key: String,
     },
 }
@@ -368,6 +372,10 @@ pub fn learning_http_router(targets: Vec<LearningHttpTarget>) -> Result<Router, 
             "/api/v1/holdings/{holding_slug}/learning/certificates/{certificate_id}/revoke",
             post(revoke_certificate),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/learning/benefits/consumption",
+            post(consume_benefit),
+        )
         .with_state(Arc::new(LearningHttpState {
             targets: configured,
         })))
@@ -619,6 +627,39 @@ async fn revoke_certificate(
                 headers: &headers,
                 command: LearningHttpCommand::RevokeCertificate {
                     certificate_id,
+                    input,
+                    idempotency_key: key,
+                },
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => bounded(reply.value()),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn consume_benefit(
+    State(state): State<Arc<LearningHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let target = target(&state, request.headers(), &slug)?;
+        ensure_no_query(&request)?;
+        let key = strict_key(request.headers())?;
+        let headers = request.headers().clone();
+        let body = strict_body(request).await?;
+        let input: BenefitConsumptionCommand =
+            serde_json::from_value(body).map_err(|_| malformed())?;
+        target
+            .backend
+            .execute(LearningHttpRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                command: LearningHttpCommand::ConsumeBenefit {
                     input,
                     idempotency_key: key,
                 },

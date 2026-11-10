@@ -9,13 +9,14 @@
 //! mutated. The caller's serializable Holding transaction is required and no
 //! commit is performed here.
 use crate::application::learning::{
-    LearningCommandRepository, LearningFuture, LearningReadRepository,
+    LearningCommandRepository, LearningEvidencePort, LearningFuture, LearningReadRepository,
 };
 use crate::domain::learning::{
     AssignmentAction, AssignmentChangePlan, AssignmentCreatePlan, AssignmentRow,
     CertificateRevokePlan, CertificateRow, CourseChangePlan, CourseCreatePlan, CourseRow, EventRow,
-    HandoffRow, LearningActor, LearningReceipt, PersonRow, PlacementRow, ReceiptSnapshot,
-    certificate_revoked, course_changed, idempotency_conflict, readback_invalid,
+    HandoffRow, LearningActor, LearningEvidenceRequest, LearningReceipt, PersonRow, PlacementRow,
+    PreparedLearningEvidence, ReceiptSnapshot, certificate_revoked, course_changed,
+    evidence_port_required, idempotency_conflict, readback_invalid,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::BusinessError;
@@ -161,11 +162,27 @@ pub(crate) fn map_certificate(row: sqlx::postgres::PgRow) -> Result<CertificateR
 
 pub struct PgLearning<'c> {
     connection: &'c mut PgConnection,
+    evidence: Option<&'c mut dyn LearningEvidencePort>,
 }
 
 impl<'c> PgLearning<'c> {
     pub fn new(connection: &'c mut PgConnection) -> Self {
-        Self { connection }
+        Self {
+            connection,
+            evidence: None,
+        }
+    }
+
+    /// Bind the current Files/Records evidence port to this exact unit. Both
+    /// borrow the same connection; no independent commit is performed.
+    pub fn with_evidence(
+        connection: &'c mut PgConnection,
+        evidence: &'c mut dyn LearningEvidencePort,
+    ) -> Self {
+        Self {
+            connection,
+            evidence: Some(evidence),
+        }
     }
 
     pub(crate) fn connection(&mut self) -> &mut PgConnection {
@@ -666,6 +683,45 @@ impl LearningCommandRepository for PgLearning<'_> {
         })
     }
 
+    fn prepare_evidence<'a>(
+        &'a mut self,
+        request: LearningEvidenceRequest,
+    ) -> LearningFuture<'a, Option<PreparedLearningEvidence>, Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            request.validate()?;
+            let Self {
+                connection,
+                evidence,
+            } = self;
+            let Some(evidence) = evidence.as_deref_mut() else {
+                return Err(evidence_port_required().into());
+            };
+            let prepared = evidence.prepare(&mut **connection, request).await?;
+            Ok(prepared)
+        })
+    }
+
+    fn require_evidence_current<'a>(
+        &'a mut self,
+        prepared: &'a PreparedLearningEvidence,
+    ) -> LearningFuture<'a, (), Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            let Self {
+                connection,
+                evidence,
+            } = self;
+            let Some(evidence) = evidence.as_deref_mut() else {
+                return Err(evidence_port_required().into());
+            };
+            evidence
+                .require_current(&mut **connection, prepared)
+                .await?;
+            Ok(())
+        })
+    }
+
     fn certificate_for_update<'a>(
         &'a mut self,
         actor: &'a LearningActor,
@@ -1060,6 +1116,7 @@ impl LearningCommandRepository for PgLearning<'_> {
                     "status": plan.status,
                     "action": plan.action.as_str(),
                     "certificateId": plan.certificate.as_ref().map(|value| value.certificate_id.as_str()),
+                    "evidence": plan.evidence.as_ref().map(PreparedLearningEvidence::to_json),
                 }),
                 plan.now,
             )

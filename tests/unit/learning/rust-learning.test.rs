@@ -2,14 +2,19 @@
 //! course catalogue, eligible assignment, learner evidence, certification and
 //! revocation. No database or HTTP effect is reachable here.
 use erpx_server_learning::public::eligibility_facts::{
-    EligibilityCertificateRow, EligibilityConsumptionRow, EligibilityQuery, EligibilityScope,
-    MAX_ELIGIBILITY_CERTIFICATES, MAX_ELIGIBILITY_CONSUMPTIONS, eligibility_facts_json,
+    BenefitConsumptionActor, BenefitConsumptionRequest, EligibilityCertificateRow,
+    EligibilityConsumptionRow, EligibilityQuery, EligibilityScope, MAX_ELIGIBILITY_CERTIFICATES,
+    MAX_ELIGIBILITY_CONSUMPTIONS, benefit_consume_identity, benefit_consumption_plan,
+    certificate_source_json, eligibility_facts_json, learning_benefit_continuation,
+    require_certificate_current, select_benefit_certificate,
 };
 use erpx_server_learning::public::learning::{
     AssignmentAction, AssignmentChange, AssignmentRequest, AssignmentRow, Attendance,
     CertificateRevocation, CertificateRow, CourseAction, CourseChange, CourseRequest, CourseRow,
-    HandoffRow, LearningActor, PlacementRow, assignment_change_plan, assignment_create_plan,
-    certificate_revoke_plan, course_change_plan, course_create_plan, utc_date, valid_date,
+    EvidenceManifestItem, HandoffRow, LearningActor, PlacementRow,
+    PreparedLearningEvidence, assignment_change_plan, assignment_create_plan,
+    assignment_evidence_request, certificate_revoke_plan, course_change_plan, course_create_plan,
+    utc_date, valid_date,
 };
 use erpx_server_shared::public::{
     AssignmentId, CompanyId, FailureKind, HoldingId, RecordId, UserId,
@@ -467,9 +472,18 @@ fn assignment_input_and_action_shape_are_strict() {
     let mut attached = complete.clone();
     attached.attachment_set_ids = vec!["set-1".into()];
     assert_eq!(
-        attached.validate().unwrap_err().code,
-        "LEARNING_ATTACHMENTS_RETAINED"
+        attached.validate().unwrap().attachment_set_ids,
+        vec!["set-1".to_owned()]
     );
+    let mut duplicated = attached.clone();
+    duplicated.attachment_set_ids = vec!["set-1".into(), "set-1".into()];
+    assert!(duplicated.validate().is_ok());
+    let mut too_many = complete.clone();
+    too_many.attachment_set_ids = (0..21).map(|index| format!("set-{index}")).collect();
+    assert!(too_many.validate().is_err());
+    let mut blank = complete.clone();
+    blank.attachment_set_ids = vec![String::new()];
+    assert!(blank.validate().is_err());
     let mut missing = complete.clone();
     missing.attendance = None;
     assert!(missing.validate().is_err());
@@ -491,6 +505,9 @@ fn assignment_input_and_action_shape_are_strict() {
     let mut weird = start.clone();
     weird.score_bps = Some(10);
     assert!(weird.validate().is_err());
+    let mut start_with_evidence = start.clone();
+    start_with_evidence.attachment_set_ids = vec!["set-1".into()];
+    assert!(start_with_evidence.validate().is_err());
     let waive = AssignmentChange {
         action: AssignmentAction::Waive,
         expected_version: 1,
@@ -629,7 +646,7 @@ fn learner_completion_issues_versioned_handoff_and_certificate() {
     let row = assignment("in_progress", true);
     let change = complete_change().validate().unwrap();
     let plan =
-        assignment_change_plan(&learner(), &row, &change, "assignment-complete-1", NOW).unwrap();
+        assignment_change_plan(&learner(), &row, &change, None, "assignment-complete-1", NOW).unwrap();
     assert_eq!(plan.status, "completed");
     assert_eq!(plan.attendance.as_deref(), Some("attended"));
     assert_eq!(plan.score_bps, Some(9_500));
@@ -659,7 +676,7 @@ fn learner_completion_issues_versioned_handoff_and_certificate() {
     bad_dates.certificate_expires_on = Some("2025-01-01".into());
     let bad_dates = bad_dates.validate().unwrap();
     assert_eq!(
-        assignment_change_plan(&learner(), &row, &bad_dates, "assignment-complete-2", NOW)
+        assignment_change_plan(&learner(), &row, &bad_dates, None, "assignment-complete-2", NOW)
             .unwrap_err()
             .code,
         "LEARNING_CERTIFICATE_DATES_INVALID"
@@ -669,7 +686,7 @@ fn learner_completion_issues_versioned_handoff_and_certificate() {
         ..learner()
     };
     assert_eq!(
-        assignment_change_plan(&outsider, &row, &change, "assignment-complete-3", NOW)
+        assignment_change_plan(&outsider, &row, &change, None, "assignment-complete-3", NOW)
             .unwrap_err()
             .code,
         "LEARNING_LEARNER_REQUIRED"
@@ -680,6 +697,7 @@ fn learner_completion_issues_versioned_handoff_and_certificate() {
             &learner(),
             &ineligible,
             &change,
+            None,
             "assignment-complete-4",
             NOW
         )
@@ -689,7 +707,7 @@ fn learner_completion_issues_versioned_handoff_and_certificate() {
     );
     let assigned = assignment("assigned", true);
     assert_eq!(
-        assignment_change_plan(&learner(), &assigned, &change, "assignment-complete-5", NOW)
+        assignment_change_plan(&learner(), &assigned, &change, None, "assignment-complete-5", NOW)
             .unwrap_err()
             .code,
         "LEARNING_STATE_CHANGED"
@@ -719,7 +737,7 @@ fn reviewer_waiver_and_cancellation_preserve_source_results() {
     .validate()
     .unwrap();
     let plan =
-        assignment_change_plan(&reviewer(), &row, &waive, "assignment-waive-1", NOW).unwrap();
+        assignment_change_plan(&reviewer(), &row, &waive, None, "assignment-waive-1", NOW).unwrap();
     assert_eq!(plan.status, "waived");
     assert_eq!(plan.attendance.as_deref(), Some("attended"));
     assert_eq!(plan.score_bps, Some(8_800));
@@ -746,7 +764,7 @@ fn reviewer_waiver_and_cancellation_preserve_source_results() {
     .validate()
     .unwrap();
     let plan =
-        assignment_change_plan(&reviewer(), &row, &cancel, "assignment-cancel-1", NOW).unwrap();
+        assignment_change_plan(&reviewer(), &row, &cancel, None, "assignment-cancel-1", NOW).unwrap();
     assert_eq!(plan.status, "cancelled");
     assert!(plan.certificate.is_none());
     assert!(plan.completion_reason.is_none());
@@ -755,7 +773,7 @@ fn reviewer_waiver_and_cancellation_preserve_source_results() {
         ..reviewer()
     };
     assert_eq!(
-        assignment_change_plan(&learner, &row, &waive, "assignment-waive-2", NOW)
+        assignment_change_plan(&learner, &row, &waive, None, "assignment-waive-2", NOW)
             .unwrap_err()
             .code,
         "LEARNING_REVIEW_REQUIRED"
@@ -1221,4 +1239,427 @@ fn eligibility_facts_bound_certificate_and_consumption_rows() {
             .code,
         "LEARNING_SOURCE_INVALID"
     );
+}
+
+fn consumption_request() -> BenefitConsumptionRequest {
+    BenefitConsumptionRequest {
+        company_id: "company".into(),
+        person_id: "person-learner".into(),
+        required_code: "equipment_operator".into(),
+        effective_date: "2026-11-04".into(),
+        election_id: "election-1".into(),
+        command_id: "benefit-election-1".into(),
+        today: "2026-11-04".into(),
+        actor_id: "benefits-reviewer".into(),
+    }
+}
+
+#[test]
+fn benefit_consumption_selects_only_current_in_scope_certificates() {
+    let scope = EligibilityScope::from_learning_actor(&learner());
+    let request = consumption_request();
+    let selected = select_benefit_certificate(&scope, &request, vec![eligibility_row()]).unwrap();
+    assert_eq!(selected.certificate.id, "learning-certificate-key-1");
+
+    let mut revoked = eligibility_row();
+    revoked.certificate.revocation_id = Some("revocation-1".into());
+    assert_eq!(
+        select_benefit_certificate(&scope, &request, vec![revoked])
+            .unwrap_err()
+            .code,
+        "BENEFIT_LEARNING_ELIGIBILITY_REQUIRED"
+    );
+
+    let mut expired = eligibility_row();
+    expired.certificate.valid_from = "2025-11-04".into();
+    expired.certificate.expires_on = Some("2026-10-01".into());
+    assert_eq!(
+        select_benefit_certificate(&scope, &request, vec![expired.clone()])
+            .unwrap_err()
+            .code,
+        "BENEFIT_LEARNING_ELIGIBILITY_REQUIRED"
+    );
+    let expired_id = expired.certificate.id.clone();
+    assert_eq!(
+        require_certificate_current(&scope, &request, &expired_id, vec![expired])
+            .unwrap_err()
+            .code,
+        "BENEFIT_LEARNING_CERTIFICATE_EXPIRED"
+    );
+
+    let mut future = eligibility_row();
+    future.certificate.valid_from = "2026-12-01".into();
+    assert_eq!(
+        select_benefit_certificate(&scope, &request, vec![future])
+            .unwrap_err()
+            .code,
+        "BENEFIT_LEARNING_ELIGIBILITY_REQUIRED"
+    );
+
+    let mut late_today = request.clone();
+    late_today.today = "2028-11-05".into();
+    assert_eq!(
+        select_benefit_certificate(&scope, &late_today, vec![eligibility_row()])
+            .unwrap_err()
+            .code,
+        "BENEFIT_LEARNING_ELIGIBILITY_REQUIRED"
+    );
+
+    let mut stale_assignment = eligibility_row();
+    stale_assignment.assignment_version = 4;
+    assert_eq!(
+        select_benefit_certificate(&scope, &request, vec![stale_assignment])
+            .unwrap_err()
+            .code,
+        "BENEFIT_LEARNING_ELIGIBILITY_REQUIRED"
+    );
+
+    assert_eq!(
+        select_benefit_certificate(&scope, &request, Vec::new())
+            .unwrap_err()
+            .code,
+        "BENEFIT_LEARNING_ELIGIBILITY_REQUIRED"
+    );
+}
+
+#[test]
+fn benefit_consumption_plan_binds_exact_certificate_and_digest() {
+    let request = consumption_request().validate().unwrap();
+    let certificate = certificate(None);
+    let digest = "a".repeat(64);
+    let plan = benefit_consumption_plan(&request, &certificate, digest.clone(), NOW).unwrap();
+    assert_eq!(plan.id, "learning-benefit-benefit-election-1");
+    assert_eq!(plan.handoff_id, certificate.handoff_id);
+    assert_eq!(plan.certificate_id, certificate.id);
+    assert_eq!(plan.election_id, "election-1");
+    assert_eq!(plan.company_id, "company");
+    assert_eq!(plan.person_id, "person-learner");
+    assert_eq!(plan.source_assignment_version, 3);
+    assert_eq!(plan.source_digest, digest);
+    assert_eq!(plan.command_id, "benefit-election-1");
+    assert_eq!(plan.created_at, NOW);
+    let receipt = plan.receipt();
+    assert!(receipt.matches_source(&plan));
+    assert!(receipt.matches_command(&plan));
+    assert_eq!(
+        receipt.to_json()["sourceAssignmentVersion"],
+        serde_json::json!(3)
+    );
+
+    assert_eq!(
+        benefit_consumption_plan(&request, &certificate, "A".repeat(64), NOW)
+            .unwrap_err()
+            .code,
+        "BENEFIT_LEARNING_CERTIFICATE_EXPIRED"
+    );
+    let mut revoked = certificate.clone();
+    revoked.revocation_id = Some("revocation-1".into());
+    assert_eq!(
+        benefit_consumption_plan(&request, &revoked, "a".repeat(64), NOW)
+            .unwrap_err()
+            .code,
+        "BENEFIT_LEARNING_CERTIFICATE_EXPIRED"
+    );
+    let mut foreign = certificate.clone();
+    foreign.company_id = "foreign".into();
+    assert_eq!(
+        benefit_consumption_plan(&request, &foreign, "a".repeat(64), NOW)
+            .unwrap_err()
+            .code,
+        "BENEFIT_LEARNING_CERTIFICATE_EXPIRED"
+    );
+    assert!(request.validate().is_ok());
+    for invalid in [
+        BenefitConsumptionRequest {
+            person_id: String::new(),
+            ..request.clone()
+        },
+        BenefitConsumptionRequest {
+            election_id: String::new(),
+            ..request.clone()
+        },
+        BenefitConsumptionRequest {
+            required_code: " equipment_operator".into(),
+            ..request.clone()
+        },
+        BenefitConsumptionRequest {
+            effective_date: "2026-02-30".into(),
+            ..request.clone()
+        },
+        BenefitConsumptionRequest {
+            command_id: "short".into(),
+            ..request.clone()
+        },
+        BenefitConsumptionRequest {
+            today: "not-a-date".into(),
+            ..request.clone()
+        },
+    ] {
+        assert_eq!(
+            invalid.validate().unwrap_err().code,
+            "LEARNING_REQUEST_INVALID"
+        );
+    }
+}
+
+#[test]
+fn benefit_consumption_identity_and_source_digest_are_stable() {
+    let actor = BenefitConsumptionActor {
+        user_id: UserId::new("benefits-reviewer").unwrap(),
+        assignment_id: AssignmentId::new("benefits-assignment").unwrap(),
+        company_id: CompanyId::new("company").unwrap(),
+        branch_id: Some(RecordId::new("branch").unwrap()),
+        department_id: Some(RecordId::new("department").unwrap()),
+        permissions: vec!["records.write".into()],
+        modules: vec!["benefits".into()],
+        expires_at: NOW + 60_000,
+    };
+    actor.require_consume(NOW).unwrap();
+    let request = consumption_request();
+    let identity = benefit_consume_identity(&actor, "benefit-election-1", &request);
+    assert!(identity.contains("\"operation\":\"learning.benefit.consume\""));
+    assert_eq!(
+        identity,
+        benefit_consume_identity(&actor, "benefit-election-1", &request)
+    );
+    assert_eq!(
+        certificate_source_json(&certificate(None)),
+        certificate_source_json(&certificate(None))
+    );
+    let mut other = certificate(None);
+    other.evidence_ref.push('!');
+    assert_ne!(
+        certificate_source_json(&certificate(None)),
+        certificate_source_json(&other)
+    );
+
+    let mut no_scope = actor.clone();
+    no_scope.branch_id = None;
+    assert!(no_scope.scope().is_err());
+    let mut no_module = actor.clone();
+    no_module.modules = vec!["learning".into()];
+    assert_eq!(
+        no_module.require_consume(NOW).unwrap_err().code,
+        "MODULE_FORBIDDEN"
+    );
+    let mut read_only = actor;
+    read_only.permissions = vec!["records.read".into()];
+    assert_eq!(
+        read_only.require_consume(NOW).unwrap_err().code,
+        "LEARNING_PERMISSION_REQUIRED"
+    );
+}
+
+#[test]
+fn benefit_continuation_requires_benefits_navigation_authority_and_exact_source() {
+    let row = eligibility_row();
+    let mut assignment = assignment("completed", true);
+    assignment.version = 3;
+    assignment.completion_reason = Some("Course and assessment completed".into());
+    let modules = vec!["benefits".to_owned()];
+    let permissions = vec!["records.read".to_owned()];
+    let continuation = || {
+        learning_benefit_continuation(
+            "learner",
+            "company",
+            &modules,
+            &permissions,
+            None,
+            &assignment,
+            Some(&row.handoff),
+            Some(&row.certificate),
+        )
+    };
+    assert_eq!(
+        continuation().unwrap()["eligibilityCode"],
+        "equipment_operator"
+    );
+    assert_eq!(
+        learning_benefit_continuation(
+            "learner",
+            "company",
+            &modules,
+            &permissions,
+            Some(true),
+            &assignment,
+            Some(&row.handoff),
+            Some(&row.certificate),
+        )
+        .unwrap()["eligibilityCode"],
+        "equipment_operator"
+    );
+    assert!(learning_benefit_continuation(
+        "learner",
+        "company",
+        &modules,
+        &permissions,
+        Some(false),
+        &assignment,
+        Some(&row.handoff),
+        Some(&row.certificate),
+    )
+    .is_none());
+    assert!(learning_benefit_continuation(
+        "learner",
+        "company",
+        &[],
+        &permissions,
+        None,
+        &assignment,
+        Some(&row.handoff),
+        Some(&row.certificate),
+    )
+    .is_none());
+    assert!(learning_benefit_continuation(
+        "learner",
+        "company",
+        &modules,
+        &[],
+        None,
+        &assignment,
+        Some(&row.handoff),
+        Some(&row.certificate),
+    )
+    .is_none());
+    assert!(learning_benefit_continuation(
+        "peer",
+        "company",
+        &modules,
+        &permissions,
+        None,
+        &assignment,
+        Some(&row.handoff),
+        Some(&row.certificate),
+    )
+    .is_none());
+    assert!(learning_benefit_continuation(
+        "learner",
+        "foreign",
+        &modules,
+        &permissions,
+        None,
+        &assignment,
+        Some(&row.handoff),
+        Some(&row.certificate),
+    )
+    .is_none());
+    let mut stale = assignment.clone();
+    stale.version = 4;
+    assert!(learning_benefit_continuation(
+        "learner",
+        "company",
+        &modules,
+        &permissions,
+        None,
+        &stale,
+        Some(&row.handoff),
+        Some(&row.certificate),
+    )
+    .is_none());
+    assert!(learning_benefit_continuation(
+        "learner",
+        "company",
+        &modules,
+        &permissions,
+        None,
+        &assignment,
+        None,
+        Some(&row.certificate),
+    )
+    .is_none());
+}
+
+#[test]
+fn assignment_evidence_request_uses_exact_files_policy_context() {
+    let change = complete_change().validate().unwrap();
+    assert!(assignment_evidence_request("assignment-1", &change, "command-1")
+        .unwrap()
+        .is_none());
+
+    let mut attached = change.clone();
+    attached.attachment_set_ids = vec!["set-1".into()];
+    let request =
+        assignment_evidence_request("assignment-1", &attached, "command-1").unwrap().unwrap();
+    assert_eq!(request.target_type, "learning_assignment");
+    assert_eq!(request.purpose_key, "certificate");
+    assert_eq!(request.component_kind, "action");
+    assert_eq!(request.component_ref.as_deref(), Some("completion"));
+    assert_eq!(request.expected_target_version, 2);
+    assert_eq!(request.binding_type, "learning_completion");
+    assert_eq!(request.binding_id, "assignment-1");
+
+    let mut waive = AssignmentChange {
+        action: AssignmentAction::Waive,
+        expected_version: 2,
+        reason: "Equivalent external certification verified".into(),
+        attendance: None,
+        score_bps: None,
+        evidence: None,
+        certificate_valid_from: None,
+        certificate_expires_on: None,
+        attachment_set_ids: vec!["set-2".into()],
+    }
+    .validate()
+    .unwrap();
+    assert_eq!(
+        assignment_evidence_request("assignment-1", &waive, "command-2")
+            .unwrap()
+            .unwrap()
+            .component_ref
+            .as_deref(),
+        Some("waiver")
+    );
+    waive.attachment_set_ids = vec![String::new()];
+    assert!(assignment_evidence_request("assignment-1", &waive, "command-2").is_err());
+
+    let prepared = PreparedLearningEvidence {
+        set_ids: vec!["set-1".into()],
+        link_ids: vec!["link-1".into()],
+        manifest: vec![EvidenceManifestItem {
+            set_id: "set-1".into(),
+            link_id: "link-1".into(),
+            source_id: "attachment-1".into(),
+            purpose_key: "certificate".into(),
+            component_kind: "action".into(),
+            component_ref: Some("completion".into()),
+            checksum_sha256: "a".repeat(64),
+            media_type: "application/pdf".into(),
+            bytes: 128,
+        }],
+        target_type: "learning_assignment".into(),
+        target_id: "assignment-1".into(),
+        expected_target_version: 2,
+        policy_version: 1,
+        binding_type: "learning_completion".into(),
+        binding_id: "assignment-1".into(),
+        command_id: "command-1".into(),
+    };
+    prepared.validate_source(&request).unwrap();
+    let mut wrong = prepared.clone();
+    wrong.command_id = "another-command".into();
+    assert_eq!(
+        wrong.validate_source(&request).unwrap_err().code,
+        "LEARNING_EVIDENCE_SOURCE_INVALID"
+    );
+
+    let mut attached_complete = complete_change();
+    attached_complete.attachment_set_ids = vec!["set-1".into()];
+    let input = attached_complete.validate().unwrap();
+    assert_eq!(
+        assignment_change_plan(&learner(), &assignment("in_progress", true), &input, None, "command-1", NOW)
+            .unwrap_err()
+            .code,
+        "LEARNING_EVIDENCE_PORT_REQUIRED"
+    );
+    let mut plan = assignment_change_plan(
+        &learner(),
+        &assignment("in_progress", true),
+        &input,
+        Some(prepared),
+        "command-1",
+        NOW,
+    )
+    .unwrap();
+    assert_eq!(plan.evidence.as_ref().unwrap().link_ids, vec!["link-1"]);
+    plan.evidence = None;
 }

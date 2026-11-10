@@ -6,21 +6,24 @@
 mod fixture;
 
 use erpx_server_learning::public::eligibility_facts::{
-    EligibilityQuery, EligibilityScope, learning_eligibility_consumer_facts,
-    learning_eligibility_facts,
+    BenefitConsumptionActor, BenefitConsumptionCommand, BenefitConsumptionRequest, EligibilityQuery,
+    EligibilityScope, consume_benefit, finalize_benefit_consumption,
+    learning_eligibility_consumer_facts, learning_eligibility_facts, prepare_benefit_consumption,
+    validate_benefit_consumption,
 };
 use erpx_server_learning::public::learning::{
     AssignmentAction, AssignmentChange, AssignmentRequest, Attendance, CertificateRevocation,
-    CourseAction, CourseChange, CourseRequest, LearningActor, PgLearning, change_assignment,
-    change_course, create_assignment, create_course, learning_detail, learning_workspace,
-    revoke_certificate, utc_date,
+    CourseAction, CourseChange, CourseRequest, EvidenceManifestItem, LearningActor,
+    LearningEvidencePort, LearningEvidenceRequest, PgLearning, PreparedLearningEvidence,
+    change_assignment, change_course, create_assignment, create_course, learning_detail,
+    learning_workspace, revoke_certificate, utc_date,
 };
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, PgTransactionError, PgUnitOfWork, TransactionOptions,
     load_migrations, migrate_database,
 };
 use erpx_server_shared::public::{
-    AssignmentId, BusinessError, CommandKey, CompanyId, HoldingId, RecordId, UserId,
+    AssignmentId, BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId, UserId,
 };
 use serde_json::Value;
 use sqlx::{AssertSqlSafe, Row};
@@ -484,7 +487,7 @@ async fn course_unicode_and_safe_duration_round_trip_through_postgres() {
                 .bind(id).bind("learning-unicode-0001").fetch_one(pool.raw()).await.unwrap();
             assert_eq!(effects, (1,1,1,1,1), "after replay: {after_replay}");
         }
-        let too_long = CourseRequest { title: format!("{}ก", "😀".repeat(80)), ..input.clone() };
+        let too_long = CourseRequest { title: format!("{}ก", "😀".repeat(160)), ..input.clone() };
         assert!(run_create_course(&pool, author(), "learning-unicode-invalid", too_long).await.is_err());
         let too_large = CourseRequest { duration_minutes: 9_007_199_254_740_992, ..input };
         assert!(run_create_course(&pool, author(), "learning-duration-invalid", too_large).await.is_err());
@@ -1887,4 +1890,596 @@ try {
             assert_eq!(oracle["digest"].as_str().unwrap(), digest);
         }
     }).await;
+}
+
+fn benefit_actor(user: &str, permissions: &[&str], modules: &[&str]) -> BenefitConsumptionActor {
+    BenefitConsumptionActor {
+        user_id: UserId::new(user).unwrap(),
+        assignment_id: AssignmentId::new(format!("benefit-assignment-{user}")).unwrap(),
+        company_id: CompanyId::new("company").unwrap(),
+        branch_id: None,
+        department_id: None,
+        permissions: permissions.iter().map(|value| (*value).to_owned()).collect(),
+        modules: modules.iter().map(|value| (*value).to_owned()).collect(),
+        expires_at: NOW + 300_000,
+    }
+}
+
+fn benefit_request(election: &str, command: &str) -> BenefitConsumptionRequest {
+    BenefitConsumptionRequest {
+        company_id: "company".into(),
+        person_id: "person-learner".into(),
+        required_code: "equipment_operator".into(),
+        effective_date: "2026-11-04".into(),
+        election_id: election.into(),
+        command_id: command.into(),
+        today: utc_date(NOW),
+        actor_id: "benefits-reviewer".into(),
+    }
+}
+
+async fn seed_completed_certificate(
+    pool: &DatabasePool,
+    prefix: &str,
+) -> (String, String, String) {
+    let assignment = run_create_assignment(
+        pool,
+        reviewer(),
+        &format!("learning-benefit-assign-{prefix}"),
+        assignment_input("course-required", "learner"),
+    )
+    .await
+    .unwrap();
+    let id = assignment["id"].as_str().unwrap().to_owned();
+    run_change_assignment(
+        pool,
+        learner(),
+        &id,
+        &format!("learning-benefit-start-{prefix}"),
+        action(AssignmentAction::Start, 1),
+    )
+    .await
+    .unwrap();
+    run_change_assignment(
+        pool,
+        learner(),
+        &id,
+        &format!("learning-benefit-complete-{prefix}"),
+        complete(2),
+    )
+    .await
+    .unwrap();
+    let row: (String, String) = sqlx::query_as(
+        "SELECT c.id,h.id FROM learning_certificates c \
+         JOIN learning_eligibility_handoffs h ON h.id=c.handoff_id \
+         WHERE c.assignment_id=$1",
+    )
+    .bind(&id)
+    .fetch_one(pool.raw())
+    .await
+    .unwrap();
+    (id, row.0, row.1)
+}
+
+async fn seed_benefit_election(
+    pool: &DatabasePool,
+    election_id: &str,
+    certificate_id: Option<&str>,
+) {
+    sqlx::raw_sql(AssertSqlSafe(format!(
+        "INSERT INTO benefit_plans(id,company_id,name,provider,coverage_type,currency,\
+         employee_deduction_minor,employer_cost_minor,effective_from,status,created_by,version,\
+         created_at,updated_at,required_eligibility_code) \
+         VALUES('plan-{election_id}','company','Learning plan','Provider','employee','THB',0,0,\
+         '2026-01-01','published','reviewer',2,0,0,'equipment_operator');\
+         INSERT INTO benefit_enrollment_windows(id,company_id,name,opens_on,closes_on,effective_on,\
+         status,created_by,version,created_at,updated_at) \
+         VALUES('window-{election_id}','company','Window','2026-01-01','2026-12-31','2026-01-01',\
+         'open','reviewer',2,0,0);\
+         INSERT INTO benefit_elections(id,company_id,person_id,engagement_id,plan_id,plan_version,\
+         window_id,window_version,coverage_type,dependent_ids_json,currency,\
+         employee_deduction_minor,employer_cost_minor,effective_from,status,created_by,version,\
+         created_at,updated_at,learning_certificate_id) \
+         VALUES('{election_id}','company','person-learner','engagement-learner','plan-{election_id}',2,\
+         'window-{election_id}',2,'employee','[]','THB',0,0,'2026-11-04','elected','reviewer',1,0,0,{});",
+        certificate_id.map_or("NULL".to_owned(), |id| format!("'{id}'"))
+    )))
+    .execute(pool.raw())
+    .await
+    .unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn benefit_consumption_port_writes_one_receipt_for_the_election() {
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        let (_assignment, certificate_id, handoff_id) =
+            seed_completed_certificate(&pool, "port").await;
+        seed_benefit_election(&pool, "election-port", None).await;
+        let request = benefit_request("election-port", "benefit-port-command-1");
+        let expected_certificate = certificate_id.clone();
+
+        let outcome = PgUnitOfWork::new(pool.clone())
+            .run::<_, BusinessError, _>(TransactionOptions::default(), {
+                let request = request.clone();
+                move |connection| {
+                    let request = request.clone();
+                    let certificate_id = expected_certificate.clone();
+                    Box::pin(async move {
+                        let prepared = {
+                            let mut repository = PgLearning::new(&mut *connection);
+                            prepare_benefit_consumption(&mut repository, &request, NOW).await?
+                        };
+                        if prepared.certificate_id() != certificate_id {
+                            return Err(PgTransactionError::Business(BusinessError::new(
+                                FailureKind::Unavailable,
+                                "LEARNING_SOURCE_INVALID",
+                                "Prepared certificate mismatch.",
+                            )));
+                        }
+                        sqlx::query("UPDATE benefit_elections SET learning_certificate_id=$1 WHERE id=$2")
+                            .bind(prepared.certificate_id())
+                            .bind(&request.election_id)
+                            .execute(&mut *connection)
+                            .await?;
+                        let receipt = {
+                            let mut repository = PgLearning::new(&mut *connection);
+                            finalize_benefit_consumption(&mut repository, &prepared).await?
+                        };
+                        let validated = {
+                            let mut repository = PgLearning::new(&mut *connection);
+                            validate_benefit_consumption(&mut repository, &request).await?
+                        };
+                        if validated.certificate_id() != certificate_id {
+                            return Err(PgTransactionError::Business(BusinessError::new(
+                                FailureKind::Unavailable,
+                                "LEARNING_SOURCE_INVALID",
+                                "Validated certificate mismatch.",
+                            )));
+                        }
+                        Ok(receipt.to_json())
+                    })
+                }
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(outcome["certificateId"], certificate_id);
+        assert_eq!(outcome["handoffId"], handoff_id);
+        assert_eq!(outcome["electionId"], "election-port");
+        assert_eq!(outcome["companyId"], "company");
+        assert_eq!(outcome["personId"], "person-learner");
+        assert_eq!(outcome["sourceAssignmentVersion"], 3);
+        assert_eq!(outcome["eligibilityCode"], "equipment_operator");
+        assert_eq!(
+            outcome["purpose"],
+            "Benefits eligibility at election creation"
+        );
+        let digest = outcome["sourceDigest"].as_str().unwrap();
+        assert_eq!(digest.len(), 64);
+        assert!(digest.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)));
+
+        let counts: (i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM learning_benefit_consumption_receipts \
+             WHERE election_id='election-port'),\
+             (SELECT count(*) FROM audit_events WHERE record_type='learning_benefit_consumption'),\
+             (SELECT count(*) FROM outbox_events WHERE aggregate_type='learning_benefit_consumption')",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(counts, (1, 0, 0));
+
+        let replay = PgUnitOfWork::new(pool.clone())
+            .run::<_, BusinessError, _>(TransactionOptions::default(), {
+                let request = request.clone();
+                move |connection| {
+                    let request = request.clone();
+                    Box::pin(async move {
+                        let prepared = {
+                            let mut repository = PgLearning::new(&mut *connection);
+                            prepare_benefit_consumption(&mut repository, &request, NOW).await?
+                        };
+                        let mut repository = PgLearning::new(&mut *connection);
+                        finalize_benefit_consumption(&mut repository, &prepared).await
+                    })
+                }
+            })
+            .await
+            .unwrap()
+            .to_json();
+        assert_eq!(replay, outcome);
+        let count: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM learning_benefit_consumption_receipts WHERE election_id='election-port'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(count, 1);
+
+        sqlx::query(
+            "INSERT INTO learning_certificate_revocations\
+             (id,certificate_id,company_id,actor_id,reason,command_id,created_at) \
+             VALUES('revocation-port',$1,'company','reviewer','Retire the retained certificate',\
+             'revocation-port-command',1799999999000)",
+        )
+        .bind(&certificate_id)
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let expired = PgUnitOfWork::new(pool.clone())
+            .run::<_, BusinessError, _>(TransactionOptions::default(), {
+                let request = request.clone();
+                move |connection| {
+                    let request = request.clone();
+                    Box::pin(async move {
+                        let mut repository = PgLearning::new(&mut *connection);
+                        validate_benefit_consumption(&mut repository, &request).await
+                    })
+                }
+            })
+            .await
+            .unwrap_err();
+        let expired = match expired {
+            PgTransactionError::Business(error) => error,
+            PgTransactionError::Persistence(_) => panic!("unexpected persistence error"),
+        };
+        assert_eq!(expired.code, "BENEFIT_LEARNING_CERTIFICATE_EXPIRED");
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn benefit_consumption_command_writes_receipt_audit_and_outbox_once() {
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        let (_assignment, certificate_id, _handoff_id) =
+            seed_completed_certificate(&pool, "command").await;
+        seed_benefit_election(&pool, "election-command", Some(&certificate_id)).await;
+        let actor = benefit_actor("benefits-reviewer", &["records.read", "records.write"], &["benefits"]);
+        let input = BenefitConsumptionCommand {
+            person_id: "person-learner".into(),
+            required_code: "equipment_operator".into(),
+            effective_date: "2026-11-04".into(),
+            election_id: "election-command".into(),
+        };
+        let run = |actor: BenefitConsumptionActor, key_value: &'static str, input: BenefitConsumptionCommand| {
+            let pool = pool.clone();
+            async move {
+                PgUnitOfWork::new(pool)
+                    .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                        let actor = actor.clone();
+                        let input = input.clone();
+                        Box::pin(async move {
+                            let mut repository = PgLearning::new(&mut *connection);
+                            consume_benefit(
+                                &mut repository,
+                                &actor,
+                                &CommandKey::new(key_value).unwrap(),
+                                &input,
+                                NOW,
+                            )
+                            .await
+                        })
+                    })
+                    .await
+            }
+        };
+        let first = run(
+            actor.clone(),
+            "benefit-election-command-1",
+            input.clone(),
+        )
+        .await
+        .map_err(|error| match error {
+            PgTransactionError::Business(error) => error,
+            PgTransactionError::Persistence(_) => panic!("unexpected persistence error"),
+        })
+        .unwrap();
+        assert_eq!(first["certificateId"], certificate_id);
+        assert_eq!(first["electionId"], "election-command");
+        assert_eq!(first["commandId"], "benefit-election-command-1");
+        let counts: (i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM learning_benefit_consumption_receipts \
+             WHERE election_id='election-command'),\
+             (SELECT count(*) FROM command_receipts WHERE command_id='benefit-election-command-1'),\
+             (SELECT count(*) FROM audit_events WHERE command_id='benefit-election-command-1'),\
+             (SELECT count(*) FROM outbox_events WHERE command_id='benefit-election-command-1')",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(counts, (1, 1, 1, 1));
+
+        let replay = run(
+            actor.clone(),
+            "benefit-election-command-1",
+            input.clone(),
+        )
+        .await
+        .map_err(|error| match error {
+            PgTransactionError::Business(error) => error,
+            PgTransactionError::Persistence(_) => panic!("unexpected persistence error"),
+        })
+        .unwrap();
+        assert_eq!(replay, first);
+        let counts: (i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM learning_benefit_consumption_receipts \
+             WHERE election_id='election-command'),\
+             (SELECT count(*) FROM command_receipts WHERE command_id='benefit-election-command-1'),\
+             (SELECT count(*) FROM audit_events WHERE command_id='benefit-election-command-1'),\
+             (SELECT count(*) FROM outbox_events WHERE command_id='benefit-election-command-1')",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(counts, (1, 1, 1, 1));
+
+        let conflict = run(
+            actor.clone(),
+            "benefit-election-command-1",
+            BenefitConsumptionCommand {
+                person_id: "person-peer".into(),
+                ..input.clone()
+            },
+        )
+        .await
+        .map_err(|error| match error {
+            PgTransactionError::Business(error) => error,
+            PgTransactionError::Persistence(_) => panic!("unexpected persistence error"),
+        })
+        .unwrap_err();
+        assert_eq!(conflict.code, "LEARNING_IDEMPOTENCY_CONFLICT");
+
+        let no_module = run(
+            benefit_actor("benefits-reviewer", &["records.write"], &["learning"]),
+            "benefit-election-command-2",
+            input.clone(),
+        )
+        .await
+        .map_err(|error| match error {
+            PgTransactionError::Business(error) => error,
+            PgTransactionError::Persistence(_) => panic!("unexpected persistence error"),
+        })
+        .unwrap_err();
+        assert_eq!(no_module.code, "MODULE_FORBIDDEN");
+        let read_only = run(
+            benefit_actor("benefits-reviewer", &["records.read"], &["benefits"]),
+            "benefit-election-command-3",
+            input.clone(),
+        )
+        .await
+        .map_err(|error| match error {
+            PgTransactionError::Business(error) => error,
+            PgTransactionError::Persistence(_) => panic!("unexpected persistence error"),
+        })
+        .unwrap_err();
+        assert_eq!(read_only.code, "LEARNING_PERMISSION_REQUIRED");
+        let foreign = run(
+            BenefitConsumptionActor {
+                company_id: CompanyId::new("foreign").unwrap(),
+                ..benefit_actor("benefits-reviewer", &["records.write"], &["benefits"])
+            },
+            "benefit-election-command-4",
+            input,
+        )
+        .await
+        .map_err(|error| match error {
+            PgTransactionError::Business(error) => error,
+            PgTransactionError::Persistence(_) => panic!("unexpected persistence error"),
+        })
+        .unwrap_err();
+        assert_eq!(foreign.code, "BENEFIT_LEARNING_ELIGIBILITY_REQUIRED");
+    })
+    .await;
+}
+
+#[derive(Default)]
+struct FakeEvidence {
+    prepares: usize,
+    currents: usize,
+    requests: Vec<LearningEvidenceRequest>,
+}
+
+impl LearningEvidencePort for FakeEvidence {
+    fn prepare<'a>(
+        &'a mut self,
+        _connection: &'a mut sqlx::PgConnection,
+        request: LearningEvidenceRequest,
+    ) -> erpx_server_learning::public::learning::LearningFuture<
+        'a,
+        Option<PreparedLearningEvidence>,
+        BusinessError,
+    > {
+        Box::pin(async move {
+            self.prepares += 1;
+            self.requests.push(request.clone());
+            Ok(Some(PreparedLearningEvidence {
+                set_ids: request.attachment_set_ids.clone(),
+                link_ids: vec!["link-1".into()],
+                manifest: vec![EvidenceManifestItem {
+                    set_id: request.attachment_set_ids[0].clone(),
+                    link_id: "link-1".into(),
+                    source_id: "attachment-1".into(),
+                    purpose_key: request.purpose_key.clone(),
+                    component_kind: request.component_kind.clone(),
+                    component_ref: request.component_ref.clone(),
+                    checksum_sha256: "a".repeat(64),
+                    media_type: "application/pdf".into(),
+                    bytes: 512,
+                }],
+                target_type: request.target_type.clone(),
+                target_id: request.target_id.clone(),
+                expected_target_version: request.expected_target_version,
+                policy_version: 1,
+                binding_type: request.binding_type.clone(),
+                binding_id: request.binding_id.clone(),
+                command_id: request.command_id.clone(),
+            }))
+        })
+    }
+
+    fn require_current<'a>(
+        &'a mut self,
+        _connection: &'a mut sqlx::PgConnection,
+        _prepared: &'a PreparedLearningEvidence,
+    ) -> erpx_server_learning::public::learning::LearningFuture<'a, (), BusinessError> {
+        Box::pin(async move {
+            self.currents += 1;
+            Ok(())
+        })
+    }
+}
+
+async fn run_change_assignment_with_evidence(
+    pool: &DatabasePool,
+    actor: LearningActor,
+    id: &str,
+    key_value: &str,
+    input: AssignmentChange,
+) -> (Result<Value, BusinessError>, usize, usize) {
+    let id = id.to_owned();
+    let key_value = key(key_value);
+    let executed = PgUnitOfWork::new(pool.clone())
+        .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+            let actor = actor.clone();
+            let id = id.clone();
+            let key_value = key_value.clone();
+            let input = input.clone();
+            Box::pin(async move {
+                let mut evidence = FakeEvidence::default();
+                let result = {
+                    let mut repository = PgLearning::with_evidence(&mut *connection, &mut evidence);
+                    change_assignment(&mut repository, &actor, &key_value, &id, &input, NOW).await
+                };
+                Ok((result, evidence.prepares, evidence.currents))
+            })
+        })
+        .await;
+    match executed {
+        Ok((result, prepares, currents)) => {
+            let result = result.map_err(|error| match error {
+                PgTransactionError::Business(error) => error,
+                PgTransactionError::Persistence(_) => BusinessError::new(
+                    FailureKind::Unavailable,
+                    "LEARNING_UNAVAILABLE",
+                    "The Learning workspace is unavailable.",
+                ),
+            });
+            (result, prepares, currents)
+        }
+        Err(error) => {
+            let error = match error {
+                PgTransactionError::Business(error) => error,
+                PgTransactionError::Persistence(_) => BusinessError::new(
+                    FailureKind::Unavailable,
+                    "LEARNING_UNAVAILABLE",
+                    "The Learning workspace is unavailable.",
+                ),
+            };
+            (Err(error), 0, 0)
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn assignment_evidence_binds_through_the_files_port_and_fails_closed_without_it() {
+    fixture::with_database(4, |pool| async move {
+        setup(&pool).await;
+        let assignment = run_create_assignment(
+            &pool,
+            reviewer(),
+            "learning-evidence-assign-1",
+            assignment_input("course-required", "learner"),
+        )
+        .await
+        .unwrap();
+        let id = assignment["id"].as_str().unwrap().to_owned();
+        run_change_assignment(
+            &pool,
+            learner(),
+            &id,
+            "learning-evidence-start-1",
+            action(AssignmentAction::Start, 1),
+        )
+        .await
+        .unwrap();
+
+        let mut evidenced = complete(2);
+        evidenced.attachment_set_ids = vec!["set-1".into()];
+        let (result, prepares, currents) =
+            run_change_assignment_with_evidence(&pool, learner(), &id, "learning-evidence-complete-1", evidenced.clone())
+                .await;
+        let result = result.unwrap();
+        assert_eq!(result["status"], "completed");
+        assert_eq!(prepares, 1);
+        assert_eq!(currents, 1);
+        let row: (String, i64) = sqlx::query_as(
+            "SELECT status,version FROM learning_assignments WHERE id=$1",
+        )
+        .bind(&id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(row, ("completed".to_owned(), 3));
+        let evidence: Option<serde_json::Value> = sqlx::query_scalar(
+            "SELECT payload_json::jsonb #> '{details,evidence}' FROM outbox_events \
+             WHERE command_id='learning-evidence-complete-1'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(evidence.unwrap()["linkIds"], serde_json::json!(["link-1"]));
+
+        let other = run_create_assignment(
+            &pool,
+            reviewer(),
+            "learning-evidence-assign-2",
+            assignment_input("course-required", "peer"),
+        )
+        .await
+        .unwrap();
+        let other_id = other["id"].as_str().unwrap().to_owned();
+        run_change_assignment(
+            &pool,
+            actor("peer", "company", None, None, &["records.read", "records.write"]),
+            &other_id,
+            "learning-evidence-start-2",
+            action(AssignmentAction::Start, 1),
+        )
+        .await
+        .unwrap();
+        let mut missing = complete(2);
+        missing.attachment_set_ids = vec!["set-1".into()];
+        assert_eq!(
+            run_change_assignment(
+                &pool,
+                actor("peer", "company", None, None, &["records.read", "records.write"]),
+                &other_id,
+                "learning-evidence-complete-2",
+                missing,
+            )
+            .await
+            .unwrap_err()
+            .code,
+            "LEARNING_EVIDENCE_PORT_REQUIRED"
+        );
+        let row: (String, i64) = sqlx::query_as(
+            "SELECT status,version FROM learning_assignments WHERE id=$1",
+        )
+        .bind(&other_id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(row, ("in_progress".to_owned(), 2));
+        let certificates: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM learning_certificates WHERE assignment_id=$1",
+        )
+        .bind(&other_id)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(certificates, 0);
+    })
+    .await;
 }

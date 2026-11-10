@@ -3,17 +3,19 @@
 //! Ports supply the owning serializable transaction, current course/People/IAM
 //! facts, replay and committed readback. This layer never opens a transaction,
 //! reads HTTP, checks a package purchase or writes another owner's rows.
+use crate::domain::eligibility_facts::learning_benefit_continuation;
 use crate::domain::learning::{
     AssignmentChange, AssignmentChangePlan, AssignmentCreatePlan, AssignmentRequest, AssignmentRow,
     CertificateRevocation, CertificateRevokePlan, CertificateRow, CourseChange, CourseChangePlan,
     CourseCreatePlan, CourseRequest, CourseRow, EventRow, HandoffRow, LearningActor,
-    LearningReceipt, MAX_ASSIGNMENT_ROWS, MAX_COURSE_ROWS, MAX_EVENT_ROWS, MAX_PEOPLE_ROWS,
-    PersonRow, PlacementRow, ReceiptSnapshot, assignment_change_identity, assignment_change_plan,
-    assignment_create_id, assignment_create_identity, assignment_create_plan, assignment_not_found,
-    certificate_not_found, certificate_revoke_plan, course_change_identity, course_change_plan,
-    course_create_id, course_create_identity, course_create_plan, course_not_found,
-    idempotency_conflict, learner_ineligible, readback_invalid, revocation_identity,
-    source_changed, source_invalid, state_changed,
+    LearningEvidenceRequest, LearningReceipt, MAX_ASSIGNMENT_ROWS, MAX_COURSE_ROWS, MAX_EVENT_ROWS,
+    MAX_PEOPLE_ROWS, PersonRow, PlacementRow, PreparedLearningEvidence, ReceiptSnapshot,
+    assignment_change_identity, assignment_change_plan, assignment_create_id,
+    assignment_create_identity, assignment_create_plan, assignment_evidence_request,
+    assignment_not_found, certificate_not_found, certificate_revoke_plan, course_change_identity,
+    course_change_plan, course_create_id, course_create_identity, course_create_plan,
+    course_not_found, evidence_port_required, idempotency_conflict, learner_ineligible,
+    readback_invalid, revocation_identity, source_changed, source_invalid, state_changed,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, RecordId};
 use serde_json::Value;
@@ -22,6 +24,23 @@ use std::future::Future;
 use std::pin::Pin;
 
 pub type LearningFuture<'a, T, E> = Pin<Box<dyn Future<Output = Result<T, E>> + Send + 'a>>;
+
+/// Current Files/Records business-evidence port bound to the same serializable
+/// owner unit. The exact Files binding implementation is assembled by
+/// composition; this layer only states the Learning target/policy context.
+pub trait LearningEvidencePort: Send {
+    fn prepare<'a>(
+        &'a mut self,
+        connection: &'a mut sqlx::PgConnection,
+        request: LearningEvidenceRequest,
+    ) -> LearningFuture<'a, Option<PreparedLearningEvidence>, BusinessError>;
+
+    fn require_current<'a>(
+        &'a mut self,
+        connection: &'a mut sqlx::PgConnection,
+        prepared: &'a PreparedLearningEvidence,
+    ) -> LearningFuture<'a, (), BusinessError>;
+}
 
 fn valid_hash(hash: &str) -> bool {
     hash.len() == 64 && hash.bytes().all(|byte| byte.is_ascii_hexdigit())
@@ -273,6 +292,14 @@ pub trait LearningCommandRepository {
         actor: &'a LearningActor,
         id: &'a str,
     ) -> LearningFuture<'a, Option<CertificateRow>, Self::Error>;
+    fn prepare_evidence<'a>(
+        &'a mut self,
+        request: LearningEvidenceRequest,
+    ) -> LearningFuture<'a, Option<PreparedLearningEvidence>, Self::Error>;
+    fn require_evidence_current<'a>(
+        &'a mut self,
+        prepared: &'a PreparedLearningEvidence,
+    ) -> LearningFuture<'a, (), Self::Error>;
     fn commit_course_create<'a>(
         &'a mut self,
         actor: &'a LearningActor,
@@ -484,6 +511,16 @@ pub async fn change_assignment<R: LearningCommandRepository>(
     )? {
         return Ok(prior);
     }
+    let evidence_request = assignment_evidence_request(id, &input, key.as_str())?;
+    let evidence = match evidence_request {
+        Some(request) => Some(
+            repository
+                .prepare_evidence(request)
+                .await?
+                .ok_or_else(evidence_port_required)?,
+        ),
+        None => None,
+    };
     let row = repository
         .assignment_for_update(actor, id)
         .await?
@@ -499,10 +536,14 @@ pub async fn change_assignment<R: LearningCommandRepository>(
     {
         return Err(crate::domain::learning::learner_required().into());
     }
-    let plan = assignment_change_plan(actor, &row, &input, key.as_str(), now)?;
-    repository
+    let plan = assignment_change_plan(actor, &row, &input, evidence, key.as_str(), now)?;
+    let result = repository
         .commit_assignment_change(actor, key.as_str(), &plan, &hash)
-        .await
+        .await?;
+    if let Some(prepared) = &plan.evidence {
+        repository.require_evidence_current(prepared).await?;
+    }
+    Ok(result)
 }
 
 pub async fn revoke_certificate<R: LearningCommandRepository>(
@@ -617,6 +658,20 @@ pub async fn learning_detail<R: LearningReadRepository>(
         certificate
             .as_ref()
             .map_or(Value::Null, CertificateRow::to_json),
+    );
+    object.insert(
+        "benefitContinuation".to_owned(),
+        learning_benefit_continuation(
+            actor.user_id.as_str(),
+            actor.company_id.as_str(),
+            &actor.modules,
+            &actor.permissions,
+            None,
+            &assignment,
+            handoff.as_ref(),
+            certificate.as_ref(),
+        )
+        .unwrap_or(Value::Null),
     );
     Ok(Value::Object(object))
 }

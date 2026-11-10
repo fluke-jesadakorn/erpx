@@ -5,7 +5,7 @@
 //! current selected authority; the repository supplies current source facts
 //! inside the caller's serializable Holding transaction.
 use erpx_server_shared::public::{
-    AssignmentId, BusinessError, CompanyId, FailureKind, HoldingId, RecordId, UserId,
+    AssignmentId, BusinessError, CommandKey, CompanyId, FailureKind, HoldingId, RecordId, UserId,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -19,7 +19,12 @@ pub const MAX_COURSE_ROWS: usize = 500;
 pub const MAX_ASSIGNMENT_ROWS: usize = 1_000;
 pub const MAX_PEOPLE_ROWS: usize = 500;
 pub const MAX_EVENT_ROWS: usize = 500;
+pub const MAX_EVIDENCE_SETS: usize = 20;
 pub const COURSE_OPERATION: &str = "learning.course.create";
+pub const ASSIGNMENT_EVIDENCE_TARGET_TYPE: &str = "learning_assignment";
+pub const ASSIGNMENT_EVIDENCE_PURPOSE: &str = "certificate";
+pub const ASSIGNMENT_EVIDENCE_COMPONENT_KIND: &str = "action";
+pub const ASSIGNMENT_EVIDENCE_BINDING_TYPE: &str = "learning_completion";
 
 fn forbidden(code: &'static str, message: &'static str) -> BusinessError {
     BusinessError::new(FailureKind::Forbidden, code, message)
@@ -40,10 +45,16 @@ pub fn request_invalid() -> BusinessError {
         "Review the Learning course, assignment or result.",
     )
 }
-pub fn attachments_retained() -> BusinessError {
-    BusinessError::invalid(
-        "LEARNING_ATTACHMENTS_RETAINED",
-        "This bounded native Learning command does not bind private attachments.",
+pub fn evidence_port_required() -> BusinessError {
+    unavailable(
+        "LEARNING_EVIDENCE_PORT_REQUIRED",
+        "Native Learning evidence binding requires the current Files attachment port, which composition has not mounted.",
+    )
+}
+pub fn evidence_source_invalid() -> BusinessError {
+    unavailable(
+        "LEARNING_EVIDENCE_SOURCE_INVALID",
+        "The bound Learning evidence source is not available.",
     )
 }
 pub fn course_not_found() -> BusinessError {
@@ -427,6 +438,132 @@ pub struct ValidatedAssignment {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LearningEvidenceRequest {
+    pub attachment_set_ids: Vec<String>,
+    pub target_id: String,
+    pub target_type: String,
+    pub purpose_key: String,
+    pub component_kind: String,
+    pub component_ref: Option<String>,
+    pub expected_target_version: i64,
+    pub command_id: String,
+    pub binding_type: String,
+    pub binding_id: String,
+}
+
+impl LearningEvidenceRequest {
+    pub fn validate(&self) -> Result<(), BusinessError> {
+        if self.attachment_set_ids.is_empty()
+            || self.attachment_set_ids.len() > MAX_EVIDENCE_SETS
+            || RecordId::new(self.target_id.clone()).is_err()
+            || RecordId::new(self.binding_id.clone()).is_err()
+            || self.expected_target_version < 1
+            || CommandKey::new(self.command_id.clone()).is_err()
+            || self.target_type != ASSIGNMENT_EVIDENCE_TARGET_TYPE
+            || self.purpose_key != ASSIGNMENT_EVIDENCE_PURPOSE
+            || self.component_kind != ASSIGNMENT_EVIDENCE_COMPONENT_KIND
+            || !matches!(self.component_ref.as_deref(), Some("completion" | "waiver"))
+            || self.binding_type != ASSIGNMENT_EVIDENCE_BINDING_TYPE
+            || self
+                .attachment_set_ids
+                .iter()
+                .any(|id| RecordId::new(id.clone()).is_err())
+        {
+            return Err(evidence_source_invalid());
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EvidenceManifestItem {
+    pub set_id: String,
+    pub link_id: String,
+    pub source_id: String,
+    pub purpose_key: String,
+    pub component_kind: String,
+    pub component_ref: Option<String>,
+    pub checksum_sha256: String,
+    pub media_type: String,
+    pub bytes: i64,
+}
+
+/// Portable Files binding receipt. It is prepared inside the caller's
+/// serializable unit and re-read after the owner effect; it grants no authority.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PreparedLearningEvidence {
+    pub set_ids: Vec<String>,
+    pub link_ids: Vec<String>,
+    pub manifest: Vec<EvidenceManifestItem>,
+    pub target_type: String,
+    pub target_id: String,
+    pub expected_target_version: i64,
+    pub policy_version: i64,
+    pub binding_type: String,
+    pub binding_id: String,
+    pub command_id: String,
+}
+
+impl PreparedLearningEvidence {
+    pub fn validate_source(&self, request: &LearningEvidenceRequest) -> Result<(), BusinessError> {
+        let mut sets = std::collections::BTreeSet::new();
+        let mut links = std::collections::BTreeSet::new();
+        if self.set_ids.is_empty()
+            || self.set_ids.len() > MAX_EVIDENCE_SETS
+            || self.link_ids.is_empty()
+            || self.manifest.is_empty()
+            || self.target_type != request.target_type
+            || self.target_id != request.target_id
+            || self.expected_target_version != request.expected_target_version
+            || self.binding_type != request.binding_type
+            || self.binding_id != request.binding_id
+            || self.command_id != request.command_id
+            || self.policy_version < 1
+            || self
+                .set_ids
+                .iter()
+                .any(|id| !sets.insert(id.clone()))
+            || self
+                .link_ids
+                .iter()
+                .any(|id| !links.insert(id.clone()))
+            || self.manifest.len() != self.link_ids.len()
+            || self.manifest.iter().any(|item| {
+                !self.set_ids.iter().any(|id| id == &item.set_id)
+                || !links.contains(&item.link_id)
+                || item.source_id.is_empty()
+                || item.purpose_key != request.purpose_key
+                || item.component_kind != request.component_kind
+                || item.component_ref != request.component_ref
+                || item.checksum_sha256.len() != 64
+                || !item
+                    .checksum_sha256
+                    .bytes()
+                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+                || item.media_type.is_empty()
+                || item.bytes < 0
+            })
+        {
+            return Err(evidence_source_invalid());
+        }
+        Ok(())
+    }
+
+    pub fn to_json(&self) -> Value {
+        json!({
+            "setIds": self.set_ids,
+            "linkIds": self.link_ids,
+            "targetType": self.target_type,
+            "targetId": self.target_id,
+            "expectedTargetVersion": self.expected_target_version,
+            "policyVersion": self.policy_version,
+            "bindingType": self.binding_type,
+            "bindingId": self.binding_id,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ValidatedAssignmentChange {
     pub action: AssignmentAction,
     pub expected_version: i64,
@@ -436,6 +573,7 @@ pub struct ValidatedAssignmentChange {
     pub evidence: Option<String>,
     pub certificate_valid_from: Option<String>,
     pub certificate_expires_on: Option<String>,
+    pub attachment_set_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -619,8 +757,13 @@ impl AssignmentChange {
         if self.expected_version < 1 {
             return Err(request_invalid());
         }
-        if !self.attachment_set_ids.is_empty() {
-            return Err(attachments_retained());
+        if self.attachment_set_ids.len() > MAX_EVIDENCE_SETS
+            || self
+                .attachment_set_ids
+                .iter()
+                .any(|id| RecordId::new(id.clone()).is_err())
+        {
+            return Err(request_invalid());
         }
         let reason = normalize_reason(&self.reason)?;
         let mut change = ValidatedAssignmentChange {
@@ -632,6 +775,7 @@ impl AssignmentChange {
             evidence: None,
             certificate_valid_from: None,
             certificate_expires_on: None,
+            attachment_set_ids: Vec::new(),
         };
         match self.action {
             AssignmentAction::Complete => {
@@ -660,13 +804,26 @@ impl AssignmentChange {
                     .as_deref()
                     .map(normalize_date)
                     .transpose()?;
+                change.attachment_set_ids = self.attachment_set_ids.clone();
             }
-            AssignmentAction::Start | AssignmentAction::Waive | AssignmentAction::Cancel => {
+            AssignmentAction::Waive => {
                 if self.attendance.is_some()
                     || self.score_bps.is_some()
                     || self.evidence.is_some()
                     || self.certificate_valid_from.is_some()
                     || self.certificate_expires_on.is_some()
+                {
+                    return Err(request_invalid());
+                }
+                change.attachment_set_ids = self.attachment_set_ids.clone();
+            }
+            AssignmentAction::Start | AssignmentAction::Cancel => {
+                if self.attendance.is_some()
+                    || self.score_bps.is_some()
+                    || self.evidence.is_some()
+                    || self.certificate_valid_from.is_some()
+                    || self.certificate_expires_on.is_some()
+                    || !self.attachment_set_ids.is_empty()
                 {
                     return Err(request_invalid());
                 }
@@ -1124,6 +1281,7 @@ pub struct AssignmentChangePlan {
     pub action: AssignmentAction,
     pub event_id: String,
     pub certificate: Option<CertificatePlan>,
+    pub evidence: Option<PreparedLearningEvidence>,
     pub now: i64,
 }
 
@@ -1293,7 +1451,7 @@ pub fn assignment_change_identity(
             "evidence": input.evidence,
             "certificateValidFrom": input.certificate_valid_from,
             "certificateExpiresOn": input.certificate_expires_on,
-            "attachmentSetIds": [],
+            "attachmentSetIds": input.attachment_set_ids,
         },
     })
     .to_string()
@@ -1415,10 +1573,40 @@ pub fn assignment_create_plan(
     })
 }
 
+pub fn assignment_evidence_request(
+    assignment_id: &str,
+    input: &ValidatedAssignmentChange,
+    key: &str,
+) -> Result<Option<LearningEvidenceRequest>, BusinessError> {
+    if input.attachment_set_ids.is_empty() {
+        return Ok(None);
+    }
+    let component_ref = match input.action {
+        AssignmentAction::Complete => Some("completion"),
+        AssignmentAction::Waive => Some("waiver"),
+        AssignmentAction::Start | AssignmentAction::Cancel => return Err(request_invalid()),
+    };
+    let request = LearningEvidenceRequest {
+        attachment_set_ids: input.attachment_set_ids.clone(),
+        target_id: assignment_id.to_owned(),
+        target_type: ASSIGNMENT_EVIDENCE_TARGET_TYPE.to_owned(),
+        purpose_key: ASSIGNMENT_EVIDENCE_PURPOSE.to_owned(),
+        component_kind: ASSIGNMENT_EVIDENCE_COMPONENT_KIND.to_owned(),
+        component_ref: component_ref.map(str::to_owned),
+        expected_target_version: input.expected_version,
+        command_id: key.to_owned(),
+        binding_type: ASSIGNMENT_EVIDENCE_BINDING_TYPE.to_owned(),
+        binding_id: assignment_id.to_owned(),
+    };
+    request.validate()?;
+    Ok(Some(request))
+}
+
 pub fn assignment_change_plan(
     actor: &LearningActor,
     row: &AssignmentRow,
     input: &ValidatedAssignmentChange,
+    evidence: Option<PreparedLearningEvidence>,
     key: &str,
     now: i64,
 ) -> Result<AssignmentChangePlan, BusinessError> {
@@ -1432,6 +1620,13 @@ pub fn assignment_change_plan(
     }
     if row.version != input.expected_version || !input.action.allowed_from(&row.status) {
         return Err(state_changed());
+    }
+    let request = assignment_evidence_request(&row.id, input, key)?;
+    match (&request, &evidence) {
+        (Some(request), Some(prepared)) => prepared.validate_source(request)?,
+        (Some(_), None) => return Err(evidence_port_required()),
+        (None, Some(_)) => return Err(evidence_source_invalid()),
+        (None, None) => {}
     }
     let own = row.learner_id == actor.user_id.as_str() && row.learner_eligible;
     if matches!(
@@ -1532,6 +1727,7 @@ pub fn assignment_change_plan(
         action: input.action,
         event_id: assignment_event_id(key)?,
         certificate,
+        evidence,
         now,
     })
 }

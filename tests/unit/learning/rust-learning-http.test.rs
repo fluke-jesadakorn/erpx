@@ -79,6 +79,13 @@ impl LearningHttpBackend for Probe {
                     "certificate-revoke|{certificate_id}|{idempotency_key}|{}",
                     input.expected_assignment_version
                 ),
+                LearningHttpCommand::ConsumeBenefit {
+                    input,
+                    idempotency_key,
+                } => format!(
+                    "benefit-consume|{idempotency_key}|{}|{}|{}",
+                    input.person_id, input.required_code, input.election_id
+                ),
             };
             self.seen.lock().unwrap().push(seen);
             if self.fail {
@@ -329,6 +336,18 @@ async fn actual_router_forwards_every_learning_command_and_bounded_read() {
     .await;
     assert_eq!(status, 200);
 
+    let (status, _, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/learning/benefits/consumption",
+            "acme.example.test",
+            Some("benefit-election-learning-1"),
+            r#"{"personId":"person-learner","requiredCode":"equipment_operator","effectiveDate":"2026-11-04","electionId":"election-learning"}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+
     let seen = seen.lock().unwrap().clone();
     assert_eq!(
         seen,
@@ -341,6 +360,7 @@ async fn actual_router_forwards_every_learning_command_and_bounded_read() {
             "assignment-create|learning-assignment-command-1|learning-course-1|learner",
             "assignment-change|learning-assignment-1|learning-assignment-command-2|complete",
             "certificate-revoke|learning-certificate-key-1|learning-certificate-command-1|3",
+            "benefit-consume|benefit-election-learning-1|person-learner|equipment_operator|election-learning",
         ]
     );
 
@@ -498,6 +518,30 @@ async fn router_rejects_unknown_scope_bad_keys_bodies_and_queries() {
     let (status, _, _) = http(
         addr,
         "GET /api/v1/holdings/acme/learning/eligibility/person-learner?code=equipment_operator&effectiveDate=2026-11-04 HTTP/1.1\r\nHost: acme.example.test\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}".to_string(),
+    )
+    .await;
+    assert_eq!(status, 422);
+
+    let (status, _, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/learning/benefits/consumption",
+            "acme.example.test",
+            Some("benefit-election-learning-2"),
+            r#"{"personId":"person-learner","requiredCode":"equipment_operator","effectiveDate":"2026-11-04","electionId":"election-learning","extra":true}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+
+    let (status, _, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/learning/benefits/consumption",
+            "acme.example.test",
+            None,
+            r#"{"personId":"person-learner","requiredCode":"equipment_operator","effectiveDate":"2026-11-04","electionId":"election-learning"}"#,
+        ),
     )
     .await;
     assert_eq!(status, 422);
