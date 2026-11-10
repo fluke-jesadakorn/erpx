@@ -319,3 +319,85 @@ async fn read_defaults_empty_and_is_company_scoped() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn capability_probes_read_active_staff_team_and_inventory_gates() {
+    use erpx_server_work_projection::public::work_capability_probes::{
+        InventoryPreparation, WorkCapabilityScope, read_work_capabilities,
+    };
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let scope = WorkCapabilityScope {
+            company_id: "company",
+            user_id: "user-1",
+            branch_id: None,
+            department_id: None,
+            beta: false,
+        };
+        let inventory = InventoryPreparation {
+            can_prepare_counts: true,
+            can_prepare_transfers: true,
+        };
+        let mut connection = pool.raw().acquire().await.unwrap();
+        let before = read_work_capabilities(&mut connection, &scope, 1_000, inventory, true)
+            .await
+            .unwrap();
+        assert_eq!(
+            before.creation,
+            [
+                "expense",
+                "service_request",
+                "equipment_request",
+                "purchase_request",
+                "leave",
+                "stock_count",
+                "transfer"
+            ]
+        );
+        assert!(!before.team_queue);
+        assert!(!before.roster_access);
+        sqlx::raw_sql(
+            "INSERT INTO staff_levels(id,company_id,code,name,rank,active,version,created_at,updated_at) \
+             VALUES('level-1','company','L1','Level one',1,1,1,1,1);\
+             INSERT INTO organization_positions(id,company_id,title,level_id,is_ceo,active,version,created_by,created_at,updated_at,roster_required) \
+             VALUES('pos-1','company','Shift lead','level-1',0,1,1,'fixture',1,1,1);\
+             INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,status,version,created_by,created_at,updated_at) \
+             VALUES('person-1','user-1','company','Fixture person','TH','active',1,'fixture',1,1);\
+             INSERT INTO hr_engagements(id,person_id,company_id,worker_type,employment_type,status,start_date,job_title,currency,version,created_by,created_at,updated_at,position_id) \
+             VALUES('engagement-1','person-1','company','employee','salaried','active','2000-01-01','Shift lead','THB',1,'fixture',1,1,'pos-1');\
+             INSERT INTO service_teams(id,company_id,name,active,version,configuration_json,created_by,created_at,updated_at) \
+             VALUES('team-1','company','Coverage',1,1,'{}','fixture',1,1);\
+             INSERT INTO service_team_members(company_id,team_id,user_id,responsibility) \
+             VALUES('company','team-1','user-1','member');\
+             INSERT INTO service_team_coverage(company_id,team_id,category,scope_kind,scope_node_id) \
+             VALUES('company','team-1','service','holding','company');",
+        )
+        .execute(&mut *connection)
+        .await
+        .unwrap();
+        let after = read_work_capabilities(&mut connection, &scope, 1_000, inventory, true)
+            .await
+            .unwrap();
+        assert_eq!(
+            after.creation,
+            [
+                "expense",
+                "service_request",
+                "equipment_request",
+                "purchase_request",
+                "leave",
+                "task",
+                "overtime",
+                "stock_count",
+                "transfer"
+            ]
+        );
+        assert!(after.team_queue);
+        assert!(after.roster_access);
+        let no_expense = read_work_capabilities(&mut connection, &scope, 1_000, inventory, false)
+            .await
+            .unwrap();
+        assert!(!no_expense.creation.iter().any(|kind| kind == "expense"));
+    })
+    .await;
+}

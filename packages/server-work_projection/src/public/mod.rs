@@ -9,3 +9,4 @@ pub mod work_card_preferences;
 pub mod work_card_preferences_http;
 pub mod work_card_availability;
 pub mod work_capabilities;
+pub mod work_capability_probes;
