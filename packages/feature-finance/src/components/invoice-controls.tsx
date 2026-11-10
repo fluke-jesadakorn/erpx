@@ -434,7 +434,7 @@ export function InvoiceActions({
           </Button>
         </FormLayout></FormDisclosure>
       ) : null}
-      {canVoid && invoice.source_type === "standalone" && invoice.status === "draft" && (
+      {canVoid && (invoice.source_type === "standalone" || invoice.source_type === "commerce_fulfillment") && invoice.status === "draft" && (
         <>
           <Button appearance="standard"
             type="button"
@@ -449,7 +449,7 @@ export function InvoiceActions({
           </p>
         </>
       )}
-      {canVoid && invoice.source_type === "standalone" && invoice.kind === "payable" && invoice.status === "posted" && (
+      {canVoid && (invoice.source_type === "standalone" || invoice.source_type === "commerce_fulfillment") && invoice.kind === "payable" && invoice.status === "posted" && (
         <FormDisclosure appearance="standard" drawerTitle="Void posted bill" error={error || undefined} dismissDisabled={busy || unresolved}>
           <summary>Void posted bill</summary>
           <FormLayout data-finance-draft={draftScope} className="ui-form-grid"

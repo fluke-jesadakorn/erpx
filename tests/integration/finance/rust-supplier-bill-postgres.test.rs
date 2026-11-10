@@ -171,7 +171,7 @@ async fn seed_procurement_match(
     .unwrap();
     sqlx::query(
         "INSERT INTO procurement_bill_match_receipts(id,match_id,fulfillment_id,captured_version) \
-         VALUES($1,$2,$3,2)",
+         VALUES($1,$2,$3,1)",
     )
     .bind(format!("{match_id}-receipt"))
     .bind(match_id)
@@ -1850,6 +1850,42 @@ async fn supplier_bill_posts_a_matched_commerce_bill_with_price_variance() {
         .await
         .unwrap();
         assert_eq!(matched, ("posted".into(), 2));
+        let event: (String, i64) = sqlx::query_as(
+            "SELECT action,version FROM procurement_bill_match_events \
+             WHERE match_id='bill-match-variance' ORDER BY version DESC LIMIT 1",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(event, ("posted".into(), 2));
+        let replay = service(&p)
+            .post_supplier_bill(
+                "acme.example.test",
+                p.reviewer.clone(),
+                owned_reviewer(&p),
+                CommandKey::new("supplier-bill-variance-post").unwrap(),
+                invoice.into(),
+                SupplierBillPostInput {
+                    period_id: "period".into(),
+                    entry_date: "2026-01-10".into(),
+                    expected_version: Some(1),
+                    fx_rate: None,
+                    attachment_set_ids: Vec::new(),
+                    fx_gain_account_id: None,
+                    fx_loss_account_id: None,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(replay.data.status, "posted");
+        assert_eq!(replay.data.journal_id, posted.data.journal_id);
+        let match_after_replay: (String, i64) = sqlx::query_as(
+            "SELECT status,version FROM procurement_bill_matches WHERE id='bill-match-variance'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(match_after_replay, ("posted".into(), 2));
     })
     .await;
 }
@@ -1961,6 +1997,38 @@ async fn supplier_bill_draft_void_releases_a_matched_commerce_fulfillment() {
         .await
         .unwrap();
         assert!(!receipt_active);
+        sqlx::query(
+            "INSERT INTO procurement_bill_matches(id,company_id,branch_id,department_id,order_id,\
+             fulfillment_id,supplier_id,currency,chart_id,clearing_account_id,payable_account_id,\
+             tax_account_id,reference,invoice_date,due_date,evidence,expected_subtotal_minor,\
+             subtotal_minor,tax_minor,quantity_matches,variance_account_id,status,invoice_id,version,\
+             created_by,created_at,updated_at) \
+             VALUES('bill-match-rematch','company','branch',NULL,'order-commerce-void',$1,\
+             'bill-supplier','THB','chart','bill-clearing','bill-ap','bill-vat-in','MATCH-REMARK',\
+             '2026-01-02','2026-02-01','Synthetic re-match after void',25000,25000,1750,TRUE,NULL,\
+             'review',NULL,1,'fixture-a',0,0)",
+        )
+        .bind(delivery)
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO procurement_bill_match_receipts(id,match_id,fulfillment_id,captured_version) \
+             VALUES('bill-match-rematch-receipt','bill-match-rematch',$1,3)",
+        )
+        .bind(delivery)
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let active_receipts: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM procurement_bill_match_receipts \
+             WHERE fulfillment_id=$1 AND active=TRUE",
+        )
+        .bind(delivery)
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(active_receipts, 1);
     })
     .await;
 }
@@ -2132,6 +2200,14 @@ async fn supplier_bill_posted_void_reverses_a_matched_commerce_bill_and_releases
         .await
         .unwrap();
         assert_eq!(matched_after_void, ("returned".into(), 3, None));
+        let returned_event: (String, i64) = sqlx::query_as(
+            "SELECT action,version FROM procurement_bill_match_events \
+             WHERE match_id='bill-match-posted-void' ORDER BY version DESC LIMIT 1",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(returned_event, ("returned".into(), 3));
         let receipt_active: bool = sqlx::query_scalar(
             "SELECT active FROM procurement_bill_match_receipts WHERE id='bill-match-posted-void-receipt'",
         )

@@ -729,6 +729,17 @@ impl PgSupplierBillMatch for FinanceSupplierBillMatch {
                 tax_account_id: matched.tax_account_id,
                 variance_account_id: matched.variance_account_id,
                 quantity_matches: matched.quantity_matches,
+                fulfillment_id: matched.fulfillment_id,
+                receipts: matched
+                    .receipts
+                    .into_iter()
+                    .map(|receipt| SupplierBillMatchReceiptFacts {
+                        fulfillment_id: receipt.fulfillment_id,
+                        captured_version: receipt.captured_version,
+                        current_version: receipt.current_version,
+                        active: receipt.active,
+                    })
+                    .collect(),
             }))
         })
     }

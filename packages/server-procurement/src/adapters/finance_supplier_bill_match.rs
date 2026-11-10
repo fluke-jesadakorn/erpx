@@ -5,6 +5,14 @@ use erpx_server_shared::public::{BusinessError, FailureKind};
 use sqlx::{PgConnection, Row};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProcurementSupplierBillMatchReceipt {
+    pub fulfillment_id: String,
+    pub captured_version: i64,
+    pub current_version: i64,
+    pub active: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProcurementSupplierBillMatch {
     pub match_id: String,
     pub match_version: i64,
@@ -23,6 +31,8 @@ pub struct ProcurementSupplierBillMatch {
     pub tax_account_id: String,
     pub variance_account_id: Option<String>,
     pub quantity_matches: bool,
+    pub fulfillment_id: String,
+    pub receipts: Vec<ProcurementSupplierBillMatchReceipt>,
 }
 
 fn unavailable() -> BusinessError {
@@ -67,7 +77,7 @@ pub async fn load_procurement_supplier_bill_match(
     let row = sqlx::query(
         "SELECT id,version,status,invoice_id,currency,chart_id,supplier_id,invoice_date,\
          due_date,expected_subtotal_minor,subtotal_minor,tax_minor,clearing_account_id,\
-         payable_account_id,tax_account_id,variance_account_id,quantity_matches \
+         payable_account_id,tax_account_id,variance_account_id,quantity_matches,fulfillment_id \
          FROM procurement_bill_matches \
          WHERE company_id=$1 AND invoice_id=$2 FOR UPDATE",
     )
@@ -76,36 +86,65 @@ pub async fn load_procurement_supplier_bill_match(
     .fetch_optional(&mut *c)
     .await
     .map_err(|_| unavailable())?;
-    row.map(|row| {
-        Ok(ProcurementSupplierBillMatch {
-            match_id: row.try_get("id").map_err(|_| unavailable())?,
-            match_version: row.try_get("version").map_err(|_| unavailable())?,
-            status: row.try_get("status").map_err(|_| unavailable())?,
-            invoice_id: row.try_get("invoice_id").map_err(|_| unavailable())?,
-            currency: row.try_get("currency").map_err(|_| unavailable())?,
-            chart_id: row.try_get("chart_id").map_err(|_| unavailable())?,
-            supplier_id: row.try_get("supplier_id").map_err(|_| unavailable())?,
-            invoice_date: row.try_get("invoice_date").map_err(|_| unavailable())?,
-            due_date: row.try_get("due_date").map_err(|_| unavailable())?,
-            expected_subtotal_minor: row
-                .try_get("expected_subtotal_minor")
+    let Some(row) = row else {
+        return Ok(None);
+    };
+    let match_id: String = row.try_get("id").map_err(|_| unavailable())?;
+    let receipts = sqlx::query(
+        "SELECT br.fulfillment_id,br.captured_version,br.active,f.version current_version \
+         FROM procurement_bill_match_receipts br \
+         JOIN commerce_fulfillments f ON f.id=br.fulfillment_id \
+         WHERE br.match_id=$1 ORDER BY br.id",
+    )
+    .bind(&match_id)
+    .fetch_all(&mut *c)
+    .await
+    .map_err(|_| unavailable())?
+    .into_iter()
+    .map(|receipt| {
+        Ok(ProcurementSupplierBillMatchReceipt {
+            fulfillment_id: receipt
+                .try_get("fulfillment_id")
                 .map_err(|_| unavailable())?,
-            subtotal_minor: row.try_get("subtotal_minor").map_err(|_| unavailable())?,
-            tax_minor: row.try_get("tax_minor").map_err(|_| unavailable())?,
-            clearing_account_id: row
-                .try_get("clearing_account_id")
+            captured_version: receipt
+                .try_get("captured_version")
                 .map_err(|_| unavailable())?,
-            payable_account_id: row
-                .try_get("payable_account_id")
+            current_version: receipt
+                .try_get("current_version")
                 .map_err(|_| unavailable())?,
-            tax_account_id: row.try_get("tax_account_id").map_err(|_| unavailable())?,
-            variance_account_id: row
-                .try_get("variance_account_id")
-                .map_err(|_| unavailable())?,
-            quantity_matches: row.try_get("quantity_matches").map_err(|_| unavailable())?,
+            active: receipt.try_get("active").map_err(|_| unavailable())?,
         })
     })
-    .transpose()
+    .collect::<Result<Vec<_>, BusinessError>>()?;
+    Ok(Some(ProcurementSupplierBillMatch {
+        match_id,
+        match_version: row.try_get("version").map_err(|_| unavailable())?,
+        status: row.try_get("status").map_err(|_| unavailable())?,
+        invoice_id: row.try_get("invoice_id").map_err(|_| unavailable())?,
+        currency: row.try_get("currency").map_err(|_| unavailable())?,
+        chart_id: row.try_get("chart_id").map_err(|_| unavailable())?,
+        supplier_id: row.try_get("supplier_id").map_err(|_| unavailable())?,
+        invoice_date: row.try_get("invoice_date").map_err(|_| unavailable())?,
+        due_date: row.try_get("due_date").map_err(|_| unavailable())?,
+        expected_subtotal_minor: row
+            .try_get("expected_subtotal_minor")
+            .map_err(|_| unavailable())?,
+        subtotal_minor: row.try_get("subtotal_minor").map_err(|_| unavailable())?,
+        tax_minor: row.try_get("tax_minor").map_err(|_| unavailable())?,
+        clearing_account_id: row
+            .try_get("clearing_account_id")
+            .map_err(|_| unavailable())?,
+        payable_account_id: row
+            .try_get("payable_account_id")
+            .map_err(|_| unavailable())?,
+        tax_account_id: row.try_get("tax_account_id").map_err(|_| unavailable())?,
+        variance_account_id: row
+            .try_get("variance_account_id")
+            .map_err(|_| unavailable())?,
+        quantity_matches: row.try_get("quantity_matches").map_err(|_| unavailable())?,
+        fulfillment_id: row.try_get("fulfillment_id").map_err(|_| unavailable())?,
+        receipts,
+    }))
 }
 
 /// Advance an invoiced match to posted after Finance posts its payable.

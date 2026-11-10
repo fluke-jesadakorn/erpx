@@ -617,8 +617,17 @@ async fn supplier_bill_posting_lines<M: PgSupplierBillMatch>(
     };
     if let Some(matched) = matched.as_ref() {
         let tax_account = invoice.tax_account_id.as_deref().unwrap_or("");
+        let receipt_versions_match = !matched.receipts.is_empty()
+            && matched.receipts.iter().any(|receipt| receipt.active)
+            && matched.receipts.iter().all(|receipt| {
+                !receipt.active
+                    || (receipt.current_version == receipt.captured_version + 1
+                        && !receipt.fulfillment_id.is_empty())
+            });
         if matched.status != "invoiced"
             || matched.invoice_id.as_deref() != Some(invoice.id.as_str())
+            || matched.fulfillment_id != invoice.source_id.as_deref().unwrap_or("")
+            || !receipt_versions_match
             || !matched.quantity_matches
             || matched.currency != invoice.currency
             || matched.supplier_id != invoice.party_id
@@ -1649,6 +1658,14 @@ impl PgSupplierBillSource for UnmountedSupplierBillSource {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SupplierBillMatchReceiptFacts {
+    pub fulfillment_id: String,
+    pub captured_version: i64,
+    pub current_version: i64,
+    pub active: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SupplierBillMatchFacts {
     pub match_id: String,
     pub match_version: i64,
@@ -1667,6 +1684,8 @@ pub struct SupplierBillMatchFacts {
     pub tax_account_id: String,
     pub variance_account_id: Option<String>,
     pub quantity_matches: bool,
+    pub fulfillment_id: String,
+    pub receipts: Vec<SupplierBillMatchReceiptFacts>,
 }
 
 /// Procurement-owned matched-bill witness and lifecycle port. Finance consumes
@@ -1859,7 +1878,9 @@ pub async fn void_posted_supplier_bill(
         return Ok(result);
     }
     let row = sqlx::query(
-        "SELECT status,kind,source_type,version,total_minor,outstanding_minor,invoice_number,         journal_id,created_by,approved_by          FROM finance_invoices WHERE id=$1 AND company_id=$2 FOR UPDATE",
+        "SELECT status,kind,source_type,version,total_minor,outstanding_minor,invoice_number,\
+         journal_id,created_by,approved_by,currency,debit_account_id \
+         FROM finance_invoices WHERE id=$1 AND company_id=$2 FOR UPDATE",
     )
     .bind(id)
     .bind(&actor.company_id)
@@ -1873,6 +1894,8 @@ pub async fn void_posted_supplier_bill(
     let journal_id: Option<String> = row.try_get("journal_id")?;
     let created_by: String = row.try_get("created_by")?;
     let approved_by: Option<String> = row.try_get("approved_by")?;
+    let currency: String = row.try_get("currency")?;
+    let debit_account_id: String = row.try_get("debit_account_id")?;
     if kind != "payable" || !matches!(source_type.as_str(), "standalone" | "commerce_fulfillment") {
         return Err(not_found("INVOICE_NOT_FOUND", "Supplier bill not found."));
     }
@@ -1881,6 +1904,23 @@ pub async fn void_posted_supplier_bill(
             "INVOICE_NOT_POSTED",
             "Only a posted supplier bill can be reversed here.",
         ));
+    }
+    if source_type == "commerce_fulfillment" {
+        let base_currency: Option<String> = sqlx::query_scalar(
+            "SELECT c.base_currency FROM finance_accounts a \
+             JOIN finance_charts c ON c.id=a.chart_id \
+             WHERE a.id=$1 AND a.company_id=$2",
+        )
+        .bind(&debit_account_id)
+        .bind(&actor.company_id)
+        .fetch_optional(&mut *c)
+        .await?;
+        if base_currency.as_deref() != Some(currency.as_str()) {
+            return Err(conflict(
+                "SUPPLIER_BILL_GOODS_FX_UNSUPPORTED",
+                "Reverse the Commerce goods FX journal before voiding this foreign-currency matched bill.",
+            ));
+        }
     }
     if version != input.expected_version {
         return Err(conflict(

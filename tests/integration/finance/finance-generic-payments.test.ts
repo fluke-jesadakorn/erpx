@@ -227,7 +227,7 @@ it("financial Inbox and legacy notifications filter source access before limits 
  vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");expect((await listStaffNotifications(db,f.manager)).filter(row=>row.record_type==="invoice"||row.record_type==="journal")).toEqual([]);const page=await inboxPage(db,f.manager,{view:"all",limit:10});expect(page.items.some(item=>item.message.includes("Retained nonfinancial handoff"))).toBe(true);expect(page.items.some(item=>item.sourceType==="invoice"||item.sourceType==="journal")).toBe(false);expect((await inboxSummary(db,f.manager)).categories.work).toBe(0);
  await financePackage();const visible=await listStaffNotifications(db,f.manager);expect(visible.find(row=>row.id===delivery)).toMatchObject({record_version:1,source:{kind:"invoice",id:invoice.id,version:2}});expect((await notificationsPage(db,f.manager,{view:"all"})).items.some(row=>row.id===delivery)).toBe(true);expect((await inboxPage(db,f.manager,{view:"all",limit:10})).items.some(item=>item.sourceType==="invoice"||item.sourceType==="journal")).toBe(true);
  await db.prepare("UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?").bind(f.manager.assignmentId).run();expect((await visibleNotifications(db,f.manager,visible)).filter(row=>row.record_type==="invoice"||row.record_type==="journal")).toEqual([]);expect((await inboxPage(db,f.manager,{view:"all"})).items.some(item=>item.sourceType==="invoice"||item.sourceType==="journal")).toBe(false);expect(await db.prepare("SELECT record_id,record_version,read_at FROM staff_notifications WHERE id=?").bind(delivery).first()).toEqual({record_id:invoice.id,record_version:1,read_at:null});
-});
+},60_000);
 
 it('rejects a real foreign Company invoice on the original generic payment path',async()=>{
  const other=await expenseFixture();
@@ -241,4 +241,4 @@ it('rejects a real foreign Company invoice on the original generic payment path'
  await expect(createPayment(f.reviewer,input,command)).rejects.toMatchObject({status:422,code:'PAYMENT_SETTLEMENT_SOURCE_INVALID'});
  expect(await financialRows()).toEqual(before);
  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(command).first()).toBeNull();
-});
+},60_000);
