@@ -10,3 +10,4 @@ pub mod work_card_preferences_http;
 pub mod work_card_availability;
 pub mod work_capabilities;
 pub mod work_capability_probes;
+pub mod navigation_destinations;
