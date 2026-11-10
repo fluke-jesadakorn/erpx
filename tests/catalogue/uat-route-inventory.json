@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-26T07:55:11.003Z",
-  "generatedDate": "2026-10-26",
-  "sourceFingerprint": "040545c8c57ff8627885d39818f4bc3430213cdb8f1c628d65ef2fba0277019b",
-  "pageRouteCount": 942,
+  "generatedAt": "2026-11-10T15:44:51.802Z",
+  "generatedDate": "2026-11-10",
+  "sourceFingerprint": "571b4fa0a60bda59c83ee5fce2359bbf039f85c22d7950dbe57d8d759d3c0755",
+  "pageRouteCount": 944,
   "workspaceScopePatterns": [
     "holding",
     "branch",
@@ -15142,6 +15142,24 @@
       "sourceSignals": []
     },
     {
+      "source": "apps/compat/src/app/holdings/[holdingSlug]/requests/page.tsx",
+      "template": "/holdings/[holdingSlug]/requests",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "holding_owner",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": []
+    },
+    {
       "source": "apps/compat/src/app/holdings/[holdingSlug]/services/assets/accounting/[id]/page.tsx",
       "template": "/holdings/[holdingSlug]/services/assets/accounting/[id]",
       "area": "Holding workspace",
@@ -16440,6 +16458,24 @@
     {
       "source": "apps/compat/src/app/holdings/[holdingSlug]/services/page.tsx",
       "template": "/holdings/[holdingSlug]/services",
+      "area": "Holding workspace",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "holding_owner",
+      "workspaceScopes": [
+        "holding",
+        "branch",
+        "department",
+        "branch-department"
+      ],
+      "dynamicParameters": [
+        "holdingSlug"
+      ],
+      "detailRoute": false,
+      "sourceSignals": []
+    },
+    {
+      "source": "apps/compat/src/app/holdings/[holdingSlug]/staff-tasks/page.tsx",
+      "template": "/holdings/[holdingSlug]/staff-tasks",
       "area": "Holding workspace",
       "signedOut": "login-or-explicit-denial",
       "primaryActor": "holding_owner",

@@ -12,6 +12,14 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ERPX is a Bun workspaces monorepo of Next.js applications rooted at this directory (rebuilt from Rust/Dioxus on 2026-09-02). The accepted Rust modular-monolith and domain-aligned frontend migration is recorded in `docs/adr/ADR-052-rust-backend-and-domain-aligned-frontend.md`; implementation status is explicit and foundation code is not a migrated business backend.
 
+## Rust migration task coordination
+
+For Rust migration work, every AI/model starts at `docs/production-plan.md#rust-migration-current` and reads `executionPlan` in `docs/status/rust-delivery-bundles.json`. The 2026-11-10 migration-first instructions supersede older model-specific assignments and browser-first queues. A worker goal must name that plan, its stable task ID and its goal ID; a chat-local checklist is not the shared work queue.
+
+Run `bun scripts/testing/rust-migration-work.ts status --json` and `validate` before choosing work. One coordinator in this checkout owns tracked task updates, shared integration and Git; it uses the CLI to begin a run and claim tasks before dispatch. Workers edit only claimed paths. Do not take an already claimed task, overlap active paths/resources, or overwrite recorded external WIP. Expired leases require reviewed recovery, never automatic reassignment. AI agents in another clone must coordinate through this checkout's lead; a local lock is not a distributed lock.
+
+Before stopping, record source SHA, actual checks, retained TS consumers, blockers and an executable next action, then hand off or release the claim. Commit/push coherent milestones only to `origin/codex/rust-backend-migration`, verify the remote SHA and preserve unrelated changes. Migration progress is separate from existing owner/workflow certification; full acceptance stays deferred.
+
 ## Tooling
 
 Use Bun 1.4.3, Node.js 26.11.1, Next.js 16.4 and the Rust toolchain pinned by `rust-toolchain.toml`. New standalone releases target Node.js 26.11.1; the installed private production service remains on Node.js 24.20.0 until a reviewed release is deployed. PostgreSQL 18.6, private local files and durable PostgreSQL jobs run behind Cloudflare Tunnel (ADR-024). ADR-052 introduces the new Cargo workspace incrementally; the migration register, rather than scaffold existence, identifies completed owners. The earlier Rust/Dioxus/Tonic system remains archived on `backup/rust-2026-09-02` tag `rust-archive-2026-09-02` and baseline `cc0887d` per the recovery references in `README.md`; do not restore its obsolete runtime or schema.
