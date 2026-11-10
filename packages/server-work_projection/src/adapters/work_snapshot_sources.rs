@@ -7,7 +7,7 @@
 use crate::domain::work_card_availability::{WorkItemFact, WorkQueue};
 use erpx_server_collaboration::public::collaboration_work::ActionWork;
 use erpx_server_field_service::public::work::FieldServiceWorkItem;
-use erpx_server_maintenance::public::read::MaintenanceWorkRow;
+use erpx_server_maintenance::public::read::{MaintenancePlanRow, MaintenanceWorkRow};
 use erpx_server_operations::public::field_exceptions::ExceptionWork;
 use erpx_server_support::public::incident::IncidentWorkItem;
 use erpx_server_support::public::session::SessionWorkItem;
@@ -292,6 +292,53 @@ pub fn maintenance_items(
         .collect()
 }
 
+pub fn preventive_plan_items(
+    rows: &[MaintenancePlanRow],
+    actor_user_id: &str,
+    can_write: bool,
+    can_review: bool,
+    now: i64,
+) -> Vec<WorkItemFact> {
+    rows.iter()
+        .map(|row| {
+            let terminal = row.status == "cancelled";
+            let own = row.owner_id == actor_user_id && row.owner_eligible > 0;
+            let due = row.next_due_at <= now + i64::from(row.lead_days) * 86_400_000;
+            let can_act = can_write
+                && !terminal
+                && if matches!(row.status.as_str(), "draft" | "paused") {
+                    can_review && row.edited_by != actor_user_id
+                } else {
+                    row.status == "active" && due && (own || can_review)
+                };
+            let relationships = if row.owner_id == actor_user_id {
+                vec!["assigned".to_owned()]
+            } else if row.created_by == actor_user_id {
+                vec!["requested".to_owned()]
+            } else {
+                vec!["team".to_owned()]
+            };
+            WorkItemFact {
+                id: format!("maintenance_plan:{}", row.id),
+                kind: "maintenance_plan".into(),
+                queue: if terminal {
+                    WorkQueue::Completed
+                } else if can_act {
+                    WorkQueue::Todo
+                } else {
+                    WorkQueue::Waiting
+                },
+                can_act: Some(can_act),
+                action_kind: None,
+                relationships,
+                updated_at: row.updated_at,
+                source_id: Some(row.id.clone()),
+                href: format!("/maintenance/plans/{}", row.id),
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -299,6 +346,50 @@ mod tests {
     use erpx_server_support::public::incident::IncidentWorkItem;
     use erpx_server_support::public::session::SessionWorkItem;
     use erpx_server_support::public::ticket::TicketWorkItem;
+
+    #[test]
+    fn preventive_plans_follow_due_review_and_edited_by_rules() {
+        let plan = erpx_server_maintenance::public::read::MaintenancePlanRow {
+            id: "plan-1".into(),
+            company_id: "company".into(),
+            branch_id: "branch".into(),
+            department_id: None,
+            asset_id: "asset-1".into(),
+            title: "Quarterly".into(),
+            priority: "high".into(),
+            owner_id: "owner".into(),
+            interval_days: 90,
+            time_zone: "Asia/Bangkok".into(),
+            first_due_local: "2026-01-01".into(),
+            next_due_local: "2026-04-01".into(),
+            next_due_at: 1_000_000,
+            lead_days: 0,
+            status: "active".into(),
+            version: 1,
+            created_by: "creator".into(),
+            edited_by: "editor".into(),
+            approved_by: Some("approver".into()),
+            approved_at: Some(1),
+            created_at: 1,
+            updated_at: 9,
+            asset_code: "A-1".into(),
+            asset_name: "Asset".into(),
+            owner_name: None,
+            owner_eligible: 1,
+        };
+        let items = preventive_plan_items(&[plan.clone()], "owner", true, false, 2_000_000);
+        assert_eq!(items[0].queue, WorkQueue::Todo);
+        assert_eq!(items[0].relationships, ["assigned"]);
+        let not_due = preventive_plan_items(&[plan.clone()], "owner", true, false, 0);
+        assert_eq!(not_due[0].queue, WorkQueue::Waiting);
+        let draft = erpx_server_maintenance::public::read::MaintenancePlanRow {
+            status: "draft".into(),
+            edited_by: "owner".into(),
+            ..plan
+        };
+        let self_edit = preventive_plan_items(&[draft], "owner", true, true, 10);
+        assert_eq!(self_edit[0].queue, WorkQueue::Waiting);
+    }
 
     #[test]
     fn maintenance_rows_follow_schedule_owner_and_reviewer_rules() {
