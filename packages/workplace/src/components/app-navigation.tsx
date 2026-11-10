@@ -37,6 +37,7 @@ import {
 import { NavigationBadge } from "@erpx/workplace/components/navigation-badge";
 import { useNavigationState } from "@erpx/workplace/components/navigation-counts";
 import { NewWork } from "@erpx/workplace/components/new-work";
+import { WorkShortcuts } from "@erpx/workplace/components/work-shortcuts";
 import { StartActions } from "@erpx/feature-work_projection/components/today/start-actions";
 import { workViews, workViewAvailable } from "@erpx/feature-work_projection/lib/work-item";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
@@ -484,6 +485,7 @@ export function AppNavigation({
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
+          <WorkShortcuts base={base} role={context.role} placement="panel" onNavigate={() => setLauncherOpen(false)} />
           {search.trim() ? (
             <div className={appStyles.results} aria-live="polite">
               {launcher.results.map((result) => launcherRow(result.item, result.context))}

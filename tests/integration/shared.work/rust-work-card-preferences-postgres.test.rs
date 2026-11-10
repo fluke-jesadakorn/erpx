@@ -218,6 +218,20 @@ async fn saves_replays_clears_and_guards_version_shortcuts_and_membership() {
         .err()
         .expect("unavailable shortcut is refused");
         assert_eq!(business(unavailable).code, "SHORTCUT_UNAVAILABLE");
+        let unknown = execute(
+            &pool,
+            actor(),
+            &command(
+                "unknown",
+                r#"{"pinnedIds":["admin"],"expectedVersion":1}"#,
+                "company:user-1",
+            ),
+            &available(),
+        )
+        .await
+        .err()
+        .expect("unknown card ids are refused before availability");
+        assert_eq!(business(unknown).code, "WORK_CARD_PREFERENCES_INVALID");
         let cleared = execute(
             &pool,
             actor(),

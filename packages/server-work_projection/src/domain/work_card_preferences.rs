@@ -3,12 +3,31 @@
 //! The caller owns current membership, the command ledger, Company scope and
 //! the catalogue availability set. This module only validates the ordered pin
 //! list and applies optimistic versioning.
+use crate::domain::navigation_destinations::SHORTCUT_DESTINATIONS;
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 pub const MAX_PINNED: usize = 6;
 pub const MAX_CARD_ID: usize = 200;
+/// The exact registered card catalogue, matching the TypeScript `workCardIds`.
+pub const WORK_CARD_IDS: &[&str] = &[
+    "tasks",
+    "expenses",
+    "shifts",
+    "leave",
+    "overtime",
+    "services",
+    "equipment",
+    "purchases",
+    "approvals",
+    "team",
+    "counts",
+    "transfers",
+];
+fn known_card(id: &str) -> bool {
+    WORK_CARD_IDS.contains(&id) || SHORTCUT_DESTINATIONS.contains(&id)
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -54,6 +73,7 @@ impl SaveWorkCardPreferences {
                     id.is_empty()
                         || id.len() > MAX_CARD_ID
                         || id.chars().any(char::is_control)
+                        || !known_card(id)
                         || !seen.insert(id.as_str())
                 })
             {
@@ -184,6 +204,16 @@ mod tests {
             .unwrap_err()
             .code,
             "SHORTCUT_UNAVAILABLE"
+        );
+        assert_eq!(
+            SaveWorkCardPreferences {
+                pinned_ids: Some(vec!["admin".into()]),
+                expected_version: 2,
+            }
+            .validate(&current, &available())
+            .unwrap_err()
+            .code,
+            "WORK_CARD_PREFERENCES_INVALID"
         );
     }
 }

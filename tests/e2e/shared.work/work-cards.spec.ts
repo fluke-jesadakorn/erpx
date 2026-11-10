@@ -132,7 +132,7 @@ test("members without profiles use cards to create drafts and preserve filters, 
   await showShelf(page);
   await shortcutShelf(page)
     .getByRole("article", { name: "Expense claims", exact: true })
-    .locator(`a[href="${base}/work?type=expense&queue=all#work-results"]`)
+    .locator(`a[href="${base}/work/all?type=expense&queue=all#work-results"]`)
     .click();
   await expect(page).toHaveURL(/type=expense&queue=all#work-results$/);
   expect(new URL(page.url()).searchParams.has("q")).toBe(false);
