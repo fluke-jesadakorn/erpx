@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 194,
+    "revision": 200,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g1",
       "agentId": "lead",
       "startedAt": "2026-11-10T16:01:48.750Z",
-      "heartbeatAt": "2026-11-10T16:43:22.432Z",
-      "expiresAt": "2026-11-10T17:13:22.432Z",
+      "heartbeatAt": "2026-11-10T16:46:34.474Z",
+      "expiresAt": "2026-11-10T17:16:34.475Z",
       "generation": 2,
       "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
     },
@@ -9920,8 +9920,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T16:43:00.443Z",
-          "heartbeatAt": "2026-11-10T16:43:22.432Z",
-          "expiresAt": "2026-11-10T17:13:22.432Z",
+          "heartbeatAt": "2026-11-10T16:46:34.474Z",
+          "expiresAt": "2026-11-10T17:16:34.475Z",
           "generation": 2
         },
         "baseSha": null,
@@ -10766,22 +10766,65 @@
         "resources": [
           "owner:inventory"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-c",
-          "claimedAt": "2026-11-10T16:33:49.612Z",
-          "heartbeatAt": "2026-11-10T16:43:22.432Z",
-          "expiresAt": "2026-11-10T17:13:22.432Z",
-          "generation": 2
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "c267c7bb51621866b7247d8bf25c9aaca295e819",
+        "lastPushedSha": "c267c7bb51621866b7247d8bf25c9aaca295e819",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-inventory --locked",
+            "result": "passed",
+            "sourceSha": "c267c7bb51621866b7247d8bf25c9aaca295e819",
+            "sourceKind": "committed",
+            "note": "Inventory crate compiles with the production quality-receipt port and stock write surface."
+          },
+          {
+            "command": "cargo test -p erpx-server-inventory --test stock_receipt --locked",
+            "result": "passed",
+            "sourceSha": "c267c7bb51621866b7247d8bf25c9aaca295e819",
+            "sourceKind": "committed",
+            "note": "9/9 unit cases pass."
+          },
+          {
+            "command": "cargo test -p erpx-server-inventory --test stock_issue --locked",
+            "result": "passed",
+            "sourceSha": "c267c7bb51621866b7247d8bf25c9aaca295e819",
+            "sourceKind": "committed",
+            "note": "5/5 unit cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=inventory.rust-stock-receipt-postgres.integration",
+            "result": "passed",
+            "sourceSha": "c267c7bb51621866b7247d8bf25c9aaca295e819",
+            "sourceKind": "committed",
+            "note": "39/39 PostgreSQL cases pass. Direct cargo invocation of the same target fails without the registered fixture environment; the registered runner supplies leased databases."
+          },
+          {
+            "command": "bun run test:integration -- --suite=inventory.rust-stock-issue-postgres.integration",
+            "result": "passed",
+            "sourceSha": "c267c7bb51621866b7247d8bf25c9aaca295e819",
+            "sourceKind": "committed",
+            "note": "15/15 PostgreSQL cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=inventory.rust-stock-receipt.unit",
+            "result": "passed",
+            "sourceSha": "c267c7bb51621866b7247d8bf25c9aaca295e819",
+            "sourceKind": "committed",
+            "note": "9/9 registered unit cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=inventory.rust-stock-issue.unit",
+            "result": "passed",
+            "sourceSha": "c267c7bb51621866b7247d8bf25c9aaca295e819",
+            "sourceKind": "committed",
+            "note": "5/5 registered unit cases pass."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement the first inventoried inventory packet (migrate.inventory.receipt-quality-port), run the packet's cargo/suite checks, and report the exact mount request and retired consumers to the lead.",
+        "nextAction": "Commerce purchase-order/delivery consumers call public::stock_write; native Commerce sales-delivery remains in migrate.commerce.goods-fulfillment/purchase-orders",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-inventory",
@@ -11149,8 +11192,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T16:38:48.134Z",
-          "heartbeatAt": "2026-11-10T16:43:22.432Z",
-          "expiresAt": "2026-11-10T17:13:22.432Z",
+          "heartbeatAt": "2026-11-10T16:46:34.474Z",
+          "expiresAt": "2026-11-10T17:16:34.475Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12855,30 +12898,39 @@
         "workstream": "S01",
         "kind": "migration",
         "title": "Migrate records backend residuals",
-        "scope": "Make the native registry/context reader authoritative for the ordinary record list/detail path and delete the TS fallback branch; implement native record-details/request-AI supplement reads that still run SQL. Preserve Company scope, authenticated work context and replay-safe writes.",
+        "scope": "Retire the TypeScript record registry/context fallback and implement native record-details/supplement reads. The exact workplace records route files are reserved to this packet so the native client can become authoritative with fail-closed 503 instead of falling back to TS SQL. Preserve Company scope, authenticated work context, bounded payloads, replay-safe writes and the workflow receipt/outbox contract.",
         "dependsOn": [
-          "inventory.records"
+          "inventory.records",
+          "ports.authority"
         ],
         "requiredPorts": [],
         "allowedPaths": [
           "packages/server-records/src/**",
           "packages/server-records/Cargo.toml",
           "packages/feature-records/src/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/**",
           "tests/unit/shared.records/**",
           "tests/integration/shared.records/**"
         ],
         "resources": [
           "owner:records"
         ],
-        "status": "pending",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261110-g1",
+          "agentId": "worker-c",
+          "claimedAt": "2026-11-10T16:46:22.082Z",
+          "heartbeatAt": "2026-11-10T16:46:34.474Z",
+          "expiresAt": "2026-11-10T17:16:34.475Z",
+          "generation": 2
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Retire the TS record registry/context fallback and implement native record-details reads from inventory.records; run cargo check/test for record_registry_http and record_context plus the registered records unit suites.",
+        "nextAction": "Make the native registry/context reader authoritative and implement record-details reads; run cargo check/test for record_registry_http/record_context plus the registered records unit suites, and report retired TS adapters.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-records",
@@ -14557,20 +14609,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 48,
-      "migratedPackets": 1,
+      "migratedPackets": 2,
       "statusCounts": {
-        "pending": 44,
+        "pending": 43,
         "in_progress": 3,
         "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 1,
+        "migrated": 2,
         "blocked": 0,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T16:43:22.433Z",
+    "updatedAt": "2026-11-10T16:46:34.475Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
