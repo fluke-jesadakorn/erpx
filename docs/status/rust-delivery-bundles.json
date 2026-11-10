@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 261,
+    "revision": 266,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261110-g1",
       "agentId": "lead",
       "startedAt": "2026-11-10T16:01:48.750Z",
-      "heartbeatAt": "2026-11-10T19:43:06.067Z",
-      "expiresAt": "2026-11-10T20:13:06.067Z",
+      "heartbeatAt": "2026-11-10T19:50:41.018Z",
+      "expiresAt": "2026-11-10T20:20:41.018Z",
       "generation": 2,
       "tokenHash": "c361f06a0fe32a16783eed8d5efe1610aab5782341a8739860151bd5fa3c3149"
     },
@@ -10339,22 +10339,51 @@
         "resources": [
           "owner:support"
         ],
-        "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-c",
-          "claimedAt": "2026-11-10T18:08:37.873Z",
-          "heartbeatAt": "2026-11-10T19:43:06.067Z",
-          "expiresAt": "2026-11-10T20:13:06.067Z",
-          "generation": 2
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "0703f5a806b77c0c272538705535b34db8a66225",
+        "lastPushedSha": "0703f5a806b77c0c272538705535b34db8a66225",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api --locked",
+            "result": "passed",
+            "sourceSha": "0703f5a806b77c0c272538705535b34db8a66225",
+            "sourceKind": "committed",
+            "note": "All three Support native routers and the portal-session resolver compile in the mounted private API assembly."
+          },
+          {
+            "command": "bun run test:unit -- --suite=support.rust-ticket-portal-rules.unit",
+            "result": "passed",
+            "sourceSha": "0703f5a806b77c0c272538705535b34db8a66225",
+            "sourceKind": "committed",
+            "note": "6/6 portal rule/router cases pass."
+          },
+          {
+            "command": "bun run test:unit -- --suite=support.rust-service-teams.unit",
+            "result": "passed",
+            "sourceSha": "0703f5a806b77c0c272538705535b34db8a66225",
+            "sourceKind": "committed",
+            "note": "4/4 service-team cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=support.rust-support-ticket-read-postgres.integration",
+            "result": "passed",
+            "sourceSha": "0703f5a806b77c0c272538705535b34db8a66225",
+            "sourceKind": "committed",
+            "note": "8/8 PostgreSQL support read cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=support.rust-support-ticket-command-postgres.integration",
+            "result": "passed",
+            "sourceSha": "0703f5a806b77c0c272538705535b34db8a66225",
+            "sourceKind": "committed",
+            "note": "4/4 PostgreSQL support command cases pass."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "ServiceTeam and auxiliary routers are mounted (d6d4af9b3). Remaining: TicketPortalHttpBackend staff methods + customer paths via resolve_portal_customer(control+holding pools), mount ticket_portal_router, then switch consumers; then record migrated",
+        "nextAction": "Retained TS: Better Auth sign-up/verify, portal invitation issuance/accept and old route adapters; route switches are the remaining surface work",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-support",
@@ -11950,8 +11979,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-b",
           "claimedAt": "2026-11-10T17:27:02.192Z",
-          "heartbeatAt": "2026-11-10T19:43:06.067Z",
-          "expiresAt": "2026-11-10T20:13:06.067Z",
+          "heartbeatAt": "2026-11-10T19:50:41.018Z",
+          "expiresAt": "2026-11-10T20:20:41.018Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12140,8 +12169,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:27:02.162Z",
-          "heartbeatAt": "2026-11-10T19:43:06.067Z",
-          "expiresAt": "2026-11-10T20:13:06.067Z",
+          "heartbeatAt": "2026-11-10T19:50:41.018Z",
+          "expiresAt": "2026-11-10T20:20:41.018Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12238,8 +12267,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-a",
           "claimedAt": "2026-11-10T17:53:28.777Z",
-          "heartbeatAt": "2026-11-10T19:43:06.067Z",
-          "expiresAt": "2026-11-10T20:13:06.067Z",
+          "heartbeatAt": "2026-11-10T19:50:41.018Z",
+          "expiresAt": "2026-11-10T20:20:41.018Z",
           "generation": 2
         },
         "baseSha": null,
@@ -12817,8 +12846,8 @@
           "runId": "run-20261110-g1",
           "agentId": "worker-c",
           "claimedAt": "2026-11-10T17:05:17.831Z",
-          "heartbeatAt": "2026-11-10T19:43:06.067Z",
-          "expiresAt": "2026-11-10T20:13:06.067Z",
+          "heartbeatAt": "2026-11-10T19:50:41.018Z",
+          "expiresAt": "2026-11-10T20:20:41.018Z",
           "generation": 2
         },
         "baseSha": null,
@@ -14930,22 +14959,37 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261110-g1",
-          "agentId": "worker-b",
-          "claimedAt": "2026-11-10T19:17:12.574Z",
-          "heartbeatAt": "2026-11-10T19:43:06.067Z",
-          "expiresAt": "2026-11-10T20:13:06.067Z",
-          "generation": 2
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "0703f5a806b77c0c272538705535b34db8a66225",
+        "lastPushedSha": "0703f5a806b77c0c272538705535b34db8a66225",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api --locked",
+            "result": "passed",
+            "sourceSha": "0703f5a806b77c0c272538705535b34db8a66225",
+            "sourceKind": "committed",
+            "note": "All three Support native routers and the portal-session resolver compile in the mounted private API assembly."
+          },
+          {
+            "command": "bun run test:unit -- --suite=customer_authority.rust-portal-session.unit",
+            "result": "passed",
+            "sourceSha": "0703f5a806b77c0c272538705535b34db8a66225",
+            "sourceKind": "committed",
+            "note": "10/10 portal-session proof cases pass."
+          },
+          {
+            "command": "bun run test:integration -- --suite=customer_authority.rust-portal-session-postgres.integration",
+            "result": "passed",
+            "sourceSha": "0703f5a806b77c0c272538705535b34db8a66225",
+            "sourceKind": "committed",
+            "note": "1/1 PostgreSQL portal enrollment proof case passes."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Verified portal proof committed (ece3bcacc); lead wires the ~20-line SessionVerifier + PgPortalEnrollment into the Support portal customer backends, then support can mount",
+        "nextAction": "Better Auth sign-up/verify and invitation writers remain external; no further resolver work",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -14958,20 +15002,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 51,
-      "migratedPackets": 6,
+      "migratedPackets": 8,
       "statusCounts": {
         "pending": 37,
         "in_progress": 0,
-        "ready_for_integration": 6,
+        "ready_for_integration": 4,
         "integrating": 0,
-        "migrated": 6,
+        "migrated": 8,
         "blocked": 2,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 2,
-    "updatedAt": "2026-11-10T19:43:06.067Z",
+    "updatedAt": "2026-11-10T19:50:41.018Z",
     "handoff": {
       "fromRun": "plan-20261110",
       "completedTaskIds": [
