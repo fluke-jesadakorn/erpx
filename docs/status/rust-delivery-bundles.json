@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-10T12:47:52+07:00",
+  "updatedAt": "2026-11-10T14:00:10+07:00",
   "purpose": "Authoritative Rust delivery-bundle progress and explicit mapping to the unchanged acceptance catalogue. Legacy Next acceptance evidence is not Rust migration proof.",
   "policy": "Lead coordinates shared integration and Git with up to six delegated agents subject to runtime concurrency limits. Complete Field Service and independent owners through native dependencies, frontend journeys, one authoritative Rust writer, legacy retirement, reviewed local gates and direct non-force push to origin/codex/rust-backend-migration. No PR is required. Docker, Dev Container, production preparation, performance, restore and rollback work follow the complete migration goal; preserve matching historical evidence and other tasks.",
   "catalogue": {
@@ -3642,8 +3642,8 @@
       "id": "finance-payables-bundle",
       "kind": "supporting-delivery",
       "status": "review-rejected",
-      "scope": "Native Finance payables bundle: standalone supplier bills, Commerce fulfillment matched bills, purchase-order guard, Commerce draft:v1 Money snapshot, owner source locks, AP journals, posted void period/allocation guards, native 404 no-fallback and desktop/mobile UI posting. supplier_bill_postgres 10/10, commerce foreign-goods 5/5 with the draft snapshot assertion, payables TS suites 17/17 + 34/34, finance unit suites 149/149, cargo owner tests green. Independent reviewer verdict REJECT; remaining blockers are recorded in the evidence.",
-      "sourceIdentity": "working tree on 80b4d18f6cdb703688581f530120ebae9511a3b9",
+      "scope": "Native Finance payables bundle: source_version retention/comparison, posted goods-journal guard, Commerce draft:v1 Money snapshot, matched draft/posted void with Commerce release, HTTP 4xx content-type, and desktop/mobile UI posting. supplier_bill_postgres 13/13, commerce foreign-goods 5/5, payables TS 17/17, finance unit 149/149, cargo owner tests 131 pass. Independent re-reviewer verdict REJECT; remaining Procurement lifecycle, foreign-currency and FX-void blockers are recorded in the evidence.",
+      "sourceIdentity": "working tree on 31ecd6078a0ce7c742ff59840257f984a6471a5c",
       "evidenceRef": "docs/testing/evidence/2026-11-10-finance-payables-bundle.json",
       "durableContractRefs": []
     }
@@ -4285,7 +4285,7 @@
         "finance-native-supplier-bill-void"
       ],
       "sourceRef": "packages/server-finance/src/public/finance.ts",
-      "gap": "Native standalone payable create/edit/post/void/detail, AP journal, Money snapshots, line revisions, replay/version/Company guards and private API admission are PostgreSQL/HTTP-qualified. Finance-owned standalone posted void and payable attachments are closed. Native matched posting consumes Commerce fulfillment sources, requires a purchase order, and passes 10/10 supplier-bill PostgreSQL gates. Commerce purchase invoices now retain the Finance draft:v1 Money snapshot. Posted void checks the open Company period and live allocations; the native post no longer falls back to TypeScript on 404. Desktop 1440x900 and mobile 390x844 UI forms posted matched commerce bills with exact clearing/payable/input-tax lines. Remaining: source-version stale detection, posted-fulfillment guard, matched/expense void, Procurement bill-match posting/void, People payroll expense-claim posting (people_payroll/feature-expenses), detail 4xx mapping and a parallel test flake. An independent reviewer rejected certification; Finance is not certified."
+      "gap": "Native standalone payable create/edit/post/void/detail, AP journal, Money snapshots, line revisions, replay/version/Company guards and private API admission are PostgreSQL/HTTP-qualified. Finance-owned standalone posted void and payable attachments are closed. Native matched posting consumes Commerce fulfillment sources, requires a purchase order, retains and compares the source version, and requires a posted goods journal. Commerce purchase invoices retain the Finance draft:v1 Money snapshot. Matched draft/posted void releases the fulfillment link; posted void checks the open Company period and live allocations. The private HTTP 4xx response now preserves application/json. Desktop 1440x900 and mobile 390x844 UI forms posted matched commerce bills with exact clearing/payable/input-tax lines. Remaining: native matched post/void does not advance/release the Procurement match; native foreign-currency Commerce posting (base-currency clearing + goods-carrying FX) is unsupported; FX matched void leaves the goods FX journal; consolidated receipts retain only the primary source version. An independent re-reviewer rejected certification; Finance is not certified."
     },
     {
       "id": "finance/feature-chart-of-accounts",
